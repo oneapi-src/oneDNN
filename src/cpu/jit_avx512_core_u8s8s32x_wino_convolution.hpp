@@ -47,30 +47,30 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
             :  cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_()
         {}
+
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_int8_wino:", avx512_core, ""),
                 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>);
 
         status_t init() {
-            using namespace memory_format;
             bool ok = true
-                && this->is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
+                && is_fwd()
+                && utils::one_of(desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_winograd)
-                && this->expect_data_types(data_type::u8, data_type::s8,
+                && expect_data_types(data_type::u8, data_type::s8,
                         data_type::undef, dst_data_type, data_type::s32)
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, data_type::f32,
+                && IMPLICATION(with_bias(), utils::one_of(
+                            desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
 
             if (!ok) return status::unimplemented;
 
             status_t status = jit_conf();
             if (status != status::success) return status;
-            this->set_default_alg_kind(alg_kind::convolution_winograd);
+            set_default_alg_kind(alg_kind::convolution_winograd);
 
             init_scratchpad();
 

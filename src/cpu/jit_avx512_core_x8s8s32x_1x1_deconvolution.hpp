@@ -58,7 +58,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             convolution_desc_t cd;
             status_t status;
 
-            auto dd = this->desc();
+            auto dd = desc();
             status = conv_desc_init(&cd, prop_kind::forward_training,
                     alg_kind::convolution_direct, &(dd->src_desc),
                     &(dd->weights_desc), &(dd->bias_desc), &(dd->dst_desc),
@@ -66,17 +66,12 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
                     dd->padding_kind);
 
             if (status == status::success) {
-                status = mkldnn_primitive_desc::create<
-                        typename mkldnn::impl::cpu::
-                                jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
-                                        dst_type>::pd_t>(&conv_pd_,
-                        (op_desc_t *)&cd, &(this->attr_), this->engine_,
-                        nullptr);
+                status = mkldnn_primitive_desc::create<conv_pd_t>(
+                        &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             }
 
-            if (status == status::success) {
+            if (status == status::success)
                 status = set_default_params();
-            }
 
             return status;
         };
@@ -86,17 +81,16 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             status_t status;
 
             bool ok = true
-                && this->is_fwd()
-                && this->desc()->alg_kind == alg_kind::deconvolution_direct
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && this->desc()->weights_desc.data_type == data_type::s8
-                && IMPLICATION(this->with_bias(),
-                        utils::one_of(this->desc()->bias_desc.data_type,
-                            data_type::f32, data_type::s32,
-                            data_type::s8, data_type::u8))
-                && this->desc()->accum_data_type == data_type::s32;
+                && is_fwd()
+                && desc()->alg_kind == alg_kind::deconvolution_direct
+                && !has_zero_dim_memory()
+                && desc()->src_desc.data_type == src_type
+                && desc()->dst_desc.data_type == dst_type
+                && desc()->weights_desc.data_type == data_type::s8
+                && IMPLICATION(with_bias(), utils::one_of(
+                            desc()->bias_desc.data_type, data_type::f32,
+                            data_type::s32, data_type::s8, data_type::u8))
+                && desc()->accum_data_type == data_type::s32;
 
             if (ok)
                 status = init_convolution();
@@ -109,21 +103,21 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     protected:
         status_t set_default_params() {
             using namespace memory_format;
-            auto conv_1x1_pd_ = static_cast<typename mkldnn::impl::cpu::
-                jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
-                                    dst_type>::pd_t *>(conv_pd_);
-            CHECK(types::set_default_format(this->src_md_,
-                    conv_1x1_pd_->src_md()->format));
-            CHECK(types::set_default_format(this->dst_md_,
+            auto conv_1x1_pd_ = static_cast<conv_pd_t *>(conv_pd_);
+            CHECK(types::set_default_format(src_md_,
+                        conv_1x1_pd_->src_md()->format));
+            CHECK(types::set_default_format(dst_md_,
                     conv_1x1_pd_->dst_md()->format));
-            CHECK(types::set_default_format(this->weights_md_,
+            CHECK(types::set_default_format(weights_md_,
                     conv_1x1_pd_->weights_md()->format));
             if (with_bias())
-                CHECK(types::set_default_format(this->bias_md_,
+                CHECK(types::set_default_format(bias_md_,
                             conv_1x1_pd_->weights_md(1)->format));
             return status::success;
         }
 
+        using conv_pd_t = typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
+            <src_type, dst_type>::pd_t;
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
         primitive_desc_t *conv_pd_;
         bool conv_supports_bias_;
@@ -134,7 +128,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
 
     ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t()
-    { delete this->conv_p_; }
+    { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return conv_p_->execute(ctx);

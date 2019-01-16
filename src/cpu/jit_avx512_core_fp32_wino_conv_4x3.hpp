@@ -129,25 +129,23 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
         status_t init() {
             bool ok = true
-                && this->is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
+                && is_fwd()
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
+                && set_default_params() == status::success
                 && mkldnn_thr_syncable();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
-            status_t status =
-                jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(jcp_,
-                        *this->desc(), this->src_md_, this->weights_md_,
-                        this->dst_md_, *this->attr());
+            status_t status = jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::
+                init_conf(jcp_, *desc(), src_md_, weights_md_, dst_md_,
+                        *attr());
             if (status != status::success) return status;
-            this->set_default_alg_kind(alg_kind::convolution_winograd);
+            set_default_alg_kind(alg_kind::convolution_winograd);
 
-            auto scratchpad = this->scratchpad_registry().registrar();
+            auto scratchpad = scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
 
             return status;
@@ -222,25 +220,23 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
+                && desc()->prop_kind == prop_kind::backward_data
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
+                && set_default_params() == status::success
                 && mkldnn_thr_syncable();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
-            status_t status =
-                jit_avx512_core_fp32_wino_conv_4x3_bwd_data_kernel::init_conf(
-                        jcp_, *this->desc(), *diff_src_md(),
-                        *weights_md(), *diff_dst_md());
+            status_t status = jit_avx512_core_fp32_wino_conv_4x3_bwd_data_kernel
+                ::init_conf(jcp_, *desc(), *diff_src_md(), *weights_md(),
+                        *diff_dst_md());
             if (status != status::success) return status;
-            this->set_default_alg_kind(alg_kind::convolution_winograd);
+            set_default_alg_kind(alg_kind::convolution_winograd);
 
-            auto scratchpad = this->scratchpad_registry().registrar();
+            auto scratchpad = scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
 
             return status;
@@ -313,25 +309,25 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && utils::one_of(this->desc()->alg_kind,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
+                && set_default_params() == status::success
                 && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
 
             status_t status =
                 jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::
-                init_conf(jcp_, *this->desc(), *src_md(), *diff_dst_md(),
+                init_conf(jcp_, *desc(), *src_md(), *diff_dst_md(),
                         *diff_weights_md());
             if (status != status::success) return status;
-            this->set_default_alg_kind(alg_kind::convolution_winograd);
+            set_default_alg_kind(alg_kind::convolution_winograd);
 
-            auto scratchpad = this->scratchpad_registry().registrar();
+            auto scratchpad = scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
 
             return status;

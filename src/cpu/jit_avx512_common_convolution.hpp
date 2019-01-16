@@ -53,16 +53,15 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(src_type, wei_type,
-                        dst_type, dst_type, data_type::undef)
-                && !this->has_zero_dim_memory();
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(src_type, wei_type, dst_type, dst_type,
+                        data_type::undef)
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_common_conv_fwd_kernel::init_conf(
-                    jcp_, *this->desc(), this->src_md_, this->weights_md_,
-                    this->dst_md_, this->bias_md_, *this->attr(),
-                    mkldnn_get_max_threads());
+                    jcp_, *desc(), src_md_, weights_md_, dst_md_, bias_md_,
+                    *attr(), mkldnn_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -132,18 +131,17 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(diff_src_type, wei_type,
+                && desc()->prop_kind == prop_kind::backward_data
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(diff_src_type, wei_type,
                         data_type::undef, diff_dst_type, data_type::undef)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status =
                 jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(jcp_,
-                        *this->desc(), *diff_src_md(), *weights_md(),
-                        *diff_dst_md());
+                        *desc(), *diff_src_md(), *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -153,18 +151,22 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
             return status::success;
         }
 
-        memory_format_t src_format() {
+        jit_conv_conf_t jcp_;
+
+    protected:
+        memory_format_t src_format() const {
             using namespace memory_format;
             return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
         }
-        memory_format_t wei_format() {
+
+        memory_format_t wei_format() const {
             using namespace memory_format;
             if (diff_dst_type == data_type::s16
                 && diff_src_type == data_type::s32
                 && wei_type == data_type::s16) {
-                return  this->with_groups() ? gOIhw8o16i2o : OIhw8o16i2o;
+                return with_groups() ? gOIhw8o16i2o : OIhw8o16i2o;
             } else {
-                return this->with_groups()
+                return with_groups()
                     ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
                           gOIdhw16o16i)
                     : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
@@ -172,9 +174,6 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
             }
         }
 
-        jit_conv_conf_t jcp_;
-
-    protected:
         status_t set_default_params() {
             using namespace memory_format;
             if (diff_src_md()->format == any)
@@ -234,17 +233,16 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(src_type, diff_weights_type,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(src_type, diff_weights_type,
                         diff_weights_type, diff_dst_type, data_type::undef)
-                && !this->has_zero_dim_memory();
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status =
-                jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(jcp_,
-                        *this->desc(), this->src_md_, this->diff_weights_md_,
-                        this->diff_bias_md_, this->diff_dst_md_);
+            status_t status = jit_avx512_common_conv_bwd_weights_kernel_f32::
+                init_conf(jcp_, *desc(), src_md_, diff_weights_md_,
+                        diff_bias_md_, diff_dst_md_);
             if (status != status::success) return status;
 
             init_balancers();
@@ -260,23 +258,22 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             return status;
         }
 
-        memory_format_t src_format() {
-            using namespace memory_format;
-            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-        }
-        memory_format_t wei_format() {
-            using namespace memory_format;
-            return this->with_groups()
-                ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
-                      gOIdhw16o16i)
-                : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
-                      OIdhw16o16i);
-        }
-
         jit_conv_conf_t jcp_;
         typename cpu_reducer_t<diff_weights_type>::conf_t reducer_bia_conf_;
 
     protected:
+        memory_format_t src_format() const {
+            using namespace memory_format;
+            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+        }
+
+        memory_format_t wei_format() const {
+            using namespace memory_format;
+            return with_groups()
+                ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
+                : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i);
+        }
+
         status_t set_default_params() {
             using namespace memory_format;
 

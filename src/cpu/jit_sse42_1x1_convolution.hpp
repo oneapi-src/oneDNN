@@ -30,8 +30,6 @@ namespace impl {
 namespace cpu {
 
 struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
-    // TODO: (Roma) Code duplication duplication! Remove with templates
-    //              (maybe...)!
     struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
@@ -47,18 +45,15 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t result = jit_sse42_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *this->desc(), *src_md(), *weights_md(), *dst_md(),
-                    *this->attr());
-
-            return result;
+            return jit_sse42_1x1_conv_kernel_f32::init_conf(jcp_, *desc(),
+                    *src_md(), *weights_md(), *dst_md(), *attr());
         }
 
         jit_1x1_conv_conf_t jcp_;

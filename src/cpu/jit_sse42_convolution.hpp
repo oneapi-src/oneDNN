@@ -46,15 +46,15 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            return jit_sse42_conv_fwd_kernel_f32::init_conf(jcp_, *this->desc(),
-                    *src_md(), *weights_md(), *dst_md(), *this->attr());
+            return jit_sse42_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
+                    *src_md(), *weights_md(), *dst_md(), *attr());
         }
 
         jit_conv_conf_t jcp_;
@@ -63,7 +63,7 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
         status_t set_default_params() {
             using namespace memory_format;
 
-            const bool flat = this->IC() == 3;
+            const bool flat = IC() == 3;
             if (src_md_.format == any)
                 CHECK(types::set_default_format(src_md_, flat
                     ? utils::pick(ndims() - 3, ncw, nchw)
@@ -73,8 +73,8 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                             utils::pick(ndims() - 3, nCw8c, nChw8c)));
             if (weights_md_.format == any)
                 CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o,
-                        gOwi8o, gOIhw8i8o, gOhwi8o)
+                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                        gOIhw8i8o, gOhwi8o)
                     : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
                         OIhw8i8o, Ohwi8o)));
             if (bias_md_.format == any)

@@ -47,34 +47,31 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                 src_type, dst_type>);
 
         status_t init() {
-            using namespace utils;
             bool ok = true
-                && this->is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(src_type, data_type::s8,
-                        data_type::undef, dst_type, data_type::s32)
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, data_type::f32,
+                && is_fwd()
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(src_type, data_type::s8, data_type::undef,
+                        dst_type, data_type::s32)
+                && IMPLICATION(with_bias(), utils::one_of(
+                            desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
-            status_t status =
-                jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
-                        *conv_d, *src_d, *weights_md(),
-                        *dst_md(), *weights_md(1),
-                        *this->attr(), mkldnn_get_max_threads(),
+            status_t status = jit_avx512_core_x8s8s32x_1x1_conv_kernel::
+                init_conf(jcp_, *conv_d, *src_d, *weights_md(), *dst_md(),
+                        *weights_md(1), *attr(), mkldnn_get_max_threads(),
                         rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
-                    scratchpad, jcp_, *this->attr());
+                    scratchpad, jcp_, *attr());
 
             rtus_prepare_space_info(this, scratchpad);
 

@@ -48,24 +48,23 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(src_type, data_type::s8,
-                        data_type::undef, dst_type, data_type::s32)
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, data_type::f32,
-                            data_type::s32, data_type::s8, data_type::u8))
-                && !this->has_zero_dim_memory();
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(src_type, data_type::s8, data_type::undef,
+                        dst_type, data_type::s32)
+                && IMPLICATION(with_bias(), utils::one_of(bias_md_.data_type,
+                            data_type::f32, data_type::s32, data_type::s8,
+                            data_type::u8))
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
-                    jcp_, *this->desc(), this->src_md_, this->weights_md_,
-                    this->dst_md_,this->bias_md_, *this->attr(),
-                    mkldnn_get_max_threads());
+                    jcp_, *desc(), src_md_, weights_md_, dst_md_, bias_md_,
+                    *attr(), mkldnn_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(scratchpad,
-                    jcp_, *this->attr());
+                    jcp_, *attr());
 
             return status;
         }

@@ -38,8 +38,6 @@ template <impl::data_type_t src_type,
          impl::data_type_t wei_type = src_type,
          impl::data_type_t dst_type = src_type>
 struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
-    // TODO: (Roma) Code duplication duplication! Remove with templates
-    //              (maybe...)!
     struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -55,20 +53,20 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
             using namespace utils;
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(src_type, wei_type,
-                        dst_type, dst_type, data_type::undef)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(src_type, wei_type, dst_type, dst_type,
+                        data_type::undef)
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(
-                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(),
-                    *this->attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr(),
+                    mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -173,21 +171,21 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(diff_src_type, wei_type,
-                        data_type::undef, diff_dst_type, data_type::undef)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && desc()->prop_kind == prop_kind::backward_data
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(diff_src_type, wei_type, data_type::undef,
+                        diff_dst_type, data_type::undef)
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *diff_src_d = diff_src_md();
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(
                     jcp_, *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    *this->attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    *attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -254,13 +252,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            execute_backward_data(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_data(ctx);
         return status::success;
     }
 
@@ -294,21 +286,21 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, diff_dst_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(
                     jcp_, *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
-                    *this->attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    *attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             init_balancers();
@@ -376,13 +368,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_weights:
-            execute_backward_weights(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_weights(ctx);
         return status::success;
     }
 

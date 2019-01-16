@@ -41,8 +41,8 @@ struct ref_shuffle_t : public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                 && data_type_size ==
-                     types::data_type_size(this->data_md()->data_type);
+                 && data_type_size
+                    == types::data_type_size(data_md()->data_type);
             if (!ok)
                 return status::unimplemented;
             return status::success;

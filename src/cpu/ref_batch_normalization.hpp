@@ -42,14 +42,12 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_batch_normalization_fwd_t);
 
         status_t init() {
-            using namespace prop_kind;
             bool ok = true
-                && utils::one_of(desc()->prop_kind, forward_training,
-                        forward_inference)
+                && is_fwd()
                 && src_md()->data_type == data_type
                 && IMPLICATION(use_scaleshift(),
                         weights_md()->data_type == data_type)
-                && (attr()->has_default_values() || this->with_relu_post_op());
+                && (attr()->has_default_values() || with_relu_post_op());
             if (!ok) return status::unimplemented;
 
             if (is_training() && fuse_bn_relu()) init_default_ws(8);
@@ -83,14 +81,11 @@ struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_batch_normalization_bwd_t);
 
         status_t init() {
-            using namespace prop_kind;
-
             bool ok = true
-                && utils::one_of(desc()->prop_kind, backward, backward_data)
+                && is_bwd()
                 && utils::everyone_is(data_type, src_md()->data_type,
                         diff_src_md()->data_type)
-                && IMPLICATION(use_scaleshift(),
-                        utils::everyone_is(data_type,
+                && IMPLICATION(use_scaleshift(), utils::everyone_is(data_type,
                             weights_md()->data_type,
                             diff_weights_md()->data_type))
                 && attr()->has_default_values();

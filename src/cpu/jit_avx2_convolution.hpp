@@ -47,16 +47,15 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_,
-                    *this->desc(), src_md(), weights_md(), dst_md(),
-                    *this->attr());
+                    *desc(), src_md(), weights_md(), dst_md(), *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -128,17 +127,17 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_data
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_bwd_data_kernel_f32::init_conf(
-                    jcp_, *this->desc(), *diff_src_md(),
-                    *weights_md(), *diff_dst_md());
+                    jcp_, *desc(), *diff_src_md(), *weights_md(),
+                    *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -154,18 +153,16 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
         status_t set_default_params() {
             using namespace memory_format;
 
-            if (this->diff_src_md_.format == any)
-                CHECK(types::set_default_format(this->diff_src_md_,
-                    utils::pick(this->ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
-            if (this->diff_dst_md_.format == any)
-                CHECK(types::set_default_format(this->diff_dst_md_,
-                    utils::pick(this->ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
-            if (this->weights_md_.format == any)
-                CHECK(types::set_default_format(this->weights_md_, this->with_groups()
-                    ? utils::pick(this->ndims() - 3, gOIw8o8i, gOIhw8o8i,
-                        gOIdhw8o8i)
-                    : utils::pick(this->ndims() - 3, OIw8o8i, OIhw8o8i,
-                        OIdhw8o8i)));
+            if (diff_src_md_.format == any)
+                CHECK(types::set_default_format(diff_src_md_, utils::pick(
+                                ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_, utils::pick(
+                                ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
+            if (weights_md_.format == any)
+                CHECK(types::set_default_format(weights_md_, with_groups()
+                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
+                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i)));
             return status::success;
         }
     };
@@ -177,13 +174,7 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        switch (pd()->desc()->prop_kind) {
-        case prop_kind::backward_data:
-            execute_backward_data(ctx);
-            break;
-        default:
-            assert(!"invalid prop_kind");
-        }
+        execute_backward_data(ctx);
         return status::success;
     }
 
@@ -208,17 +199,16 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_bwd_weights_kernel_f32::init_conf(
-                    jcp_, *this->desc(), *src_md(),
-                    *diff_weights_md(),
+                    jcp_, *desc(), *src_md(), *diff_weights_md(),
                     *diff_dst_md());
             if (status != status::success) return status;
 
@@ -246,23 +236,23 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     protected:
         status_t set_default_params() {
             using namespace memory_format;
-            const bool flat = this->IC() == 3;
+            const bool flat = IC() == 3;
 
-            if (this->src_md_.format == any)
-                CHECK(types::set_default_format(this->src_md_, flat
-                    ? utils::pick(this->ndims() - 3, ncw, nchw, ncdhw)
-                    : utils::pick(this->ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
-            if (this->diff_dst_md_.format == any)
-                CHECK(types::set_default_format(this->diff_dst_md_,
-                    utils::pick(this->ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
-            if (this->diff_weights_md_.format == any)
-                CHECK(types::set_default_format(this->diff_weights_md_, this->with_groups()
-                    ? utils::pick(2 * this->ndims() - 6 + flat, gOIw8i8o,
-                        gOwi8o, gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
-                    : utils::pick(2 * this->ndims() - 6 + flat, OIw8i8o, Owi8o,
+            if (src_md_.format == any)
+                CHECK(types::set_default_format(src_md_, flat
+                    ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
+                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
+            if (diff_dst_md_.format == any)
+                CHECK(types::set_default_format(diff_dst_md_,
+                    utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c)));
+            if (diff_weights_md_.format == any)
+                CHECK(types::set_default_format(diff_weights_md_, with_groups()
+                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                        gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
+                    : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
                         OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o)));
-            if (this->diff_bias_md_.format == any)
-                CHECK(types::set_default_format(this->diff_bias_md_, x));
+            if (diff_bias_md_.format == any)
+                CHECK(types::set_default_format(diff_bias_md_, x));
             return status::success;
         }
 

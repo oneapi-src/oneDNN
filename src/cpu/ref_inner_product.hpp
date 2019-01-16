@@ -130,7 +130,7 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
                         src_md()->data_type,
                         diff_dst_md()->data_type,
                         diff_weights_md()->data_type)
-                && IMPLICATION(this->with_bias(),
+                && IMPLICATION(with_bias(),
                         data_type == diff_weights_md(1)->data_type)
                 && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;

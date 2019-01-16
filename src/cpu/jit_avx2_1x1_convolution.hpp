@@ -50,19 +50,19 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *src_d, *weights_md(), *dst_md(), *this->attr());
+                    *conv_d, *src_d, *weights_md(), *dst_md(), *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -141,21 +141,21 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_data
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *diff_src_d = diff_src_md();
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
                     *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    *this->attr());
+                    *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -166,7 +166,6 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
             return status::success;
         }
 
-        // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
 
@@ -233,21 +232,21 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            const convolution_desc_t *conv_d = this->desc();
+            const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, diff_dst_md());
 
             status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
                     *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
-                    *this->attr());
+                    *attr());
             if (status != status::success) return status;
 
             init_balancers();

@@ -122,11 +122,11 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             convolution_desc_t cd;
             status_t status;
 
-            status = conv_descr_create(this->desc(), &cd);
+            status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
 
-            mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,
-                &(this->attr_), nullptr);
+            mkldnn_primitive_desc_iterator it(engine_, (op_desc_t *)&cd,
+                &attr_, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
                 conv_supports_bias_ = static_cast<cpu_convolution_bwd_data_pd_t *>
@@ -153,7 +153,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::deconvolution_direct,
                         alg_kind::deconvolution_winograd)
                 && attr()->post_ops_.has_default_values();
@@ -259,11 +259,11 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
             using namespace types;
 
             convolution_desc_t cd;
-            status_t status = conv_descr_create(this->desc(), &cd);
+            status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
 
-             mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,
-                &(this->attr_), nullptr);
+             mkldnn_primitive_desc_iterator it(engine_, (op_desc_t *)&cd,
+                &attr_, nullptr);
              while (++it != it.end()) {
                 conv_pd_ = *it;
                 auto wei_fmt =
@@ -280,12 +280,12 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         status_t init() {
             using namespace data_type;
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
+                && desc()->prop_kind == prop_kind::backward_data
                 && utils::everyone_is(data_type::f32,
-                        this->desc()->diff_src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type)
-                && utils::one_of(this->desc()->alg_kind,
+                        desc()->diff_src_desc.data_type,
+                        desc()->weights_desc.data_type,
+                        desc()->diff_dst_desc.data_type)
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::deconvolution_direct,
                         alg_kind::deconvolution_winograd);
 
@@ -357,11 +357,11 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             using namespace types;
 
             convolution_desc_t cd;
-            status_t status = conv_descr_create(this->desc(), &cd);
+            status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
 
-             mkldnn_primitive_desc_iterator it(this->engine_, (op_desc_t *)&cd,
-                &(this->attr_), nullptr);
+             mkldnn_primitive_desc_iterator it(engine_, (op_desc_t *)&cd,
+                &attr_, nullptr);
              while (++it != it.end()) {
                 conv_pd_ = *it;
                 auto wei_fmt = format_normalize(
@@ -376,15 +376,15 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
+                && desc()->prop_kind == prop_kind::backward_weights
                 && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type)
-                && utils::one_of(this->desc()->alg_kind,
+                        desc()->src_desc.data_type,
+                        desc()->diff_weights_desc.data_type,
+                        desc()->diff_dst_desc.data_type)
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::deconvolution_direct,
                         alg_kind::deconvolution_winograd)
-                && this->attr()->has_default_values();
+                && attr()->has_default_values();
             if (ok) {
                 CHECK(init_convolution());
                 if (diff_weights_md_.format == memory_format::any) {
@@ -467,6 +467,7 @@ private:
 }
 }
 }
+
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

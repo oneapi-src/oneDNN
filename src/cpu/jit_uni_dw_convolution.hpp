@@ -47,17 +47,15 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
-
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(
-                    jcp_, *this->desc(), src_md(), *weights_md(), *dst_md(),
-                    *this->attr());
+                    jcp_, *desc(), src_md(), *weights_md(), *dst_md(), *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -128,19 +126,18 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_data
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_data
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory();
+                && set_default_params() == status::success
+                && !has_zero_dim_memory();
 
             if (!ok) return status::unimplemented;
 
-            status_t status =
-                jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(jcp_,
-                        *this->desc(), *diff_src_md(),
-                        *weights_md(), *diff_dst_md());
+            status_t status = jit_uni_dw_conv_bwd_data_kernel_f32<isa>::
+                init_conf(jcp_, *desc(), *diff_src_md(), *weights_md(),
+                        *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -210,21 +207,18 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::backward_weights
-                && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && desc()->prop_kind == prop_kind::backward_weights
+                && set_default_alg_kind(alg_kind::convolution_direct)
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success;
-
+                && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
             const int max_threads = mkldnn_in_parallel()
                 ? 1 : mkldnn_get_max_threads();
 
-            status_t status =
-                jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
-                        *this->desc(), *src_md(),
-                        *diff_weights_md(),
+            status_t status = jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::
+                init_conf(jcp_, *desc(), *src_md(), *diff_weights_md(),
                         *diff_dst_md(), max_threads);
             if (status != status::success) return status;
 
@@ -257,7 +251,6 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
     };
 
     _jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd);
-
     ~_jit_uni_dw_convolution_bwd_weights_t() {
         delete kernel_;
         delete acc_ker_;

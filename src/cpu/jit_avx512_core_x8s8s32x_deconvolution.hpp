@@ -17,7 +17,6 @@
 #ifndef CPU_JIT_AVX512_CORE_U8S8S32X_DECONVOLUTION_HPP
 #define CPU_JIT_AVX512_CORE_U8S8S32X_DECONVOLUTION_HPP
 
-
 #include "c_types_map.hpp"
 #include "cpu_primitive.hpp"
 #include "cpu_memory.hpp"
@@ -175,41 +174,40 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->is_fwd()
-                && this->desc()->alg_kind & alg_kind::deconvolution_direct
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, data_type::f32,
+                && is_fwd()
+                && (desc()->alg_kind & alg_kind::deconvolution_direct)
+                && desc()->src_desc.data_type == src_type
+                && desc()->dst_desc.data_type == dst_type
+                && IMPLICATION(with_bias(), utils::one_of(
+                            desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && this->desc()->accum_data_type == data_type::s32;
+                && desc()->accum_data_type == data_type::s32;
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
-                    jcp_, *this->desc(), this->src_md_, this->weights_md_,
-                    this->dst_md_, this->with_bias(), this->bias_md_,
-                    *this->attr());
+            status_t status = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
+                init_conf(jcp_, *desc(), src_md_, weights_md_, dst_md_,
+                        with_bias(), bias_md_, *attr());
 
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(scratchpad,
-                    jcp_, *this->attr());
+                    jcp_, *attr());
 
             return status::success;
         }
+
         jit_conv_conf_t jcp_;
     };
 
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {
+        : cpu_primitive_t(apd)
+    {
         kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(pd()->jcp_,
                 *pd()->attr());
     }
 
-    ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() {
-        delete kernel_;
-    }
+    ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;

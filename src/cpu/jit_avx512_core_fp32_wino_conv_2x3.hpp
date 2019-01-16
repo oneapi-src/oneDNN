@@ -51,26 +51,24 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
                 jit_avx512_core_fp32_wino_conv_2x3_fwd_t);
 
         status_t init() {
-            using namespace memory_format;
             bool ok = true
-                && this->desc()->prop_kind == prop_kind::forward_inference
-                && utils::one_of(this->desc()->alg_kind,
+                && desc()->prop_kind == prop_kind::forward_inference
+                && utils::one_of(desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
-                && this->expect_data_types(data_type::f32, data_type::f32,
+                && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && this->set_default_params() == status::success;
-            if (!ok)
-                return status::unimplemented;
+                && set_default_params() == status::success;
+            if (!ok) return status::unimplemented;
 
-            memory_desc_t expect_wei_md = *(weights_md());
+            memory_desc_t expect_wei_md = *weights_md();
             status_t jit_conf_result = jit_conf(expect_wei_md);
             if (jit_conf_result != status::success) return jit_conf_result;
-            this->set_default_alg_kind(alg_kind::convolution_winograd);
+            set_default_alg_kind(alg_kind::convolution_winograd);
 
-            if (this->weights_md_.format == any)
-                this->weights_md_ = expect_wei_md;
-            if (this->weights_md_ != expect_wei_md)
+            if (weights_md_.format == memory_format::any)
+                weights_md_ = expect_wei_md;
+            if (weights_md_ != expect_wei_md)
                 return status::unimplemented;
 
             init_scratchpad();
@@ -86,7 +84,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
 
-            auto scratchpad = this->scratchpad_registry().registrar();
+            auto scratchpad = scratchpad_registry().registrar();
 
             int wino_size_offset = (jcp_.yb / 2) * (jcp_.xb / 2) + jcp_.xb;
 
@@ -115,7 +113,6 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
     };
 
     jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd);
-
     ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

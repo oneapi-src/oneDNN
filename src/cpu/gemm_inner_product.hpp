@@ -119,7 +119,7 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
+                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && !has_zero_dim_memory()
                 && utils::everyone_is(data_type,
