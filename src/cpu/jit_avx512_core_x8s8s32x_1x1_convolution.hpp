@@ -51,15 +51,13 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
             bool ok = true
                 && this->is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && this->desc()->weights_desc.data_type == data_type::s8
+                && this->expect_data_types(src_type, data_type::s8,
+                        data_type::undef, dst_type, data_type::s32)
                 && IMPLICATION(this->with_bias(), utils::one_of(
                             this->desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && this->desc()->accum_data_type == data_type::s32;
+                && this->set_default_params() == status::success
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();

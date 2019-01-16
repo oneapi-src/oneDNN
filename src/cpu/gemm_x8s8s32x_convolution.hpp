@@ -52,20 +52,18 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && this->desc()->weights_desc.data_type == s8
+                && this->expect_data_types(src_type, s8, data_type::undef,
+                        dst_type, s32)
                 && IMPLICATION(this->with_bias(), utils::one_of(
                             this->desc()->bias_desc.data_type, f32, s32, s8,
                             u8))
-                && this->desc()->accum_data_type == data_type::s32
+                && this->set_default_params() == status::success
+                && !this->has_zero_dim_memory()
                 && utils::everyone_is(nhwc, this->src_md_.format,
                         this->dst_md_.format)
                 && this->weights_md_.format == (this->with_groups()
-                        ? ((src_type == data_type::s8) ? hwigo_s8s8 : hwigo)
-                        : ((src_type == data_type::s8) ? hwio_s8s8 : hwio))
+                        ? ((src_type == s8) ? hwigo_s8s8 : hwigo)
+                        : ((src_type == s8) ? hwio_s8s8 : hwio))
                 && this->is_gemm_conv_format();
             if (!ok) return status::unimplemented;
 
@@ -207,15 +205,12 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(dst_type, s8, data_type::undef, u8,
+                        s32)
+                && IMPLICATION(this->with_bias(), utils::one_of(
+                            this->desc()->bias_desc.data_type, f32, s32, s8, u8))
                 && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
-                && this->desc()->diff_src_desc.data_type == dst_type
-                && this->desc()->diff_dst_desc.data_type == u8
-                && this->desc()->weights_desc.data_type == s8
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                            this->desc()->bias_desc.data_type, f32, s32, s8,
-                            u8))
-                && this->desc()->accum_data_type == data_type::s32
                 && utils::everyone_is(nhwc, this->diff_src_md_.format,
                         this->diff_dst_md_.format)
                 && this->weights_md_.format == (this->with_groups()

@@ -134,6 +134,18 @@ protected:
         return desc_.alg_kind == alg_kind;
     }
 
+    bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
+            data_type_t bia_dt, data_type_t dst_dt, data_type_t acc_dt) const {
+        bool ok = true
+            && (src_dt == data_type::undef || _src_md()->data_type == src_dt)
+            && (wei_dt == data_type::undef || _wei_md()->data_type == wei_dt)
+            && (dst_dt == data_type::undef || _dst_md()->data_type == dst_dt)
+            && (acc_dt == data_type::undef || desc_.accum_data_type == acc_dt);
+        if (with_bias() && bia_dt != data_type::undef)
+            ok = ok && _bia_md()->data_type == bia_dt;
+        return ok;
+    }
+
 private:
     const memory_desc_t *_src_md() const { return conv_prop_agnostic_src_d(&desc_); }
     const memory_desc_t *_wei_md() const { return conv_prop_agnostic_wei_d(&desc_); }

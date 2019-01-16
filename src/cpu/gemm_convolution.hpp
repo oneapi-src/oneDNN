@@ -46,14 +46,10 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                           this->desc()->src_desc.data_type,
-                           this->desc()->weights_desc.data_type,
-                           this->desc()->dst_desc.data_type)
-                && IMPLICATION(this->with_bias(), data_type::f32
-                                   == this->desc()->bias_desc.data_type)
                 && this->src_md_.format == src_format()
                 && this->dst_md_.format == src_format()
                 && this->weights_md_.format == wei_format()
@@ -159,12 +155,10 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::undef, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->diff_src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type)
                 && this->diff_src_md_.format == src_format()
                 && this->diff_dst_md_.format == src_format()
                 && this->weights_md_.format == wei_format();
@@ -246,14 +240,10 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
             && this->desc()->prop_kind == backward_weights
             && this->set_default_alg_kind(alg_kind::convolution_direct)
+            && this->expect_data_types(data_type::f32, data_type::f32,
+                    data_type::f32, data_type::f32, data_type::f32)
             && this->set_default_params() == status::success
             && !this->has_zero_dim_memory()
-            && utils::everyone_is(data_type::f32,
-                    this->desc()->src_desc.data_type,
-                    this->desc()->diff_weights_desc.data_type,
-                    this->desc()->diff_dst_desc.data_type)
-            && IMPLICATION(this->with_bias(),
-                    data_type::f32 == this->desc()->diff_bias_desc.data_type)
             && this->src_md_.format == src_format()
             && this->diff_dst_md_.format == src_format()
             && this->diff_weights_md_.format == wei_format();

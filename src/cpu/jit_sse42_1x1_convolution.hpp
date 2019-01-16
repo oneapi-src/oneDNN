@@ -48,14 +48,10 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->dst_desc.data_type)
-                && IMPLICATION(this->with_bias(),
-                        data_type::f32 == this->desc()->bias_desc.data_type);
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t result = jit_sse42_1x1_conv_kernel_f32::init_conf(jcp_,

@@ -101,14 +101,10 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->dst_desc.data_type)
-                && IMPLICATION(this->with_bias(), data_type::f32
-                        == this->desc()->bias_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 
@@ -184,14 +180,12 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
             bool ok = true
                 && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::undef, data_type::f32, data_type::f32)
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
                 && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->diff_src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 
@@ -266,11 +260,9 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && !this->has_zero_dim_memory()
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 

@@ -58,16 +58,13 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::u8, data_type::s8,
+                        data_type::undef, dst_data_type, data_type::s32)
+                && IMPLICATION(this->with_bias(), utils::one_of(
+                            this->desc()->bias_desc.data_type, data_type::f32,
+                            data_type::s32, data_type::s8, data_type::u8))
                 && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == data_type::u8
-                && this->desc()->dst_desc.data_type == dst_data_type
-                && this->desc()->weights_desc.data_type == data_type::s8
-                && IMPLICATION(this->with_bias(),
-                    utils::one_of(this->desc()->bias_desc.data_type,
-                                                data_type::f32, data_type::s32,
-                                                data_type::s8, data_type::u8))
-                && this->desc()->accum_data_type == data_type::s32;
+                && !this->has_zero_dim_memory();
 
             if (!ok) return status::unimplemented;
 

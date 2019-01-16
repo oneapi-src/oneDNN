@@ -133,13 +133,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->dst_desc.data_type)
-                && IMPLICATION(this->with_bias(), data_type::f32
-                        == this->desc()->bias_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
@@ -230,11 +226,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::undef, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->diff_src_desc.data_type,
-                        this->desc()->weights_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;
@@ -323,11 +317,9 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->expect_data_types(data_type::f32, data_type::f32,
+                        data_type::f32, data_type::f32, data_type::f32)
                 && this->set_default_params() == status::success
-                && utils::everyone_is(data_type::f32,
-                        this->desc()->src_desc.data_type,
-                        this->desc()->diff_dst_desc.data_type,
-                        this->desc()->diff_weights_desc.data_type)
                 && mkldnn_thr_syncable();
             if (!ok)
                 return status::unimplemented;

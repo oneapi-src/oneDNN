@@ -46,14 +46,12 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(src_type, wei_type,
+                        data_type::undef, dst_type, acc_type)
                 && this->set_default_params() == status::success
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->weights_desc.data_type == wei_type
-                && this->desc()->accum_data_type == acc_type
-                && this->desc()->dst_desc.data_type == dst_type
                 && IMPLICATION(this->with_bias(), true
-                        && IMPLICATION(src_type == u8,
-                            utils::one_of(this->desc()->bias_desc.data_type,
+                        && IMPLICATION(src_type == u8, utils::one_of(
+                                this->desc()->bias_desc.data_type,
                                 f32, s32, s8, u8))
                         && IMPLICATION(src_type == f32,
                             this->desc()->bias_desc.data_type == f32))
@@ -92,11 +90,9 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(diff_src_type, wei_type,
+                        data_type::undef, diff_dst_type, acc_type)
                 && this->set_default_params() == status::success
-                && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                && this->desc()->weights_desc.data_type == wei_type
-                && this->desc()->accum_data_type == acc_type
-                && this->desc()->diff_src_desc.data_type == diff_src_type
                 && this->attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
@@ -134,14 +130,9 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_weights
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(src_type, diff_wei_type,
+                        diff_wei_type, diff_dst_type, acc_type)
                 && this->set_default_params() == status::success
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->diff_weights_desc.data_type == diff_wei_type
-                && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                && this->desc()->accum_data_type == acc_type
-                && IMPLICATION(this->with_bias(),
-                        this->desc()->diff_bias_desc.data_type
-                        == diff_wei_type)
                 && this->attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }

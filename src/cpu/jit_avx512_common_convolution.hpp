@@ -54,12 +54,9 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->weights_desc.data_type == wei_type
-                && this->desc()->dst_desc.data_type == dst_type
-                && IMPLICATION(this->with_bias(), dst_type
-                        == this->desc()->bias_desc.data_type);
+                && this->expect_data_types(src_type, wei_type,
+                        dst_type, dst_type, data_type::undef)
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_common_conv_fwd_kernel::init_conf(
@@ -137,11 +134,10 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->expect_data_types(diff_src_type, wei_type,
+                        data_type::undef, diff_dst_type, data_type::undef)
                 && this->set_default_params() == status::success
-                && !this->has_zero_dim_memory()
-                && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                && this->desc()->weights_desc.data_type == wei_type
-                && this->desc()->diff_src_desc.data_type == diff_src_type;
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status =
@@ -240,11 +236,9 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_weights
                 && this->set_default_alg_kind(alg_kind::convolution_direct)
-                && !this->has_zero_dim_memory()
-                && this->desc()->src_desc.data_type == src_type
-                && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                && this->desc()->diff_weights_desc.data_type
-                    == diff_weights_type;
+                && this->expect_data_types(src_type, diff_weights_type,
+                        diff_weights_type, diff_dst_type, data_type::undef)
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status =
