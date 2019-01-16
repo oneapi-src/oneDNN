@@ -97,11 +97,11 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
@@ -117,13 +117,10 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                         jcp_, *this->desc(), *src_md(), *weights_md(),
                         *dst_md(), *this->attr());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_common::init_scratchpad(scratchpad, jcp_);
-
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }
@@ -203,13 +200,10 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
                         jcp_, *this->desc(), *diff_src_md(),
                         *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_common::init_scratchpad(scratchpad, jcp_);
-
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }
@@ -285,13 +279,10 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                 init_conf(jcp_, *this->desc(), *src_md(), *diff_dst_md(),
                         *diff_weights_md());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_common::init_scratchpad(scratchpad, jcp_);
-
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }

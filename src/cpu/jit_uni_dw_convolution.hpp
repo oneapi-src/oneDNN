@@ -46,11 +46,9 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
@@ -89,8 +87,6 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
             if (bias_md_.format == any)
                 CHECK(types::set_default_format(bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -136,11 +132,9 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
@@ -176,8 +170,6 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(diff_dst_md_, desired_act_fmt));
             if (weights_md_.format == any)
                 CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }
@@ -224,11 +216,9 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_weights
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
                         this->desc()->diff_weights_desc.data_type,
@@ -269,8 +259,6 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(diff_weights_md_, desired_wei_fmt));
             if (diff_bias_md_.format == any)
                 CHECK(types::set_default_format(diff_bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }

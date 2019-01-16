@@ -54,11 +54,11 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
         status_t init() {
             using namespace memory_format;
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_winograd)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == data_type::u8
                 && this->desc()->dst_desc.data_type == dst_data_type
@@ -73,12 +73,10 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
 
             status_t status = jit_conf();
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             init_scratchpad();
 
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                this->set_alg_kind(alg_kind::convolution_winograd);
             return status;
         }
 

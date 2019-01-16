@@ -71,12 +71,6 @@ struct convolution_pd_t: public primitive_desc_t {
         return status::success;
     }
 
-    status_t set_alg_kind(alg_kind_t alg) {
-        if (alg == alg_kind::undef) return status::invalid_arguments;
-        desc_.alg_kind = alg;
-        return status::success;
-    }
-
     /* common conv aux functions */
 
     int MB() const { return conv_prop_agnostic_src_d(&desc_)->dims[0]; }
@@ -168,6 +162,14 @@ struct convolution_pd_t: public primitive_desc_t {
 protected:
     convolution_desc_t desc_;
     const convolution_fwd_pd_t *hint_fwd_pd_;
+
+    bool set_default_alg_kind(alg_kind_t alg_kind) {
+        assert(utils::one_of(alg_kind, alg_kind::convolution_direct,
+                    alg_kind::convolution_winograd));
+        if (desc_.alg_kind == alg_kind::convolution_auto)
+            desc_.alg_kind = alg_kind;
+        return desc_.alg_kind == alg_kind;
+    }
 };
 
 struct convolution_fwd_pd_t: public convolution_pd_t {

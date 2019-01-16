@@ -73,8 +73,6 @@ protected:
             CHECK(types::set_default_format(weights_md_, wei_format()));
         if (bias_md_.format == any)
             CHECK(types::set_default_format(bias_md_, x));
-        if (desc()->alg_kind == alg_kind::convolution_auto)
-            CHECK(set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };
@@ -104,8 +102,6 @@ protected:
            CHECK(types::set_default_format(weights_md_, wei_format()));
         if (bias_md_.format == any)
             CHECK(types::set_default_format(bias_md_, x));
-        if (desc()->alg_kind == alg_kind::convolution_auto)
-            CHECK(set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };
@@ -142,8 +138,6 @@ protected:
             CHECK(types::set_default_format(diff_weights_md_, wei_format()));
         if (diff_bias_md_.format == any)
             CHECK(types::set_default_format(diff_bias_md_, x));
-        if (desc()->alg_kind == alg_kind::convolution_auto)
-            CHECK(set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };

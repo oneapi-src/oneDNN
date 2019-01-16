@@ -44,11 +44,9 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
 
             bool ok = true
-                && this->set_default_params() == status::success
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                            this->desc()->src_desc.data_type,
@@ -95,8 +93,6 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(weights_md_, wei_format()));
             if (bias_md_.format == any)
                 CHECK(types::set_default_format(bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
 
@@ -161,11 +157,9 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
             using namespace memory_format;
 
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
@@ -207,8 +201,6 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(diff_dst_md_, src_format()));
             if (weights_md_.format == any)
                 CHECK(types::set_default_format(weights_md_, wei_format()));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -252,10 +244,9 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-            && this->set_default_params() == status::success
             && this->desc()->prop_kind == backward_weights
-            && utils::one_of(this->desc()->alg_kind, alg_kind::convolution_auto,
-                       alg_kind::convolution_direct)
+            && this->set_default_alg_kind(alg_kind::convolution_direct)
+            && this->set_default_params() == status::success
             && !this->has_zero_dim_memory()
             && utils::everyone_is(data_type::f32,
                     this->desc()->src_desc.data_type,
@@ -301,8 +292,6 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(diff_weights_md_, wei_format()));
             if (diff_bias_md_.format == any)
                 CHECK(types::set_default_format(diff_bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };

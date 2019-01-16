@@ -53,9 +53,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->weights_desc.data_type == wei_type
@@ -74,9 +72,6 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             jit_avx512_common_conv_fwd_kernel::init_scratchpad(scratchpad,
                     jcp_);
 
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
             return status;
         }
 
@@ -140,11 +135,9 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type
                 && this->desc()->weights_desc.data_type == wei_type
@@ -194,8 +187,6 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
                 CHECK(types::set_default_format(diff_dst_md_, src_format()));
             if (weights_md()->format == any)
                 CHECK(types::set_default_format(weights_md_, wei_format()));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
@@ -248,9 +239,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         status_t init() {
             bool ok = true
                 && this->desc()->prop_kind == prop_kind::backward_weights
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type
@@ -274,9 +263,6 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
                     scratchpad, memory_tracking::names::prefix_reducer_bia);
             reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
 
-            if (status == status::success &&
-                    this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
             return status;
         }
 

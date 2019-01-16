@@ -44,11 +44,9 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
             using namespace data_type;
 
             bool ok = true
-                && this->set_default_params() == status::success
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->weights_desc.data_type == wei_type
                 && this->desc()->accum_data_type == acc_type
@@ -92,11 +90,9 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type
                 && this->desc()->weights_desc.data_type == wei_type
                 && this->desc()->accum_data_type == acc_type
@@ -136,11 +132,9 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_weights
-                && utils::one_of(this->desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->diff_weights_desc.data_type == diff_wei_type
                 && this->desc()->diff_dst_desc.data_type == diff_dst_type

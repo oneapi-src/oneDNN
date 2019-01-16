@@ -129,11 +129,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->is_fwd()
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->set_default_params() == status::success
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
                         this->desc()->weights_desc.data_type,
@@ -149,12 +149,10 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
                         *this->desc(), this->src_md_, this->weights_md_,
                         this->dst_md_, *this->attr());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }
@@ -228,11 +226,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->set_default_params() == status::success
                 && utils::everyone_is(data_type::f32,
                         this->desc()->diff_src_desc.data_type,
                         this->desc()->weights_desc.data_type,
@@ -246,13 +244,10 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
                         jcp_, *this->desc(), *diff_src_md(),
                         *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
-
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }
@@ -324,11 +319,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
         status_t init() {
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_weights
                 && utils::one_of(this->desc()->alg_kind,
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
+                && this->set_default_params() == status::success
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
                         this->desc()->diff_dst_desc.data_type,
@@ -342,13 +337,10 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
                 init_conf(jcp_, *this->desc(), *src_md(), *diff_dst_md(),
                         *diff_weights_md());
             if (status != status::success) return status;
+            this->set_default_alg_kind(alg_kind::convolution_winograd);
 
             auto scratchpad = this->scratchpad_registry().registrar();
             winograd_avx512_core::init_scratchpad(scratchpad, jcp_);
-
-            if (status == status::success
-                    && this->desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
 
             return status;
         }

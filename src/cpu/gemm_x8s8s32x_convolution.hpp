@@ -50,11 +50,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
 
             bool ok = true
-                && this->set_default_params() == status::success
                 && is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->dst_desc.data_type == dst_type
@@ -95,8 +93,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                             : (is_sign_input ? hwio_s8s8 : hwio)));
             if (bias_md_.format == any)
                 CHECK(types::set_default_format(bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
 
@@ -209,11 +205,9 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
 
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->desc()->prop_kind == prop_kind::backward_data
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && this->desc()->diff_src_desc.data_type == dst_type
                 && this->desc()->diff_dst_desc.data_type == u8
@@ -252,8 +246,6 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                             with_groups() ? hwigo : hwio));
             if (bias_md_.format == any)
                 CHECK(types::set_default_format(bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
              return status::success;
         }
     };

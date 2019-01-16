@@ -49,11 +49,9 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
         status_t init() {
             using namespace utils;
             bool ok = true
-                && this->set_default_params() == status::success
                 && this->is_fwd()
-                && utils::one_of(this->desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_direct)
+                && this->set_default_alg_kind(alg_kind::convolution_direct)
+                && this->set_default_params() == status::success
                 && !this->has_zero_dim_memory()
                 && this->desc()->src_desc.data_type == src_type
                 && this->desc()->dst_desc.data_type == dst_type
@@ -104,8 +102,6 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                     : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i)));
             if (bias_md_.format == any)
                 CHECK(types::set_default_format(bias_md_, x));
-            if (desc()->alg_kind == alg_kind::convolution_auto)
-                CHECK(set_alg_kind(alg_kind::convolution_direct));
 
             return status::success;
         }
