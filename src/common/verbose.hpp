@@ -38,7 +38,7 @@ const char *get_isa_info();
 
 #define MKLDNN_VERBOSE_BUF_LEN 1024
 
-#define MKLDNN_VERBOSE_DAT_LEN 64
+#define MKLDNN_VERBOSE_DAT_LEN 128
 #define MKLDNN_VERBOSE_AUX_LEN 384
 #define MKLDNN_VERBOSE_PRB_LEN 384
 
@@ -321,17 +321,45 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_src = (s->desc()->prop_kind == prop_kind::backward_data
-            ? s->diff_src_pd() : s->src_pd())->desc()->format;
-    auto fmt_wei = (s->desc()->prop_kind == prop_kind::backward_weights
-            ? s->diff_weights_pd(0) : s->weights_pd(0))->desc()->format;
+    const mkldnn::impl::memory_desc_t *src_lay_md, *src_iter_md, *wei_lay_md,
+            *wei_iter_md, *bias_md, *dst_lay_md, *dst_iter_md;
+    if (s->desc()->prop_kind != prop_kind::backward_data) {
+        src_lay_md = s->src_pd(0)->desc();
+        src_iter_md = s->src_pd(1) ? s->src_pd(1)->desc() : nullptr;
+        wei_lay_md = s->weights_pd(0)->desc();
+        wei_iter_md = s->weights_pd(1)->desc();
+        bias_md = s->weights_pd(2)->desc();
+        dst_lay_md = s->dst_pd(0)->desc();
+        dst_iter_md = s->dst_pd(1) ? s->dst_pd(1)->desc() : nullptr;
+    } else {
+        src_lay_md = s->diff_src_pd(0)->desc();
+        src_iter_md = s->diff_src_pd(1) ? s->diff_src_pd(1)->desc() : nullptr;
+        wei_lay_md = s->diff_weights_pd(0)->desc();
+        wei_iter_md = s->diff_weights_pd(1)->desc();
+        bias_md = s->diff_weights_pd(2)->desc();
+        dst_lay_md = s->diff_dst_pd(0)->desc();
+        dst_iter_md = s->diff_dst_pd(1) ? s->diff_dst_pd(1)->desc() : nullptr;
+    }
 
     alg_kind_t alg_kind = s->cell_kind();
     rnn_direction_t rnn_dir = s->direction();
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s_%s", mkldnn_alg_kind2str(alg_kind), mkldnn_rnn_direction2str(rnn_dir));
-    snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fwei:%s",
-            mkldnn_fmt2str(fmt_src), mkldnn_fmt2str(fmt_wei));
+    snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s-%s-%s-%s fwei:%s-%s-%s ddata:%s%s-%s%s dwei:%s%s%s",
+             mkldnn_fmt2str(src_lay_md->format),
+             mkldnn_fmt2str(src_iter_md ? src_iter_md->format : memory_format::undef),
+             mkldnn_fmt2str(dst_lay_md->format),
+             mkldnn_fmt2str(dst_iter_md ? dst_iter_md->format : memory_format::undef),
+             mkldnn_fmt2str(wei_lay_md->format),
+             mkldnn_fmt2str(wei_iter_md->format),
+             mkldnn_fmt2str(bias_md->format),
+             mkldnn_dt2str(src_lay_md->data_type),
+             mkldnn_dt2str(src_iter_md ? src_iter_md->data_type : data_type::undef),
+             mkldnn_dt2str(dst_lay_md->data_type),
+             mkldnn_dt2str(dst_iter_md ? dst_iter_md->data_type : data_type::undef),
+             mkldnn_dt2str(wei_lay_md->data_type),
+             mkldnn_dt2str(wei_iter_md->data_type),
+             mkldnn_dt2str(bias_md->data_type));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "l%dt%dmb%dsic%dslc%ddic%ddlc%d",
