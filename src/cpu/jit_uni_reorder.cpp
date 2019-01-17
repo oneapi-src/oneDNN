@@ -307,7 +307,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             case s8:
                 if (idt == f32) vcvtps2dq(xmm, xmm);
                 if (idt == f32 || idt == s32) vpmovsdb(xmm, xmm);
-                if (idt == u8) vpminub(xmm, xmm, xmm_127b);
+                if (idt == u8) vpminub(xmm, xmm, xmm_4x127b);
                 break;
             case u8:
                 if (idt == f32) vcvtps2dq(xmm, xmm);
@@ -636,8 +636,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
             if (prb_.itype == data_type::u8 && prb_.otype == data_type::s8) {
                 mov(reg_tmp.cvt32(), 0x7f7f7f7f);
-                movd(xmm_127b, reg_tmp.cvt32());
-                vbroadcastss(xmm_127b, xmm_127b);
+                movd(xmm_4x127b, reg_tmp.cvt32());
             }
         }
 
@@ -663,7 +662,7 @@ private:
 
     Xmm xmm_scale = xmm15;
     Xmm xmm_zero = xmm14;
-    Xmm xmm_127b = xmm13; // TODO: unite with xmm_zero
+    Xmm xmm_4x127b = xmm13; // TODO: unite with xmm_zero
     Xmm xmm_tmp = xmm12;
 };
 
