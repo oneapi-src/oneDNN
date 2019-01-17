@@ -106,9 +106,15 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru) || is_int8;
     bool is_inference = !rnn.is_training;
 
+#ifndef MKLDNN_DISABLE_JIT
     rnn.use_jit_gemm = !mayiuse(avx512_mic)
             && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
                 || (rnn.is_training && rnn.dic < 500));
+#else
+    rnn.use_jit_gemm = true
+            && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
+                || (rnn.is_training && rnn.dic < 500));
+#endif
 
     /* Decide to copy bias */
     rnn.copy_bias = rnn.dt_conf != all_f32;

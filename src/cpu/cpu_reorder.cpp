@@ -20,7 +20,9 @@
 #include "cpu_memory.hpp"
 #include "type_helpers.hpp"
 
+#ifndef MKLDNN_DISABLE_JIT
 #include "cpu/jit_uni_reorder.hpp"
+#endif
 #include "cpu/simple_reorder.hpp"
 #include "cpu/wino_reorder.hpp"
 #include "cpu/rnn/rnn_reorders.hpp"
@@ -84,8 +86,10 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR_DIRECT_COPY(u8, u8),
 #endif
 
+#ifndef MKLDNN_DISABLE_JIT
     /* jit */
     jit_uni_reorder_create,
+#endif
 
     /* fp32: flat <-> blocked with tail */
     REG_SR_BIDIR(f32, any, f32, nCw8c),

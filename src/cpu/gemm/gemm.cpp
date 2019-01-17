@@ -19,7 +19,11 @@
 #include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 
+#ifndef MKLDNN_DISABLE_JIT
 #include "jit_generator.hpp"
+#else
+#include "mkldnn_thread.hpp"
+#endif
 
 #include "gemm.hpp"
 
@@ -119,7 +123,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         return mkldnn_success;
     }
 #endif
-
+#ifndef MKLDNN_DISABLE_JIT
     if (mayiuse(avx512_common))
         return jit_avx512_common_gemm_f32(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
@@ -129,6 +133,9 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     else
         return ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+#endif
+    return ref_gemm<float>(transa, transb,
+            M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
 }
 
 template <typename b_dt>
@@ -168,6 +175,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         assert(data_traits<b_dt>::data_type == data_type::s8);
         // TODO CBLAS implementation of gemm_s8s8s32 goes here.
         // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
+#ifndef MKLDNN_DISABLE_JIT
         if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
                 && *ao == 0 && *bo == 0) {
             return jit_avx512_core_gemm_s8s8s32(transa, transb, offsetc, M,
@@ -177,8 +185,13 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
             return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
         }
+#else
+        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+#endif
     }
 #else
+#ifndef MKLDNN_DISABLE_JIT
     cpu_isa_t isa = isa_any;
     if (mayiuse(avx512_core_vnni)) {
         isa = avx512_core_vnni;
@@ -209,6 +222,10 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
             return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
         }
+#else
+        return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+#endif
     }
 #endif
 }

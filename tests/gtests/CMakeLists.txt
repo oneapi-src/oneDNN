@@ -53,7 +53,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_inner_product_backward_data.cpp
                               test_inner_product_backward_weights.cpp
                               test_shuffle.cpp
-                              test_convolution_format_any.cpp
                               test_convolution_forward_f32.cpp
                               test_convolution_forward_s16s16s32.cpp
                               test_convolution_forward_u8s8s32.cpp
@@ -70,6 +69,10 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_s8s8s32.cpp
                               test_rnn_forward.cpp
                               )
+
+if(NOT MKLDNN_DISABLE_JIT)
+    set(PRIM_TEST_CASES_SRC ${PRIM_TEST_CASES_SRC} test_convolution_format_any.cpp)
+endif()
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(TEST_FILE_WE ${TEST_FILE} NAME_WE)

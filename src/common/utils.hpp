@@ -320,11 +320,13 @@ struct c_compatible {
 inline void yield_thread() { }
 
 int mkldnn_getenv(char *value, const char *name, int len);
-bool mkldnn_jit_dump();
 FILE *mkldnn_fopen(const char *filename, const char *mode);
 
+#ifndef MKLDNN_DISABLE_JIT
+bool mkldnn_jit_dump();
 void set_rnd_mode(round_mode_t rnd_mode);
 void restore_rnd_mode();
+#endif
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {

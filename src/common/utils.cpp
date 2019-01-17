@@ -19,7 +19,10 @@
 #include <malloc.h>
 #include <windows.h>
 #endif
+
+#ifndef MKLDNN_DISABLE_JIT
 #include "xmmintrin.h"
+#endif
 
 #include "utils.hpp"
 
@@ -57,6 +60,7 @@ int mkldnn_getenv(char *value, const char *name, int length) {
     return result;
 }
 
+#ifndef MKLDNN_DISABLE_JIT
 static bool dump_jit_code;
 
 bool mkldnn_jit_dump() {
@@ -71,6 +75,7 @@ bool mkldnn_jit_dump() {
     }
     return dump_jit_code;
 }
+#endif
 
 FILE *mkldnn_fopen(const char *filename, const char *mode) {
 #ifdef _WIN32
@@ -81,6 +86,7 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
 #endif
 }
 
+#ifndef MKLDNN_DISABLE_JIT
 thread_local unsigned int mxcsr_save;
 
 void set_rnd_mode(round_mode_t rnd_mode) {
@@ -97,6 +103,7 @@ void set_rnd_mode(round_mode_t rnd_mode) {
 void restore_rnd_mode() {
     _mm_setcsr(mxcsr_save);
 }
+#endif
 
 void *malloc(size_t size, int alignment) {
     void *ptr;

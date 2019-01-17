@@ -21,7 +21,12 @@
 #include "utils.hpp"
 
 #include "../f32/ref_gemm_f32.hpp"
+
+#ifndef MKLDNN_DISABLE_JIT
 #include "jit_generator.hpp"
+#else
+#define PAGE_4K 4096
+#endif
 
 namespace mkldnn {
 namespace impl {

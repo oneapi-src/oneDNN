@@ -33,6 +33,21 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
+if(MKLDNN_DISABLE_JIT)
+    add_definitions(-DMKLDNN_DISABLE_JIT=1)
+    foreach (ITEM ${SOURCES})
+        if ("${ITEM}" MATCHES "jit_(.*)" OR
+            "${ITEM}" MATCHES "cpu_barrier.(.*)" OR
+            "${ITEM}" MATCHES "cpu_reducer.(.*)" OR
+            "${ITEM}" MATCHES "cpu_isa_traits.hpp" OR
+            "${ITEM}" MATCHES "gemm_x8s8s32x_inner_product.(.*)" OR
+            "${ITEM}" MATCHES "gemm_x8s8s32x_convolution.(.*)"
+            )
+            list(REMOVE_ITEM SOURCES ${ITEM})
+        endif()
+    endforeach()
+endif()
+
 # propagate SRC specific flags
 append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")

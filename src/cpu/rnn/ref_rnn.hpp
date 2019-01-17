@@ -24,7 +24,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#ifndef MKLDNN_DISABLE_JIT
 #include "../cpu_isa_traits.hpp"
+#endif
 #include "../gemm/os_blas.hpp"
 
 #include "cpu_rnn_pd.hpp"

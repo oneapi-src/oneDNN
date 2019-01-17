@@ -20,7 +20,11 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+#ifndef MKLDNN_DISABLE_JIT
 #include "jit_generator.hpp"
+#else
+#define PAGE_4K 4096
+#endif
 
 #include "gemm_utils_f32.hpp"
 #include "ref_gemm_f32.hpp"

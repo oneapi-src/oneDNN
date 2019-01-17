@@ -30,7 +30,9 @@
 #include "cpu_primitive.hpp"
 
 #include "simple_q10n.hpp"
+#ifndef MKLDNN_DISABLE_JIT
 #include "cpu_isa_traits.hpp"
+#endif
 
 namespace mkldnn {
 namespace impl {
@@ -138,8 +140,11 @@ typename utils::enable_if<fmt_i == any && (false
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
+#ifndef MKLDNN_DISABLE_JIT
         float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.0f : (1.0f / 2.0f);
-
+#else
+        float adj_scale = 1.0f / 2.0f;
+#endif
         size_t offset = G * pdims[w_groups + 0] * pdims[w_groups + 1] * H * W;
         int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
 
@@ -210,8 +215,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const size_t D_mask = utils::array_product(input_d.dims(),
                             math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
 
+#ifndef MKLDNN_DISABLE_JIT
         float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.f : (1.f / 2.f);
-
+#else
+        float adj_scale = 1.f / 2.f;
+#endif
         auto index = [&](const int ic, const int oc) {
             return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
         };
@@ -300,7 +308,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const size_t D_mask = utils::array_product(input_d.dims(),
                             math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const float *scales = pd->attr()->output_scales_.scales_;
+#ifndef MKLDNN_DISABLE_JIT
         float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.f : (1.f / 2.f);
+#else
+        float adj_scale = 1.f / 2.f;
+#endif
 
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
