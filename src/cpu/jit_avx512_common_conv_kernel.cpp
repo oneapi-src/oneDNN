@@ -2824,14 +2824,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::od_step_comeback_pointers()
     Label kd_comeback_label;
 
     /* 'depth' loop count bound by 'kd_work_size' */
-    mov(kj, ptr[param + GET_OFF(kd_padding)]);
+    mov(kj, reg_kd_count);
     L(kd_comeback_label); {
         int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
         int iw = (utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni))
             ? jcp.tr_iw : jcp.iw;
-        sub(aux_reg_input,
+        sub(reg_input,
                 jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * iw * inp_mult);
-        sub(aux_reg_kernel,
+        sub(reg_kernel,
             jcp.typesize_out * jcp.kh * jcp.kw * jcp.ic_block * jcp.oc_block);
         dec(kj);
         cmp(kj, 0);
@@ -3170,9 +3170,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     int l_pad = jcp.l_pad;
 
     if (jcp.ndims == 5) {
-        mov(aux_reg_input, reg_input);
-        mov(aux_reg_kernel, reg_kernel);
-        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3226,9 +3223,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     int l_pad = jcp.l_pad;
 
     if (jcp.ndims == 5) {
-        mov(aux_reg_input, reg_input);
-        mov(aux_reg_kernel, reg_kernel);
-        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3314,9 +3308,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     int output_comeback = ur_w_trips * ur_w * oc_block;
 
     if (jcp.ndims == 5) {
-        mov(aux_reg_input, reg_input);
-        mov(aux_reg_kernel, reg_kernel);
-        mov(ki, ptr[param + GET_OFF(kd_padding)]);
         L(kd_label);
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
@@ -3405,6 +3396,15 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         = (jcp.kw > 1 || jcp.kh > 1 || jcp.kd > 1)
         && (jcp.stride_w > 1 || jcp.stride_h > 1 || jcp.stride_d > 1);
 
+    if (jcp.ndims == 5) {
+        /* NOTE: reg_kd_count = aux_reg_input = r12. The following order of
+         * 'movs' must be guaranteed. */
+        mov(ki, reg_kd_count);
+        push(reg_kd_count);
+        mov(aux_reg_input, reg_input);
+        mov(aux_reg_kernel, reg_kernel);
+    }
+
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
     if (jcp.kw <= 3 && ow <= 16 && !too_large_to_unroll)
         compute_oh_step_unroll_ow_icblock(ic_block_step, max_ur_w);
@@ -3414,9 +3414,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         compute_oh_step_common(ic_block_step, max_ur_w);
 
     if (jcp.ndims == 5) {
-        od_step_comeback_pointers();
         mov(reg_input, aux_reg_input);
         mov(reg_kernel, aux_reg_kernel);
+        pop(reg_kd_count);
+        od_step_comeback_pointers();
     } else {
         oh_step_comeback_pointers();
     }
@@ -3488,9 +3489,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel()
 void jit_avx512_common_conv_bwd_weights_kernel_f32
     ::compute_oh_loop_common()
 {
-    int ic_block = jcp.ic_block;
-    int oc_block = jcp.oc_block;
-    int back_pad = jcp.back_pad;
     int b_pad = jcp.b_pad;
     int t_pad = jcp.t_pad;
     bool is_dilated = jcp.dilate_h != 0;
@@ -3499,32 +3497,11 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
     int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw
         : jcp.iw;
-    const size_t io_overlap = jcp.od - back_pad;
     Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_tail_label,
             oh_bpad_label, oh_bpad_label_end, od_label, od_label_end,
-            oh_dilate_label_shift, oh_dilate_label_noshift, oh_dilate_label_end,
-            skip_neg_overlap_label, skip_fpad_label, skip_input_label;
-
-    maybe_zero_kernel();
-    if (jcp.ndims == 5 && jcp.with_bias) bias_kernel();
-
-    /* initially offset 'kd' by f_pad */
-    if (jcp.ndims == 5) add(reg_kernel, ptr[param + GET_OFF(kd_offset)]);
+            oh_dilate_label_shift, oh_dilate_label_noshift, oh_dilate_label_end;
 
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
-
-    if (jcp.ndims == 5) {
-        mov(reg_input_d, ptr[param + GET_OFF(src)]);
-        mov(reg_output_d, ptr[param + GET_OFF(dst)]);
-        mov(reg_d_index, ptr[param + GET_OFF(d_index)]);
-        L(od_label);
-
-        mov(reg_input, reg_input_d);
-        mov(reg_output, reg_output_d);
-        push(reg_input_d);
-        push(reg_output_d);
-        push(reg_d_index);
-    }
 
     mov(reg_kh, jcp.kh);
     xor_(reg_ih_count, reg_ih_count);
@@ -3677,52 +3654,123 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32
         }
         L(oh_bpad_label_end);
     }
+}
 
-    if (jcp.ndims == 5) {
-        pop(reg_d_index);
-        pop(reg_output_d);
-        pop(reg_input_d);
+void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_d_loop_common() {
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
+    const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
+    int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw :
+                                                                     jcp.iw;
+    int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
+    const int input_backpad_overlap
+            = div_up(jcp.id + jcp.f_pad - (jcp.kd - 1), jcp.stride_d);
 
-        mov(reg_kd_count, ptr[param + GET_OFF(kd_padding)]);
+    const size_t filter_shift
+            = jcp.typesize_out * jcp.kh * jcp.kw * ic_block * oc_block;
+    const size_t input_shift = jcp.typesize_in * jcp.ih * iw * inp_mult;
+    const size_t output_shift = jcp.typesize_in * jcp.oh * ow * jcp.oc_block;
 
-        /* 'outer-depth loop' offset into next 'depth' index */
-        add(reg_output_d, jcp.typesize_in * jcp.oh * ow * jcp.oc_block);
+    Label d_loop_label, loop_end_label, common_block_label, fpad_end_label,
+            backpad_end_label, backpad_label;
 
-        /* only increase input address when convolution is not within the
-         * 'f_pad' region */
-        if (jcp.f_pad > 0) {
-            cmp(reg_d_index, jcp.f_pad);
-            jl(skip_input_label);
+    if (jcp.with_bias) bias_kernel();
+
+    /* initially offset 'kd' by f_pad */
+    add(reg_kernel, ptr[param + GET_OFF(kd_offset)]);
+
+    mov(reg_input_d, ptr[param + GET_OFF(src)]);
+    mov(reg_output_d, ptr[param + GET_OFF(dst)]);
+    mov(reg_d_index, ptr[param + GET_OFF(d_index)]);
+    mov(reg_kd_count, ptr[param + GET_OFF(kd_padding)]);
+
+    cmp(reg_d_index, ptr[param + GET_OFF(d_worksize)]);
+    jge(loop_end_label, T_NEAR);
+
+    L(d_loop_label);
+
+    mov(reg_input, reg_input_d);
+    mov(reg_output, reg_output_d);
+
+    push(reg_input_d);
+    push(reg_output_d);
+    push(reg_d_index);
+
+    compute_oh_loop_common();
+
+    pop(reg_d_index);
+    pop(reg_output_d);
+    pop(reg_input_d);
+
+    /* Compute 'front' edge */
+    if (jcp.f_pad > 0) {
+
+        /* Check if within fpad region */
+        cmp(reg_d_index, div_up(jcp.f_pad, jcp.stride_d));
+        jge(fpad_end_label, T_NEAR);
+
+        /* Fpad steps */
+        sub(reg_kernel, filter_shift * jcp.stride_d);
+        add(reg_kd_count, jcp.stride_d);
+
+        /* Final number of kernel elements that overlap with input */
+        const int inp_ker_overlap = nstl::min(jcp.kd, jcp.id);
+        cmp(reg_kd_count, inp_ker_overlap);
+        jl(common_block_label, T_NEAR);
+
+        /* Correct any excess shifts to kernel and input */
+        if (jcp.f_pad <= jcp.od * jcp.stride_d) {
+            /* Filter has moved beyond padding (adjust for stride effects) */
+            if (jcp.f_pad % jcp.stride_d != 0) {
+                int inp_corr = jcp.stride_d - jcp.f_pad % jcp.stride_d;
+                add(reg_kernel, filter_shift * inp_corr);
+                add(reg_input_d, input_shift * inp_corr);
+            }
+        } else {
+            /* Filter still overlaps padding (complete reset) */
+            sub(reg_kernel, (jcp.f_pad - jcp.od * jcp.stride_d) * filter_shift);
         }
-        add(reg_input_d,
-                jcp.typesize_in * jcp.stride_d * jcp.ih * iw * inp_mult);
-        L(skip_input_label);
 
-        inc(reg_d_index);
-        cmp(reg_d_index, io_overlap);
-        jl(skip_neg_overlap_label);
+        /* Apply correction */
+        mov(reg_kd_count, jcp.kd);
+        jmp(common_block_label);
 
-        /* Reduce 'kd' count as convolution steps within 'back_pad' region */
-        dec(reg_kd_count);
-        jmp(skip_fpad_label);
-
-        L(skip_neg_overlap_label);
-        cmp(reg_kd_count, jcp.kd);
-        jge(skip_fpad_label);
-
-        /* increase 'kd' count as convolution steps out of 'f_pad' region */
-        inc(reg_kd_count);
-        sub(reg_kernel,
-                jcp.typesize_out * jcp.kh * jcp.kw * ic_block * oc_block);
-
-        L(skip_fpad_label);
-        mov(ptr[param + GET_OFF(kd_padding)], reg_kd_count);
-
-        cmp(reg_d_index, ptr[param + GET_OFF(d_worksize)]);
-        jl(od_label, T_NEAR);
-
-        L(od_label_end);
+        L(fpad_end_label);
     }
+
+    /* Compute bottom edge */
+    if (jcp.back_pad > 0) {
+
+        /* Check if within back_pad region */
+        cmp(reg_d_index, input_backpad_overlap - 1);
+        jl(backpad_end_label, T_NEAR);
+        jg(backpad_label, T_NEAR);
+
+        /* Execute overlap correction between the filter and the initial
+         * back_pad region. */
+        mov(reg_kd_count,
+                jcp.id + jcp.f_pad - input_backpad_overlap * jcp.stride_d);
+        jmp(backpad_end_label, T_NEAR);
+
+        L(backpad_label);
+        sub(reg_kd_count, jcp.stride_d);
+        cmp(reg_kd_count, 0);
+        jle(loop_end_label, T_NEAR);
+
+        L(backpad_end_label);
+    }
+
+    /* Compute middle block */
+    add(reg_input_d, input_shift * jcp.stride_d);
+
+    /* Execute common block and loop */
+    L(common_block_label);
+    add(reg_output_d, output_shift);
+    inc(reg_d_index);
+    cmp(reg_d_index, ptr[param + GET_OFF(d_worksize)]);
+    jl(d_loop_label, T_NEAR);
+
+    L(loop_end_label);
 }
 
 bool jit_avx512_common_conv_bwd_weights_kernel_f32
@@ -4481,7 +4529,11 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop()
         return;
     if (compute_full_spat_loop())
         return;
-    compute_oh_loop_common();
+
+    maybe_zero_kernel();
+
+    if (jcp.ndims == 5) compute_d_loop_common();
+    else compute_oh_loop_common();
 }
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32::generate()
@@ -4566,9 +4618,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp.back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1));
 
-    /* XXX: currently, does not support stride_d > 1 or dilation > 0 */
+    /* XXX: currently, does not support dilation_d > 0 */
     if (ndims == 5)
-        if (jcp.stride_d > 1 || jcp.dilate_d > 0)
+        if (jcp.dilate_d > 0)
             return status::unimplemented;
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
@@ -4618,7 +4670,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     const int max_pad = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1) / 2;
     const bool boundaries_ok = true
         && jcp.t_pad <= max_pad
-        && jcp.b_pad <= max_pad;
+        && jcp.b_pad <= max_pad
+        && IMPLICATION(jcp.f_pad > 0, jcp.kd < jcp.id + jcp.f_pad)
+        && jcp.f_pad < jcp.kd;
     if (!boundaries_ok)
         return status::unimplemented;
 
@@ -4640,7 +4694,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             && utils::everyone_is(data_type::f32,
                 src_d.data_type(), diff_weights_d.data_type(),
                 diff_dst_d.data_type())
-            && one_of(jcp.ic, 1, 3)
+            && one_of(jcp.ic, 1, 2, 3)
             && IMPLICATION(jcp.ic == 1, one_of(src_d.format(), want_src_format,
                 pick(ndims - 3, nwc, nhwc, ndhwc)))
             && IMPLICATION(jcp.ic != 1, src_d.format() == want_src_format)
