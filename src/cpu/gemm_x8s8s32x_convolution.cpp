@@ -206,7 +206,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
                 vreg_scale_ = vreg_scale_ | kreg_rem_mask_short;
             else
                 vreg_scale_ = vreg_scale_ | kreg_rem_mask_vlen;
-            vmovups(vreg_scale, scale_addr);
+            vmovups(vreg_scale_, scale_addr);
         }
 
         auto vreg_dst_ = vreg_dst(idx);
