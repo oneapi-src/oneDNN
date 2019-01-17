@@ -1193,7 +1193,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
           + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
 
     const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
-    const int input_step = jcp.stride_d * jcp.ih * jcp.iw * inp_mult;
+    const int input_step = jcp.ih * jcp.iw * inp_mult;
     const int output_step = jcp.ow * jcp.oh * jcp.oc_block;
     int img{0}, od_s{0};
     int img_start = ti->img_start, img_end = ti->img_end;
@@ -1208,9 +1208,10 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         const int id_s = od_s * jcp.stride_d;
         const int ik_overlap = nstl::max(0, id_s - jcp.f_pad);
         const int kd_front_pad = nstl::max(0, jcp.f_pad - id_s);
-        const int kd_back_pad = nstl::max(0, id_s + 1 + jcp.back_pad - jcp.od);
-        int kd_pad_off = kd_front_pad * jcp.kh * jcp.kw * jcp.ic_block
-                * jcp.oc_block * jcp.typesize_out;
+        const int kd_back_pad
+                = nstl::max(0, id_s - jcp.f_pad - jcp.id + jcp.kd);
+        int kd_pad_off = nstl::min(jcp.kd - 1, kd_front_pad) * jcp.kh * jcp.kw
+                * jcp.ic_block * jcp.oc_block * jcp.typesize_out;
 
         for (int g = ti->g_start; g < ti->g_end; ++g) {
         for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
@@ -1226,7 +1227,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             jit_conv_3d_ker_bwd_w_pipeline(kernel_->jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                     diff_bia + _oc * 16, (img == img_first), od_s, od_e,
-                    jcp.kd - nstl::max(kd_front_pad, kd_back_pad), kd_pad_off);
+                    jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off);
 
             if (ic_b == 0) p.flags = 0;
             else p.flags = 1;

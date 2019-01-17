@@ -403,6 +403,7 @@ private:
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_oh_loop_common();
+    inline void compute_d_loop_common();
 
     inline bool compute_full_spat_loop();
     inline bool flat_4ops_compute();
