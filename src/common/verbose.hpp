@@ -358,6 +358,7 @@ DEFINE_STUB(mem);
 DEFINE_STUB(pool);
 DEFINE_STUB(softmax);
 DEFINE_STUB(rnn);
+DEFINE_STUB(shuffle);
 #undef DEFINE_STUB
 #endif /* !defined(DISABLE_VERBOSE) */
 
