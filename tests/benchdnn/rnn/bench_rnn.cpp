@@ -40,6 +40,7 @@ const dt_conf_t *cfg = conf_f32;
 policy_t scale_policy = NONE;
 attr_t attr;
 bool allow_unimpl = false;
+int mb = 0;
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -50,6 +51,7 @@ void reset_parameters() {
     activation = RELU;
     scale_policy = NONE;
     allow_unimpl = false;
+    mb = 0;
 }
 
 int bench(int argc, char **argv, bool main_bench) {
@@ -82,6 +84,8 @@ int bench(int argc, char **argv, bool main_bench) {
             reset_parameters();
         else if (!strncmp("--perf-template=", argv[arg], 16))
             perf_template = argv[arg] + 16;
+        else if (!strncmp("--mb=", argv[arg], 5))
+            mb = atoi(argv[arg] + 5);
         else {
             rnn_desc_t d;
             if (str2desc(&d, argv[arg]) == FAIL) {
@@ -111,7 +115,7 @@ int bench(int argc, char **argv, bool main_bench) {
 
 void check(rnn_desc_t *d) {
     const rnn_prb_t p(*d, cfg, prop, alg, direction, activation, attr,
-        scale_policy);
+        scale_policy, mb);
     res_t res{};
     char pstr[max_prb_len];
 

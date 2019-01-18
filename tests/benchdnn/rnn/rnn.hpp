@@ -175,7 +175,7 @@ struct rnn_prb_t : public rnn_desc_t {
     rnn_prb_t(const rnn_desc_t desc, const dt_conf_t *cfg,
             mkldnn_prop_kind_t prop, alg_t alg,
             mkldnn_rnn_direction_t direction, activation_t activation,
-            const attr_t &attr, policy_t scale_policy)
+            const attr_t &attr, policy_t scale_policy, int mb = 0)
         : rnn_desc_t(desc)
         , cfg(cfg)
         , prop(prop)
@@ -184,6 +184,7 @@ struct rnn_prb_t : public rnn_desc_t {
         , activation(activation)
         , attr(attr)
         , scale_policy(scale_policy) {
+        if (mb) this->mb = mb;
         wei_oc_scales = NULL;
         if (scale_policy == PER_OC)
             wei_oc_scales
