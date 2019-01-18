@@ -63,8 +63,8 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
 
             if (!ok) return status::unimplemented;
 
@@ -83,15 +83,9 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
         status_t jit_conf();
         void init_scratchpad();
 
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nhwc));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, nhwc));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            return set_default_formats_common(nhwc, any, nhwc);
         }
     };
 

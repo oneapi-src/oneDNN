@@ -50,60 +50,10 @@ struct cpu_convolution_fwd_pd_t: public convolution_fwd_pd_t {
         return !math::eltwise_fwd_preserves_zero(po.entry_[idx].eltwise.alg,
                 jit_impl);
     }
-
-protected:
-    memory_format_t src_format() {
-        using namespace memory_format;
-        return utils::pick(desc()->src_desc.ndims - 3, ncw, nchw, ncdhw);
-    }
-    memory_format_t wei_format() {
-        using namespace memory_format;
-        return with_groups()
-            ? utils::pick(desc()->src_desc.ndims - 3, goiw, goihw, goidhw)
-            : utils::pick(desc()->src_desc.ndims - 3, oiw, oihw, oidhw);
-    }
-
-    status_t set_default_params() {
-        using namespace memory_format;
-        if (src_md_.format == any)
-            CHECK(types::set_default_format(src_md_, src_format()));
-        if (dst_md_.format == any)
-            CHECK(types::set_default_format(dst_md_, src_md_.format));
-        if (weights_md_.format == any)
-            CHECK(types::set_default_format(weights_md_, wei_format()));
-        if (bias_md_.format == any)
-            CHECK(types::set_default_format(bias_md_, x));
-        return status::success;
-    }
 };
 
 struct cpu_convolution_bwd_data_pd_t: public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
-
-protected:
-    memory_format_t src_format() {
-        using namespace memory_format;
-        return utils::pick(desc_.diff_src_desc.ndims - 3, ncw, nchw, ncdhw);
-    }
-    memory_format_t wei_format() {
-        using namespace memory_format;
-        return with_groups()
-            ? utils::pick(desc_.diff_src_desc.ndims - 3, goiw, goihw, goidhw)
-            : utils::pick(desc_.diff_src_desc.ndims - 3, oiw, oihw, oidhw);
-    }
-
-    status_t set_default_params() {
-        using namespace memory_format;
-        if (diff_src_md_.format == any)
-            CHECK(types::set_default_format(diff_src_md_, src_format()));
-        if (diff_dst_md_.format == any)
-            CHECK(types::set_default_format(diff_dst_md_, diff_src_md_.format));
-        if (weights_md_.format == any)
-           CHECK(types::set_default_format(weights_md_, wei_format()));
-        if (bias_md_.format == any)
-            CHECK(types::set_default_format(bias_md_, x));
-        return status::success;
-    }
 };
 
 struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
@@ -114,31 +64,6 @@ struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
         memory_desc_wrapper diff_dst_d(&diff_dst_md_);
         if (!diff_dst_d.is_blocking_desc()) return false;
         return OC() != diff_dst_d.blocking_desc().padding_dims[1];
-    }
-
-protected:
-    memory_format_t src_format() {
-        using namespace memory_format;
-        return utils::pick(desc_.src_desc.ndims - 3, ncw, nchw, ncdhw);
-    }
-    memory_format_t wei_format() {
-        using namespace memory_format;
-        return with_groups()
-            ? utils::pick(desc_.src_desc.ndims - 3, goiw, goihw, goidhw)
-            : utils::pick(desc_.src_desc.ndims - 3, oiw, oihw, oidhw);
-    }
-
-    status_t set_default_params() {
-        using namespace memory_format;
-        if (src_md_.format == any)
-            CHECK(types::set_default_format(src_md_, src_format()));
-        if (diff_dst_md_.format == any)
-            CHECK(types::set_default_format(diff_dst_md_, src_format()));
-        if (diff_weights_md_.format == any)
-            CHECK(types::set_default_format(diff_weights_md_, wei_format()));
-        if (diff_bias_md_.format == any)
-            CHECK(types::set_default_format(diff_bias_md_, x));
-        return status::success;
     }
 };
 

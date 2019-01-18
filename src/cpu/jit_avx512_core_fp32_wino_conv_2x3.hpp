@@ -58,7 +58,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
                         alg_kind::convolution_winograd)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success;
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             memory_desc_t expect_wei_md = *weights_md();
@@ -100,15 +100,9 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
             }
         }
 
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nChw16c));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, nChw16c));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            return set_default_formats_common(nChw16c, any, nChw16c);
         }
     };
 

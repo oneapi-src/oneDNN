@@ -48,10 +48,11 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
-                && src_md_.format == src_format()
-                && dst_md_.format == src_format()
+                && set_default_formats_common(
+                        dat_format(), wei_format(), dat_format())
+                && src_md_.format == dat_format()
+                && dst_md_.format == dat_format()
                 && weights_md_.format == wei_format()
                 && is_gemm_conv_format();
             if (!ok) return status::unimplemented;
@@ -65,7 +66,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t src_format() const {
+        memory_format_t dat_format() const {
             using namespace memory_format;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
@@ -75,19 +76,6 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
             return with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
-
-        status_t set_default_params() {
-            using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, src_format()));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, src_format()));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, wei_format()));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
         }
 
         bool is_gemm_conv_format() const {
@@ -155,10 +143,11 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
-                && diff_src_md_.format == src_format()
-                && diff_dst_md_.format == src_format()
+                && set_default_formats_common(
+                        dat_format(), wei_format(), dat_format())
+                && diff_src_md_.format == dat_format()
+                && diff_dst_md_.format == dat_format()
                 && weights_md_.format == wei_format();
             if (!ok) return status::unimplemented;
 
@@ -171,7 +160,7 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t src_format() const {
+        memory_format_t dat_format() const {
             using namespace memory_format;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
@@ -181,17 +170,6 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
             return with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
-
-        status_t set_default_params() {
-            using namespace memory_format;
-            if (diff_src_md_.format == any)
-                CHECK(types::set_default_format(diff_src_md_, src_format()));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, src_format()));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, wei_format()));
-            return status::success;
         }
     };
 
@@ -227,10 +205,11 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
-                && src_md_.format == src_format()
-                && diff_dst_md_.format == src_format()
+                && set_default_formats_common(
+                        dat_format(), wei_format(), dat_format())
+                && src_md_.format == dat_format()
+                && diff_dst_md_.format == dat_format()
                 && diff_weights_md_.format == wei_format();
             if (!ok) return status::unimplemented;
 
@@ -243,7 +222,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t src_format() const {
+        memory_format_t dat_format() const {
             using namespace memory_format;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
@@ -253,19 +232,6 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
             return this->with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
-
-        status_t set_default_params() {
-            using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, src_format()));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, src_format()));
-            if (diff_weights_md_.format == any)
-                CHECK(types::set_default_format(diff_weights_md_, wei_format()));
-            if (diff_bias_md_.format == any)
-                CHECK(types::set_default_format(diff_bias_md_, x));
-            return status::success;
         }
     };
 

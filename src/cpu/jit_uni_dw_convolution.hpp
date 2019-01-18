@@ -50,8 +50,8 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(
@@ -68,20 +68,13 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, desired_act_fmt));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, desired_act_fmt));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 
@@ -130,8 +123,8 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
 
             if (!ok) return status::unimplemented;
 
@@ -150,19 +143,13 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (diff_src_md_.format == any)
-                CHECK(types::set_default_format(diff_src_md_, desired_act_fmt));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, desired_act_fmt));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, desired_wei_fmt));
+            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            return status::success;
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 
@@ -211,7 +198,8 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success;
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const int max_threads = mkldnn_in_parallel()
@@ -232,21 +220,13 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, desired_act_fmt));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, desired_act_fmt));
-            if (diff_weights_md_.format == any)
-                CHECK(types::set_default_format(diff_weights_md_, desired_wei_fmt));
-            if (diff_bias_md_.format == any)
-                CHECK(types::set_default_format(diff_bias_md_, x));
+            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            return status::success;
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 

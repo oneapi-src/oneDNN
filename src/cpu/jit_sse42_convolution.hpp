@@ -49,8 +49,8 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             return jit_sse42_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
@@ -60,26 +60,22 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
 
             const bool flat = IC() == 3;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, flat
-                    ? utils::pick(ndims() - 3, ncw, nchw)
-                    : utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_,
-                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
-                        gOIhw8i8o, gOhwi8o)
-                    : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
-                        OIhw8i8o, Ohwi8o)));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            auto src_fmt = flat
+                ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
+                : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto dst_fmt =
+                utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_fmt = with_groups()
+                ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                        gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
+                : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
+                        OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
+
+            return set_default_formats_common(src_fmt, wei_fmt, dst_fmt);
         }
     };
 

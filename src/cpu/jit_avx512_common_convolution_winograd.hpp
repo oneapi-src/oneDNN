@@ -103,8 +103,8 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                         alg_kind::convolution_winograd)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
+                && set_default_formats()
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 
@@ -123,18 +123,10 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         jit_conv_winograd_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nChw16c));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, nChw16c));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_,
-                        with_groups() ? gOIhw16i16o : OIhw16i16o));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
         }
     };
 
@@ -177,7 +169,6 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
@@ -185,6 +176,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
                         alg_kind::convolution_auto,
                         alg_kind::convolution_winograd)
                 && !has_zero_dim_memory()
+                && set_default_formats()
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 
@@ -204,16 +196,10 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         jit_conv_winograd_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (diff_src_md_.format == any)
-                CHECK(types::set_default_format(diff_src_md_, nChw16c));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, nChw16c));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_,
-                        with_groups() ? gOIhw16i16o : OIhw16i16o));
-            return status::success;
+            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
         }
     };
 
@@ -254,7 +240,6 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && utils::one_of(desc()->alg_kind,
                         alg_kind::convolution_auto,
@@ -262,6 +247,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
                 && !has_zero_dim_memory()
+                && set_default_formats()
                 && mkldnn_thr_syncable();
             if (!ok) return status::unimplemented;
 
@@ -281,19 +267,10 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
         jit_conv_winograd_conf_t jcp_;
 
     protected:
-        status_t set_default_params()
-        {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nChw16c));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, nChw16c));
-            if (diff_weights_md_.format == any)
-                CHECK(types::set_default_format(diff_weights_md_,
-                        with_groups() ? gOIhw16i16o : OIhw16i16o));
-            if (diff_bias_md_.format == any)
-                CHECK(types::set_default_format(diff_bias_md_, x));
-            return status::success;
+            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
         }
     };
 

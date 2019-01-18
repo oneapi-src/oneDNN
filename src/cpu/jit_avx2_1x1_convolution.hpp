@@ -53,8 +53,8 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -77,21 +77,15 @@ struct jit_avx2_1x1_convolution_fwd_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, utils::pick(ndims() - 3,
-                    nCw8c, nChw8c)));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, utils::pick(ndims() - 3,
-                    nCw8c, nChw8c)));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+
+            auto dat_fmt = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_fmt = with_groups()
+                ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 
@@ -145,8 +139,8 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -170,19 +164,15 @@ struct jit_avx2_1x1_convolution_bwd_data_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (diff_src_md_.format == any)
-                CHECK(types::set_default_format(diff_src_md_, utils::pick(
-                    ndims() - 3, nCw8c, nChw8c)));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, utils::pick(
-                    ndims() - 3, nCw8c, nChw8c)));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i)
-                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i)));
-            return status::success;
+
+            auto dat_fmt = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_fmt = with_groups()
+                ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i)
+                : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 
@@ -236,8 +226,8 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -273,21 +263,15 @@ struct jit_avx2_1x1_convolution_bwd_weights_t: public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_,
-                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_,
-                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (diff_weights_md_.format == any)
-                CHECK(types::set_default_format(diff_weights_md_, with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (diff_bias_md_.format == any)
-                CHECK(types::set_default_format(diff_bias_md_, x));
-            return status::success;
+
+            auto dat_fmt = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_fmt = with_groups()
+                ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
 
     private:

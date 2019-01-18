@@ -126,6 +126,28 @@ protected:
     convolution_desc_t desc_;
     const convolution_fwd_pd_t *hint_fwd_pd_;
 
+    bool set_default_formats_common_template(
+            memory_desc_t &src_md, memory_format_t src_fmt,
+            memory_desc_t &wei_md, memory_format_t wei_fmt,
+            memory_desc_t &dst_md, memory_format_t dst_fmt,
+            memory_desc_t &bia_md) {
+        using namespace memory_format;
+
+#       define IS_OK(f) \
+        do { if ((f) != status::success) return false; } while(0)
+        if (src_md.format == any && !utils::one_of(src_fmt, any, undef))
+            IS_OK(types::set_default_format(src_md, src_fmt));
+        if (dst_md.format == any && !utils::one_of(dst_fmt, any, undef))
+            IS_OK(types::set_default_format(dst_md, dst_fmt));
+        if (wei_md.format == any && !utils::one_of(wei_fmt, any, undef))
+            IS_OK(types::set_default_format(wei_md, wei_fmt));
+        if (with_bias() && bia_md.format == any)
+            IS_OK(types::set_default_format(bia_md, x));
+#       undef IS_OK
+
+        return true;
+    }
+
     bool set_default_alg_kind(alg_kind_t alg_kind) {
         assert(utils::one_of(alg_kind, alg_kind::convolution_direct,
                     alg_kind::convolution_winograd));
@@ -199,6 +221,12 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
+
+    bool set_default_formats_common(memory_format_t src_fmt,
+            memory_format_t wei_fmt, memory_format_t dst_fmt) {
+        return set_default_formats_common_template(src_md_, src_fmt,
+                weights_md_, wei_fmt, dst_md_, dst_fmt, bias_md_);
+    }
 };
 
 struct convolution_bwd_data_pd_t: public convolution_pd_t {
@@ -246,6 +274,12 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t diff_dst_md_;
+
+    bool set_default_formats_common(memory_format_t diff_src_fmt,
+            memory_format_t wei_fmt, memory_format_t diff_dst_fmt) {
+        return set_default_formats_common_template(diff_src_md_, diff_src_fmt,
+                weights_md_, wei_fmt, diff_dst_md_, diff_dst_fmt, bias_md_);
+    }
 };
 
 struct convolution_bwd_weights_pd_t: public convolution_pd_t {
@@ -294,6 +328,13 @@ protected:
     memory_desc_t diff_weights_md_;
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
+
+    bool set_default_formats_common(memory_format_t src_fmt,
+            memory_format_t diff_wei_fmt, memory_format_t diff_dst_fmt) {
+        return set_default_formats_common_template(src_md_, src_fmt,
+                diff_weights_md_, diff_wei_fmt, diff_dst_md_, diff_dst_fmt,
+                diff_bias_md_);
+    }
 };
 
 }

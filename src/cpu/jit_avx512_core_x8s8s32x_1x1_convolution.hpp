@@ -55,8 +55,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -82,23 +82,16 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            bool is_sign_input =
-                desc()->src_desc.data_type == data_type::s8;
+            bool is_sign_input = src_md()->data_type == data_type::s8;
 
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nhwc));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, nhwc));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? (is_sign_input ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
-                    : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i)));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
+            auto dat_fmt = nhwc;
+            auto wei_fmt = with_groups()
+                ? (is_sign_input ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
+                : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i);
 
-            return status::success;
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 

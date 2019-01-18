@@ -48,8 +48,8 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             return jit_sse42_1x1_conv_kernel_f32::init_conf(jcp_, *desc(),
@@ -59,21 +59,15 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
         jit_1x1_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_,
-                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_,
-                            utils::pick(ndims() - 3, nCw8c, nChw8c)));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o)));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+
+            auto dat_fmt = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_fmt = with_groups()
+                ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
+                : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 

@@ -56,8 +56,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                         s32)
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, f32, s32, s8, u8))
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
+                && set_default_formats()
                 && utils::everyone_is(nhwc, src_md_.format, dst_md_.format)
                 && weights_md_.format == (with_groups()
                         ? (src_type == s8 ? hwigo_s8s8 : hwigo)
@@ -74,22 +74,16 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
-            const bool is_sign_input =
-                desc()->src_desc.data_type == data_type::s8;
+            const bool is_sign_input = src_md_.data_type == data_type::s8;
 
-            if (src_md_.format == any)
-                CHECK(types::set_default_format(src_md_, nhwc));
-            if (dst_md_.format == any)
-                CHECK(types::set_default_format(dst_md_, nhwc));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_, with_groups()
-                            ? (is_sign_input ? hwigo_s8s8 : hwigo)
-                            : (is_sign_input ? hwio_s8s8 : hwio)));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-            return status::success;
+            auto dat_fmt = nhwc;
+            auto wei_fmt = with_groups()
+                ? (is_sign_input ? hwigo_s8s8 : hwigo)
+                : (is_sign_input ? hwio_s8s8 : hwio);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
 
         bool is_gemm_conv_format() {
@@ -204,8 +198,8 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && expect_data_types(dst_type, s8, data_type::undef, u8, s32)
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, f32, s32, s8, u8))
-                && set_default_params() == status::success
                 && !has_zero_dim_memory()
+                && set_default_formats()
                 && utils::everyone_is(nhwc, diff_src_md_.format,
                         diff_dst_md_.format)
                 && weights_md_.format == (with_groups() ? hwigo : hwio)
@@ -223,19 +217,13 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        status_t set_default_params() {
+        bool set_default_formats() {
             using namespace memory_format;
 
-            if (diff_src_md_.format == any)
-                CHECK(types::set_default_format(diff_src_md_, nhwc));
-            if (diff_dst_md_.format == any)
-                CHECK(types::set_default_format(diff_dst_md_, nhwc));
-            if (weights_md_.format == any)
-                CHECK(types::set_default_format(weights_md_,
-                            with_groups() ? hwigo : hwio));
-            if (bias_md_.format == any)
-                CHECK(types::set_default_format(bias_md_, x));
-             return status::success;
+            auto dat_fmt = nhwc;
+            auto wei_fmt = with_groups() ? hwigo : hwio;
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 

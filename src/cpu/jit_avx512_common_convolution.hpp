@@ -135,8 +135,8 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(diff_src_type, wei_type,
                         data_type::undef, diff_dst_type, data_type::undef)
-                && set_default_params() == status::success
-                && !has_zero_dim_memory();
+                && !has_zero_dim_memory()
+                && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status =
@@ -154,35 +154,20 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
     protected:
-        memory_format_t src_format() const {
+        bool set_default_formats() {
             using namespace memory_format;
-            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-        }
 
-        memory_format_t wei_format() const {
-            using namespace memory_format;
-            if (diff_dst_type == data_type::s16
-                && diff_src_type == data_type::s32
-                && wei_type == data_type::s16) {
-                return with_groups() ? gOIhw8o16i2o : OIhw8o16i2o;
-            } else {
-                return with_groups()
-                    ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
-                          gOIdhw16o16i)
-                    : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
-                          OIdhw16o16i);
-            }
-        }
+            const bool is_f32 = utils::everyone_is(data_type::f32,
+                    diff_src_type, diff_dst_type, wei_type);
 
-        status_t set_default_params() {
-            using namespace memory_format;
-            if (diff_src_md()->format == any)
-                CHECK(types::set_default_format(diff_src_md_, src_format()));
-            if (diff_dst_md()->format == any)
-                CHECK(types::set_default_format(diff_dst_md_, src_format()));
-            if (weights_md()->format == any)
-                CHECK(types::set_default_format(weights_md_, wei_format()));
-            return status::success;
+            auto dat_fmt = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            auto wei_fmt = is_f32
+                ? utils::pick(2 * ndims() - 6 + with_groups(),
+                        OIw16o16i, gOIw16o16i, OIhw16o16i, gOIhw16o16i,
+                        OIdhw16o16i, gOIdhw16o16i)
+                : (with_groups() ? gOIhw8o16i2o : OIhw8o16i2o);
+
+            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
         }
     };
 
@@ -260,32 +245,6 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
         jit_conv_conf_t jcp_;
         typename cpu_reducer_t<diff_weights_type>::conf_t reducer_bia_conf_;
-
-    protected:
-        memory_format_t src_format() const {
-            using namespace memory_format;
-            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-        }
-
-        memory_format_t wei_format() const {
-            using namespace memory_format;
-            return with_groups()
-                ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
-                : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i);
-        }
-
-        status_t set_default_params() {
-            using namespace memory_format;
-
-            if (src_md()->format == any)
-                CHECK(types::set_default_format(src_md_, src_format()));
-            if (diff_weights_md()->format == any)
-                CHECK(types::set_default_format(diff_weights_md_, wei_format()));
-            if (diff_dst_md()->format == any)
-                CHECK(types::set_default_format(diff_dst_md_, src_format()));
-
-            return status::success;
-        }
 
     private:
         void init_balancers() {
