@@ -89,25 +89,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-# to make build time reasonable, don't use optimizations for s8u8s32 Xbyak
-# kernels
-file(GLOB FILES_WITHNO_OPT
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_sum_an_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_sum_at_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_sum_bn_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_sum_bt_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_an_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_at_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_bn_kern.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/gemm/s8x8s32/jit_avx512_core_u8_copy_bt_kern.cpp)
-if(WIN32 AND NOT MINGW)
-    set_source_files_properties(${FILES_WITHNO_OPT}
-        PROPERTIES COMPILE_FLAGS "/Od")
-else()
-    set_source_files_properties(${FILES_WITHNO_OPT}
-        PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
-endif()
-
 add_library(${TARGET_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
 
 if(WIN32)
