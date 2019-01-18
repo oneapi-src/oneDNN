@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "memory.hpp"
+#include "memory_desc_wrapper.hpp"
 
 #include "cpu_engine.hpp"
 
@@ -31,10 +32,23 @@ namespace cpu {
 struct cpu_memory_t: public memory_t {
     cpu_memory_t(cpu_engine_t *engine, const memory_desc_t *md, void *handle)
         : memory_t(engine, md)
-        , data_((char *)handle) {}
+        , own_data_(handle == MKLDNN_NATIVE_HANDLE_ALLOCATE)
+        , data_((char *)handle)
+    {
+        if (own_data_) {
+            data_ = nullptr;
+            const size_t size = memory_desc_wrapper(this->md()).size();
+            if (size) data_ = (char *)malloc(size, 64);
+        }
+        zero_pad();
+    }
 
     cpu_memory_t(cpu_engine_t *engine, const memory_desc_t *md)
         : cpu_memory_t(engine, md, nullptr) {}
+
+    ~cpu_memory_t() { if (own_data_) free(data_); }
+
+    cpu_engine_t *engine() const { return (cpu_engine_t *)memory_t::engine(); }
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(data_);
@@ -42,6 +56,7 @@ struct cpu_memory_t: public memory_t {
     }
 
     virtual mkldnn::impl::status_t set_data_handle(void *handle) override {
+        if (own_data_) { free(data_); own_data_ = false; }
         data_ = static_cast<char *>(handle);
         return zero_pad();
     }
@@ -49,10 +64,15 @@ struct cpu_memory_t: public memory_t {
     virtual mkldnn::impl::status_t zero_pad() const override;
 
 private:
+    bool own_data_;
     char *data_;
 
     template <mkldnn::impl::data_type_t>
     mkldnn::impl::status_t typed_zero_pad() const;
+
+    cpu_memory_t(const cpu_memory_t &) = delete;
+    cpu_memory_t &operator=(const cpu_memory_t &) = delete;
+    cpu_memory_t &operator=(cpu_memory_t &&) = delete;
 };
 
 }

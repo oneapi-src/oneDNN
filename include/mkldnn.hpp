@@ -592,9 +592,6 @@ struct stream: public handle<mkldnn_stream_t> {
 
 /// Memory primitive that describes the data.
 struct memory: public handle<mkldnn_memory_t> {
-    private:
-    std::shared_ptr<char> _handle;
-
     public:
     typedef std::vector<std::remove_extent<mkldnn_dims_t>::type> dims;
 
@@ -822,36 +819,15 @@ struct memory: public handle<mkldnn_memory_t> {
     memory(const desc &md, const engine &aengine, void *ahandle) {
         mkldnn_memory_t result;
         error::wrap_c_api(mkldnn_memory_create(&result, &md.data,
-                    aengine.get(), nullptr), "could not create a memory");
+                    aengine.get(), ahandle), "could not create a memory");
         reset(result);
-        if (ahandle) set_data_handle(ahandle);
     }
 
     /// Constructs a memory
     ///
     /// @param adesc Memory primitive descriptor.
-    memory(const desc &md, const engine &aengine): memory(md, aengine, nullptr)
-    {
-        auto _malloc = [](size_t size, int alignment) {
-            void *ptr;
-#ifdef _WIN32
-            ptr = _aligned_malloc(size, alignment);
-            int rc = ((ptr)? 0 : errno);
-#else
-            int rc = ::posix_memalign(&ptr, alignment, size);
-#endif /* _WIN32 */
-            return (rc == 0) ? (char*)ptr : nullptr;
-        };
-        auto _free = [](char* p) {
-#ifdef _WIN32
-            _aligned_free((void*)p);
-#else
-            ::free((void*)p);
-#endif /* _WIN32 */
-        };
-        _handle.reset(_malloc(md.get_size(), 4096), _free);
-        set_data_handle(_handle.get());
-    }
+    memory(const desc &md, const engine &aengine)
+        : memory(md, aengine, MKLDNN_NATIVE_HANDLE_ALLOCATE) {}
 
     /// Returns the descriptor of the memory primitive.
     desc get_desc() const {
