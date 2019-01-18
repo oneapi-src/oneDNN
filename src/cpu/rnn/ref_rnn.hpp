@@ -74,7 +74,7 @@ namespace cpu {
     void f(const rnn_utils::rnn_conf_t &rnn, float *scratch_bias_, \
             const float *w_iter_comp, const float *w_layer_comp) const
 
-#define packing_sig(f)                                                         \
+#define copying_sig(f)                                                         \
     void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size, \
             int IC_size, const int n_parts, const int *gates_per_part,         \
             const size_t *part_weights_pack_size, weights_data_t **weights_,   \
@@ -102,7 +102,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     typedef gemm_sig((class_name::*gemm_t));
     typedef bias_prepare_sig((class_name::*bias_prepare_t));
     typedef bias_finalize_sig((class_name::*bias_finalize_t));
-    typedef packing_sig((class_name::*packing_t));
+    typedef copying_sig((class_name::*copying_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -223,25 +223,22 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
-        auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
-                bool copy_w, bool already_packed, packing_t &p) {
-            g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
-            if (pack_w)
-                p = &class_name::pack_weights;
-            else if (copy_w)
-                p = &class_name::copy_weights;
-            else
-                p = already_packed
-                    ? &class_name::assign_packed_weights
-                    : &class_name::assign_weights;
+        auto set_gemm_funcs = [](bool packed_gemm, gemm_t &g, bool copy_w,
+                copying_t &c) {
+            if (packed_gemm) {
+                g = &class_name::packed_gemm;
+                c = &class_name::assign_packed_weights;
+            } else {
+                g = &class_name::gemm;
+                c = (copy_w) ? &class_name::copy_weights :
+                               &class_name::assign_weights;
+            }
         };
-        set_pack_funcs(pd()->rnn_.use_iter_packed_gemm, gemm_iter_func,
-                pd()->rnn_.pack_weights_iter, pd()->rnn_.copy_weights_iter,
-                pd()->rnn_.weights_iter_is_packed, weights_iter_pack_func);
+        set_gemm_funcs(pd()->rnn_.use_iter_packed_gemm, gemm_iter_func,
+                pd()->rnn_.copy_weights_iter, weights_iter_copy_func);
 
-        set_pack_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
-                pd()->rnn_.pack_weights_layer, pd()->rnn_.copy_weights_layer,
-                pd()->rnn_.weights_layer_is_packed, weights_layer_pack_func);
+        set_gemm_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
+                pd()->rnn_.copy_weights_layer, weights_layer_copy_func);
 
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
@@ -307,10 +304,9 @@ private:
     gemm_sig(packed_gemm);
     bias_prepare_sig(bias_prepare);
     bias_finalize_sig(bias_finalize);
-    packing_sig(pack_weights);
-    packing_sig(assign_weights);
-    packing_sig(copy_weights);
-    packing_sig(assign_packed_weights);
+    copying_sig(assign_weights);
+    copying_sig(copy_weights);
+    copying_sig(assign_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
@@ -357,8 +353,8 @@ private:
 
     bias_prepare_t bias_preparation_func;
     bias_finalize_t bias_finalization_func;
-    packing_t weights_layer_pack_func;
-    packing_t weights_iter_pack_func;
+    copying_t weights_layer_copy_func;
+    copying_t weights_iter_copy_func;
 
     gemm_t gemm_layer_func;
     gemm_t gemm_iter_func;

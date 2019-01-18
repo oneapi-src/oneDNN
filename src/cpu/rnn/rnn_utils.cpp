@@ -203,12 +203,6 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.weights_layer_is_packed = rnn.weights_layer_fmt == rnn_packed;
     rnn.weights_iter_is_packed = rnn.weights_iter_fmt == rnn_packed;
 
-    /* Decide to pack weights internally */
-    rnn.pack_weights_layer
-            = rnn.use_layer_packed_gemm && !rnn.weights_layer_is_packed;
-    rnn.pack_weights_iter
-            = rnn.use_layer_packed_gemm && !rnn.weights_iter_is_packed;
-
     auto set_weights_dims = [&](bool is_igo, int ic, int &ld, int &nld) {
         if (is_igo) {
             ld = rnn.dic * rnn.n_gates;
@@ -296,18 +290,14 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Set the sizes in case we pack the weights */
     size_t weights_layer_gld_size = (size_t)rnn.n_layer * rnn.n_dir
             * rnn.weights_layer_nld * rnn.weights_layer_ws_ld;
-    if (rnn.pack_weights_layer)
-        rnn.ws_weights_layer_size = rnn.weights_iter_pack_size;
-    else if (rnn.copy_weights_layer)
+    if (rnn.copy_weights_layer)
         rnn.ws_weights_layer_size = weights_layer_gld_size * sizeof_weights_dt;
     else
         rnn.ws_weights_layer_size = 0;
 
     size_t weights_iter_gld_size = (size_t)rnn.n_iter * rnn.n_dir
             * rnn.weights_iter_nld * rnn.weights_iter_ws_ld;
-    if (rnn.pack_weights_iter)
-        rnn.ws_weights_iter_size = rnn.weights_iter_pack_size;
-    else if (rnn.copy_weights_iter)
+    if (rnn.copy_weights_iter)
         rnn.ws_weights_iter_size = weights_iter_gld_size * sizeof_weights_dt;
     else
         rnn.ws_weights_iter_size = 0;
@@ -383,13 +373,13 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
 
-    if (rnn.copy_weights_layer || rnn.pack_weights_layer) {
+    if (rnn.copy_weights_layer) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_weights_layer_offset = current_offset;
         current_offset += rnn.ws_weights_layer_size;
     }
 
-    if (rnn.copy_weights_iter || rnn.pack_weights_iter) {
+    if (rnn.copy_weights_iter) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_weights_iter_offset = current_offset;
         current_offset += rnn.ws_weights_iter_size;
