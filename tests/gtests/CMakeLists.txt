@@ -25,6 +25,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
                     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cpu
                     )
+if(MKLDNN_DISABLE_JIT)
+    add_definitions(-DMKLDNN_DISABLE_JIT)
+    add_definitions(-DNON_X86_CPU)
+endif()
+
 if(WIN32)
     # Correct 'jnl' macro/jit issue
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")

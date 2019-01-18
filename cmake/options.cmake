@@ -37,6 +37,11 @@ option(MKLDNN_ENABLE_CONCURRENT_EXEC
     CAUTION: enabling this option increases memory consumption"
     OFF) # disabled by default
 
+option(MKLDNN_DISABLE_JIT
+    "disables JIT at runtime by zeroing feartures in CPU and allows
+     cross compilation for the other platforms"
+    OFF) # disable by default
+
 # =============================
 # Building properties and scope
 # =============================

@@ -19,7 +19,10 @@
 #include <malloc.h>
 #include <windows.h>
 #endif
+
+#ifndef MKLDNN_DISABLE_JIT
 #include "xmmintrin.h"
+#endif
 
 #include "utils.hpp"
 
@@ -84,6 +87,7 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
 thread_local unsigned int mxcsr_save;
 
 void set_rnd_mode(round_mode_t rnd_mode) {
+#ifndef MKLDNN_DISABLE_JIT
     mxcsr_save = _mm_getcsr();
     unsigned int mxcsr = mxcsr_save & ~(3u << 13);
     switch (rnd_mode) {
@@ -92,10 +96,13 @@ void set_rnd_mode(round_mode_t rnd_mode) {
     default: assert(!"unreachable");
     }
     if (mxcsr != mxcsr_save) _mm_setcsr(mxcsr);
+#endif
 }
 
 void restore_rnd_mode() {
+#ifndef MKLDNN_DISABLE_JIT
     _mm_setcsr(mxcsr_save);
+#endif
 }
 
 void *malloc(size_t size, int alignment) {
