@@ -113,11 +113,13 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide to copy bias */
     rnn.copy_bias = rnn.dt_conf != all_f32;
 
-#ifdef USE_MKL_PACKED_GEMM
-    bool use_packed_gemm_cond = (rnn.n_iter > 1) && (rnn.mb == 32)
-            && (rnn.sic == 512) && (rnn.slc == 512) && (rnn.dic == 512);
-    rnn.use_layer_packed_gemm = use_packed_gemm_cond || is_int8;
-    rnn.use_iter_packed_gemm = use_packed_gemm_cond || is_int8;
+#if USE_MKL_PACKED_GEMM
+    rnn.use_layer_packed_gemm = (weights_layer_d.format() == any
+                                        && rnn.slc > 760 && rnn.dic > 760)
+            || is_int8; // packed gemm is the only supported option for int8
+    rnn.use_iter_packed_gemm = (weights_iter_d.format() == any && rnn.sic > 760
+                                       && rnn.dic > 760)
+            || is_int8;
 #else
     rnn.use_layer_packed_gemm = false;
     rnn.use_iter_packed_gemm = false;
