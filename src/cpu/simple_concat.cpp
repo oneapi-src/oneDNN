@@ -85,9 +85,32 @@ void simple_concat_t<data_type>::execute() const {
                     + os[3] * n3 + os[4] * n4;
             const data_t *i = &iptrs[a][in_off];
             data_t *o = &optrs[a][out_off];
+#if defined(__GNUC__)
+            // The code below performs data copying: o[e] = i[e]
+            // and uses a workaround to make GNU compilers optimize it
+            uint8_t *ptro = reinterpret_cast<uint8_t *>(o);
+            const uint8_t *ptri = reinterpret_cast<const uint8_t *>(i);
+            const size_t main_part =
+                nelems_to_copy[a] * sizeof(data_t) / sizeof(uint32_t);
+            const size_t tail_part =
+                nelems_to_copy[a] % sizeof(data_t) / sizeof(uint32_t);
 
             PRAGMA_OMP_SIMD()
+            for (size_t e = 0; e < main_part; ++e) {
+                *(reinterpret_cast<uint32_t *>(ptro))
+                    = *(reinterpret_cast<const uint32_t *>(ptri));
+                ptro += sizeof(uint32_t);
+                ptri += sizeof(uint32_t);
+            }
+            for (size_t e = 0; e < tail_part; ++e) {
+                *ptro = *ptri;
+                ++ptro;
+                ++ptri;
+            }
+#else
+            PRAGMA_OMP_SIMD()
             for (size_t e = 0; e < nelems_to_copy[a]; ++e) o[e] = i[e];
+#endif
         });
     }
 }
