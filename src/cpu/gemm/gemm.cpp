@@ -213,6 +213,20 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
 #endif
 }
 
+template
+mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const int8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co);
+
+template
+mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co);
+
 }
 }
 }
@@ -221,29 +235,47 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::cpu;
 
 mkldnn_status_t mkldnn_sgemm(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const float *alpha,
-        const float *A, const int *lda, const float *B, const int *ldb,
-        const float *beta, float *C, const int *ldc) {
-    return extended_sgemm(
-            transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+        const int64_t *M, const int64_t *N, const int64_t *K, const float *alpha,
+        const float *A, const int64_t *lda, const float *B, const int64_t *ldb,
+        const float *beta, float *C, const int64_t *ldc) {
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+    int ldc_s32 = (int)*ldc;
+
+    return extended_sgemm(transa, transb, &M_s32, &N_s32, &K_s32,
+            alpha, A, &lda_s32, B, &ldb_s32, beta, C, &ldc_s32);
 }
 
 mkldnn_status_t mkldnn_gemm_s8u8s32(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const float *alpha, const int8_t *A, const int *lda, const int8_t *ao,
-        const uint8_t *B, const int *ldb, const int8_t *bo, const float *beta,
-        int32_t *C, const int *ldc, const int32_t *co) {
-    return gemm_s8x8s32(
-        transa, transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo,
-        beta, C, ldc, co);
+        const char *offsetc, const int64_t *M, const int64_t *N, const int64_t *K,
+        const float *alpha, const int8_t *A, const int64_t *lda, const int8_t *ao,
+        const uint8_t *B, const int64_t *ldb, const int8_t *bo, const float *beta,
+        int32_t *C, const int64_t *ldc, const int32_t *co) {
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+    int ldc_s32 = (int)*ldc;
+    return gemm_s8x8s32(transa, transb, offsetc, &M_s32, &N_s32, &K_s32,
+            alpha, A, &lda_s32, ao, B, &ldb_s32, bo, beta, C, &ldc_s32, co);
 }
 
 mkldnn_status_t mkldnn_gemm_s8s8s32(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const float *alpha, const int8_t *A, const int *lda, const int8_t *ao,
-        const int8_t *B, const int *ldb, const int8_t *bo, const float *beta,
-        int32_t *C, const int *ldc, const int32_t *co) {
-    return gemm_s8x8s32(
-        transa, transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo,
-        beta, C, ldc, co);
+        const char *offsetc, const int64_t *M, const int64_t *N, const int64_t *K,
+        const float *alpha, const int8_t *A, const int64_t *lda, const int8_t *ao,
+        const int8_t *B, const int64_t *ldb, const int8_t *bo, const float *beta,
+        int32_t *C, const int64_t *ldc, const int32_t *co) {
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+    int ldc_s32 = (int)*ldc;
+
+    return gemm_s8x8s32<int8_t>(transa, transb, offsetc, &M_s32, &N_s32, &K_s32,
+            alpha, A, &lda_s32, ao, B, &ldb_s32, bo, beta, C, &ldc_s32, co);
 }

@@ -73,38 +73,38 @@ struct convolution_pd_t: public primitive_desc_t {
 
     /* common conv aux functions */
 
-    int MB() const { return _src_md()->dims[0]; }
+    dim_t MB() const { return _src_md()->dims[0]; }
 
-    int IC() const { return _src_md()->dims[1]; }
-    int OC() const { return _dst_md()->dims[1]; }
-    int G() const { return with_groups() ? _wei_md()->dims[0] : 1; }
+    dim_t IC() const { return _src_md()->dims[1]; }
+    dim_t OC() const { return _dst_md()->dims[1]; }
+    dim_t G() const { return with_groups() ? _wei_md()->dims[0] : 1; }
 
-    int ID() const { return ndims() >= 5 ? _src_md()->dims[ndims() - 3] : 1; }
-    int IH() const { return ndims() >= 4 ? _src_md()->dims[ndims() - 2] : 1; }
-    int IW() const { return _src_md()->dims[ndims() - 1]; }
+    dim_t ID() const { return ndims() >= 5 ? _src_md()->dims[ndims() - 3] : 1; }
+    dim_t IH() const { return ndims() >= 4 ? _src_md()->dims[ndims() - 2] : 1; }
+    dim_t IW() const { return _src_md()->dims[ndims() - 1]; }
 
-    int OD() const { return ndims() >= 5 ? _dst_md()->dims[ndims() - 3] : 1; }
-    int OH() const { return ndims() >= 4 ? _dst_md()->dims[ndims() - 2] : 1; }
-    int OW() const { return _dst_md()->dims[ndims() - 1]; }
+    dim_t OD() const { return ndims() >= 5 ? _dst_md()->dims[ndims() - 3] : 1; }
+    dim_t OH() const { return ndims() >= 4 ? _dst_md()->dims[ndims() - 2] : 1; }
+    dim_t OW() const { return _dst_md()->dims[ndims() - 1]; }
 
-    int KD() const { return ndims() >= 5 ? _wei_md()->dims[ndims() + with_groups() - 3] : 1; }
-    int KH() const { return ndims() >= 4 ? _wei_md()->dims[ndims() + with_groups() - 2] : 1; }
-    int KW() const { return _wei_md()->dims[ndims() + with_groups() - 1]; }
+    dim_t KD() const { return ndims() >= 5 ? _wei_md()->dims[ndims() + with_groups() - 3] : 1; }
+    dim_t KH() const { return ndims() >= 4 ? _wei_md()->dims[ndims() + with_groups() - 2] : 1; }
+    dim_t KW() const { return _wei_md()->dims[ndims() + with_groups() - 1]; }
 
-    int KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
-    int KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
-    int KSW() const { return desc_.strides[ndims() - 3]; }
+    dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
+    dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
+    dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
-    int KDD() const { return ndims() >= 5 ? desc_.dilates[ndims() - 5] : 0; }
-    int KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
-    int KDW() const { return desc_.dilates[ndims() - 3]; }
+    dim_t KDD() const { return ndims() >= 5 ? desc_.dilates[ndims() - 5] : 0; }
+    dim_t KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
+    dim_t KDW() const { return desc_.dilates[ndims() - 3]; }
 
-    int padFront() const { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
-    int padBack() const { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
-    int padT() const { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
-    int padB() const { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
-    int padL() const { return desc_.padding[0][ndims() - 3]; }
-    int padR() const { return desc_.padding[1][ndims() - 3]; }
+    dim_t padFront() const { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
+    dim_t padBack() const { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
+    dim_t padT() const { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
+    dim_t padB() const { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
+    dim_t padL() const { return desc_.padding[0][ndims() - 3]; }
+    dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     int ndims() const { return _src_md()->ndims; }
 

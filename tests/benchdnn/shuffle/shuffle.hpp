@@ -30,7 +30,7 @@
 
 namespace shuffle {
 
-using dims_t = std::vector<int>;
+using dims_t = std::vector<int64_t>;
 
 struct dt_conf_t {
     mkldnn_data_type_t dt;
@@ -49,7 +49,7 @@ const size_t max_desc_len = 196;
 
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt, int axis, int group)
+            mkldnn_memory_format_t fmt, int axis, int64_t group)
         : dims(dims), dir(dir), dt(dt), fmt(fmt), a(axis), g(group) {}
     ~prb_t() {}
 
@@ -57,7 +57,8 @@ struct prb_t {
     dir_t dir;
     mkldnn_data_type_t dt;
     mkldnn_memory_format_t fmt;
-    int a, g;
+    int a;
+    int64_t g;
 };
 
 const size_t max_dims_len = 20;
@@ -69,10 +70,10 @@ void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 extern const char *perf_template; /* performance output template */
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-inline size_t data_off(const prb_t *p, int mb, int c, int d, int h, int w) {
+inline size_t data_off(const prb_t *p,
+        int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
     const auto &dims = p->dims;
-    return ((((size_t)mb * dims[1] + c) * dims[2] + d) * dims[3] + h) * dims[4]
-             + w;
+    return (((mb * dims[1] + c) * dims[2] + d) * dims[3] + h) * dims[4] + w;
 }
 
 void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);

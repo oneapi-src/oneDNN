@@ -29,14 +29,14 @@ struct shuffle_test_params {
     memory::format data_format;
     memory::dims dims;
     int axis;
-    int group_size;
+    memory::dim group_size;
     bool expect_to_fail;
     mkldnn_status_t expected_status;
 };
 
 template <typename data_t>
 void check_shuffle(const shuffle_test_params &p, const memory &input,
-    const memory &output, int ROW)
+    const memory &output, memory::dim ROW)
 {
     data_t *in_ptr = (data_t *)input.get_data_handle();
     data_t *out_ptr = (data_t *)output.get_data_handle();
@@ -47,14 +47,14 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     auto dims = in_d.data.dims;
     auto ndims = in_d.data.ndims;
     const int axis = p.axis;
-    size_t inner_size = 1, outer_size = 1;
-    const int axis_size = dims[axis];
-    const int padded_axis = in_d.data.layout_desc.blocking.padding_dims[axis];
+    memory::dim inner_size = 1, outer_size = 1;
+    const memory::dim axis_size = dims[axis];
+    const memory::dim padded_axis = in_d.data.layout_desc.blocking.padding_dims[axis];
 
-    auto rev_transpose = [=] (int a) {
-        int COL = axis_size / ROW;
-        int row = a / COL;
-        int col = a % COL;
+    auto rev_transpose = [=] (memory::dim a) {
+        memory::dim COL = axis_size / ROW;
+        memory::dim row = a / COL;
+        memory::dim col = a % COL;
         return ROW * col + row;
     };
 
@@ -62,10 +62,10 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
         outer_size *= (size_t)dims[i];
     for (int i = axis + 1; i < ndims; ++i)
         inner_size *= (size_t)dims[i];
-    const size_t dim = padded_axis * inner_size;
+    const memory::dim dim = padded_axis * inner_size;
 
     mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
-           [&](size_t ou, int a, size_t in) {
+           [&](memory::dim ou, memory::dim a, memory::dim in) {
         data_t refout = in_ptr[map_index(in_d, ou*dim +
                                  rev_transpose(a)*inner_size + in)];
         data_t out = out_ptr[map_index(out_d, ou*dim + a*inner_size + in)];

@@ -26,14 +26,14 @@ namespace mkldnn {
 
 struct test_rnn_sizes_t {
     test_rnn_sizes_t(
-        int l, int d, int t, int mb,
-        int slc, int sic, int dlc, int dic) :
+        memory::dim l, memory::dim d, memory::dim t, memory::dim mb,
+        memory::dim slc, memory::dim sic, memory::dim dlc, memory::dim dic) :
         l(l), d(d), t(t), mb(mb),
         slc(slc), sic(sic), dlc(dlc), dic(dic) {}
-    int l, d;
-    int t;
-    int mb;
-    int slc, sic, dlc, dic;
+    memory::dim l, d;
+    memory::dim t;
+    memory::dim mb;
+    memory::dim slc, sic, dlc, dic;
 };
 
 struct test_rnn_formats_t {
@@ -81,7 +81,7 @@ protected:
         auto dims = p.sizes;
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
         auto slc = dims.slc, sic = dims.sic, dlc = dims.dlc, dic = dims.dic;
-        int s, g;
+        memory::dim s, g;
 
         switch (p.aalgorithm) {
         case vanilla_lstm:

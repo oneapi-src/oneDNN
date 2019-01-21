@@ -59,7 +59,7 @@ inline void set_default_strides(strides_t strides, const dims_t dims,
 
         strides[curr_idx] = dims[curr_idx] == 0
             ? 1
-            : strides[prev_idx] * nstl::max(1, dims[prev_idx]);
+            : strides[prev_idx] * nstl::max<dim_t>(1, dims[prev_idx]);
     }
 }
 

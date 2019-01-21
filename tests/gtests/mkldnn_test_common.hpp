@@ -34,21 +34,23 @@
 
 #include "src/common/mkldnn_thread.hpp"
 
+using memory = mkldnn::memory;
+
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
-    static const auto data_type = mkldnn::memory::data_type::f32;
+    static const auto data_type = memory::data_type::f32;
 };
 template <> struct data_traits<uint8_t> {
-    static const auto data_type = mkldnn::memory::data_type::u8;
+    static const auto data_type = memory::data_type::u8;
 };
 template <> struct data_traits<int8_t> {
-    static const auto data_type = mkldnn::memory::data_type::s8;
+    static const auto data_type = memory::data_type::s8;
 };
 template <> struct data_traits<int16_t> {
-    static const auto data_type = mkldnn::memory::data_type::s16;
+    static const auto data_type = memory::data_type::s16;
 };
 template <> struct data_traits<int32_t> {
-    static const auto data_type = mkldnn::memory::data_type::s32;
+    static const auto data_type = memory::data_type::s32;
 };
 
 template <typename T> inline void assert_eq(T a, T b);
@@ -72,7 +74,8 @@ out_t saturate(const out_t &x) {
     return v;
 }
 
-inline int right_padding(int i, int o, int k, int p, int s, int d = 0) {
+inline memory::dim right_padding(memory::dim i, memory::dim o, memory::dim k,
+        memory::dim p, memory::dim s, memory::dim d = 0) {
     return (o - 1) * s + (k - 1) * (d + 1) - (p + i - 1);
 }
 
@@ -80,9 +83,9 @@ template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };
 
-inline size_t map_index(const mkldnn::memory::desc &md, size_t index,
-    bool with_padding = true) {
-    using fmt = mkldnn::memory::format;
+inline memory::dim map_index(const memory::desc &md, memory::dim index,
+        bool with_padding = true) {
+    using fmt = memory::format;
 
     const fmt fwd_weights_g_qvnni = fmt::gOIhw8i16o2i;
     const fmt fwd_weights_qvnni = fmt::OIhw8i16o2i;
@@ -113,32 +116,31 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index,
                       || (md.data.format == bwd_weights_qvnni);
 
     const int ndims = md.data.ndims;
-    const int *dims = md.data.dims;
-    const int *pdims = md.data.layout_desc.blocking.padding_dims;
-    const int *optd = md.data.layout_desc.blocking.offset_padding_to_data;
+    const auto *dims = md.data.dims;
+    const auto *pdims = md.data.layout_desc.blocking.padding_dims;
+    const auto *optd = md.data.layout_desc.blocking.offset_padding_to_data;
 
     auto *strides_block = md.data.layout_desc.blocking.strides[0];
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
 
-    size_t ph_index = 0;
-    size_t oc_lb = 0, ic_sb = 0,
-        oc_sb = 0, ic_lb = 0;
+    memory::dim ph_index = 0;
+    memory::dim oc_lb = 0, ic_sb = 0, oc_sb = 0, ic_lb = 0;
 
     for (int rd = 0; rd < ndims; ++rd) {
         int d = ndims - rd - 1;
 
         EXPECT_LE(dims[d], pdims[d]);
 
-        int cur_dim = with_padding ? pdims[d] : dims[d];
+        memory::dim cur_dim = with_padding ? pdims[d] : dims[d];
         EXPECT_GT(cur_dim, 0);
-        int cur_block = md.data.layout_desc.blocking.block_dims[d];
+        memory::dim cur_block = md.data.layout_desc.blocking.block_dims[d];
 
-        size_t pos_d = /*static_cast<ssize_t>*/(index % cur_dim);
+        memory::dim pos_d = (index % cur_dim);
         EXPECT_GE(optd[d], 0);
-        size_t cur_pos = optd[d] + pos_d;
+        memory::dim cur_pos = optd[d] + pos_d;
 
-        size_t cur_pos_block = cur_pos / cur_block;
-        size_t cur_pos_within_block = cur_pos % cur_block;
+        memory::dim cur_pos_block = cur_pos / cur_block;
+        memory::dim cur_pos_within_block = cur_pos % cur_block;
 
         if (d == (with_groups + 0)) {
             if (qvnni) { oc_lb = pos_d % 16;  oc_sb = pos_d % 2; }
@@ -174,17 +176,17 @@ inline size_t map_index(const mkldnn::memory::desc &md, size_t index,
 #define MAX_NDIMS 12
 // check_zero_tail - check on zero or set to zero padded memory
 template <typename data_t>
-void check_zero_tail(int set_zero_flag, mkldnn::memory &src) {
+void check_zero_tail(int set_zero_flag, memory &src) {
 
     data_t *src_data = (data_t *)src.get_data_handle();
 
-    const mkldnn::memory::desc src_d = src.get_desc();
+    const memory::desc src_d = src.get_desc();
     const int ndims = src_d.data.ndims;
-    const int *dims = src_d.data.dims;
-    const int *pdims = src_d.data.layout_desc.blocking.padding_dims;
+    const auto *dims = src_d.data.dims;
+    const auto *pdims = src_d.data.layout_desc.blocking.padding_dims;
 
-    size_t idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
-    size_t nelems = 1;
+    memory::dim idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
+    memory::dim nelems = 1;
     int tail_flag = 0;
     for (int i = 0; i < ndims; ++i) {
         if (dims[ndims-i-1] != pdims[ndims-i-1]) tail_flag = 1;
@@ -194,15 +196,15 @@ void check_zero_tail(int set_zero_flag, mkldnn::memory &src) {
     }
     if (tail_flag == 0) return;
 
-    for (size_t i = 0; i < nelems; ++i) {
-        size_t off = 0;
+    for (memory::dim i = 0; i < nelems; ++i) {
+        memory::dim off = 0;
         bool flag = 0;
         for (int j = 0; j < ndims; ++j) {
             off += idx[j] * str[j];
-            if (idx[j] >= (size_t)dims[ndims-j-1]) flag = 1;
+            if (idx[j] >= dims[ndims-j-1]) flag = 1;
         }
         if (flag == 1) {
-            size_t blk_off = map_index(src_d,off);
+            memory::dim blk_off = map_index(src_d,off);
             if (set_zero_flag) {
                 src_data[blk_off] = 0.0;
             } else {
@@ -213,15 +215,15 @@ void check_zero_tail(int set_zero_flag, mkldnn::memory &src) {
         /*Update idx*/
         for (int j = 0; j < ndims; ++j) {
             idx[j] ++;
-            if (idx[j] < (size_t)pdims[ndims-j-1]) break;
+            if (idx[j] < pdims[ndims-j-1]) break;
             idx[j] = 0;
         }
     }
 }
 
-inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
-        mkldnn::memory::data_type data_type, mkldnn::memory::format fmt) {
-    using f = mkldnn::memory::format;
+inline memory::desc create_md(memory::dims dims,
+        memory::data_type data_type, memory::format fmt) {
+    using f = memory::format;
     size_t ndims = 0;
 
     switch (fmt) {
@@ -290,31 +292,31 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::format_undef:
         ndims = 0; break;
     case f::any:
-        return mkldnn::memory::desc(dims, data_type, fmt);
+        return memory::desc(dims, data_type, fmt);
     default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
     }
 
     EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
 
-    return mkldnn::memory::desc(dims, data_type, fmt);
+    return memory::desc(dims, data_type, fmt);
 }
 
 template <typename data_t>
-static inline data_t set_value(size_t index, data_t mean, data_t deviation,
+static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         double sparsity)
 {
-    if (data_traits<data_t>::data_type == mkldnn::memory::data_type::f32) {
-        const size_t group_size = (size_t)(1. / sparsity);
-        const size_t group = index / group_size;
-        const size_t in_group = index % group_size;
+    if (data_traits<data_t>::data_type == memory::data_type::f32) {
+        const memory::dim group_size = (memory::dim)(1. / sparsity);
+        const memory::dim group = index / group_size;
+        const memory::dim in_group = index % group_size;
         const bool fill = in_group == ((group % 1637) % group_size);
         return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
             : data_t{0};
-    } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
-        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16
-        || data_traits<data_t>::data_type == mkldnn::memory::data_type::s8) {
+    } else if (data_traits<data_t>::data_type == memory::data_type::s32
+        || data_traits<data_t>::data_type == memory::data_type::s16
+        || data_traits<data_t>::data_type == memory::data_type::s8) {
         return data_t(rand() % 21 - 10);
-    } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::u8) {
+    } else if (data_traits<data_t>::data_type == memory::data_type::u8) {
         return data_t(rand() % 17);
     } else {
         return data_t(0);
@@ -322,31 +324,31 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
 }
 
 template <typename data_t>
-static void fill_data(const size_t size, data_t *data, data_t mean,
+static void fill_data(const memory::dim size, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.)
 {
-    mkldnn::impl::parallel_nd((ptrdiff_t)size, [&](ptrdiff_t n) {
+    mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
             data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     });
 }
 
 template <typename data_t>
-static void fill_data(const size_t size, data_t *data, double sparsity = 1.,
-        bool init_negs = false)
+static void fill_data(const memory::dim size, data_t *data,
+        double sparsity = 1., bool init_negs = false)
 {
-    mkldnn::impl::parallel_nd((ptrdiff_t)size, [&](ptrdiff_t n) {
+    mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
 
-        if (init_negs && n%4 == 0U)
+        if (init_negs && n%4 == 0)
             data[n] = static_cast<data_t>(-data[n]); // weird for unsigned types!
     });
 }
 
 template <typename data_t>
-static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst,
+static void compare_data(memory& ref, memory& dst,
         data_t threshold = (data_t)1e-4)
 {
-    using data_type = mkldnn::memory::data_type;
+    using data_type = memory::data_type;
 
     ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
             data_traits<data_t>::data_type == data_type::s32);
@@ -365,7 +367,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst,
 
     auto dims = ref_desc.data.dims;
 
-    ptrdiff_t num = 1;
+    memory::dim num = 1;
     for (auto d = 0; d < ndims; ++d) {
         num *= dims[d];
     }
@@ -373,7 +375,7 @@ static void compare_data(mkldnn::memory& ref, mkldnn::memory& dst,
     data_t *ref_data = (data_t *)ref.get_data_handle();
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
-    mkldnn::impl::parallel_nd(num, [&](ptrdiff_t i) {
+    mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
         data_t ref = ref_data[map_index(ref_desc, i)];
         data_t got = dst_data[map_index(dst_desc, i)];
 
@@ -404,14 +406,14 @@ mkldnn_status_t get_conv_impl_status(const_mkldnn_primitive_desc_t pd, const cha
 
 struct test_convolution_sizes_t {
     test_convolution_sizes_t(
-        int mb,
-        int ng,
-        int ic, int ih, int iw,
-        int oc, int oh, int ow,
-        int kh, int kw,
-        int padh, int padw,
-        int strh, int strw,
-        int dilh=0, int dilw=0
+        memory::dim mb,
+        memory::dim ng,
+        memory::dim ic, memory::dim ih, memory::dim iw,
+        memory::dim oc, memory::dim oh, memory::dim ow,
+        memory::dim kh, memory::dim kw,
+        memory::dim padh, memory::dim padw,
+        memory::dim strh, memory::dim strw,
+        memory::dim dilh=0, memory::dim dilw=0
     ) :
         mb(mb),
         ng(ng),
@@ -421,14 +423,14 @@ struct test_convolution_sizes_t {
         padh(padh), padw(padw),
         strh(strh), strw(strw),
         dilh(dilh), dilw(dilw) {}
-    int mb;
-    int ng;
-    int ic, ih, iw;
-    int oc, oh, ow;
-    int kh, kw;
-    int padh, padw;
-    int strh, strw;
-    int dilh, dilw;
+    memory::dim mb;
+    memory::dim ng;
+    memory::dim ic, ih, iw;
+    memory::dim oc, oh, ow;
+    memory::dim kh, kw;
+    memory::dim padh, padw;
+    memory::dim strh, strw;
+    memory::dim dilh, dilw;
 };
 
 struct test_convolution_attr_t {
@@ -448,7 +450,7 @@ struct test_convolution_attr_t {
         mkl_attr = mkldnn::primitive_attr();
         mkl_attr.set_int_output_round_mode(rmode);
         if (oscale.is_def()) {
-            const int count = 1;
+            const memory::dim count = 1;
             const int mask = 0;
             std::vector<float> s(count, oscale.scale);
             mkl_attr.set_output_scales(mask, s);
@@ -469,10 +471,10 @@ struct test_convolution_attr_t {
 };
 
 struct test_convolution_formats_t {
-    mkldnn::memory::format src_format;
-    mkldnn::memory::format weights_format;
-    mkldnn::memory::format bias_format;
-    mkldnn::memory::format dst_format;
+    memory::format src_format;
+    memory::format weights_format;
+    memory::format bias_format;
+    memory::format dst_format;
 };
 
 struct test_convolution_params_t {
@@ -551,16 +553,16 @@ void test_free(char *ptr) {
 
 class test_memory {
 public:
-    test_memory(const mkldnn::memory::desc &d, const mkldnn::engine &e) {
+    test_memory(const memory::desc &d, const mkldnn::engine &e) {
         size_ = d.get_size();
         data_.reset(test_malloc(size_), test_free);
-        mem_.reset(new mkldnn::memory(d, e, data_.get()));
+        mem_.reset(new memory(d, e, data_.get()));
     }
     size_t get_size() const { return size_; }
-    mkldnn::memory &get() { return *mem_; }
+    memory &get() { return *mem_; }
 
 private:
-    std::shared_ptr<mkldnn::memory> mem_;
+    std::shared_ptr<memory> mem_;
     std::shared_ptr<char> data_;
     size_t size_;
 };

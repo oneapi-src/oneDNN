@@ -129,11 +129,11 @@ struct eltwise_test_params {
     mkldnn_status_t expected_status;
 };
 
-size_t n_elems(const memory::desc &md) {
-    size_t p = 1;
-    const int *pdims = md.data.layout_desc.blocking.padding_dims;
+memory::dim n_elems(const memory::desc &md) {
+    memory::dim p = 1;
+    const auto *pdims = md.data.layout_desc.blocking.padding_dims;
     for (int i = 0; i < md.data.ndims; ++i)
-        p *= (size_t)(pdims[i]);
+        p *= pdims[i];
     return p;
 }
 
@@ -146,8 +146,8 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
-    size_t n = n_elems(md);
-    for (size_t i = 0; i < n; ++i) {
+    memory::dim n = n_elems(md);
+    for (memory::dim i = 0; i < n; ++i) {
         data_t s = src_data[i];
         data_t ref_d = 0;
         switch (p.alg_kind) {
@@ -176,8 +176,8 @@ void compare_eltwise_fwd(const eltwise_test_params<data_t> &p,
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
-    size_t n = n_elems(md);
-    for (size_t i = 0; i < n; ++i) {
+    memory::dim n = n_elems(md);
+    for (memory::dim i = 0; i < n; ++i) {
         if (p.alg_kind == eltwise_soft_relu){
             EXPECT_NEAR(dst_data[i], ref_dst_data[i], 2.e-6);
         }
@@ -202,8 +202,8 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
-    size_t n = n_elems(md);
-    for (size_t i = 0; i < n; ++i) {
+    memory::dim n = n_elems(md);
+    for (memory::dim i = 0; i < n; ++i) {
         data_t ref_s = src_data[map_index(data_d, i)];
         data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
         data_t ref_ds = 0;

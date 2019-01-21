@@ -40,7 +40,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         }
     };
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int c) {
+    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
         float rcp_denom = (float)(1.0f / (sqrtf(svar + p->eps)));
@@ -48,10 +48,10 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
 
-        for (int mb = 0; mb < p->mb; ++mb)
-        for (int d = 0; d < p->id; ++d)
-        for (int h = 0; h < p->ih; ++h)
-        for (int w = 0; w < p->iw; ++w) {
+        for (int64_t mb = 0; mb < p->mb; ++mb)
+        for (int64_t d = 0; d < p->id; ++d)
+        for (int64_t h = 0; h < p->ih; ++h)
+        for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float res = gamma * (((float *)src)[off] - smean) * rcp_denom + beta;
             float &D = ((float *)dst)[off];
@@ -68,7 +68,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         dnn_mem_t &d_ss) {
     const float NHW = p->mb * p->id * p->ih * p->iw;
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int c) {
+    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
         float rcp_denom = 1.f / sqrtf(svar + p->eps);
@@ -78,10 +78,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         float d_gamma = 0;
         float d_beta = 0;
 
-        for (int mb = 0; mb < p->mb; ++mb)
-        for (int d = 0; d < p->id; ++d)
-        for (int h = 0; h < p->ih; ++h)
-        for (int w = 0; w < p->iw; ++w) {
+        for (int64_t mb = 0; mb < p->mb; ++mb)
+        for (int64_t d = 0; d < p->id; ++d)
+        for (int64_t h = 0; h < p->ih; ++h)
+        for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];
             if ((p->flags & FUSE_BN_RELU) && ((float *)rmask)[off] == 0)
@@ -97,10 +97,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             ((float *)d_ss)[p->ic + c] = d_beta;
         }
 
-        for (int mb = 0; mb < p->mb; ++mb)
-        for (int d = 0; d < p->id; ++d)
-        for (int h = 0; h < p->ih; ++h)
-        for (int w = 0; w < p->iw; ++w) {
+        for (int64_t mb = 0; mb < p->mb; ++mb)
+        for (int64_t d = 0; d < p->id; ++d)
+        for (int64_t h = 0; h < p->ih; ++h)
+        for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];
             if ((p->flags & FUSE_BN_RELU) && ((float *)rmask)[off] == 0)

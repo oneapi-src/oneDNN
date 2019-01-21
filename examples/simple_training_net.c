@@ -56,7 +56,7 @@
         }                                                                      \
     } while (0)
 
-static size_t product(int *arr, size_t size)
+static size_t product(mkldnn_dim_t *arr, size_t size)
 {
     size_t prod = 1;
     for (size_t i = 0; i < size; ++i)
@@ -64,23 +64,21 @@ static size_t product(int *arr, size_t size)
     return prod;
 }
 
-static void init_net_data(float *data, uint32_t dim, const int *dims)
+static void init_net_data(float *data, uint32_t dim, const mkldnn_dim_t *dims)
 {
     if (dim == 1) {
-        for (int i = 0; i < dims[0]; ++i) {
+        for (mkldnn_dim_t i = 0; i < dims[0]; ++i) {
             data[i] = (float)(i % 1637);
         }
     } else if (dim == 4) {
-        for (int in = 0; in < dims[0]; ++in) {
-            for (int ic = 0; ic < dims[1]; ++ic) {
-                for (int ih = 0; ih < dims[2]; ++ih) {
-                    for (int iw = 0; iw < dims[3]; ++iw) {
-                        int indx = in * dims[1] * dims[2] * dims[3]
-                                   + ic * dims[2] * dims[3] + ih * dims[3] + iw;
-                        data[indx] = (float)(indx % 1637);
-                    }
-                }
-            }
+        for (mkldnn_dim_t in = 0; in < dims[0]; ++in)
+        for (mkldnn_dim_t ic = 0; ic < dims[1]; ++ic)
+        for (mkldnn_dim_t ih = 0; ih < dims[2]; ++ih)
+        for (mkldnn_dim_t iw = 0; iw < dims[3]; ++iw)
+        {
+            mkldnn_dim_t indx = in * dims[1] * dims[2] * dims[3]
+                + ic * dims[2] * dims[3] + ih * dims[3] + iw;
+            data[indx] = (float)(indx % 1637);
         }
     }
 }
@@ -96,7 +94,7 @@ static void free_arg_node(args_t *node) { free(node->args); }
 static void set_arg(mkldnn_exec_arg_t *arg, int arg_idx, mkldnn_memory_t memory)
 { arg->arg = arg_idx; arg->memory = memory; }
 
-static void init_data_memory(uint32_t dim, const int *dims,
+static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
                              mkldnn_memory_format_t user_fmt,
                              mkldnn_data_type_t data_type,
                              mkldnn_engine_t engine, float *data,
@@ -169,8 +167,8 @@ mkldnn_status_t simple_net()
     mkldnn_primitive_t net_fwd[10], net_bwd[10];
     args_t net_fwd_args[10], net_bwd_args[10];
 
-    int net_src_sizes[4] = { BATCH, IC, CONV_IH, CONV_IW };
-    int net_dst_sizes[4] = { BATCH, OC, POOL_OH, POOL_OW };
+    mkldnn_dim_t net_src_sizes[4] = { BATCH, IC, CONV_IH, CONV_IW };
+    mkldnn_dim_t net_dst_sizes[4] = { BATCH, OC, POOL_OH, POOL_OW };
 
     float *net_src =
         (float *)malloc(product(net_src_sizes,4)*sizeof(float));
@@ -187,12 +185,12 @@ mkldnn_status_t simple_net()
      * {BATCH, OC, CONV_OH, CONV_OW}
      * strides: {CONV_STRIDE, CONV_STRIDE}
      */
-    int *conv_user_src_sizes = net_src_sizes;
-    int conv_user_weights_sizes[4] = { OC, IC, 11, 11 };
-    int conv_bias_sizes[4] = { OC };
-    int conv_user_dst_sizes[4] = { BATCH, OC, CONV_OH, CONV_OW };
-    int conv_strides[2] = { CONV_STRIDE, CONV_STRIDE };
-    int conv_padding[2] = { CONV_PAD, CONV_PAD };
+    mkldnn_dim_t *conv_user_src_sizes = net_src_sizes;
+    mkldnn_dim_t conv_user_weights_sizes[4] = { OC, IC, 11, 11 };
+    mkldnn_dim_t conv_bias_sizes[4] = { OC };
+    mkldnn_dim_t conv_user_dst_sizes[4] = { BATCH, OC, CONV_OH, CONV_OW };
+    mkldnn_dim_t conv_strides[2] = { CONV_STRIDE, CONV_STRIDE };
+    mkldnn_dim_t conv_padding[2] = { CONV_PAD, CONV_PAD };
 
     float *conv_src = net_src;
     float *conv_weights = (float *)malloc(
@@ -362,10 +360,10 @@ mkldnn_status_t simple_net()
      * kernel: {3, 3}
      * strides: {POOL_STRIDE, POOL_STRIDE}
      */
-    int32_t *pool_dst_sizes = net_dst_sizes;
-    int32_t pool_kernel[2] = { 3, 3 };
-    int32_t pool_strides[2] = { POOL_STRIDE, POOL_STRIDE };
-    int32_t pool_padding[2] = { POOL_PAD, POOL_PAD };
+    mkldnn_dim_t *pool_dst_sizes = net_dst_sizes;
+    mkldnn_dim_t pool_kernel[2] = { 3, 3 };
+    mkldnn_dim_t pool_strides[2] = { POOL_STRIDE, POOL_STRIDE };
+    mkldnn_dim_t pool_padding[2] = { POOL_PAD, POOL_PAD };
 
     /* create memory for user dst data */
     mkldnn_memory_t pool_user_dst_memory;

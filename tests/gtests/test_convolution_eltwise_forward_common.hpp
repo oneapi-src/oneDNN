@@ -40,32 +40,34 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
-    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
-        [&](int n, int g, int oc, int oh, int ow) {
-            size_t oidx = n * padded_oc * c.oh * c.ow
+        [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
+            memory::dim ow) {
+            memory::dim oidx = n * padded_oc * c.oh * c.ow
                     + g * padded_oc / c.ng * c.oh * c.ow
                     + oc * c.oh * c.ow + oh * c.ow + ow;
 
-            size_t didx = map_index(dst_d, oidx);
+            memory::dim didx = map_index(dst_d, oidx);
             dst_data[didx] = bias_data
                     ? bias_data[g * c.oc / c.ng + oc] : data_t_dst{0};
 
-            for (int ic = 0; ic < c.ic / c.ng; ic++)
-            for (int kh = 0; kh < c.kh; kh++)
-            for (int kw = 0; kw < c.kw; kw++)
+            for (memory::dim ic = 0; ic < c.ic / c.ng; ic++)
+            for (memory::dim kh = 0; kh < c.kh; kh++)
+            for (memory::dim kw = 0; kw < c.kw; kw++)
             {
-                int ih = oh * c.strh - c.padh + kh * (1 + c.dilh);
+                memory::dim ih = oh * c.strh - c.padh + kh * (1 + c.dilh);
                 if (ih < 0 || ih >= c.ih) continue;
-                int iw = ow * c.strw - c.padw + kw * (1 + c.dilw);
+                memory::dim iw = ow * c.strw - c.padw + kw * (1 + c.dilw);
                 if (iw < 0 || iw >= c.iw) continue;
 
-                size_t iidx = n * padded_ic * c.ih * c.iw
+                memory::dim iidx = n * padded_ic * c.ih * c.iw
                         + g * padded_ic / c.ng * c.ih * c.iw
                         + ic * c.ih * c.iw + ih * c.iw + iw;
-                size_t widx = g * padded_oc / c.ng * padded_ic / c.ng * c.kh * c.kw
+                memory::dim widx = 0
+                        + g * padded_oc / c.ng * padded_ic / c.ng * c.kh * c.kw
                         + oc * padded_ic / c.ng * c.kh * c.kw
                         + ic * c.kh * c.kw + kh * c.kw + kw;
 
@@ -152,7 +154,7 @@ protected:
                     (data_t_dst *)c_bias.get_data_handle(), 1., true);
         }
 
-        std::vector<int> padR = { cd.padh, cd.padw };
+        memory::dims padR = { cd.padh, cd.padw };
         for (int i = 0; i < 2; ++i) {
             if ((cd.ih - ((cd.kh - 1) * (cd.dilh + 1) + 1) + cd.padh + padR[0])
                 / cd.strh + 1 != cd.oh)

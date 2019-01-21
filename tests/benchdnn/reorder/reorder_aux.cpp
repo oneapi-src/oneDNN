@@ -27,8 +27,9 @@ namespace reorder {
 dims_t str2dims(const char *str) {
     dims_t dims;
     do {
-        int dim, len;
-        int scan = sscanf(str, "%d%n", &dim, &len);
+        int len;
+        int64_t dim;
+        int scan = sscanf(str, IFMT "%n", &dim, &len);
         SAFE_V(scan == 1 ? OK : FAIL);
         dims.push_back(dim);
         str += len;
@@ -40,8 +41,8 @@ dims_t str2dims(const char *str) {
 void dims2str(const dims_t &dims, char *buffer) {
     int rem_len = max_dims_len;
     for (size_t d = 0; d < dims.size() - 1; ++d)
-        DPRINT("%dx", dims[d]);
-    DPRINT("%d", dims[dims.size() - 1]);
+        DPRINT(IFMT "x", dims[d]);
+    DPRINT(IFMT, dims[dims.size() - 1]);
 }
 
 void prb2str(const prb_t *p, const res_t *res, char *buffer) {

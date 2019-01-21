@@ -421,7 +421,8 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
 
     void get_output_scales(int &mask, std::vector<float> &scales) const
     {
-        int count, c_mask;
+        mkldnn_dim_t count;
+        int c_mask;
         const float *c_scales;
         error::wrap_c_api(mkldnn_primitive_attr_get_output_scales(get(),
                     &count, &c_mask, &c_scales),
@@ -429,14 +430,14 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         scales.resize(count);
 
         mask = c_mask;
-        for (int c = 0; c < count; ++c)
+        for (mkldnn_dim_t c = 0; c < count; ++c)
             scales[c] = c_scales[c];
     }
 
     void set_output_scales(int mask, const std::vector<float> &scales)
     {
         error::wrap_c_api(mkldnn_primitive_attr_set_output_scales(get(),
-                    (int)scales.size(), mask, &scales[0]),
+                    (mkldnn_dim_t)scales.size(), mask, &scales[0]),
                 "could not set int output scales");
     }
 
@@ -593,7 +594,8 @@ struct stream: public handle<mkldnn_stream_t> {
 /// Memory primitive that describes the data.
 struct memory: public handle<mkldnn_memory_t> {
     public:
-    typedef std::vector<std::remove_extent<mkldnn_dims_t>::type> dims;
+    typedef mkldnn_dim_t dim;
+    typedef std::vector<dim> dims;
 
     template <typename T> static void validate_dims(const std::vector<T> &v) {
         if (v.size() > TENSOR_MAX_DIMS)
@@ -776,7 +778,8 @@ struct memory: public handle<mkldnn_memory_t> {
         /// @param adims Data dimensions
         /// @param adata_type Data precision/type.
         /// @param aformat Data layout format.
-        desc(dims adims, data_type adata_type, format aformat) {
+        desc(const dims &adims, data_type adata_type,
+                format aformat) {
             validate_dims(adims);
             error::wrap_c_api(mkldnn_memory_desc_init(&data, (int)adims.size(),
                         adims.size() == 0 ? nullptr : &adims[0],
@@ -793,7 +796,7 @@ struct memory: public handle<mkldnn_memory_t> {
         //
         /// @param adims Sizes of a sub-memory
         /// @param offsets Offsets of a sub-memory
-        desc submemory_desc(const dims adims, const dims offsets) {
+        desc submemory_desc(const dims &adims, const dims &offsets) {
             mkldnn_memory_desc_t sub_md;
             error::wrap_c_api(mkldnn_memory_desc_init_submemory(&sub_md,
                         &data, &adims[0], &offsets[0]),
@@ -1735,22 +1738,13 @@ struct deconvolution_backward_weights : public primitive {
 struct lrn_forward : public primitive {
     struct desc {
         mkldnn_lrn_desc_t data;
+
         desc(prop_kind aprop_kind, algorithm aalgorithm,
-            const memory::desc &src_desc,
-            int local_size, float alpha, float beta, float k)
-        {
+                const memory::desc &src_desc, memory::dim local_size,
+                float alpha, float beta, float k = 1.f) {
             error::wrap_c_api(mkldnn_lrn_forward_desc_init(&data,
                 mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                 &src_desc.data, local_size, alpha, beta, k),
-                "could not create a lrn forward descriptor");
-        }
-        desc(prop_kind aprop_kind, algorithm aalgorithm,
-            const memory::desc &src_desc,
-            int local_size, float alpha, float beta)
-        {
-            error::wrap_c_api(mkldnn_lrn_forward_desc_init(&data,
-                mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
-                &src_desc.data, local_size, alpha, beta, float(1.0)),
                 "could not create a lrn forward descriptor");
         }
     };
@@ -1773,24 +1767,13 @@ struct lrn_forward : public primitive {
 struct lrn_backward : public primitive {
     struct desc {
         mkldnn_lrn_desc_t data;
-        desc(algorithm aalgorithm,
-            const memory::desc &data_desc,
-            const memory::desc &diff_data_desc,
-            int local_size, float alpha, float beta, float k)
-        {
+
+        desc(algorithm aalgorithm, const memory::desc &data_desc,
+                const memory::desc &diff_data_desc, memory::dim local_size,
+                float alpha, float beta, float k = 1.f) {
             error::wrap_c_api(mkldnn_lrn_backward_desc_init(&data,
                 convert_to_c(aalgorithm), &diff_data_desc.data,
                 &data_desc.data, local_size, alpha, beta, k),
-                "could not create a lrn backward descriptor");
-        }
-        desc(algorithm aalgorithm,
-            const memory::desc &data_desc,
-            const memory::desc &diff_data_desc,
-            int local_size, float alpha, float beta)
-        {
-            error::wrap_c_api(mkldnn_lrn_backward_desc_init(&data,
-                convert_to_c(aalgorithm), &diff_data_desc.data,
-                &data_desc.data, local_size, alpha, beta, float(1.0)),
                 "could not create a lrn backward descriptor");
         }
     };

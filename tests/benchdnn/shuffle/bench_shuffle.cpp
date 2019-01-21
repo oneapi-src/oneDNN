@@ -31,12 +31,13 @@
 namespace shuffle {
 
 /* global driver parameters */
-int mb = 0;
+int64_t mb = 0;
 dir_t dir = FWD_D;
 mkldnn_data_type_t dt = mkldnn_f32;
 mkldnn_memory_format_t fmt = mkldnn_nchw;
 dims_t dims;
-int axis = 1, group = 1;
+int axis = 1;
+int64_t group = 1;
 const char *pattern = NULL;
 bool allow_unimpl = false;
 const char *perf_template = "perf,%z,%q,%f,%D,%a,%g,%-t,%0t";

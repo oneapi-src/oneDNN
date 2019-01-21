@@ -41,7 +41,7 @@ flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
 struct desc_t {
-    int mb, ic, id, ih, iw;
+    int64_t mb, ic, id, ih, iw;
     float eps;
     const char *name;
 };
@@ -50,7 +50,7 @@ int str2desc(desc_t *desc, const char *str);
 void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 
 struct prb_t: public desc_t {
-    prb_t(const desc_t &desc, int mb, dir_t dir, mkldnn_data_type_t dt,
+    prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_memory_format_t fmt, flags_t flags, const attr_t &attr,
             check_alg_t check_alg)
         : desc_t(desc), check_alg(check_alg), dir(dir), dt(dt), fmt(fmt)
@@ -75,12 +75,13 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern const char *perf_template; /* performance output template */
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-inline size_t data_off(const prb_t *p, int mb, int c, int d, int h, int w) {
-    return ((((size_t)mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
+inline size_t data_off(const prb_t *p,
+        int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
+    return (((mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
 }
 
-inline void inv_data_off(const prb_t *p, size_t off, int &mb, int &c, int &d,
-        int &h, int &w) {
+inline void inv_data_off(const prb_t *p, size_t off,
+        int64_t &mb, int64_t &c, int64_t &d, int64_t &h, int64_t &w) {
     w = off % p->iw; off /= p->iw;
     h = off % p->ih; off /= p->ih;
     d = off % p->id; off /= p->id;

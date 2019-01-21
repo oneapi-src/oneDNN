@@ -33,8 +33,8 @@ using namespace conv;
 
 namespace deconv {
 
-inline static void swap(int &a, int &b) {
-    int temp = a;
+inline static void swap(int64_t &a, int64_t &b) {
+    int64_t temp = a;
     a = b;
     b = temp;
 }
@@ -50,7 +50,7 @@ inline bool is_deconv_1d(const prb_t *p) {
 inline int transpose_data_wei(const prb_t *p, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
     mkldnn::impl::parallel_nd(
         p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw,
-        [&](int g, int oc, int ic, int kd, int kh, int kw) {
+        [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
         size_t idx = (((((size_t)g * p->ic / p->g + ic) * p->oc / p->g + oc)
         * p->kd + kd) * p->kh + kh) * p->kw + kw;
         ((float*)wei_tr)[idx] = ((float*)wei)[wei_off_f(p, g, oc, ic, kd, kh, kw)];
@@ -90,23 +90,24 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
         is_deconv_3d(p) ? dst_3d_dims : is_deconv_1d(p) ? dst_1d_dims : dst_2d_dims,
         p->cfg[DST].dt, mkldnn_any), WARN);
 
-    int strides_nd[] = {p->sd, p->sh, p->sw};
-    int dilates_nd[] = {p->dd, p->dh, p->dw};
-    int padding_nd[] = {p->pd, p->ph, p->pw};
+    mkldnn_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
+    mkldnn_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
+    mkldnn_dim_t padding_nd[] = {p->pd, p->ph, p->pw};
 
-    auto bph = [&](int ih, int oh, int kh, int sh, int ph, int dh) {
+    auto bph = [&](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
+            int64_t dh) {
         return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
     };
 
-    int padding_r_nd[] = {
+    mkldnn_dim_t padding_r_nd[] = {
         bph(p->od, p->id, p->kd, p->sd, p->pd, p->dd),
         bph(p->oh, p->ih, p->kh, p->sh, p->ph, p->dh),
         bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
 
-    int *strides = strides_nd + (5 - ndims);
-    int *dilates = dilates_nd + (5 - ndims);
-    int *padding = padding_nd + (5 - ndims);
-    int *padding_r = padding_r_nd + (5 - ndims);
+    mkldnn_dim_t *strides = strides_nd + (5 - ndims);
+    mkldnn_dim_t *dilates = dilates_nd + (5 - ndims);
+    mkldnn_dim_t *padding = padding_nd + (5 - ndims);
+    mkldnn_dim_t *padding_r = padding_r_nd + (5 - ndims);
 
     mkldnn_alg_kind_t alg = mkldnn_deconvolution_direct;
     if (p->alg == WINO) alg = mkldnn_deconvolution_winograd;
@@ -185,6 +186,7 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
 
     return OK;
 }
+
 int doit(const prb_t *p, res_t *r) {
     res_t res_zero{};
     *r = res_zero;

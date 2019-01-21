@@ -73,9 +73,10 @@ void perf_report(const rnn_prb_t *p, const res_t *r, const char *pstr) {
             c = *pt++;
         }
         // cellkind:activation:direction:l d mb
-        if (c == 'd') DPRINT("%s_%s_%s_l%dd%dt%dmb%d_slc%dsic%ddic%d",
-                             alg2str(p->alg), activation2str(p->activation), direction2str(p->direction),
-                             p->n_layer, p->n_directions(), p->n_iter, p->mb, p->slc, p->sic, p->dic);
+        if (c == 'd') DPRINT("%s_%s_%s_l"
+                IFMT "d" IFMT "t" IFMT "mb" IFMT "_slc" IFMT "sic" IFMT "dic" IFMT "",
+                alg2str(p->alg), activation2str(p->activation), direction2str(p->direction),
+                p->n_layer, p->n_directions(), p->n_iter, p->mb, p->slc, p->sic, p->dic);
         else if (c == 'D')
             DPRINT("%s", pstr);
         else if (c == 'n')

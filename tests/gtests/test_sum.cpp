@@ -43,8 +43,9 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
 
-        mkldnn::impl::parallel_nd(dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
-            [&](int n, int c, int h, int w) {
+        mkldnn::impl::parallel_nd(
+            dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
+            [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
             acc_t src_sum = 0.0;
             for (size_t num = 0; num < srcs.size(); num++) {
                 const data_t *src_data =

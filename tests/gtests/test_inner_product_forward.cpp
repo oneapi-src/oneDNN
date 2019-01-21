@@ -22,10 +22,10 @@
 namespace mkldnn {
 
 struct test_inner_product_descr_t {
-    int mb;
-    int ic;
-    int oc;
-    int kd, kh, kw;
+    memory::dim mb;
+    memory::dim ic;
+    memory::dim oc;
+    memory::dim kd, kh, kw;
 };
 
 template <typename data_t>
@@ -45,20 +45,20 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    const int padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
 
-    mkldnn::impl::parallel_nd(ipd.mb, ipd.oc, [&](int n, int oc) {
-        int oidx = n * ipd.oc + oc;
+    mkldnn::impl::parallel_nd(ipd.mb, ipd.oc, [&](memory::dim n, memory::dim oc) {
+        memory::dim oidx = n * ipd.oc + oc;
         dst_data[map_index(dst_d, oidx)] = bias_data ?
                 bias_data[map_index(bias_d, oc)] : data_t{0};
-        for (int ic = 0; ic < ipd.ic; ic++) {
-            for (int kd = 0; kd < ipd.kd; kd++)
-            for (int kh = 0; kh < ipd.kh; kh++)
-            for (int kw = 0; kw < ipd.kw; kw++) {
-                int iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+        for (memory::dim ic = 0; ic < ipd.ic; ic++) {
+            for (memory::dim kd = 0; kd < ipd.kd; kd++)
+            for (memory::dim kh = 0; kh < ipd.kh; kh++)
+            for (memory::dim kw = 0; kw < ipd.kw; kw++) {
+                memory::dim iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
                         + ic * ipd.kd * ipd.kh * ipd.kw
                         + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                int widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                memory::dim widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
                         + ic * ipd.kd * ipd.kh * ipd.kw
                         + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
                 dst_data[map_index(dst_d, oidx)]

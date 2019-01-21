@@ -22,6 +22,7 @@
 
 #include "simple_q10n.hpp"
 
+#include "gemm/gemm.hpp"
 #include "gemm_x8s8s32x_convolution.hpp"
 
 namespace mkldnn {
@@ -609,11 +610,10 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
         const int8_t off_a = 0, off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
-        mkldnn_gemm_s8u8s32("N", BT, jcp.signed_input ? "C" : "F",
+        gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F",
             &M, &N, &K, &onef, wei, &LDA, &off_a,
             jcp.im2col_sz ? col : (uint8_t *)src, &LDB, &off_b,
             &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
-
 
         parallel(0, [&](int ithr, int nthr) {
             size_t start, end;
@@ -700,7 +700,7 @@ execute_backward_data_thr(const int ithr, const int nthr,
         const float onef = 1.0, zerof = 0.0;
         const int LD = K * jcp.ngroups;
 
-        mkldnn_gemm_s8u8s32("T", "N", "F", &M, &N, &K, &onef,
+        gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef,
                 wei, &LD, &off_a, diff_dst, &LD, &off_b,
                 &zerof, jcp.im2col_sz ? col : acc, &M, &off_c);
 

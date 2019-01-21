@@ -28,8 +28,8 @@ template <typename data_i_t, typename data_o_t>
 inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
         const data_i_t *src, const data_o_t *dst)
 {
-    const int ndims = md_i.data.ndims;
-    const int *dims = md_i.data.dims;
+    const auto ndims = md_i.data.ndims;
+    const auto *dims = md_i.data.dims;
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());
 

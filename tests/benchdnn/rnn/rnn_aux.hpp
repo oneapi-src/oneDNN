@@ -37,7 +37,7 @@ typedef enum {
 
 typedef enum { action_copy = 0, action_sum, action_concat } rnn_action_t;
 
-void init_buffer(float *buf, int size, float value);
+void init_buffer(float *buf, int64_t size, float value);
 
 float logistic(float x);
 float dlogistic(float x);

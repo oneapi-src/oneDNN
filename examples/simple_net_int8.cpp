@@ -21,6 +21,11 @@
 
 using namespace mkldnn;
 
+memory::dim product(const memory::dims &dims) {
+    return std::accumulate(dims.begin(), dims.end(),
+            (memory::dim)1, std::multiplies<memory::dim>());
+}
+
 void simple_net_int8() {
     using fmt = memory::format;
     using dt = memory::data_type;
@@ -39,7 +44,7 @@ void simple_net_int8() {
     memory::dims conv_bias_tz = { 384 };
     memory::dims conv_dst_tz = { batch, 384, 13, 13 };
     memory::dims conv_strides = { 1, 1 };
-    auto conv_padding = { 1, 1 };
+    memory::dims conv_padding = { 1, 1 };
 
     /* Set Scaling mode for int8 quantizing */
     const std::vector<float> src_scales = { 1.8f };
@@ -63,10 +68,8 @@ void simple_net_int8() {
     std::vector<float> user_dst(batch * 384 * 13 * 13);
 
     /* Allocate and fill buffers for weights and bias */
-    std::vector<float> conv_weights(std::accumulate(conv_weights_tz.begin(),
-            conv_weights_tz.end(), 1, std::multiplies<uint32_t>()));
-    std::vector<float> conv_bias(std::accumulate(conv_bias_tz.begin(),
-            conv_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv_weights(product(conv_weights_tz));
+    std::vector<float> conv_bias(product(conv_bias_tz));
 
     /* create memory for user data */
     auto user_src_memory = memory(

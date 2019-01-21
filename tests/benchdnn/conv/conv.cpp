@@ -185,14 +185,16 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         if (!ok) {
             r->errors++;
             if ((!dont_complain && r->errors < 10) || verbose >=10) {
-                int mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
+                int64_t mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
                 switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
                 case WEI: inv_wei_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
                 case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
                 case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
                 }
-                print(0, "[%4lu][%s%s][%d,%d,%d,%d,%d,%d] "
+                print(0, "[%4lu][%s%s]"
+                        "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
+                        "] "
                         "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                         (unsigned long)i,
                         final_compare == false ? "REORDER " : "",
@@ -203,7 +205,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50 && i < 30) {
-            int mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
+            int64_t mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
             switch (kind) {
             case SRC: inv_src_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
             case WEI: inv_wei_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
@@ -211,7 +213,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
             }
 
-            print(0, "[%4lu][%s][%d,%d,%d,%d,%d,%d] fp:%8g fp0:%8g dt:%8g\n",
+            print(0, "[%4lu][%s]"
+                    "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
+                    "fp:%8g fp0:%8g dt:%8g\n",
                     (unsigned long)i,
                     skind, mb_or_g, g_or_oc, c, d, h, w, fp, fp0, dt);
         }
@@ -457,22 +461,23 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
         is_conv_3d(p) ? dst_3d_dims : is_conv_1d(p) ? dst_1d_dims : dst_2d_dims,
         p->cfg[DST].dt, mkldnn_any), WARN);
 
-    int strides_nd[] = {p->sd, p->sh, p->sw};
-    int dilates_nd[] = {p->dd, p->dh, p->dw};
-    int padding_nd[] = {p->pd, p->ph, p->pw};
+    mkldnn_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
+    mkldnn_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
+    mkldnn_dim_t padding_nd[] = {p->pd, p->ph, p->pw};
 
-    auto bph = [&](int ih, int oh, int kh, int sh, int ph, int dh) {
+    auto bph = [&](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
+            int64_t dh) {
         return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
     };
-    int padding_r_nd[] = {
+    mkldnn_dim_t padding_r_nd[] = {
         bph(p->id, p->od, p->kd, p->sd, p->pd, p->dd),
         bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
         bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
 
-    int *strides = strides_nd + (5 - ndims);
-    int *dilates = dilates_nd + (5 - ndims);
-    int *padding = padding_nd + (5 - ndims);
-    int *padding_r = padding_r_nd + (5 - ndims);
+    mkldnn_dim_t *strides = strides_nd + (5 - ndims);
+    mkldnn_dim_t *dilates = dilates_nd + (5 - ndims);
+    mkldnn_dim_t *padding = padding_nd + (5 - ndims);
+    mkldnn_dim_t *padding_r = padding_r_nd + (5 - ndims);
 
     mkldnn_alg_kind_t alg = mkldnn_convolution_direct;
     if (p->alg == WINO) alg = mkldnn_convolution_winograd;

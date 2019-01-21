@@ -32,7 +32,7 @@ namespace bnorm {
 
 /* global driver parameters */
 check_alg_t check_alg = ALG_AUTO;
-int mb = 0;
+int64_t mb = 0;
 dir_t dir = FWD_D;
 mkldnn_data_type_t dt = mkldnn_f32;
 mkldnn_memory_format_t fmt = mkldnn_nchw;

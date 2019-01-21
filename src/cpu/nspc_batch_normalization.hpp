@@ -69,7 +69,7 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
-                int sz = nstl::max(C(), 16) * mkldnn_get_max_threads();
+                dim_t sz = nstl::max<dim_t>(C(), 16) * mkldnn_get_max_threads();
                 scratchpad.book(key_bnorm_reduction, sizeof(data_t) * sz);
                 scratchpad.book(key_bnorm_tmp_mean, sizeof(data_t) * sz);
                 scratchpad.book(key_bnorm_tmp_var, sizeof(data_t) * sz);

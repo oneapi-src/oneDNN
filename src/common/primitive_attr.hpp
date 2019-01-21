@@ -59,16 +59,16 @@ struct scales_t: public c_compatible {
     }
 
     bool has_default_values() const {
-        for (int c = 0; c < count_; ++c) {
+        for (dim_t c = 0; c < count_; ++c) {
             if(scales_[c] != 1.) return false;
         }
         return true;
     }
 
-    status_t set(int count, int mask, const float *scales);
+    status_t set(dim_t count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
 
-    int count_;
+    dim_t count_;
     int mask_;
     float *scales_;
 

@@ -28,7 +28,7 @@ const size_t max_prb_len = 392;
 const size_t max_desc_len = 196;
 
 struct desc_t {
-    int mb, oc, ic, id, ih, iw;
+    int64_t mb, oc, ic, id, ih, iw;
     const char *name;
 };
 
@@ -49,7 +49,7 @@ extern const _dt_conf_t conf_u8s8s8s32;
 extern const _dt_conf_t conf_u8s8u8s32;
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, int mb, dir_t dir, const dt_conf_t *cfg,
+    prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
             const attr_t &attr)
         : desc_t(desc), dir(dir), cfg(cfg), attr(attr), scales(NULL) {
         if (mb)
@@ -73,19 +73,19 @@ const char *cfg2str(const dt_conf_t *cfg);
 
 extern const char *perf_template; /* performance output template */
 
-inline size_t src_off_f(
-        const prb_t *p, int mb, int ic, int id, int ih, int iw) {
-    return ((((size_t)mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+inline size_t src_off_f(const prb_t *p,
+        int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+    return (((mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
-inline size_t wei_off_f(
-        const prb_t *p, int oc, int ic, int id, int ih, int iw) {
-    return ((((size_t)oc * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+inline size_t wei_off_f(const prb_t *p,
+        int64_t oc, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+    return (((oc * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
-inline size_t bia_off_f(const prb_t *p, int oc) { return oc; }
+inline size_t bia_off_f(const prb_t *p, int64_t oc) { return oc; }
 
-inline size_t dst_off_f(const prb_t *p, int mb, int oc) {
+inline size_t dst_off_f(const prb_t *p, int64_t mb, int64_t oc) {
     return mb * p->oc + oc;
 }
 

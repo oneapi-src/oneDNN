@@ -47,25 +47,26 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
     data_t_dst *bias_data = w_bias ? (data_t_dst *)bias.get_data_handle() : nullptr;
     data_t_dst *dst_data = (data_t_dst *)dst.get_data_handle();
 
-    size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
-    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
-        [&](int n, int g, int oc, int oh, int ow) {
+        [&](memory::dim n, memory::dim g, memory::dim oc,
+            memory::dim oh, memory::dim ow) {
             data_t_acc a = 0;
-            for (int ic = 0; ic < c.ic / c.ng; ic++) {
-                for (int kh = 0; kh < c.kh; kh++) {
-                    for (int kw = 0; kw < c.kw; kw++) {
-                        int iw = ow * c.strw
+            for (memory::dim ic = 0; ic < c.ic / c.ng; ic++) {
+                for (memory::dim kh = 0; kh < c.kh; kh++) {
+                    for (memory::dim kw = 0; kw < c.kw; kw++) {
+                        memory::dim iw = ow * c.strw
                               - c.padw + kw * (1 + c.dilw);
-                        int ih = oh * c.strh
+                        memory::dim ih = oh * c.strh
                               - c.padh + kh * (1 + c.dilh);
                         if (iw < 0 || iw >= c.iw) continue;
                         if (ih < 0 || ih >= c.ih) continue;
-                        size_t iidx = n * padded_ic * c.ih * c.iw
+                        memory::dim iidx = n * padded_ic * c.ih * c.iw
                             + g * padded_ic / c.ng * c.ih * c.iw
                             + ic * c.ih * c.iw + ih * c.iw + iw;
-                        size_t widx = g * padded_oc / c.ng * padded_ic
+                        memory::dim widx = g * padded_oc / c.ng * padded_ic
                             / c.ng * c.kh * c.kw
                             + oc * padded_ic / c.ng * c.kh * c.kw
                             + ic * c.kh * c.kw + kh * c.kw + kw;
@@ -99,7 +100,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
                 }
             }
 
-            size_t oidx = n * padded_oc * c.oh * c.ow
+            memory::dim oidx = n * padded_oc * c.oh * c.ow
                      + g * padded_oc / c.ng * c.oh * c.ow
                      + oc * c.oh * c.ow + oh * c.ow + ow;
             dst_data[map_index(dst_d, oidx)] = (data_t_dst)a_fp;
@@ -172,7 +173,7 @@ protected:
         check_zero_tail<data_t_wei>(1, c_weights.get());
         check_zero_tail<data_t_dst>(1, c_dst.get());
 
-        std::vector<int> padR = {
+        memory::dims padR = {
             right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
             right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)
         };

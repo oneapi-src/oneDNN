@@ -58,70 +58,70 @@ struct deconvolution_pd_t: public primitive_desc_t {
 
     /* common deconv aux functions (note that conv_desc_t == deconv_desc_t) */
 
-    int MB() const { return conv_prop_agnostic_src_d(&desc_)->dims[0]; }
+    dim_t MB() const { return conv_prop_agnostic_src_d(&desc_)->dims[0]; }
 
-    int IC() const { return conv_prop_agnostic_src_d(&desc_)->dims[1]; }
-    int OC() const { return conv_prop_agnostic_dst_d(&desc_)->dims[1]; }
-    int G() const
+    dim_t IC() const { return conv_prop_agnostic_src_d(&desc_)->dims[1]; }
+    dim_t OC() const { return conv_prop_agnostic_dst_d(&desc_)->dims[1]; }
+    dim_t G() const
     { return with_groups() ? conv_prop_agnostic_wei_d(&desc_)->dims[0] : 1; }
 
-    int ID() const {
+    dim_t ID() const {
         return ndims() >= 5
             ? conv_prop_agnostic_src_d(&desc_)->dims[ndims() - 3] : 1;
     }
-    int IH() const {
+    dim_t IH() const {
         return ndims() >= 4
             ? conv_prop_agnostic_src_d(&desc_)->dims[ndims() - 2] : 1;
     }
-    int IW() const {
+    dim_t IW() const {
         return conv_prop_agnostic_src_d(&desc_)->dims[ndims() - 1];
     }
 
-    int OD() const {
+    dim_t OD() const {
         return ndims() >= 5
             ? conv_prop_agnostic_dst_d(&desc_)->dims[ndims() - 3] : 1;
     }
-    int OH() const {
+    dim_t OH() const {
         return ndims() >= 4
             ? conv_prop_agnostic_dst_d(&desc_)->dims[ndims() - 2] : 1;
     }
-    int OW() const {
+    dim_t OW() const {
         return conv_prop_agnostic_dst_d(&desc_)->dims[ndims() - 1];
     }
 
-    int KD() const {
+    dim_t KD() const {
         const int w_ndims = ndims() + with_groups();
         return ndims() >= 5
             ? conv_prop_agnostic_wei_d(&desc_)->dims[w_ndims - 3] : 1;
     }
-    int KH() const {
+    dim_t KH() const {
         const int w_ndims = ndims() + with_groups();
         return ndims() >= 4
             ? conv_prop_agnostic_wei_d(&desc_)->dims[w_ndims - 2] : 1;
     }
-    int KW() const {
+    dim_t KW() const {
         const int w_ndims = ndims() + with_groups();
         return conv_prop_agnostic_wei_d(&desc_)->dims[w_ndims - 1];
     }
 
-    int KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
-    int KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
-    int KSW() const { return desc_.strides[ndims() - 3]; }
+    dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
+    dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
+    dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
-    int KDD() const { return ndims() >= 5 ? desc_.dilates[ndims() - 5] : 0; }
-    int KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
-    int KDW() const { return desc_.dilates[ndims() - 3]; }
+    dim_t KDD() const { return ndims() >= 5 ? desc_.dilates[ndims() - 5] : 0; }
+    dim_t KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
+    dim_t KDW() const { return desc_.dilates[ndims() - 3]; }
 
-    int padFront() const
+    dim_t padFront() const
     { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
-    int padBack() const
+    dim_t padBack() const
     { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
-    int padT() const
+    dim_t padT() const
     { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
-    int padB() const
+    dim_t padB() const
     { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
-    int padL() const { return desc_.padding[0][ndims() - 3]; }
-    int padR() const { return desc_.padding[1][ndims() - 3]; }
+    dim_t padL() const { return desc_.padding[0][ndims() - 3]; }
+    dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     bool with_bias() const {
         return

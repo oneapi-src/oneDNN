@@ -28,7 +28,7 @@
 
 namespace reorder {
 
-using dims_t = std::vector<int>;
+using dims_t = std::vector<int64_t>;
 
 struct dt_conf_s {
     mkldnn_data_type_t dt;
@@ -81,7 +81,8 @@ void dims2str(const dims_t &dims, char *buffer);
 void prb2str(const prb_t *p, const res_t *res, char *buffer);
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
-inline size_t data_off_f(const prb_t *p, int mb, int ic, int ih, int iw) {
+inline size_t data_off_f(const prb_t *p,
+        int64_t mb, int64_t ic, int64_t ih, int64_t iw) {
     const auto &dims = p->reorder.dims;
     return ((mb * dims[1] + ic) * dims[2] + ih) * dims[3] + iw;
 }

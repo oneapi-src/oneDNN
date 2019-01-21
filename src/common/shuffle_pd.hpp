@@ -88,17 +88,17 @@ struct shuffle_pd_t: public primitive_desc_t {
 
     /* shuffle aux functions */
 
-    int MB() const { return data_md()->dims[0]; }
-    int C() const { return ndims() >= 2 ? data_md()->dims[1] : 1; }
-    int D() const { return ndims() >= 5 ? data_md()->dims[ndims() - 3] : 1; }
-    int H() const { return ndims() >= 4 ? data_md()->dims[ndims() - 2] : 1; }
-    int W() const { return ndims() >= 3 ? data_md()->dims[ndims() - 1] : 1; }
+    dim_t MB() const { return data_md()->dims[0]; }
+    dim_t C() const { return ndims() >= 2 ? data_md()->dims[1] : 1; }
+    dim_t D() const { return ndims() >= 5 ? data_md()->dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? data_md()->dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? data_md()->dims[ndims() - 1] : 1; }
 
     int ndims() const { return data_md()->ndims; }
 
     int axis() const { return desc_.axis; }
-    int group_size() const { return desc_.group_size; }
-    int axis_size() const { return data_md()->dims[axis()]; }
+    dim_t group_size() const { return desc_.group_size; }
+    dim_t axis_size() const { return data_md()->dims[axis()]; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,

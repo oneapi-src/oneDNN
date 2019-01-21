@@ -17,6 +17,8 @@
 #include "common.hpp"
 #include "nstl.hpp"
 #include "math_utils.hpp"
+
+#include "../gemm.hpp"
 #include "jit_avx512_core_gemm_s8u8s32.hpp"
 
 namespace mkldnn {
@@ -138,7 +140,7 @@ mkldnn_status_t jit_avx512_core_gemm_s8s8s32(
     compensation_compute(transa, M, K, *alpha, a, *lda, compensation);
     copy_and_shift_b(transb, K, N, b_u8, ld, b, *ldb);
 
-    mkldnn_gemm_s8u8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa, b_u8,
+    gemm_s8x8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa, b_u8,
         &ld, ob, beta, c, ldc, compensation);
 
     if ((*offsetC == 'R' || *offsetC == 'r'))

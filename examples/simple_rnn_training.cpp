@@ -154,7 +154,7 @@ void simple_net() {
     auto tz_volume = [=](memory::dims tz_dims) {
         return std::accumulate(
             tz_dims.begin(), tz_dims.end(),
-            (size_t)1, std::multiplies<size_t>());
+            (memory::dim)1, std::multiplies<memory::dim>());
     };
 
     // Create auxillary f32 memory descriptor

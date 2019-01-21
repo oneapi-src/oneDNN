@@ -24,6 +24,11 @@
 
 using namespace mkldnn;
 
+memory::dim product(const memory::dims &dims) {
+    return std::accumulate(dims.begin(), dims.end(),
+            (memory::dim)1, std::multiplies<memory::dim>());
+}
+
 void simple_net() {
     using fmt = memory::format;
     using dt = memory::data_type;
@@ -53,14 +58,10 @@ void simple_net() {
     memory::dims conv_bias_tz = { 96 };
     memory::dims conv_dst_tz = { batch, 96, 55, 55 };
     memory::dims conv_strides = { 4, 4 };
-    auto conv_padding = { 0, 0 };
+    memory::dims conv_padding = { 0, 0 };
 
-    std::vector<float> conv_weights(
-            std::accumulate(conv_weights_tz.begin(), conv_weights_tz.end(), 1,
-                            std::multiplies<uint32_t>()));
-    std::vector<float> conv_bias(std::accumulate(conv_bias_tz.begin(),
-                                                 conv_bias_tz.end(), 1,
-                                                 std::multiplies<uint32_t>()));
+    std::vector<float> conv_weights(product(conv_weights_tz));
+    std::vector<float> conv_bias(product(conv_bias_tz));
 
     /* initializing non-zero values for weights and bias */
     for (size_t i = 0; i < conv_weights.size(); ++i)
@@ -183,7 +184,7 @@ void simple_net() {
     memory::dims pool_dst_tz = { batch, 96, 27, 27 };
     memory::dims pool_kernel = { 3, 3 };
     memory::dims pool_strides = { 2, 2 };
-    auto pool_padding = { 0, 0 };
+    memory::dims pool_padding = { 0, 0 };
 
     /* create memory for pool dst data in user format */
     auto pool_user_dst_memory = memory(
@@ -315,12 +316,8 @@ void simple_net() {
 
     /* Backward convolution with respect to weights */
     /* create user format diff weights and diff bias memory */
-    std::vector<float> conv_user_diff_weights_buffer(
-            std::accumulate(conv_weights_tz.begin(), conv_weights_tz.end(), 1,
-                            std::multiplies<uint32_t>()));
-    std::vector<float> conv_diff_bias_buffer(
-            std::accumulate(conv_bias_tz.begin(), conv_bias_tz.end(), 1,
-                            std::multiplies<uint32_t>()));
+    std::vector<float> conv_user_diff_weights_buffer(product(conv_weights_tz));
+    std::vector<float> conv_diff_bias_buffer(product(conv_bias_tz));
 
     auto conv_user_diff_weights_memory = memory(
             {{conv_weights_tz}, dt::f32, fmt::nchw}, cpu_engine,

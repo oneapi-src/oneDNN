@@ -56,11 +56,11 @@ struct softmax_pd_t: public primitive_desc_t {
 
     /* common softmax aux functions */
 
-    int MB() const { return data_desc().dims[0]; }
-    int C() const { return data_desc().dims[1]; }
-    int D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
-    int H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
-    int W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
+    dim_t MB() const { return data_desc().dims[0]; }
+    dim_t C() const { return data_desc().dims[1]; }
+    dim_t D() const { return ndims() >= 5 ? data_desc().dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
 
     int ndims() const { return data_desc().ndims; }
 

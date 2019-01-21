@@ -1093,14 +1093,14 @@ struct uni_bnorm_driver_t: public c_compatible {
         auto rbuf = scratchpad.get<data_t>(key_bnorm_reduction);
         auto barriers = scratchpad.get<barrier::ctx_t>(key_barrier);
 
-        size_t N = bdesc_->MB();
-        size_t C = bdesc_->C();
-        size_t C_PADDED = get_c_padded(bdesc_);
-        size_t D = bdesc_->D();
-        size_t H = bdesc_->H();
-        size_t W = bdesc_->W();
-        int SP = D * H * W;
-        size_t img_size = C_PADDED * D * H * W;
+        dim_t N = bdesc_->MB();
+        dim_t C = bdesc_->C();
+        dim_t C_PADDED = get_c_padded(bdesc_);
+        dim_t D = bdesc_->D();
+        dim_t H = bdesc_->H();
+        dim_t W = bdesc_->W();
+        dim_t SP = D * H * W;
+        dim_t img_size = C_PADDED * D * H * W;
         const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
 
         typename jit_bnorm_t<isa>::call_params_t p;
@@ -1110,12 +1110,13 @@ struct uni_bnorm_driver_t: public c_compatible {
         p.spat_size = D * H * W;
         p.chan_size = 1.0f * N * p.spat_size;
 
-        int C_blks = C_PADDED / simd_w;
+        dim_t C_blks = C_PADDED / simd_w;
 
         int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0}, S_ithr{0}, S_nthr{0};
-        int C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0}, S_s{0}, S_e{0};
+        dim_t C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0}, S_s{0}, S_e{0};
 
-        int C_blks_per_iter{ 1 }, iters{ 1 };
+        dim_t C_blks_per_iter{ 1 };
+        int64_t iters{ 1 };
         if (do_blocking_) {
             int num_tensors = bdesc_->is_fwd() ? 1 : 2;
             size_t working_set_size
@@ -1140,7 +1141,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         int global_C_blk_s;
         int global_barriers_per_iter = C_nthr;
 
-        for (int it = 0; it < iters; it++) {
+        for (int64_t it = 0; it < iters; it++) {
             if (it == iters - 1 && iters > 1) {
                 C_blk_s = C_blk_e = N_s = N_e = 0;
                 spatial_thr_allowed = bnorm_utils::thread_balance(do_blocking_,
@@ -1189,8 +1190,7 @@ struct uni_bnorm_driver_t: public c_compatible {
                     + C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr) * simd_w;
             // rbuf1 and rbuf2 have to be disjoint
             p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
-            p.is_cblk_tail =
-                (size_t)((it * C_blks_per_iter + C_blk_e) * simd_w) > C;
+            p.is_cblk_tail = (it * C_blks_per_iter + C_blk_e) * simd_w > C;
 
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;

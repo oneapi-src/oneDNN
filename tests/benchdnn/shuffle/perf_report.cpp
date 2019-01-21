@@ -102,7 +102,7 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
         else if (c == 'a')
             DPRINT("%d", p->a);
         else if (c == 'g')
-            DPRINT("%d", p->g);
+            DPRINT(IFMT, p->g);
         else if (c == 'z')
             DPRINT("%s", dir2str(p->dir));
         else if (c == 'q')

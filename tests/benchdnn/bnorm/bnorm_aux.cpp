@@ -91,7 +91,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!strncmp(p, s, strlen(p))) { \
             ok = 1; s += strlen(p); \
             char *end_s; d. c = cvfunc(s, &end_s); s += (end_s - s); \
-            /* printf("@@@debug: %s: %d\n", p, d. c); */ \
+            /* printf("@@@debug: %s: " IFMT "\n", p, d. c); */ \
         } \
     } while (0)
 #   define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
@@ -127,11 +127,11 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
         buffer += l; rem_len -= l; \
     } while(0)
 
-    if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
-    DPRINT("ic%d", d->ic);
-    if (d->id > 1) DPRINT("id%d", d->id);
-    DPRINT("ih%d", d->ih);
-    if (canonical || d->iw != d->ih || d->id > 1) DPRINT("iw%d", d->iw);
+    if (canonical || d->mb != 2) DPRINT("mb" IFMT "", d->mb);
+    DPRINT("ic" IFMT "", d->ic);
+    if (d->id > 1) DPRINT("id" IFMT "", d->id);
+    DPRINT("ih" IFMT "", d->ih);
+    if (canonical || d->iw != d->ih || d->id > 1) DPRINT("iw" IFMT "", d->iw);
     if (canonical || d->eps != 1.f/16) DPRINT("eps%g", d->eps);
     DPRINT("n%s", d->name);
 

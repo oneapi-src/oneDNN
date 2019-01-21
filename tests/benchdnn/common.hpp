@@ -25,6 +25,8 @@
 #include <float.h>
 #include <math.h>
 
+#include <cinttypes>
+
 #define ABS(a) ((a)>0?(a):(-(a)))
 
 #define MIN2(a,b) ((a)<(b)?(a):(b))
@@ -35,6 +37,9 @@
 
 #define STRINGIFy(s) #s
 #define STRINGIFY(s) STRINGIFy(s)
+
+#define CHAIn2(a,b) a b
+#define CHAIN2(a,b) CHAIn2(a,b)
 
 #define CONCAt2(a,b) a ## b
 #define CONCAT2(a,b) CONCAt2(a,b)
@@ -48,6 +53,8 @@
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
 #endif
+
+#define IFMT "%" PRId64
 
 #define OK 0
 #define FAIL 1
@@ -191,7 +198,8 @@ void array_set(char *arr, size_t size);
  * layout = 'F' - column major
  * layout = 'C' - row major*/
 void gemm(const char *layout, const char *transa, const char *transb,
-        int m, int n, int k, const float alpha, const float *a, const int lda,
-        const float *b, const int ldb, const float beta, float *c,
-        const int ldc );
+        int64_t m, int64_t n, int64_t k,
+        const float alpha, const float *a, const int64_t lda,
+        const float *b, const int64_t ldb,
+        const float beta, float *c, const int64_t ldc);
 #endif

@@ -65,55 +65,55 @@ struct inner_product_pd_t: public primitive_desc_t {
 
     /* common inner_product aux functions */
 
-    int MB() const { return ip_prop_agnostic_src_d(&desc_)->dims[0]; }
-    int IC() const { return ip_prop_agnostic_src_d(&desc_)->dims[1]; }
-    int OC() const { return ip_prop_agnostic_dst_d(&desc_)->dims[1]; }
+    dim_t MB() const { return ip_prop_agnostic_src_d(&desc_)->dims[0]; }
+    dim_t IC() const { return ip_prop_agnostic_src_d(&desc_)->dims[1]; }
+    dim_t OC() const { return ip_prop_agnostic_dst_d(&desc_)->dims[1]; }
 
-    int ID() const {
+    dim_t ID() const {
         return ndims() >= 5
             ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 3] : 1;
     }
-    int IH() const {
+    dim_t IH() const {
         return ndims() >= 4
             ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 2] : 1;
     }
-    int IW() const {
+    dim_t IW() const {
         return ndims() >= 3
             ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
-    int OD() const {
+    dim_t OD() const {
         return ndims() >= 5
             ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 3] : 1;
     }
-    int OH() const {
+    dim_t OH() const {
         return ndims() >= 4
             ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 2] : 1;
     }
-    int OW() const {
+    dim_t OW() const {
         return ndims() >= 3
             ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
-    int KD() const {
+    dim_t KD() const {
         return ndims() >= 5
             ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 3] : 1;
     }
-    int KH() const {
+    dim_t KH() const {
         return ndims() >= 4
             ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 2] : 1;
     }
-    int KW() const {
+    dim_t KW() const {
         return ndims() >= 3
             ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
-    int IC_total() const {
+    dim_t IC_total() const {
         return utils::array_product(&ip_prop_agnostic_src_d(&desc_)->dims[1],
                 ndims() - 1);
     }
 
-    int IC_total_padded() const {
+    dim_t IC_total_padded() const {
         auto src_d = desc()->prop_kind == prop_kind::backward_data
             ? memory_desc_wrapper(diff_src_md())
             : memory_desc_wrapper(src_md());

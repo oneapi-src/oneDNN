@@ -602,10 +602,14 @@ typedef enum {
  * primitives may support only tensors of certain dimensions. */
 #define TENSOR_MAX_DIMS 12
 
+/** A type to describe tensor dimension. */
+typedef int64_t mkldnn_dim_t;
+
 /** A type to describe tensor dimensions. */
-typedef int mkldnn_dims_t[TENSOR_MAX_DIMS];
+typedef mkldnn_dim_t mkldnn_dims_t[TENSOR_MAX_DIMS];
+
 /** A type to describe strides within a tensor. */
-typedef ptrdiff_t mkldnn_strides_t[TENSOR_MAX_DIMS];
+typedef mkldnn_dim_t mkldnn_strides_t[TENSOR_MAX_DIMS];
 
 /** Generic description of blocked data layout for most memory formats.
  *
@@ -794,7 +798,7 @@ typedef struct {
     /** axis for shuffling. */
     int axis;
     /** number of groups in group convolution */
-    int group_size;
+    mkldnn_dim_t group_size;
 } mkldnn_shuffle_desc_t;
 
 /** A descriptor of a element-wise operation. */
@@ -900,7 +904,7 @@ typedef struct {
     mkldnn_memory_desc_t diff_data_desc;
     /** The number of channels to sum over (for cross-channel LRN) or the side
      * length of the square region to sum over (for within-channel LRN). */
-    int local_size;
+    mkldnn_dim_t local_size;
     /** LRN alpha parameter. */
     float lrn_alpha;
     /** LRN beta parameter. */

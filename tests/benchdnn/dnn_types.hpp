@@ -111,10 +111,10 @@ int str2attr(attr_t *attr, const char *str);
 void attr2str(const attr_t *attr, char *buffer);
 
 mkldnn_memory_format_t get_default_format(int ndims, data_kind_t kind);
-mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
-        int scale_mask, const float *scales);
+mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
+        int64_t scale_cnt, int scale_mask, const float *scales);
 inline mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
-        int scale_cnt, const float *scales)
+        int64_t scale_cnt, const float *scales)
 { return create_mkldnn_attr(attr, scale_cnt, -1, scales); }
 
 #endif

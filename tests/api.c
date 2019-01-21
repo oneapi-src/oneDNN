@@ -37,7 +37,7 @@
     } \
 } while(0)
 
-static size_t product(int *arr, size_t size) {
+static size_t product(mkldnn_dim_t *arr, size_t size) {
     size_t prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
@@ -86,14 +86,14 @@ void test2() {
      * strides: {1, 1}
      */
 
-    const int mb = 2;
-    const int groups = 2;
-    int c3_src_sizes[4] = {mb, 256, 13, 13};
-    int c3_weights_sizes[] = {groups, 384/groups, 256/groups, 3, 3};
-    int c3_bias_sizes[1] = {384};
-    int strides[] = {1, 1};
-    int32_t  padding[] = {0, 0}; // set proper values
-    int c3_dst_sizes[4] = {mb, 384,
+    const mkldnn_dim_t mb = 2;
+    const mkldnn_dim_t groups = 2;
+    mkldnn_dim_t c3_src_sizes[4] = {mb, 256, 13, 13};
+    mkldnn_dim_t c3_weights_sizes[] = {groups, 384/groups, 256/groups, 3, 3};
+    mkldnn_dim_t c3_bias_sizes[1] = {384};
+    mkldnn_dim_t strides[] = {1, 1};
+    mkldnn_dim_t padding[] = {0, 0}; // set proper values
+    mkldnn_dim_t c3_dst_sizes[4] = {mb, 384,
         (c3_src_sizes[2] + 2*padding[0] - c3_weights_sizes[3])/strides[0] + 1,
         (c3_src_sizes[3] + 2*padding[1] - c3_weights_sizes[4])/strides[1] + 1
     };
@@ -105,7 +105,7 @@ void test2() {
     real_t *out_mem = (real_t*)calloc(product(c3_dst_sizes, 4), sizeof(real_t));
     CHECK_TRUE(src && weights && bias && dst && out_mem);
 
-    for (int i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
+    for (mkldnn_dim_t i = 0; i < c3_bias_sizes[0]; ++i) bias[i] = i;
 
     mkldnn_engine_t engine;
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
@@ -209,14 +209,14 @@ void test2() {
     CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 
-    const int N = c3_dst_sizes[0], C = c3_dst_sizes[1],
+    const mkldnn_dim_t N = c3_dst_sizes[0], C = c3_dst_sizes[1],
           H = c3_dst_sizes[2], W = c3_dst_sizes[3];
-    for (int n = 0; n < N; ++n)
-    for (int c = 0; c < C; ++c)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w)
+    for (mkldnn_dim_t n = 0; n < N; ++n)
+    for (mkldnn_dim_t c = 0; c < C; ++c)
+    for (mkldnn_dim_t h = 0; h < H; ++h)
+    for (mkldnn_dim_t w = 0; w < W; ++w)
     {
-        size_t off = ((n*C + c)*H + h)*W + w;
+        mkldnn_dim_t off = ((n*C + c)*H + h)*W + w;
         CHECK_TRUE(out_mem[off] == bias[c]);
     }
 
@@ -228,8 +228,8 @@ void test2() {
 }
 
 void test3() {
-    const int mb = 2;
-    int l2_data_sizes[4] = {mb, 256, 13, 13};
+    const mkldnn_dim_t mb = 2;
+    mkldnn_dim_t l2_data_sizes[4] = {mb, 256, 13, 13};
 
     real_t *src = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
     real_t *dst = (real_t*)calloc(product(l2_data_sizes, 4), sizeof(real_t));
@@ -289,12 +289,12 @@ void test3() {
     CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 
-    const int N = l2_data_sizes[0], C = l2_data_sizes[1],
+    const mkldnn_dim_t N = l2_data_sizes[0], C = l2_data_sizes[1],
           H = l2_data_sizes[2], W = l2_data_sizes[3];
-    for (int n = 0; n < N; ++n)
-    for (int c = 0; c < C; ++c)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w)
+    for (mkldnn_dim_t n = 0; n < N; ++n)
+    for (mkldnn_dim_t c = 0; c < C; ++c)
+    for (mkldnn_dim_t h = 0; h < H; ++h)
+    for (mkldnn_dim_t w = 0; w < W; ++w)
     {
         size_t off = ((n*C + c)*H + h)*W + w;
         real_t e = (off % 13) + 1;

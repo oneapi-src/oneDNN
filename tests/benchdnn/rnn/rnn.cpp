@@ -112,7 +112,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     mkldnn_dims_t bias_dims
             = { p->n_layer, p->n_directions(), p->n_gates() + is_gru_lbr, p->dic };
     // mkldnn_tnc
-    int lastlay_dlc = (p->direction == mkldnn_bidirectional_concat)
+    int64_t lastlay_dlc = (p->direction == mkldnn_bidirectional_concat)
             ? 2 * p->dlc
             : p->dlc;
     mkldnn_dims_t dst_last_layer_dims = { p->n_iter, p->mb, lastlay_dlc };

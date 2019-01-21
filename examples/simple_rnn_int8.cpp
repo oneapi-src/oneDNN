@@ -31,15 +31,17 @@
 
 using namespace mkldnn;
 
-const int batch = 64;
-const int src_seq_length_max = 25;
-const int tgt_seq_length_max = 27;
+using dim_t = mkldnn::memory::dim;
 
-const int feature_size = 1024;
+const dim_t batch = 64;
+const dim_t src_seq_length_max = 25;
+const dim_t tgt_seq_length_max = 27;
 
-const int enc_bidir_n_layers = 1;
-const int enc_unidir_n_layers = 7;
-const int dec_n_layers = 8;
+const dim_t feature_size = 1024;
+
+const dim_t enc_bidir_n_layers = 1;
+const dim_t enc_unidir_n_layers = 7;
+const dim_t dec_n_layers = 8;
 
 const int lstm_n_gates = 4;
 const int lstm_n_states = 2;
@@ -50,35 +52,35 @@ std::vector<float> alignments(src_seq_length_max *batch, 1.0f);
 std::vector<float> exp_sums(batch, 1.0f);
 
 const float onef = 1.0, zerof = 0.0;
-const int onei = 1;
+const dim_t onei = 1;
 
 void compute_weighted_annotations(float *weighted_annotations,
-        int src_seq_length_max, int batch, int feature_size,
+        dim_t src_seq_length_max, dim_t batch, dim_t feature_size,
         float *weights_annot, float *annotations) {
     // annotations(aka enc_dst_layer) is (t, n, 2c)
     // weights_annot is (2c, c)
 
-    int num_weighted_annotations = src_seq_length_max * batch;
+    dim_t num_weighted_annotations = src_seq_length_max * batch;
     // annotation[i] = GEMM(weights_annot, enc_dst_layer[i]);
     mkldnn_sgemm("N", "N", &feature_size, &num_weighted_annotations,
             &feature_size, &onef, weights_annot, &feature_size, annotations,
             &feature_size, &zerof, weighted_annotations, &feature_size);
 }
 
-void compute_sum_of_rows(int8_t *a, int rows, int cols, int32_t *a_reduced) {
+void compute_sum_of_rows(int8_t *a, dim_t rows, dim_t cols, int32_t *a_reduced) {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < cols; i++) {
+    for (dim_t i = 0; i < cols; i++) {
         a_reduced[i] = 0;
-        for (int j = 0; j < rows; j++) {
+        for (dim_t j = 0; j < rows; j++) {
             a_reduced[i] += (int32_t)a[i * rows + j];
         }
     }
 }
 
-void compute_attention(float *context_vectors, int src_seq_length_max,
-        int batch, int feature_size, int8_t *weights_src_layer,
+void compute_attention(float *context_vectors, dim_t src_seq_length_max,
+        dim_t batch, dim_t feature_size, int8_t *weights_src_layer,
         float weights_src_layer_scale, int32_t *compensation,
         uint8_t *dec_src_layer, float dec_src_layer_scale,
         float dec_src_layer_shift, uint8_t *annotations,
@@ -107,9 +109,9 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-    for (int i = 0; i < src_seq_length_max; i++) {
-        for (int j = 0; j < batch; j++) {
-            for (int k = 0; k < feature_size; k++) {
+    for (dim_t i = 0; i < src_seq_length_max; i++) {
+        for (dim_t j = 0; j < batch; j++) {
+            for (dim_t k = 0; k < feature_size; k++) {
                 size_t tnc_offset
                         = i * batch * feature_size + j * feature_size + k;
                 alignment_model_ptr[tnc_offset] = tanhf(
@@ -123,7 +125,7 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
     }
 
     // gemv with alignments weights. the resulting alignments are in alignments
-    int num_weighted_annotations = src_seq_length_max * batch;
+    dim_t num_weighted_annotations = src_seq_length_max * batch;
     mkldnn_sgemm("N", "N", &onei, &num_weighted_annotations, &feature_size,
             &onef, weights_alignments, &onei, alignment_model_ptr,
             &feature_size, &zerof, alignments.data(), &onei);
@@ -132,13 +134,13 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < batch; i++)
+    for (dim_t i = 0; i < batch; i++)
         exp_sums[i] = 0.0f;
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-    for (int i = 0; i < src_seq_length_max; i++) {
-        for (int j = 0; j < batch; j++) {
+    for (dim_t i = 0; i < src_seq_length_max; i++) {
+        for (dim_t j = 0; j < batch; j++) {
             alignments[i * batch + j] = expf(alignments[i * batch + j]);
             exp_sums[j] += alignments[i * batch + j];
         }
@@ -147,16 +149,16 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-    for (int i = 0; i < src_seq_length_max; i++)
-        for (int j = 0; j < batch; j++)
+    for (dim_t i = 0; i < src_seq_length_max; i++)
+        for (dim_t j = 0; j < batch; j++)
             alignments[i * batch + j] /= exp_sums[j];
 
 // then we compute the context vectors
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-    for (int i = 0; i < batch; i++)
-        for (int j = 0; j < feature_size; j++)
+    for (dim_t i = 0; i < batch; i++)
+        for (dim_t j = 0; j < feature_size; j++)
             context_vectors[i * (feature_size + feature_size) + feature_size
                     + j]
                     = 0.0f;
@@ -164,9 +166,9 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
 #ifdef _OPENMP
 #pragma omp parallel for collapse(3)
 #endif
-    for (int i = 0; i < batch; i++)
-        for (int k = 0; k < src_seq_length_max; k++)
-            for (int j = 0; j < feature_size; j++)
+    for (dim_t i = 0; i < batch; i++)
+        for (dim_t k = 0; k < src_seq_length_max; k++)
+            for (dim_t j = 0; j < feature_size; j++)
                 context_vectors[i * (feature_size + feature_size) + feature_size
                         + j]
                         += alignments[k * batch + i]
@@ -176,15 +178,15 @@ void compute_attention(float *context_vectors, int src_seq_length_max,
                         / dec_src_layer_scale);
 }
 
-void copy_context(float *src_iter, int n_layers, int n_states, int batch,
-        int feature_size) {
+void copy_context(float *src_iter, dim_t n_layers, dim_t n_states, dim_t batch,
+        dim_t feature_size) {
 // we copy the context from the first layer to all other layers
 #ifdef _OPENMP
 #pragma omp parallel for collapse(3)
 #endif
-    for (int k = 1; k < n_layers; k++)
-        for (int j = 0; j < batch; j++)
-            for (int i = 0; i < feature_size; i++)
+    for (dim_t k = 1; k < n_layers; k++)
+        for (dim_t j = 0; j < batch; j++)
+            for (dim_t i = 0; i < feature_size; i++)
                 src_iter[(k * n_states * batch + j)
                                 * (feature_size + feature_size)
                         + i]
@@ -223,7 +225,7 @@ void simple_net() {
     const int weights_scale_mask = 3; // 11 for last two dimensions of ldigo
     std::vector<float> weights_scales(lstm_n_gates * feature_size);
     /* assign halves of vector with arbitrary values */
-    const int scales_half = lstm_n_gates * feature_size / 2;
+    const dim_t scales_half = lstm_n_gates * feature_size / 2;
     std::fill(
             weights_scales.begin(), weights_scales.begin() + scales_half, 30.f);
     std::fill(weights_scales.begin() + scales_half + 1, weights_scales.end(),
@@ -663,7 +665,7 @@ void simple_net() {
                 dec_src_layer_memory.get_desc().get_size());
         // From now on, src points to the output of the last iteration
 
-        for (int i = 0; i < tgt_seq_length_max; i++) {
+        for (dim_t i = 0; i < tgt_seq_length_max; i++) {
             uint8_t *src_att_layer_handle
                     = (uint8_t *)dec_src_layer_memory.get_data_handle();
             float *src_att_iter_handle

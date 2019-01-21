@@ -28,7 +28,7 @@ using namespace mkldnn::impl::utils;
 namespace mkldnn {
 namespace impl {
 
-status_t scales_t::set(int count, int mask, const float *scales) {
+status_t scales_t::set(dim_t count, int mask, const float *scales) {
     cleanup();
 
     count_ = count;
@@ -42,7 +42,7 @@ status_t scales_t::set(int count, int mask, const float *scales) {
         if (scales_ == nullptr)
             return status::out_of_memory;
 
-        for (int c = 0; c < count_; ++c)
+        for (dim_t c = 0; c < count_; ++c)
             scales_[c] = scales[c];
     }
 
@@ -148,7 +148,7 @@ status_t mkldnn_primitive_attr_set_int_output_round_mode(
 }
 
 status_t mkldnn_primitive_attr_get_output_scales(const primitive_attr_t *attr,
-        int *count, int *mask, const float **scales) {
+        dim_t *count, int *mask, const float **scales) {
     if (any_null(attr, count, mask, scales))
         return invalid_arguments;
 
@@ -160,7 +160,7 @@ status_t mkldnn_primitive_attr_get_output_scales(const primitive_attr_t *attr,
 }
 
 status_t mkldnn_primitive_attr_set_output_scales(primitive_attr_t *attr,
-        int count, int mask, const float *scales) {
+        dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
     if (!ok)
         return invalid_arguments;
@@ -280,7 +280,7 @@ status_t mkldnn_primitive_attr_set_rnn_data_qparams(
 }
 
 status_t mkldnn_primitive_attr_set_rnn_weights_qparams(
-        primitive_attr_t *attr, int count, int mask, const float *scales) {
+        primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
     if (!ok)
         return invalid_arguments;

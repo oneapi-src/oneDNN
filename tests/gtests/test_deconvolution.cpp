@@ -40,9 +40,10 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
     const memory::desc dst_d = dst.get_desc();
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
-        [&](int n, int g, int oc, int oh, int ow) {
+        [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
+            memory::dim ow) {
             data_t b = bias_data[map_index(bias_d, g * c.oc / c.ng + oc)];
-            int oidx = n * c.oc * c.oh * c.ow
+            memory::dim oidx = n * c.oc * c.oh * c.ow
                 + g * c.oc / c.ng * c.oh * c.ow
                 + oc * c.oh * c.ow + oh * c.ow + ow;
             dst_data[map_index(dst_d, oidx)] += b;
@@ -59,19 +60,19 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, [&](int g, int oc) {
-        int bidx = g * c.oc / c.ng + oc;
+    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng,
+        [&](memory::dim g, memory::dim oc) {
+        memory::dim bidx = g * c.oc / c.ng + oc;
         bias_data[map_index(bias_d, bidx)] = 0.0;
-        for (int mb = 0; mb < c.mb; ++mb) {
-            for (int oh = 0; oh < c.oh; ++oh) {
-                for (int ow = 0; ow < c.ow; ++ow) {
-                    int oidx = mb * c.oc * c.oh * c.ow
-                            + g * c.oc / c.ng * c.oh * c.ow
-                            + oc * c.oh * c.ow + oh * c.ow + ow;
-                    bias_data[map_index(bias_d, bidx)]
-                        += dst_data[map_index(dst_d, oidx)];
-                }
-            }
+        for (memory::dim mb = 0; mb < c.mb; ++mb)
+        for (memory::dim oh = 0; oh < c.oh; ++oh)
+        for (memory::dim ow = 0; ow < c.ow; ++ow)
+        {
+            memory::dim oidx = mb * c.oc * c.oh * c.ow
+                    + g * c.oc / c.ng * c.oh * c.ow
+                    + oc * c.oh * c.ow + oh * c.ow + ow;
+            bias_data[map_index(bias_d, bidx)]
+                += dst_data[map_index(dst_d, oidx)];
         }
     });
 }
@@ -86,11 +87,12 @@ void transpose_wei(const test_convolution_sizes_t &c,
     const memory::desc weights_tr_d = weights_tr.get_desc();
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
-        [&](int g, int oc, int ic, int kh, int kw) {
-            int widx = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
+        [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,
+            memory::dim kw) {
+            memory::dim widx = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
                      + oc * c.ic / c.ng * c.kh * c.kw
                      + ic * c.kh * c.kw + kh * c.kw + kw;
-            int widx_tr = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
+            memory::dim widx_tr = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
                      + ic * c.oc / c.ng * c.kh * c.kw
                      + oc * c.kh * c.kw + kh * c.kw + kw;
             weights_tr_data[map_index(weights_tr_d, widx_tr)]
@@ -121,7 +123,7 @@ private:
    std::shared_ptr<engine> eng;
    std::shared_ptr<stream> strm;
    bool with_bias;
-   std::vector<int> padR;
+   memory::dims padR;
 protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();

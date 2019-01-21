@@ -112,9 +112,14 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
 
         if (c == 'd') DPRINT("%s", pstr);
         else if (c == 'D')
-            DPRINT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", p->g, p->mb,
-                    p->ic, p->ih, p->iw, p->oc, p->oh, p->ow, p->kh, p->kw,
-                    p->sh, p->sw, p->ph, p->pw);
+            DPRINT("" IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
+                    p->g, p->mb,
+                    p->ic, p->ih, p->iw,
+                    p->oc, p->oh, p->ow,
+                    p->kh, p->kw, p->sh, p->sw, p->ph, p->pw);
         else if (c == 'n')
             DPRINT("%s", p->name);
         else if (c == 'z')

@@ -40,92 +40,88 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     // on the number of elements in reduction.
     const float eps = std::numeric_limits<float>::epsilon();
 
-    int MB = dst_pd.data.dims[0];
-    int C = dst_pd.data.dims[1];
+    memory::dim MB = dst_pd.data.dims[0];
+    memory::dim C = dst_pd.data.dims[1];
     if (MB*C == 0) return;
 
     if (dst_pd.data.ndims == 2) {
         if (axis == 1) {
-            for (int n = 0; n < MB; ++n) {
+            for (memory::dim n = 0; n < MB; ++n) {
                 result = 0.0f;
 
-                for (int c = 0; c < C; ++c) {
+                for (memory::dim c = 0; c < C; ++c) {
                     result += dst_ptr[map_index(dst_pd, n * C + c)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*C);
             }
         }
         else if (axis == 0) {
-            for (int c = 0; c < C; ++c) {
+            for (memory::dim c = 0; c < C; ++c) {
                 result = 0.0f;
 
-                for (int n = 0; n < MB; ++n) {
+                for (memory::dim n = 0; n < MB; ++n) {
                     result += dst_ptr[map_index(dst_pd, n * C + c)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*MB);
             }
         }
     } else {
-        int H = dst_pd.data.dims[2];
-        int W = dst_pd.data.dims[3];
+        memory::dim H = dst_pd.data.dims[2];
+        memory::dim W = dst_pd.data.dims[3];
         if (H*W == 0) return;
 
-        auto off = [=](int n, int c, int h, int w)
+        auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w)
         {
             return ((size_t)n * W * H * C + (size_t)c * W * H + (size_t)h * W + w);
         };
 
         if (axis == 0) {
-            for (int c = 0; c < C; ++c) {
-                for (int h = 0; h < H; ++h) {
-                    for (int w = 0; w < W; ++w) {
-                        result = 0.0f;
+            for (memory::dim c = 0; c < C; ++c)
+            for (memory::dim h = 0; h < H; ++h)
+            for (memory::dim w = 0; w < W; ++w)
+            {
+                result = 0.0f;
 
-                        for (int n = 0; n < MB; ++n) {
-                            result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
-                        }
-                        EXPECT_NEAR(result, 1.0, eps*MB);
-                    }
+                for (memory::dim n = 0; n < MB; ++n) {
+                    result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                 }
+                EXPECT_NEAR(result, 1.0, eps*MB);
             }
         } else if (axis == 1) {
-            for (int n = 0; n < MB; ++n) {
-                for (int h = 0; h < H; ++h) {
-                    for (int w = 0; w < W; ++w) {
-                        result = 0.0f;
+            for (memory::dim n = 0; n < MB; ++n)
+            for (memory::dim h = 0; h < H; ++h)
+            for (memory::dim w = 0; w < W; ++w)
+            {
+                result = 0.0f;
 
-                        for (int c = 0; c < C; ++c) {
-                            result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
-                        }
-                        EXPECT_NEAR(result, 1.0, eps*C);
-                    }
+                for (memory::dim c = 0; c < C; ++c) {
+                    result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                 }
+                EXPECT_NEAR(result, 1.0, eps*C);
             }
         } else if (axis == 2) {
-            for (int n = 0; n < MB; ++n) {
-                for (int c = 0; c < C; ++c) {
-                    for (int w = 0; w < W; ++w) {
-                        result = 0.0f;
+            for (memory::dim n = 0; n < MB; ++n)
+            for (memory::dim c = 0; c < C; ++c)
+            for (memory::dim w = 0; w < W; ++w)
+            {
+                result = 0.0f;
 
-                        for (int h = 0; h < H; ++h) {
-                            result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
-                        }
-                        EXPECT_NEAR(result, 1.0, eps*H);
-                    }
+                for (memory::dim h = 0; h < H; ++h) {
+                    result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                 }
+                EXPECT_NEAR(result, 1.0, eps*H);
             }
         } else if (axis == 3) {
-            for (int n = 0; n < MB; ++n) {
-                for (int c = 0; c < C; ++c) {
-                    for (int h = 0; h < H; ++h) {
-                        result = 0.0f;
+            for (memory::dim n = 0; n < MB; ++n)
+            for (memory::dim c = 0; c < C; ++c)
+            for (memory::dim h = 0; h < H; ++h)
+            {
+                result = 0.0f;
 
-                        for (int w = 0; w < W; ++w) {
-                            result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
-                        }
-                        EXPECT_NEAR(result, 1.0, eps*W);
-                    }
+                for (memory::dim w = 0; w < W; ++w) {
+                    result += dst_ptr[map_index(dst_pd, off(n, c, h, w))];
                 }
+                EXPECT_NEAR(result, 1.0, eps*W);
             }
         }
     }

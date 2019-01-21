@@ -78,8 +78,8 @@ struct simple_concat_t: public cpu_primitive_t {
             return status::success;
         }
 
-        dims_t perm_;
-        dims_t iperm_;
+        int perm_[TENSOR_MAX_DIMS];
+        int iperm_[TENSOR_MAX_DIMS];
 
         size_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
             const int ndims = data_d.ndims();
@@ -125,7 +125,7 @@ struct simple_concat_t: public cpu_primitive_t {
             auto &blk = data_d.blocking_desc();
             for (int d = perm_[concat_dim()]; d < data_d.ndims(); ++d) {
                 auto block = blk.block_dims[iperm_[d]];
-                max_size = nstl::max(max_size,
+                max_size = nstl::max<size_t>(max_size,
                         size_t(blk.padding_dims[iperm_[d]] / block)
                         * blk.strides[0][iperm_[d]]);
                 if (block > 1) max_size = nstl::max(max_size,

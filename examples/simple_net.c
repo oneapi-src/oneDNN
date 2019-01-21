@@ -53,7 +53,7 @@
 } while(0)
 
 
-static size_t product(int *arr, size_t size) {
+static size_t product(mkldnn_dim_t *arr, size_t size) {
     size_t prod = 1;
     for (size_t i = 0; i < size; ++i) prod *= arr[i];
     return prod;
@@ -70,7 +70,7 @@ static void free_arg_node(args_t *node) { free(node->args); }
 static void set_arg(mkldnn_exec_arg_t *arg, int arg_idx, mkldnn_memory_t memory)
 { arg->arg = arg_idx; arg->memory = memory; }
 
-static void init_data_memory(uint32_t dim, const int *dims,
+static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
         mkldnn_memory_format_t user_fmt, mkldnn_data_type_t mkldnn_f32,
         mkldnn_engine_t engine, float *data, mkldnn_memory_t *memory)
 {
@@ -151,12 +151,12 @@ mkldnn_status_t simple_net() {
      * {BATCH, OC, CONV_OH, CONV_OW}
      * strides: {CONV_STRIDE, CONV_STRIDE}
      */
-    int conv_user_src_sizes[4] = { BATCH, IC, CONV_IH, CONV_IW };
-    int conv_user_weights_sizes[4] = { OC, IC, 11, 11 };
-    int conv_bias_sizes[4] = { OC };
-    int conv_user_dst_sizes[4] = { BATCH, OC, CONV_OH, CONV_OW };
-    int conv_strides[2] = { CONV_STRIDE, CONV_STRIDE };
-    int conv_padding[2] = { CONV_PAD, CONV_PAD };
+    mkldnn_dim_t conv_user_src_sizes[4] = { BATCH, IC, CONV_IH, CONV_IW };
+    mkldnn_dim_t conv_user_weights_sizes[4] = { OC, IC, 11, 11 };
+    mkldnn_dim_t conv_bias_sizes[4] = { OC };
+    mkldnn_dim_t conv_user_dst_sizes[4] = { BATCH, OC, CONV_OH, CONV_OW };
+    mkldnn_dim_t conv_strides[2] = { CONV_STRIDE, CONV_STRIDE };
+    mkldnn_dim_t conv_padding[2] = { CONV_PAD, CONV_PAD };
 
     float *conv_src = net_src;
     float *conv_weights = (float *)malloc(
@@ -323,10 +323,10 @@ mkldnn_status_t simple_net() {
      * strides: {POOL_STRIDE, POOL_STRIDE}
      */
 
-    int32_t pool_dst_sizes[4] = { BATCH, OC, POOL_OH, POOL_OW };
-    int32_t pool_kernel[2] = { 3, 3 };
-    int32_t pool_strides[2] = { POOL_STRIDE, POOL_STRIDE };
-    int32_t pool_padding[2] = { POOL_PAD, POOL_PAD };
+    mkldnn_dim_t pool_dst_sizes[4] = { BATCH, OC, POOL_OH, POOL_OW };
+    mkldnn_dim_t pool_kernel[2] = { 3, 3 };
+    mkldnn_dim_t pool_strides[2] = { POOL_STRIDE, POOL_STRIDE };
+    mkldnn_dim_t pool_padding[2] = { POOL_PAD, POOL_PAD };
 
     /* create pooling memory descriptor on dst descriptor
      *  from previous primitive */

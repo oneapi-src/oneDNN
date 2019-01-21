@@ -17,6 +17,8 @@
 #ifndef VERBOSE_HPP
 #define VERBOSE_HPP
 
+#include <cinttypes>
+
 #include "mkldnn_debug.h"
 #include "c_types_map.hpp"
 #include "utils.hpp"
@@ -47,6 +49,8 @@ const char *get_isa_info();
     char aux_str[MKLDNN_VERBOSE_AUX_LEN] = {'\0'}; MAYBE_UNUSED(aux_str); \
     char prb_str[MKLDNN_VERBOSE_PRB_LEN] = {'\0'}; MAYBE_UNUSED(prb_str)
 
+#define DFMT "%" PRId64
+
 inline void verbose_templ(char *buffer, mkldnn_primitive_kind_t prim_kind,
         const char *impl_str, mkldnn_prop_kind_t prop_kind,
         const char *data_str, const char *aux_str, const char *prb_str) {
@@ -62,8 +66,8 @@ inline void format_mem_desc_str_generic(char *str, int len,
     auto dims = md->dims;
     int l = 0;
     for (int d = 0; d < ndims - 1; ++d)
-        l += snprintf(str + l, len - l, "%dx", dims[d]);
-    snprintf(str + l, len - l, "%d", dims[ndims - 1]);
+        l += snprintf(str + l, len - l, DFMT "x", dims[d]);
+    snprintf(str + l, len - l, DFMT, dims[ndims - 1]);
 }
 
 // XXX: Outputs strings corresponding to memory formats used for data tensors.
@@ -71,16 +75,17 @@ inline void format_mem_desc_str(char *str, int len, const memory_desc_t *md) {
     auto ndims = md->ndims;
     auto dims = md->dims;
     if (ndims == 1)
-        snprintf(str, len, "x%d", dims[0]);
+        snprintf(str, len, "x" DFMT, dims[0]);
     else if (ndims == 2)
-        snprintf(str, len, "mb%dic%d", dims[0], dims[1]);
+        snprintf(str, len, "mb" DFMT "ic" DFMT, dims[0], dims[1]);
     else if (ndims == 3)
-        snprintf(str, len, "mb%dic%diw%d", dims[0], dims[1], dims[2]);
+        snprintf(str, len, "mb" DFMT "ic" DFMT "iw" DFMT,
+                dims[0], dims[1], dims[2]);
     else if (ndims == 4)
-        snprintf(str, len, "mb%dic%dih%diw%d",
+        snprintf(str, len, "mb" DFMT "ic" DFMT "ih" DFMT "iw" DFMT,
                 dims[0], dims[1], dims[2], dims[3]);
     else if (ndims == 5)
-        snprintf(str, len, "mb%dic%did%dih%diw%d",
+        snprintf(str, len, "mb" DFMT "ic" DFMT "id" DFMT "ih" DFMT "iw" DFMT,
                 dims[0], dims[1], dims[2], dims[3], dims[4]);
     else
         format_mem_desc_str_generic(str, len, md);
@@ -128,20 +133,20 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
     if (s->ndims() == 5) {
         if (s->with_groups())
             snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-                "mb%d_g%dic%doc%d"
-                "_id%dod%dkd%dsd%ddd%dpd%d"
-                "_ih%doh%dkh%dsh%ddh%dph%d"
-                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT
+                "_id" DFMT "od" DFMT "kd" DFMT "sd" DFMT "dd" DFMT "pd" DFMT
+                "_ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT
+                "_iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
                 s->MB(), s->G(), s->IC(), s->OC(),
                 s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
                 s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
                 s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
         else
             snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-                "mb%d_ic%doc%d"
-                "_id%dod%dkd%dsd%ddd%dpd%d"
-                "_ih%doh%dkh%dsh%ddh%dph%d"
-                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                "mb" DFMT "_ic" DFMT "oc" DFMT
+                "_id" DFMT "od" DFMT "kd" DFMT "sd" DFMT "dd" DFMT "pd" DFMT
+                "_ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT
+                "_iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
                 s->MB(), s->IC(), s->OC(),
                 s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
                 s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
@@ -149,17 +154,17 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
     } else {
         if (s->with_groups())
             snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-                "mb%d_g%dic%doc%d"
-                "_ih%doh%dkh%dsh%ddh%dph%d"
-                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                "mb" DFMT "_g" DFMT "ic" DFMT "oc" DFMT
+                "_ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT
+                "_iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
                 s->MB(), s->G(), s->IC(), s->OC(),
                 s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
                 s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
         else
             snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-                "mb%d_ic%doc%d"
-                "_ih%doh%dkh%dsh%ddh%dph%d"
-                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                "mb" DFMT "_ic" DFMT "oc" DFMT
+                "_ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "dh" DFMT "ph" DFMT
+                "_iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "dw" DFMT "pw" DFMT,
                 s->MB(), s->IC(), s->OC(),
                 s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
                 s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
@@ -178,7 +183,7 @@ template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "dt:%s fmt:%s",
             mkldnn_dt2str(md->data_type), mkldnn_fmt2str(md->format));
 
-    snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "axis:%d group_size:%d",
+    snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "axis:%d group_size:" DFMT,
             s->axis(), s->group_size());
 
     format_mem_desc_str_generic(prb_str, MKLDNN_VERBOSE_PRB_LEN, md);
@@ -225,7 +230,7 @@ template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
             mkldnn_fmt2str(fmt_bia), mkldnn_fmt2str(fmt_dst));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%doc%d", s->MB(), s->IC_total(), s->OC());
+            "mb" DFMT "ic" DFMT "oc" DFMT, s->MB(), s->IC_total(), s->OC());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -283,14 +288,19 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
     if (s->is_3d())
     {
         snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%d_id%dod%dkd%dsd%dpd%d_ih%doh%dkh%dsh%dph%d_iw%dow%dkw%dsw%dpw%d",
+            "mb" DFMT "ic" DFMT "_"
+            "id" DFMT "od" DFMT "kd" DFMT "sd" DFMT "pd" DFMT "_"
+            "ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "ph" DFMT "_"
+            "iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "pw" DFMT "",
             s->MB(), s->C(),
             s->ID(), s->OD(), s->KD(), s->KSD(), s->padFront(),
             s->IH(), s->OH(), s->KH(), s->KSH(), s->padT(),
             s->IW(), s->OW(), s->KW(), s->KSW(), s->padL());
     } else {
         snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%d_ih%doh%dkh%dsh%dph%d_iw%dow%dkw%dsw%dpw%d",
+            "mb" DFMT "ic" DFMT "_"
+            "ih" DFMT "oh" DFMT "kh" DFMT "sh" DFMT "ph" DFMT "_"
+            "iw" DFMT "ow" DFMT "kw" DFMT "sw" DFMT "pw" DFMT,
             s->MB(), s->C(),
             s->IH(), s->OH(), s->KH(), s->KSH(), s->padT(),
             s->IW(), s->OW(), s->KW(), s->KSW(), s->padL());
@@ -362,7 +372,8 @@ template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
              mkldnn_dt2str(bias_md->data_type));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "l%dt%dmb%dsic%dslc%ddic%ddlc%d",
+            "l" DFMT "t" DFMT "mb" DFMT
+            "sic" DFMT "slc" DFMT "dic" DFMT "dlc" DFMT,
              s->L(), s->T(), s->MB(),
              s->SIC(), s->SLC(), s->DIC(), s->DLC());
 

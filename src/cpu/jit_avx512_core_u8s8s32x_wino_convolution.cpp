@@ -1004,8 +1004,9 @@ init_scratchpad() {
     scratchpad.book(key_wino_M,
             sizeof(acc_data_t) * jcp_.size_wino_dst * nthr_multiplier, PAGE_4K);
 
+    dim_t scale_count = attr()->output_scales_.count_;
     scratchpad.book(key_conv_adjusted_scales,
-            sizeof(float) * nstl::max(attr()->output_scales_.count_, 16));
+            sizeof(float) * nstl::max<dim_t>(scale_count, 16));
 }
 
 template <data_type_t dst_data_type>

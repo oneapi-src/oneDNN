@@ -57,35 +57,35 @@ struct pooling_pd_t: public primitive_desc_t {
 
     /* common pooling aux functions */
 
-    int MB() const { return src_desc().dims[0]; }
-    int C() const { return src_desc().dims[1]; }
+    dim_t MB() const { return src_desc().dims[0]; }
+    dim_t C() const { return src_desc().dims[1]; }
 
-    int ID() const { return ndims() >= 5 ? src_desc().dims[ndims() - 3] : 1; }
-    int IH() const { return ndims() >= 4 ? src_desc().dims[ndims() - 2] : 1; }
-    int IW() const { return src_desc().dims[ndims() - 1]; }
+    dim_t ID() const { return ndims() >= 5 ? src_desc().dims[ndims() - 3] : 1; }
+    dim_t IH() const { return ndims() >= 4 ? src_desc().dims[ndims() - 2] : 1; }
+    dim_t IW() const { return src_desc().dims[ndims() - 1]; }
 
-    int OD() const { return ndims() >= 5 ? dst_desc().dims[ndims() - 3] : 1; }
-    int OH() const { return ndims() >= 4 ? dst_desc().dims[ndims() - 2] : 1; }
-    int OW() const { return dst_desc().dims[ndims() - 1]; }
+    dim_t OD() const { return ndims() >= 5 ? dst_desc().dims[ndims() - 3] : 1; }
+    dim_t OH() const { return ndims() >= 4 ? dst_desc().dims[ndims() - 2] : 1; }
+    dim_t OW() const { return dst_desc().dims[ndims() - 1]; }
 
-    int KD() const { return ndims() >= 5 ? desc_.kernel[ndims() - 5] : 1; }
-    int KH() const { return ndims() >= 4 ? desc_.kernel[ndims() - 4] : 1; }
-    int KW() const { return desc_.kernel[ndims() - 3]; }
+    dim_t KD() const { return ndims() >= 5 ? desc_.kernel[ndims() - 5] : 1; }
+    dim_t KH() const { return ndims() >= 4 ? desc_.kernel[ndims() - 4] : 1; }
+    dim_t KW() const { return desc_.kernel[ndims() - 3]; }
 
-    int KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
-    int KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
-    int KSW() const { return desc_.strides[ndims() - 3]; }
+    dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
+    dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
+    dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
-    int padFront() const
+    dim_t padFront() const
     { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
-    int padBack() const
+    dim_t padBack() const
     { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
-    int padT() const
+    dim_t padT() const
     { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
-    int padB() const
+    dim_t padB() const
     { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
-    int padL() const { return desc_.padding[0][ndims() - 3]; }
-    int padR() const { return desc_.padding[1][ndims() - 3]; }
+    dim_t padL() const { return desc_.padding[0][ndims() - 3]; }
+    dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     int ndims() const { return src_desc().ndims; }
     bool is_3d() const { return ndims() == 5; }

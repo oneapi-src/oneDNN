@@ -43,14 +43,14 @@ struct test_igemm_params {
 struct test_params {
     char transA;
     char transB;
-    int M;
-    int N;
-    int K;
+    int64_t M;
+    int64_t N;
+    int64_t K;
     float alpha;
     float beta;
-    int lda;
-    int ldb;
-    int ldc;
+    int64_t lda;
+    int64_t ldb;
+    int64_t ldc;
 
     test_igemm_params igemm_params;
     bool expect_to_fail;
@@ -58,21 +58,21 @@ struct test_params {
 };
 
 template <typename data_t>
-void ref_gemm(const char *transa, const char *transb, int m, int n, int k,
-        const data_t alpha, const data_t *a, int lda, const data_t *b,
-        int ldb, data_t beta, data_t *c, int ldc) {
+void ref_gemm(const char *transa, const char *transb, int64_t m, int64_t n, int64_t k,
+        const data_t alpha, const data_t *a, int64_t lda, const data_t *b,
+        int64_t ldb, data_t beta, data_t *c, int64_t ldc) {
 
     const bool tr_a = transa && (*transa == 'T' || *transa == 't');
     const bool tr_b = transb && (*transb == 'T' || *transb == 't');
 
-    auto pa = [=] (int i, int j) { return a[j*lda + i]; };
-    auto pb = [=] (int i, int j) { return b[j*ldb + i]; };
-    auto pc = [=] (int i, int j) { return c[j*ldc + i]; };
+    auto pa = [=] (int64_t i, int64_t j) { return a[j*lda + i]; };
+    auto pb = [=] (int64_t i, int64_t j) { return b[j*ldb + i]; };
+    auto pc = [=] (int64_t i, int64_t j) { return c[j*ldc + i]; };
 
-    mkldnn::impl::parallel_nd(m, n, [&](int im, int in) {
+    mkldnn::impl::parallel_nd(m, n, [&](int64_t im, int64_t in) {
         data_t c_elem = (beta == 0.) ? 0. : pc(im, in) * beta;
 
-        for (int ik = 0; ik < k; ik++) {
+        for (int64_t ik = 0; ik < k; ik++) {
             const data_t a_elem = tr_a ? pa(ik, im) : pa(im, ik);
             const data_t b_elem = tr_b ? pb(in, ik) : pb(ik, in);
             c_elem += alpha * a_elem * b_elem;
@@ -83,9 +83,9 @@ void ref_gemm(const char *transa, const char *transb, int m, int n, int k,
 
 template <typename b_dt>
 void ref_gemm_s8x8s32(const char *transa, const char *transb,
-        const char *offsetc, int m, int n, int k, const float alpha,
-        int8_t *A, int lda, const int8_t *oa, b_dt *B, int ldb,
-        const int8_t *ob, const float beta, int32_t *C, int ldc,
+        const char *offsetc, int64_t m, int64_t n, int64_t k, const float alpha,
+        int8_t *A, int64_t lda, const int8_t *oa, b_dt *B, int64_t ldb,
+        const int8_t *ob, const float beta, int32_t *C, int64_t ldc,
         const int32_t *oc) {
 
     bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
@@ -101,22 +101,22 @@ void ref_gemm_s8x8s32(const char *transa, const char *transb,
     double *dB = (double *)test_malloc(sizeB * sizeof(double));
     double *dC = (double *)test_malloc(sizeC * sizeof(double));
 
-    auto da_setter = [=] (int i, int j, double v) { dA[j * lda + i] = v; };
-    auto db_setter = [=] (int i, int j, double v) { dB[j * ldb + i] = v; };
+    auto da_setter = [=] (int64_t i, int64_t j, double v) { dA[j * lda + i] = v; };
+    auto db_setter = [=] (int64_t i, int64_t j, double v) { dB[j * ldb + i] = v; };
 
-    auto ia_accessor = [=] (int i, int j) { return A[j * lda + i]; };
-    auto ib_accessor = [=] (int i, int j) { return B[j * ldb + i]; };
+    auto ia_accessor = [=] (int64_t i, int64_t j) { return A[j * lda + i]; };
+    auto ib_accessor = [=] (int64_t i, int64_t j) { return B[j * ldb + i]; };
 
-    const int a_rows = AisN ? m : k;
-    const int a_cols = AisN ? k : m;
-    mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int j, int i) {
+    const int64_t a_rows = AisN ? m : k;
+    const int64_t a_cols = AisN ? k : m;
+    mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int64_t j, int64_t i) {
         da_setter(i, j,
             static_cast<double>(ia_accessor(i, j)) + static_cast<double>(oa[0]));
     });
 
-    const int b_rows = BisN ? k : n;
-    const int b_cols = BisN ? n : k;
-    mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int j, int i) {
+    const int64_t b_rows = BisN ? k : n;
+    const int64_t b_cols = BisN ? n : k;
+    mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int64_t j, int64_t i) {
         db_setter(i, j,
             static_cast<double>(ib_accessor(i, j)) + static_cast<double>(ob[0]));
     });
@@ -126,7 +126,7 @@ void ref_gemm_s8x8s32(const char *transa, const char *transb,
     auto i2d = [=] (int32_t v) { return static_cast<double>(v); };
     auto f2d = [=] (float v) { return static_cast<double>(v); };
 
-    mkldnn::impl::parallel_nd(n, m, [&] (int j, int i) {
+    mkldnn::impl::parallel_nd(n, m, [&] (int64_t j, int64_t i) {
         double coffset = OCisR ? i2d(oc[j]) : OCisC ? i2d(oc[i]) : i2d(oc[0]);
         double val = ((beta == 0.0f) ? 0.0 : f2d(beta) * i2d(C[i + j * ldc]))
             + f2d(alpha) * dC[i + j * ldc] + coffset;
@@ -140,10 +140,10 @@ void ref_gemm_s8x8s32(const char *transa, const char *transb,
 }
 
 template <typename b_dt, typename c_dt>
-void compare(int m, int n, const c_dt *c, const c_dt *c_ref, int ldc,
-        float alpha = 1.0f, float beta = 0.0f, int k = 1) {
+void compare(int64_t m, int64_t n, const c_dt *c, const c_dt *c_ref, int64_t ldc,
+        float alpha = 1.0f, float beta = 0.0f, int64_t k = 1) {
     using data_type = memory::data_type;
-    mkldnn::impl::parallel_nd(n, ldc, [&](int i, int j) {
+    mkldnn::impl::parallel_nd(n, ldc, [&](int64_t i, int64_t j) {
         c_dt ref = c_ref[i*ldc + j];
         c_dt got = c[i*ldc + j];
         c_dt diff = got - ref;
@@ -227,7 +227,7 @@ void run_test_gemm<int8_t, uint8_t, int32_t>(const test_params &p) {
         A, B, C, &oa, &ob, oc);
 
     mkldnn::impl::parallel_nd(p.ldc * p.N,
-        [&](int i) { C_ref[i] = static_cast<int32_t>(C[i]); });
+        [&](int64_t i) { C_ref[i] = static_cast<int32_t>(C[i]); });
 
     auto status = mkldnn_gemm_s8u8s32(&p.transA, &p.transB, &p.igemm_params.offsetc,
         &p.M, &p.N, &p.K, &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob,
@@ -270,7 +270,7 @@ void run_test_gemm<int8_t, int8_t, int32_t>(const test_params &p) {
         &oa, &ob, oc);
 
     mkldnn::impl::parallel_nd(p.ldc * p.N,
-        [&](int i) { C_ref[i] = static_cast<int32_t>(C[i]); });
+        [&](int64_t i) { C_ref[i] = static_cast<int32_t>(C[i]); });
 
     auto status = mkldnn_gemm_s8s8s32(&p.transA, &p.transB, &p.igemm_params.offsetc,
         &p.M, &p.N, &p.K, &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob,
@@ -305,7 +305,7 @@ void run_test_gemm<float, float, float>(const test_params &p) {
     fill_matrix<float, float, float>(p, sizeA, sizeB, sizeC, 0, A, B, C,
         nullptr, nullptr, nullptr);
 
-    mkldnn::impl::parallel_nd(p.N * p.ldc, [&](int i) { C_ref[i] = C[i]; });
+    mkldnn::impl::parallel_nd(p.N * p.ldc, [&](int64_t i) { C_ref[i] = C[i]; });
 
     auto status = mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K, &p.alpha,
         A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);

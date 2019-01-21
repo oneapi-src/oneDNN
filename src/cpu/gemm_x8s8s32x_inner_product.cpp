@@ -17,6 +17,8 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
+
+#include "gemm/gemm.hpp"
 #include "gemm_x8s8s32x_inner_product.hpp"
 
 namespace mkldnn {
@@ -425,18 +427,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
         : scratchpad().template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
-
-    if (src_type == data_type::u8) {
-        mkldnn_gemm_s8u8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
-                weights, wei_tr ? &K : &M, &off_a, (uint8_t *)src, &K, &off_b, &zerof,
-                acc, &M, &off_c);
-    } else if (src_type == data_type::s8) {
-        mkldnn_gemm_s8s8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
-                weights, wei_tr ? &K : &M, &off_a, (int8_t *)src, &K, &off_b, &zerof,
-                acc, &M, &off_c);
-    } else {
-        assert(!"incorrect src type");
-    }
+    gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef, weights,
+            wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof, acc, &M, &off_c);
 
     const bool force_sequential = MB * OC < 2000;
     parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {

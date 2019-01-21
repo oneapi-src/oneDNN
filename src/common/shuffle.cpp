@@ -29,7 +29,7 @@ using namespace mkldnn::impl::types;
 
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
-        const memory_desc_t *data_desc, int axis, int group_size) {
+        const memory_desc_t *data_desc, int axis, dim_t group_size) {
     bool args_ok = true
         && !any_null(shuffle_desc, data_desc)
         && one_of(prop_kind, forward_training, forward_inference,
@@ -56,7 +56,7 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
 
 status_t mkldnn_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc, int axis,
-        int group_size) {
+        dim_t group_size) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return shuffle_desc_init(shuffle_desc, prop_kind, data_desc, axis,
@@ -64,7 +64,7 @@ status_t mkldnn_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
 }
 
 status_t mkldnn_shuffle_backward_desc_init(shuffle_desc_t *shuffle_desc,
-        const memory_desc_t *diff_data_desc, int axis, int group_size) {
+        const memory_desc_t *diff_data_desc, int axis, dim_t group_size) {
     return shuffle_desc_init(shuffle_desc, backward_data, diff_data_desc, axis,
         group_size);
 }

@@ -39,16 +39,16 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
-        const int* dst_pdims = dst_d.data.layout_desc.blocking.padding_dims;
+        const auto dst_pdims = dst_d.data.layout_desc.blocking.padding_dims;
 
-        int acc_concat_dim = 0;
+        memory::dim acc_concat_dim = 0;
         const auto ndims = dst_d.data.ndims;
 
         for (size_t num = 0; num < srcs.size(); num++) {
             const data_t *src_data = (const data_t *)srcs[num].get_data_handle();
             const auto &src_d = srcs[num].get_desc();
-            const int* src_dims = src_d.data.dims;
-            const int* src_pdims = src_d.data.layout_desc.blocking.padding_dims;
+            const auto src_dims = src_d.data.dims;
+            const auto src_pdims = src_d.data.layout_desc.blocking.padding_dims;
 
             auto N = src_dims[0];
             auto C = src_dims[1];
@@ -62,14 +62,14 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
             auto DST_H = dst_dims[ndims-2];
             auto DST_W = dst_dims[ndims-1];
 
-            for (auto n = 0; n < N; n++)
-            for (auto c = 0; c < C; c++)
-            for (auto d = 0; d < D; d++)
-            for (auto h = 0; h < H; h++)
-            for (auto w = 0; w < W; w++) {
+            for (memory::dim n = 0; n < N; n++)
+            for (memory::dim c = 0; c < C; c++)
+            for (memory::dim d = 0; d < D; d++)
+            for (memory::dim h = 0; h < H; h++)
+            for (memory::dim w = 0; w < W; w++) {
                 auto src_idx = w + W*h + H*W*d + D*H*W*c + C_PADDED*D*H*W*n;
 
-                auto adj_dst_dim = [&](int dim, int dim_sz) {
+                auto adj_dst_dim = [&](int dim, memory::dim dim_sz) {
                     if (concat_dim == dim) return dim_sz + acc_concat_dim;
                     return dim_sz;
                 };

@@ -54,7 +54,7 @@ private:
     }
 
     Telem *_base_ptr;
-    const int _dims[Tdims];
+    const int64_t _dims[Tdims];
 };
 
 void trans_I_4x4_3x3(float Iw[6][6], float I[6][6]) {
@@ -245,11 +245,11 @@ struct scratchpad_t {
     float *_m_ptr;
     float *_v_ptr;
 
-    int h_tiles;
-    int w_tiles;
+    int64_t h_tiles;
+    int64_t w_tiles;
 
-    const int alpha = 6;
-    const int out_dim = 4;
+    const int64_t alpha = 6;
+    const int64_t out_dim = 4;
 };
 
 int init_scratchpad(const  prb_t *p, scratchpad_t &sp) {
@@ -303,11 +303,11 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
     bool with_bias = p->dir & FLAG_BIA;
-    const int t_pad = p->ph;
-    const int l_pad = p->pw;
-    const int wp_max = p->iw + l_pad;
-    const int hp_max = p->ih + t_pad;
-    const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
+    const int64_t t_pad = p->ph;
+    const int64_t l_pad = p->pw;
+    const int64_t wp_max = p->iw + l_pad;
+    const int64_t hp_max = p->ih + t_pad;
+    const int64_t p_dim = p->mb * sp.h_tiles * sp.w_tiles;
 
 #pragma omp parallel
     {
@@ -321,15 +321,15 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 #pragma omp for collapse(4)
     /* src_transform v <- B_t * d * B */
-    for (int img = 0; img < p->mb; img++) {
-        for (int c = 0; c < p->ic; c++) {
-            for (int hfm = 0; hfm < sp.h_tiles; hfm++) {
-                for (int wfm = 0; wfm < sp.w_tiles; wfm++) {
-                    for (int j = 0; j < sp.alpha; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+    for (int64_t img = 0; img < p->mb; img++) {
+        for (int64_t c = 0; c < p->ic; c++) {
+            for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
+                for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if ((t_pad <= ydim) && (ydim < hp_max)) {
-                            for (int k = 0; k < sp.alpha; k++) {
-                                int xdim = wfm * sp.out_dim + k;
+                            for (int64_t k = 0; k < sp.alpha; k++) {
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if ((l_pad <= xdim) && (xdim < wp_max)) {
                                     size_t src_off = src_off_f(p, img, 0, c, 0,
                                             ydim - t_pad, xdim - l_pad);
@@ -339,7 +339,7 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                                 }
                             }
                         } else {
-                            for (int k = 0; k < sp.alpha; k++) {
+                            for (int64_t k = 0; k < sp.alpha; k++) {
                                 I[j][k] = 0.f;
                             }
                         }
@@ -348,8 +348,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                     trans_I_4x4_3x3(_v, I);
 
                     /* scatter v:V */
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             V(j, k, c, img, hfm, wfm) = _v[j][k];
                         }
                     }
@@ -360,10 +360,10 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 #pragma omp for collapse(2)
     /* wei_transform u <- G * g * G_t */
-    for (int oc = 0; oc < p->oc; ++oc) {
-        for (int ic = 0; ic < p->ic; ++ic) {
-            for (int j = 0; j < p->kh; j++) {
-                for (int i = 0; i < p->kw; i++) {
+    for (int64_t oc = 0; oc < p->oc; ++oc) {
+        for (int64_t ic = 0; ic < p->ic; ++ic) {
+            for (int64_t j = 0; j < p->kh; j++) {
+                for (int64_t i = 0; i < p->kw; i++) {
                     size_t wei_off = wei_off_f(p, 0, oc, ic, 0, j, i);
                     F[j][i] = ((float *)wei_m)[wei_off];
                 }
@@ -372,8 +372,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
             trans_W_4x4_3x3(_u, F);
 
             /* scatter u:U */
-            for (int j = 0; j < sp.alpha; j++) {
-                for (int k = 0; k < sp.alpha; k++) {
+            for (int64_t j = 0; j < sp.alpha; j++) {
+                for (int64_t k = 0; k < sp.alpha; k++) {
                     U(j, k, oc, ic) = _u[j][k];
                 }
             }
@@ -382,8 +382,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 #pragma omp for collapse(2)
     /* M = U * V */
-    for (int j = 0; j < sp.alpha; ++j) {
-        for (int k = 0; k < sp.alpha; ++k) {
+    for (int64_t j = 0; j < sp.alpha; ++j) {
+        for (int64_t k = 0; k < sp.alpha; ++k) {
             gemm("C", "N", "N", p->oc, p_dim, p->ic, 1.0,
                     (float *)&(U(j, k, 0, 0)), p->ic,
                     (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
@@ -393,25 +393,25 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 #pragma omp for collapse(4)
     /* Y = A_t *m * A */
-    for (int oc = 0; oc < p->oc; ++oc) {
-        for (int img = 0; img < p->mb; ++img) {
-            for (int hfm = 0; hfm < sp.h_tiles; ++hfm) {
-                for (int wfm = 0; wfm < sp.w_tiles; ++wfm) {
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+    for (int64_t oc = 0; oc < p->oc; ++oc) {
+        for (int64_t img = 0; img < p->mb; ++img) {
+            for (int64_t hfm = 0; hfm < sp.h_tiles; ++hfm) {
+                for (int64_t wfm = 0; wfm < sp.w_tiles; ++wfm) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             _m[j][k] = M(j, k, oc, img, hfm, wfm);
                         }
                     }
                     trans_O_4x4_3x3(_m, O);
 
-                    for (int j = 0; j < sp.out_dim; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+                    for (int64_t j = 0; j < sp.out_dim; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if (ydim < p->oh) {
-                            for (int k = 0; k < sp.out_dim; k++) {
+                            for (int64_t k = 0; k < sp.out_dim; k++) {
 
                                 float conv_res = O[j][k];
 
-                                int xdim = wfm * sp.out_dim + k;
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if (xdim < p->ow) {
                                     const size_t dst_off = dst_off_f(
                                             p, img, 0, oc, 0, ydim, xdim);
@@ -470,12 +470,12 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
-    const int r_pad = MAX2(0, p->ow - 1 + p->kw - p->iw - p->pw);
-    const int l_pad = p->iw + r_pad - p->ow;
-    const int t_pad = p->ih + p->ph - p->oh;
-    const int wp_max = p->ow + l_pad;
-    const int hp_max = p->oh + t_pad;
-    const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
+    const int64_t r_pad = MAX2(0, p->ow - 1 + p->kw - p->iw - p->pw);
+    const int64_t l_pad = p->iw + r_pad - p->ow;
+    const int64_t t_pad = p->ih + p->ph - p->oh;
+    const int64_t wp_max = p->ow + l_pad;
+    const int64_t hp_max = p->oh + t_pad;
+    const int64_t p_dim = p->mb * sp.h_tiles * sp.w_tiles;
 
     bool with_bias = p->dir & FLAG_BIA;
 
@@ -491,16 +491,16 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 #pragma omp for collapse(4)
     /* diff_src transform v <- B_t * d * B */
-    for (int img = 0; img < p->mb; img++) {
-        for (int c = 0; c < p->oc; c++) {
-            for (int hfm = 0; hfm < sp.h_tiles; hfm++) {
-                for (int wfm = 0; wfm < sp.w_tiles; wfm++) {
+    for (int64_t img = 0; img < p->mb; img++) {
+        for (int64_t c = 0; c < p->oc; c++) {
+            for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
+                for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
 
-                    for (int j = 0; j < sp.alpha; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if ((t_pad <= ydim) && (ydim < hp_max)) {
-                            for (int k = 0; k < sp.alpha; k++) {
-                                int xdim = wfm * sp.out_dim + k;
+                            for (int64_t k = 0; k < sp.alpha; k++) {
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if ((l_pad <= xdim) && (xdim < wp_max)) {
                                     size_t dst_off = dst_off_f(p, img, 0, c, 0,
                                             ydim - t_pad, xdim - l_pad);
@@ -510,7 +510,7 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                                 }
                             }
                         } else {
-                            for (int k = 0; k < sp.alpha; k++) {
+                            for (int64_t k = 0; k < sp.alpha; k++) {
                                 I[j][k] = 0.f;
                             }
                         }
@@ -519,8 +519,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                     trans_I_4x4_3x3(_v, I);
 
                     /* scatter v:V */
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             V(j, k, c, img, hfm, wfm) = _v[j][k];
                         }
                     }
@@ -531,10 +531,10 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 #pragma omp for collapse(2)
     /* wei_transform u <- G * g * G_t */
-    for (int ic = 0; ic < p->ic; ++ic) {
-        for (int oc = 0; oc < p->oc; ++oc) {
-            for (int j = 0; j < p->kh; j++) {
-                for (int i = 0; i < p->kw; i++) {
+    for (int64_t ic = 0; ic < p->ic; ++ic) {
+        for (int64_t oc = 0; oc < p->oc; ++oc) {
+            for (int64_t j = 0; j < p->kh; j++) {
+                for (int64_t i = 0; i < p->kw; i++) {
                     size_t wei_off = wei_off_f(
                             p, 0, oc, ic, 0, p->kh - j - 1, p->kw - i - 1);
                     F[j][i] = ((float *)wei_m)[wei_off];
@@ -543,8 +543,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
             trans_W_4x4_3x3(_u, F);
 
             /* scatter u:U */
-            for (int j = 0; j < sp.alpha; j++) {
-                for (int k = 0; k < sp.alpha; k++) {
+            for (int64_t j = 0; j < sp.alpha; j++) {
+                for (int64_t k = 0; k < sp.alpha; k++) {
                     U(j, k, ic, oc) = _u[j][k];
                 }
             }
@@ -553,8 +553,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 #pragma omp for collapse(2)
     /* M = U * V */
-    for (int j = 0; j < sp.alpha; ++j) {
-        for (int k = 0; k < sp.alpha; ++k) {
+    for (int64_t j = 0; j < sp.alpha; ++j) {
+        for (int64_t k = 0; k < sp.alpha; ++k) {
             gemm("C", "N", "N", p->ic, p_dim, p->oc, 1.0,
                     (float *)&(U(j, k, 0, 0)), p->oc,
                     (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
@@ -564,12 +564,12 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 #pragma omp for collapse(4)
     /* diff_dst: Y = A_t *m * A */
-    for (int c = 0; c < p->ic; ++c) {
-        for (int img = 0; img < p->mb; ++img) {
-            for (int hfm = 0; hfm < sp.h_tiles; ++hfm) {
-                for (int wfm = 0; wfm < sp.w_tiles; ++wfm) {
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+    for (int64_t c = 0; c < p->ic; ++c) {
+        for (int64_t img = 0; img < p->mb; ++img) {
+            for (int64_t hfm = 0; hfm < sp.h_tiles; ++hfm) {
+                for (int64_t wfm = 0; wfm < sp.w_tiles; ++wfm) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             _m[j][k] = M(j, k, c, img, hfm, wfm);
                         }
                     }
@@ -577,11 +577,11 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
                     float bia = with_bias ? ((float *)bia_m)[c] : 0.f;
 
-                    for (int j = 0; j < sp.out_dim; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+                    for (int64_t j = 0; j < sp.out_dim; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if (ydim < p->ih) {
-                            for (int k = 0; k < sp.out_dim; k++) {
-                                int xdim = wfm * sp.out_dim + k;
+                            for (int64_t k = 0; k < sp.out_dim; k++) {
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if (xdim < p->iw) {
                                     size_t src_off = src_off_f(
                                             p, img, 0, c, 0, ydim, xdim);
@@ -615,11 +615,11 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     SAFE_V(p->kh == 3 ? OK : FAIL);
     SAFE_V(p->kw == 3 ? OK : FAIL);
 
-    const int t_pad = p->ph;
-    const int l_pad = p->pw;
-    const int wp_max = p->iw + l_pad;
-    const int hp_max = p->ih + t_pad;
-    const int p_dim = p->mb * sp.h_tiles * sp.w_tiles;
+    const int64_t t_pad = p->ph;
+    const int64_t l_pad = p->pw;
+    const int64_t wp_max = p->iw + l_pad;
+    const int64_t hp_max = p->ih + t_pad;
+    const int64_t p_dim = p->mb * sp.h_tiles * sp.w_tiles;
 
 #pragma omp parallel
     {
@@ -633,15 +633,15 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
 #pragma omp for collapse(4)
     /* src transform v <- B_t * d * B */
-    for (int img = 0; img < p->mb; img++) {
-        for (int hfm = 0; hfm < sp.h_tiles; hfm++) {
-            for (int wfm = 0; wfm < sp.w_tiles; wfm++) {
-                for (int ic = 0; ic < p->ic; ic++) {
-                    for (int j = 0; j < sp.alpha; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+    for (int64_t img = 0; img < p->mb; img++) {
+        for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
+            for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
+                for (int64_t ic = 0; ic < p->ic; ic++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if ((t_pad <= ydim) && (ydim < hp_max)) {
-                            for (int k = 0; k < sp.alpha; k++) {
-                                int xdim = wfm * sp.out_dim + k;
+                            for (int64_t k = 0; k < sp.alpha; k++) {
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if ((l_pad <= xdim) && (xdim < wp_max)) {
                                     size_t src_off = src_off_f(p, img, 0, ic, 0,
                                             ydim - t_pad, xdim - l_pad);
@@ -651,7 +651,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                                 }
                             }
                         } else {
-                            for (int k = 0; k < sp.alpha; k++) {
+                            for (int64_t k = 0; k < sp.alpha; k++) {
                                 I[j][k] = 0.f;
                             }
                         }
@@ -660,8 +660,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                     trans_I_4x4_3x3(_v, I);
 
                     /* scatter v:V */
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             V(j, k, img, hfm, wfm, ic) = _v[j][k];
                         }
                     }
@@ -672,15 +672,15 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
 #pragma omp for collapse(4)
     /* diff_dst transform */
-    for (int oc = 0; oc < p->oc; oc++) {
-        for (int img = 0; img < p->mb; img++) {
-            for (int hfm = 0; hfm < sp.h_tiles; hfm++) {
-                for (int wfm = 0; wfm < sp.w_tiles; wfm++) {
-                    for (int j = 0; j < sp.alpha; j++) {
-                        int ydim = hfm * sp.out_dim + j;
+    for (int64_t oc = 0; oc < p->oc; oc++) {
+        for (int64_t img = 0; img < p->mb; img++) {
+            for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
+                for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        int64_t ydim = hfm * sp.out_dim + j;
                         if (ydim < p->oh) {
-                            for (int k = 0; k < sp.alpha; k++) {
-                                int xdim = wfm * sp.out_dim + k;
+                            for (int64_t k = 0; k < sp.alpha; k++) {
+                                int64_t xdim = wfm * sp.out_dim + k;
                                 if (xdim < p->ow) {
                                     size_t dst_off = dst_off_f(
                                             p, img, 0, oc, 0, ydim, xdim);
@@ -690,7 +690,7 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                                 }
                             }
                         } else {
-                            for (int k = 0; k < sp.alpha; k++) {
+                            for (int64_t k = 0; k < sp.alpha; k++) {
                                 O[j][k] = 0.f;
                             }
                         }
@@ -698,8 +698,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
                     trans_W_3x3_4x4_wu(_m, O);
 
                     /* scatter v:V */
-                    for (int j = 0; j < sp.alpha; j++) {
-                        for (int k = 0; k < sp.alpha; k++) {
+                    for (int64_t j = 0; j < sp.alpha; j++) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
                             M(j, k, oc, img, hfm, wfm) = _m[j][k];
                         }
                     }
@@ -710,8 +710,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
 #pragma omp for collapse(2)
     /* GeMM U = M * V */
-    for (int j = 0; j < sp.alpha; ++j) {
-        for (int k = 0; k < sp.alpha; ++k) {
+    for (int64_t j = 0; j < sp.alpha; ++j) {
+        for (int64_t k = 0; k < sp.alpha; ++k) {
             gemm("C", "N", "N", p->oc, p->ic, p_dim, 1.0,
                     (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
                     (float *)&(V(j, k, 0, 0, 0, 0)), p->ic, 1.0,
@@ -720,10 +720,10 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     }
 
 #pragma omp for collapse(2)
-    for (int oc = 0; oc < p->oc; ++oc) {
-        for (int ic = 0; ic < p->ic; ++ic) {
-            for (int j = 0; j < sp.alpha; j++) {
-                for (int k = 0; k < sp.alpha; k++) {
+    for (int64_t oc = 0; oc < p->oc; ++oc) {
+        for (int64_t ic = 0; ic < p->ic; ++ic) {
+            for (int64_t j = 0; j < sp.alpha; j++) {
+                for (int64_t k = 0; k < sp.alpha; k++) {
                     F[j][k] = U(j, k, oc, ic);
                 }
             }
@@ -731,8 +731,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
             trans_O_3x3_4x4_wu(F, _u);
 
             /* scatter u:U */
-            for (int kh = 0; kh < p->kh; kh++) {
-                for (int kw = 0; kw < p->kw; kw++) {
+            for (int64_t kh = 0; kh < p->kh; kh++) {
+                for (int64_t kw = 0; kw < p->kw; kw++) {
                     size_t wei_off = wei_off_f(p, 0, oc, ic, 0, kh, kw);
                     ((float *)diff_wei_m)[wei_off] = _u[kh][kw];
                 }

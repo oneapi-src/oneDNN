@@ -29,6 +29,11 @@ using namespace mkldnn;
 
 using namespace std;
 
+memory::dim product(const memory::dims &dims) {
+    return std::accumulate(dims.begin(), dims.end(),
+            (memory::dim)1, std::multiplies<memory::dim>());
+}
+
 void simple_net(int times = 100) {
     using fmt = memory::format;
     using dt = memory::data_type;
@@ -41,7 +46,7 @@ void simple_net(int times = 100) {
     std::vector<primitive> net;
     std::vector<std::unordered_map<int, memory>> net_args;
 
-    const int batch = 1;
+    const memory::dim batch = 1;
 
     /* AlexNet: conv1
      * {batch, 3, 227, 227} (x) {96, 3, 11, 11} -> {batch, 96, 55, 55}
@@ -52,18 +57,15 @@ void simple_net(int times = 100) {
     memory::dims conv1_bias_tz = { 96 };
     memory::dims conv1_dst_tz = { batch, 96, 55, 55 };
     memory::dims conv1_strides = { 4, 4 };
-    auto conv1_padding = { 0, 0 };
+    memory::dims conv1_padding = { 0, 0 };
 
     /* Allocate input and output buffers for user data */
     std::vector<float> user_src(batch * 3 * 227 * 227);
     std::vector<float> user_dst(batch * 1000);
 
     /* Allocate and fill buffers for weights and bias */
-    std::vector<float> conv1_weights(std::accumulate(
-            conv1_weights_tz.begin(), conv1_weights_tz.end(), 1,
-            std::multiplies<uint32_t>()));
-    std::vector<float> conv1_bias(std::accumulate(conv1_bias_tz.begin(),
-            conv1_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv1_weights(product(conv1_weights_tz));
+    std::vector<float> conv1_bias(product(conv1_bias_tz));
 
     /* create memory for user data */
     auto user_src_memory = memory(
@@ -138,7 +140,7 @@ void simple_net(int times = 100) {
      * alpha1: 0.0001
      * beta1: 0.75
      */
-    const uint32_t local1_size = 5;
+    const memory::dim local1_size = 5;
     const float alpha1 = 0.0001f;
     const float beta1 = 0.75f;
     const float k1 = 1.0f;
@@ -164,7 +166,7 @@ void simple_net(int times = 100) {
     memory::dims pool1_dst_tz = { batch, 96, 27, 27 };
     memory::dims pool1_kernel = { 3, 3 };
     memory::dims pool1_strides = { 2, 2 };
-    auto pool_padding = { 0, 0 };
+    memory::dims pool_padding = { 0, 0 };
 
     auto pool1_dst_md = memory::desc({ pool1_dst_tz }, dt::f32, fmt::any);
 
@@ -191,13 +193,10 @@ void simple_net(int times = 100) {
     memory::dims conv2_bias_tz = { 256 };
     memory::dims conv2_dst_tz = { batch, 256, 27, 27 };
     memory::dims conv2_strides = { 1, 1 };
-    auto conv2_padding = { 2, 2 };
+    memory::dims conv2_padding = { 2, 2 };
 
-    std::vector<float> conv2_weights(std::accumulate(
-            conv2_weights_tz.begin(), conv2_weights_tz.end(), 1,
-            std::multiplies<uint32_t>()));
-    std::vector<float> conv2_bias(std::accumulate(conv2_bias_tz.begin(),
-            conv2_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv2_weights(product(conv2_weights_tz));
+    std::vector<float> conv2_bias(product(conv2_bias_tz));
 
     /* create memory for user data */
     auto conv2_user_weights_memory = memory(
@@ -268,7 +267,7 @@ void simple_net(int times = 100) {
      * alpha2: 0.0001
      * beta2: 0.75
      */
-    const uint32_t local2_size = 5;
+    const memory::dim local2_size = 5;
     const float alpha2 = 0.0001f;
     const float beta2 = 0.75f;
     const float k2 = 1.0f;
@@ -294,7 +293,7 @@ void simple_net(int times = 100) {
     memory::dims pool2_dst_tz = { batch, 256, 13, 13 };
     memory::dims pool2_kernel = { 3, 3 };
     memory::dims pool2_strides = { 2, 2 };
-    auto pool2_padding = { 0, 0 };
+    memory::dims pool2_padding = { 0, 0 };
 
     auto pool2_dst_md = memory::desc({pool2_dst_tz}, dt::f32, fmt::any);
 
@@ -322,13 +321,10 @@ void simple_net(int times = 100) {
     memory::dims conv3_bias_tz = { 384 };
     memory::dims conv3_dst_tz = { batch, 384, 13, 13 };
     memory::dims conv3_strides = { 1, 1 };
-    auto conv3_padding = { 1, 1 };
+    memory::dims conv3_padding = { 1, 1 };
 
-    std::vector<float> conv3_weights(std::accumulate(
-            conv3_weights_tz.begin(), conv3_weights_tz.end(), 1,
-            std::multiplies<uint32_t>()));
-    std::vector<float> conv3_bias(std::accumulate(conv3_bias_tz.begin(),
-            conv3_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv3_weights(product(conv3_weights_tz));
+    std::vector<float> conv3_bias(product(conv3_bias_tz));
 
     /* create memory for user data */
     auto conv3_user_weights_memory = memory(
@@ -403,13 +399,10 @@ void simple_net(int times = 100) {
     memory::dims conv4_bias_tz = { 384 };
     memory::dims conv4_dst_tz = { batch, 384, 13, 13 };
     memory::dims conv4_strides = { 1, 1 };
-    auto conv4_padding = { 1, 1 };
+    memory::dims conv4_padding = { 1, 1 };
 
-    std::vector<float> conv4_weights(std::accumulate(
-            conv4_weights_tz.begin(), conv4_weights_tz.end(), 1,
-            std::multiplies<uint32_t>()));
-    std::vector<float> conv4_bias(std::accumulate(conv4_bias_tz.begin(),
-            conv4_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv4_weights(product(conv4_weights_tz));
+    std::vector<float> conv4_bias(product(conv4_bias_tz));
 
     /* create memory for user data */
     auto conv4_user_weights_memory = memory(
@@ -483,13 +476,10 @@ void simple_net(int times = 100) {
     memory::dims conv5_bias_tz = { 256 };
     memory::dims conv5_dst_tz = { batch, 256, 13, 13 };
     memory::dims conv5_strides = { 1, 1 };
-    auto conv5_padding = { 1, 1 };
+    memory::dims conv5_padding = { 1, 1 };
 
-    std::vector<float> conv5_weights(std::accumulate(
-            conv5_weights_tz.begin(), conv5_weights_tz.end(), 1,
-            std::multiplies<uint32_t>()));
-    std::vector<float> conv5_bias(std::accumulate(conv5_bias_tz.begin(),
-            conv5_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> conv5_weights(product(conv5_weights_tz));
+    std::vector<float> conv5_bias(product(conv5_bias_tz));
 
     /* create memory for user data */
     auto conv5_user_weights_memory = memory(
@@ -563,10 +553,9 @@ void simple_net(int times = 100) {
     memory::dims pool5_dst_tz = { batch, 256, 6, 6 };
     memory::dims pool5_kernel = { 3, 3 };
     memory::dims pool5_strides = { 2, 2 };
-    auto pool5_padding = { 0, 0 };
+    memory::dims pool5_padding = { 0, 0 };
 
-    std::vector<float> pool5_dst(std::accumulate(pool5_dst_tz.begin(),
-            pool5_dst_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> pool5_dst(product(pool5_dst_tz));
 
     auto pool5_dst_md = memory::desc({pool5_dst_tz}, dt::f32, fmt::any);
 
@@ -594,10 +583,8 @@ void simple_net(int times = 100) {
     memory::dims fc6_bias_tz = { 4096 };
     memory::dims fc6_dst_tz = { batch, 4096 };
 
-    std::vector<float> fc6_weights(std::accumulate(fc6_weights_tz.begin(),
-            fc6_weights_tz.end(), 1, std::multiplies<uint32_t>()));
-    std::vector<float> fc6_bias(std::accumulate(fc6_bias_tz.begin(),
-            fc6_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> fc6_weights(product(fc6_weights_tz));
+    std::vector<float> fc6_bias(product(fc6_bias_tz));
 
     /* create memory for user data */
     auto fc6_user_weights_memory = memory(
@@ -650,10 +637,8 @@ void simple_net(int times = 100) {
     memory::dims fc7_bias_tz = { 4096 };
     memory::dims fc7_dst_tz = { batch, 4096 };
 
-    std::vector<float> fc7_weights(std::accumulate(fc7_weights_tz.begin(),
-            fc7_weights_tz.end(), 1, std::multiplies<uint32_t>()));
-    std::vector<float> fc7_bias(std::accumulate(fc7_bias_tz.begin(),
-            fc7_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> fc7_weights(product(fc7_weights_tz));
+    std::vector<float> fc7_bias(product(fc7_bias_tz));
 
     /* create memory for user data */
     auto fc7_user_weights_memory = memory(
@@ -697,10 +682,8 @@ void simple_net(int times = 100) {
     memory::dims fc8_bias_tz = { 1000 };
     memory::dims fc8_dst_tz = { batch, 1000 };
 
-    std::vector<float> fc8_weights(std::accumulate(fc8_weights_tz.begin(),
-            fc8_weights_tz.end(), 1, std::multiplies<uint32_t>()));
-    std::vector<float> fc8_bias(std::accumulate(fc8_bias_tz.begin(),
-            fc8_bias_tz.end(), 1, std::multiplies<uint32_t>()));
+    std::vector<float> fc8_weights(product(fc8_weights_tz));
+    std::vector<float> fc8_bias(product(fc8_bias_tz));
 
     /* create memory for user data */
     auto fc8_user_weights_memory = memory(

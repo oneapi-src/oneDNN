@@ -36,15 +36,16 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
     const memory::desc bias_d = diff_bias.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
 
-    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
 
-    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, [&](int g, int oc) {
-        size_t bidx = g * padded_oc / c.ng + oc;
+    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng,
+        [&](memory::dim g, memory::dim oc) {
+        memory::dim bidx = g * padded_oc / c.ng + oc;
         diff_bias_data[map_index(bias_d, bidx)] = 0.0;
-        for (int mb = 0; mb < c.mb; ++mb) {
-            for (int oh = 0; oh < c.oh; ++oh) {
-                for (int ow = 0; ow < c.ow; ++ow) {
-                    size_t oidx = mb * padded_oc * c.oh * c.ow
+        for (memory::dim mb = 0; mb < c.mb; ++mb) {
+            for (memory::dim oh = 0; oh < c.oh; ++oh) {
+                for (memory::dim ow = 0; ow < c.ow; ++ow) {
+                    memory::dim oidx = mb * padded_oc * c.oh * c.ow
                             + g * padded_oc / c.ng * c.oh * c.ow
                             + oc * c.oh * c.ow + oh * c.ow + ow;
                     diff_bias_data[map_index(bias_d, bidx)]
@@ -70,32 +71,33 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const memory::desc weights_d = diff_weights.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
 
-    size_t padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
-    size_t padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
-        [&](int g, int oc, int ic, int kh, int kw) {
-        size_t widx = g * padded_oc / c.ng * padded_ic / c.ng * c.kh * c.kw
+        [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,
+            memory::dim kw) {
+        memory::dim widx = g * padded_oc / c.ng * padded_ic / c.ng * c.kh * c.kw
                 + oc * padded_ic / c.ng * c.kh * c.kw
                 + ic * c.kh * c.kw + kh * c.kw + kw;
         diff_weights_data[map_index(weights_d, widx)] = 0.0;
-        for (int mb = 0; mb < c.mb; ++mb) {
-            for (int oh = 0; oh < c.oh; ++oh) {
-                for (int ow = 0; ow < c.ow; ++ow) {
+        for (memory::dim mb = 0; mb < c.mb; ++mb) {
+            for (memory::dim oh = 0; oh < c.oh; ++oh) {
+                for (memory::dim ow = 0; ow < c.ow; ++ow) {
                     if (ow*c.strw + kw * (1 + c.dilw) < c.padw ||
                         oh*c.strh + kh * (1 + c.dilh) < c.padh ||
                         ow*c.strw + kw * (1 + c.dilw) >= c.iw + c.padw ||
                         oh*c.strh + kh * (1 + c.dilh)>= c.ih + c.padh)
                         continue;
 
-                    int ih = oh * c.strh - c.padh + kh
+                    memory::dim ih = oh * c.strh - c.padh + kh
                             * (1 + c.dilh);
-                    int iw = ow * c.strw - c.padw + kw
+                    memory::dim iw = ow * c.strw - c.padw + kw
                             * (1 + c.dilw);
-                    size_t sidx = mb * padded_ic * c.ih * c.iw
+                    memory::dim sidx = mb * padded_ic * c.ih * c.iw
                         + g * padded_ic / c.ng * c.ih * c.iw
                         + ic * c.ih * c.iw + ih * c.iw + iw;
-                    size_t didx = mb * padded_oc * c.oh * c.ow
+                    memory::dim didx = mb * padded_oc * c.oh * c.ow
                         + g * padded_oc / c.ng * c.oh * c.ow
                         + oc * c.oh * c.ow + oh * c.ow + ow;
 
@@ -173,7 +175,7 @@ protected:
         check_zero_tail<data_t_src>(1, c_src.get());
         check_zero_tail<data_t_diff_weights>(1, c_diff_weights.get());
 
-        std::vector<int> padR = {
+        memory::dims padR = {
             right_padding(cd.ih, cd.oh, cd.kh, cd.padh, cd.strh, cd.dilh),
             right_padding(cd.iw, cd.ow, cd.kw, cd.padw, cd.strw, cd.dilw)
         };

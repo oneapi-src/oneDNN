@@ -227,18 +227,18 @@ void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
             prop2str(p->prop), alg2str(p->alg), activation2str(p->activation),
             direction2str(p->direction), cfg2str(p->cfg),
             policy2str(p->scale_policy));
-    DPRINT("l%d", p->n_layer);
-    DPRINT("t%d", p->n_iter);
-    DPRINT("mb%d", p->mb);
-    DPRINT("sic%d", p->sic);
-    DPRINT("slc%d", p->slc);
-    DPRINT("dic%d", p->dic);
-    DPRINT("dlc%d", p->dlc);
+    DPRINT("l" IFMT "", p->n_layer);
+    DPRINT("t" IFMT "", p->n_iter);
+    DPRINT("mb" IFMT "", p->mb);
+    DPRINT("sic" IFMT "", p->sic);
+    DPRINT("slc" IFMT "", p->slc);
+    DPRINT("dic" IFMT "", p->dic);
+    DPRINT("dlc" IFMT "", p->dlc);
     DPRINT("n\"%s\"", p->name);
 }
 
-void init_buffer(float *buf, int size, float value) {
-    for (int i = 0; i < size; i++)
+void init_buffer(float *buf, int64_t size, float value) {
+    for (int64_t i = 0; i < size; i++)
         buf[i] = value;
 }
 
@@ -292,12 +292,12 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         if (!ok) {
             r->errors++;
             if (r->errors < 10 || verbose >= 10) {
-                int n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0,
+                int64_t n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0,
                     oc = 0, b = 0;
                 switch (kind) {
                 case input:
                     inv_ntc_off_f(p, i, n, t, c);
-                    print(0, "%lu, %s, [%s][%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, n,
@@ -305,7 +305,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case states:
                     inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
@@ -313,7 +313,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case weights_input:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
@@ -321,7 +321,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case weights_states:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
@@ -329,7 +329,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case bias:
                     inv_ldgo_off_f(p, i, l, d, b, c);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
@@ -337,7 +337,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case dst_last_layer:
                     inv_tnc_off_f(p, i, s, t, n, c);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d] "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, s,
@@ -345,7 +345,7 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case dst_last_iteration:
                     inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                    print(0, "%lu, %s, [%s][%d,%d,%d,%d,%d "
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT " "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
@@ -359,43 +359,43 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 #if 1
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50) {
-            int n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
+            int64_t n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
                 b = 0;
 
             switch (kind) {
             case input:
                 inv_ntc_off_f(p, i, n, t, c);
-                print(0, "[%4lu][%s][%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, n, t, c, fp, dt);
                 break;
             case states:
                 inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, s, n, c, fp, dt);
                 break;
             case weights_input:
                 inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, w, ic, oc, fp, dt);
                 break;
             case weights_states:
                 inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                 break;
-                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, w, ic, oc, fp, dt);
             case bias:
                 inv_ldgo_off_f(p, i, l, d, b, c);
                 break;
-                print(0, "[%4lu][%s][%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, b, c, fp, dt);
             case dst_last_layer:
                 inv_tnc_off_f(p, i, s, t, n, c);
-                print(0, "[%4lu][%s][%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, n, t, c, fp, dt);
                 break;
             case dst_last_iteration:
                 inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                print(0, "[%4lu][%s][%d,%d,%d,%d,%d] fp:%8g dt:%8g\n",
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, s, n, c, fp, dt);
                 break;
             default:
@@ -485,8 +485,8 @@ void rnn_prb_t::set_qparams(float fp_min, float fp_max) {
         wei_scale = int8_wei_range / fp_range;
     } else if (scale_policy == PER_OC) {
         float K = int8_wei_range / fp_range;
-        int nelems = dic * n_gates();
-        for (int i = 0; i < nelems; i++) {
+        int64_t nelems = dic * n_gates();
+        for (int64_t i = 0; i < nelems; i++) {
             wei_oc_scales[i] = K * (1. + (float)i / nelems);
         }
     }

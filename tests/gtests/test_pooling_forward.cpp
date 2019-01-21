@@ -22,12 +22,12 @@
 namespace mkldnn {
 
 struct test_pool_desc_t {
-    int mb, c;
-    int id, ih, iw;
-    int od, oh, ow;
-    int kd, kh, kw;
-    int padf, padt, padl;
-    int strd, strh, strw;
+    memory::dim mb, c;
+    memory::dim id, ih, iw;
+    memory::dim od, oh, ow;
+    memory::dim kd, kh, kw;
+    memory::dim padf, padt, padl;
+    memory::dim strd, strh, strw;
 };
 
 struct pool_test_params {
@@ -66,11 +66,12 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
 
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
-        [&](int n, int c, int od, int oh, int ow) {
-            size_t oidx = (size_t)n * padded_c * pd.od * pd.oh * pd.ow
-                    + (size_t)c * pd.od * pd.oh * pd.ow
-                    + (size_t)od * pd.oh * pd.ow
-                    + (size_t)oh * pd.ow + ow;
+        [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
+            memory::dim ow) {
+            memory::dim oidx = n * padded_c * pd.od * pd.oh * pd.ow
+                    + c * pd.od * pd.oh * pd.ow
+                    + od * pd.oh * pd.ow
+                    + oh * pd.ow + ow;
             data_t out = dst_data[map_index(dst_d, oidx)];
             int out_index = -1;
             if(p.aalgorithm == pooling_max
@@ -89,13 +90,13 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             bool is_initialized = false;
             int num_summands = 0;
 
-            for (int kd = 0; kd < pd.kd; ++kd)
-            for (int kh = 0; kh < pd.kh; ++kh)
-            for (int kw = 0; kw < pd.kw; ++kw)
+            for (memory::dim kd = 0; kd < pd.kd; ++kd)
+            for (memory::dim kh = 0; kh < pd.kh; ++kh)
+            for (memory::dim kw = 0; kw < pd.kw; ++kw)
             {
-                const int id = od * pd.strd - pd.padf + kd;
-                const int ih = oh * pd.strh - pd.padt + kh;
-                const int iw = ow * pd.strw - pd.padl + kw;
+                const memory::dim id = od * pd.strd - pd.padf + kd;
+                const memory::dim ih = oh * pd.strh - pd.padt + kh;
+                const memory::dim iw = ow * pd.strw - pd.padl + kw;
 
                 if (id < 0 || id >= pd.id) continue;
                 if (ih < 0 || ih >= pd.ih) continue;
@@ -111,14 +112,14 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
                 if (p.aalgorithm == pooling_max) {
                     if (!is_initialized) {
                         acc_ref = d;
-                        out_ref_index = kd * pd.kw * pd.kh
-                        + kh * pd.kw + kw;
+                        out_ref_index =
+                            (int)(kd * pd.kw * pd.kh + kh * pd.kw + kw);
                         is_initialized = true;
                     } else {
                         if (acc_ref < d) {
                             acc_ref = d;
-                            out_ref_index = kd * pd.kw * pd.kh
-                            + kh * pd.kw + kw;
+                            out_ref_index =
+                                (int)(kd * pd.kw * pd.kh + kh * pd.kw + kw);
                         }
                     }
                 } else if (p.aalgorithm == pooling_avg_include_padding ||
@@ -191,11 +192,11 @@ protected:
         check_zero_tail<data_t>(1, p_dst);
 
         // calculate right padding exactly
-        std::vector<int> padR_2d = {
+        memory::dims padR_2d = {
             right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
             right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
         };
-        std::vector<int> padR_3d = {
+        memory::dims padR_3d = {
             right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
             right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
             right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)

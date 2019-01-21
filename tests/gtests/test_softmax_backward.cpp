@@ -37,31 +37,31 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
 
     // Allocate buffer for reference BW result
     auto ndims = diff_dst_pd.data.ndims;
-    int total_dim_size = 1;
-    for (int i=0; i<ndims; ++i) {
+    memory::dim total_dim_size = 1;
+    for (memory::dim i=0; i<ndims; ++i) {
       total_dim_size *= diff_dst_pd.data.dims[i];
     }
     std::unique_ptr<data_t[]> diff_src_ref_ptr(new float[total_dim_size]);
 
     const float eps = 1e-7; //TODO: What should be the threshold?
 
-    int OU = 1;
+    memory::dim OU = 1;
     for (int d = 0; d < axis; ++d) OU *= diff_dst_pd.data.dims[d];
     const int C = diff_dst_pd.data.dims[axis];
-    int IN = 1;
+    memory::dim IN = 1;
     for (int d = axis + 1; d < ndims; ++d) IN *= diff_dst_pd.data.dims[d];
 
-    mkldnn::impl::parallel_nd(OU, IN, [&](int ou, int in) {
-        const int idx_start = ou * C * IN + in;
+    mkldnn::impl::parallel_nd(OU, IN, [&](memory::dim ou, memory::dim in) {
+        const memory::dim idx_start = ou * C * IN + in;
 
         float sbr = 0.0;
-        for (int c=0; c < C ; ++c) {
+        for (memory::dim c=0; c < C ; ++c) {
             auto off_d = map_index(dst_pd, idx_start + c * IN);
             auto off_dd = map_index(diff_dst_pd, idx_start + c * IN);
             sbr += dst_ptr[off_d] * diff_dst_ptr[off_dd];
         }
 
-        for (int c=0; c < C ; ++c) {
+        for (memory::dim c=0; c < C ; ++c) {
             auto off_d = map_index(dst_pd, idx_start + c * IN);
             auto off_dd = map_index(diff_dst_pd, idx_start + c * IN);
             diff_src_ref_ptr[off_dd] =
@@ -70,7 +70,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     });
 
     // Actual check
-    for (int i=0; i < OU*C*IN; ++i)
+    for (memory::dim i=0; i < OU*C*IN; ++i)
         EXPECT_NEAR(diff_src_ptr[i], diff_src_ref_ptr[i], eps);
 }
 

@@ -24,12 +24,12 @@
 namespace mkldnn {
 
 struct test_bnrm_sizes_t {
-    int mb, c, d, h, w;
+    memory::dim mb, c, d, h, w;
 };
 
 struct test_bnrm_formats_t {
-    mkldnn::memory::format data_format;
-    mkldnn::memory::format diff_format;
+    memory::format data_format;
+    memory::format diff_format;
 };
 
 struct test_bnrm_params_t {
@@ -67,16 +67,16 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
 
     data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
 
-    mkldnn::impl::parallel_nd(bp.c, [&](int c) {
+    mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
         data_t ref_mean = calculate_stats ? data_t(0) : mean_data[c];
         data_t ref_variance = calculate_stats ? data_t(0) : variance_data[c];
         if (calculate_stats) {
-            for (int n = 0; n < bp.mb; n++)
-                for (int d = 0; d < bp.d; d++)
-                for (int h = 0; h < bp.h; h++)
-                for (int w = 0; w < bp.w; w++) {
+            for (memory::dim n = 0; n < bp.mb; n++)
+                for (memory::dim d = 0; d < bp.d; d++)
+                for (memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                         + c * bp.d * bp.h * bp.w
                         + d * bp.h * bp.w + h * bp.w + w;
@@ -89,10 +89,10 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                 EXPECT_NEAR((mean_data[c] - ref_mean) / mean_norm_max, 0., eps);
             }
 
-            for (int n = 0; n < bp.mb; n++)
-            for (int d = 0; d < bp.d; d++)
-            for (int h = 0; h < bp.h; h++)
-                for (int w = 0; w < bp.w; w++) {
+            for (memory::dim n = 0; n < bp.mb; n++)
+            for (memory::dim d = 0; d < bp.d; d++)
+            for (memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t tmp = src_data[map_index(src_d, sidx)] - ref_mean;
@@ -110,10 +110,10 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
 
         if (use_weights) {
             memory::desc weights_d = weights.get_desc();
-            for (int n = 0; n < bp.mb; n++)
-            for (int d = 0; d < bp.d; d++)
-            for (int h = 0; h < bp.h; h++)
-                for (int w = 0; w < bp.w; w++) {
+            for (memory::dim n = 0; n < bp.mb; n++)
+            for (memory::dim d = 0; d < bp.d; d++)
+            for (memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t ref_dst = weights_data[map_index(weights_d, c)]
@@ -126,10 +126,10 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
                     EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
                 }
         } else {
-            for (int n = 0; n < bp.mb; n++)
-            for (int d = 0; d < bp.d; d++)
-            for (int h = 0; h < bp.h; h++)
-                for (int w = 0; w < bp.w; w++) {
+            for (memory::dim n = 0; n < bp.mb; n++)
+            for (memory::dim d = 0; d < bp.d; d++)
+            for (memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                     data_t ref_dst = (src_data[map_index(src_d, sdidx)]
@@ -170,7 +170,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0) {
         if (pk == backward) {
-            for (int c = 0; c < bp.c; ++c) {
+            for (memory::dim c = 0; c < bp.c; ++c) {
                auto dg = diff_weights_data[map_index(diff_weights_d, c)];
                auto db = diff_weights_data[map_index(diff_weights_d, bp.c + c)];
                EXPECT_NEAR(dg, 0., 1e-7);
@@ -182,8 +182,9 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
-    mkldnn::impl::parallel_nd(bp.c, [&](int c) {
+    auto padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+
+    mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
         data_t ref_diff_gamma = data_t(0);
         data_t ref_diff_beta = data_t(0);
 
@@ -193,10 +194,10 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
         auto gamma = use_weights ? weights_data[map_index(weights_d, c)] : 1;
 
-        for (int n = 0; n < bp.mb; n++)
-        for (int d = 0; d < bp.d; d++)
-        for (int h = 0; h < bp.h; h++)
-        for (int w = 0; w < bp.w; w++) {
+        for (memory::dim n = 0; n < bp.mb; n++)
+        for (memory::dim d = 0; d < bp.d; d++)
+        for (memory::dim h = 0; h < bp.h; h++)
+        for (memory::dim w = 0; w < bp.w; w++) {
             size_t sidx = n * padded_c * bp.d * bp.h * bp.w + c * bp.d * bp.h * bp.w
                     + d * bp.h * bp.w + h * bp.w + w;
             ref_diff_gamma += (src_data[map_index(src_d, sidx)] - v_mean)
@@ -217,10 +218,10 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
             EXPECT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
         }
 
-        for (int n = 0; n < bp.mb; n++)
-        for (int d = 0; d < bp.d; d++)
-        for (int h = 0; h < bp.h; h++)
-            for (int w = 0; w < bp.w; w++) {
+        for (memory::dim n = 0; n < bp.mb; n++)
+        for (memory::dim d = 0; d < bp.d; d++)
+        for (memory::dim h = 0; h < bp.h; h++)
+            for (memory::dim w = 0; w < bp.w; w++) {
                 size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                 data_t ref_diff_src = diff_dst_data[map_index(diff_dst_d, sidx)];

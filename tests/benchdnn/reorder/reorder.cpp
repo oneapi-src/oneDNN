@@ -48,13 +48,13 @@ int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
     return scale_mask;
 }
 
-int scales_count(int *count, int *mask, const dnn_mem_t &memory,
+int scales_count(int64_t *count, int *mask, const dnn_mem_t &memory,
         const attr_t &attr) {
     const mkldnn_memory_desc_t &md = memory.md_;
     const int scale_mask = get_scale_mask(md, attr);
     if (mask) *mask = scale_mask;
 
-    int uniq_scales = 1;
+    int64_t uniq_scales = 1;
     for(int d = 0; d < md.ndims; ++d) {
         if (scale_mask & (1 << d))
             uniq_scales *= md.dims[d];
@@ -63,10 +63,10 @@ int scales_count(int *count, int *mask, const dnn_mem_t &memory,
     return OK;
 }
 
-int fill_scales(const prb_t *p, float *scales, int count) {
+int fill_scales(const prb_t *p, float *scales, int64_t count) {
     const float scale_value = p->attr.oscale.scale;
 
-    for (int i = 0; i < count; ++i)
+    for (int64_t i = 0; i < count; ++i)
         scales[i] = scale_value;
 
     if (count != 1) scales[count - 1] = scale_value + 1.1;
@@ -85,10 +85,10 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
     const int max = c_src->min + range - 1;
     int scale_mask = get_scale_mask(mem.md_, attr);
 
-    const size_t nelems = mem.nelems();
+    const int64_t nelems = mem.nelems();
 
-    for (size_t idx = 0; idx < nelems; ++idx) {
-        const size_t mask_idx = mem.get_scale_idx(idx, scale_mask);
+    for (int64_t idx = 0; idx < nelems; ++idx) {
+        const int64_t mask_idx = mem.get_scale_idx(idx, scale_mask);
         const float scale = scales[mask_idx];
 
         const float gen[7] = {
@@ -113,7 +113,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
         const float *scales) {
     auto dst_dt = dst.dt();
 
-    size_t nelems = src.nelems();
+    int64_t nelems = src.nelems();
 
     /* calculate min max for data_type */
     /* TODO: add dst range support */
@@ -136,9 +136,9 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
     const int scale_mask = get_scale_mask(src.md_, p->attr);
 
-    for (size_t idx = 0; idx < nelems; ++idx) {
+    for (int64_t idx = 0; idx < nelems; ++idx) {
         float src_ = src.get_elem(idx);
-        const size_t scale_idx = dst.get_scale_idx(idx, scale_mask);
+        const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
 
         const float scale = scales[scale_idx];
 
@@ -161,8 +161,8 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 }
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
-        const float *scales, int count, res_t *r){
-    size_t nelems = mem_expected.nelems();
+        const float *scales, int64_t count, res_t *r){
+    int64_t nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
     r->errors = 0;
@@ -170,16 +170,16 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
 
     /* TODO: range support */
     const auto dt = mem_expected.dt();
-    const size_t width = mem_expected.sizeof_dt()*8;
+    const size_t width = mem_expected.sizeof_dt() * 8;
 
     const float dt_min = dt == mkldnn_u8
         ? 0.f : -(float)(1l << (width - 1));
     const float dt_max = dt == mkldnn_u8
         ? 255.f : (float)((1l << (width - 1)) - 1);
 
-    size_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
+    int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
-    for (size_t i = 0; i < nelems; ++i) {
+    for (int64_t i = 0; i < nelems; ++i) {
         const float expected = mem_expected.get_elem(i);
         const float computed = mem_computed.get_elem(i);
         const float diff = fabsf(computed - expected);
@@ -191,7 +191,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
             reg++;
 
         if (r->errors < 10 && diff != 0.0) {
-            printf("idx: %zu exp: %f com:%f\n", i, expected, computed);
+            printf("idx: " IFMT " exp: %f com:%f\n", i, expected, computed);
             r->errors++;
         }
     }
@@ -203,7 +203,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         r->state = PASSED; /* optimism */
 
     float max_scale = scales[0];
-    for (int i = 1; i < count; ++i) {
+    for (int64_t i = 1; i < count; ++i) {
         if (scales[i] > max_scale) max_scale = scales[i];
     }
 
@@ -258,7 +258,7 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     const reorder_conf_t &r = p->reorder;
     const int ndims = (int)r.dims.size();
-    const int *dims = &r.dims[0];
+    const int64_t *dims = &r.dims[0];
 
     mkldnn_memory_format_t fmt_ref;
     const bool is_data = fmt2data_kind(r.fmt_in) == DATA;
@@ -288,7 +288,8 @@ int check_reorder(const prb_t *p, res_t *res) {
     dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
 
     /* Step 2: fill scales */
-    int count = 0, mask = 0;
+    int64_t count = 0;
+    int mask = 0;
     SAFE(scales_count(&count, &mask, mem_dt_out_fmt_out, p->attr), WARN);
     float *scales = (float *)zmalloc(sizeof(float) * count, 64);
     SAFE(scales != NULL ? OK : FAIL, CRIT);

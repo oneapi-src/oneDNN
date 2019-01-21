@@ -69,23 +69,23 @@ struct dnn_mem_t {
         return OK;
     }
 
-    int N() { return md_.dims[0]; }
-    int with_G() { return md_.ndims == 5; }
-    int G() { return md_.ndims == 5 ? md_.dims[0] : 1; }
+    int64_t N() { return md_.dims[0]; }
+    int64_t with_G() { return md_.ndims == 5; }
+    int64_t G() { return md_.ndims == 5 ? md_.dims[0] : 1; }
 
-    int C() { return md_.ndims == 1 ? md_.dims[0] : md_.dims[1]; }
-    int OC() { return md_.dims[with_G() + 0]; }
-    int IC() { return md_.dims[with_G() + 1]; }
-    int H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
-    int W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
+    int64_t C() { return md_.ndims == 1 ? md_.dims[0] : md_.dims[1]; }
+    int64_t OC() { return md_.dims[with_G() + 0]; }
+    int64_t IC() { return md_.dims[with_G() + 1]; }
+    int64_t H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
+    int64_t W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
 
     size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
-    size_t nelems(bool with_padding_dims = false) const {
+    int64_t nelems(bool with_padding_dims = false) const {
         auto dims = with_padding_dims
             ? md_.layout_desc.blocking.padding_dims
             : md_.dims;
-        size_t n = 1;
+        int64_t n = 1;
         for (int i = 0; i < md_.ndims; ++i)
             n *= dims[i];
         return n;
@@ -97,7 +97,7 @@ struct dnn_mem_t {
     template <typename T>
     explicit operator T*() const { return static_cast<T*>(data_); }
 
-    float get_elem(size_t idx) const {
+    float get_elem(int64_t idx) const {
         float elem = 0.0;
         switch (dt()) {
             case mkldnn_s8: elem = static_cast<int8_t *>(data_)[idx]; break;
@@ -110,7 +110,7 @@ struct dnn_mem_t {
         return elem;
     }
 
-    void set_elem(size_t idx, float value) {
+    void set_elem(int64_t idx, float value) {
         switch (dt()) {
             case mkldnn_s8: ((int8_t *)data_)[idx] = value; break;
             case mkldnn_u8: ((uint8_t *)data_)[idx] = value; break;
@@ -121,15 +121,15 @@ struct dnn_mem_t {
         }
     }
 
-    size_t get_scale_idx(size_t data_idx, int scale_mask) const {
+    int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
         const int ndims = md_.ndims;
         const auto &dims = md_.dims;
-        size_t stride = 1;
-        size_t offset = 0;
+        int64_t stride = 1;
+        int64_t offset = 0;
 
         if (scale_mask != 0) {
             for (int i = 0; i < ndims; ++i) {
-                size_t d = md_.ndims - 1 - i;
+                int d = md_.ndims - 1 - i;
                 auto pos = data_idx % dims[d];
                 data_idx /= dims[d];
                 if (scale_mask & (1 << d)) {

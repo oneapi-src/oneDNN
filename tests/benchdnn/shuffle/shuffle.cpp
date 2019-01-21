@@ -58,16 +58,16 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem) {
 
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
-    size_t nelems = fp_mem.nelems();
+    int64_t nelems = fp_mem.nelems();
     assert(nelems == dt_mem.nelems());
     r->errors = 0;
 
-    for (size_t i = 0; i < nelems; ++i) {
+    for (int64_t i = 0; i < nelems; ++i) {
         const float fp = fp_mem.get_elem(i);
         const float dt = dt_mem.get_elem(i);
         const float diff = fabsf(fp - dt);
         if (r->errors < 10 && diff != 0.0) {
-            printf("idx: %zu fp: %f dt:%f\n", i, fp, dt);
+            printf("idx: " IFMT " fp:%f dt:%f\n", i, fp, dt);
             r->errors++;
         }
     }

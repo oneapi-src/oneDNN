@@ -74,7 +74,7 @@ struct memory_desc_wrapper: public c_compatible {
      * is true, and the number of data elements otherwise */
     size_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
-        return (utils::array_product<int, size_t>(with_padding
+        return (utils::array_product<dim_t, size_t>(with_padding
                 ? blocking_desc().padding_dims : dims(), ndims()));
     }
 
@@ -160,7 +160,7 @@ struct memory_desc_wrapper: public c_compatible {
             size_t max_size = 0;
             for (int d = 0; d < ndims(); ++d) {
                 auto block = block_dims[d];
-                max_size = nstl::max(max_size,
+                max_size = nstl::max<size_t>(max_size,
                     size_t(padding_dims[d] / block) * strides[0][d]);
                 if (block > 1)
                     max_size = nstl::max(max_size,
@@ -232,11 +232,11 @@ struct memory_desc_wrapper: public c_compatible {
 
         size_t phys_offset = blk.offset_padding;
         for (int d = 0; d < ndims(); ++d) {
-            const int block = blk.block_dims[d];
+            const dim_t block = blk.block_dims[d];
 
-            const int p = pos[d] + (is_pos_padded ? 0 : optd[d]);
-            const int pos_within_block = p % block;
-            const int pos_block = p / block;
+            const dim_t p = pos[d] + (is_pos_padded ? 0 : optd[d]);
+            const dim_t pos_within_block = p % block;
+            const dim_t pos_block = p / block;
 
             phys_offset += pos_block * blk.strides[0][d];
             phys_offset += pos_within_block * blk.strides[1][d];
@@ -247,8 +247,8 @@ struct memory_desc_wrapper: public c_compatible {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = utils::one_of(format(), gOIw4i16o4i,
                     gOIw4i16o4i_s8s8, gOIhw4i16o4i, gOIhw4i16o4i_s8s8);
-            const int oc_16 = pos[with_groups + 0] % 16;
-            const int ic_4 = pos[with_groups + 1] % 4;
+            const dim_t oc_16 = pos[with_groups + 0] % 16;
+            const dim_t ic_4 = pos[with_groups + 1] % 4;
             phys_offset += 4 * oc_16 + ic_4 - (oc_16 + 16 * ic_4);
         }
         if (utils::one_of(format(), gOIhw2i8o4i,  gOIhw2i8o4i_s8s8)) {
@@ -261,36 +261,36 @@ struct memory_desc_wrapper: public c_compatible {
         if (format() == gOIw8i16o2i || format() == OIw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIw8i16o2i;
-            const int oc_16 = pos[with_groups + 0] % 16;
-            const int ic_2  = pos[with_groups + 1] % 2;
+            const dim_t oc_16 = pos[with_groups + 0] % 16;
+            const dim_t ic_2  = pos[with_groups + 1] % 2;
             phys_offset += -16 * ic_2 + oc_16 + ic_2;
         }
         if (format() == gOIhw8i16o2i || format() == OIhw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIhw8i16o2i;
-            const int oc_16 = pos[with_groups + 0] % 16;
-            const int ic_2  = pos[with_groups + 1] % 2;
+            const dim_t oc_16 = pos[with_groups + 0] % 16;
+            const dim_t ic_2  = pos[with_groups + 1] % 2;
             phys_offset += -16 * ic_2 + oc_16 + ic_2;
         }
         if (format() == gOIdhw8i16o2i || format() == OIdhw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIdhw8i16o2i;
-            const int oc_16 = pos[with_groups + 0] % 16;
-            const int ic_2  = pos[with_groups + 1] % 2;
+            const dim_t oc_16 = pos[with_groups + 0] % 16;
+            const dim_t ic_2  = pos[with_groups + 1] % 2;
             phys_offset += -16 * ic_2 + oc_16 + ic_2;
         }
         if (format() == gOIhw8o16i2o || format() == OIhw8o16i2o) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIhw8o16i2o;
-            const int ic_16 = pos[with_groups + 1] % 16;
-            const int oc_2  = pos[with_groups + 0] % 2;
+            const dim_t ic_16 = pos[with_groups + 1] % 16;
+            const dim_t oc_2  = pos[with_groups + 0] % 2;
             phys_offset += -16 * oc_2 + ic_16 + oc_2;
         }
         if (format() == gOIw8o16i2o || format() == OIw8o16i2o) {
             // TODO: Fix temporary workaround for formats with double blocking
             const bool with_groups = format() == gOIw8o16i2o;
-            const int ic_16 = pos[with_groups + 1] % 16;
-            const int oc_2  = pos[with_groups + 0] % 2;
+            const dim_t ic_16 = pos[with_groups + 1] % 16;
+            const dim_t oc_2  = pos[with_groups + 0] % 2;
             phys_offset += -16 * oc_2 + ic_16 + oc_2;
         }
         return phys_offset;
@@ -305,7 +305,7 @@ struct memory_desc_wrapper: public c_compatible {
         dims_t pos;
         for (int rd = 0; rd < ndims(); ++rd) {
             const int d = ndims() - 1 - rd;
-            const int cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
+            const dim_t cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
             pos[d] = l_offset % cur_dim;
             l_offset /= cur_dim;
         }

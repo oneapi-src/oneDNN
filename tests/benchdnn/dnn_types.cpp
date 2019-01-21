@@ -403,8 +403,8 @@ void attr2str(const attr_t *attr, char *buffer) {
     attr->post_ops.to_str(buffer, &buffer);
 }
 
-mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
-        int scale_mask, const float *scales) {
+mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
+        int64_t scale_cnt, int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
 
@@ -414,7 +414,7 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
 
     if (!attr.oscale.is_def()) {
         using P = attr_t::scale_t::policy_t;
-        int count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
+        int64_t count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
         if (scale_mask == -1)
             scale_mask = attr.oscale.policy == P::PER_OC ? 1 << 1 : 0;
 
@@ -422,7 +422,7 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
         if (scales == NULL) {
             gen_scs = (float *)zmalloc(count * sizeof(float), 64);
             SAFE_V(gen_scs != NULL ? OK : FAIL);
-            for (int i = 0; i < count; ++i)
+            for (int64_t i = 0; i < count; ++i)
                 gen_scs[i] = attr.oscale.scale;
             scales = gen_scs;
         }

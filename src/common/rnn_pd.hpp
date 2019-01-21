@@ -92,19 +92,19 @@ struct rnn_pd_t : public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
-    int T() const { return desc_.src_layer_desc.dims[0]; }
-    int MB() const { return desc_.src_layer_desc.dims[1]; }
+    dim_t T() const { return desc_.src_layer_desc.dims[0]; }
+    dim_t MB() const { return desc_.src_layer_desc.dims[1]; }
 
-    int L() const { return desc_.weights_layer_desc.dims[0]; }
-    int D() const { return desc_.weights_layer_desc.dims[1]; }
+    dim_t L() const { return desc_.weights_layer_desc.dims[0]; }
+    dim_t D() const { return desc_.weights_layer_desc.dims[1]; }
 
-    int SIC() const { return desc_.weights_iter_desc.dims[2]; }
+    dim_t SIC() const { return desc_.weights_iter_desc.dims[2]; }
 
-    int SLC() const { return desc_.weights_layer_desc.dims[2]; }
-    int G() const { return desc_.weights_layer_desc.dims[3]; }
-    int DIC() const { return desc_.weights_layer_desc.dims[4]; }
+    dim_t SLC() const { return desc_.weights_layer_desc.dims[2]; }
+    dim_t G() const { return desc_.weights_layer_desc.dims[3]; }
+    dim_t DIC() const { return desc_.weights_layer_desc.dims[4]; }
 
-    int DLC() const { return desc_.dst_layer_desc.dims[2]; }
+    dim_t DLC() const { return desc_.dst_layer_desc.dims[2]; }
 
     bool with_bias() const
     { return !memory_desc_wrapper(desc_.bias_desc).is_zero(); }

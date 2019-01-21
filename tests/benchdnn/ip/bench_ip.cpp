@@ -29,7 +29,7 @@
 namespace ip {
 const dt_conf_t *cfg = conf_f32;
 dir_t dir = FWD_B;
-int mb = 0;
+int64_t mb = 0;
 attr_t attr;
 bool allow_unimpl = false;
 const char *perf_template = "perf,%D,%n,%z,%q,%-t,%-Gp,%0t,%0Gp";

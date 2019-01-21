@@ -41,13 +41,13 @@ const char *alg2str(alg_t alg);
 alg_t alg_kind2alg(mkldnn_alg_kind_t alg);
 
 struct desc_t {
-    int g, mb;
-    int ic, id, ih, iw;
-    int oc, od, oh, ow;
-    int kd, kh, kw;
-    int sd, sh, sw;
-    int pd, ph, pw;
-    int dd, dh, dw;
+    int64_t g, mb;
+    int64_t ic, id, ih, iw;
+    int64_t oc, od, oh, ow;
+    int64_t kd, kh, kw;
+    int64_t sd, sh, sw;
+    int64_t pd, ph, pw;
+    int64_t dd, dh, dw;
     bool has_groups;
 
     const char *name;
@@ -104,7 +104,7 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
 
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
-            const attr_t &attr, int mb = 0, bool is_deconv = false)
+            const attr_t &attr, int64_t mb = 0, bool is_deconv = false)
         : desc_t(desc), dir(dir), cfg(cfg), alg(alg), attr(attr)
         , ops(0), scales(NULL), is_deconv(is_deconv) {
         if (mb) this->mb = mb;
@@ -137,15 +137,14 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 extern const char *perf_template; /* performance output template */
 
-inline size_t src_off_f(const prb_t *p, int mb, int g, int ic,
-                        int id, int ih, int iw)
-{
-    return ((((size_t)mb * p->ic + g * p->ic/p->g + ic)
+inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t ic,
+        int64_t id, int64_t ih, int64_t iw) {
+    return (((mb * p->ic + g * p->ic/p->g + ic)
         * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
-inline void inv_src_off_f(const prb_t *p, size_t off, int &mb, int &g, int &ic,
-        int &id, int &ih, int &iw) {
+inline void inv_src_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &g,
+        int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
     iw = off % p->iw; off /= p->iw;
     ih = off % p->ih; off /= p->ih;
     id = off % p->id; off /= p->id;
@@ -155,15 +154,14 @@ inline void inv_src_off_f(const prb_t *p, size_t off, int &mb, int &g, int &ic,
     assert(off == 0);
 }
 
-inline size_t wei_off_f(const prb_t *p, int g, int oc, int ic,
-                        int kd, int kh, int kw)
-{
-    return (((((size_t)g * p->oc / p->g + oc) * p->ic / p->g + ic)
+inline int64_t wei_off_f(const prb_t *p, int64_t g, int64_t oc, int64_t ic,
+        int64_t kd, int64_t kh, int64_t kw) {
+    return ((((g * p->oc / p->g + oc) * p->ic / p->g + ic)
         * p->kd + kd) * p->kh + kh) * p->kw + kw;
 }
 
-inline void inv_wei_off_f(const prb_t *p, size_t off, int &g, int &oc, int &ic,
-        int &kd, int &kh, int &kw) {
+inline void inv_wei_off_f(const prb_t *p, int64_t off, int64_t &g, int64_t &oc,
+        int64_t &ic, int64_t &kd, int64_t &kh, int64_t &kw) {
     kw = off % p->kw; off /= p->kw;
     kh = off % p->kh; off /= p->kh;
     kd = off % p->kd; off /= p->kd;
@@ -173,25 +171,25 @@ inline void inv_wei_off_f(const prb_t *p, size_t off, int &g, int &oc, int &ic,
     assert(off == 0);
 }
 
-inline size_t bia_off_f(const prb_t *p, int g, int oc) {
-    return (size_t)g * p->oc / p->g + oc;
+inline int64_t bia_off_f(const prb_t *p, int64_t g, int64_t oc) {
+    return g * p->oc / p->g + oc;
 }
 
-inline void inv_bia_off_f(const prb_t *p, size_t off, int &g, int &oc) {
+inline void inv_bia_off_f(const prb_t *p, int64_t off, int64_t &g, int64_t &oc)
+{
     oc = off % (p->oc / p->g); off /= (p->oc / p->g);
     g = off % p->g; off /= p->g;
     assert(off == 0);
 }
 
-inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc,
-                        int od, int oh, int ow)
-{
-    return ((((size_t)mb * p->oc + g * p->oc/p->g + oc) * p->od + od)
+inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t oc,
+        int64_t od, int64_t oh, int64_t ow) {
+    return (((mb * p->oc + g * p->oc/p->g + oc) * p->od + od)
         * p->oh + oh) * p->ow + ow;
 }
 
-inline void inv_dst_off_f(const prb_t *p, size_t off, int &mb, int &g, int &oc,
-        int &od, int &oh, int &ow) {
+inline void inv_dst_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &g,
+        int64_t &oc, int64_t &od, int64_t &oh, int64_t &ow) {
     ow = off % p->ow; off /= p->ow;
     oh = off % p->oh; off /= p->oh;
     od = off % p->od; off /= p->od;

@@ -125,7 +125,7 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     size_t nelems = mem_dt.nelems();
-    int non_zero = 0;
+    int64_t non_zero = 0;
     const char *skind = data_kind2str(kind);
 
     r->errors = 0;
@@ -195,8 +195,8 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const int range = c.f_max - c.f_min + 1;
 
     mkldnn::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
-        [&](int mb, int ic, int id, int ih, int iw) {
-            const int gen
+        [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+            const int64_t gen
                 = 5 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
             const bool non_base = flip_coin(gen, c.f_sparsity);
             const float value = non_base
@@ -219,8 +219,8 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const int range = c.f_max - c.f_min + 1;
 
     mkldnn::impl::parallel_nd(p->oc, p->ic, p->id, p->ih, p->iw,
-        [&](int oc, int ic, int id, int ih, int iw) {
-            const int gen = 5 * id + 17 * ih + 13 * iw + 13 * oc + 19 * ic + 38;
+        [&](int64_t oc, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+            const int64_t gen = 5 * id + 17 * ih + 13 * iw + 13 * oc + 19 * ic + 38;
             const bool non_base = flip_coin(gen, c.f_sparsity);
             const float value = non_base
                     ?  c.f_min + gen * c.f_step % range : c.f_base;
@@ -242,7 +242,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     const size_t sz = mem_00.nelems();
     for (size_t i = 0; i < sz; ++i) {
-        const int gen = (int)(19 * i);
+        const int64_t gen = (int64_t)(19 * i);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base
                 ? c.f_min + gen * c.f_step % range : c.f_base;
@@ -261,8 +261,8 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const auto &c = p->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
 
-    mkldnn::impl::parallel_nd(p->mb, p->oc, [&](int mb, int oc) {
-        const int gen = 17 * mb + 13 * oc + 12;
+    mkldnn::impl::parallel_nd(p->mb, p->oc, [&](int64_t mb, int64_t oc) {
+        const int64_t gen = 17 * mb + 13 * oc + 12;
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base
                 ? c.f_min + gen * c.f_step % range : c.f_base;

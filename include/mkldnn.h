@@ -259,7 +259,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_int_output_round_mode(
  *      belongs, so it is illegal to use @p scales after @p attr is destroyed.
  */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
-        const_mkldnn_primitive_attr_t attr, int *count, int *mask,
+        const_mkldnn_primitive_attr_t attr, mkldnn_dim_t *count, int *mask,
         const float **scales);
 
 /** Sets output @p scales for primitive operations. The number of elements @p
@@ -302,7 +302,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_output_scales(
  *      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
  */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_output_scales(
-        mkldnn_primitive_attr_t attr, int count, int mask,
+        mkldnn_primitive_attr_t attr, mkldnn_dim_t count, int mask,
         const float *scales);
 
 /** Returns @p post_ops for given @p attr.
@@ -981,7 +981,8 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_in
  */
 mkldnn_status_t MKLDNN_API mkldnn_shuffle_forward_desc_init(
         mkldnn_shuffle_desc_t *shuffle_desc, mkldnn_prop_kind_t prop_kind,
-        const mkldnn_memory_desc_t *data_desc, int axis, int group_size);
+        const mkldnn_memory_desc_t *data_desc, int axis,
+        mkldnn_dim_t group_size);
 
 /** Initializes a @p shuffle_desc for backward propagation using memory
  * descriptor @p diff_data_desc, @p axis, and @p group_size.
@@ -996,7 +997,8 @@ mkldnn_status_t MKLDNN_API mkldnn_shuffle_forward_desc_init(
  */
 mkldnn_status_t MKLDNN_API mkldnn_shuffle_backward_desc_init(
         mkldnn_shuffle_desc_t *shuffle_desc,
-        const mkldnn_memory_desc_t *diff_data_desc, int axis, int group_size);
+        const mkldnn_memory_desc_t *diff_data_desc, int axis,
+        mkldnn_dim_t group_size);
 
 /** @} */
 
@@ -1217,7 +1219,7 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_prop_kind_t prop_kind,
         mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *data_desc,
-        int local_size, float alpha, float beta, float k);
+        mkldnn_dim_t local_size, float alpha, float beta, float k);
 
 /** Initializes an @p lrn_desc for backward propagation using @p alg_kind,
  * memory descriptors @p data_desc and @p diff_data_desc, and regularization
@@ -1235,8 +1237,8 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
 mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_alg_kind_t alg_kind,
         const mkldnn_memory_desc_t *diff_data_desc,
-        const mkldnn_memory_desc_t *data_desc, int local_size, float alpha,
-        float beta, float k);
+        const mkldnn_memory_desc_t *data_desc, mkldnn_dim_t local_size,
+        float alpha, float beta, float k);
 
 /** @} */
 
@@ -1522,7 +1524,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_data_qparams(
  *      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
  */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
-        mkldnn_primitive_attr_t attr, int count, int mask,
+        mkldnn_primitive_attr_t attr, mkldnn_dim_t count, int mask,
                 const float *weights_scales);
 
 /** Initializes a rnn descriptor @p rnn_desc for forward propagation
@@ -1702,11 +1704,12 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
  *      because it returns mkldnn_status_t for error handling.
  *      XERBLA is not supported: no error message will be printed
  *      in case of incorrect parameters. */
-mkldnn_status_t MKLDNN_API mkldnn_sgemm(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K,
-        const float *alpha, const float *A, const int *lda,
-        const float *B, const int *ldb,
-        const float *beta, float *C, const int *ldc);
+mkldnn_status_t MKLDNN_API mkldnn_sgemm(
+        const char *transa, const char *transb,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha, const float *A, const mkldnn_dim_t *lda,
+        const float *B, const mkldnn_dim_t *ldb,
+        const float *beta, float *C, const mkldnn_dim_t *ldc);
 
 /** gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
  * operation and add the result to a scalar-matrix product. For the final
@@ -1734,17 +1737,23 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(const char *transa, const char *transb,
  *      because it returns mkldnn_status_t for error handling.
  *      XERBLA is not supported: no error message will be printed
  *      in case of incorrect parameters. */
-mkldnn_status_t MKLDNN_API mkldnn_gemm_s8u8s32(const char *transa,
-        const char *transb, const char *offsetc, const int *M, const int *N,
-        const int *K, const float *alpha, const int8_t *A, const int *lda,
-        const int8_t *ao, const uint8_t *B, const int *ldb, const int8_t *bo,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *co);
+mkldnn_status_t MKLDNN_API mkldnn_gemm_s8u8s32(
+        const char *transa, const char *transb, const char *offsetc,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha,
+        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
+        const uint8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
+        const float *beta,
+        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
 
-mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(const char *transa,
-        const char *transb, const char *offsetc, const int *M, const int *N,
-        const int *K, const float *alpha, const int8_t *A, const int *lda,
-        const int8_t *ao, const int8_t *B, const int *ldb, const int8_t *bo,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *co);
+mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
+        const char *transa, const char *transb, const char *offsetc,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha,
+        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
+        const int8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
+        const float *beta,
+        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
 /** @} */
 
 /** @} */

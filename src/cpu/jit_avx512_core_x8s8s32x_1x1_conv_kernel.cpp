@@ -817,7 +817,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
     using namespace mkldnn::impl::memory_tracking::names;
 
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        size_t count = nstl::max(attr.output_scales_.count_, 16);
+        dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 16);
         scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
     }
 }

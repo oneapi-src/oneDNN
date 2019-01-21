@@ -35,8 +35,8 @@ void prb_t::generate_oscales() {
     const float K = 32;
     /* scale in [1/K .. K], with starting point at oscale.scale */
     float s[2] = {attr.oscale.scale, attr.oscale.scale/2};
-    for (int i = 0; i < oc; ++i) {
-        int si = i % 2; // 0 -> left, 1 -> right
+    for (int64_t i = 0; i < oc; ++i) {
+        int64_t si = i % 2; // 0 -> left, 1 -> right
         scales[i] = s[si];
         if (si == 0) {
             s[si] /= 2.;
@@ -111,15 +111,17 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
         buffer += l; rem_len -= l; \
     } while(0)
 #   define is_1d(d) (d->ih == 1 && d->id == 1)
-    if (canonical || d->mb != 2) DPRINT("mb%d", d->mb);
-    DPRINT("oc%d", d->oc);
-    DPRINT("ic%d", d->ic);
-    if (d->id > 1) DPRINT("id%d", d->id);
-    if (canonical || !is_1d(d)) DPRINT("ih%d", d->ih);
+
+    if (canonical || d->mb != 2) DPRINT("mb" IFMT "", d->mb);
+    DPRINT("oc" IFMT "", d->oc);
+    DPRINT("ic" IFMT "", d->ic);
+    if (d->id > 1) DPRINT("id" IFMT "", d->id);
+    if (canonical || !is_1d(d)) DPRINT("ih" IFMT "", d->ih);
     if (canonical || d->iw != d->ih || d->id > 1 || is_1d(d))
-        DPRINT("iw%d", d->iw);
+        DPRINT("iw" IFMT "", d->iw);
     DPRINT("n%s", d->name);
 
+#   undef is_1d
 #   undef DPRINT
 }
 

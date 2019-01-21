@@ -33,7 +33,7 @@ namespace conv {
 const dt_conf_t *cfg = conf_f32;
 const char *pattern = NULL;
 dir_t dir = FWD_B;
-int mb = 0;
+int64_t mb = 0;
 alg_t alg = DIRECT;
 attr_t attr;
 const char *skip_impl = "";
