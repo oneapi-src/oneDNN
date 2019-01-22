@@ -222,6 +222,7 @@ void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
 {
     int8_t ao = arg->ao;
     int8_t bo = arg->bo;
+    int32_t co_0 = (offsetc == NO_OFFSET)? 0 : co[0];
 
     // Since m and n are limited by blocking, stack overflow may not happen;
     // it's up to 32kB
@@ -242,7 +243,7 @@ void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
         row_req = 1;
 
     // It needs one of colum or row offsets, but it doesn't need both
-    if (((ao != 0) && (bo != 0)) || ((offsetc == FIX_OFFSET) && (co[0] != 0))) {
+    if (((ao != 0) && (bo != 0)) || ((offsetc == FIX_OFFSET) && (co_0 != 0))) {
         if ((col_req == 0) && (row_req == 0)) {
             if (m <= n) {
                 col_req = 1;
@@ -282,13 +283,13 @@ void igemm_inner_kernel(const dim_t m, const dim_t n, const dim_t k,
         }
     }
 
-    if ((offsetc == FIX_OFFSET) && (co[0] != 0)) {
+    if ((offsetc == FIX_OFFSET) && (co_0 != 0)) {
         if (col_req) {
             for (dim_t i = 0; i < m; i++)
-                col_offset[i] += co[0];
+                col_offset[i] += co_0;
         } else {
             for (dim_t i = 0; i < n; i++)
-                row_offset[i] += co[0];
+                row_offset[i] += co_0;
         }
     }
 
