@@ -17,7 +17,7 @@
 #ifndef IGEMM_KERNEL_GENERATOR_HPP
 #define IGEMM_KERNEL_GENERATOR_HPP
 
-#include "../jit_generator.hpp"
+#include "jit_generator.hpp"
 
 
 namespace mkldnn {

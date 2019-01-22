@@ -132,6 +132,10 @@ void jit_avx512_core_gemm_s8u8s32_kern::kernel_loop(int unroll_m, int unroll_n,
 void jit_avx512_core_gemm_s8u8s32_kern::remainder_kernel(int unroll_m,
         int unroll_n, int unroll_k, int bwidth)
 {
+    if ((unroll_m > IGEMM_UNROLL_M) || (unroll_n > IGEMM_UNROLL_N)
+            || (unroll_m < 0)  || (unroll_n < 0))
+        return;
+
     int um_vecs = (unroll_m + 15) >> 4;
 
     for (int h = 0; h < unroll_k; h++) {
@@ -169,6 +173,10 @@ void jit_avx512_core_gemm_s8u8s32_kern::remainder_kernel(int unroll_m,
 // Inner loop.
 void jit_avx512_core_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n)
 {
+    if ((unroll_m > IGEMM_UNROLL_M) || (unroll_n > IGEMM_UNROLL_N)
+            || (unroll_m < 0)  || (unroll_n < 0))
+        return;
+
     int um_vecs = (unroll_m + 15) >> 4;
     int stage1 = unroll_n, stage2 = unroll_n;
 
@@ -280,8 +288,7 @@ void jit_avx512_core_gemm_s8u8s32_kern::innerloop(int unroll_m, int unroll_n)
     if (enable_offset_c) {
         // Add column offsets.
         mov(rax, coffset_cy);
-        for (int i = 0; i < um_vecs; i++)
-        {
+        for (int i = 0; i < um_vecs; i++) {
             Zmm col_offset = zmm0;
 
             c_load(col_offset, ptr[rax + size * 16 * i], unroll_m);
