@@ -492,7 +492,7 @@ typedef enum {
      *
      * Modification of original GRU cell. Differs from #mkldnn_vanilla_gru
      * in how the new memory gate is calculated:
-     * \f[ c_t = tanh(W_c*x_t + b_{c_h} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
+     * \f[ c_t = tanh(W_c*x_t + b_{c_x} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
      * Primitive expects 4 biases on input:
      * \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
      * */
