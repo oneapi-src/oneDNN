@@ -147,11 +147,18 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
         void init_scratchpad() {
             const memory_desc_wrapper id(input_pd());
             const size_t nelems = id.nelems();
+            const auto &dims = id.dims();
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
+            size_t quantization_size = sizeof(int8_t) * nelems;
+            size_t reduction_size = id.format() == ldigo
+                    ? sizeof(int32_t) * mkldnn_get_max_threads() * dims[0]
+                            * dims[1] * dims[3] * dims[4]
+                    : 0;
             scratchpad.book(
-                    key_reorder_rnn_weights_space, sizeof(int8_t) * nelems);
+                    key_reorder_rnn_weights_quantization, quantization_size);
+            scratchpad.book(key_reorder_rnn_weights_reduction, reduction_size);
         }
     };
 
@@ -178,38 +185,79 @@ private:
         const int O = dims[4];
 
         const bool is_igo = input_d.format() == memory_format::ldigo;
-        auto off_igo = [&](int l, int d, int i, int g, int o) {
-            return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
-        };
-        auto off_goi = [&](int l, int d, int i, int g, int o) {
-            return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
-        };
 
         /* Quantize input & compute compensation */
-        int8_t *quantized = (int8_t *)scratchpad().template get<void>(
-                memory_tracking::names::key_reorder_rnn_weights_space);
+        auto quantized = (int8_t * __restrict)scratchpad().template get<void>(
+                memory_tracking::names::key_reorder_rnn_weights_quantization);
+        auto reduction = (int32_t * __restrict)scratchpad().template get<void>(
+                memory_tracking::names::key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 output + output_d.rnn_packed_desc().offset_compensation);
         const round_mode_t rmode = pd()->attr()->round_mode_;
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
         const int mask = pd()->attr()->rnn_weights_qparams_.mask_;
 
-        parallel_nd(L, D, G, O, [&](int l, int d, int g, int o) {
-            int32_t compensation = 0;
-            const float s = scales[(mask == 0) ? 0 : g * O + o];
-            for (int i = 0; i < I; i++) {
-                int8_t q = qz_b0<in_data_t, out_data_t>()(
-                        input[is_igo ? off_igo(l, d, i, g, o) :
-                                       off_goi(l, d, i, g, o)],
-                        s, rmode);
-                compensation += (int32_t)q;
-                quantized[off_igo(l, d, i, g, o)] = q;
+        if (is_igo) {
+            int nthr = mkldnn_get_max_threads();
+            int LD_nthr = nstl::min(L * D, nthr);
+            int I_nthr = nstl::min(I, nthr / LD_nthr);
+            parallel(nthr, [&](const int ithr, const int nthr) {
+                int LD_ithr = -1, LD_s = -1, LD_e = -1;
+                int I_ithr = -1, I_s = -1, I_e = -1;
+                if (ithr < LD_nthr * I_nthr) {
+                    LD_ithr = ithr % LD_nthr;
+                    I_ithr = ithr / LD_nthr;
+                    balance211(L * D, LD_nthr, LD_ithr, LD_s, LD_e);
+                    balance211(I, I_nthr, I_ithr, I_s, I_e);
+                }
+                int32_t *comp_ithr = reduction + I_ithr * L * D * G * O;
+                for (int ld = LD_s; ld < LD_e; ld++) {
+                    for (int go = 0; go < G * O; go++)
+                        comp_ithr[ld * G * O + go] = 0;
+                    for (int i = I_s; i < I_e; i++) {
+                        PRAGMA_OMP_SIMD()
+                        for (int go = 0; go < G * O; go++) {
+                            const float s = scales[(mask == 0) ? 0 : go];
+                            int8_t q = qz_b0<in_data_t, out_data_t>()(
+                                    input[ld * I * G * O + i * G * O + go], s,
+                                    rmode);
+                            quantized[ld * I * G * O + i * G * O + go]
+                                    = (int32_t)q;
+                            comp_ithr[ld * G * O + go] += (int32_t)q;
+                        }
+                    }
+                }
+            });
+            parallel_nd(L * D * G * O,
+                    [&](int s) { comp[s] = saturate<float>(reduction[s]); });
+            for (int i = 1; i < I_nthr; i++) {
+                parallel_nd(L * D * G * O, [&](int s) {
+                    comp[s] += saturate<float>(
+                            reduction[i * L * D * G * O + s]);
+                });
             }
-            comp[l * D * G * O + d * G * O + g * O + o]
-                    = saturate<float>(compensation);
-        });
+        } else {
+            parallel_nd(L * D, G * O, [&](int ld, int go) {
+                int32_t compensation = 0;
+                const float s = scales[(mask == 0) ? 0 : go];
+                PRAGMA_OMP_SIMD()
+                for (int i = 0; i < I; i++) {
+                    int8_t q = qz_b0<in_data_t, out_data_t>()(
+                            input[ld * G * O * I + go * I + i], s, rmode);
+                    compensation += (int32_t)q;
+                    quantized[ld * G * O * I + go * I + i] = q;
+                }
+                comp[ld * G * O + go] = saturate<float>(compensation);
+            });
+        }
 
         /* Pack */
+        auto off_igo = [&](int l, int d, int i, int g, int o) {
+            return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
+        };
+        auto off_goi = [&](int l, int d, int i, int g, int o) {
+            return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
+        };
         int n_parts = output_d.rnn_packed_desc().n_parts;
         const size_t *size_packed_cell
                 = output_d.rnn_packed_desc().part_pack_size;
@@ -223,8 +271,10 @@ private:
                     int m_p = parts[p] * O;
                     int k_p = I;
                     cblas_gemm_s8u8s32_pack(CblasColMajor, CblasAMatrix,
-                            CblasNoTrans, m_p, n, k_p,
-                            &quantized[off_igo(l, d, 0, g, 0)], G * O, to_pack);
+                            is_igo ? CblasNoTrans : CblasTrans, m_p, n, k_p,
+                            &quantized[is_igo ? off_igo(l, d, 0, g, 0) :
+                                                off_goi(l, d, g, 0, 0)],
+                            is_igo ? G * O : I, to_pack);
                     to_pack += size_packed_cell[p];
                 }
             }
