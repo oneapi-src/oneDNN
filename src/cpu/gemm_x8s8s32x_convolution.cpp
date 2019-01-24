@@ -246,10 +246,6 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
         }
 
         vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
-        if (do_relu_) {
-            vcmpps(kreg_relu_cmp, vreg_dst(idx), vreg_zero, _cmp_lt_os);
-            vmulps(vreg_dst(idx) | kreg_relu_cmp, vreg_dst(idx), vreg_nslope);
-        }
 
         auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
 
@@ -274,13 +270,18 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
             vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
         }
 
+        if (do_relu_) {
+            vcmpps(kreg_relu_cmp, vreg_dst(idx), vreg_zero, _cmp_lt_os);
+            vmulps(vreg_dst(idx) | kreg_relu_cmp, vreg_dst(idx), vreg_nslope);
+        }
+
         if (dst_type != data_type::f32) {
             auto rmode_control = (rmode_ == nearest ? T_rn_sae : T_rd_sae);
             vcvtps2dq(vreg_dst(idx) | rmode_control, vreg_dst(idx));
         }
 
         if (dst_type == data_type::u8)
-            vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_zero);
+            vpmaxsd(vreg_dst(idx), vreg_dst(idx), vreg_zero);
 
         switch (dst_type) {
         case data_type::s8:
