@@ -71,10 +71,16 @@ macro(use_intel_omp_rt)
         endif()
     else()
         if (MKLDNN_THREADING STREQUAL "OMP:INTEL")
-            message(${_omp_severity} "Intel OpenMP runtime could not be found. "
-                "Please either use OpenMP runtime that comes with the compiler "
-                "(via -DMKLDNN_THREADING={OMP,OMP:COMP}), or "
-                "install Intel MKL / Intel MKL-ML (e.g. scripts/prepare_mkl.sh)")
+            find_library(MKLIOMP5LIB NAMES iomp5)
+            if (MKLIOMP5LIB)
+                forbid_link_compiler_omp_rt()
+                list(APPEND EXTRA_LIBS ${MKLIOMP5LIB})
+            else()
+                message(${_omp_severity} "Intel OpenMP runtime could not be found. "
+                    "Please either use OpenMP runtime that comes with the compiler "
+                    "(via -DMKLDNN_THREADING={OMP,OMP:COMP}), or "
+                    "install Intel MKL / Intel MKL-ML (e.g. scripts/prepare_mkl.sh)")
+            endif()
         endif()
     endif()
 endmacro()
