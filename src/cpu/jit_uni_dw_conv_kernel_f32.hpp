@@ -18,6 +18,8 @@
 #define JIT_UNI_DW_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
+
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
@@ -51,6 +53,9 @@ struct jit_uni_dw_conv_fwd_kernel_f32: public jit_generator {
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -106,9 +111,13 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32: public jit_generator {
     }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
+            const convolution_desc_t &cd,
+            const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -159,7 +168,12 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &diff_weights_d,
-            const memory_desc_wrapper &diff_dst_d);
+            const memory_desc_wrapper &diff_dst_d, int nthreads);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
+
+    static void balance(jit_conv_conf_t &jcp, int nthreads);
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_dw_conv_call_s *);

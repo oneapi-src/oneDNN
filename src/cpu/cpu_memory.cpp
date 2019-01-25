@@ -234,10 +234,10 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
     assert(step_dim >= 0 && "no zero padding is required");
     if (step_dim < 0) return;
 
-    parallel_nd(nelems, [&](ptrdiff_t e) {
+    parallel_nd(nelems / step, [&](ptrdiff_t e1) {
         bool need_zero = false;
 
-        ptrdiff_t idx = e / step;
+        ptrdiff_t idx = e1;
         for (int d = step_dim; d >= 0; --d) {
             if (idx % pdims[d] >= dims[d]) {
                 need_zero = true;
@@ -248,14 +248,14 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
 
         if (need_zero) {
             for (ptrdiff_t e0 = 0; e0 < step; ++e0)
-                data[m_d.off_l(e + e0, true)] = 0;
+                data[m_d.off_l(e1 * step + e0, true)] = 0;
         }
     });
 }
 
 template <data_type_t dt>
 status_t cpu_memory_t::typed_zero_pad() const {
-    const memory_desc_wrapper mpd(&conf_);
+    const memory_desc_wrapper mpd(pd());
 
     // FIXME: guard this check for non-blocked layout
     if (mpd.nelems(false) == mpd.nelems(true))
@@ -355,7 +355,7 @@ status_t cpu_memory_t::typed_zero_pad() const {
 }
 
 status_t cpu_memory_t::zero_pad() const {
-    memory_desc_wrapper md(&conf_);
+    memory_desc_wrapper md(pd());
     const bool skip_zeroing = false
         || data_ == nullptr
         || md.is_zero()

@@ -55,6 +55,36 @@ inline void verbose_templ(char *buffer, mkldnn_primitive_kind_t prim_kind,
             mkldnn_prop_kind2str(prop_kind), data_str, aux_str, prb_str);
 }
 
+inline void format_mem_desc_str_generic(char *str, int len,
+        const memory_desc_t *md) {
+    auto ndims = md->ndims;
+    auto dims = md->dims;
+    int l = 0;
+    for (int d = 0; d < ndims - 1; ++d)
+        l += snprintf(str + l, len - l, "%dx", dims[d]);
+    snprintf(str + l, len - l, "%d", dims[ndims - 1]);
+}
+
+// XXX: Outputs strings corresponding to memory formats used for data tensors.
+inline void format_mem_desc_str(char *str, int len, const memory_desc_t *md) {
+    auto ndims = md->ndims;
+    auto dims = md->dims;
+    if (ndims == 1)
+        snprintf(str, len, "x%d", dims[0]);
+    else if (ndims == 2)
+        snprintf(str, len, "mb%dic%d", dims[0], dims[1]);
+    else if (ndims == 3)
+        snprintf(str, len, "mb%dic%diw%d", dims[0], dims[1], dims[2]);
+    else if (ndims == 4)
+        snprintf(str, len, "mb%dic%dih%diw%d",
+                dims[0], dims[1], dims[2], dims[3]);
+    else if (ndims == 5)
+        snprintf(str, len, "mb%dic%did%dih%diw%d",
+                dims[0], dims[1], dims[2], dims[3], dims[4]);
+    else
+        format_mem_desc_str_generic(str, len, md);
+}
+
 template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
@@ -66,17 +96,7 @@ template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "flags:%u", s->desc()->flags);
 
-    if (s->ndims() == 5)
-    {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%did%dih%diw%d", s->MB(), s->C(), s->D(), s->H(), s->W());
-    } else if (s->ndims() == 4) {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
-    } else if (s->ndims() == 2) {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%d", s->MB(), s->C());
-    }
+    format_mem_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_pd()->desc());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -105,23 +125,43 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
 
     if (s->ndims() == 5) {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%d_g%dic%doc%d"
-            "_id%dod%dkd%dsd%ddd%dpd%d"
-            "_ih%doh%dkh%dsh%ddh%dph%d"
-            "_iw%dow%dkw%dsw%ddw%dpw%d",
-            s->MB(), s->G(), s->IC(), s->OC(),
-            s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
-            s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
-            s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        if (s->with_groups())
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_g%dic%doc%d"
+                "_id%dod%dkd%dsd%ddd%dpd%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->G(), s->IC(), s->OC(),
+                s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        else
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_ic%doc%d"
+                "_id%dod%dkd%dsd%ddd%dpd%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->IC(), s->OC(),
+                s->ID(), s->OD(), s->KD(), s->KSD(), s->KDD(), s->padFront(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
     } else {
-        snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%d_g%dic%doc%d"
-            "_ih%doh%dkh%dsh%ddh%dph%d"
-            "_iw%dow%dkw%dsw%ddw%dpw%d",
-            s->MB(), s->G(), s->IC(), s->OC(),
-            s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
-            s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        if (s->with_groups())
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_g%dic%doc%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->G(), s->IC(), s->OC(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
+        else
+            snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
+                "mb%d_ic%doc%d"
+                "_ih%doh%dkh%dsh%ddh%dph%d"
+                "_iw%dow%dkw%dsw%ddw%dpw%d",
+                s->MB(), s->IC(), s->OC(),
+                s->IH(), s->OH(), s->KH(), s->KSH(), s->KDH(), s->padT(),
+                s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
     }
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
@@ -140,12 +180,7 @@ template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "axis:%d group_size:%d",
             s->axis(), s->group_size());
 
-    int l = 0;
-    for (int d = 0; d < md->ndims - 1; ++d)
-        l += snprintf(prb_str + l, MKLDNN_VERBOSE_PRB_LEN - l,
-                "%dx", md->dims[d]);
-    snprintf(prb_str + l, MKLDNN_VERBOSE_PRB_LEN - l,
-                "%d", md->dims[md->ndims - 1]);
+    format_mem_desc_str_generic(prb_str, MKLDNN_VERBOSE_PRB_LEN, md);
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -163,8 +198,7 @@ template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
 
-    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
+    format_mem_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_pd()->desc());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -208,8 +242,7 @@ template <typename pd_t> static void init_info_lrn(pd_t *s, char *buffer) {
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
 
-    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
+    format_mem_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_pd()->desc());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -227,12 +260,7 @@ template <typename pd_t> static void init_info_mem(pd_t *s, char *buffer) {
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "num:%d", s->n_inputs());
 
-    int l = 0;
-    for (int d = 0; d < o_md->ndims - 1; ++d)
-        l += snprintf(prb_str + l, MKLDNN_VERBOSE_PRB_LEN - l,
-                "%dx", o_md->dims[d]);
-    snprintf(prb_str + l, MKLDNN_VERBOSE_PRB_LEN - l,
-            "%d", o_md->dims[o_md->ndims - 1]);
+    format_mem_desc_str_generic(prb_str, MKLDNN_VERBOSE_PRB_LEN, o_md);
 
     verbose_templ(buffer, s->kind(), s->name(), prop_kind::undef, dat_str,
             aux_str, prb_str);
@@ -274,15 +302,15 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_data = (s->desc()->prop_kind == prop_kind::backward_data
-            ? s->diff_src_pd() : s->src_pd())->desc()->format;
+    auto md = (s->desc()->prop_kind == prop_kind::backward_data
+        ? s->diff_src_pd() : s->src_pd())->desc();
+    auto fmt_data = md->format;
     auto fmt_diff = s->desc()->prop_kind == prop_kind::backward_data
         ? s->diff_src_pd()->desc()->format : memory_format::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
             mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
 
-    snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "mb%dic%dih%diw%d", s->MB(), s->C(), s->H(), s->W());
+    format_mem_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, md);
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -292,15 +320,22 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    alg_kind_t alg_kind = s->desc()->cell_desc.cell_kind;
+    auto fmt_src = (s->desc()->prop_kind == prop_kind::backward_data
+            ? s->diff_src_pd() : s->src_pd())->desc()->format;
+    auto fmt_wei = (s->desc()->prop_kind == prop_kind::backward_weights
+            ? s->diff_weights_pd(0) : s->weights_pd(0))->desc()->format;
+
+    alg_kind_t alg_kind = s->cell_kind();
+    rnn_direction_t rnn_dir = s->direction();
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
-            "alg:%s", mkldnn_alg_kind2str(alg_kind));
+            "alg:%s_%s", mkldnn_alg_kind2str(alg_kind), mkldnn_rnn_direction2str(rnn_dir));
+    snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fwei:%s",
+            mkldnn_fmt2str(fmt_src), mkldnn_fmt2str(fmt_wei));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
-            "l%dd%dmb%dt%d_ic%dsc%doc%d_wi%dws%d",
-             s->L(), s->D(), s->MB(), s->T(),
-             s->SLC(), s->DIC(), s->DIC(),
-             s->SLC(), s->SIC());
+            "l%dt%dmb%dsic%dslc%ddic%ddlc%d",
+             s->L(), s->T(), s->MB(),
+             s->SIC(), s->SLC(), s->DIC(), s->DLC());
 
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
@@ -323,6 +358,7 @@ DEFINE_STUB(mem);
 DEFINE_STUB(pool);
 DEFINE_STUB(softmax);
 DEFINE_STUB(rnn);
+DEFINE_STUB(shuffle);
 #undef DEFINE_STUB
 #endif /* !defined(DISABLE_VERBOSE) */
 

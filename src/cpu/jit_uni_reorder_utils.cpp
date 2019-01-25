@@ -71,6 +71,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
     case hwigo_s8s8:
     case gOIhw4i16o4i_s8s8:
     case OIhw4i16o4i_s8s8:
+    case Goihw16g_s8s8:
     case wino_fmt:
         return invalid_arguments;
     case OIhw4i16o4i:

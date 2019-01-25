@@ -264,6 +264,85 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<true
+    && (fmt_i == goihw && fmt_o == Goihw16g_s8s8)>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                            math::ilog2q(attr->output_scales_.mask_ + 1));
+        const int oc = input_d.dims()[1];
+        const int g = input_d.dims()[0];
+
+        return true
+            && order_keep
+            && input_d.format() == fmt_i
+            && output_d.format() == fmt_o
+            && (input_d.data_type() == f32 || input_d.data_type() == s8)
+            && output_d.data_type() == s8
+            && (D_mask == 1 || D_mask == (size_t)g * oc);
+    }
+
+    static status_t execute(const cpu_reorder_pd_t *pd,
+            const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        const int blksize = 16;
+
+        const auto &dims = input_d.dims();
+        const auto &pdims = output_d.blocking_desc().padding_dims;
+        const int G = dims[0];
+        const int Gp = pdims[0];
+        const int OC = dims[1];
+        const int IC = dims[2];
+        const int H = dims[3];
+        const int W = dims[4];
+
+        const size_t D_mask = utils::array_product(input_d.dims(),
+                            math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const float *scales = pd->attr()->output_scales_.scales_;
+        float adj_scale = (mayiuse(avx512_core_vnni)) ? 1.f : (1.f / 2.f);
+
+
+        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                int32_t *cp, const float *s, const int g_block) {
+            PRAGMA_OMP_SIMD()
+            for (int g = 0; g < g_block; g++) {
+                const auto i_off = g * input_d.blocking_desc().strides[0][0];
+                out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        inp[i_off], s[g * OC] * adj_scale, rmode);
+                cp[g * OC] -= 128 * (int32_t)(out[g]); 
+            }
+        };
+
+        size_t cp_offset = output_d.size() - output_d.additional_buffer_size();
+        int32_t *cp = reinterpret_cast<int32_t *>(output + cp_offset);
+        parallel_nd((Gp/blksize) * OC, [&](int ib) {
+            PRAGMA_OMP_SIMD()
+            for (int i = 0; i < blksize; i++)
+                cp[ib * blksize + i] = 0;
+        });
+
+        parallel_nd(Gp/blksize, OC, [&](int gb, int O) {
+                for (int I = 0; I < IC; I++) {
+                    for (int h = 0; h < H; h++) {
+                    for (int w = 0; w < W; w++) {
+                        const int g_block = nstl::min(G - gb * blksize, blksize);
+                        const auto inp = &input[input_d.blk_off(gb * blksize, O, I, h, w)];
+                        const auto out = &output[output_d.blk_off(gb, O, I, h, w)];
+                        int offset = gb * blksize + O;
+                        ker(inp, out, &cp[offset],
+                            &scales[(D_mask == 1) ? 0 : offset], g_block);
+                   }
+                   }
+               }
+        });
+        return success;
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+    typename utils::enable_if<true
     && format_traits<fmt_i>::blk_fmt == bf::_8i16o2i
     && format_traits<fmt_o>::blk_fmt == bf::_8o16i2o>::type>
 {
@@ -332,6 +411,90 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 };
 
 /* reorders with tail support */
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
+    && format_traits<fmt_o>::blk_fmt == bf::_16c>::type>
+{
+    static bool is_applicable(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
+    {
+        return simple_fmt_check(order_keep, fmt_i, fmt_o, input_d, output_d)
+            && simple_attr_check(attr, false);
+    }
+
+    static status_t execute(const cpu_reorder_pd_t *pd,
+        const data_t<type_i> *input, data_t<type_o> *output) {
+        DECLARE_COMMON_PARAMS();
+
+        constexpr int is_1d = format_traits<fmt_o>::ndims_sp == 1;
+        constexpr int is_3d = format_traits<fmt_o>::ndims_sp == 3;
+        constexpr int blksize_16 = format_traits<fmt_o>::blk_size;
+        constexpr int blksize_8 = format_traits<fmt_i>::blk_size;
+        constexpr int ic_mult = order_keep ? 2 : 1;
+        constexpr int oc_mult = order_keep ? 1 : 2;
+
+        const auto &nchw8c_d = order_keep ? input_d : output_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims = order_keep ? output_d.blocking_desc().padding_dims
+                                       : input_d.blocking_desc().padding_dims;
+        const auto stride_8c = nchw8c_d.blocking_desc().strides[0];
+
+        const int C = dims[1];
+        const int D = is_3d ? dims[2] : 1;
+        const int H = is_1d ? 1 : dims[2 + is_3d];
+        const int W = dims[3 + is_3d - is_1d];
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
+            const int block_16) {
+            const int nb = (block_16 - 1) / blksize_8 + 1;
+            if (alpha == 1.0 && beta == 0.0) {
+                for (int b = 0; b < nb; ++b) {
+                    const ptrdiff_t i_off = order_keep ? b * stride_8c[1]
+                                                       : b * blksize_8;
+                    const ptrdiff_t o_off = order_keep ? b * blksize_8
+                                                       : b * stride_8c[1];
+                    const int block_8 = nstl::min(blksize_8,
+                                                  block_16 - b * blksize_8);
+                    for (int c = 0; c < block_8; ++c) {
+                        o[o_off + c] = _qz_a1b0<type_i, type_o>()(
+                                i[i_off + c], rmode);
+                    }
+                }
+            } else {
+                for (int b = 0; b < nb; ++b) {
+                    const ptrdiff_t i_off = order_keep ? b * stride_8c[1]
+                                                       : b * blksize_8;
+                    const ptrdiff_t o_off = order_keep ? b * blksize_8
+                                                       : b * stride_8c[1];
+                    const int block_8 = nstl::min(blksize_8,
+                                                  block_16 - b * blksize_8);
+                    for (int c = 0; c < block_8; ++c) {
+                        o[o_off + c] = _qz<type_i, type_o>()(i[i_off + c],
+                                o[o_off + c], alpha, beta, rmode);
+                    }
+                }
+            }
+        };
+
+#       define data_blk_off(md, n, c, d, h, w) \
+        ( is_1d ? (md).blk_off(n, c, w) \
+          : is_3d ? (md).blk_off(n, c, d, h, w) : (md).blk_off(n, c, h, w))
+
+        parallel_nd(dims[0], pdims[1] / blksize_16, D, H, W,
+            [&](int n, int nb_c, int d, int h, int w) {
+            auto i = &input[data_blk_off(input_d, n, ic_mult * nb_c, d, h, w)];
+            auto o = &output[data_blk_off(output_d, n, oc_mult * nb_c, d, h, w)];
+            const int block_16 = nstl::min(blksize_16, C - nb_c * blksize_16);
+            ker(i, o, block_16);
+        });
+
+#       undef data_blk_off
+
+        return success;
+    }
+};
 
 #define PLAIN_TO_BLOCKED_IS_APPLICABLE() \
     static bool is_applicable(const memory_desc_wrapper &input_d, \
@@ -862,21 +1025,21 @@ struct simple_reorder_t: public cpu_primitive_t {
         }
     };
 
-    simple_reorder_t(const pd_t *pd, const input_vector &inputs,
+    simple_reorder_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd) {}
+        : cpu_primitive_t(apd, inputs, outputs) {}
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         auto input = reinterpret_cast<const data_t<type_i> *>(
                 this->input_memory(0));
         auto output = reinterpret_cast<data_t<type_o> *>(this->memory());
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                &conf_, input, output);
+                pd(), input, output);
         e->set_state(event_t::ready);
     }
 
 private:
-    pd_t conf_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

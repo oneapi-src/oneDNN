@@ -60,22 +60,22 @@ float ref_eltwise_scalar_fwd_t::compute_scalar(float s) {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() {
+void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
     const blocking_desc_t &blk = data_d.blocking_desc();
     const int block = blk.block_dims[1];
 
-    const int MB = conf_.MB();
-    const int C = conf_.C() / block;
+    const int MB = pd()->MB();
+    const int C = pd()->C() / block;
     const int C_PADDED = blk.padding_dims[1] / block;
-    const int tail = conf_.C() % block;
-    const int SP = conf_.D() * conf_.H() * conf_.W();
-    const auto alg_kind = conf_.desc()->alg_kind;
-    const float alpha = conf_.desc()->alpha;
-    const float beta = conf_.desc()->beta;
+    const int tail = pd()->C() % block;
+    const int SP = pd()->D() * pd()->H() * pd()->W();
+    const auto alg_kind = pd()->desc()->alg_kind;
+    const float alpha = pd()->desc()->alpha;
+    const float beta = pd()->desc()->beta;
 
     auto ker = [=] (data_t &d, data_t s) {
         switch (alg_kind) {
@@ -104,24 +104,24 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded() {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
+void ref_eltwise_fwd_t<data_type>::execute_forward_generic() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
     /* fast return */
-    if (conf_.has_zero_dim_memory()) return;
+    if (pd()->has_zero_dim_memory()) return;
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
 
-    const int MB = conf_.MB();
-    const int C = conf_.C();
-    const int D = conf_.D();
-    const int H = conf_.H();
-    const int W = conf_.W();
-    const auto alg_kind = conf_.desc()->alg_kind;
-    const float alpha = conf_.desc()->alpha;
-    const float beta = conf_.desc()->beta;
-    const bool is_3d = conf_.desc()->data_desc.ndims == 5;
+    const int MB = pd()->MB();
+    const int C = pd()->C();
+    const int D = pd()->D();
+    const int H = pd()->H();
+    const int W = pd()->W();
+    const auto alg_kind = pd()->desc()->alg_kind;
+    const float alpha = pd()->desc()->alpha;
+    const float beta = pd()->desc()->beta;
+    const bool is_3d = pd()->desc()->data_desc.ndims == 5;
 
     parallel_nd(MB, C, D, H, W,
         [&](int n, int c, int id, int h, int w) {
@@ -147,16 +147,16 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic() {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
+void ref_eltwise_fwd_t<data_type>::execute_forward_dense() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto dst = reinterpret_cast<data_t*>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
 
     const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
-    const auto alg_kind = conf_.desc()->alg_kind;
-    const float alpha = conf_.desc()->alpha;
-    const float beta  = conf_.desc()->beta;
+    const auto alg_kind = pd()->desc()->alg_kind;
+    const float alpha = pd()->desc()->alpha;
+    const float beta  = pd()->desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     dst += data_d.blocking_desc().offset_padding;
@@ -189,26 +189,26 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense() {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
+void ref_eltwise_bwd_t<data_type>::execute_backward_generic() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
     /* fast return */
-    if (conf_.has_zero_dim_memory()) return;
+    if (pd()->has_zero_dim_memory()) return;
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
-    const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
 
-    const int MB = conf_.MB();
-    const int C = conf_.C();
-    const int D = conf_.D();
-    const int H = conf_.H();
-    const int W = conf_.W();
-    const auto alg_kind = conf_.desc()->alg_kind;
-    const float alpha = conf_.desc()->alpha;
-    const float beta = conf_.desc()->beta;
-    const bool is_3d = conf_.desc()->data_desc.ndims == 5;
+    const int MB = pd()->MB();
+    const int C = pd()->C();
+    const int D = pd()->D();
+    const int H = pd()->H();
+    const int W = pd()->W();
+    const auto alg_kind = pd()->desc()->alg_kind;
+    const float alpha = pd()->desc()->alpha;
+    const float beta = pd()->desc()->beta;
+    const bool is_3d = pd()->desc()->data_desc.ndims == 5;
 
     parallel_nd(MB, C, D, H, W,
         [&](int n, int c, int d, int h, int w) {
@@ -239,18 +239,18 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic() {
 }
 
 template <impl::data_type_t data_type>
-void ref_eltwise_bwd_t<data_type>::execute_backward_dense() {
+void ref_eltwise_bwd_t<data_type>::execute_backward_dense() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
 
-    const memory_desc_wrapper data_d(conf_.src_pd());
-    const memory_desc_wrapper diff_data_d(conf_.diff_src_pd());
+    const memory_desc_wrapper data_d(pd()->src_pd());
+    const memory_desc_wrapper diff_data_d(pd()->diff_src_pd());
 
     const ptrdiff_t nelems = static_cast<ptrdiff_t>(data_d.nelems(true));
-    const auto alg_kind = conf_.desc()->alg_kind;
-    const float alpha = conf_.desc()->alpha;
-    const float beta = conf_.desc()->beta;
+    const auto alg_kind = pd()->desc()->alg_kind;
+    const float alpha = pd()->desc()->alpha;
+    const float beta = pd()->desc()->beta;
 
     src += data_d.blocking_desc().offset_padding;
     diff_dst += diff_data_d.blocking_desc().offset_padding;

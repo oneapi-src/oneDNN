@@ -177,7 +177,7 @@ function(detect_mkl LIBNAME)
     if(WIN32)
         # Add paths to DLL to %PATH% on Windows
         get_filename_component(MKLDLLPATH "${MKLDLL}" PATH)
-        set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLLPATH}")
+        append_to_windows_path_list(CTESTCONFIG_PATH "${MKLDLLPATH}")
         set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}" PARENT_SCOPE)
     endif()
 

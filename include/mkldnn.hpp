@@ -146,7 +146,7 @@ public:
         inline operator primitive() const;
     };
 
-    /// Returns the descriptor of the underlying C API primitive
+    /// Returns the descriptor of the underlying C API primitive.
     inline const_mkldnn_primitive_desc_t get_primitive_desc() const;
     // TODO: use the C++ API wrapper structure.
 };
@@ -254,6 +254,7 @@ inline mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
 
 enum algorithm {
     algorithm_undef = mkldnn_alg_kind_undef,
+    convolution_auto = mkldnn_convolution_auto,
     convolution_direct = mkldnn_convolution_direct,
     convolution_winograd = mkldnn_convolution_winograd,
     deconvolution_direct = mkldnn_deconvolution_direct,
@@ -469,12 +470,25 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_set_post_ops(get(), ops.get()),
                 "could not set post operation sequence");
     }
+
+    void set_rnn_data_qparams(const float scale, const float shift)
+    {
+        error::wrap_c_api(mkldnn_primitive_attr_set_rnn_data_qparams(get(),
+                    scale, shift), "could not set rnn data int scale/shift");
+    }
+
+    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales)
+    {
+        error::wrap_c_api(mkldnn_primitive_attr_set_rnn_weights_qparams(get(),
+                    (int)scales.size(), mask, &scales[0]),
+                "could not set rnn weights int scales");
+    }
 };
 
 /// @}
 
 /// @addtogroup cpp_api_engine Engine
-/// Engine operations
+/// Engine operations.
 ///
 /// @sa @ref c_api_engine in @ref c_api
 /// @{
@@ -490,7 +504,7 @@ struct engine: public handle<mkldnn_engine_t> {
     friend class primitive;
     // gcc bug??? using handle::handle;
 
-    /// Kinds of engines
+    /// Kinds of engines.
     enum kind {
         /// An unspecified engine
         any = mkldnn_any_engine,
@@ -558,7 +572,7 @@ private:
 /// @addtogroup cpp_api_memory Memory
 /// A primitive to describe and store data.
 ///
-/// For more information please refer to @ref c_api_memory in @ref c_api
+/// For more information, refer to @ref c_api_memory in @ref c_api.
 /// @{
 
 /// Memory primitive that describes the data.
@@ -624,6 +638,7 @@ struct memory: public primitive  {
         oihw = mkldnn_oihw,
         ihwo = mkldnn_ihwo,
         hwio = mkldnn_hwio,
+        iohw = mkldnn_iohw,
         hwio_s8s8 = mkldnn_hwio_s8s8,
         dhwio = mkldnn_dhwio,
         oidhw = mkldnn_oidhw,
@@ -666,6 +681,7 @@ struct memory: public primitive  {
         gOIw8o16i2o = mkldnn_gOIw8o16i2o,
         goihw = mkldnn_goihw,
         hwigo = mkldnn_hwigo,
+        giohw = mkldnn_giohw,
         hwigo_s8s8 = mkldnn_hwigo_s8s8,
         gOIdhw8i8o = mkldnn_gOIdhw8i8o,
         gOIdhw8o8i = mkldnn_gOIdhw8o8i,
@@ -683,6 +699,7 @@ struct memory: public primitive  {
         gOhwi16o = mkldnn_gOhwi16o,
         Goihw8g = mkldnn_Goihw8g,
         Goihw16g = mkldnn_Goihw16g,
+        Goihw16g_s8s8 = mkldnn_Goihw16g_s8s8,
         gOIhw8o8i = mkldnn_gOIhw8o8i,
         gOIhw16o16i = mkldnn_gOIhw16o16i,
         gIOhw16o16i = mkldnn_gIOhw16o16i,
@@ -696,10 +713,9 @@ struct memory: public primitive  {
         tnc = mkldnn_tnc,
         ldsnc = mkldnn_ldsnc,
         ldigo = mkldnn_ldigo,
-        ldigo_p = mkldnn_ldigo_p,
         ldgoi = mkldnn_ldgoi,
-        ldgoi_p = mkldnn_ldgoi_p,
         ldgo = mkldnn_ldgo,
+        rnn_packed = mkldnn_rnn_packed,
         wino_fmt = mkldnn_wino_fmt,
         format_last = mkldnn_format_last,
     };
@@ -1034,7 +1050,7 @@ struct view : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_concat Concat
-/// A primitive to concatenate data by arbitrary dimension
+/// A primitive to concatenate data by arbitrary dimension.
 ///
 /// @sa @ref c_api_concat in @ref c_api
 /// @{
@@ -1111,7 +1127,7 @@ struct concat : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_sum Sum
-/// A primitive to sum data
+/// A primitive to sum data.
 ///
 /// @sa @ref c_api_sum in @ref c_api
 /// @{
@@ -1195,14 +1211,6 @@ struct sum : public primitive {
                 "could not create a sum primitive");
         reset(result);
     }
-
-private:
-    static std::vector<float> scale_to_float(const std::vector<double> &vd) {
-        std::vector<float> vf(vd.size());
-        std::transform(vd.begin(), vd.end(), vf.begin(),
-                [=](double x){return (float)x;});
-        return vf;
-    }
 };
 
 /// @}
@@ -1215,7 +1223,7 @@ private:
 /// @addtogroup cpp_api_primitive_descriptors Primitive descriptors
 /// @{
 
-/// A base class for all primitive descriptors
+/// A base class for all primitive descriptors.
 struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
     primitive_desc(const_mkldnn_op_desc_t desc, const primitive_attr *attr,
             const engine &e, const_mkldnn_primitive_desc_t hint_fwd_pd) {
@@ -1253,7 +1261,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return res;
     }
 
-    /// Advances the next implementation for the given op descriptor
+    /// Advances the next implementation for the given op descriptor.
     ///
     /// Returns:
     /// - @c true on success
@@ -1269,7 +1277,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return true;
     }
 
-    /// Queries and returns requested memory primitive descriptor
+    /// Queries and returns requested memory primitive descriptor.
     memory::primitive_desc query_mpd(query what, int idx = 0) const {
         std::vector<query> valid_w{input_pd, output_pd, src_pd, diff_src_pd,
             weights_pd, diff_weights_pd, dst_pd, diff_dst_pd, workspace_pd};
@@ -2260,7 +2268,7 @@ struct pooling_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_eltwise Eltwise
-/// A primitive to compute element wise operations like parametric rectifier
+/// A primitive to compute element-wise operations like parametric rectifier
 /// linear unit (ReLU).
 ///
 /// @sa @ref c_api_eltwise in @ref c_api
@@ -2511,12 +2519,12 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
-    /// @warning batch_normalization_forward has 2 constructors with very
+    /// @warning batch_normalization_forward has two constructors with very
     ///          similar signatures:
     ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
     ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
-    ///          The only way to distinguish between those is to explicitly
-    ///          cast all input parameters to their type, i.e. to
+    ///          The only way to distinguish between them is to explicitly
+    ///          cast all input parameters to their type; that is, to
     ///          const primitive:at &.
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const primitive::at &weights,
@@ -2564,17 +2572,16 @@ struct batch_normalization_forward : public primitive {
         reset(result);
     }
 
-    /// @warning batch_normalization_forward has 2 constructors with very
+    /// @warning batch_normalization_forward has two constructors with very
     ///          similar signatures:
     ///           - (pd, src, weights, dst, mean, variance) // 2 in, 3 out
     ///           - (pd, src, dst, mean, variance, workspace) // 1 in, 4 out
-    ///          The only way to distinguish between those is to explicitly
-    ///          cast all input parameters to their type, i.e. to
+    ///          The only way to distinguish between them is to explicitly
+    ///          cast all input parameters to their type; that is, to
     ///          const primitive:at &.
-    /// @note to make users' experience a little bit better this constructor
-    ///       checks if whether parameters match corresponding primitive
-    ///       descriptor, and if they are not -- call the other (proper)
-    ///       constructor. Yeah, this is still very ugly...
+    /// @note To make users' experience a little better, this constructor
+    ///       checks whether parameters match the corresponding primitive
+    ///       descriptor, and if not, calls the other (proper) constructor.
     batch_normalization_forward(const primitive_desc &aprimitive_desc,
             const primitive::at &src, const memory &dst, const memory &mean,
             const memory &variance, const memory &workspace) {
@@ -3243,7 +3250,7 @@ struct shuffle_backward : public primitive {
 /// @} Primitives
 
 /// @addtogroup cpp_api_stream Stream
-/// Execution stream operations
+/// Execution stream operations.
 ///
 /// @sa @ref c_api_stream in @ref c_api
 /// @{
@@ -3300,8 +3307,8 @@ struct stream: public handle<mkldnn_stream_t> {
 
     /// Waits for all computations submitted to the stream to complete.
     ///
-    /// @param block Specifies whether the operation should wait indefinitely or return
-    ///              immediately.
+    /// @param block Specifies whether the operation should wait indefinitely or
+    ///              return immediately.
     /// @returns @c true if all computations completed.
     /// @returns @c false if not all computations completed.
     bool wait(bool block = true) {

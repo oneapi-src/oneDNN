@@ -62,6 +62,41 @@ int get_divisor_satisfying_cond(jit_conv_winograd_conf_t &jcp, int number,
     return best_divisor;
 }
 
+namespace {
+bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
+    /* Determines if current winograd implementation is faster than direct.
+       Following conditions are empirical and based on performance data */
+    unsigned int ncores_per_socket =
+        cpu.getNumCores(Xbyak::util::intel_cpu_topology_level::core_level);
+    unsigned int nthreads = mkldnn_get_max_threads();
+
+    if (jcp.prop_kind == prop_kind::forward_inference) {
+        return jcp.mb >= 4;
+    } else if (nthreads > ncores_per_socket) {
+        double src_dst_transforms_per_core = alpha * alpha
+            * (jcp.ic + jcp.oc)
+            * jcp.mb * ((jcp.oh + tile_size - 1) / tile_size)
+            * ((jcp.ow + tile_size - 1) / tile_size)
+            * sizeof(float) / 1024. / 1024. / nthreads;
+        double wei_transform = alpha * alpha
+            * jcp.ic * jcp.oc * sizeof(float) /1024. / 1024.;
+
+        if (jcp.prop_kind == prop_kind::backward_weights) {
+            if (src_dst_transforms_per_core < 0.3
+                    || (src_dst_transforms_per_core <= 28 && wei_transform < 4))
+                return false;
+            else
+                return true;
+        } else {
+            if (src_dst_transforms_per_core < 2.0 || wei_transform < 0.02)
+                return false;
+        }
+    }
+
+    return jcp.mb > 8;
+}
+}
+
 /* assumes 512 bits registers */
 /* TODO: add support for strides */
 /* TODO: handle the prefetch distance automatically */
@@ -1095,6 +1130,9 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
     if (!mayiuse(avx512_core)) {
         return status::unimplemented;
     }
+
+    jcp.nthr = mkldnn_get_max_threads();
+
     jcp.ver = ver_avx512_core;
     jcp.prop_kind = cd.prop_kind;
 
@@ -1133,6 +1171,10 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
     }
 
     // Checking conditions not supported by these kernels
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+               is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
+
     if (jcp.ngroups != 1)
         return status::unimplemented;
     if ((jcp.kh != 3) || (jcp.kw != 3))
@@ -2361,6 +2403,8 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
                                 jcp.dimM_block = M_blk;
                                 jcp.sched_policy = WSCHED_WEI_SDGtWo;
                                 set_jcp_WEI_params(jcp);
+                                jcp.nthr = nstl::min(mkldnn_get_max_threads(),
+                                        jcp.tile_block);
                                 return status::success;
                             }
                         }
@@ -2452,6 +2496,9 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
     else
         jcp.ver = ver_avx512_core;
 
+    jcp.nthr = mkldnn_get_max_threads();
+
+    jcp.prop_kind = cd.prop_kind;
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     jcp.mb = src_d.dims()[0];
     jcp.ngroups = with_groups ? diff_weights_d.dims()[0] : 1;
@@ -2492,6 +2539,10 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
     // Winograd kernel works only for 3x3 convolution with stride 1
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+               is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
+
     if (jcp.ngroups != 1)
         return status::unimplemented;
     if ((jcp.kh != 3) || (jcp.kw != 3))

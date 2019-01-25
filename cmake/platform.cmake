@@ -52,6 +52,8 @@ if(MSVC)
         set(DEF_ARCH_OPT_FLAGS "-QxHOST")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
+        # disable: unknown pragma
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:3180")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
@@ -126,11 +128,6 @@ elseif(UNIX OR MINGW)
         # disable `was not vectorized: vectorization seems inefficient` remark
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15335")
     endif()
-endif()
-
-if(WIN32)
-    string(REPLACE ";" "\;" ENV_PATH "$ENV{PATH}")
-    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${MKLDLLPATH}\;${ENV_PATH}")
 endif()
 
 if(UNIX OR MINGW)

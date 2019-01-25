@@ -603,8 +603,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
-            dnn_mem_t data(data_dt.md_, fp, src_format);
-            SAFE(data.reorder(data_dt), WARN);
+            dnn_mem_t data(data_dt, fp, src_format);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
             if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF))
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
@@ -652,9 +651,8 @@ int doit(const prb_t *p, res_t *r) {
                     ws_fp, d_data_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
-            dnn_mem_t d_data(d_data_dt.md_, fp,
+            dnn_mem_t d_data(d_data_dt, fp,
             is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw);
-            SAFE(d_data.reorder(d_data_dt), WARN);
             SAFE(compare(p, DATA, d_data_fp, d_data, r), WARN);
         }
     }

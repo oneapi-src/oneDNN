@@ -199,7 +199,8 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
 
     Label skip_kh_loop;
     mov(kj, reg_kh);
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+    if ((jcp.dilate_h >= jcp.ih)
+            || (jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(kj, 0);
         je(skip_kh_loop, T_NEAR);
     }

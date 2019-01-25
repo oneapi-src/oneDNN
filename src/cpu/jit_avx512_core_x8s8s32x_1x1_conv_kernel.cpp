@@ -13,12 +13,15 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include <float.h>
+
+#include <assert.h>
+
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
+
 #include "cpu_memory.hpp"
 
 #include "jit_uni_1x1_conv_utils.hpp"
@@ -489,6 +492,12 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::generate()
                     cmp(reg_load_loop_work, 0);
                     je(load_loop_blk[num_ur_cases], T_NEAR);
                 }
+
+                for (int _i = 1; _i <= label_idx + 1; _i++) {
+                    prefetcht0(ptr [ reg_load_data + _i * jcp.ic * jcp.oc_block ]);
+                    prefetcht1(ptr [ reg_output_data + _i * jcp.oc_block ]);
+                }
+
                 load_loop_body(label_idx + 1);
                 if (label_idx - 1 > 0) {
                     cmp(reg_load_loop_work, 2 * label_idx * simd_w);
@@ -539,8 +548,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
-        const primitive_attr_t &attr, int nthreads, bool reduce_src)
-{
+        const primitive_attr_t &attr, int nthreads, bool reduce_src) {
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -646,25 +654,30 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         max_regs = 8;
     jcp.expl_bcast = true;
 
-    const int spatial = jcp.oh;
-    jcp.ur = 1;
-    for (int ur_w = max_regs; ur_w >= min_regs; ur_w--) {
-        if ((spatial >= size_treshold && spatial % ur_w == 0)
-                || (spatial < size_treshold && jcp.os % ur_w == 0)) {
-            jcp.ur = ur_w;
-            break;
-        }
-    }
-    if (jcp.ur == 1) {
+    if (jcp.mb == 1 && jcp.ic > 128
+        && (jcp.oh <= size_treshold && jcp.ow <= size_treshold)) {
         jcp.ur = nstl::min(max_regs, jcp.os);
-        int os_tail = jcp.os % max_regs;
-        for (int i = max_regs; i >= min_regs; i--) {
-            int i_tail = jcp.os % i;
-            if (i_tail > os_tail || i_tail == 0) {
-                jcp.ur = i;
-                os_tail = i_tail;
-                if (i_tail == 0)
-                    break;
+    } else {
+        const int spatial = jcp.oh;
+        jcp.ur = 1;
+        for (int ur_w = max_regs; ur_w >= min_regs; ur_w--) {
+            if ((spatial >= size_treshold && spatial % ur_w == 0)
+                    || (spatial < size_treshold && jcp.os % ur_w == 0)) {
+                jcp.ur = ur_w;
+                break;
+            }
+        }
+        if (jcp.ur == 1) {
+            jcp.ur = nstl::min(max_regs, jcp.os);
+            int os_tail = jcp.os % max_regs;
+            for (int i = max_regs; i >= min_regs; i--) {
+                int i_tail = jcp.os % i;
+                if (i_tail > os_tail || i_tail == 0) {
+                    jcp.ur = i;
+                    os_tail = i_tail;
+                    if (i_tail == 0)
+                        break;
+                }
             }
         }
     }
@@ -784,6 +797,17 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.wei_adj_scale = (jcp.signed_input) ? (1.f / 2.f) : 1.f;
 
     return status::success;
+}
+
+void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad,
+        const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
+    using namespace mkldnn::impl::memory_tracking::names;
+
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
+        size_t count = nstl::max(attr.output_scales_.count_, 16);
+        scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
+    }
 }
 
 }

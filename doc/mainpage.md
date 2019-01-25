@@ -152,6 +152,7 @@ The following examples are available in the /examples directory and provide more
    format `any` for input or output.
    The memory format chosen is based on different circumstances such as hardware and
    convolutional parameters.
+*  Convolution could be executed using the [Winograd algorithm](@ref winograd_convolution) for a significant performance boost.
 *  Operation primitives (such as ReLU, LRN, or pooling) following convolution or
    inner product, should have input in the same memory format as the
    convolution or inner-product. Reordering can be an expensive
@@ -161,6 +162,7 @@ The following examples are available in the /examples directory and provide more
 *  An operation primitive (typically operations such as pooling, LRN, or softmax)
    might need workspace memory for storing results of intermediate operations
    that help with backward propagation.
+
 
 The following link provides a guide to MKLDNN verbose mode for profiling execution:
 

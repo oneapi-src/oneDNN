@@ -122,6 +122,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             oihw,
             ihwo,
             hwio,
+            iohw,
             hwio_s8s8,
             dhwio,
             oidhw,
@@ -162,6 +163,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             gIOw16o16i,
             goihw,
             hwigo,
+            giohw,
             hwigo_s8s8,
             gOIhw8i8o,
             gOIhw16i16o,
@@ -178,6 +180,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             gOhwi16o,
             Goihw8g,
             Goihw16g,
+            Goihw16g_s8s8,
             goidhw,
             gOIdhw8i8o,
             gOIdhw8o8i,
@@ -228,6 +231,22 @@ inline bool wino_desc_is_equal(const wino_data_t &lhs,
         && lhs.r == rhs.r;
 }
 
+inline bool rnn_packed_desc_is_equal(
+        const rnn_packed_data_t &lhs, const rnn_packed_data_t &rhs) {
+    bool ok = lhs.format == rhs.format && lhs.n_parts == rhs.n_parts
+            && lhs.offset_compensation == rhs.offset_compensation
+            && lhs.size == rhs.size
+            && lhs.n == rhs.n;
+    if (!ok)
+        return false;
+
+    for (int i = 0; i < rhs.n_parts; i++)
+        ok = ok && lhs.parts[i] == rhs.parts[i];
+    for (int i = 0; i < rhs.n_parts; i++)
+        ok = ok && lhs.part_pack_size[i] == rhs.part_pack_size[i];
+    return ok;
+}
+
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     assert(lhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
     assert(rhs.primitive_kind == mkldnn::impl::primitive_kind::memory);
@@ -243,6 +262,9 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     else if (lhs.format == memory_format::wino_fmt)
         return wino_desc_is_equal(lhs.layout_desc.wino_desc,
             rhs.layout_desc.wino_desc);
+    else if (lhs.format == memory_format::rnn_packed)
+        return rnn_packed_desc_is_equal(lhs.layout_desc.rnn_packed_desc,
+                rhs.layout_desc.rnn_packed_desc);
     return true;
 }
 
@@ -297,7 +319,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     } else if (prop_kind == backward_data) {
         if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)
             return s32;
-        if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8 && dst_dt == u8)
+        if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8 &&
+                one_of(dst_dt, s8, u8))
             return s32;
     } else if (prop_kind == backward_weights) {
         if (src_dt == s16 && wei_dt == s32 && dst_dt == s16)

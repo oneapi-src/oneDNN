@@ -49,13 +49,6 @@ status_t scales_t::set(int count, int mask, const float *scales) {
     return status::success;
 }
 
-mkldnn::impl::status_t scales_t::scale(float factor) {
-    int cnt = (count_ == 1) ? scales_buf_size : count_;
-    for (int c = 0; c < cnt; ++c)
-        scales_[c] *= factor;
-    return status::success;
-}
-
 }
 }
 
@@ -276,4 +269,21 @@ status_t mkldnn_post_ops_get_params_eltwise(const post_ops_t *post_ops,
     *beta = e.beta;
 
     return success;
+}
+
+status_t mkldnn_primitive_attr_set_rnn_data_qparams(
+        primitive_attr_t *attr, const float scale, const float shift) {
+    if (attr == nullptr)
+        return invalid_arguments;
+
+    return attr->rnn_data_qparams_.set(scale, shift);
+}
+
+status_t mkldnn_primitive_attr_set_rnn_weights_qparams(
+        primitive_attr_t *attr, int count, int mask, const float *scales) {
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
+    if (!ok)
+        return invalid_arguments;
+
+    return attr->rnn_weights_qparams_.set(count, mask, scales);
 }

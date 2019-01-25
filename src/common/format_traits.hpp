@@ -37,7 +37,7 @@ enum class block_format_t {
     _,
     _8c, _8g, _8i, _8o,
     _8i8o, _8o8i,
-    _16c, _16g, _16i, _16o,
+    _16c, _16g, _16g_s8s8, _16i, _16o,
     _16i16o, _16o16i,
     _8i16o2i, _8o16i2o,
     _4i16o4i, _4i16o4i_s8s8,
@@ -52,7 +52,7 @@ template <block_format_t f> struct block_format_traits {
     static constexpr int blk_ndims = f == bf::_
         ? 0
         : utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o, bf::_16c,
-                bf::_16g, bf::_16i, bf::_16o) ? 1 : 2;
+                bf::_16g, bf::_16g_s8s8, bf::_16i, bf::_16o) ? 1 : 2;
     static constexpr int blk_size = f == bf::_
         ? 1
         : utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o, bf::_8i8o,
@@ -125,6 +125,7 @@ DECL_TRAITS(OIw8o16i2o, wei, _8o16i2o, 3, 1);
 DECL_TRAITS(oihw, wei, _, 4, 2);
 DECL_TRAITS(ihwo, wei, _, 4, 2);
 DECL_TRAITS(hwio, wei, _, 4, 2);
+DECL_TRAITS(iohw, wei, _, 4, 2);
 DECL_TRAITS(hwio_s8s8, wei, _, 4, 2);
 DECL_TRAITS(oIhw8i, wei, _8i, 4, 2);
 DECL_TRAITS(oIhw16i, wei, _16i, 4, 2);
@@ -171,6 +172,7 @@ DECL_TRAITS(gOIw8o16i2o, gwei, _8o16i2o, 4, 1);
 /* gwei: 5D */
 DECL_TRAITS(goihw, gwei, _, 5, 2);
 DECL_TRAITS(hwigo, gwei, _, 5, 2);
+DECL_TRAITS(giohw, gwei, _, 5, 2);
 DECL_TRAITS(hwigo_s8s8, gwei, _, 5, 2);
 DECL_TRAITS(gOIhw8i8o, gwei, _8i8o, 5, 2);
 DECL_TRAITS(gOIhw16i16o, gwei, _16i16o, 5, 2);
@@ -187,6 +189,7 @@ DECL_TRAITS(gOhwi8o, gwei, _8o, 5, 2);
 DECL_TRAITS(gOhwi16o, gwei, _16o, 5, 2);
 DECL_TRAITS(Goihw8g, gwei, _8g, 5, 2);
 DECL_TRAITS(Goihw16g, gwei, _16g, 5, 2);
+DECL_TRAITS(Goihw16g_s8s8, gwei, _16g_s8s8, 5, 2);
 
 /* gwei: 6D */
 DECL_TRAITS(goidhw, gwei, _, 6, 3);

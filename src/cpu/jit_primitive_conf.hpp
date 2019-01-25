@@ -29,7 +29,7 @@ namespace cpu {
 enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni,
                      ver_vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc, loop_gncw, loop_cwgn,
-                            loop_ngcw};
+                            loop_ngcw, loop_nhwcg};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
 enum conv_kernel_kind_t {embd_bcast, expl_bcast};
@@ -71,6 +71,8 @@ struct jit_conv_conf_t {
 
     post_ops_t::entry_t::eltwise_t eltwise;
 
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
@@ -83,6 +85,7 @@ struct jit_conv_conf_t {
     int ur_h, ur_w;
     int ur_w_tail;
     bool is_1stconv;
+    int nonblk_group_off;
     /* fma avx512_core */
     conv_kernel_kind_t kernel_kind;
     /* 4fma */
@@ -110,9 +113,10 @@ struct jit_conv_conf_t {
     bool expl_bcast;
     bool large_spatial;
     int is_oc_scale;
+    int max_regs_ur; // maximum accumulation registers
     // dw conv
     int nb_ch, ch_block, nb_ch_blocking;
-    bool is_depthwise;
+    bool is_depthwise, is_fast_depthwise;
     int aligned_threads;
     // large spatial
     int oh_blk_size;
@@ -168,6 +172,10 @@ struct jit_conv_conf_2x3_wino_t {
     int k2_block, k_chunks;
 
     int mb_block, nb_mb;
+
+    size_t size_wino_src, size_wino_wei, size_wino_dst;
+
+    int nthr;
 };
 
 /*
@@ -289,6 +297,9 @@ struct jit_deconv_call_s {
     const void *filt; /* hack, non-const for backward_weights */
     const void *bias; /* hack, non-const for backward_bias */
     const void *scales;
+    const void *compensation;
+    size_t t_overflow;
+    size_t b_overflow;
     size_t kh_padding;
     size_t oc_blocks;
 };

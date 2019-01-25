@@ -68,7 +68,7 @@ struct jit_uni_eltwise_injector_f32 {
     const bool save_state_;
     const Xbyak::Reg64 p_table;
     const Xbyak::Opmask k_mask;
-    const Xbyak::Label l_table;
+    Xbyak::Label l_table;
 
 private:
     // if only the injector was inherited from jit_generator...
@@ -143,21 +143,21 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_uni_eltwise_fwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_eltwise_fwd_t(const pd_t *apd, const input_vector &inputs,
                        const output_vector &outputs);
     ~jit_uni_eltwise_fwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
-    pd_t conf_;
+    void execute_forward() const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_eltwise_kernel_f32 *kernel_;
 };
 
@@ -176,21 +176,21 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
         virtual status_t init() override;
     };
 
-    jit_uni_eltwise_bwd_t(const pd_t *pd, const input_vector &inputs,
+    jit_uni_eltwise_bwd_t(const pd_t *apd, const input_vector &inputs,
                        const output_vector &outputs);
     ~jit_uni_eltwise_bwd_t();
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e)
+    virtual void execute(event_t *e) const
     {
         execute_backward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_backward();
-    pd_t conf_;
+    void execute_backward() const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_eltwise_kernel_f32 *kernel_;
 };
 

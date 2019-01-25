@@ -26,6 +26,20 @@
 namespace mkldnn {
 namespace impl {
 
+struct rnn_data_qparams_t : public c_compatible {
+    rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
+    bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }
+
+    status_t set(float scale, float shift) {
+        scale_ = scale;
+        shift_ = shift;
+        return status::success;
+    }
+
+    float scale_;
+    float shift_;
+};
+
 struct scales_t: public c_compatible {
     scales_t(): count_(1), mask_(0), scales_(scales_buf_)
     { set(1.); }
@@ -53,7 +67,6 @@ struct scales_t: public c_compatible {
 
     status_t set(int count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
-    status_t scale(float factor);
 
     int count_;
     int mask_;
@@ -147,7 +160,9 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
        return true
             && round_mode_ == mkldnn::impl::round_mode::nearest
             && output_scales_.has_default_values()
-            && post_ops_.has_default_values() ;
+            && post_ops_.has_default_values()
+            && rnn_data_qparams_.has_default_values()
+            && rnn_weights_qparams_.has_default_values();
     }
 
     mkldnn::impl::status_t set_round_mode(
@@ -158,6 +173,8 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
     mkldnn::impl::round_mode_t round_mode_;
     mkldnn::impl::scales_t output_scales_;
     mkldnn::impl::post_ops_t post_ops_;
+    mkldnn::impl::rnn_data_qparams_t rnn_data_qparams_;
+    mkldnn::impl::scales_t rnn_weights_qparams_;
 };
 
 #endif

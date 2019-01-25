@@ -384,6 +384,13 @@ status_t fill_hwio(memory_desc_t &md) {
     return fill_nonblocked(md, perm);
 }
 
+status_t fill_iohw(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
+
+    const int perm[4] = {1, 0, 2, 3};
+    return fill_nonblocked(md, perm);
+}
+
 status_t fill_dhwio(memory_desc_t &md) {
     if (md.ndims != 5) return invalid_arguments;
 
@@ -702,6 +709,13 @@ status_t fill_hwigo(memory_desc_t &md) {
     return fill_nonblocked(md, perm);
 }
 
+status_t fill_giohw(memory_desc_t &md) {
+    if (md.ndims != 5) return invalid_arguments;
+
+    const int perm[5] = {0, 2, 1, 3, 4};
+    return fill_nonblocked(md, perm);
+}
+
 status_t fill_gOIhw8i8o(memory_desc_t &md) {
     if (md.ndims != 5) return invalid_arguments;
 
@@ -987,6 +1001,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case oihw: return fill_oihw(memory_desc);
     case ihwo: return fill_ihwo(memory_desc);
     case hwio: return fill_hwio(memory_desc);
+    case iohw: return fill_iohw(memory_desc);
     case hwio_s8s8: return fill_hwio(memory_desc);
     case dhwio: return fill_dhwio(memory_desc);
     case OIhw8i8o: return fill_OIhw8i8o(memory_desc);
@@ -1015,6 +1030,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case gIOw16o16i: return fill_gIOw16o16i(memory_desc);
     case goihw: return fill_goihw(memory_desc);
     case hwigo: return fill_hwigo(memory_desc);
+    case giohw: return fill_giohw(memory_desc);
     case hwigo_s8s8: return fill_hwigo(memory_desc);
     case gOIhw8i8o: return fill_gOIhw8i8o(memory_desc);
     case gOIhw16i16o: return fill_gOIhw16i16o(memory_desc);
@@ -1031,6 +1047,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case gOhwi16o: return fill_gOhwi16o(memory_desc);
     case Goihw8g: return fill_Goihw8g(memory_desc);
     case Goihw16g: return fill_Goihw16g(memory_desc);
+    case Goihw16g_s8s8: return fill_Goihw16g(memory_desc);
     case ncdhw: return fill_ncdhw(memory_desc);
     case ndhwc: return fill_ndhwc(memory_desc);
     case oidhw: return fill_oidhw(memory_desc);
@@ -1057,7 +1074,8 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc)
     case ldigo: return fill_ldigo(memory_desc);
     case ldgoi: return fill_ldgoi(memory_desc);
     case ldgo: return fill_ldgo(memory_desc);
-    case wino_fmt: return success;
+    case wino_fmt:
+    case rnn_packed: return success;
     default: break;
     }
 

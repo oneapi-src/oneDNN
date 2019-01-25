@@ -119,5 +119,14 @@ void free(void *p) {
 #endif
 }
 
+// Atomic operations
+int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val) {
+#ifdef _WIN32
+    return InterlockedExchangeAdd(reinterpret_cast<long*>(dst), val);
+#else
+    return __sync_fetch_and_add(dst, val);
+#endif
+}
+
 }
 }

@@ -102,6 +102,8 @@ protected:
             CHECK(weights_pd_.set_format(wei_format()));
         if (bias_pd_.desc()->format == any)
             CHECK(bias_pd_.set_format(x));
+        if (this->desc()->alg_kind == alg_kind::convolution_auto)
+            CHECK(this->set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };
@@ -157,6 +159,8 @@ protected:
            CHECK(weights_pd_.set_format(wei_format()));
         if (bias_pd_.desc()->format == any)
             CHECK(bias_pd_.set_format(x));
+        if (this->desc()->alg_kind == alg_kind::convolution_auto)
+            CHECK(this->set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };
@@ -221,6 +225,8 @@ protected:
             CHECK(diff_weights_pd_.set_format(wei_format()));
         if (diff_bias_pd_.desc()->format == any)
             CHECK(diff_bias_pd_.set_format(x));
+        if (this->desc()->alg_kind == alg_kind::convolution_auto)
+            CHECK(this->set_alg_kind(alg_kind::convolution_direct));
         return status::success;
     }
 };

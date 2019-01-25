@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "memory_tracking.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "mkldnn_thread.hpp"
@@ -33,6 +34,7 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
@@ -675,6 +677,18 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 
     postamble();
 }
+namespace {
+bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
+    if (jcp.ver == ver_vnni) {
+        return (jcp.mb <= mkldnn_get_max_threads()
+            && (jcp.mb > 4
+                && jcp.ic > 64
+                && !(jcp.oc > 128 && jcp.ih < 14)))
+            || jcp.mb > mkldnn_get_max_threads();
+    }
+    return true;
+}
+}
 
 status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 ::init_conf(jit_conv_conf_2x3_wino_t &jcp,
@@ -687,6 +701,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     const memory_desc_wrapper bias_d(&bias_pd);
 
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
+
+    jcp.nthr = mkldnn_get_max_threads();
 
     jcp.ngroups = with_groups ? wei_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -716,6 +732,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         return status::unimplemented;
     if (mayiuse(avx512_core_vnni))
         jcp.ver = ver_vnni;
+
+    if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
+               is_winograd_faster_than_direct(jcp)))
+        return status::unimplemented;
 
     // block sizes needed for GEMM kernel
     jcp.ic_block = 4;
@@ -757,7 +777,6 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.alpha = jcp.m + jcp.r - 1;
 
     int aa = jcp.alpha * jcp.alpha;
-    int nthr = mkldnn_get_max_threads();
     int L1_cap = get_cache_size(1, true);
     int L2_cap = get_cache_size(2, true);
     // need 1 extra reg for bcast, and 2 tmp regs for non-vnni
@@ -769,12 +788,12 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         float Y = (float)jcp.ic * jcp.oc;
         if (small_mb == 0) { // outer par
             int nblocks = jcp.mb * div_up(jcp.oh, iy) * div_up(jcp.ow, ix);
-            thr_eff = (float)nblocks / rnd_up(nblocks, nthr);
+            thr_eff = (float)nblocks / rnd_up(nblocks, jcp.nthr);
         } else { // inner par
             int tranw = iy * ix / jcp.alpha;
             int gemmw = aa * (jcp.nb_oc / n2_b);
-            int tranw_r = rnd_up(tranw, nthr);
-            int gemmw_r = rnd_up(gemmw, nthr);
+            int tranw_r = rnd_up(tranw, jcp.nthr);
+            int gemmw_r = rnd_up(gemmw, jcp.nthr);
             thr_eff = (Z * tranw / tranw_r + Y * gemmw / gemmw_r) / (Z + Y);
         }
         return thr_eff;
@@ -793,7 +812,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
             req_mem = (float)jcp.ic * (M + N) + jcp.typesize_acc * M * N;
             mem_eff = nstl::min(1.f, L2_cap / req_mem);
             // memory used during wino transforms
-            int M_per_thr = div_up(M, nthr);
+            int M_per_thr = div_up(M, jcp.nthr);
             req_mem = (float)aa * M_per_thr
                     * (jcp.ic + jcp.typesize_acc * jcp.oc);
             if (req_mem > L2_cap)
@@ -891,7 +910,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         int wino_src_size = 16 * M * jcp.ic * jcp.typesize_in;
         int wino_dst_size = 16 * M * jcp.oc * jcp.typesize_acc;
         int max_mb_block = nstl::min(
-                jcp.mb, nthr * L3_cap / (wino_src_size + wino_dst_size));
+                jcp.mb, jcp.nthr * L3_cap / (wino_src_size + wino_dst_size));
         for (int i = max_mb_block; i > 1; i--) {
             if (jcp.mb % i == 0) {
                 jcp.mb_block = i;
@@ -955,6 +974,16 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     if (!wei_pd.is_equal(&new_weights_pd))
         return status::unimplemented;
 
+    const int tilesize = jcp.alpha * jcp.alpha;
+    const int numtiles = jcp.M;
+    const int alltiles = numtiles * tilesize;
+
+    jcp.size_wino_src
+        = utils::rnd_up(jcp.typesize_in * alltiles * jcp.ic, PAGE_4K)
+        / jcp.typesize_in;
+    jcp.size_wino_wei = tilesize * jcp.oc * jcp.ic;
+    jcp.size_wino_dst = alltiles * jcp.oc;
+
     return status::success;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -968,41 +997,32 @@ status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 }
 
 template <data_type_t dst_data_type>
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::pd_t::
+init_scratchpad() {
+    auto scratchpad = this->scratchpad_registry().registrar();
+
+    int nthr_multiplier = jcp_.small_mb ? 1 : jcp_.nthr;
+    scratchpad.book(key_wino_V,
+            sizeof(src_data_t) * jcp_.size_wino_src * nthr_multiplier, PAGE_4K);
+    scratchpad.book(key_wino_M,
+            sizeof(acc_data_t) * jcp_.size_wino_dst * nthr_multiplier, PAGE_4K);
+
+    scratchpad.book(key_conv_adjusted_scales,
+            sizeof(float) * nstl::max(attr()->output_scales_.count_, 16));
+}
+
+template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *pd,
+        jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd,
                 const input_vector &inputs, const output_vector &outputs)
-    : cpu_primitive_t(&conf_, inputs, outputs)
-    , conf_(*pd)
-    , scratchpad_(nullptr) {
-    const int nthreads = mkldnn_get_max_threads();
+    : cpu_primitive_t(apd, inputs, outputs, true)
+{
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
-            conf_.jcp_, *conf_.attr());
+            pd()->jcp_, *pd()->attr());
     dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
-            conf_.jcp_, *conf_.attr());
-
-    const int tilesize = conf_.jcp_.alpha * conf_.jcp_.alpha;
-    const int numtiles = conf_.jcp_.M;
-    const int alltiles = tilesize * numtiles;
-    size_wino_wei_ = tilesize * conf_.jcp_.oc * conf_.jcp_.ic;
-    size_wino_src_ = sizeof(src_data_t) * alltiles * conf_.jcp_.ic;
-    size_wino_src_ = rnd_up(size_wino_src_, PAGE_4K);
-    size_wino_src_ /= sizeof(src_data_t);
-    size_wino_dst_ = alltiles * conf_.jcp_.oc;
-
-    size_t workspace_size = (conf_.jcp_.small_mb ? 1 : nthreads)
-            * (sizeof(src_data_t) * size_wino_src_
-                                    + sizeof(acc_data_t) * size_wino_dst_);
-
-    scratchpad_ = create_scratchpad(workspace_size);
-    assert(scratchpad_); // TODO: add proper check and raise exception?
-
-    wino_shift_ = (conf_.jcp_.small_mb ? 1 : nthreads) * sizeof(src_data_t)
-            * size_wino_src_;
-
-    updated_output_scales_ = conf_.attr()->output_scales_;
-    updated_output_scales_.scale(1.f / (adj_src_scale * adj_wei_scale));
+            pd()->jcp_, *pd()->attr());
 }
 
 template <data_type_t dst_data_type>
@@ -1011,12 +1031,25 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
-    delete scratchpad_;
+}
+
+template <data_type_t dst_data_type>
+const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
+adjust_oscales(const memory_tracking::grantor_t &scratchpad) const {
+    const float *oscales = pd()->attr()->output_scales_.scales_;
+    auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
+    size_t count = pd()->attr()->output_scales_.count_;
+    float factor = 1.f / (adj_src_scale * adj_wei_scale);
+    if (count == 1)
+        utils::array_set(loc_scales, oscales[0] * factor, 16);
+    else
+        for (size_t c = 0; c < count; c++) loc_scales[c] = oscales[c] * factor;
+    return loc_scales;
 }
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-         execute_forward() {
+execute_forward() const {
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
         execute_forward_small_mb();
@@ -1026,19 +1059,20 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        execute_forward_mbN() {
+execute_forward_mbN() const {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(memory(0));
 
-    const auto &jcp = kernel_->jcp;
-    const auto &oscales = updated_output_scales_;
+    auto scratchpad = this->scratchpad();
 
-    auto wino_wei = wei;
-    auto dst_bias = (const acc_data_t *)(wei + size_wino_wei_);
-    auto wino_src_base = (src_data_t *)scratchpad_->get();
-    auto wino_dst_base = (acc_data_t *)(scratchpad_->get() + wino_shift_);
+    const auto &jcp = kernel_->jcp;
+    const float *oscales = adjust_oscales(scratchpad);
+
+    auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
+    auto wino_src_base = scratchpad.template get<src_data_t>(key_wino_V);
+    auto wino_dst_base = scratchpad.template get<acc_data_t>(key_wino_M);
 
     parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
             [&](int mb, int tile_y_b, int tile_x_b) {
@@ -1047,8 +1081,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         int tile_x = tile_x_b * jcp.xb;
 
         int ithr = mkldnn_get_thread_num();
-        auto wino_src = wino_src_base + size_wino_src_ * ithr;
-        auto wino_dst = wino_dst_base + size_wino_dst_ * ithr;
+        auto wino_src = wino_src_base + jcp.size_wino_src * ithr;
+        auto wino_dst = wino_dst_base + jcp.size_wino_dst * ithr;
 
         auto src_trans_p =
             jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::call_params_t();
@@ -1098,7 +1132,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
             int offset = (tile_ij + ithr) % 16;
             gemm_p.src = wino_src + jcp.inp_stride * offset;
             gemm_p.dst = wino_dst + jcp.out_stride * offset;
-            gemm_p.wei = wino_wei + jcp.wei_stride * offset;
+            gemm_p.wei = wei + jcp.wei_stride * offset;
             gemm_p.dst_b = dst_bias + jcp.bia_stride * offset;
 
             kernel_->ker_(&gemm_p);
@@ -1123,7 +1157,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
                         + y * jcp.ow * jcp.oc + x * jcp.oc;
                 auto local_w = wino_dst + m * jcp.oc;
 
-                auto scales = oscales.scales_;
+                auto scales = oscales;
                 dst_trans_p.dst = local_d;
                 dst_trans_p.wino_dst = local_w;
                 dst_trans_p.v_y_masks = v_y_masks;
@@ -1140,19 +1174,20 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        execute_forward_small_mb() {
+execute_forward_small_mb() const {
     auto src = reinterpret_cast<const src_data_t *>(input_memory(0));
     auto wei = reinterpret_cast<const wei_data_t *>(input_memory(1));
     auto bia = reinterpret_cast<const char *>(input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(memory(0));
 
-    const auto &jcp = kernel_->jcp;
-    const auto &oscales = updated_output_scales_;
+    auto scratchpad = this->scratchpad();
 
-    auto wino_wei = wei;
-    auto dst_bias = (const acc_data_t *)(wei + size_wino_wei_);
-    auto wino_src = (src_data_t *)scratchpad_->get();
-    auto wino_dst = (acc_data_t *)(scratchpad_->get() + wino_shift_);
+    const auto &jcp = kernel_->jcp;
+    const float *oscales = adjust_oscales(scratchpad);
+
+    auto dst_bias = (const acc_data_t *)(wei + jcp.size_wino_wei);
+    auto wino_src = scratchpad.template get<src_data_t>(key_wino_V);
+    auto wino_dst = scratchpad.template get<acc_data_t>(key_wino_M);
 
     for (int mbb = 0; mbb < jcp.nb_mb; mbb++) {
     for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
@@ -1207,7 +1242,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
             gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
             gemm_p.dst = wino_dst + jcp.out_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block;
-            gemm_p.wei = wino_wei + jcp.wei_stride * tile_ij
+            gemm_p.wei = wei + jcp.wei_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block * jcp.K;
             gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block;
@@ -1241,7 +1276,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
                     + y * jcp.ow * jcp.oc + x * jcp.oc;
             auto local_w = wino_dst + m * jcp.oc;
 
-            auto scales = oscales.scales_;
+            auto scales = oscales;
             dst_trans_p.dst = local_d;
             dst_trans_p.wino_dst = local_w;
             dst_trans_p.v_y_masks = v_y_masks;

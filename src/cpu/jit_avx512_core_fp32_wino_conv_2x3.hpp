@@ -55,7 +55,9 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, forward_inference)
-                    && this->desc()->alg_kind == alg_kind::convolution_winograd
+                    && utils::one_of(this->desc()->alg_kind,
+                               alg_kind::convolution_auto,
+                               alg_kind::convolution_winograd)
                     && this->desc()->src_desc.data_type == data_type::f32
                     && this->desc()->dst_desc.data_type == data_type::f32
                     && this->desc()->weights_desc.data_type == data_type::f32
@@ -67,20 +69,45 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
 
             memory_desc_t expect_wei_md = *(this->weights_pd_.desc());
             status_t jit_conf_result = jit_conf(expect_wei_md);
-            if (jit_conf_result == success) {
-                cpu_memory_t::pd_t new_weights_pd(this->engine_, &expect_wei_md);
-                if (this->weights_pd_.desc()->format == any)
-                    this->weights_pd_ = new_weights_pd;
-                if (!this->weights_pd_.is_equal(&new_weights_pd))
-                    return status::unimplemented;
-            }
-            return jit_conf_result;
+            if (jit_conf_result != success) return jit_conf_result;
+
+            cpu_memory_t::pd_t new_weights_pd(this->engine_, &expect_wei_md);
+            if (this->weights_pd_.desc()->format == any)
+                this->weights_pd_ = new_weights_pd;
+            if (!this->weights_pd_.is_equal(&new_weights_pd))
+                return unimplemented;
+
+            init_scratchpad();
+
+            if (this->desc()->alg_kind == alg_kind::convolution_auto)
+               CHECK(this->set_alg_kind(alg_kind::convolution_winograd));
+
+            return success;
         }
 
         jit_conv_conf_2x3_wino_t jcp_;
 
     protected:
         status_t jit_conf(memory_desc_t& expect_wei_md);
+
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+
+            auto scratchpad = this->scratchpad_registry().registrar();
+
+            int wino_size_offset = (jcp_.yb / 2) * (jcp_.xb / 2) + jcp_.xb;
+
+            size_t V_sz = (size_t)jcp_.ic * 16 * wino_size_offset * jcp_.nthr;
+            scratchpad.book(key_wino_V, sizeof(float) * V_sz, PAGE_4K);
+
+            size_t M_sz = (size_t)jcp_.oc * 16 * wino_size_offset * jcp_.nthr;
+            scratchpad.book(key_wino_M, sizeof(float) * M_sz, PAGE_4K);
+
+            if (wants_padded_bias()) {
+                assert(jcp_.ngroups == 1);
+                scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp_.oc);
+            }
+        }
 
         virtual status_t set_default_params() override {
             using namespace memory_format;
@@ -94,36 +121,25 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *pd,
+    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs);
 
     ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
-    void execute_forward_small_mb();
-    void execute_forward_mbN();
-    pd_t conf_;
+    void execute_forward() const;
+    void execute_forward_small_mb() const;
+    void execute_forward_mbN() const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t *kernel_;
     jit_avx512_core_fp32_wino_conv_2x3_src_trans_t *src_trans_;
     jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t *dst_trans_;
-
-    size_t size_wino_wei;
-    size_t size_wino_src;
-    size_t size_wino_dst;
-
-    const float *wino_wei_;
-    const float *dst_bias_;
-
-    float *wino_src_;
-    float *wino_dst_;
-    float *padded_bias_;
 };
 
 }

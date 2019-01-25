@@ -29,6 +29,7 @@ file(GLOB_RECURSE SOURCES
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpu
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
@@ -134,7 +135,9 @@ install(
 ### }
 
 add_library(${TARGET_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
-add_library(${namespace}${TARGET_NAME} ALIAS ${TARGET_NAME})
+if (NOT ${CMAKE_VERSION_MAJOR} LESS 3)
+    add_library(${namespace}${TARGET_NAME} ALIAS ${TARGET_NAME})
+endif()
 
 target_include_directories(
     ${TARGET_NAME}
@@ -142,17 +145,23 @@ target_include_directories(
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
 )
 
-#Add mkldnn.dll to execution PATH
-if(NOT(MINGW))
-    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE}" PARENT_SCOPE)
-else()
-    # CMake with "MSYS Makefiles" generator seems to build libmkldnn.dll in a directory without build type.
-    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}\;${CMAKE_CURRENT_BINARY_DIR}" PARENT_SCOPE)
+if(WIN32)
+    # Add mkldnn.dll to execution PATH
+    if(NOT(MINGW))
+        foreach(BUILD_TYPE Release Debug RelWithDebInfo MinSizeRel)
+            append_to_windows_path_list(CTESTCONFIG_PATH
+                "${CMAKE_CURRENT_BINARY_DIR}/${BUILD_TYPE}")
+        endforeach()
+    else()
+        append_to_windows_path_list(CTESTCONFIG_PATH
+            "${CMAKE_CURRENT_BINARY_DIR}")
+    endif()
+    set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}" PARENT_SCOPE)
 endif()
 
 target_link_libraries(
     ${TARGET_NAME}
-    PUBLIC
+    LINK_PUBLIC
     $<BUILD_INTERFACE:${${TARGET_NAME}_LINKER_LIBS}>
     $<BUILD_INTERFACE:${EXTRA_LIBS}>
 )
@@ -164,9 +173,9 @@ set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
 
 install(TARGETS ${TARGET_NAME}
     EXPORT "${TARGETS_EXPORT_NAME}"
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib${LIB_SUFFIX}
-    ARCHIVE DESTINATION lib${LIB_SUFFIX}
-    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 install(FILES ${HEADERS} DESTINATION include)

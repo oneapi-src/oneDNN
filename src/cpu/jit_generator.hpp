@@ -110,7 +110,7 @@ inline unsigned int get_cache_size(int level, bool per_core = true){
     unsigned int l = level - 1;
     // Currently, if XByak is not able to fetch the cache topology
     // we default to 32KB of L1, 512KB of L2 and 1MB of L3 per core.
-    if (cpu.data_cache_levels == 0){
+    if (cpu.getDataCacheLevels() == 0){
         const int L1_cache_per_core = 32000;
         const int L2_cache_per_core = 512000;
         const int L3_cache_per_core = 1024000;
@@ -122,25 +122,14 @@ inline unsigned int get_cache_size(int level, bool per_core = true){
         default: return 0;
         }
     }
-    if (l < cpu.data_cache_levels) {
-        return cpu.data_cache_size[l]
-            / (per_core ? cpu.cores_sharing_data_cache[l] : 1);
+    if (l < cpu.getDataCacheLevels()) {
+        return cpu.getDataCacheSize(l)
+            / (per_core ? cpu.getCoresSharingDataCache(l) : 1);
     } else
         return 0;
 }
 
 }
-
-// TODO (Roma): move all_same to a more appropriate location
-
-template <typename T, typename U, typename... Us>
-struct all_same : std::false_type {};
-
-template <typename T, typename... Us>
-struct all_same<T, T, Us...> : all_same<T, Us...> { };
-
-template <typename T>
-struct all_same<T, T> : std::true_type {};
 
 class jit_generator : public Xbyak::CodeGenerator
 {
@@ -299,7 +288,7 @@ public:
 
     // Disallow char-based labels completely
     void L(const char *label) = delete;
-    void L(const Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
+    void L(Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
 
     void uni_vpxor(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                    const Xbyak::Operand &op) {

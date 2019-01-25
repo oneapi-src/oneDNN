@@ -20,7 +20,6 @@
 #include "c_types_map.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
 #include "jit_sse42_1x1_conv_kernel_f32.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
@@ -51,7 +50,9 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                 && this->set_default_params() == status::success
                 && utils::one_of(this->desc()->prop_kind, forward_training,
                         forward_inference)
-                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(this->desc()->alg_kind,
+                           alg_kind::convolution_auto,
+                           alg_kind::convolution_direct)
                 && !this->has_zero_dim_memory()
                 && utils::everyone_is(data_type::f32,
                         this->desc()->src_desc.data_type,
@@ -86,26 +87,28 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
                     : utils::pick(this->ndims() - 3, OIw8i8o, OIhw8i8o)));
             if (this->bias_pd_.desc()->format == any)
                 CHECK(this->bias_pd_.set_format(x));
+            if (this->desc()->alg_kind == alg_kind::convolution_auto)
+                CHECK(this->set_alg_kind(alg_kind::convolution_direct));
             return status::success;
         }
     };
 
-    jit_sse42_1x1_convolution_fwd_t(const pd_t *pd,
+    jit_sse42_1x1_convolution_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
-    { kernel_ = new jit_sse42_1x1_conv_kernel_f32(conf_.jcp_, *conf_.attr()); }
+        : cpu_primitive_t(apd, inputs, outputs)
+    { kernel_ = new jit_sse42_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr()); }
     ~jit_sse42_1x1_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual void execute(event_t *e) {
+    virtual void execute(event_t *e) const {
         execute_forward();
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward();
-    pd_t conf_;
+    void execute_forward() const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_sse42_1x1_conv_kernel_f32 *kernel_;
 };
 

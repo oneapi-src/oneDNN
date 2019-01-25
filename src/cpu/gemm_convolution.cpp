@@ -29,15 +29,18 @@ namespace cpu {
 
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
-void gemm_convolution_fwd_t::execute_forward() {
+void gemm_convolution_fwd_t::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<data_t*>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
+
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -48,8 +51,6 @@ void gemm_convolution_fwd_t::execute_forward() {
     const int N = jcp.oc;
     const int m = jcp.os;
     const int LDA = jcp.im2col_sz ? m : M;
-
-    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
     parallel_nd(jcp.im2col_sz * jcp.nthr,
             [&](ptrdiff_t i) { col[i] = (data_t)0; });
@@ -85,44 +86,49 @@ void gemm_convolution_fwd_t::execute_forward() {
             if (eltwise_) {
                 // fast branch for ReLU case
                 if (eltwise_->alg_ == alg_kind::eltwise_relu) {
-                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                    parallel_nd(jcp.oc, [&](const int oc) {
                         data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        data_t *d_ = d + oc * M;
+                        PRAGMA_OMP_SIMD()
                         for (int oS = 0; oS < m; ++oS) {
-                            d[oS] += b;
-                            if (d[oS] < 0) d[oS] *= eltwise_->alpha_;
+                            d_[oS] += b;
+                            if (d_[oS] < 0) d_[oS] *= eltwise_->alpha_;
                         }
-                        d += M;
-                    }
+                    });
                 } else {
-                    for (int oc = 0; oc < jcp.oc; ++oc) {
+                    parallel_nd(jcp.oc, [&](const int oc) {
                         data_t b = jcp.with_bias ? bias[g * jcp.oc + oc] : 0;
+                        data_t *d_ = d + oc * M;
+                        PRAGMA_OMP_SIMD()
                         for (int oS = 0; oS < m; ++oS) {
-                            d[oS] += b;
-                            d[oS] = eltwise_->compute_scalar(d[oS]);
+                            d_[oS] += b;
+                            d_[oS] = eltwise_->compute_scalar(d_[oS]);
                         }
-                        d += M;
-                    }
+                    });
                 }
             } else if (jcp.with_bias) {
-                for (int oc = 0; oc < jcp.oc; ++oc) {
+                parallel_nd(jcp.oc, [&](const int oc) {
                     data_t b = bias[g * jcp.oc + oc];
+                    data_t *d_ = d + oc * M;
+                    PRAGMA_OMP_SIMD()
                     for (int oS = 0; oS < m; ++oS) {
-                        d[oS] += b;
+                        d_[oS] += b;
                     }
-                    d += M;
-                }
+                });
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od);
         }
     });
 }
 
-void gemm_convolution_bwd_data_t::execute_backward_data() {
+void gemm_convolution_bwd_data_t::execute_backward_data() const {
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_src = reinterpret_cast<data_t*>(this->memory());
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
+
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -133,7 +139,6 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     const int K = jcp.oc;
     const int N = jcp.ic * jcp.ks;
     const int LDC = jcp.im2col_sz ? m : M;
-    data_t *col = jcp.im2col_sz ? (data_t *)this->scratchpad_->get() : nullptr;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
 
@@ -176,13 +181,17 @@ void gemm_convolution_bwd_data_t::execute_backward_data() {
     });
 }
 
-void gemm_convolution_bwd_weights_t::execute_backward_weights() {
+void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto diff_dst = reinterpret_cast<const data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<data_t*>(this->memory(0));
     auto diff_bias = reinterpret_cast<data_t *>(this->memory(1));
 
-    jit_gemm_conv_conf_t &jcp = this->conf_.jcp_;
+    auto col = scratchpad().get<data_t>(key_conv_gemm_col);
+    auto wei_reduction = scratchpad().get<data_t>(key_conv_wei_reduction);
+
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+
     const int K = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = jcp.oc * K;
@@ -192,15 +201,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
     const int N = jcp.oc;
     const int M = jcp.ic * jcp.ks;
     const int LDA = jcp.im2col_sz ? k : K;
-
-    data_t *col = nullptr, *wei_reduction = nullptr;
-    ptrdiff_t wei_offset = 0;
-    if (jcp.im2col_sz) {
-        col = (data_t *)this->scratchpad_->get();
-        wei_offset = jcp.im2col_sz * jcp.nthr;
-    }
-    if (jcp.need_wei_reduction)
-        wei_reduction = (data_t *)this->scratchpad_->get() + wei_offset;
 
     parallel_nd(jcp.im2col_sz * jcp.nthr,
             [&](ptrdiff_t i) { col[i] = (data_t)0; });
@@ -281,7 +281,6 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() {
                 }
             }
             diff_bias[g*jcp.oc+oc] = db;
-            nd_iterator_step(g, jcp.ngroups, oc, jcp.oc);
         });
     }
 }
