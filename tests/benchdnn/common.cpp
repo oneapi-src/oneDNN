@@ -112,7 +112,10 @@ benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
 }
 
 /* result structure */
-const char *state2str(res_state_t state) {
+const char *state2str(res_state_t state, bool allow_unimpl) {
+    if (state == UNIMPLEMENTED && !allow_unimpl)
+        return "UNIMPLEMENTED_FAILED";
+
 #define CASE(x) if (state == x) return STRINGIFY(x)
     CASE(UNTESTED);
     CASE(PASSED);
@@ -128,7 +131,7 @@ const char *state2str(res_state_t state) {
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
         int status, char *pstr) {
     auto &bs = benchdnn_stat;
-    const char *state = state2str(res.state);
+    const char *state = state2str(res.state, allow_unimpl);
 
     switch (res.state) {
     case UNTESTED:

@@ -150,7 +150,7 @@ extern stat_t benchdnn_stat;
 /* result structure */
 enum res_state_t { UNTESTED = 0, PASSED, SKIPPED, MISTRUSTED, UNIMPLEMENTED,
     FAILED };
-const char *state2str(res_state_t state);
+const char *state2str(res_state_t state, bool allow_unimpl);
 
 struct res_t {
     res_state_t state;
