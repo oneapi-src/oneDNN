@@ -754,7 +754,7 @@ public:
                     counter);
             counter++;
 
-            FILE *fp = mkldnn_fopen(fname, "w+");
+            FILE *fp = fopen(fname, "w+");
             // Failure to dump code is not fatal
             if (fp) {
                 size_t unused = fwrite(code, getSize(), 1, fp);
@@ -799,7 +799,7 @@ public:
         const Xbyak::uint8 *code = CodeGenerator::getCode();
         register_code(code);
 
-        if (mkldnn_jit_dump())
+        if (jit_dump_enabled())
             dump_code(code);
 
         return code;

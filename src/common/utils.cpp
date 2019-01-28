@@ -26,7 +26,7 @@
 namespace mkldnn {
 namespace impl {
 
-int mkldnn_getenv(char *value, const char *name, int length) {
+int getenv(char *value, const char *name, int length) {
     int result = 0;
     int last_idx = 0;
     if (length > 1) {
@@ -40,7 +40,7 @@ int mkldnn_getenv(char *value, const char *name, int length) {
             result = value_length;
         }
 #else
-        char *buffer = getenv(name);
+        char *buffer = ::getenv(name);
         if (buffer != NULL) {
             value_length = strlen(buffer);
             if (value_length >= length) {
@@ -60,24 +60,25 @@ int mkldnn_getenv(char *value, const char *name, int length) {
 static bool dump_jit_code;
 static bool initialized;
 
-bool mkldnn_jit_dump() {
+// TODO: move this to jit_utils when possible
+bool jit_dump_enabled() {
+    static bool initialized = false;
     if (!initialized) {
         const int len = 2;
         char env_dump[len] = {0};
-        dump_jit_code =
-            mkldnn_getenv(env_dump, "MKLDNN_JIT_DUMP", len) == 1
+        dump_jit_code = getenv(env_dump, "MKLDNN_JIT_DUMP", len) == 1
             && atoi(env_dump) == 1;
         initialized = true;
     }
     return dump_jit_code;
 }
 
-FILE *mkldnn_fopen(const char *filename, const char *mode) {
+FILE *fopen(const char *filename, const char *mode) {
 #ifdef _WIN32
     FILE *fp = NULL;
-    return fopen_s(&fp, filename, mode) ? NULL : fp;
+    return ::fopen_s(&fp, filename, mode) ? NULL : fp;
 #else
-    return fopen(filename, mode);
+    return ::fopen(filename, mode);
 #endif
 }
 
@@ -103,7 +104,7 @@ void free(void *p) {
 }
 
 // Atomic operations
-int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val) {
+int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #ifdef _WIN32
     return InterlockedExchangeAdd(reinterpret_cast<long*>(dst), val);
 #else

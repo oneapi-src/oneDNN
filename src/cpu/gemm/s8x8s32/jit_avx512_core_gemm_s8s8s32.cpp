@@ -61,7 +61,7 @@ void compensation_compute(bool transa, int m, int k, float alpha,
             } else {
                 val *= -128;
             }
-            mkldnn_fetch_and_add(&compensation[i], val);
+            fetch_and_add(&compensation[i], val);
         });
 
         if (has_tile) {
@@ -76,7 +76,7 @@ void compensation_compute(bool transa, int m, int k, float alpha,
                 } else {
                     val *= -128;
                 }
-                mkldnn_fetch_and_add(&compensation[i], val);
+                fetch_and_add(&compensation[i], val);
             });
         }
     } else {

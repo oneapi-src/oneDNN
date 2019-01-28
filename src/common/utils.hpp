@@ -324,12 +324,12 @@ private:
 
 }
 
-int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val);
+int32_t fetch_and_add(int32_t *dst, int32_t val);
 inline void yield_thread() {}
 
-int mkldnn_getenv(char *value, const char *name, int len);
-bool mkldnn_jit_dump();
-FILE *mkldnn_fopen(const char *filename, const char *mode);
+int getenv(char *value, const char *name, int len);
+bool jit_dump_enabled();
+FILE *fopen(const char *filename, const char *mode);
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {
