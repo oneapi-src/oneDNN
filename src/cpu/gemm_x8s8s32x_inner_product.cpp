@@ -154,13 +154,13 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::generat
             vmulps(vreg_dst(idx) | kreg_relu_cmp, vreg_dst(idx), vreg_nslope);
         }
 
+        if (dst_type == data_type::u8)
+            vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_zero);
+
         if (dst_type != data_type::f32) {
             auto rmode_control = (rmode_ == nearest ? T_rn_sae : T_rd_sae);
             vcvtps2dq(vreg_dst(idx) | rmode_control, vreg_dst(idx));
         }
-
-        if (dst_type == data_type::u8)
-            vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_zero);
 
         auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
         switch (dst_type) {
