@@ -584,6 +584,7 @@ public:
     void uni_vblendvps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                        const Xbyak::Operand &op, const Xbyak::Xmm &msk) {
         assert(x1.getIdx() == x2.getIdx());
+        assert(msk.getIdx() == 0);
         blendvps(x1, op);
     }
     void uni_vblendvps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
