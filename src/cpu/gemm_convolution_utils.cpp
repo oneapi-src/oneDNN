@@ -255,7 +255,7 @@ void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
             const int iws = ow * sw;
             const int iwsp = jcp.l_pad - iws;
             const int kw_start = nstl::max(div_up(iwsp, dw), 0);
-            const int kw_end = nstl::min(div_up(iw_pad - iws, dw), jcp.kh);
+            const int kw_end = nstl::min(div_up(iw_pad - iws, dw), jcp.kw);
             const int iw_start = kw_start * dw - iwsp;
 
             uint8_t *__restrict col_base
