@@ -86,6 +86,10 @@ int bench(int argc, char **argv, bool main_bench) {
             perf_template = argv[arg] + 16;
         else if (!strncmp("--mb=", argv[arg], 5))
             mb = atoi(argv[arg] + 5);
+        else if (!strncmp("-v", argv[arg], 2))
+            verbose = atoi(argv[arg] + 2);
+        else if (!strncmp("--verbose=", argv[arg], 10))
+            verbose = atoi(argv[arg] + 10);
         else {
             rnn_desc_t d;
             if (str2desc(&d, argv[arg]) == FAIL) {
