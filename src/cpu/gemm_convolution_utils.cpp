@@ -23,6 +23,7 @@
 #include "cpu_isa_traits.hpp"
 
 #include "gemm_convolution_utils.hpp"
+#include "jit_generator.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -121,46 +122,95 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const float *im, float *col,
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 void im2col(const jit_gemm_conv_conf_t &jcp, const float *__restrict im,
-       float *__restrict col) {
-    if (jcp.ic == 1) {
-        parallel_nd(jcp.kh, jcp.oh, [&](int kh, int oh) {
-            const int ih = oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
-            if (ih < 0 || ih >= jcp.ih) return;
+       float *__restrict col, int hs, int hb, int ws, int wb) {
+    const size_t im_step = jcp.is;
+    const size_t col_step = jcp.ks * hb * wb;
+    if (jcp.stride_w == 1) {
+        // Generated code is more optimized for stride_w == 1
+        // because innermost loop is by width
+        auto ker = [&](int ic, int kh, int kw, int oh) {
+            const float *__restrict im_ = im + ic * im_step;
+            float *__restrict col_
+                = col + ic * col_step + ((kh * jcp.kw + kw) * hb + oh) * wb;
 
-            for (int kw = 0; kw < jcp.kw; ++kw) {
-            for (int ow = 0; ow < jcp.ow; ++ow) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
-                if (iw < 0 || iw >= jcp.iw) continue;
+            const int ih = (oh + hs) * jcp.stride_h - jcp.t_pad
+                + kh * (1 + jcp.dilate_h);
+            if (ih < 0 || ih >= jcp.ih) {
+                for (int ow = 0; ow < wb; ++ow)
+                    col_[ow] = 0.f;
+            } else {
+                for (int ow = 0; ow < wb; ++ow) {
+                    const int iw = ow + ws - jcp.l_pad + kw * (1 + jcp.dilate_w);
+                    if (iw < 0 || iw >= jcp.iw)
+                        col_[ow] = 0.f;
+                    else {
+                        const size_t im_idx = ih * jcp.iw + iw;
+                        col_[ow] = im_[im_idx];
+                    }
+                }
+            }
+        };
 
-                const size_t col_idx = ((kh*jcp.kw + kw)*jcp.oh+oh)*jcp.ow+ow;
-                const size_t im_idx = ih*jcp.iw + iw;
-                col[col_idx] = im[im_idx];
-            }}
+        if (jcp.outer_threading) {
+            for (int ic = 0; ic < jcp.ic; ic++)
+                for (int kh = 0; kh < jcp.kh; kh++)
+                    for (int kw = 0; kw < jcp.kw; kw++)
+                        for (int oh = 0; oh < hb; oh++)
+                            ker(ic, kh, kw, oh);
+        }
+        else {
+            parallel_nd(jcp.ic, jcp.kh, jcp.kw, hb, ker);
+        }
+    } else if (jcp.ic == 1) {
+        parallel_nd(jcp.kh, hb, [&](int kh, int oh) {
+            const int ih = (oh + hs) * jcp.stride_h - jcp.t_pad
+                    + kh * (1 + jcp.dilate_h);
+            if (ih < 0 || ih >= jcp.ih)
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                    for (int ow = 0; ow < wb; ++ow) {
+                        const size_t col_idx
+                                = ((kh * jcp.kw + kw) * hb + oh) * wb + ow;
+                        col[col_idx] = 0;
+                    }
+                }
+            else
+                for (int kw = 0; kw < jcp.kw; ++kw) {
+                    for (int ow = 0; ow < wb; ++ow) {
+                        const int iw = (ow + ws) * jcp.stride_w - jcp.l_pad
+                                + kw * (1 + jcp.dilate_w);
+                        const size_t col_idx
+                                = ((kh * jcp.kw + kw) * hb + oh) * wb + ow;
+                        const size_t im_idx = ih * jcp.iw + iw;
+                        if (iw < 0 || iw >= jcp.iw)
+                            col[col_idx] = 0;
+                        else
+                            col[col_idx] = im[im_idx];
+                    }
+                }
         });
     } else {
-        const size_t im_step = jcp.ih * jcp.iw;
-        const size_t col_step = jcp.ks * jcp.os;
 
-        parallel_nd(jcp.ic, jcp.kh, jcp.kw, jcp.oh,
+        parallel_nd(jcp.ic, jcp.kh, jcp.kw, hb,
             [&](int ic, int kh, int kw, int oh) {
             const float *__restrict im_ = im + ic * im_step;
             float *__restrict col_ = col + ic * col_step
-                + ((kh * jcp.kw + kw) * jcp.oh + oh) * jcp.ow;
+                + ((kh * jcp.kw + kw) * hb + oh) * wb;
 
-            const int ih = oh * jcp.stride_h - jcp.t_pad
+            const int ih = (oh + hs) * jcp.stride_h - jcp.t_pad
                 + kh * (1 + jcp.dilate_h);
-            if (ih < 0 || ih >= jcp.ih)
-                return;
-
-            for (int ow = 0; ow < jcp.ow; ++ow) {
-                const int iw = ow * jcp.stride_w - jcp.l_pad
-                    + kw * (1 + jcp.dilate_w);
-                if (iw < 0 || iw >= jcp.iw)
-                    continue;
-
-                const size_t col_idx = ow;
-                const size_t im_idx = ih * jcp.iw + iw;
-                col_[col_idx] = im_[im_idx];
+            if (ih < 0 || ih >= jcp.ih) {
+                for (int ow = 0; ow < wb; ++ow)
+                    col_[ow] = 0.f;
+            } else {
+                for (int ow = 0; ow < wb; ++ow) {
+                    const int iw = (ow + ws) * jcp.stride_w - jcp.l_pad
+                        + kw * (1 + jcp.dilate_w);
+                    const size_t im_idx = ih * jcp.iw + iw;
+                    if (iw < 0 || iw >= jcp.iw)
+                        col_[ow] = 0.f;
+                    else
+                        col_[ow] = im_[im_idx];
+                }
             }
         });
     }
@@ -470,7 +520,10 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             jcp.ks == 1, !jcp.signed_input)
         ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os : 0;
 
-    bool do_outer_threading = false;
+    jcp.outer_threading = false;
+    jcp.oh_block = jcp.oh;
+    jcp.ow_block = jcp.ow;
+
     bool is_int8_conv = utils::one_of(src_d.data_type(), s32, s8, u8)
         && weights_d.data_type() == s8;
 
@@ -504,11 +557,11 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                 = div_up(bs, simd_w) * div_up(ls, simd_w);
         const float inner_thr_eff = (float)inner_work_amount
                 / rnd_up(inner_work_amount, max_threads);
-        do_outer_threading = (is_depthwise
+        jcp.outer_threading = (is_depthwise
                 || (bs  / max_threads < 64 && jcp.mb != 1))
             && (outer_thr_eff / inner_thr_eff >= 1.f
                    || (bs * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
-        jcp.nthr = do_outer_threading ? max_threads : 1;
+        jcp.nthr = jcp.outer_threading ? max_threads : 1;
 
         if (is_fwd) {
             scratchpad.book(key_conv_gemm_col,
@@ -526,17 +579,77 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         }
     } else {
         if (is_fwd) {
-            const size_t outer_work_amount = jcp.ngroups * jcp.mb * jcp.od;
-            const float outer_thr_eff = (float)outer_work_amount
-                    / rnd_up(outer_work_amount, max_threads);
-            const size_t inner_work_amount
+            // looking for oh and ow blocking
+            int h_block{ jcp.oh }, w_block{ jcp.ow };
+            if (jcp.im2col_sz && jcp.id == 1 && jcp.od == 1) {
+                // 1. cache requirement
+                const int L2 = get_cache_size(2, true) / sizeof(float);
+                // !!! used memory (assuming strides = 1 and dilate = 0 etc):
+                const int wei_size = jcp.oc * jcp.ic * jcp.kh * jcp.kw;
+                const int row_size = jcp.ic * jcp.kh * jcp.kw * jcp.ow
+                    + 2 * jcp.ic * jcp.iw + 2 * jcp.oc * jcp.ow;
+                h_block = nstl::max(
+                    1, nstl::min(jcp.oh, div_up(L2 - wei_size, row_size)));
+                if (h_block == 1) {
+                    const int col_size = jcp.ic * jcp.kh * jcp.kw + 2 * jcp.ic
+                        + 2 * jcp.oc;
+                    w_block = nstl::max(
+                        1, nstl::min(jcp.ow, div_up(L2 - wei_size, col_size)));
+                }
+
+                // 2. threading requirement
+                if (h_block != jcp.oh)
+                    h_block = nstl::max(1, rnd_dn(h_block, 4));
+                if (w_block != jcp.ow)
+                    w_block = nstl::max(1, rnd_dn(w_block, simd_w));
+
+                float thr_eff = 0.f;
+                float thr_eff_treshold = 0.9f;
+                if (w_block == jcp.ow) {
+                    do {
+                        int nb_oh = div_up(jcp.oh, h_block);
+                        size_t work = jcp.ngroups * jcp.mb * jcp.od * nb_oh;
+                        float disb = (float)jcp.oh / rnd_up(jcp.oh, h_block);
+                        thr_eff = (float)work
+                            / rnd_up(work, max_threads);
+                        thr_eff = (thr_eff + disb) / 2.f;
+                        if (thr_eff >= thr_eff_treshold)
+                            break;
+                        h_block = rnd_dn(h_block - 4, 4);
+                    } while (h_block > 0);
+                }
+                if (thr_eff < thr_eff_treshold) // we didn't find suitable h_block
+                {
+                    h_block = 1;
+                    int nb_oh = jcp.oh;
+                    do {
+                        int nb_ow = div_up(jcp.ow, w_block);
+                        size_t work_amount
+                            = jcp.ngroups * jcp.mb * jcp.od * nb_oh * nb_ow;
+                        float disb = (float)jcp.ow / rnd_up(jcp.ow, w_block);
+                        thr_eff = (float)work_amount
+                            / rnd_up(work_amount, max_threads);
+                        thr_eff = (thr_eff + disb) / 2.f;
+                        if (thr_eff > thr_eff_treshold)
+                            break;
+                        w_block = rnd_dn(w_block - simd_w, simd_w);
+                    } while (w_block > 0);
+                }
+                const size_t inner_work_amount
                     = div_up(jcp.os, simd_w) * div_up(jcp.oc, simd_w);
-            const float inner_thr_eff = (float)inner_work_amount
+                const float inner_thr_eff = (float)inner_work_amount
                     / rnd_up(inner_work_amount, max_threads);
-            do_outer_threading = jcp.os / max_threads < 512
-                && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2)
-                && (outer_thr_eff / inner_thr_eff >= 1.f
-                  || (jcp.os * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
+                if (thr_eff >= inner_thr_eff / 2 && h_block > 0 && w_block > 0) {
+                    jcp.oh_block = h_block;
+                    jcp.ow_block = w_block;
+                    jcp.outer_threading = true;
+                }
+            }
+            // updating jcp.im2col_sz
+            if (jcp.oh_block != 1)
+                jcp.ow_block = jcp.ow;
+            jcp.im2col_sz
+                = (ptrdiff_t)jcp.ic * jcp.ks * jcp.oh_block * jcp.ow_block;
         } else if (is_bwd_d) {
             const size_t outer_work_amount = jcp.ngroups * jcp.mb;
             const float outer_thr_eff = (float)outer_work_amount
@@ -545,15 +658,15 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                 = div_up(jcp.is, simd_w) * div_up(jcp.ic, simd_w);
             const float inner_thr_eff = (float)inner_work_amount
                 / rnd_up(inner_work_amount, max_threads);
-            do_outer_threading = (jcp.os / max_threads < 512 || jcp.ks < 64)
+            jcp.outer_threading = (jcp.os / max_threads < 512 || jcp.ks < 64)
                 && (jcp.mb != 1 || jcp.ngroups > 2)
                 && (outer_thr_eff / inner_thr_eff >= 1.f
                   || (jcp.is * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
         } else if (is_bwd_w)
-            do_outer_threading = jcp.os / max_threads < 256
+            jcp.outer_threading = jcp.os / max_threads < 256
                 && (jcp.mb != 1 || jcp.ngroups > 2);
 
-        jcp.nthr = do_outer_threading ? max_threads : 1;
+        jcp.nthr = jcp.outer_threading ? max_threads : 1;
 
         scratchpad.book(key_conv_gemm_col,
                 sizeof(float) * jcp.nthr * jcp.im2col_sz);

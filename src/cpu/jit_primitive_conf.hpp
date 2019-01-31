@@ -409,6 +409,9 @@ struct jit_gemm_conv_conf_t {
     bool need_wei_reduction;
     bool signed_input;
     float wei_adj_scale;
+    int oh_block;
+    int ow_block;
+    bool outer_threading;
 };
 
 struct jit_1x1_conv_call_s {

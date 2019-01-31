@@ -47,42 +47,56 @@ void gemm_convolution_fwd_t::execute_forward() const {
     const size_t dst_step = jcp.oc * M;
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
+    assert(IMPLICATION(
+            jcp.id != 1, jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow));
+    assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
+
     const int K = jcp.ic * jcp.ks;
     const int N = jcp.oc;
-    const int m = jcp.os;
-    const int LDA = jcp.im2col_sz ? m : M;
 
-    parallel_nd(jcp.im2col_sz * jcp.nthr,
-            [&](ptrdiff_t i) { col[i] = (data_t)0; });
+    if (jcp.im2col_sz && jcp.id != 1)
+        parallel_nd(jcp.im2col_sz * jcp.nthr,
+                [&](ptrdiff_t i) { col[i] = (data_t)0; });
 
-    const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od;
+    const int nb_oh = div_up(jcp.oh, jcp.oh_block);
+    const int nb_ow = div_up(jcp.ow, jcp.ow_block);
+    const size_t work_amount = jcp.ngroups * jcp.mb * jcp.od * nb_oh * nb_ow;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        int g{0}, n{0}, od{0};
+        int g{ 0 }, n{ 0 }, od{ 0 }, ohb{ 0 }, owb{ 0 };
         size_t start = 0, end = 0;
 
         balance211(work_amount, nthr, ithr, start, end);
-        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, od, jcp.od);
-
+        nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, od, jcp.od, ohb,
+                nb_oh, owb, nb_ow);
         for (size_t iwork = start; iwork < end; ++iwork) {
+            int oh = ohb * jcp.oh_block;
+            int ow = owb * jcp.ow_block;
             const data_t *_src = src + (n * jcp.ngroups + g) * src_step;
             const data_t *_weights = weights + g * weights_g_size;
-            data_t *_dst = dst + (n * jcp.ngroups + g) * dst_step;
-
+            data_t *_dst_im = dst + (n * jcp.ngroups + g) * dst_step;
+            const int h_step = nstl::min(jcp.oh_block, jcp.oh - oh);
+            const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
             if (jcp.im2col_sz) {
                 if (jcp.id == 1)
-                    jit_gemm_convolution_utils::im2col(jcp, _src, _col);
+                    jit_gemm_convolution_utils::im2col(
+                            jcp, _src, _col, oh, h_step, ow, w_step);
                 else
                     jit_gemm_convolution_utils::im2col_3d(jcp, _src, _col, od);
             }
 
             const data_t one = 1.0;
+
+            const int m = h_step * w_step;
+            const int LDA = jcp.im2col_sz ? m : M;
+            data_t *_dst = _dst_im + od * jcp.os + oh * jcp.ow + ow;
+
             extended_sgemm("N", "N", &m, &N, &K, &one,
                     jcp.im2col_sz ? _col : _src + od * m, &LDA, _weights, &K,
-                    &this->beta_, _dst + od * m, &M);
+                    &this->beta_, _dst, &M);
 
-            data_t *d = _dst + od * m;
+            data_t *d = _dst;
             if (eltwise_) {
                 // fast branch for ReLU case
                 if (eltwise_->alg_ == alg_kind::eltwise_relu) {
@@ -116,7 +130,8 @@ void gemm_convolution_fwd_t::execute_forward() const {
                     }
                 });
             }
-            nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od);
+            nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od, ohb, nb_oh,
+                    owb, nb_ow);
         }
     });
 }
@@ -239,7 +254,8 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
 
                     if (jcp.im2col_sz) {
                         if (jcp.id == 1)
-                            jit_gemm_convolution_utils::im2col(jcp, _src, _col);
+                            jit_gemm_convolution_utils::im2col(
+                                    jcp, _src, _col, 0, jcp.oh, 0, jcp.ow);
                         else
                             jit_gemm_convolution_utils::im2col_3d(jcp, _src,
                                 _col, od);
