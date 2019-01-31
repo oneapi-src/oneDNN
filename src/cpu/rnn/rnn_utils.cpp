@@ -114,11 +114,12 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.copy_bias = rnn.dt_conf != all_f32;
 
 #if USE_MKL_PACKED_GEMM
-    rnn.use_layer_packed_gemm = (weights_layer_d.format() == any
-                                        && rnn.slc > 760 && rnn.dic > 760)
+    rnn.use_layer_packed_gemm
+            = (weights_layer_d.format() == any && rnn.slc > 760 && rnn.dic > 760
+                      && is_inference)
             || is_int8; // packed gemm is the only supported option for int8
     rnn.use_iter_packed_gemm = (weights_iter_d.format() == any && rnn.sic > 760
-                                       && rnn.dic > 760)
+                                       && rnn.dic > 760 && is_inference)
             || is_int8;
 #else
     rnn.use_layer_packed_gemm = false;
@@ -426,9 +427,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     bool use_packed_gemm = is_iter
         ? rnn.use_iter_packed_gemm
         : rnn.use_layer_packed_gemm;
-    if (use_packed_gemm && !rnn.is_training) {
-        /* TODO: implement reorders ldigo_p <-> ldgoi_p to enable rnn_packed for
-         * training*/
+    if (use_packed_gemm) {
         weights_md.format = rnn_packed;
         rnn_packed_data_t &rnn_pdata = weights_md.layout_desc.rnn_packed_desc;
         rnn_pdata.format = rnn.is_fwd ? mkldnn_ldigo_p : mkldnn_ldgoi_p;
