@@ -1931,7 +1931,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
         ws_buffers = (float *)malloc(nthr * ws_size_per_thr, PAGE_4K);
     }
 
-    parallel(nthr, [&](const int ithr, const int nthr) {
+    parallel_nd(nthr, [&](const int ithr) {
         int ithr_m, ithr_n, ithr_k, ithr_mn;
         int m_from, m_to, myM;
         int n_from, n_to, myN;

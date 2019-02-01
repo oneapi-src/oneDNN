@@ -184,6 +184,7 @@ mkldnn_status_t ref_gemm(
         const int *N_, const int *K_, const data_t *alpha_, const data_t *A,
         const int *lda_, const data_t *B, const int *ldb_, const data_t *beta_,
         data_t *C, const int *ldc_, const data_t *bias) {
+
     bool isTransA = (*transa_ == 'T' || *transa_ == 't');
     bool isTransB = (*transb_ == 'T' || *transb_ == 't');
     const int M = *M_, N = *N_, K = *K_;
@@ -221,7 +222,16 @@ mkldnn_status_t ref_gemm(
             do_copy = false;
     }
 
-    parallel(nthr, [&](const int ithr, const int nthr) {
+    auto get_thr_block = [&](int &from, int &to, int &myN, int NB, int N,
+                             int ithr) {
+        from = NB * (ithr);
+        to = NB * (ithr + 1);
+        if (to > N)
+            to = N;
+        myN = to - from;
+    };
+
+    parallel_nd(nthr, [&](const int ithr) {
         int ithr_mn = ithr % nthr_mn;
         int ithr_m = ithr_mn % nthr_m;
         int ithr_n = ithr_mn / nthr_m;
@@ -235,14 +245,7 @@ mkldnn_status_t ref_gemm(
 
         int m_from = 0, m_to = 0, myM = 0, n_from = 0, n_to = 0, myN = 0,
                 k_from = 0, k_to = 0, myK = 0;
-        auto get_thr_block = [&](int &from, int &to, int &myN, int NB, int N,
-                int ithr) {
-            from = NB * (ithr);
-            to = NB * (ithr + 1);
-            if (to > N)
-                to = N;
-            myN = to - from;
-        };
+
         get_thr_block(m_from, m_to, myM, MB, M, ithr_m);
         get_thr_block(n_from, n_to, myN, NB, N, ithr_n);
         get_thr_block(k_from, k_to, myK, KB, K, ithr_k);
@@ -284,11 +287,23 @@ mkldnn_status_t ref_gemm(
                 }
             }
         }
+    });
+   
+    if (nthr_k > 1) { 
+        parallel_nd(nthr, [&](const int ithr) {
+            int ithr_mn = ithr % nthr_mn;
+            int ithr_m = ithr_mn % nthr_m;
+            int ithr_k = ithr / nthr_mn;
+            int ithr_n = ithr_mn / nthr_m;
 
-        if (nthr_k > 1) {
-            assert(mkldnn_thr_syncable());
-            mkldnn_thr_barrier();
-
+            int n_from = 0, n_to = 0, myN = 0;
+            int m_from = 0, m_to = 0, myM = 0;
+                           
+            int cbase = (ithr_m + nthr_m * ithr_n) * (nthr_k - 1);
+ 
+            get_thr_block(n_from, n_to, myN, NB, N, ithr_n);
+            get_thr_block(m_from, m_to, myM, MB, M, ithr_m);
+            
             // sum matrices partitioned along K dimension
             int offset = 0, block = 0;
             gemm_utils::partition_unit_diff(ithr_k, nthr_k, myN, &offset,
@@ -300,8 +315,8 @@ mkldnn_status_t ref_gemm(
                 gemm_utils::sum_two_matrices(myM, block, myC, MB,
                         &C[m_from + (n_from + offset) * ldc], ldc);
             }
-        }
-    });
+        });
+    }
 
     if (bias) {
         parallel_nd(N, M, [&](int i, int j) {

@@ -187,7 +187,7 @@ int gemv_threading_driver(blas_t *arg) {
         }
     }
 
-    parallel((int) nthr, [&](const dim_t ithr, const dim_t nthr) {
+    parallel_nd((int) nthr, [&](const dim_t ithr) {
 
             dim_t m_from, m_to, myM;
             dim_t n_from, n_to, myN;
@@ -253,7 +253,7 @@ int gemv_threading_driver(blas_t *arg) {
         });
 
     if (nthr_n > 1) {
-        parallel((int) nthr_m, [&](const dim_t ithr, const dim_t nthr) {
+        parallel_nd((int) nthr_m, [&](const dim_t ithr) {
 
                 dim_t j, j_from, j_to, ii;
                 int32_t acc;
