@@ -61,12 +61,11 @@ struct rnn_conf_t {
     size_t weights_layer_comp_offset, weights_layer_pack_size,
         weights_iter_comp_offset, weights_iter_pack_size;
 
-    bool copy_weights_layer, copy_weights_iter, copy_diff_weights_layer,
-            copy_diff_weights_iter, copy_bias;
-    int weights_layer_ld, weights_layer_nld, weights_layer_ws_ld;
-    int diff_weights_layer_ld, diff_weights_layer_nld, diff_weights_layer_ws_ld;
-    int weights_iter_ld, weights_iter_nld, weights_iter_ws_ld;
-    int diff_weights_iter_ld, diff_weights_iter_nld, diff_weights_iter_ws_ld;
+    bool copy_bias;
+    int weights_layer_ld, weights_layer_nld;
+    int diff_weights_layer_ld, diff_weights_layer_nld;
+    int weights_iter_ld, weights_iter_nld;
+    int diff_weights_iter_ld, diff_weights_iter_nld;
     int states_nld, states_ws_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr;
@@ -74,8 +73,6 @@ struct rnn_conf_t {
 
     /* Size of workspace for each tensor in bytes */
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            ws_weights_layer_size, ws_weights_iter_size,
-            ws_diff_weights_layer_size, ws_diff_weights_iter_size,
             ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
     bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
         use_iter_packed_gemm;
@@ -101,16 +98,14 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_weights_layer_offset,
-        size_t &ws_weights_iter_offset, size_t &ws_bias_offset,
-        size_t &ws_diff_weights_layer_offset,
-        size_t &ws_diff_weights_iter_offset, size_t &scratchpad_size,
-        size_t &workspace_size);
+        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratchpad_size, size_t &workspace_size);
 
 void get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(
         rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
+status_t set_good_strides(memory_desc_t &weights_md);
 
 template <typename T>
 struct ws_gates_aoc {
@@ -163,7 +158,7 @@ private:
 struct ws_diff_w_iter_aoc_t {
     ws_diff_w_iter_aoc_t(const rnn_conf_t &rnn, float *data)
         : diff_weights_iter_(
-                  data, rnn.diff_weights_iter_nld, rnn.diff_weights_iter_ws_ld)
+                  data, rnn.diff_weights_iter_nld, rnn.diff_weights_iter_ld)
         , DIC_(rnn.dic) {}
     float &operator()(int sic, int gate, int dic) {
         return diff_weights_iter_(sic, gate * DIC_ + dic);

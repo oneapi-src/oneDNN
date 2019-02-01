@@ -20,6 +20,7 @@
 
 #include "ref_rnn.hpp"
 #include "rnn_utils.hpp"
+#include "type_helpers.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -206,62 +207,30 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.weights_layer_is_packed = rnn.weights_layer_fmt == rnn_packed;
     rnn.weights_iter_is_packed = rnn.weights_iter_fmt == rnn_packed;
 
-    auto set_weights_dims = [&](bool is_igo, int ic, int &ld, int &nld) {
-        if (is_igo) {
-            ld = rnn.dic * rnn.n_gates;
-            nld = ic;
-        } else {
-            ld = ic;
-            nld = rnn.dic * rnn.n_gates;
+    auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
+        switch (md.format()) {
+        case ldigo:
+            ld = (int)md.blocking_desc().strides[0][2];
+            nld = md.dims()[2];
+            return;
+        case ldgoi:
+            ld = (int)md.blocking_desc().strides[0][4];
+            nld = md.dims()[3] * md.dims()[4];
+            return;
+        default: ld = 0; nld = 0;
         }
     };
-    bool layer_is_igo = rnn.weights_layer_is_packed
-            ? weights_layer_d.rnn_packed_desc().format == ldigo_p
-            : rnn.weights_layer_fmt == ldigo;
-    set_weights_dims(
-            layer_is_igo, rnn.slc, rnn.weights_layer_ld, rnn.weights_layer_nld);
-    bool iter_is_igo = rnn.weights_iter_is_packed
-            ? weights_iter_d.rnn_packed_desc().format == ldigo_p
-            : rnn.weights_iter_fmt == ldigo;
-    set_weights_dims(
-            iter_is_igo, rnn.sic, rnn.weights_iter_ld, rnn.weights_iter_nld);
+    set_dims(weights_layer_d, rnn.weights_layer_ld, rnn.weights_layer_nld);
+    set_dims(weights_iter_d, rnn.weights_iter_ld, rnn.weights_iter_nld);
     if (!rnn.is_fwd) {
-        rnn.diff_weights_layer_fmt = diff_weights_layer_d.format();
-        rnn.diff_weights_iter_fmt = diff_weights_iter_d.format();
-        set_weights_dims(rnn.diff_weights_layer_fmt == ldigo, rnn.slc,
-                rnn.diff_weights_layer_ld, rnn.diff_weights_layer_nld);
-        set_weights_dims(rnn.diff_weights_iter_fmt == ldigo, rnn.sic,
-                rnn.diff_weights_iter_ld, rnn.diff_weights_iter_nld);
+        set_dims(diff_weights_layer_d, rnn.diff_weights_layer_ld,
+                rnn.diff_weights_layer_nld);
+        set_dims(diff_weights_iter_d, rnn.diff_weights_iter_ld,
+                rnn.diff_weights_iter_nld);
     }
 
     int sizeof_states_dt
             = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
-    int sizeof_weights_dt
-            = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(int8_t);
-    /* Decide to copy weights to workspace with padded leading dimension */
-    auto decide_to_copy = [](
-            bool copy_enabled, int ld, int &wld, bool &copy, int sizeof_dt) {
-        if (copy_enabled && ld != get_good_ld(ld, sizeof_dt)) {
-            copy = true;
-            wld = get_good_ld(ld, sizeof_dt);
-        } else {
-            copy = false;
-            wld = ld;
-        }
-    };
-    bool weights_copy_enabled = rnn.n_iter > 1;
-    decide_to_copy(weights_copy_enabled && !rnn.weights_layer_is_packed,
-            rnn.weights_layer_ld, rnn.weights_layer_ws_ld,
-            rnn.copy_weights_layer, sizeof_weights_dt);
-    decide_to_copy(weights_copy_enabled && !rnn.weights_iter_is_packed,
-            rnn.weights_iter_ld, rnn.weights_iter_ws_ld, rnn.copy_weights_iter,
-            sizeof_weights_dt);
-    decide_to_copy(weights_copy_enabled && !rnn.is_fwd,
-            rnn.diff_weights_iter_ld, rnn.diff_weights_iter_ws_ld,
-            rnn.copy_diff_weights_iter, sizeof(float));
-    decide_to_copy(weights_copy_enabled && !rnn.is_fwd,
-            rnn.diff_weights_layer_ld, rnn.diff_weights_layer_ws_ld,
-            rnn.copy_diff_weights_layer, sizeof(float));
     rnn.states_ws_ld
             = get_good_ld(nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)),
                 sizeof_states_dt);
@@ -271,8 +240,6 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
      * states to copmute a pass
      * diff states to copmute bwd pass (training only)
      * intermediate results from the gates
-     * weights (only if copy to padded leading dimension is enables and
-     * required)
      */
     rnn.use_workspace = rnn.is_training;
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
@@ -290,29 +257,7 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
             * rnn.gates_ws_ld * sizeof(float);
 
-    /* Set the sizes in case we pack the weights */
-    size_t weights_layer_gld_size = (size_t)rnn.n_layer * rnn.n_dir
-            * rnn.weights_layer_nld * rnn.weights_layer_ws_ld;
-    if (rnn.copy_weights_layer)
-        rnn.ws_weights_layer_size = weights_layer_gld_size * sizeof_weights_dt;
-    else
-        rnn.ws_weights_layer_size = 0;
-
-    size_t weights_iter_gld_size = (size_t)rnn.n_iter * rnn.n_dir
-            * rnn.weights_iter_nld * rnn.weights_iter_ws_ld;
-    if (rnn.copy_weights_iter)
-        rnn.ws_weights_iter_size = weights_iter_gld_size * sizeof_weights_dt;
-    else
-        rnn.ws_weights_iter_size = 0;
-
     /* set other sizes */
-    rnn.ws_diff_weights_layer_size
-            = rnn.is_fwd ? (size_t)0 : (size_t)rnn.n_layer * rnn.n_dir
-                    * rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld
-                    * sizeof(float);
-    rnn.ws_diff_weights_iter_size = rnn.is_fwd ? (size_t)0 : (size_t)rnn.n_layer
-                    * rnn.n_dir * rnn.diff_weights_iter_nld
-                    * rnn.diff_weights_iter_ws_ld * sizeof(float);
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic * sizeof(float);
     rnn.ws_cell_comp_size
             = rnn.is_lbr || rnn.dt_conf != all_f32
@@ -334,11 +279,8 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_weights_layer_offset,
-        size_t &ws_weights_iter_offset, size_t &ws_bias_offset,
-        size_t &ws_diff_weights_layer_offset,
-        size_t &ws_diff_weights_iter_offset, size_t &scratchpad_size,
-        size_t &workspace_size) {
+        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratchpad_size, size_t &workspace_size) {
 
     const size_t page_size = 4096; // 2097152;
     size_t current_offset;
@@ -376,30 +318,6 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
 
-    if (rnn.copy_weights_layer) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_weights_layer_offset = current_offset;
-        current_offset += rnn.ws_weights_layer_size;
-    }
-
-    if (rnn.copy_weights_iter) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_weights_iter_offset = current_offset;
-        current_offset += rnn.ws_weights_iter_size;
-    }
-
-    if (rnn.copy_diff_weights_layer) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_diff_weights_layer_offset = current_offset;
-        current_offset += rnn.ws_diff_weights_layer_size;
-    }
-
-    if (rnn.copy_diff_weights_iter) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_diff_weights_iter_offset = current_offset;
-        current_offset += rnn.ws_diff_weights_iter_size;
-    }
-
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_bias_offset = current_offset;
@@ -413,13 +331,31 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
             ws_diff_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
-            ws_weights_layer_offset, ws_weights_iter_offset, ws_bias_offset,
-            ws_diff_weights_layer_offset, ws_diff_weights_iter_offset;
+            ws_bias_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_c_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
-            ws_weights_layer_offset, ws_weights_iter_offset, ws_bias_offset,
-            ws_diff_weights_layer_offset, ws_diff_weights_iter_offset,
-            scratchpad_size, workspace_size);
+            ws_bias_offset, scratchpad_size, workspace_size);
+}
+
+status_t rnn_utils::set_good_strides(memory_desc_t &weights_md) {
+    auto &strides = weights_md.layout_desc.blocking.strides[0];
+    auto dims = weights_md.dims;
+
+    if (weights_md.format == ldigo) {
+        strides[2] = rnn_utils::get_good_ld((int)strides[2],
+                (int)types::data_type_size(weights_md.data_type));
+        strides[1] = dims[2] * strides[2];
+        strides[0] = dims[1] * strides[1];
+    } else if (weights_md.format == ldgoi) {
+        strides[4] = rnn_utils::get_good_ld((int)strides[4],
+                (int)types::data_type_size(weights_md.data_type));
+        strides[3] = dims[4] * strides[4];
+        strides[1] = dims[3] * strides[3];
+        strides[0] = dims[1] * strides[1];
+    } else
+        return unimplemented;
+
+    return success;
 }
 
 status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
@@ -452,12 +388,11 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         }
     } else {
         weights_md.format = rnn.is_fwd ? ldigo : ldgoi;
-        // TODO: pad for good LDA
-        status_t status = memory_desc_wrapper::compute_blocking(weights_md);
-        if (status != status::success)
-            return status;
+        CHECK(memory_desc_wrapper::compute_blocking(weights_md));
+        // Adjust strides for good leading dimension in GEMM
+        CHECK(set_good_strides(weights_md));
     }
-    return status::success;
+    return success;
 }
 
 }

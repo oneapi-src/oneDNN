@@ -74,13 +74,12 @@ namespace cpu {
     void f(const rnn_utils::rnn_conf_t &rnn, float *scratch_bias_, \
             const float *w_iter_comp, const float *w_layer_comp) const
 
-#define copying_sig(f)                                                         \
-    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int OC_size, \
-            int IC_size, const int n_parts, const int *gates_per_part,         \
-            const size_t *part_weights_pack_size, weights_data_t **weights_,   \
-            const weights_data_t *w_, weights_data_t *scratch_weights_,        \
-            float **bias_, const float *b_, float *scratch_bias_,              \
-            bool do_copy) const
+#define weights_assign_sig(f)                                                \
+    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int nld,   \
+            int ld, int OC_size, int IC_size, const int n_parts,             \
+            const int *gates_per_part, const size_t *part_weights_pack_size, \
+            weights_data_t **weights_, const weights_data_t *w_,             \
+            float **bias_, const float *b_, float *scratch_bias_) const
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
@@ -102,7 +101,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     typedef gemm_sig((class_name::*gemm_t));
     typedef bias_prepare_sig((class_name::*bias_prepare_t));
     typedef bias_finalize_sig((class_name::*bias_finalize_t));
-    typedef copying_sig((class_name::*copying_t));
+    typedef weights_assign_sig((class_name::*weights_assign_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -160,8 +159,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     this->engine_, &weights_layer_md);
             if (this->weights_layer_pd_.desc()->format == any) {
                 this->weights_layer_pd_ = new_weights_layer_pd;
-            } else if (!this->weights_layer_pd_.is_equal(&new_weights_layer_pd))
-                 return status::unimplemented;
+            } else if (this->weights_layer_pd_.desc()->format == rnn_packed) {
+                if (!this->weights_layer_pd_.is_equal(&new_weights_layer_pd))
+                    return status::unimplemented;
+            }
 
             memory_desc_t weights_iter_md = *(this->weights_iter_pd_.desc());
             CHECK(set_expected_desc(rnn_, weights_iter_md, true));
@@ -169,8 +170,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     this->engine_, &weights_iter_md);
             if (this->weights_iter_pd_.desc()->format == any) {
                 this->weights_iter_pd_ = new_weights_iter_pd;
-            } else if (!this->weights_iter_pd_.is_equal(&new_weights_iter_pd))
-                return status::unimplemented;
+            } else if (this->weights_iter_pd_.desc()->format == rnn_packed) {
+                if (!this->weights_iter_pd_.is_equal(&new_weights_iter_pd))
+                    return status::unimplemented;
+            }
 
             CHECK(this->check_layout_consistency());
 
@@ -223,22 +226,21 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         bias_preparation_func = &class_name::bias_prepare;
         bias_finalization_func = &class_name::bias_finalize;
 
-        auto set_gemm_funcs = [](bool packed_gemm, gemm_t &g, bool copy_w,
-                copying_t &c) {
-            if (packed_gemm) {
-                g = &class_name::packed_gemm;
-                c = &class_name::assign_packed_weights;
-            } else {
-                g = &class_name::gemm;
-                c = (copy_w) ? &class_name::copy_weights :
-                               &class_name::assign_weights;
-            }
-        };
+        auto set_gemm_funcs
+                = [](bool packed_gemm, gemm_t &g, weights_assign_t &a) {
+                      if (packed_gemm) {
+                          g = &class_name::packed_gemm;
+                          a = &class_name::assign_packed_weights;
+                      } else {
+                          g = &class_name::gemm;
+                          a = &class_name::assign_weights;
+                      }
+                  };
         set_gemm_funcs(pd()->rnn_.use_iter_packed_gemm, gemm_iter_func,
-                pd()->rnn_.copy_weights_iter, weights_iter_copy_func);
+                weights_iter_assign_func);
 
         set_gemm_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
-                pd()->rnn_.copy_weights_layer, weights_layer_copy_func);
+                weights_layer_assign_func);
 
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
@@ -277,9 +279,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_c_states_offset_, ws_diff_states_offset_,
                 ws_grid_comp_offset_, ws_cell_comp_offset_,
-                ws_weights_layer_offset_, ws_weights_iter_offset_,
-                ws_bias_offset_, ws_diff_weights_layer_offset_,
-                ws_diff_weights_iter_offset_, scratchpad_size, workspace_size);
+                ws_bias_offset_, scratchpad_size, workspace_size);
     }
 
     ~_ref_rnn_common_t() {}
@@ -304,9 +304,8 @@ private:
     gemm_sig(packed_gemm);
     bias_prepare_sig(bias_prepare);
     bias_finalize_sig(bias_finalize);
-    copying_sig(assign_weights);
-    copying_sig(copy_weights);
-    copying_sig(assign_packed_weights);
+    weights_assign_sig(assign_weights);
+    weights_assign_sig(assign_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 
@@ -339,12 +338,8 @@ private:
     size_t ws_gates_offset_;
     size_t ws_states_offset_;
     size_t ws_c_states_offset_;
-    size_t ws_weights_layer_offset_;
-    size_t ws_weights_iter_offset_;
     size_t ws_bias_offset_;
     size_t ws_diff_states_offset_;
-    size_t ws_diff_weights_layer_offset_;
-    size_t ws_diff_weights_iter_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
 
@@ -353,8 +348,8 @@ private:
 
     bias_prepare_t bias_preparation_func;
     bias_finalize_t bias_finalization_func;
-    copying_t weights_layer_copy_func;
-    copying_t weights_iter_copy_func;
+    weights_assign_t weights_layer_assign_func;
+    weights_assign_t weights_iter_assign_func;
 
     gemm_t gemm_layer_func;
     gemm_t gemm_iter_func;

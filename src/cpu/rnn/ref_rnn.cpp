@@ -70,6 +70,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm)) {
+    assert(ldA * ldB * ldC != 0);
     extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_, &ldB,
             &beta, c_, &ldC, nullptr, pd()->rnn_.use_jit_gemm);
 }
@@ -149,9 +150,9 @@ grid_execution_sig(
         bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
     AOC<float, 3> diff_weights_layer(diff_weights_layer_, rnn.n_layer,
             rnn.n_dir,
-            rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld);
+            rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
     AOC<float, 3> diff_weights_iter(diff_weights_iter_, rnn.n_layer, rnn.n_dir,
-            rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ws_ld);
+            rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
     AOC<float, 3> diff_bias(
             diff_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     AOC<float, 4> ws_grid(
@@ -165,7 +166,7 @@ grid_execution_sig(
             if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
                 (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic,
                         rnn.mb * rnn.n_iter, rnn.slc, 1.0,
-                        weights_input(lay, dir, 0), rnn.weights_iter_ws_ld,
+                        weights_input(lay, dir, 0), rnn.weights_iter_ld,
                         &(ws_states(lay, dir, 1, 0)), rnn.states_ws_ld, 0.0,
                         &(ws_gates(lay, dir, 0, 0)), rnn.gates_ws_ld);
             }
@@ -195,7 +196,7 @@ grid_execution_sig(
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
                 (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
                         rnn.n_gates * rnn.dic, 1.0, weights_input(lay, dir, 0),
-                        rnn.weights_layer_ws_ld,
+                        rnn.weights_layer_ld,
                         (src_data_t *)(&(ws_gates(lay, dir, 0, 0))),
                         rnn.gates_ws_ld, 0.0,
                         (acc_data_t *)(&(ws_diff_states(
@@ -208,7 +209,7 @@ grid_execution_sig(
                         (src_data_t *)(&(ws_states(lay, dir, 1, 0))),
                         rnn.states_ws_ld, 1.0,
                         (acc_data_t *)(&(diff_weights_layer(lay, dir, 0))),
-                        rnn.diff_weights_layer_ws_ld);
+                        rnn.diff_weights_layer_ld);
             }
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
                 gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic,
@@ -218,7 +219,7 @@ grid_execution_sig(
                         (src_data_t *)(&(ws_states(lay + 1, dir, 0, 0))),
                         rnn.states_ws_ld, 1.0,
                         (acc_data_t *)(&(diff_weights_iter(lay, dir, 0))),
-                        rnn.diff_weights_iter_ws_ld);
+                        rnn.diff_weights_iter_ld);
             }
         }
     }
@@ -596,7 +597,8 @@ bias_finalize_sig(
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-copying_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::assign_packed_weights)) {
+weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
+        weights_type>::assign_packed_weights)) {
     AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
 
     size_t offset_packed = 0;
@@ -604,17 +606,19 @@ copying_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::assign_packed_wei
         for (int d = 0; d < rnn.n_dir; d++) {
             for (int p = 0; p < n_parts; p++) {
                 weights(l, d, p) = (weights_data_t *)&w_[offset_packed];
-                offset_packed += part_weights_pack_size[p] / sizeof(weights_data_t);
+                offset_packed
+                        += part_weights_pack_size[p] / sizeof(weights_data_t);
             }
         }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-copying_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) {
+weights_assign_sig(
+        (_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) {
+    assert(nld * ld != 0);
     /* Original set of weights provided by the user */
-    AOC<const weights_data_t, 3> w(
-            w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
-    /* Array of pointers initialized in packing */
+    AOC<const weights_data_t, 3> w(w_, rnn.n_layer, rnn.n_dir, nld * ld);
+    /* Array of pointers for each part of weights */
     AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
 
     for (int i = 0; i < rnn.n_layer; i++)
@@ -624,63 +628,15 @@ copying_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) 
                 weights(i, d, p) = (weights_data_t *)&w(i, d, offset_weights);
                 offset_weights += fmt == memory_format::ldigo ?
                         gates_per_part[p] * OC_size :
-                        gates_per_part[p] * OC_size * IC_size;
+                        gates_per_part[p] * OC_size * ld;
             }
         }
-}
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-copying_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::copy_weights)) {
-    /* Original set of weights provided by the user */
-    AOC<const weights_data_t, 3> w(
-            w_, rnn.n_layer, rnn.n_dir, IC_size * rnn.n_gates * OC_size);
-    /* Array of pointers initialized in packing */
-    AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
-    int m = 0, n = 0, ldA = 0;
-
-    bool is_igo = fmt == memory_format::ldigo;
-    if (is_igo) {
-        m = rnn.n_gates * OC_size;
-        n = IC_size;
-    } else {
-        m = IC_size;
-        n = rnn.n_gates * OC_size;
-    }
-    ldA = get_good_ld(m, sizeof(weights_data_t));
-
-    /* We always assume
-       - column major
-       - alpha = 1.0f
-    */
-    auto copy_matrix = [](char trans, int nrows, int ncols,
-            const weights_data_t *src, const int ld_src, weights_data_t *dst,
-            const int ld_dst) {
-        parallel_nd(ncols, [&](int i) {
-                for (int j = 0; j < nrows; j++)
-                    dst[i * ld_dst + j] = src[i * ld_src + j];
-            });
-    };
-
-    AOC<weights_data_t, 3> tmp(scratch_weights_, rnn.n_layer, rnn.n_dir, ldA * n);
-    parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
-        auto src_mat = &(w(i, d, 0));
-        auto dst_mat = &(tmp(i, d, 0));
-        copy_matrix('N', m, n, src_mat, m, dst_mat, ldA);
-        weights(i, d, 0) = &tmp(i, d, 0);
-        for (int p = 1; p < n_parts; p++) {
-            size_t offset = is_igo
-                    ? gates_per_part[p - 1] * OC_size
-                    : gates_per_part[p - 1] * OC_size * ldA;
-            weights(i, d, p) = &tmp(i, d, offset);
-        }
-    });
 }
 
 //********************* Execution function *********************//
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
-
     int input_idx = 0;
     int output_idx = 0;
     auto input = reinterpret_cast<const src_data_t *>(
@@ -759,43 +715,26 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
             reinterpret_cast<float *>(this->memory(output_idx++));
 
     // Fetching extra buffers from scratchpad
-    weights_data_t *ws_weights_layer
-            = (weights_data_t *)(scratch_ptr + ws_weights_layer_offset_);
-    weights_data_t *ws_weights_iter
-            = (weights_data_t *)(scratch_ptr + ws_weights_iter_offset_);
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
-    float *ws_diff_weights_layer
-            = (float *)(scratch_ptr + ws_diff_weights_layer_offset_);
-    float *ws_diff_weights_iter
-            = (float *)(scratch_ptr + ws_diff_weights_iter_offset_);
 
     // initialize diff_states to 0
-    if (aprop == prop_kind::backward) {
+    if (aprop == prop_kind::backward)
         array_set(ws_diff_states, 0.0f, rnn.ws_diff_states_size / sizeof(float));
-        if (rnn.copy_diff_weights_layer) {
-            parallel_nd(rnn.ws_diff_weights_layer_size / sizeof(float),
-                    [&](size_t i) { ws_diff_weights_layer[i] = 0.; });
-        } else
-            ws_diff_weights_layer = diff_weights_layer;
-        if (rnn.copy_diff_weights_iter) {
-            parallel_nd(rnn.ws_diff_weights_iter_size / sizeof(float),
-                    [&](size_t i) { ws_diff_weights_iter[i] = 0.; });
-        } else
-            ws_diff_weights_iter = diff_weights_iter;
-    }
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
-    (this->*weights_iter_copy_func)(rnn, rnn.weights_iter_fmt, rnn.dic, rnn.sic,
-            rnn.n_parts_weights_iter, rnn.parts_weights_iter,
+    (this->*weights_iter_assign_func)(rnn, rnn.weights_iter_fmt,
+            rnn.weights_iter_nld, rnn.weights_iter_ld, rnn.dic,
+            rnn.sic, rnn.n_parts_weights_iter, rnn.parts_weights_iter,
             rnn.part_weights_iter_pack_size, ptr_wei_iter, w_iter,
-            ws_weights_iter, ptr_bias, bias, ws_bias, rnn.copy_weights_iter);
-    (this->*weights_layer_copy_func)(rnn, rnn.weights_layer_fmt, rnn.dic,
-            rnn.slc, rnn.n_parts_weights_layer, rnn.parts_weights_layer,
-            rnn.part_weights_layer_pack_size, ptr_wei_layer, w_layer,
-            ws_weights_layer, ptr_bias, bias, ws_bias, rnn.copy_weights_layer);
+            ptr_bias, bias, ws_bias);
+    (this->*weights_layer_assign_func)(rnn, rnn.weights_layer_fmt,
+            rnn.weights_layer_nld, rnn.weights_layer_ld, rnn.dic, rnn.slc,
+            rnn.n_parts_weights_layer, rnn.parts_weights_layer,
+            rnn.part_weights_layer_pack_size, ptr_wei_layer, w_layer, ptr_bias,
+            bias, ws_bias);
 
     (this->*bias_finalization_func)(rnn, ws_bias, w_iter_comp, w_layer_comp);
 
@@ -814,7 +753,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
     // run the execution on the grid
     (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias,
             ws_states, ws_c_states, ws_diff_states, ws_gates, ws_cell, ws_grid,
-            ws_diff_weights_layer, ws_diff_weights_iter, diff_bias);
+            diff_weights_layer, diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
     if (rnn.dt_conf == u8u8u8f32 || rnn.dt_conf == f32u8f32f32
@@ -836,49 +775,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
                 ws_c_states, ws_diff_states);
     else
         assert(!"unimplemented");
-
-    // copy of the diff weights if bwd
-    if (aprop == prop_kind::backward) {
-        // TODO: write an impl of matcopy in MKL-DNN
-        // TODO: support ldgoi using the trans parameters
-        AOC<float, 3> diff_weights_layer_aoc_t(diff_weights_layer, rnn.n_layer,
-                rnn.n_dir,
-                rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
-        AOC<float, 3> diff_weights_iter_aoc_t(diff_weights_iter, rnn.n_layer,
-                rnn.n_dir,
-                rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
-        AOC<float, 3> ws_diff_weights_layer_aoc_t(ws_diff_weights_layer,
-                rnn.n_layer, rnn.n_dir,
-                rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ws_ld);
-        AOC<float, 3> ws_diff_weights_iter_aoc_t(ws_diff_weights_iter,
-                rnn.n_layer, rnn.n_dir,
-                rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ws_ld);
-
-        /*
-           - assumes column major and non transposed matrices
-           - computes B = A + B
-        */
-        auto inplace_matadd = [=](const int nrows, const int ncols,
-                const float *A, const int ldA, float *B, const int ldB){
-            for(int i = 0; i < ncols; i++)
-                for(int j = 0; j < nrows; j++)
-                    B[i * ldB + j] += A[i * ldA + j];
-        };
-        parallel_nd(rnn.n_layer, rnn.n_dir, [&](int i, int d) {
-            auto wei_lay = &(diff_weights_layer_aoc_t(i, d, 0));
-            auto wei_it = &(diff_weights_iter_aoc_t(i, d, 0));
-            auto ws_wei_lay = &(ws_diff_weights_layer_aoc_t(i, d, 0));
-            auto ws_wei_it = &(ws_diff_weights_iter_aoc_t(i, d, 0));
-            if (rnn.copy_diff_weights_layer)
-                inplace_matadd(rnn.n_gates * rnn.dic, rnn.slc, ws_wei_lay,
-                        rnn.diff_weights_layer_ws_ld, wei_lay,
-                        rnn.diff_weights_layer_ld);
-            if (rnn.copy_diff_weights_iter)
-                inplace_matadd(rnn.n_gates * rnn.dic, rnn.sic, ws_wei_it,
-                        rnn.diff_weights_iter_ws_ld, wei_it,
-                        rnn.diff_weights_iter_ld);
-        });
-    }
 };
 
 /* Fix for MSVS warning C4661 */

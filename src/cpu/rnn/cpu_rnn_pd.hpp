@@ -25,6 +25,7 @@
 #include "rnn_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#include "rnn_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -236,10 +237,22 @@ protected:
             CHECK(src_layer_pd_.set_format(tnc));
         if (diff_src_layer_pd_.desc()->format == any)
             CHECK(diff_src_layer_pd_.set_format(tnc));
-        if (diff_weights_layer_pd_.desc()->format == any)
-            CHECK(diff_weights_layer_pd_.set_format(ldigo));
-        if (diff_weights_iter_pd_.desc()->format == any)
-            CHECK(diff_weights_iter_pd_.set_format(ldigo));
+        if (diff_weights_layer_pd_.desc()->format == any) {
+            memory_desc_t md = *(diff_weights_layer_pd_.desc());
+            md.format = ldigo;
+            CHECK(memory_desc_wrapper::compute_blocking(md));
+            CHECK(rnn_utils::set_good_strides(md));
+            cpu_memory_t::pd_t new_pd(engine_, &md);
+            diff_weights_layer_pd_ = new_pd;
+        }
+        if (diff_weights_iter_pd_.desc()->format == any) {
+            memory_desc_t md = *(diff_weights_iter_pd_.desc());
+            md.format = ldigo;
+            CHECK(memory_desc_wrapper::compute_blocking(md));
+            CHECK(rnn_utils::set_good_strides(md));
+            cpu_memory_t::pd_t new_pd(engine_, &md);
+            diff_weights_iter_pd_ = new_pd;
+        }
         if (dst_layer_pd_.desc()->format == any)
             CHECK(dst_layer_pd_.set_format(tnc));
         if (diff_dst_layer_pd_.desc()->format == any)
