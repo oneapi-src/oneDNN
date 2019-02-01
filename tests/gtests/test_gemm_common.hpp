@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include "mkldnn_types.h"
 #include "mkldnn.h"
+#include "cpu_isa_traits.hpp"
 
 #include <type_traits>
 #include <vector>
@@ -113,7 +114,7 @@ const int N_test_max = 53;
 struct mapper_t {
     mapper_t(int dim, int dim_test_max,
             int gen = 7, int gen_start = 13)
-        : dim_(dim), dim_test_(std::min(dim, dim_test_max))
+        : dim_(dim), dim_test_((std::min)(dim, dim_test_max))
         , gen_(gen), gen_start_(gen_start)
         , mapper_(dim)
     {
@@ -225,8 +226,8 @@ void extend_matrix(data_t *M, int R, int C, int LD,
 
 template <typename data_t>
 void ref_gemm(const char *transa, const char *transb, int m, int n, int k,
-        const data_t alpha, const data_t *a, int lda, const data_t *b,
-        int ldb, data_t beta, data_t *c, int ldc) {
+        data_t alpha, const data_t *a, int lda, const data_t *b, int ldb,
+        data_t beta, data_t *c, int ldc) {
 
     const bool tr_a = transa && (*transa == 'T' || *transa == 't');
     const bool tr_b = transb && (*transb == 'T' || *transb == 't');
@@ -276,6 +277,50 @@ void ref_gemm_s8x8s32(const char *transa, const char *transb,
         C[n*ldc + m]
             = static_cast<int32_t>(nearbyint(saturate<int32_t, double>(val)));
     });
+}
+
+static float bf16tof32(mkldnn_bfloat16_t bf16) {
+    float f32 = 0.0f;
+
+    cvt_bf16_to_ps(&f32, &bf16);
+    return f32;
+}
+
+void ref_gemm_bf16bf16f32(const char *transa, const char *transb, int m, int n,
+        int k, float alpha, const mkldnn_bfloat16_t *A, int lda,
+        const mkldnn_bfloat16_t *B, int ldb, float beta, float *C, int ldc) {
+
+    bool AisN = (*transa == 'N' || *transa == 'n');
+    bool BisN = (*transb == 'N' || *transb == 'n');
+
+    size_t sizeA = AisN ? lda * k : lda * m;
+    size_t sizeB = BisN ? ldb * n : ldb * k;
+
+    float *sA = (float *)test_malloc(sizeA * sizeof(float));
+    float *sB = (float *)test_malloc(sizeB * sizeof(float));
+
+    auto sa_setter = [=] (int i, int j, float v) { sA[j * lda + i] = v; };
+    auto sb_setter = [=] (int i, int j, float v) { sB[j * ldb + i] = v; };
+
+    auto bf16_a_accessor = [=] (int i, int j) { return A[j * lda + i]; };
+    auto bf16_b_accessor = [=] (int i, int j) { return B[j * ldb + i]; };
+
+    const int a_rows = AisN ? m : k;
+    const int a_cols = AisN ? k : m;
+    mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int j, int i) {
+        sa_setter(i, j, bf16tof32(bf16_a_accessor(i, j)));
+    });
+
+    const int b_rows = BisN ? k : n;
+    const int b_cols = BisN ? n : k;
+    mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int j, int i) {
+        sb_setter(i, j, bf16tof32(bf16_b_accessor(i, j)));
+    });
+
+    ref_gemm(transa, transb, m, n, k, alpha, sA, lda, sB, ldb, beta, C, ldc);
+
+    test_free((char *)sA);
+    test_free((char *)sB);
 }
 
 template <typename b_dt, typename c_dt>
@@ -503,6 +548,52 @@ void run_test_gemm<float, float, float>(const test_params &p) {
         throw error(status, "mkldnn_sgemm returned error");
 }
 
+template <>
+void run_test_gemm<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>(
+        const test_params &p) {
+    if (p.expect_to_fail) {
+        mkldnn_bfloat16_t dummy_bf16, *A = &dummy_bf16, *B = &dummy_bf16;
+        float dummy_f32,  *C = &dummy_f32;
+        auto status = mkldnn_gemm_bf16bf16f32(&p.transA, &p.transB, &p.M, &p.N,
+                &p.K, &p.alpha, A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
+        if (status != mkldnn_success)
+            throw error(status, "mkldnn_gemm_bf16bf16f32 returned error");
+        return;
+    }
+
+    size_t sizeA, sizeB, sizeC;
+    get_matrix_size(p, sizeA, sizeB, sizeC);
+
+    mkldnn_bfloat16_t *A = get_matrix_buffer<mkldnn_bfloat16_t>(sizeA);
+    mkldnn_bfloat16_t *B = get_matrix_buffer<mkldnn_bfloat16_t>(sizeB);
+    float *C = get_matrix_buffer<float>(sizeC);
+    float *C_ref = get_matrix_buffer<float>(sizeC);
+
+    mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
+    const int M_test = mapper_m.dim_test();
+    const int N_test = mapper_n.dim_test();
+    fill_matrices<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>(p, mapper_m,
+            mapper_n, A, B, C, C_ref);
+
+    auto status = mkldnn_gemm_bf16bf16f32(&p.transA, &p.transB, &p.M, &p.N,
+            &p.K, &p.alpha, A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
+
+    if (status == mkldnn_success) {
+        ref_gemm_bf16bf16f32(&p.transA, &p.transB, M_test, N_test, p.K,
+                p.alpha, A, p.lda, B, p.ldb, p.beta, C_ref, p.ldc);
+        extend_matrix(C_ref, p.M, p.N, p.ldc, mapper_m, mapper_n);
+        compare<float, float>(p.M, p.N, C, C_ref, p.ldc);
+    }
+
+    test_free((char *)A);
+    test_free((char *)B);
+    test_free((char *)C);
+    test_free((char *)C_ref);
+
+    if (status != mkldnn_success)
+        throw error(status, "mkldnn_gemm_bf16bf16f32 returned error");
+}
+
 template <typename a_dt, typename b_dt, typename c_dt>
 class gemm_test_common: public ::testing::TestWithParam<test_params> {
 protected:
@@ -516,5 +607,16 @@ protected:
         run_test_gemm<a_dt, b_dt, c_dt>(p);
     }
 };
+
+template <>
+void gemm_test_common<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>::SetUp() {
+        /* Skip test for systems that do not support avx512_core*/
+        bool implementation_supports_bf16 =
+            impl::cpu::mayiuse(impl::cpu::avx512_core);
+        if (!implementation_supports_bf16) return;
+        const auto &p = ::testing::TestWithParam<test_params>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+}
 }
 #endif

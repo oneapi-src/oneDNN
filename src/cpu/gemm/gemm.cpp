@@ -251,3 +251,26 @@ mkldnn_status_t mkldnn_gemm_s8s8s32(const char *transa, const char *transb,
         transa, transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo,
         beta, C, ldc, co);
 }
+
+mkldnn_status_t mkldnn_gemm_bf16bf16f32(const char *transa, const char *transb,
+        const int *M, const int *N, const int *K, const float *alpha,
+        const mkldnn_bfloat16_t *A, const int *lda, const mkldnn_bfloat16_t *B,
+        const int *ldb, const float *beta, float *C, const int *ldc) {
+    mkldnn_status_t status = check_gemm_input(transa, transb, M, N, K, lda,
+            ldb, ldc, alpha, beta, false);
+    if (status != mkldnn_success)
+        return status;
+
+    char *dummyOffsetC = NULL;
+    mkldnn_bfloat16_t *dummy_ao = NULL;
+    mkldnn_bfloat16_t *dummy_bo = NULL;
+    float *dummy_co = NULL;
+
+    if (mayiuse(avx512_core)) {
+        return gemm_driver(transa, transb, dummyOffsetC, M, N, K,
+                alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc,
+                dummy_co, false);
+    } else {
+        return mkldnn_unimplemented;
+    }
+}

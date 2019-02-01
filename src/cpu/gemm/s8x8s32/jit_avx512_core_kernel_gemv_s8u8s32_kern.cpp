@@ -171,7 +171,7 @@ void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
     }
 
     // store
-    aligned_label(store_label);
+    L_aligned(store_label);
     for (k = 0, l = 2; k < nreg_acc; k += 8, l += 3) {
         last_it = (k + 8) > nreg_acc;
         if (use_mask && last_it)
@@ -286,7 +286,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     add(r12, X);
 
     // M loop
-    aligned_label(m_loop_label);
+    L_aligned(m_loop_label);
     cmp(rax, rbx);
     jge(m_tail_label, T_NEAR);
 
@@ -300,7 +300,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     // N loop
     mov(r11, X); // j = 0
     mov(r13, rax);
-    aligned_label(n_loop_label);
+    L_aligned(n_loop_label);
     cmp(r11, r12);
     jge(n_tail_label, T_NEAR);
 
@@ -316,7 +316,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     // end N loop
 
     // N tail
-    aligned_label(n_tail_label);
+    L_aligned(n_tail_label);
 
     ktestq(mask_n, k3);
     je(update_c_label, T_NEAR);
@@ -324,7 +324,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
                 r13, lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
 
     // update C matrix
-    aligned_label(update_c_label);
+    L_aligned(update_c_label);
 
     update_c(nreg_acc, rbp, zmm_idx, zmm_idx + nreg_A, beta, 0, mask_m);
 
@@ -335,7 +335,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     // end M loop
 
     // M tail
-    aligned_label(m_tail_label);
+    L_aligned(m_tail_label);
 
     // r10 will contain m_tail = m % unroll_m_ = m & (1 << unroll_m_) - 1
     mov(r10, m);
@@ -359,7 +359,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         // N loop
         mov(r11, X); // j = 0
         mov(r13, rax);
-        aligned_label(n_loop_label_case[ii - 1]);
+        L_aligned(n_loop_label_case[ii - 1]);
         cmp(r11, r12);
         jge(n_tail_label_case[ii - 1], T_NEAR);
 
@@ -373,21 +373,21 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         // end N loop
 
         // N tail
-        aligned_label(n_tail_label_case[ii - 1]);
+        L_aligned(n_tail_label_case[ii - 1]);
         ktestq(mask_n, k3);
         je(update_c_label_case[ii - 1], T_NEAR);
         n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, ii, r13,
                     lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
 
         // update C matrix
-        aligned_label(update_c_label_case[ii - 1]);
+        L_aligned(update_c_label_case[ii - 1]);
         update_c(ii, rbp, zmm_idx, zmm_idx + nreg_A, beta, 1, mask_m);
 
         if (ii < ((1 << unroll_m_) - 1))
             jmp(end_label, T_NEAR);
     }
 
-    aligned_label(end_label);
+    L_aligned(end_label);
 
     postamble();
 

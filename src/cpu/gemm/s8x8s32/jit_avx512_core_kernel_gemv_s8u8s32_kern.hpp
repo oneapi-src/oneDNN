@@ -38,11 +38,6 @@ class jit_avx512_core_gemv_s8u8s32_kern : jit_generator {
     const int mask_un_ = 0xFFFFFFC0;
     const int size_vec_reg_ = 64; // bytes
 
-    void aligned_label(Xbyak::Label &label, int alignment = 16) {
-        align(alignment);
-        L(label);
-    }
-
     void vnni(Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, bool,
             int);
     void n_loop_body(int, int, int, int, Xbyak::Reg64, Xbyak::Reg64,

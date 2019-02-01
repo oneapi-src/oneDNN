@@ -23,11 +23,13 @@
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
+#include "bf16/common_s16.hpp"
+#include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include "f32/common_f32.hpp"
+#include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
-#include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -140,6 +142,21 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
         }
         break;
 
+    case data_type::bf16:
+        if (mayiuse(avx512_core)) {
+            this->um = 48;
+            this->un = 8;
+            this->uk = 1;
+            this->bm = 9984;
+            this->bn = 384;
+            this->bk = 768;
+
+            this->bk_traditional = 384;
+            this->blocking_small_k = 48;
+            this->bn_small_k = 24;
+        }
+        break;
+
     case data_type::f32:
         if (mayiuse(avx512_core)) {
             this->um = 48;
@@ -199,6 +216,20 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             }
             break;
 
+        case data_type::bf16:
+            if (mayiuse(avx512_core)) {
+                copy_a[no_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_an_kern();
+                copy_a[do_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_at_kern();
+
+                copy_b[no_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_bn_kern();
+                copy_b[do_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_bt_kern();
+            }
+            break;
+
         case data_type::f32:
             if (mayiuse(avx512_core)) {
                 copy_a[no_trans][no_sum] =
@@ -227,19 +258,30 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                 for (int isBeta0 : {no_beta0, do_beta0})
                     for (int isColOffset : {no_col_offset, do_col_offset})
                         for (int isRowOffset : {no_row_offset, do_row_offset}) {
-                            kernel[isBeta0][isColOffset][isRowOffset] = new
-                                jit_avx512_core_gemm_s8u8s32_kern(isBeta0,
+                            kernel[isBeta0][isColOffset][isRowOffset] =
+                                new jit_avx512_core_gemm_s8u8s32_kern(isBeta0,
                                         isColOffset, isRowOffset);
                         }
             }
             break;
 
-        case data_type::f32:
-            kernel[no_beta0][no_col_offset][no_row_offset] =
-                new jit_avx2_kernel_sgemm_kern(false);
-            kernel[do_beta0][no_col_offset][no_row_offset] =
-                new jit_avx2_kernel_sgemm_kern(true);
+        case data_type::bf16:
+            if (mayiuse(avx512_core)) {
+                for (int isBeta0 : {no_beta0, do_beta0}) {
+                    kernel[isBeta0][no_col_offset][no_row_offset] =
+                        new jit_avx512_core_gemm_bf16bf16f32_kern(isBeta0);
+                }
+            }
             break;
+
+        case data_type::f32:
+            if (mayiuse(avx2)) {
+                for (int isBeta0 : {no_beta0, do_beta0}) {
+                    kernel[isBeta0][no_col_offset][no_row_offset] =
+                        new jit_avx2_kernel_sgemm_kern(isBeta0);
+                }
+                break;
+            }
         }
 
         static jit_avx512_core_gemv_s8u8s32_kern *gemv_s8u8s32_kernel = NULL;
@@ -317,8 +359,9 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
 // Check if copy algorithm kernels were generated on supported ISAs.
 // Copy algorithm supported for:
-//      s8  : avx512_core, avx512_vnni
-//      f32 : avx2, avx512_core
+//      s8   : avx512_core, avx512_core_vnni
+//      bf16 : avx512_core, avx512_core_bf16
+//      f32  : avx2, avx512_core
 template <typename a_type, typename b_type, typename c_type>
 bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
     switch (data_traits<a_type>::data_type) {
@@ -336,7 +379,18 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
             if (!this->copyA || !this->copyB)
                 return false;
         }
+        break;
 
+    case data_type::bf16:
+        if (mayiuse(avx512_core)) {
+            for (int isBeta0 : {no_beta0, do_beta0})
+                if (!this->kernel[isBeta0][no_col_offset][no_row_offset])
+                    return false;
+
+            if (!this->copyA || !this->copyB)
+                return false;
+
+        }
         break;
 
     case data_type::f32:
@@ -349,7 +403,6 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
                 return false;
 
         }
-
         break;
     }
 
@@ -360,6 +413,9 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
 // Instantiate the gemm_info_t templates needed.
 template // For gemm_s8u8s32
 struct gemm_info_t<int8_t, uint8_t, int32_t>;
+
+template // For gemm_bf16bf16f32
+struct gemm_info_t<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>;
 
 template // For sgemm.
 struct gemm_info_t<float, float, float>;

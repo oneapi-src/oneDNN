@@ -212,8 +212,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
     bool isColOffset = col_req == 1;
 
     /* Column and row offsets are ignored by non-integer compute kernels.
-     * Scaling is currently ignore since it is done while copying A for
-     * non-integer kernels.
+     * Scaling is done only for bfloat16 kernels.
      */
     arg->kernel[isBeta0][isColOffset][isRowOffset](&m, &n, &k, &alpha, a, b,
             c, ldc, col_offset, row_offset);
@@ -682,8 +681,9 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     thread_info->copy_type = COPY_NONE; // By default don't do parallel copy.
 
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
+    bool isSgemm = data_traits<a_type>::data_type == data_type::f32;
 
-    if (!isInteger &&
+    if (isSgemm &&
             nocopy_checker(nthrs, transa, transb, m, n, k, lda, ldb, ldc)) {
         thread_info->copy_type = NO_COPY;
         int nthrs_m = 0;
@@ -719,9 +719,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     // TODO Check if we should use 3D blocking.
 
     int condition_2D_bsrc = -1;
-    if (isInteger) {
-        condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
-    } else {
+    if (isSgemm) {
         // If m is large and n is small then do 1D partitioning for AVX2.
         if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
             condition_2D_bsrc = 0;
@@ -729,13 +727,15 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
             condition_2D_bsrc = ((n > nthrs * N2D_MAX) ||
                     (n <= nthrs * N2D_MAX / 2)) && (m >= 2 * M2D_MIN);
         }
+    } else {
+        condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
     }
 
     // TODO Check if we shoud use k-partitioning.
 
     int condition_1D_copya = 0;
     if (mayiuse(avx512_core)) {
-        const dim_t thresh = isInteger ? 68 : N2D_MAX / 4;
+        const dim_t thresh = isSgemm ? N2D_MAX / 4 : 68;
         if (m >= 1000 && (n >= nthrs * thresh)) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
@@ -1198,8 +1198,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 #undef MULTIPLIER
 
 template <typename T>
-static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
-        int *nthrs) {
+static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
     const double omp_overhead_small_core = 3.0e+3;
     const double omp_intercept_big_core = 4.0e+3;
     const double omp_slope_big_core = 5.0e+2;
@@ -1438,11 +1437,15 @@ mkldnn_status_t gemm_driver(
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
-    // gemm_driver supports 8-bit integer and for avx512_vnni and avx512_core.
-    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
-                mayiuse(avx512_core)));
+    // gemm_driver supports bfloat16 gemm for avx512_core and above.
+    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
+                mayiuse(avx512_core) && !force_nocopy));
 
-    // gemm_driver supports sgemm for avx512_core, avx2 and avx.
+    // gemm_driver supports 8-bit integer for avx512_core and above.
+    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
+                mayiuse(avx512_core) && !force_nocopy));
+
+    // gemm_driver supports sgemm for avx.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
             mayiuse(avx)));
 
@@ -1454,6 +1457,15 @@ mkldnn_status_t gemm_driver(
 
     return gemm_threading_driver(&args);
 }
+
+template // Instantiate gemm_bf16bf16f32
+mkldnn_status_t gemm_driver<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>(
+        const char *transA, const char *transB, const char *offsetC,
+        const int *m, const int *n, const int *k, const float *alpha,
+        const mkldnn_bfloat16_t *a, const int *lda, const mkldnn_bfloat16_t *oa,
+        const mkldnn_bfloat16_t *b, const int *ldb, const mkldnn_bfloat16_t *ob,
+        const float *beta, float *c, const int *ldc, const float *oc,
+        const bool force_nocopy);
 
 template // Instantiate gemm_s8u8s32
 mkldnn_status_t gemm_driver<int8_t, uint8_t, int32_t>(
