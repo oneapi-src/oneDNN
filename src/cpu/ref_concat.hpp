@@ -99,7 +99,7 @@ struct ref_concat_t: public cpu_primitive_t {
                     }
                 }
             }
-            return success;
+            return (size_t)n_ == reorder_pds_.size() ? success : unimplemented;
         }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
