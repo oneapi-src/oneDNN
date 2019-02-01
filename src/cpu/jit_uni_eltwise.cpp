@@ -409,13 +409,32 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
         const Vmm &vmm_src) {
+    // we store the original sign and make x negative
+    // IMPORTANT: we assume vmm_aux0 to be xmm0, as for sse4.2 path it is required
+    // IMPORTANT: we use vmm_aux2 for the mask as exp_compute does not use it.
+    h->uni_vmovups(vmm_aux2, vmm_src);
+    h->uni_vandps(vmm_aux2, vmm_aux2, table_val(12));
+    h->uni_vorps(vmm_src, vmm_src, table_val(12));
+
     exp_compute_vector(vmm_src);
     // dup exp(x)
-    h->uni_vmovups(vmm_aux0, vmm_src);
+    h->uni_vmovups(vmm_aux1, vmm_src);
     // (exp(x) + 1)
-    h->uni_vaddps(vmm_aux0, vmm_aux0, table_val(0));
+    h->uni_vaddps(vmm_aux1, vmm_aux1, table_val(0));
     // y = exp(x) / (exp(x) + 1)
-    h->uni_vdivps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vdivps(vmm_src, vmm_src, vmm_aux1);
+
+    // Now we have to apply the "symmetry" based on original sign
+    h->uni_vmovups(vmm_aux3, table_val(0));
+    h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src);
+    if (isa == avx512_common) {
+        h->vptestmd(k_mask, vmm_aux2, vmm_aux2);
+        h->vblendmps(vmm_aux3 | k_mask, vmm_aux3, vmm_src);
+    } else {
+        h->uni_vmovups(vmm_aux0, vmm_aux2);// The mask should be xmm0 for sse4.2
+        h->uni_vblendvps(vmm_aux3, vmm_aux3, vmm_src, vmm_aux0);
+    }
+    h->uni_vmovups(vmm_src, vmm_aux3);
 }
 
 template <cpu_isa_t isa>
