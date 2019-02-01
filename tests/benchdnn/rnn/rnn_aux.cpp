@@ -243,7 +243,10 @@ void init_buffer(float *buf, int size, float value) {
 }
 
 float logistic(float x) {
-    return 1.0f / (1.0f + expf(-x));
+    if (x < 0)
+        return (expf(x) / (1 + expf(x)));
+    else
+        return 1.0f - (expf(-x) / (1 + expf(-x)));
 }
 float dlogistic(float x) {
     float tmp = logistic(x);
