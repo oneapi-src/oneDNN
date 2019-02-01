@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common_u8.hpp"
 #include "jit_generator.hpp"
-#include "common.hpp"
 
 namespace mkldnn {
 namespace impl {

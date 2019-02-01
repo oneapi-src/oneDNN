@@ -16,13 +16,25 @@
 
 #include "gemv.hpp"
 
+#include "../blas_structure.hpp"
+#include "common_u8.hpp"
+#include "jit_generator.hpp"
+#include "mkldnn_thread.hpp"
+#include "nstl.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(blas_t *arg) {
+template <typename T>
+int gemm_s8u8s32_jump_to_gemv_s8u8s32(T *arg) {
+    return 0;
+}
 
-    blas_t arg_gemv = *arg;
+template <>
+int gemm_s8u8s32_jump_to_gemv_s8u8s32(BlasStructure<int8_t, uint8_t, int32_t> *arg) {
+
+    BlasStructure<int8_t, uint8_t, int32_t> arg_gemv = *arg;
 
     if ((arg -> offsetc == FIX_OFFSET) && // Fix offset
         (arg -> ao == 0) &&
@@ -72,7 +84,7 @@ int gemm_s8u8s32_jump_to_gemv_s8u8s32(blas_t *arg) {
 }
 
 
-int gemv_kernel_driver(blas_t *arg) {
+int gemv_kernel_driver(BlasStructure<int8_t, uint8_t, int32_t> *arg) {
 
     dim_t m = arg -> m;
     dim_t n = arg -> n;
@@ -92,7 +104,7 @@ int gemv_kernel_driver(blas_t *arg) {
     return 0;
 }
 
-int gemv_threading_driver(blas_t *arg) {
+int gemv_threading_driver(BlasStructure<int8_t, uint8_t, int32_t> *arg) {
 
     dim_t nthr_m, nthr_n = 1;
     dim_t MB, NB, UM = 16, UN = 64;
@@ -107,14 +119,14 @@ int gemv_threading_driver(blas_t *arg) {
 
     dim_t m = arg -> m, n = arg -> n;
 
-    blas_t arg_seq = *arg;
+    BlasStructure<int8_t, uint8_t, int32_t> arg_seq = *arg;
     float zero = 0.0f;
 
-    nthr_m = std::min(std::max(m / BLOCKM, (dim_t) 1), nthr);
+    nthr_m = nstl::min(nstl::max(m / BLOCKM, (dim_t) 1), nthr);
     MB = m / nthr_m;
     MB = (((MB / UM) * UM) == MB) ? MB : (MB / UM) * UM + UM;
     nthr_m = (((m / MB) * MB) == m) ? m / MB : m / MB + 1;
-    nthr_m = std::min(std::max(nthr_m, (dim_t) 1), nthr);
+    nthr_m = nstl::min(nstl::max(nthr_m, (dim_t) 1), nthr);
 
     while ((nthr_m * (nthr_n + 1) <= nthr) && ((n / (nthr_n + 1)) >= BLOCKN)) {
         nthr_n++;
@@ -123,7 +135,7 @@ int gemv_threading_driver(blas_t *arg) {
     NB = n / nthr_n;
     NB = (((NB / UN) * UN) == NB) ? NB : (NB / UN) * UN + UN;
     nthr_n = (((n / NB) * NB) == n) ? n / NB : n / NB + 1;
-    nthr_n = std::min(std::max(nthr_n, (dim_t) 1), nthr / nthr_m);
+    nthr_n = nstl::min(nstl::max(nthr_n, (dim_t) 1), nthr / nthr_m);
 
     nthr = nthr_m * nthr_n;
 
@@ -178,7 +190,7 @@ int gemv_threading_driver(blas_t *arg) {
     }
 
     if (nthr_n > 1) {
-        tmp_y = (int32_t *) malloc((nthr_n - 1) * PADD_BYTESIZE_ONPAGE(m, sizeof(int32_t)), PAGESIZE);
+        tmp_y = (int32_t *) malloc((nthr_n - 1) * PADD_BYTESIZE_ONPAGE(m, sizeof(int32_t)), PAGE_4K);
         if (tmp_y == NULL) {
             if (arg -> ldb != 1) {
                 free(new_x);
@@ -196,7 +208,7 @@ int gemv_threading_driver(blas_t *arg) {
             dim_t loc_incy = 1;
             int32_t *loc_y;
 
-            blas_t arg_loc = arg_seq;
+            BlasStructure<int8_t, uint8_t, int32_t> arg_loc = arg_seq;
             int j;
 
             m_id = ithr / nthr_n;

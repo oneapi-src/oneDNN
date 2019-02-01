@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef IGEMM_KERNEL_GENERATOR_HPP
-#define IGEMM_KERNEL_GENERATOR_HPP
+#ifndef JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP
+#define JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP
 
 #include "jit_generator.hpp"
 
@@ -98,4 +98,4 @@ private:
 }
 }
 
-#endif /* header guard */
+#endif // JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP

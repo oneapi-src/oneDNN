@@ -16,6 +16,9 @@
 
 #include "jit_avx512_core_gemm_s8u8s32_kern.hpp"
 
+#include "cpu_isa_traits.hpp"
+#include "jit_generator.hpp"
+
 
 #ifdef _WIN32
 static const bool is_windows = 1;
@@ -29,9 +32,6 @@ namespace impl {
 namespace cpu {
 
 using namespace Xbyak;
-
-
-
 
 // Convert between vector register lengths.
 static inline Xmm make_xmm(const Xmm &v) { return Xmm(v.getIdx()); }
