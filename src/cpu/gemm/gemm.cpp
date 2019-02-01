@@ -27,9 +27,9 @@
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "f32/ref_gemm_f32.hpp"
 
-#include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
-#include "s8x8s32/simple_gemm_s8s8s32.hpp"
+#include "gemm_driver.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
+#include "s8x8s32/simple_gemm_s8s8s32.hpp"
 
 #include "os_blas.hpp"
 
@@ -120,15 +120,19 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     }
 #endif
 
-    if (mayiuse(avx512_common))
+    if (mayiuse(avx512_mic)) {
         return jit_avx512_common_gemm_f32(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-    else if (mayiuse(avx))
-        return jit_avx_gemm_f32(transa, transb,
-                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-    else
+    } else if (mayiuse(avx)) {
+        float *dummy_ao = NULL;
+        float *dummy_bo = NULL;
+
+        return gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
+                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias);
+    } else {
         return ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+    }
 }
 
 template <typename b_dt>
@@ -189,7 +193,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         switch (isa) {
         case avx512_core:
         case avx512_core_vnni:
-            return jit_avx512_core_gemm_s8u8s32(transa, transb, offsetc, M,
+            return gemm_driver(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
                     C, LDC, co);
         default:
@@ -243,7 +247,6 @@ mkldnn_status_t mkldnn_sgemm(const char *transa, const char *transb,
     int lda_s32 = (int)*lda;
     int ldb_s32 = (int)*ldb;
     int ldc_s32 = (int)*ldc;
-
     return extended_sgemm(transa, transb, &M_s32, &N_s32, &K_s32,
             alpha, A, &lda_s32, B, &ldb_s32, beta, C, &ldc_s32);
 }

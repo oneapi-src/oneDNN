@@ -17,7 +17,8 @@
 #ifndef SIMPLE_GEMM_S8S8S32_HPP
 #define SIMPLE_GEMM_S8S8S32_HPP
 
-#include <stdint.h>
+#include <cstdint>
+
 #include "mkldnn_types.h"
 
 namespace mkldnn {

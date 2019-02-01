@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_UTILS_HPP
-#define GEMM_UTILS_HPP
+#ifndef GEMM_UTILS_F32_HPP
+#define GEMM_UTILS_F32_HPP
 
 namespace mkldnn {
 namespace impl {
@@ -69,4 +69,4 @@ void partition_unit_diff(
 }
 }
 }
-#endif
+#endif // GEMM_UTILS_F32_HPP

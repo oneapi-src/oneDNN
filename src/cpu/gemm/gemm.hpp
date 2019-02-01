@@ -55,4 +55,4 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
 }
 }
 
-#endif
+#endif // GEMM_HPP

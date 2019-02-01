@@ -14,8 +14,14 @@
  * limitations under the License.
  *******************************************************************************/
 
+#ifndef JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP
+#define JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP
+
+#include <cstdint>
+
+#include "../blas_structure.hpp"
+#include "common_u8.hpp"
 #include "jit_generator.hpp"
-#include "common.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -62,3 +68,5 @@ public:
 }
 }
 }
+
+#endif // JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP

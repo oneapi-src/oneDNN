@@ -33,4 +33,4 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
 }
 }
 
-#endif
+#endif // JIT_AVX512_COMMON_GEMM_F32_HPP

@@ -1762,6 +1762,7 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
         const int8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
         const float *beta,
         int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
+
 /** @} */
 
 /** @} */

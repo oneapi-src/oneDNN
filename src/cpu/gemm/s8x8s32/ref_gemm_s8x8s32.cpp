@@ -16,12 +16,14 @@
 
 #include <cstdint>
 
-#include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
-#include "utils.hpp"
+#include "ref_gemm_s8x8s32.hpp"
 
 #include "../f32/ref_gemm_f32.hpp"
 #include "jit_generator.hpp"
+#include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
+#include "mkldnn_types.h"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {

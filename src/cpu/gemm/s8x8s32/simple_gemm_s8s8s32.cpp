@@ -14,12 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common.hpp"
-#include "nstl.hpp"
-#include "math_utils.hpp"
+#include <cstdint>
+
+#include "simple_gemm_s8s8s32.hpp"
 
 #include "../gemm.hpp"
-#include "jit_avx512_core_gemm_s8u8s32.hpp"
+#include "jit_generator.hpp"
+#include "math_utils.hpp"
+#include "mkldnn_thread.hpp"
+#include "mkldnn_types.h"
+#include "nstl.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {

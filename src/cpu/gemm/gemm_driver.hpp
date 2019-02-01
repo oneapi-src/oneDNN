@@ -14,25 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_GEMM_S8U8S32_HPP
-#define JIT_AVX512_CORE_GEMM_S8U8S32_HPP
+#ifndef GEMM_DRIVER_HPP
+#define GEMM_DRIVER_HPP
 
-#include <cstdint>
 #include "mkldnn_types.h"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-mkldnn_status_t jit_avx512_core_gemm_s8u8s32(
+template <typename a_type, typename b_type, typename c_type>
+mkldnn_status_t gemm_driver(
         const char *transA, const char *transB, const char *offsetC,
         const int *m, const int *n, const int *k,
-        const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
-        const uint8_t *b, const int *ldb, const int8_t *ob,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *oc);
+        const float *alpha, const a_type *a, const int *lda, const a_type *oa,
+        const b_type *b, const int *ldb, const a_type *ob,
+        const float *beta, c_type *c, const int *ldc, const c_type *oc);
 
 }
 }
 }
 
-#endif // JIT_AVX512_CORE_GEMM_S8U8S32_HPP
+#endif // GEMM_DRIVER_HPP
