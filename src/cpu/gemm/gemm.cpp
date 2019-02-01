@@ -33,6 +33,7 @@
 #include "s8x8s32/simple_gemm_s8s8s32.hpp"
 
 #include "os_blas.hpp"
+#include "common/bfloat16.hpp"
 
 /* USE_MKL      USE_CBLAS       effect
  * -------      ---------       ------
@@ -258,6 +259,39 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co);
 
+mkldnn_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
+        const int64_t *M, const int64_t *N, const int64_t *K,
+        const float *alpha,
+        const bfloat16_t *A, const int64_t *lda,
+        const bfloat16_t *B, const int64_t *ldb,
+        const float *beta, float *C, const int64_t *ldc) {
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+    int ldc_s32 = (int)*ldc;
+    mkldnn_status_t status = check_gemm_input(transa, transb,
+            &M_s32, &N_s32, &K_s32, &lda_s32, &ldb_s32, &ldc_s32,
+            alpha, beta, false);
+    if (status != mkldnn_success)
+        return status;
+
+    char *dummyOffsetC = NULL;
+    bfloat16_t *dummy_ao = NULL;
+    bfloat16_t *dummy_bo = NULL;
+    float *dummy_co = NULL;
+
+    if (mayiuse(avx512_core)) {
+        return gemm_driver(transa, transb, dummyOffsetC, &M_s32, &N_s32, &K_s32,
+                alpha, (const bfloat16_t *)A, &lda_s32, dummy_ao,
+                (const bfloat16_t *) B, &ldb_s32, dummy_bo, beta,
+                (float *)C, &ldc_s32, dummy_co, false);
+    } else {
+        return mkldnn_unimplemented;
+    }
+}
+
 }
 }
 }
@@ -308,4 +342,20 @@ mkldnn_status_t mkldnn_gemm_s8s8s32(const char *transa, const char *transb,
 
     return gemm_s8x8s32<int8_t>(transa, transb, offsetc, &M_s32, &N_s32, &K_s32,
             alpha, A, &lda_s32, ao, B, &ldb_s32, bo, beta, C, &ldc_s32, co);
+}
+
+extern "C" {
+mkldnn_status_t MKLDNN_API mkldnn_gemm_bf16bf16f32(
+        const char *transa, const char *transb,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha,
+        const bfloat16_t *A, const mkldnn_dim_t *lda,
+        const bfloat16_t *B, const mkldnn_dim_t *ldb,
+        const float *beta,
+        float *C, const mkldnn_dim_t *ldc) {
+
+    return gemm_bf16bf16f32(transa, transb, M, N, K,
+            alpha, A, lda, B, ldb, beta, C, ldc);
+}
+
 }

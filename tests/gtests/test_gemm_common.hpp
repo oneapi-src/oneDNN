@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include "mkldnn_types.h"
 #include "mkldnn.h"
+#include "cpu_isa_traits.hpp"
 
 #include <type_traits>
 #include <utility>
@@ -58,6 +59,18 @@ mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, const char *transa,
         cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
 }
 #endif
+
+// Declare bfloat16 GEMM interfaces for testing
+extern "C" {
+mkldnn_status_t mkldnn_gemm_bf16bf16f32(
+        const char *transa, const char *transb,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha,
+        const bfloat16_t *A, const mkldnn_dim_t *lda,
+        const bfloat16_t *B, const mkldnn_dim_t *ldb,
+        const float *beta,
+        float *C, const mkldnn_dim_t *ldc);
+}
 
 namespace mkldnn {
 
@@ -157,7 +170,7 @@ const int N_test_max = 53;
 struct mapper_t {
     mapper_t(int64_t dim, int64_t dim_test_max,
             int64_t gen = 7, int64_t gen_start = 13)
-        : dim_(dim), dim_test_(std::min(dim, dim_test_max))
+        : dim_(dim), dim_test_((std::min)(dim, dim_test_max))
         , gen_(gen), gen_start_(gen_start)
         , mapper_(dim)
     {
@@ -191,7 +204,10 @@ void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout, 
         int64_t C, int64_t LD, const mapper_t &mapper) {
     auto M = map_memory<data_t>(M_mem);
     auto dt = data_traits<data_t>::data_type;
-    bool is_fp = (dt == memory::data_type::f16 || dt == memory::data_type::f32);
+    bool is_fp = (false
+            || dt == memory::data_type::f16
+            || dt == memory::data_type::bf16
+            || dt == memory::data_type::f32);
     const data_t mean = (data_t)(is_fp ? 1.f : 4);
     const data_t var = (data_t)(is_fp ? 2e-1f : 3);
 
@@ -366,6 +382,10 @@ void compare(const test_params &p, const test_memory &c_mem,
             const float eps = 1e-3 * p.K;
             float e = (std::abs(ref) > eps) ? diff / ref : float(diff);
             ASSERT_NEAR(e, 0.0, eps) << "Row: " << j << " Col: " << i;
+        } else if (data_traits<b_dt>::data_type == data_type::bf16) {
+            const float eps = 1e-2 * p.K;
+            float e = (std::abs(ref) > eps) ? diff / ref : float(diff);
+            ASSERT_NEAR(e, 0.0, eps) << "Row: " << j << " Col: " << i;
         } else if (data_traits<b_dt>::data_type == data_type::f32) {
             c_dt e = (std::abs(ref) > 1e-4) ? c_dt(diff / ref) : diff;
             ASSERT_NEAR(e, 0.0, 1e-4) << "Row: " << j << " Col: " << i;
@@ -530,6 +550,20 @@ struct mkldnn_gemm<int8_t, uint8_t, int32_t> {
     }
 };
 
+template <>
+struct mkldnn_gemm<bfloat16_t, bfloat16_t, float> {
+    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &) {
+        auto A = map_memory<bfloat16_t>(a_mem);
+        auto B = map_memory<bfloat16_t>(b_mem);
+        auto C = map_memory<float>(c_mem);
+        return mkldnn_gemm_bf16bf16f32(
+                &p.transA, &p.transB, &p.M, &p.N, &p.K,
+                &p.alpha, A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
+    }
+};
+
 template <typename a_dt, typename b_dt, typename c_dt>
 struct run_test_gemm {
     static void call(const test_params &p) {
@@ -588,6 +622,16 @@ protected:
         bool is_f16 = (data_traits<c_dt>::data_type == memory::data_type::f16);
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
+
+        bool is_bfloat16 = true
+                && data_traits<a_dt>::data_type == memory::data_type::bf16
+                && data_traits<b_dt>::data_type == memory::data_type::bf16
+                && data_traits<c_dt>::data_type == memory::data_type::f32;
+
+        SKIP_IF(is_bfloat16 && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support bfloat16 data type.");
+        SKIP_IF(is_bfloat16 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
+                "Skip test for systems that do not support avx512_core.");
 
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);

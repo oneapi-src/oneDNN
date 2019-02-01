@@ -21,6 +21,7 @@
 #include "jit_generator.hpp"
 #include "mkldnn_thread.hpp"
 #include "nstl.hpp"
+#include "common/bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -32,6 +33,10 @@ int gemm_s8u8s32_jump_to_gemv_s8u8s32(T *arg);
 template <>
 int gemm_s8u8s32_jump_to_gemv_s8u8s32(
         gemm_info_t<float, float, float> *arg) { return 0; }
+
+template <>
+int gemm_s8u8s32_jump_to_gemv_s8u8s32(
+        gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) { return 0; }
 
 template <>
 int gemm_s8u8s32_jump_to_gemv_s8u8s32(
