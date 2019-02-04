@@ -61,21 +61,21 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
             const bool flat = IC() == 3;
-            auto src_fmt = flat
+            auto src_tag = flat
                 ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
                 : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto dst_fmt =
+            auto dst_tag =
                 utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto wei_fmt = with_groups()
+            auto wei_tag = with_groups()
                 ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
                         gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
                 : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
                         OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
 
-            return set_default_formats_common(src_fmt, wei_fmt, dst_fmt);
+            return set_default_formats_common(src_tag, wei_tag, dst_tag);
         }
     };
 

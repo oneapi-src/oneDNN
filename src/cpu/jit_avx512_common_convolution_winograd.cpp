@@ -98,7 +98,6 @@ void inline accum_output(
 }
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16]) {

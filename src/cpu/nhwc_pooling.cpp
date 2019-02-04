@@ -32,16 +32,16 @@ namespace cpu {
 #define MEM_D(name) name##_d
 
 #define DECLARE_READ_STRIDES(name)                                             \
-    const size_t name##_n_stride = MEM_D(name).blocking_desc().strides[0][0];  \
+    const size_t name##_n_stride = MEM_D(name).blocking_desc().strides[0];     \
     const size_t name##_d_stride = (!is_3d)                                    \
                                  ? 0                                           \
-                                 : MEM_D(name).blocking_desc().strides[0][2];  \
+                                 : MEM_D(name).blocking_desc().strides[2];     \
     const size_t name##_h_stride = (!is_3d)                                    \
-                                 ? MEM_D(name).blocking_desc().strides[0][2]   \
-                                 : MEM_D(name).blocking_desc().strides[0][3];  \
+                                 ? MEM_D(name).blocking_desc().strides[2]      \
+                                 : MEM_D(name).blocking_desc().strides[3];     \
     const size_t name##_w_stride = (!is_3d)                                    \
-                                 ? MEM_D(name).blocking_desc().strides[0][3]   \
-                                 : MEM_D(name).blocking_desc().strides[0][4];
+                                 ? MEM_D(name).blocking_desc().strides[3]      \
+                                 : MEM_D(name).blocking_desc().strides[4];
 
 namespace nhwc_pooling {
     size_t strided_offset(const int _n, const size_t _sn,

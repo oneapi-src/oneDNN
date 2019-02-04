@@ -40,14 +40,14 @@ struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
         status_t init() {
             using namespace data_type;
             using namespace prop_kind;
-            using namespace memory_format;
+            using namespace format_tag;
 
             bool ok = true
                 && is_fwd()
                 && !has_zero_dim_memory()
                 && src_md()->data_type == f32
                 && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
-                && utils::one_of(src_md()->format, ncdhw, nchw, nc)
+                && memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, nc)
                 && (attr()->has_default_values() || this->with_relu_post_op());
             if (!ok) return status::unimplemented;
 
@@ -97,7 +97,7 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
 
         status_t init() {
             using namespace data_type;
-            using namespace memory_format;
+            using namespace format_tag;
 
             bool ok = true
                 && is_bwd()
@@ -108,8 +108,8 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
                         utils::everyone_is(f32,
                             weights_md()->data_type,
                             diff_weights_md()->data_type))
-                && src_md()->format == diff_src_md()->format
-                && utils::one_of(src_md()->format, ncdhw, nchw, nc)
+                && memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, nc)
+                && memory_desc_matches_one_of_tag(*diff_src_md(), ncdhw, nchw, nc)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

@@ -124,9 +124,9 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
-            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
+            using namespace format_tag;
+            auto wei_tag = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_tag, nChw16c);
         }
     };
 
@@ -197,9 +197,9 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
-            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
+            using namespace format_tag;
+            auto wei_tag = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_tag, nChw16c);
         }
     };
 
@@ -268,9 +268,9 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
-            return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
+            using namespace format_tag;
+            auto wei_tag = with_groups() ? gOIhw16i16o : OIhw16i16o;
+            return set_default_formats_common(nChw16c, wei_tag, nChw16c);
         }
     };
 

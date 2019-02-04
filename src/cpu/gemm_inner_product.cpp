@@ -27,7 +27,7 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::data_type;
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::primitive_kind;
 
 template <impl::data_type_t data_type>
@@ -42,7 +42,8 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = !utils::one_of(pd()->weights_md()->format, hwio, dhwio, io);
+    bool wei_tr = !memory_desc_matches_one_of_tag(
+            *pd()->weights_md(), hwio, dhwio, io);
 
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_relu = post_ops.len_ == 1;
@@ -72,7 +73,8 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = utils::one_of(pd()->weights_md()->format, hwio, dhwio, io);
+    bool wei_tr = memory_desc_matches_one_of_tag(
+            *pd()->weights_md(), hwio, dhwio, io);
 
     float alpha = 1.0, beta = 0.0;
     extended_sgemm(wei_tr ? "T" : "N", "N", &IC, &MB, &OC, &alpha, weights,
@@ -96,8 +98,8 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = utils::one_of(pd()->diff_weights_md()->format,
-            hwio, dhwio, io);
+    bool wei_tr = memory_desc_matches_one_of_tag(
+            *pd()->diff_weights_md(), hwio, dhwio, io);
 
     float alpha = 1.0, beta = 0.0;
     if (wei_tr)

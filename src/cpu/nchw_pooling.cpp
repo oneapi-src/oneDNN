@@ -218,7 +218,8 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
     };
 
     auto ker_max = [=](const data_t *d, int mb, int c, int od, int oh, int ow) {
-        auto b_c = ws_d.blocking_desc().block_dims[1];
+        auto b_c = ws_d.blocking_desc().inner_nblks == 0
+            ? 1 : ws_d.blocking_desc().inner_blks[0];
         auto ws_offset = is_3d
             ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
             : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;

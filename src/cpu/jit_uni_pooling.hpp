@@ -42,7 +42,6 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 jit_uni_pooling_fwd_t<isa>);
 
         status_t init() {
-            using namespace alg_kind;
             using namespace utils;
 
             bool ok = true
@@ -52,21 +51,20 @@ struct jit_uni_pooling_fwd_t: public cpu_primitive_t {
                 && everyone_is(data_type::f32,
                         src_md()->data_type,
                         dst_md()->data_type)
-                && everyone_is(desired_fmt(),
-                        src_md()->format,
-                        dst_md()->format)
-                && attr()->has_default_values();
+                && attr()->has_default_values()
+                && memory_desc_matches_tag(*src_md(), desired_fmt_tag())
+                && memory_desc_matches_tag(*dst_md(), desired_fmt_tag());
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;
-            if (desc()->alg_kind == pooling_max && is_training)
+            if (desc()->alg_kind == alg_kind::pooling_max && is_training)
                 init_default_ws();
 
             return jit_uni_pool_kernel_f32<isa>::init_conf(jpp_, this);
         }
 
-        memory_format_t desired_fmt() {
-            using namespace memory_format;
+        format_tag_t desired_fmt_tag() {
+            using namespace format_tag;
             return ndims() == 4
                 ? isa == avx512_common ? nChw16c : nChw8c
                 : isa == avx512_common ? nCdhw16c : nCdhw8c;
@@ -113,23 +111,21 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
                 jit_uni_pooling_bwd_t<isa>);
 
         status_t init() {
-            using namespace alg_kind;
             using namespace utils;
 
             bool ok = true
                 && set_default_params() == status::success
                 && !is_fwd()
                 && !has_zero_dim_memory()
-                && everyone_is(desired_fmt(),
-                        diff_src_md()->format,
-                        diff_dst_md()->format)
                 && everyone_is(data_type::f32,
                         diff_src_md()->data_type,
                         diff_dst_md()->data_type)
-                && attr()->has_default_values();
+                && attr()->has_default_values()
+                && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag())
+                && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag());
             if (!ok) return status::unimplemented;
 
-            if (desc()->alg_kind == pooling_max) {
+            if (desc()->alg_kind == alg_kind::pooling_max) {
                 init_default_ws();
                 if (!compare_ws(hint_fwd_pd_))
                     return status::unimplemented;
@@ -138,8 +134,8 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
             return jit_uni_pool_kernel_f32<isa>::init_conf(jpp_, this);
         }
 
-        memory_format_t desired_fmt() {
-            using namespace memory_format;
+        format_tag_t desired_fmt_tag() {
+            using namespace format_tag;
             return ndims()
                 ? isa == avx512_common ? nChw16c : nChw8c
                 : isa == avx512_common ? nCdhw16c : nCdhw8c;

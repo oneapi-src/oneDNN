@@ -28,7 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_kind;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
@@ -605,8 +605,15 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     jcp.r = 3;
     jcp.alpha = jcp.m + jcp.r - 1;
     int simdw = 16;
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+
+    format_tag_t dat_tag = format_tag::nChw16c;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+
+    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    if (jcp.dst_tag != dat_tag) return status::unimplemented;
+
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -616,12 +623,6 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jcp.oc = rnd_up(jcp.oc, simdw);
         jcp.ic = rnd_up(jcp.ic, simdw);
     }
-
-    if (src_d.format() != nChw16c
-            || dst_d.format() != nChw16c
-            || !IMPLICATION(jcp.with_bias,
-                bias_d.format() == x))
-        return status::unimplemented;
 
     jcp.ver = ver_avx512_core;
     if (!(mayiuse(avx512_core)))
@@ -810,9 +811,9 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
     /* re-create weights primitive descriptor
                                     and set weights wino_blocking */
-    expect_wei_md.format = mkldnn_wino_fmt;
+    expect_wei_md.format_kind = mkldnn_wino_fmt;
     expect_wei_md.data_type = data_type::f32;
-    mkldnn_wino_desc_t &wd = expect_wei_md.layout_desc.wino_desc;
+    mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
     wd.wino_format
             = jcp.small_mb ? mkldnn_wino_wei_aaOio : mkldnn_wino_wei_aaOBiOo;
     wd.r = jcp.r;

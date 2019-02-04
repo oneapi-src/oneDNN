@@ -57,7 +57,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
     cd.diff_bias_desc = cd.bias_desc = zero_md();
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
+    const bool with_bias =
+        bias_desc && bias_desc->format_kind != format_kind::undef;
     const bool with_groups = weights_desc->ndims == src_desc->ndims + 1;
 
     (prop_kind == backward_data ? cd.diff_src_desc : cd.src_desc) = *src_desc;

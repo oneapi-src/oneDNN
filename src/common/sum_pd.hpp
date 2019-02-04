@@ -76,7 +76,8 @@ protected:
     status_t init() {
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper src_d(&src_mds_[i]);
-            if (!src_d.is_blocking_desc()) return status::unimplemented;
+            if (!src_d.is_blocking_desc() || src_d.is_additional_buffer())
+                return status::unimplemented;
         }
         bool ok = true
             && set_default_params() == status::success
@@ -85,17 +86,25 @@ protected:
     }
 
     status_t set_default_params() {
-        auto dst_fmt = dst_md_.format;
-        if (dst_fmt == memory_format::any) {
-            /* the stupidest ever heuristics */
-            for (int i = 0; i < n_; ++i)
-                dst_fmt = nstl::max(dst_fmt, src_mds_[i].format);
+        if (dst_md_.format_kind != format_kind::any)
+            return status::success;
 
-            if (dst_fmt == memory_format::blocked)
-                dst_md_ = src_mds_[0];
-            else
-                CHECK(types::set_default_format(dst_md_, dst_fmt));
+        /* The stupidest ever heuristics (but not the same as we had before):
+         *  - Pick the first non-plain format;
+         *  - If all formats are plain, pick the format of the first input
+         */
+        for (int i = 0; i < n_; ++i) {
+            const memory_desc_wrapper src_d(src_mds_[i]);
+            if (!src_d.is_plain() && src_d.is_blocking_desc()) {
+                return memory_desc_init_by_blocking_desc(dst_md_,
+                        src_d.blocking_desc());
+            }
         }
+
+        if (src_mds_[0].format_kind != format_kind::blocked)
+            return status::unimplemented;
+
+        dst_md_ = src_mds_[0];
 
         return status::success;
     }

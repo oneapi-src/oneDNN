@@ -72,181 +72,36 @@ inline size_t data_type_size(data_type_t data_type) {
     return 0; /* not supposed to be reachable */
 }
 
-inline memory_format_t flat_memory_format(int ndims) {
-    switch (ndims) {
-    case 1: return memory_format::x;
-    case 2: return memory_format::nc;
-    case 3: return memory_format::ncw;
-    case 4: return memory_format::nchw;
-    case 5: return memory_format::ncdhw;
-    default: return memory_format::undef;
+inline format_kind_t format_tag_to_kind(format_tag_t tag) {
+    switch (tag) {
+    case format_tag::undef: return format_kind::undef;
+    case format_tag::any: return format_kind::any;
+    case format_tag::last: return format_kind::undef;
+    default: return format_kind::blocked;
     }
-    return memory_format::undef;
+
+    assert(!"unreachable");
+    return format_kind::undef;
 }
 
-inline memory_format_t format_normalize(const memory_format_t fmt) {
-    using namespace memory_format;
-    /* FIXME: double blocked formats are special cases -- the blocking
-     *        structure doesn't correctly describe memory layout (wrt
-     *        the strides within blocks). Though as long as the code
-     *        uses memory_desc_wrapper::off() or explicit offset
-     *        calculations everything should be fine. */
-    const bool is_blocked = utils::one_of(fmt, blocked,
-            x,
-            nc,
-            ncw,
-            nwc,
-            nCw4c,
-            nCw8c,
-            nCw16c,
-            nchw,
-            nhwc,
-            chwn,
-            nChw4c,
-            nChw8c,
-            nChw16c,
-            ncdhw,
-            ndhwc,
-            nCdhw4c,
-            nCdhw8c,
-            nCdhw16c,
-            oi,
-            io,
-            oiw,
-            wio,
-            Owi4o,
-            OIw4i4o,
-            Owi8o,
-            OIw8i8o,
-            OIw8o8i,
-            OIw16i16o,
-            OIw16o16i,
-            Oiw4o,
-            Oiw16o,
-            Owi16o,
-            OIw8i16o2i,
-            OIw8o16i2o,
-            IOw16o16i,
-            oihw,
-            ihwo,
-            hwio,
-            iohw,
-            hwio_s8s8,
-            dhwio,
-            oidhw,
-            OIdhw4i4o,
-            Odhwi4o,
-            OIdhw8i8o,
-            OIdhw8o8i,
-            Odhwi8o,
-            OIdhw16i16o,
-            OIdhw16o16i,
-            Oidhw4o,
-            Oidhw16o,
-            Odhwi16o,
-            oIhw8i,
-            oIhw16i,
-            oIdhw8i,
-            oIdhw16i,
-            OIhw4i4o,
-            OIhw8i8o,
-            OIhw16i16o,
-            OIw4i16o4i,
-            OIw4i16o4i_s8s8,
-            OIhw4i16o4i,
-            OIhw4i16o4i_s8s8,
-            OIhw8i16o2i,
-            OIdhw8i16o2i,
-            OIhw8o16i2o,
-            OIhw8o8i,
-            OIhw16o16i,
-            IOhw16o16i,
-            Oihw4o,
-            Oihw16o,
-            Ohwi8o,
-            Ohwi4o,
-            Ohwi16o,
-            goiw,
-            gOwi4o,
-            gOIw4i4o,
-            gOwi8o,
-            gOIw8i8o,
-            gOIw8o8i,
-            gOIw16i16o,
-            gOIw16o16i,
-            gOiw4o,
-            gOiw16o,
-            gOwi16o,
-            gOIw8i16o2i,
-            gOIw8o16i2o,
-            gIOw16o16i,
-            goihw,
-            hwigo,
-            giohw,
-            hwigo_s8s8,
-            gOIhw4i4o,
-            gOIhw8i8o,
-            gOIhw16i16o,
-            gOIw4i16o4i,
-            gOIw4i16o4i_s8s8,
-            gOIhw4i16o4i,
-            gOIhw4i16o4i_s8s8,
-            gOIhw2i8o4i,
-            gOIhw2i8o4i_s8s8,
-            gOIhw8i16o2i,
-            gOIdhw8i16o2i,
-            gOIhw8o16i2o,
-            gOIhw4o4i,
-            gOIhw4o4i_s8s8,
-            gOIhw8o8i,
-            gOIhw16o16i,
-            gIOhw16o16i,
-            gOihw4o,
-            gOihw16o,
-            gOhwi8o,
-            gOhwi4o,
-            gOhwi16o,
-            Goihw8g,
-            Goiw16g,
-            Goiw16g_s8s8,
-            Goihw16g,
-            Goihw16g_s8s8,
-            goidhw,
-            gOIdhw4i4o,
-            gOdhwi4o,
-            gOIdhw8i8o,
-            gOIdhw8o8i,
-            gOdhwi8o,
-            gOIdhw16i16o,
-            gOIdhw16o16i,
-            gOidhw16o,
-            gOidhw4o,
-            gOdhwi16o,
-            ntc,
-            tnc,
-            ldsnc,
-            ldigo,
-            ldgoi,
-            ldgo);
-    return is_blocked ? blocked : fmt;
-}
-
-inline bool is_format_double_blocked(memory_format_t fmt) {
-    using namespace memory_format;
-    return utils::one_of(OIw8o16i2o, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
-            OIhw8o16i2o, OIw4i16o4i, OIhw4i16o4i, OIw4i16o4i_s8s8,
-            OIhw4i16o4i_s8s8, gOIw8o16i2o, gOIw8i16o2i, gOIhw8i16o2i,
-            gOIdhw8i16o2i, gOIhw8o16i2o, gOIw4i16o4i, gOIhw4i16o4i,
-            gOIw4i16o4i_s8s8, gOIhw4i16o4i_s8s8, gOIhw2i8o4i, gOIhw2i8o4i_s8s8);
+inline bool memory_extra_desc_is_equal(const memory_extra_desc_t &lhs,
+        const memory_extra_desc_t &rhs) {
+    return true
+        && lhs.flags == rhs.flags
+        && IMPLICATION(lhs.flags & memory_extra_flags::compensation_conv_s8s8,
+                lhs.compensation_mask == rhs.compensation_mask)
+        && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
+                lhs.scale_adjust == rhs.scale_adjust);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, int ndims = TENSOR_MAX_DIMS) {
     using mkldnn::impl::utils::array_cmp;
     return true
-        && array_cmp(lhs.block_dims, rhs.block_dims, ndims)
-        && array_cmp(lhs.strides[0], rhs.strides[0], ndims)
-        && array_cmp(lhs.strides[1], rhs.strides[1], ndims);
+        && lhs.inner_nblks == rhs.inner_nblks
+        && array_cmp(lhs.strides, rhs.strides, ndims)
+        && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
+        && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
 }
 
 inline bool wino_desc_is_equal(const wino_data_t &lhs,
@@ -264,10 +119,12 @@ inline bool wino_desc_is_equal(const wino_data_t &lhs,
 
 inline bool rnn_packed_desc_is_equal(
         const rnn_packed_data_t &lhs, const rnn_packed_data_t &rhs) {
-    bool ok = lhs.format == rhs.format && lhs.n_parts == rhs.n_parts
-            && lhs.offset_compensation == rhs.offset_compensation
-            && lhs.size == rhs.size
-            && lhs.n == rhs.n;
+    bool ok = true
+        && lhs.format == rhs.format
+        && lhs.n_parts == rhs.n_parts
+        && lhs.offset_compensation == rhs.offset_compensation
+        && lhs.size == rhs.size
+        && lhs.n == rhs.n;
     if (!ok)
         return false;
 
@@ -285,10 +142,6 @@ inline memory_desc_t zero_md() {
 
 inline bool is_zero_md(const memory_desc_t *md) {
     return md == nullptr || *md == zero_md();
-}
-
-inline status_t set_default_format(memory_desc_t &md, memory_format_t fmt) {
-    return mkldnn_memory_desc_init(&md, md.ndims, md.dims, md.data_type, fmt);
 }
 
 inline data_type_t default_accum_data_type(data_type_t src_dt,
@@ -347,22 +200,155 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
         && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
         && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)
         && lhs.offset0 == rhs.offset0
-        && lhs.format == rhs.format; /* FIXME: normalize format? */
+        && lhs.format_kind == rhs.format_kind;
     if (!base_equal) return false;
-    if (lhs.format == memory_format::blocked)
-        return types::blocking_desc_is_equal(lhs.layout_desc.blocking,
-                rhs.layout_desc.blocking, lhs.ndims);
-    else if (lhs.format == memory_format::wino_fmt)
-        return types::wino_desc_is_equal(lhs.layout_desc.wino_desc,
-            rhs.layout_desc.wino_desc);
-    else if (lhs.format == memory_format::rnn_packed)
-        return types::rnn_packed_desc_is_equal(lhs.layout_desc.rnn_packed_desc,
-                rhs.layout_desc.rnn_packed_desc);
+    if (!types::memory_extra_desc_is_equal(lhs.extra, rhs.extra)) return false;
+    if (lhs.format_kind == format_kind::blocked)
+        return types::blocking_desc_is_equal(lhs.format_desc.blocking,
+                rhs.format_desc.blocking, lhs.ndims);
+    else if (lhs.format_kind == format_kind::wino_fmt)
+        return types::wino_desc_is_equal(lhs.format_desc.wino_desc,
+            rhs.format_desc.wino_desc);
+    else if (lhs.format_kind == format_kind::rnn_packed)
+        return types::rnn_packed_desc_is_equal(lhs.format_desc.rnn_packed_desc,
+                rhs.format_desc.rnn_packed_desc);
     return true;
 }
 
 inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     return !operator==(lhs, rhs);
+}
+
+inline status_t memory_desc_init_by_strides(memory_desc_t &md,
+        const dims_t strides) {
+    return mkldnn_memory_desc_init_by_strides(
+            &md, md.ndims, md.dims, md.data_type, strides);
+}
+
+inline status_t memory_desc_init_by_tag(memory_desc_t &md, format_tag_t tag,
+        const dims_t strides = nullptr) {
+    status_t status = mkldnn_memory_desc_init_by_tag(
+            &md, md.ndims, md.dims, md.data_type, tag);
+    if (status != status::success || strides == nullptr)
+        return status;
+
+    /* TODO: add consistency check */
+
+    for (int d = 0; d < md.ndims; ++d)
+        md.format_desc.blocking.strides[d] = strides[d];
+
+    return status::success;
+}
+
+/** inits memory descriptor based on logical dimensions kept in @p md, and the
+ * blocking structure @p blk.
+ *
+ * @note blk.strides represent the order only (from smaller to bigger)
+ *
+ * TODO: move md related functions to one single place
+ */
+inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
+        const blocking_desc_t &blk) {
+    dims_t blocks = {0};
+    utils::array_set(blocks, 1, md.ndims);
+    dim_t block_size = 1;
+    for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
+        blocks[blk.inner_idxs[iblk]] *= blk.inner_blks[iblk];
+        block_size *= blk.inner_blks[iblk];
+    }
+
+    for (int d = 0; d < md.ndims; ++d) {
+        md.padded_dims[d] = utils::rnd_up(md.dims[d], blocks[d]);
+        md.padded_offsets[d] = 0;
+    }
+    md.offset0 = 0;
+
+    md.format_kind = format_kind::blocked;
+    auto &mblk = md.format_desc.blocking;
+    mblk = blk;
+
+    int perm[TENSOR_MAX_DIMS];
+    const int ndims = nstl::min(TENSOR_MAX_DIMS, md.ndims); // make GCC 5 happy
+    for (int d = 0; d < ndims; ++d) perm[d] = d;
+
+    for (int d = 0; d < ndims; ++d) {
+        for (int _ = d + 1; _ < ndims; ++_) {
+            if (blk.strides[perm[_]] < blk.strides[perm[d]]) {
+                nstl::swap(perm[_], perm[d]);
+                nstl::swap(mblk.strides[perm[_]], mblk.strides[perm[d]]);
+            }
+        }
+    }
+
+    dim_t stride = block_size;
+    for (int _d = 0; _d < ndims; ++_d) {
+        const int d = perm[_d];
+        md.format_desc.blocking.strides[d] = stride;
+        stride *= md.padded_dims[d] / blocks[d];
+    }
+
+    md.extra = utils::zero<memory_extra_desc_t>();
+
+    return status::success;
+}
+
+/** returns true if memory desc @p md corresponds to the given format tag and
+ * strides.
+ * If strides are not passed (or passed as nullptr) the dense structure is
+ * assumed (i.e. the one that mkldnn_memory_desc_init_by_tag() returns).
+ * Strides might contain `0` value, indicating the stride must match the one
+ * that mkldnn_memory_desc_init_by_tag() returns.
+ * Strides might contain `-1` values, that would be ignored during the
+ * comparison. For instance, this can be used if a stride along minibatch
+ * doesn't matter. */
+inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
+        const dims_t strides = nullptr) {
+    if (md.format_kind != types::format_tag_to_kind(tag))
+        return false;
+
+    memory_desc_t md_gold;
+    status_t status = mkldnn_memory_desc_init_by_tag(
+            &md_gold, md.ndims, md.dims, md.data_type, tag);
+    if (status != status::success) return false;
+
+    if (md.format_kind != format_kind::blocked)
+        return false; // unimplemented yet
+
+    const auto &blk = md.format_desc.blocking;
+    const auto &blk_gold = md_gold.format_desc.blocking;
+
+    using utils::array_cmp;
+    bool same_blocks = true
+        && blk.inner_nblks == blk_gold.inner_nblks
+        && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
+        && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
+
+    if (!same_blocks)
+        return false;
+
+    if (strides == nullptr)
+        return array_cmp(blk.strides, blk_gold.strides, md.ndims);
+
+    for (int d = 0; d < md.ndims; ++d) {
+        dim_t stride = strides[d];
+        if (stride == -1) continue;
+        if (stride == 0) stride = blk_gold.strides[d];
+        if (blk.strides[d] != stride) return false;
+    }
+
+    return true;
+}
+
+/** returns matching tag (or undef if match is not found)
+ * XXX: This is a workaround that eventually should go away! */
+template <typename... Tags>
+format_tag_t memory_desc_matches_one_of_tag(const memory_desc_t &md,
+        Tags ...tags) {
+    for (const auto tag: {tags...}) {
+        if (memory_desc_matches_tag(md, tag))
+            return tag;
+    }
+    return format_tag::undef;
 }
 
 }

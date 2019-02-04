@@ -76,7 +76,7 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(const data_t *bias,
     const int OC = pd()->OC();
     const int SP = pd()->OW() * pd()->OH() * pd()->OD();
 
-    const ptrdiff_t stride_mb = dst_d.blocking_desc().strides[0][0];
+    const ptrdiff_t stride_mb = dst_d.blocking_desc().strides[0];
 
     parallel_nd(MB, utils::div_up(OC, blksize), SP,
         [&](int mb, int oc_blk, int sp) {
@@ -160,7 +160,7 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
     const int MB = pd()->MB();
     const int SP = pd()->OH() * pd()->OW() * pd()->OD();
 
-    const ptrdiff_t stride_mb = diff_dst_d.blocking_desc().strides[0][0];
+    const ptrdiff_t stride_mb = diff_dst_d.blocking_desc().strides[0];
 
     parallel_nd(utils::div_up(OC, blksize), [&](int ocb) {
         data_t db[blksize] = {0};

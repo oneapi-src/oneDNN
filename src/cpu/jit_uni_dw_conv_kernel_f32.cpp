@@ -28,8 +28,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
@@ -354,8 +354,7 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -377,17 +376,20 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
         jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
     }
 
-    auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-    auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
+
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
     bool args_ok = true
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
         && jcp.ngroups % simd_w == 0
-        && src_d.format() == desired_act_fmt
-        && weights_d.format() == desired_wei_fmt
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && dst_d.format() == desired_act_fmt
+        && jcp.src_tag == dat_tag
+        && jcp.wei_tag == wei_tag
+        && jcp.dst_tag == dat_tag
         && jcp.ic <= src_d.padded_dims()[1]
         && jcp.oc <= dst_d.padded_dims()[1]
         && jcp.ngroups <= weights_d.padded_dims()[0];
@@ -650,8 +652,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
-    jcp.src_fmt = diff_src_d.format();
-
     bool ok_to_pad_channels = true
         && jcp.oc == jcp.ngroups
         && jcp.ic == jcp.ngroups
@@ -662,8 +662,12 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
         jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
     }
 
-    auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-    auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
+
+    jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
 
     bool args_ok = true
         && jcp.oc == jcp.ngroups
@@ -671,9 +675,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
         && jcp.ngroups % simd_w == 0
         && jcp.dilate_h == 0
         && jcp.dilate_w == 0
-        && diff_src_d.format() == desired_act_fmt
-        && weights_d.format() == desired_wei_fmt
-        && diff_dst_d.format() == desired_act_fmt
+        && jcp.src_tag == dat_tag
+        && jcp.wei_tag == wei_tag
+        && jcp.dst_tag == dat_tag
         && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
         && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
         && jcp.ic <= diff_src_d.padded_dims()[1]
@@ -1213,21 +1217,23 @@ status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
-    jcp.src_fmt = src_d.format();
+    jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
 
-    jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
+    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
 
-    auto desired_act_fmt = isa == avx512_common ? nChw16c : nChw8c;
-    auto desired_wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
 
-    bool args_ok = true && src_d.format() == desired_act_fmt
-            && diff_weights_d.format() == desired_wei_fmt
-            && diff_dst_d.format() == desired_act_fmt
-            && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-            && jcp.ngroups % jcp.ch_block == 0 && jcp.dilate_h == 0
-            && jcp.dilate_w == 0 && jcp.kw <= 3
-            && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
-            && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
+    bool args_ok = true
+        && jcp.src_tag == dat_tag
+        && jcp.wei_tag == wei_tag
+        && jcp.dst_tag == dat_tag
+        && jcp.ngroups % jcp.ch_block == 0 && jcp.dilate_h == 0
+        && jcp.dilate_w == 0 && jcp.kw <= 3
+        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
+        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok)
         return status::unimplemented;
 

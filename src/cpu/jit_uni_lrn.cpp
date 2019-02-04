@@ -25,7 +25,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
 
@@ -45,21 +45,21 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
 
     auto pk = pd()->desc()->prop_kind;
     auto ak = pd()->desc()->alg_kind;
-    auto dfmt = pd()->src_md()->format;
+    auto dat_tag = pd()->dat_tag_;
 
-    if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
+    if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                 nchw8c_across(H, W, 0), A, K, pk);
         ker_first_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                 nchw8c_across(H, W, -1), A, K, pk);
         ker_last_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                 nchw8c_across(H, W, +1), A, K, pk);
-    } else if (dfmt == nChw8c && ak == lrn_within_channel) {
+    } else if (dat_tag == nChw8c && ak == lrn_within_channel) {
         /* within channel, local_size (x) local_size */
         A /= ls; /* XXX: why? */
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                 nchw8c_within(H, W, ls), A, K, pk);
-    } else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
+    } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                 nchw_across(C, H*W, 0), A, K, pk);
         int remind = (H*W) % VECTOR_LENGTH;
@@ -90,9 +90,9 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     const int ls = pd()->desc()->local_size;
 
     auto ak = pd()->desc()->alg_kind;
-    auto dfmt = pd()->src_md()->format;
+    auto dat_tag = pd()->dat_tag_;
 
-    if (dfmt == nChw8c && ls == 5 && ak == lrn_across_channels) {
+    if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
             jit_args_fwd_t args;
             args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
@@ -106,7 +106,7 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
                 (*ker_)(&args);
         });
     }
-    else if (dfmt == nChw8c && ak == lrn_within_channel) {
+    else if (dat_tag == nChw8c && ak == lrn_within_channel) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
             jit_args_fwd_t args;
             args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
@@ -115,7 +115,7 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
             (*ker_)(&args);
         });
     }
-    else if (dfmt == nchw && ls == 5 && ak == lrn_across_channels) {
+    else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH,
             [&](int n, int hw8) {
             jit_args_fwd_t args;
@@ -159,10 +159,12 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 
     if (desc_.prop_kind == forward_training) ws_md_ = *src_md();
 
+    dat_tag_ = memory_desc_matches_one_of_tag(*src_md(), nChw8c, nchw, nhwc);
+
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
-        && one_of(data_d.format(), nChw8c, nchw, nhwc);
+        && one_of(dat_tag_, nChw8c, nchw, nhwc);
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
     bool args_ok_within = true
@@ -171,7 +173,7 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
                                  ? jit_max_local_size : MAX_LOCAL_SIZE)
         && data_d.dims()[2] >= desc()->local_size
         && data_d.dims()[3] >= desc()->local_size
-        && one_of(data_d.format(), nChw8c);
+        && one_of(dat_tag_, nChw8c);
 
     return args_ok_across || args_ok_within ? success : unimplemented;
 }
@@ -282,10 +284,12 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
     ws_md_ = *src_md();
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
+    dat_tag_ = memory_desc_matches_one_of_tag(*src_md(), nChw8c);
+
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
-        && utils::one_of(data_d.format(), nChw8c);
+        && utils::one_of(dat_tag_, nChw8c);
 
     return args_ok_across ? success : unimplemented;
 }

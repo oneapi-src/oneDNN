@@ -615,13 +615,16 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
             jcp.im2col_sz ? col : (uint8_t *)src, &LDB, &off_b,
             &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
 
+        auto wei_adj_scale =
+            (wei_md.extra().flags | memory_extra_flags::scale_adjust)
+            ? wei_md.extra().scale_adjust : 1.f;
+
         parallel(0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)N * jcp.oc, nthr, ithr, start, end);
             (*pp_ker_)(dst + (oh * jcp.ow + ow) * pp_ker_->dst_os_stride_,
                     acc, bia_base, scales, nslope, sum_scale,
-                    jcp.signed_input ? 1.f / jcp.wei_adj_scale : 1.f,
-                    g, start, end);
+                    1.f / wei_adj_scale, g, start, end);
         });
 
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh,

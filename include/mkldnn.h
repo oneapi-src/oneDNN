@@ -488,11 +488,27 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
  * @{ */
 
 /** Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p
- * data_type, and data @p format. @p format can be #mkldnn_any, which means
- * that specific data layouts are not permitted. */
-mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init(
+ * data_type, and @p strides.
+ *
+ * The @p strides might be NULL, which means the order of physical dimensions
+ * is the same as the order of logical ones.
+ *
+ * @note The logical order of dimensions is defined by a primitive that
+ *       consumes the memory.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init_by_strides(
         mkldnn_memory_desc_t *memory_desc, int ndims, const mkldnn_dims_t dims,
-        mkldnn_data_type_t data_type, mkldnn_memory_format_t format);
+        mkldnn_data_type_t data_type, const mkldnn_dims_t strides);
+
+/** Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p
+ * data_type, and format @p tag.
+ *
+ * @p tag can be #mkldnn_format_tag_any, which allows a primitive to define
+ * the appropriate memory format. In this case, the @p format_kind would be set
+ * to #mkldnn_format_kind_any */
+mkldnn_status_t MKLDNN_API mkldnn_memory_desc_init_by_tag(
+        mkldnn_memory_desc_t *memory_desc, int ndims, const mkldnn_dims_t dims,
+        mkldnn_data_type_t data_type, mkldnn_format_tag_t tag);
 
 /** Initializes a @p memory_desc for a given @p parent_memory_desc, with
  * @p dims sizes and @p offsets. May fail if layout used does not allow
@@ -580,9 +596,9 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
 
 /** Creates out-of-place @p concat_primitive_desc for concatenation of @p n
  * inputs by @p concat_dimension with resulting @p output_desc memory
- * descriptor. @p output_desc can be NULL or specified with the #mkldnn_any
- * format -- in this case, the appropriate memory format would be chosen
- * automatically.
+ * descriptor. @p output_desc can be NULL or specified with the
+ * #mkldnn_format_kind_any format kind -- in this case, the appropriate memory
+ * format would be chosen automatically.
  *
  * Inputs:
  *  - input 0 (#mkldnn_query_input_pd, 0)
@@ -609,9 +625,9 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
 
 /** Creates out-of-place @p sum_primitive_desc for sum of @p n
  * inputs multiplied by scale with resulting @p output_desc memory
- * descriptor. @p output_desc can be NULL or specified with the #mkldnn_any
- * format -- in this case, the appropriate memory format would be chosen
- * automatically.
+ * descriptor. @p output_desc can be NULL or specified with the
+ * #mkldnn_format_kind_any format kind -- in this case, the appropriate memory
+ * format would be chosen automatically.
  *
  * Inputs:
  *  - input 0 (#mkldnn_query_input_pd, 0)
@@ -657,12 +673,12 @@ mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
  * #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides, @p
  * padding_l, @p padding_r, and @p padding_kind. In order to create a
  * convolution without bias, @p bias_desc should either be @c NULL or point to
- * a descriptor with memory format equal to #mkldnn_format_undef.
+ * a descriptor with memory format kind equal to #mkldnn_format_kind_undef.
  *
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -686,13 +702,13 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_forward_desc_init(
  * and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
  * @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
  * In order to create a dilated convolution without bias, @p bias_desc
- * should either be @c NULL or point to a descriptor with memory format equal
- * to #mkldnn_format_undef.
+ * should either be @c NULL or point to a descriptor with memory format kind
+ * equals #mkldnn_format_kind_undef.
  *
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -715,8 +731,8 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_forward_desc_init(
  * with respect to data using @p alg_kind, memory descriptors, @p strides, @p
  * padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
@@ -737,8 +753,8 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_data_desc_init(
  * propagation with respect to data using @p alg_kind, memory descriptors, @p
  * strides, @p dilates @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
@@ -759,8 +775,8 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_backward_data_desc_init(
  * with respect to weights using @p alg_kind, memory descriptors, @p strides,
  * @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -783,8 +799,8 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
  * with respect to weights using @p alg_kind, memory descriptors, @p strides,
  * @p dilates @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -817,12 +833,12 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
  * and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
  * @p padding_l, @p padding_r, and @p padding_kind. In order to create a
  * deconvolution without bias, @p bias_desc should either be @c NULL or point to
- * a descriptor with memory format equal to #mkldnn_format_undef.
+ * a descriptor with memory format kind equals #mkldnn_format_kind_undef.
  *
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -846,13 +862,13 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_forward_desc_init(
  * and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
  * @p dilates, @p padding_l, @p padding_r, and @p padding_kind. In order to
  * create a dilated deconvolution without bias, @p bias_desc should either be
- * @c NULL or point to a descriptor with memory format equal to
- * #mkldnn_format_undef.
+ * @c NULL or point to a descriptor with memory format kind equal
+ * #mkldnn_format_kind_undef.
  *
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -875,8 +891,8 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_forward_desc_init(
  * with respect to data using @p alg_kind, memory descriptors, @p strides, @p
  * padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
@@ -897,8 +913,8 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_data_desc_init(
  * propagation with respect to data using @p alg_kind, memory descriptors, @p
  * strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
@@ -919,8 +935,8 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_data_desc_init(
  * with respect to weights using @p alg_kind, memory descriptors, @p strides,
  * @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -943,8 +959,8 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
  * propagation with respect to weights using @p alg_kind, memory descriptors,
  * @p strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
  *
- * @note Memory descriptors are allowed to be initialized with #mkldnn_any
- * value of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -1358,11 +1374,11 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
  * using @p prop_kind (possible values are #mkldnn_forward_training and
  * #mkldnn_forward_inference) and memory descriptors. In order to create an
  * inner product without bias, @p bias_desc should be either @c NULL or a
- * pointer to a descriptor with memory format equal to #mkldnn_format_undef.
+ * pointer to a descriptor with memory format kind equals
+ * #mkldnn_format_kind_undef.
  *
- * @note
- *     Memory descriptors are allowed to be initialized with #mkldnn_any value
- *     of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -1382,9 +1398,8 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_forward_desc_init(
 /** Initializes an inner product descriptor @p ip_desc for backward propagation
  * with respect to data using memory descriptors.
  *
- * @note
- *     Memory descriptors are allowed to be initialized with #mkldnn_any value
- *     of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
@@ -1402,9 +1417,8 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_data_desc_init(
 /** Initializes an inner product descriptor @p ip_desc for backward propagation
  * with respect to weights using memory descriptors.
  *
- * @note
- *     Memory descriptors are allowed to be initialized with #mkldnn_any value
- *     of @p format_kind.
+ * @note Memory descriptors are allowed to be initialized with
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src (#mkldnn_query_src_pd, 0)
@@ -1537,7 +1551,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
  * RNN primitive should not use them.
  *
  * @note All memory descriptors except @p src_iter_desc are allowed to be
- * initialized with #mkldnn_any value of @p format_kind.
+ *       initialized with #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
  *  - src_layer (#mkldnn_query_src_pd, 0)
@@ -1566,8 +1580,9 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
 
 /** Initializes a rnn descriptor @p rnn_desc for backward propagation
  * using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+ *
  * @note All memory descriptors are allowed to be initialized with
- * #mkldnn_any value of @p format_kind.
+ *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * @p src_iter_desc (simultaneously with @p diff_src_iter_desc),
  * @p bias_desc (simultaneously with @p diff_bias_desc), and

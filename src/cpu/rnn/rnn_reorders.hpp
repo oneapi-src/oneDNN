@@ -41,14 +41,12 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
-            using namespace memory_format;
-
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
-                    && utils::one_of(id.format(), tnc, ldsnc)
-                    && od.format() == id.format();
+                    && id.matches_one_of_tag(format_tag::tnc, format_tag::ldsnc)
+                    && od == id;
             if (!args_ok) return status::invalid_arguments;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
@@ -100,18 +98,19 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
 #if !USE_MKL_PACKED_GEMM
             return status::unimplemented;
 #endif
-            using namespace memory_format;
-
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
-                    && utils::one_of(id.format(), ldigo, ldgoi)
-                    && od.format() == rnn_packed
+                    && od.format_kind() == format_kind::rnn_packed
                     && od.rnn_packed_desc().format == mkldnn_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1
                     && attr != nullptr;
             if (!args_ok) return status::invalid_arguments;
+
+            format_tag_t itag = id.matches_one_of_tag(
+                    format_tag::ldigo, format_tag::ldgoi);
+            if (itag == format_tag::undef) return status::invalid_arguments;
 
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
@@ -119,6 +118,7 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);
             if (_pd == nullptr) return out_of_memory;
+            _pd->itag_ = itag;
             if (_pd->init() != success) { delete _pd; return unimplemented; }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -132,6 +132,8 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             return status::success;
         }
 
+        format_tag_t itag_;
+
     private:
         void init_scratchpad() {
             const memory_desc_wrapper id(src_md());
@@ -141,7 +143,7 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             size_t quantization_size = sizeof(int8_t) * nelems;
-            size_t reduction_size = id.format() == ldigo
+            size_t reduction_size = itag_ == ldigo
                     ? sizeof(int32_t) * mkldnn_get_max_threads() * dims[0]
                             * dims[1] * dims[3] * dims[4]
                     : 0;
@@ -171,7 +173,7 @@ private:
         const int G = dims[3];
         const int O = dims[4];
 
-        const bool is_igo = input_d.format() == memory_format::ldigo;
+        const bool is_igo = pd()->itag_ == format_tag::ldigo;
 
         /* Quantize input & compute compensation */
         auto quantized = (int8_t * __restrict)scratchpad(ctx).template get<void>(
@@ -288,18 +290,19 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
 #if !USE_MKL_PACKED_GEMM
             return status::unimplemented;
 #endif
-            using namespace memory_format;
-
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == data_type::f32
                     && od.data_type() == data_type::f32
-                    && utils::one_of(id.format(), ldigo, ldgoi)
-                    && od.format() == rnn_packed
+                    && od.format_kind() == format_kind::rnn_packed
                     && utils::one_of(od.rnn_packed_desc().format,
                         mkldnn_ldigo_p, mkldnn_ldgoi_p)
                     && attr->has_default_values();
             if (!args_ok) return status::invalid_arguments;
+
+            format_tag_t itag = id.matches_one_of_tag(
+                    format_tag::ldigo, format_tag::ldgoi);
+            if (itag == format_tag::undef) return status::invalid_arguments;
 
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
@@ -308,8 +311,11 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
                     dst_md);
             if (_pd == nullptr) return out_of_memory;
             if (_pd->init() != success) { delete _pd; return unimplemented; }
+            _pd->itag_ = itag;
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
+
+        format_tag_t itag_;
     };
 
 private:
@@ -330,17 +336,18 @@ private:
         const int O = dims[4];
 
         /* Pack */
-        bool cross_case = (input_d.format() == memory_format::ldigo
-                        && rnn_pdata.format == mkldnn_ldgoi_p)
-                || (input_d.format() == memory_format::ldgoi
-                        && rnn_pdata.format == mkldnn_ldigo_p);
+        bool cross_case = false
+            || (pd()->itag_ == format_tag::ldigo
+                    && rnn_pdata.format == mkldnn_ldgoi_p)
+            || (pd()->itag_ == format_tag::ldgoi
+                    && rnn_pdata.format == mkldnn_ldigo_p);
         auto trans = cross_case ? CblasTrans : CblasNoTrans;
         int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
         const int n = rnn_pdata.n;
 
-        const bool is_igo = input_d.format() == memory_format::ldigo;
+        const bool is_igo = pd()->itag_ == format_tag::ldigo;
         auto off_igo = [&](int l, int d, int i, int g, int o) {
             return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
         };

@@ -32,7 +32,6 @@ namespace cpu {
     : (f).blk_off(n, c, h, w))
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 void jit_sse42_1x1_convolution_fwd_t::execute_forward(

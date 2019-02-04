@@ -166,9 +166,14 @@ protected:
     memory_desc_t dst_md_;
 
     virtual status_t set_default_params() {
-        if (dst_md()->format == memory_format::any)
-            CHECK(types::set_default_format(dst_md_, src_md()->format));
-        return status::success;
+        if (dst_md()->format_kind != format_kind::any)
+            return status::success;
+
+        if (src_md()->format_kind != format_kind::blocked)
+            return status::unimplemented;
+
+        return memory_desc_init_by_blocking_desc(dst_md_,
+                src_md_.format_desc.blocking);
     }
 };
 
@@ -214,10 +219,14 @@ protected:
     memory_desc_t diff_dst_md_;
 
     virtual status_t set_default_params() {
-        if (diff_src_md()->format == memory_format::any)
-            CHECK(types::set_default_format(diff_src_md_,
-                        diff_dst_md()->format));
-        return status::success;
+        if (diff_src_md()->format_kind != format_kind::any)
+            return status::success;
+
+        if (diff_dst_md()->format_kind != format_kind::blocked)
+            return status::unimplemented;
+
+        return memory_desc_init_by_blocking_desc(diff_src_md_,
+                diff_dst_md_.format_desc.blocking);
     }
 };
 

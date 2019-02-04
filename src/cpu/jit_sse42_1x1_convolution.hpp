@@ -60,14 +60,14 @@ struct jit_sse42_1x1_convolution_fwd_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
-            auto dat_fmt = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto wei_fmt = with_groups()
+            auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto wei_tag = with_groups()
                 ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
                 : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 

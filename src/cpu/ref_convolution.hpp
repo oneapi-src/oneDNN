@@ -60,12 +60,12 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto dat_fmt = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-            auto wei_fmt = with_groups()
+            using namespace format_tag;
+            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
+            auto wei_tag = with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -111,12 +111,12 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto dat_fmt = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-            auto wei_fmt = with_groups()
+            using namespace format_tag;
+            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
+            auto wei_tag = with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -159,12 +159,12 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
-            auto dat_fmt = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-            auto wei_fmt = with_groups()
+            using namespace format_tag;
+            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
+            auto wei_tag = with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 

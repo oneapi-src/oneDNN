@@ -102,17 +102,12 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
 
     protected:
         status_t set_default_params() {
-            using namespace memory_format;
             auto conv_1x1_pd_ = static_cast<conv_pd_t *>(conv_pd_);
-            CHECK(types::set_default_format(src_md_,
-                        conv_1x1_pd_->src_md()->format));
-            CHECK(types::set_default_format(dst_md_,
-                    conv_1x1_pd_->dst_md()->format));
-            CHECK(types::set_default_format(weights_md_,
-                    conv_1x1_pd_->weights_md()->format));
+            src_md_ = *conv_1x1_pd_->src_md();
+            dst_md_ = *conv_1x1_pd_->dst_md();
+            weights_md_ = *conv_1x1_pd_->weights_md();
             if (with_bias())
-                CHECK(types::set_default_format(bias_md_,
-                            conv_1x1_pd_->weights_md(1)->format));
+                bias_md_ = *conv_1x1_pd_->weights_md(1);
             return status::success;
         }
 

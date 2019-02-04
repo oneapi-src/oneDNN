@@ -70,7 +70,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         status_t init() {
             using namespace prop_kind;
             using namespace utils;
-            using namespace memory_format;
+            using namespace format_tag;
             using namespace rnn_utils;
             const alg_kind_t cell_kind = this->desc()->cell_desc.cell_kind;
 
@@ -106,18 +106,20 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
             CHECK(set_expected_desc(rnn_, new_weights_layer_md, false));
-            if (this->weights_layer_md_.format == any) {
+            if (this->weights_layer_md_.format_kind == format_kind::any) {
                 this->weights_layer_md_ = new_weights_layer_md;
-            } else if (this->weights_layer_md_.format == rnn_packed) {
+            } else if (this->weights_layer_md_.format_kind
+                    == format_kind::rnn_packed) {
                 if (this->weights_layer_md_ != new_weights_layer_md)
                     return status::unimplemented;
             }
 
             memory_desc_t new_weights_iter_md = *this->weights_md(1);
             CHECK(set_expected_desc(rnn_, new_weights_iter_md, true));
-            if (this->weights_iter_md_.format == any) {
+            if (this->weights_iter_md_.format_kind == format_kind::any) {
                 this->weights_iter_md_ = new_weights_iter_md;
-            } else if (this->weights_iter_md_.format == rnn_packed) {
+            } else if (this->weights_iter_md_.format_kind
+                    == format_kind::rnn_packed) {
                 if (this->weights_iter_md_ != new_weights_iter_md)
                     return status::unimplemented;
             }
@@ -133,8 +135,9 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
             // initialize the workspace if needed
             if (rnn_.is_training) {
-                dims_t ws_dims = {(int)ws_sz};
-                mkldnn_memory_desc_init(&this->ws_md_, 1, ws_dims, data_type::u8, x);
+                dims_t ws_dims = { (int)ws_sz };
+                mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
+                        data_type::u8, format_tag::x);
             }
 
             init_scratchpad(scratchpad_sz);

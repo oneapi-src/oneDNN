@@ -84,7 +84,7 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
         void init_scratchpad();
 
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
             return set_default_formats_common(nhwc, any, nhwc);
         }
     };

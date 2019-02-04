@@ -17,6 +17,10 @@
 #ifndef CPU_WINO_REORDER_HPP
 #define CPU_WINO_REORDER_HPP
 
+#include "mkldnn_thread.hpp"
+
+#include "simple_q10n.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -36,9 +40,10 @@ struct wino_reorder_t : public cpu_primitive_t {
             bool args_ok = true
                 && id.data_type() == type_i
                 && od.data_type() == type_o
-                && utils::one_of(id.format(), goihw, oihw)
-                && od.format() == wino_fmt
-                && one_of(od.wino_desc().wino_format,
+                && id.matches_tag(utils::pick(id.ndims() - 4,
+                            format_tag::oihw, format_tag::goihw))
+                && od.format_kind() == format_kind::wino_fmt
+                && utils::one_of(od.wino_desc().wino_format,
                         mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
                         mkldnn_wino_wei_aaOBiOo, mkldnn_wino_wei_OBaaIBOIio);
             if (!args_ok) return status::invalid_arguments;
@@ -93,7 +98,7 @@ private:
         const auto &in_dims = src_d.dims();
         int groups;
         int groups_offset;
-        if (src_d.format() == goihw) {
+        if (src_d.ndims() == 5) {
             groups = in_dims[0];
             groups_offset = 1;
         } else {
@@ -151,8 +156,8 @@ private:
             { 0.f, 0.f, 1.f } };
 
         float *__restrict g;
-        if (one_of(wino_format_, mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
-            mkldnn_wino_wei_aaOBiOo))
+        if (utils::one_of(wino_format_, mkldnn_wino_wei_aaOIoi,
+                    mkldnn_wino_wei_aaOio, mkldnn_wino_wei_aaOBiOo))
             g = (float *)G_2x2_3x3;
         else if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
             g = (float *)G_4x4_3x3;
@@ -192,7 +197,7 @@ private:
                 for (int k = 0; k < r_; ++k)
                     t += g[i * r_ + k]
                             * wspace[(k * w_alpha_ + j) * oc_block_ + ioc];
-                if (type_o == s8) {
+                if (type_o == data_type::s8) {
                     const float scale = (D_mask == 1)
                         ? scales[0]
                         : scales[ob * oc_block_ + ioc];
@@ -209,7 +214,7 @@ private:
     void reorder_to_aaOIoi(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
         int32_t *__restrict dst_bias = nullptr;
-        if (type_o == s8) {
+        if (type_o == data_type::s8) {
             const auto bias_shift = sizeof(out_data_t) * size_wino_wei_;
             const size_t bias_size = w_alpha_ * w_alpha_ * oc_;
 
@@ -238,7 +243,7 @@ private:
                             + ic_block_shift;
 
                     output[dst_offset] = tmp_wei[src_offset];
-                    if (type_o == s8) {
+                    if (type_o == data_type::s8) {
                         int bias_offset = u_h_shift_b + u_w_shift_b + oc_shift;
                         if (index != unsign_val_in_wino_domain_)
                             dst_bias[bias_offset]

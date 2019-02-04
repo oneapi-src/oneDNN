@@ -33,7 +33,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -557,10 +556,6 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         || !one_of(dst_d.data_type(),
             data_type::f32, data_type::s32, data_type::s8, data_type::u8))
         return status::unimplemented;
-    if (!one_of(weights_d.format(), gOIhw4i16o4i, OIhw4i16o4i,
-                gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8)) {
-        return status::unimplemented;
-    }
     jcp.ver = ver_avx512_core;
     if (mayiuse(avx512_core_vnni))
         jcp.ver = ver_vnni;
@@ -581,8 +576,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.l_pad = cd.padding[0][1];
     jcp.stride_h = cd.strides[0];
     jcp.stride_w = cd.strides[1];
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
 
@@ -599,11 +593,14 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if (jcp.with_eltwise)
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
+    format_tag_t dat_tag = format_tag::nhwc;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+
     bool args_ok = true
         && jcp.ngroups == 1
-        && src_d.format() == nhwc
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && dst_d.format() == nhwc;
+        && jcp.src_tag == dat_tag
+        && jcp.dst_tag == dat_tag;
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = 16;
@@ -806,7 +803,9 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
     assert(IMPLICATION(!jcp.is_oc_scale, oscales.mask_ == 0));
 
-    jcp.wei_adj_scale = (jcp.signed_input) ? (1.f / 2.f) : 1.f;
+    jcp.wei_adj_scale =
+        (weights_d.extra().flags | memory_extra_flags::scale_adjust)
+        ? weights_d.extra().scale_adjust : 1.f;
 
     return status::success;
 }

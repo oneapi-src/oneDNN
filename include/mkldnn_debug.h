@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018 - 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,8 @@ extern "C" {
 const char MKLDNN_API *mkldnn_status2str(mkldnn_status_t v);
 const char MKLDNN_API *mkldnn_dt2str(mkldnn_data_type_t v);
 const char MKLDNN_API *mkldnn_rmode2str(mkldnn_round_mode_t v);
-const char MKLDNN_API *mkldnn_fmt2str(mkldnn_memory_format_t v);
+const char MKLDNN_API *mkldnn_fmt_kind2str(mkldnn_format_kind_t v);
+const char MKLDNN_API *mkldnn_fmt_tag2str(mkldnn_format_tag_t v);
 const char MKLDNN_API *mkldnn_prop_kind2str(mkldnn_prop_kind_t v);
 const char MKLDNN_API *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v);
 const char MKLDNN_API *mkldnn_alg_kind2str(mkldnn_alg_kind_t v);

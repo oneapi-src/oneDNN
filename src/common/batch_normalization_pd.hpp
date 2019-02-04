@@ -102,14 +102,12 @@ protected:
     void init_default_ws(size_t bits_per_element) {
         const auto data_mdw = memory_desc_wrapper(data_md_);
 
-        const size_t data_nelems = data_mdw.nelems(true);
-        const size_t bits_per_byte = 8;
-        const size_t ws_sz
-            = utils::div_up(data_nelems * bits_per_element, bits_per_byte);
-        dim_t mb = data_mdw.dims()[0];
-        dims_t ws_dims = { mb, (dim_t)( ws_sz / mb ) };
-        mkldnn_memory_desc_init(&ws_md_, 2, ws_dims, impl::data_type::u8,
-                memory_format::nc);
+        const dim_t data_nelems = data_mdw.nelems(true);
+        const dim_t bits_per_byte = 8;
+        const dims_t ws_sz = { (dim_t)utils::div_up(
+                data_nelems * bits_per_element, bits_per_byte) };
+        mkldnn_memory_desc_init_by_tag(&ws_md_, 1, ws_sz, impl::data_type::u8,
+                format_tag::x);
     }
 
 private:

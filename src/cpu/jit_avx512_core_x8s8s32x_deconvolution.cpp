@@ -23,7 +23,6 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
@@ -72,37 +71,63 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     if (jcp.is_depthwise && jcp.signed_input)
         return status::unimplemented;
 
-#define pick_signed(fmt) (jcp.signed_input ? fmt##_s8s8 : fmt)
-    const auto w_format = is_1d ?
-            (jcp.is_depthwise ? Goiw16g :
-                                (with_groups ? pick_signed(gOIw4i16o4i) :
-                                               pick_signed(OIw4i16o4i))) :
-            (jcp.is_depthwise ? Goihw16g :
-                                (with_groups ? pick_signed(gOIhw4i16o4i) :
-                                               pick_signed(OIhw4i16o4i)));
-#undef pick_signed
+    format_tag_t dat_tag = utils::pick(ndims - 3,
+            format_tag::nwc, format_tag::nhwc);
 
-    auto dat_format = pick(ndims - 3, nwc, nhwc);
-    if (dst_d.format() == any)
-        CHECK(types::set_default_format(dst_md, dat_format));
-    if (dst_d.format() != dat_format)
-        return status::unimplemented;
-    if (src_d.format() == any)
-        CHECK(types::set_default_format(src_md, dat_format));
-    if (src_d.format() != dat_format)
+    if (src_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, dat_tag));
+        jcp.src_tag = dat_tag;
+    } else {
+        jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    }
+    if (jcp.src_tag != dat_tag)
         return status::unimplemented;
 
-    if (weights_d.format() == any)
-        CHECK(types::set_default_format(weights_md, w_format));
-    if (weights_d.format() != w_format)
+    if (dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(dst_md, dat_tag));
+        jcp.dst_tag = dat_tag;
+    } else {
+        jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+    }
+    if (jcp.dst_tag != dat_tag)
+        return status::unimplemented;
+
+    auto set_or_check_wei_format = [&]() {
+        using namespace format_tag;
+
+        format_tag_t wei_tag = is_1d
+            ? (jcp.is_depthwise
+                    ? Goiw16g : (with_groups ? gOIw4i16o4i : OIw4i16o4i))
+            : (jcp.is_depthwise
+                    ? Goihw16g : (with_groups ? gOIhw4i16o4i : OIhw4i16o4i));
+
+        memory_desc_t want_wei_md = weights_md;
+        memory_desc_init_by_tag(want_wei_md, wei_tag);
+        if (jcp.signed_input && !jcp.is_depthwise) {
+            want_wei_md.extra.flags = 0
+                | memory_extra_flags::compensation_conv_s8s8
+                | memory_extra_flags::scale_adjust;
+            want_wei_md.extra.compensation_mask = (1 << 0)
+                + (with_groups && !jcp.is_depthwise ? (1 << 1) : 0);
+            want_wei_md.extra.scale_adjust =
+                mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+        }
+
+        if (weights_md.format_kind == format_kind::any) {
+            weights_md = want_wei_md;
+            return true;
+        }
+
+        return weights_md == want_wei_md;
+    };
+
+    if (!set_or_check_wei_format())
         return status::unimplemented;
 
     jcp.with_bias = with_bias;
     if (jcp.with_bias) {
-        if (bias_d.format() == any)
-            CHECK(types::set_default_format(bias_md, x));
-        if (bias_d.format() != x)
-            return status::unimplemented;
+        if (bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
     }
 
     jcp.prop_kind = cd.prop_kind;
@@ -117,7 +142,6 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     jcp.l_pad = cd.padding[0][ndims - 3];
     jcp.stride_h = is_1d ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
-    jcp.src_fmt = src_d.format();
 
     if (jcp.is_depthwise) {
         jcp.ch_block = 16;
@@ -228,8 +252,9 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         }
     }
 
-    jcp.wei_adj_scale
-            = (jcp.signed_input && (jcp.ver != ver_vnni)) ? (1.f / 2.f) : 1.f;
+    jcp.wei_adj_scale =
+        (weights_d.extra().flags | memory_extra_flags::scale_adjust)
+        ? weights_d.extra().scale_adjust : 1.f;
 
     jcp.loop_order = jcp.ngroups > 1 ? loop_ngc : loop_cgn;
     return status::success;

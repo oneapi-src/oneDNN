@@ -87,7 +87,7 @@ protected:
 
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper i_d(&src_mds_[i]);
-            if (i_d.is_wino_desc() || i_d.is_additional_buffer())
+            if (!i_d.is_blocking_desc() || i_d.is_additional_buffer())
                 return status::unimplemented;
         }
 
@@ -112,50 +112,69 @@ protected:
     }
 
     status_t set_default_params() {
-        if (dst_md_.format != memory_format::any)
+        if (dst_md_.format_kind != format_kind::any)
             return status::success;
 
         const int ndims = dst_md_.ndims;
-        const auto fallback_dst_fmt = types::flat_memory_format(ndims);
 
-        /* the stupidest ever heuristics */
-        memory_format_t desired_dst_fmt = dst_md()->format;
-        for (int i = 0; i < n_; ++i)
-            desired_dst_fmt = nstl::max(desired_dst_fmt, src_mds_[i].format);
-
-        /* try to create dst with the desired format */
-        status_t status = types::set_default_format(dst_md_, desired_dst_fmt);
-        if (status != status::success) {
-            /* if fail use fallback flat layout */
-            return types::set_default_format(dst_md_, fallback_dst_fmt);
-        }
-
-        /* check if we can create sub-memory for the dst with desired format */
-        bool desired_format_ok = true;
-        int current_concat_dim_offset = 0;
+        /* The stupidest ever heuristics (but not the same as we had before):
+         *  - Pick the first non-plain format;
+         *  - If all formats are plain or it is not possible to create a
+         *    blocked format for the output, pick the format of the plain input
+         *  - If this fails as well, use plain layout (abcd...)
+         */
+        status_t status = status::unimplemented;
         for (int i = 0; i < n_; ++i) {
-            const int dim = src_mds_[i].dims[concat_dim_];
-            dims_t dims, offsets = {};
-            utils::array_copy(dims, dst_md_.dims, ndims);
-            dims[concat_dim_] = dim;
-            offsets[concat_dim_] = current_concat_dim_offset;
-
-            memory_desc_t src_img_d;
-            status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
-                    &dst_md_, dims, offsets);
-            if (status != status::success) {
-                desired_format_ok = false;
-                break;
+            const memory_desc_wrapper src_d(src_mds_[i]);
+            if (src_d.is_blocking_desc() && !src_d.is_plain()) {
+                status = memory_desc_init_by_blocking_desc(dst_md_,
+                        src_d.blocking_desc());
+                if (status == status::success) break;
             }
-            current_concat_dim_offset += dim;
         }
 
-        if (!desired_format_ok) {
-            /* if fail use fallback flat layout */
-            return types::set_default_format(dst_md_, fallback_dst_fmt);
+        if (status == status::success) {
+            /* check if we can create a sub-memory for the dst */
+            bool desired_format_ok = true;
+            int current_concat_dim_offset = 0;
+            for (int i = 0; i < n_; ++i) {
+                const int dim = src_mds_[i].dims[concat_dim_];
+                dims_t dims, offsets = {};
+                utils::array_copy(dims, dst_md_.dims, ndims);
+                dims[concat_dim_] = dim;
+                offsets[concat_dim_] = current_concat_dim_offset;
+
+                memory_desc_t src_img_d;
+                status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
+                        &dst_md_, dims, offsets);
+                if (status != status::success) {
+                    desired_format_ok = false;
+                    break;
+                }
+                current_concat_dim_offset += dim;
+            }
+
+            if (!desired_format_ok)
+                status = status::unimplemented;
         }
 
-        return status::success;
+        /* if no success so far, try using the format of the first plain input */
+        if (status != status::success) {
+            for (int i = 0; i < n_; ++i) {
+                const memory_desc_wrapper src_d(src_mds_[i]);
+                if (src_d.is_blocking_desc() && src_d.is_plain()) {
+                    status = memory_desc_init_by_blocking_desc(dst_md_,
+                            memory_desc_wrapper(src_mds_[0]).blocking_desc());
+                    if (status == status::success) return status;
+                }
+            }
+        }
+
+        /* the last line of defense: use plain abcd... format */
+        if (status != status::success)
+            status = memory_desc_init_by_strides(dst_md_, nullptr);
+
+        return status;
     }
 };
 

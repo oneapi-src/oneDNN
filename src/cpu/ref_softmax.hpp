@@ -75,9 +75,15 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
 
         const memory_desc_wrapper data_d(pd()->src_md());
+
+        bool no_axis_blocking = true;
+        for (int iblk = 0; iblk < data_d.blocking_desc().inner_nblks; ++iblk)
+            if (data_d.blocking_desc().inner_idxs[iblk] == axis)
+                no_axis_blocking = false;
+
         use_dense_ = inner_size_ == 1 && data_d.is_dense()
-            && data_d.blocking_desc().block_dims[axis] == 1
-            && data_d.blocking_desc().strides[0][axis] == 1;
+            && no_axis_blocking
+            && data_d.blocking_desc().strides[axis] == 1;
     }
 
     typedef typename prec_traits<data_type>::type data_t;
@@ -137,12 +143,18 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
 
         const memory_desc_wrapper data_d(pd()->dst_md());
         const memory_desc_wrapper diff_d(pd()->diff_dst_md());
+
+        bool no_axis_blocking = true;
+        for (int iblk = 0; iblk < diff_d.blocking_desc().inner_nblks; ++iblk)
+            if (diff_d.blocking_desc().inner_idxs[iblk] == axis)
+                no_axis_blocking = false;
+
         use_dense_ = true
             && inner_size_ == 1
             && diff_d == data_d
             && diff_d.is_dense()
-            && diff_d.blocking_desc().block_dims[axis] == 1
-            && diff_d.blocking_desc().strides[0][axis] == 1;
+            && no_axis_blocking
+            && diff_d.blocking_desc().strides[axis] == 1;
     }
 
     typedef typename prec_traits<data_type>::type data_t;

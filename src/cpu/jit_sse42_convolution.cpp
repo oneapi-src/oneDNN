@@ -25,7 +25,6 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 #define src_blk_off(f, n, c, h, w) \

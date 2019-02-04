@@ -21,8 +21,6 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "format_traits.hpp"
-
 #include "cpu_memory.hpp"
 
 namespace mkldnn {
@@ -32,7 +30,7 @@ namespace cpu {
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 
 status_t cpu_engine_t::memory_create(memory_t **memory,
         const memory_desc_t *md, void *handle) {
@@ -40,180 +38,103 @@ status_t cpu_engine_t::memory_create(memory_t **memory,
             new cpu_memory_t(this, md, handle));
 }
 
-using dk = data_kind_t;
-using bf = block_format_t;
+enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 
-template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<format_traits<fmt>::data_kind == dk::data>::type
-typed_zero_pad_data(
-    const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
-    constexpr int blksize = format_traits<fmt>::blk_size;
-
-    const auto &dims = m_d.dims();
-    const auto &pdims = m_d.padded_dims();
-
-    const int C = pdims[1] / blksize - 1;
-    const int c_tail_start = dims[1] % blksize;
-    assert(c_tail_start != 0);
-    const size_t sp_rest = utils::array_product(dims + 3, m_d.ndims() - 3);
-
-    parallel_nd(dims[0], dims[2], [&](int n, int sp0) {
-        auto *d = &data[m_d.blk_off(n, C, sp0)];
-        for (size_t sp = 0; sp < sp_rest; ++sp) {
-            for (int c = c_tail_start; c < blksize; ++c)
-                d[sp * blksize + c] = 0;
-        }
-    });
-}
-
-template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| format_traits<fmt>::blk_fmt == bf::_4o
-|| format_traits<fmt>::blk_fmt == bf::_8o
-|| format_traits<fmt>::blk_fmt == bf::_16o
->::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
-        typename prec_traits<dt>::type *data) {
-    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
-    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
-    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
-    constexpr int blksize = format_traits<fmt>::blk_size;
-
-    const auto &dims = m_d.dims();
-    const auto &pdims = m_d.padded_dims();
-
-    const int G = w_groups ? dims[0] : 1;
-    const int NB_OC = pdims[w_groups + 0] / blksize;
-    const int IC = dims[w_groups + 1];
-    const int D = is_3d ? dims[w_groups + 2] : 1;
-    const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
-    const int W = dims[w_groups + 3 - is_1d + is_3d];
-
-    const int oc_tail = pdims[w_groups + 0] - dims[w_groups + 0];
-
-    parallel_nd(G, IC, D, H, W,
-        [&](int g, int ic, int d, int h, int w) {
-        auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
-                g, NB_OC - 1, ic, d, h, w)];
-        for (int oc = blksize - oc_tail; oc < blksize; ++oc)
-            x[oc] = 0;
-    });
-}
-
-template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| format_traits<fmt>::blk_fmt == bf::_8i
-|| format_traits<fmt>::blk_fmt == bf::_16i
->::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
-        typename prec_traits<dt>::type *data) {
-    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
-    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
-    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
-    constexpr int blksize = format_traits<fmt>::blk_size;
-
-    const auto &dims = m_d.dims();
-    const auto &pdims = m_d.padded_dims();
-
-    const int G = w_groups ? dims[0] : 1;
-    const int OC = dims[w_groups + 0];
-    const int NB_IC = pdims[w_groups + 1] / blksize;
-    const int D = is_3d ? dims[w_groups + 2] : 1;
-    const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
-    const int W = dims[w_groups + 3 + is_3d];
-
-    const int ic_tail = pdims[w_groups + 1] - dims[w_groups + 1];
-
-    parallel_nd(G, OC, D, H, W,
-        [&](int g, int oc, int d, int h, int w) {
-        auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
-                g, oc, NB_IC - 1, d, h, w)];
-        for (int ic = blksize - ic_tail; ic < blksize; ++ic)
-            x[ic] = 0;
-    });
-}
-
-template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<
-block_format_traits<format_traits<fmt>::blk_fmt>::blk_ndims == 2>::type
-typed_zero_pad_weights(const memory_desc_wrapper &m_d,
-        typename prec_traits<dt>::type *data) {
+template <data_type_t dt, blk_kind_t blk_kind, int blksize>
+void typed_zero_pad_blk(
+        const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
     using data_t = typename prec_traits<dt>::type;
-    static constexpr int w_groups = format_traits<fmt>::data_kind == dk::gwei;
-    constexpr int is_1d = format_traits<fmt>::ndims_sp == 1;
-    constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
-    constexpr int blksize = format_traits<fmt>::blk_size;
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
+    const auto &blk = m_d.blocking_desc();
+    auto dim_is_blocked = [&](int dim) {
+        for (int i = 0; i < blk.inner_nblks; i++)
+            if (blk.inner_idxs[i] == dim)
+                return true;
+        return false;
+    };
+    bool A_blocked = dim_is_blocked(0), B_blocked = dim_is_blocked(1),
+         C_blocked = dim_is_blocked(2);
 
-    const int G = w_groups ? dims[0] : 1;
-    const int NB_OC = pdims[w_groups + 0] / blksize;
-    const int NB_IC = pdims[w_groups + 1] / blksize;
-    const int D = is_3d ? dims[w_groups + 2] : 1;
-    const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
-    const int W = dims[w_groups + 3 - is_1d + is_3d];
+    assert(blk.inner_nblks < 4);
+    assert((A_blocked || B_blocked || C_blocked) || (A_blocked && B_blocked)
+            || (C_blocked && B_blocked));
 
-    auto ker = [&](data_t *d, const int oc_tail, const int ic_tail) {
-#       define blk_off OI_blk_off<format_traits<fmt>::blk_fmt>
-        int oc = 0;
-        for (; oc < blksize - oc_tail; ++oc) {
-            for (int ic = blksize - ic_tail; ic < blksize; ++ic)
-                d[blk_off(oc, ic)] = 0;
-        }
-        for (; oc < blksize; ++oc)
-            for (int ic = 0; ic < blksize; ++ic)
-                d[blk_off(oc, ic)] = 0;
-#       undef blk_off
+    const int a_tail_s = A_blocked ? dims[0] % blksize : 0;
+    const int b_tail_s = B_blocked ? dims[1] % blksize : 0;
+    const int c_tail_s = C_blocked ? dims[2] % blksize : 0;
+    assert(a_tail_s || b_tail_s || c_tail_s);
+
+    const int A = A_blocked ? pdims[0] / blksize : dims[0];
+    const int B = B_blocked ? pdims[1] / blksize : dims[1];
+    const int C = C_blocked ? pdims[2] / blksize : dims[2];
+    const int D = m_d.ndims() > 3 ? dims[3] : 1;
+    const int E = m_d.ndims() > 4 ? dims[4] : 1;
+    const int F = m_d.ndims() > 5 ? dims[5] : 1;
+    const int inner_blk = blk.inner_nblks == 3 ? blk.inner_blks[2] : 1;
+
+    auto zeroize_tail = [&](data_t *d, const int tail_s) {
+        for (int b = tail_s; b < blksize; ++b)
+            d[b] = 0;
+    };
+    auto zeroize_tail_inner = [&](data_t *d, const int tail_s) {
+        for (int b1 = 0; b1 < blksize; ++b1)
+            for (int b2 = tail_s; b2 < blksize; ++b2)
+                d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
+                        + b1 % inner_blk]
+                        = 0;
+    };
+    auto zeroize_tail_outer = [&](data_t *d, const int tail_s) {
+        for (int b1 = tail_s; b1 < blksize; ++b1)
+            for (int b2 = 0; b2 < blksize; ++b2)
+                d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
+                        + b1 % inner_blk]
+                        = 0;
     };
 
-    const int oc_tail = pdims[w_groups + 0] - dims[w_groups + 0];
-    const int ic_tail = pdims[w_groups + 1] - dims[w_groups + 1];
-
-    if (ic_tail) {
-        parallel_nd(G, NB_OC, D, H, W,
-            [&](int g, int nb_oc, int d, int h, int w) {
-            auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
-                    g, nb_oc, NB_IC - 1, d, h, w)];
-            ker(x, 0, ic_tail);
+    if (c_tail_s) {
+        parallel_nd(A, B, D, E, F, [&](int a, int b, int d, int e, int f) {
+            auto x = &data[m_d.blk_off(a, b, C - 1, d, e, f)];
+            if (blk_kind == c)
+                zeroize_tail(x, c_tail_s);
+            else if (blk_kind == bc)
+                zeroize_tail_inner(x, c_tail_s);
+            else if (blk_kind == cb)
+                zeroize_tail_outer(x, c_tail_s);
         });
     }
 
-    if (oc_tail) {
-        parallel_nd(G, NB_IC, D, H, W,
-            [&](int g, int nb_ic, int d, int h, int w) {
-            auto x = &data[wei_blk_off_like_gwei3D<fmt>(m_d,
-                    g, NB_OC - 1, nb_ic, d, h, w)];
-            ker(x, oc_tail, 0);
+    if (b_tail_s) {
+        parallel_nd(A, C, D, E, F, [&](int a, int c, int d, int e, int f) {
+            auto x = &data[m_d.blk_off(a, B - 1, c, d, e, f)];
+            if (blk_kind == b)
+                zeroize_tail(x, b_tail_s);
+            else if (blk_kind == ab || blk_kind == cb)
+                zeroize_tail_inner(x, b_tail_s);
+            else if (blk_kind == ba || blk_kind == bc)
+                zeroize_tail_outer(x, b_tail_s);
+        });
+    }
+
+    if (a_tail_s) {
+        parallel_nd(B, C, D, E, F, [&](int b, int c, int d, int e, int f) {
+            auto x = &data[m_d.blk_off(A - 1, b, c, d, e, f)];
+            if (blk_kind == a)
+                zeroize_tail(x, a_tail_s);
+            else if (blk_kind == ba)
+                zeroize_tail_inner(x, a_tail_s);
+            else if (blk_kind == ab)
+                zeroize_tail_outer(x, a_tail_s);
         });
     }
 }
 
-template <data_type_t dt, memory_format_t fmt>
-typename utils::enable_if<false
-|| format_traits<fmt>::blk_fmt == bf::_8g
-|| format_traits<fmt>::blk_fmt == bf::_16g
->::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
-        typename prec_traits<dt>::type *data) {
-    constexpr int blksize = format_traits<fmt>::blk_size;
-
-    const auto &dims = m_d.dims();
-    const auto &pdims = m_d.padded_dims();
-
-    const int G = pdims[0] / blksize - 1;
-    const int g_tail_start = dims[0] % blksize;
-    assert(g_tail_start != 0);
-    const ptrdiff_t sz_rest
-        = (ptrdiff_t)utils::array_product(dims + 1, m_d.ndims() - 1);
-
-    auto *d = &data[m_d.blk_off(G)];
-
-    parallel_nd(sz_rest, [&](ptrdiff_t s) {
-        for (int g = g_tail_start; g < blksize; ++g)
-            d[s * blksize + g] = 0;
-    });
-}
-
+/*
+ * all
+ */
 template <data_type_t dt>
-void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
-        typename prec_traits<dt>::type *data) {
+void typed_zero_pad_generic_blocked(
+        const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
     const int ndims = m_d.ndims();
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
@@ -233,12 +154,14 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
     ptrdiff_t step = 1;
     int step_dim = ndims - 1;
     for (; step_dim >= 0; --step_dim) {
-        if (dims[step_dim] != pdims[step_dim]) break;
+        if (dims[step_dim] != pdims[step_dim])
+            break;
         step *= dims[step_dim];
     }
 
     assert(step_dim >= 0 && "no zero padding is required");
-    if (step_dim < 0) return;
+    if (step_dim < 0)
+        return;
 
     parallel_nd(nelems / step, [&](ptrdiff_t e1) {
         bool need_zero = false;
@@ -263,127 +186,78 @@ template <data_type_t dt>
 status_t cpu_memory_t::typed_zero_pad() const {
     const memory_desc_wrapper mdw(md());
 
-    // FIXME: guard this check for non-blocked layout
+    if (mdw.format_kind() != format_kind::blocked)
+        return unimplemented;
+
     if (mdw.nelems(false) == mdw.nelems(true))
         return success;
 
     auto *data = (typename prec_traits<dt>::type *)data_;
-    const auto fmt = mdw.format();
+    auto blk = mdw.blocking_desc();
 
-    /* data */
-#   define MAYBE_DATA(f) if (fmt == f) \
-    { typed_zero_pad_data<dt, f>(mdw, data); return success; }
-    MAYBE_DATA(nCw4c);
-    MAYBE_DATA(nCw8c);
-    MAYBE_DATA(nCw16c);
-    MAYBE_DATA(nChw4c);
-    MAYBE_DATA(nChw8c);
-    MAYBE_DATA(nCdhw4c);
-    MAYBE_DATA(nCdhw8c);
-    MAYBE_DATA(nChw16c);
-    MAYBE_DATA(nCdhw16c);
+    auto get_blksize = [&](int ind) {
+        int blksize = 1;
+        for (int i = 0; i < blk.inner_nblks; i++) {
+            if (blk.inner_idxs[i] == ind)
+                blksize *= blk.inner_blks[i];
+        }
+        return blksize;
+    };
+    const int blksize = get_blksize(blk.inner_idxs[0]);
 
-    /* weights */
-#   define MAYBE_WEIGHTS(f) if (fmt == f) \
-    { typed_zero_pad_weights<dt, f>(mdw, data); return success; }
-    MAYBE_WEIGHTS(OIdhw4i4o);
-    MAYBE_WEIGHTS(OIdhw8i8o);
-    MAYBE_WEIGHTS(OIdhw8o8i);
-    MAYBE_WEIGHTS(OIdhw16i16o);
-    MAYBE_WEIGHTS(OIdhw16o16i);
-    MAYBE_WEIGHTS(Oidhw4o);
-    MAYBE_WEIGHTS(Oidhw16o);
-    MAYBE_WEIGHTS(Odhwi16o);
-    MAYBE_WEIGHTS(Odhwi8o);
-    MAYBE_WEIGHTS(oIhw8i);
-    MAYBE_WEIGHTS(oIhw16i);
-    MAYBE_WEIGHTS(oIdhw8i);
-    MAYBE_WEIGHTS(oIdhw16i);
-    MAYBE_WEIGHTS(OIhw4i4o);
-    MAYBE_WEIGHTS(OIhw8i8o);
-    MAYBE_WEIGHTS(OIhw16i16o);
-    MAYBE_WEIGHTS(OIhw4i16o4i);
-    MAYBE_WEIGHTS(OIhw4i16o4i_s8s8);
-    MAYBE_WEIGHTS(OIw4i4o);
-    MAYBE_WEIGHTS(Owi8o);
-    MAYBE_WEIGHTS(OIw8i8o);
-    MAYBE_WEIGHTS(OIw8o8i);
-    MAYBE_WEIGHTS(OIw16i16o);
-    MAYBE_WEIGHTS(OIw16o16i);
-    MAYBE_WEIGHTS(Oiw4o);
-    MAYBE_WEIGHTS(Oiw16o);
-    MAYBE_WEIGHTS(Owi16o);
-    MAYBE_WEIGHTS(OIw8i16o2i);
-    MAYBE_WEIGHTS(OIw8o16i2o);
-    MAYBE_WEIGHTS(IOw16o16i);
-    MAYBE_WEIGHTS(OIw4i16o4i);
-    MAYBE_WEIGHTS(OIw4i16o4i_s8s8);
-    MAYBE_WEIGHTS(OIhw8i16o2i);
-    MAYBE_WEIGHTS(OIdhw8i16o2i);
-    MAYBE_WEIGHTS(OIhw8o16i2o);
-    MAYBE_WEIGHTS(OIhw8o8i);
-    MAYBE_WEIGHTS(OIhw16o16i);
-    MAYBE_WEIGHTS(IOhw16o16i);
-    MAYBE_WEIGHTS(Oihw4o);
-    MAYBE_WEIGHTS(Oihw16o);
-    MAYBE_WEIGHTS(Ohwi8o);
-    MAYBE_WEIGHTS(Ohwi4o);
-    MAYBE_WEIGHTS(Ohwi16o);
-    MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
-    MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
-    MAYBE_WEIGHTS(gOIhw4i4o);
-    MAYBE_WEIGHTS(gOIhw8i8o);
-    MAYBE_WEIGHTS(gOIhw16i16o);
-    MAYBE_WEIGHTS(gOIhw4i16o4i);
-    MAYBE_WEIGHTS(gOIhw4i16o4i_s8s8);
-    MAYBE_WEIGHTS(gOIhw2i8o4i);
-    MAYBE_WEIGHTS(gOIhw2i8o4i_s8s8);
-    MAYBE_WEIGHTS(gOIw4i4o);
-    MAYBE_WEIGHTS(gOwi8o);
-    MAYBE_WEIGHTS(gOIw8i8o);
-    MAYBE_WEIGHTS(gOIw8o8i);
-    MAYBE_WEIGHTS(gOIw16i16o);
-    MAYBE_WEIGHTS(gOIw16o16i);
-    MAYBE_WEIGHTS(gOiw4o);
-    MAYBE_WEIGHTS(gOiw16o);
-    MAYBE_WEIGHTS(gOwi16o);
-    MAYBE_WEIGHTS(gOIw8i16o2i);
-    MAYBE_WEIGHTS(gOIw8o16i2o);
-    MAYBE_WEIGHTS(gIOw16o16i);
-    MAYBE_WEIGHTS(gOIw4i16o4i);
-    MAYBE_WEIGHTS(gOIw4i16o4i_s8s8);
-    MAYBE_WEIGHTS(gOIhw8i16o2i);
-    MAYBE_WEIGHTS(gOIdhw8i16o2i);
-    MAYBE_WEIGHTS(gOIhw8o16i2o);
-    MAYBE_WEIGHTS(gOIhw8o8i);
-    MAYBE_WEIGHTS(gOIhw16o16i);
-    MAYBE_WEIGHTS(gIOhw16o16i);
-    MAYBE_WEIGHTS(gOihw4o);
-    MAYBE_WEIGHTS(gOihw16o);
-    MAYBE_WEIGHTS(gOhwi8o);
-    MAYBE_WEIGHTS(gOhwi4o);
-    MAYBE_WEIGHTS(gOhwi16o);
-    MAYBE_WEIGHTS(gOIdhw4i4o);
-    MAYBE_WEIGHTS(gOIdhw8i8o);
-    MAYBE_WEIGHTS(gOIdhw8o8i);
-    MAYBE_WEIGHTS(gOIdhw16i16o);
-    MAYBE_WEIGHTS(gOIdhw16o16i);
-    MAYBE_WEIGHTS(gOidhw4o);
-    MAYBE_WEIGHTS(gOidhw16o);
-    MAYBE_WEIGHTS(gOdhwi16o);
-    MAYBE_WEIGHTS(gOdhwi8o);
-    MAYBE_WEIGHTS(Goihw8g);
-    MAYBE_WEIGHTS(Goihw16g);
-    MAYBE_WEIGHTS(Goiw16g);
-#   undef MAYBE_WEIGHTS
+#   define CASE(blksize_, blk_kind) \
+    do { \
+        if (blksize == blksize_) { \
+            typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
+            return success; \
+        } \
+    } while(0)
 
-    // the last line of defence
-    if (types::format_normalize(fmt) == blocked) {
-        typed_zero_pad_generic_blocked<dt>(mdw, data);
-        return success;
+    switch (blk.inner_nblks) {
+    case 1:
+        if (blk.inner_idxs[0] == 0) {
+            CASE(4, a);
+            CASE(8, a);
+            CASE(16, a);
+        } else if (blk.inner_idxs[0] == 1) {
+            CASE(4, b);
+            CASE(8, b);
+            CASE(16, b);
+        }
+        break;
+    case 2:
+    case 3:
+        if (!IMPLICATION(blk.inner_nblks == 3,
+                    blk.inner_idxs[0] == blk.inner_idxs[2]))
+            break;
+
+        if (blk.inner_idxs[0] == 0 && blk.inner_idxs[1] == 1) {
+            CASE(4, ab);
+            CASE(8, ab);
+            CASE(16, ab);
+        } else if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 0) {
+            CASE(4, ba);
+            CASE(8, ba);
+            CASE(16, ba);
+        }
+        if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 2) {
+            CASE(4, bc);
+            CASE(8, bc);
+            CASE(16, bc);
+        } else if (blk.inner_idxs[0] == 2 && blk.inner_idxs[1] == 1) {
+            CASE(4, cb);
+            CASE(8, cb);
+            CASE(16, cb);
+        }
+        break;
+    default: break;
     }
 
-    return unimplemented;
+#   undef CASE
+
+    // the last line of defence
+    typed_zero_pad_generic_blocked<dt>(mdw, data);
+    return success;
 }
 
 status_t cpu_memory_t::zero_pad() const {

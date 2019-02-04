@@ -43,16 +43,14 @@ struct simple_sum_t: public cpu_primitive_t {
             ok = ok
                 && o_d.data_type() == data_type
                 && o_d.is_dense();
+            if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                ok = ok
-                    && utils::everyone_is(data_type, i_d.data_type())
-                    && i_d.format() == o_d.format()
-                    && i_d.is_dense();
+                if (i_d != o_d) return status::unimplemented;
             }
 
-            return ok ? status::success : status::unimplemented;
+            return status::success;
         }
     };
 

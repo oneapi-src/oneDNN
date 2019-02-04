@@ -31,7 +31,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
@@ -751,8 +750,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         && one_of(jcp.l_pad, 0, 1);
     if (!ok) return status::unimplemented;
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -946,9 +944,9 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
                                     and set weights wino_blocking */
     memory_desc_t expect_wei_md = wei_md;
 
-    expect_wei_md.format = mkldnn_wino_fmt;
+    expect_wei_md.format_kind = mkldnn_wino_fmt;
     expect_wei_md.data_type = data_type::s8;
-    mkldnn_wino_desc_t &wd = expect_wei_md.layout_desc.wino_desc;
+    mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
     wd.wino_format = mkldnn_wino_wei_aaOIoi;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
@@ -966,7 +964,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
                                 jcp.alpha * jcp.alpha * jcp.oc;
     wd.size = max_size;
 
-    if (wei_md.format == any)
+    if (wei_md.format_kind == format_kind::any)
         wei_md = expect_wei_md;
     if (wei_md != expect_wei_md)
         return status::unimplemented;

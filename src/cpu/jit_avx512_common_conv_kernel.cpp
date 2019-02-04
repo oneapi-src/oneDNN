@@ -30,7 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
@@ -1305,7 +1305,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims-4];
     jcp.stride_w = cd.strides[ndims-3];
-    jcp.src_fmt = src_d.format();
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
@@ -1360,15 +1359,15 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
 
-    auto src_format = jcp.is_1stconv
+    auto src_tag = jcp.is_1stconv
         ? pick(ndims - 3, ncw, nchw, ncdhw)
         : ((jcp.simd_w == 4)
             ? pick(ndims - 3, nCw4c, nChw4c, nCdhw4c)
             : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c));
-    auto dst_format = (jcp.simd_w == 4)
+    auto dst_tag = (jcp.simd_w == 4)
         ? pick(ndims - 3, nCw4c, nChw4c, nCdhw4c)
         : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    auto wei_format = with_groups
+    auto wei_tag = with_groups
         ? ((jcp.simd_w == 4)
             ? pick(ndims - 3, gOIw4i4o, gOIhw4i4o, gOIdhw4i4o)
             : pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o))
@@ -1376,22 +1375,28 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             ? pick(ndims - 3, OIw4i4o, OIhw4i4o, OIdhw4i4o)
             : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o));
 
-    if (src_d.format() == any)
-        CHECK(types::set_default_format(src_md, src_format));
-    if (src_d.format() != src_format)
+    if (src_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, src_tag));
+        jcp.src_tag = src_tag;
+    } else {
+        jcp.src_tag = src_d.matches_one_of_tag(src_tag);
+    }
+    if (jcp.src_tag != src_tag)
         return status::unimplemented;
 
-    if (dst_d.format() == any)
-        CHECK(types::set_default_format(dst_md, dst_format));
-    if (dst_d.format() != dst_format)
+    if (dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(dst_md, dst_tag));
+        jcp.dst_tag = dst_tag;
+    } else {
+        jcp.dst_tag = dst_d.matches_one_of_tag(dst_tag);
+    }
+    if (jcp.dst_tag != dst_tag)
         return status::unimplemented;
 
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
     if (jcp.with_bias) {
-        if (bias_d.format() == any)
-            CHECK(types::set_default_format(bias_md, x));
-        if (bias_d.format() != x)
-            return status::unimplemented;
+        if (bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(bias_md, x));
     }
 
     if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
@@ -1410,13 +1415,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         jcp.typesize_in = sizeof(int16_t);
         jcp.typesize_out = sizeof(int32_t);
 
-        const auto w_format = with_groups
+        wei_tag = with_groups
             ? pick(ndims - 3, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)
             : pick(ndims - 3, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i);
-        if (weights_d.format() == any)
-            CHECK(types::set_default_format(weights_md, w_format));
-        if (weights_d.format() != w_format)
-            return status::unimplemented;
     } else if (mayiuse(avx512_common) &&
             src_d.data_type() == data_type::f32
          && weights_d.data_type() == data_type::f32
@@ -1437,39 +1438,35 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
             if (one_of(true, not_for_4fma, is_dilated))
                 jcp.ver = ver_fma;
             if (jcp.ver == ver_4fma) {
-                const auto w_format = with_groups
+                wei_tag = with_groups
                     ? ((jcp.simd_w == 4)
                         ? pick(ndims - 3, gOiw4o, gOihw4o, gOidhw4o)
                         : pick(ndims - 3, gOiw16o, gOihw16o, gOidhw16o))
                     : ((jcp.simd_w == 4)
                         ? pick(ndims - 3, Oiw4o, Oihw4o, Oidhw4o)
                         : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o));
-                if (weights_d.format() == any)
-                    CHECK(types::set_default_format(weights_md, w_format));
-                if (weights_d.format() != w_format)
-                    return status::unimplemented;
             } else {
-                const auto w_format = with_groups
+                wei_tag = with_groups
                     ? ((jcp.simd_w == 4)
                         ? pick(ndims - 3, gOwi4o, gOhwi4o, gOdhwi4o)
                         : pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o))
                     : ((jcp.simd_w == 4)
                         ? pick(ndims - 3, Owi4o, Ohwi4o, Odhwi4o)
                         : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o));
-                if (weights_d.format() == any)
-                    CHECK(types::set_default_format(weights_md, w_format));
-                if (weights_d.format() != w_format)
-                    return status::unimplemented;
             }
-        } else {
-            if (weights_d.format() == any)
-                CHECK(types::set_default_format(weights_md, wei_format));
-            if (weights_d.format() != wei_format)
-                return status::unimplemented;
         }
     } else {
         return status::unimplemented;
     }
+
+    if (weights_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(weights_md, wei_tag));
+        jcp.wei_tag = wei_tag;
+    } else {
+        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    }
+    if (jcp.wei_tag != wei_tag)
+        return status::unimplemented;
 
     if (jcp.is_1stconv) {
         jcp.ur_w = nstl::min(jcp.ow, regs);
@@ -1519,7 +1516,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     /* Grouped channel offset to support 'non-blocked data' format for
      * convolution sizes with '(input_channel / ngroups) < simd' */
     jcp.nonblk_group_off
-            = (jcp.ngroups > 1 && one_of(src_d.format(), ncw, nchw, ncdhw)) ?
+            = (jcp.ngroups > 1 && one_of(jcp.src_tag, ncw, nchw, ncdhw)) ?
             jcp.ic :
             1;
 
@@ -2592,15 +2589,18 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
 
-    auto src_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    auto wei_format = with_groups
+    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto wei_tag = with_groups
         ? pick(ndims - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
         : pick(ndims - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i);
+    jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+
     bool args_ok = true
         && jcp.oc % jcp.oc_block == 0
         && jcp.ic % jcp.ic_block == 0
-        && diff_src_d.format() == src_format
-        && diff_dst_d.format() == src_format;
+        && jcp.src_tag == dat_tag
+        && jcp.dst_tag == dat_tag;
     if (!args_ok)
         return status::unimplemented;
 
@@ -2631,8 +2631,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
            && diff_dst_d.data_type() == data_type::s16
            && weights_d.data_type() == data_type::s16
            && diff_src_d.data_type() == data_type::s32) {
-        if (weights_d.format() != (with_groups ? gOIhw8o16i2o : OIhw8o16i2o))
-            return status::unimplemented;
+        wei_tag = with_groups ? gOIhw8o16i2o : OIhw8o16i2o;
         if (mayiuse(avx512_mic_4ops)) {
             jcp.ver = ver_4vnni;
         } else {
@@ -2644,8 +2643,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
          && diff_dst_d.data_type() == data_type::f32
          && weights_d.data_type() == data_type::f32
          && diff_src_d.data_type() == data_type::f32) {
-        if (weights_d.format() != wei_format)
-            return status::unimplemented;
         jcp.ver = ver_fma;
         jcp.typesize_in = sizeof(float);
         jcp.typesize_out = sizeof(float);
@@ -2656,6 +2653,11 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     } else {
         return status::unimplemented;
     }
+
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    if (jcp.wei_tag != wei_tag)
+        return status::unimplemented;
+
     if (!utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && jcp.ver != ver_fma)
         return status::unimplemented;
@@ -4587,25 +4589,28 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     if (jcp.oc % jcp.oc_block)
         return status::unimplemented;
 
-    auto src_format = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    auto wei_format = with_groups
+    auto dst_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto wei_tag = with_groups
         ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
         : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
+
+    if (diff_dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_dst_md, dst_tag));
+        jcp.dst_tag = dst_tag;
+    } else {
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(dst_tag);
+    }
+    if (jcp.dst_tag != dst_tag)
+        return status::unimplemented;
+
     /* conditions on bias memory */
-    jcp.with_bias = cd.diff_bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
     if (jcp.with_bias) {
-        if (diff_bias_d.format() == any)
-            CHECK(types::set_default_format(diff_bias_md, x));
-        if (diff_bias_d.format() != x)
-            return status::unimplemented;
+        if (diff_bias_d.format_kind() == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_bias_md, x));
     }
 
     jcp.nb_oc = jcp.oc / jcp.oc_block;
-
-    if (diff_dst_d.format() == any)
-        CHECK(types::set_default_format(diff_dst_md, src_format));
-    if (diff_dst_d.format() != src_format)
-        return status::unimplemented;
 
     /* kernel applicability check wrt boundaries
      * the conditions are quite general across the kernels we have,
@@ -4627,18 +4632,24 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     if (jcp.is_1stconv) {
-        const auto want_src_format = pick(ndims - 3, ncw, nchw, ncdhw);
-        if (src_d.format() == any)
-            CHECK(types::set_default_format(src_md, want_src_format));
+        auto src_tag = pick(ndims - 3, ncw, nchw, ncdhw);
+        if (src_d.format_kind() == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(src_md, src_tag));
+            jcp.src_tag = src_tag;
+        } else {
+            jcp.src_tag = src_d.matches_one_of_tag(src_tag);
+            if (jcp.ic == 1 && jcp.src_tag != src_tag)
+                jcp.src_tag = src_d.matches_one_of_tag(
+                        pick(ndims - 3, nwc, nhwc, ndhwc));
+        }
+        if (jcp.src_tag == format_tag::undef)
+            return status::unimplemented;
 
         const bool src_ok = true
             && utils::everyone_is(data_type::f32,
                 src_d.data_type(), diff_weights_d.data_type(),
                 diff_dst_d.data_type())
             && one_of(jcp.ic, 1, 3)
-            && IMPLICATION(jcp.ic == 1, one_of(src_d.format(), want_src_format,
-                pick(ndims - 3, nwc, nhwc, ndhwc)))
-            && IMPLICATION(jcp.ic != 1, src_d.format() == want_src_format)
             && jcp.ngroups == 1;
         if (!src_ok)
             return status::unimplemented;
@@ -4647,9 +4658,15 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     jcp.stride_w), 16);
         const int kh_step = nstl::max((28 - jcp.with_bias) / jcp.kw, 1);
         const int kh_step_rem = jcp.kh % kh_step;
-        const auto want_4fma_wfmt = with_groups
+
+        const auto wei_4fma_tag = with_groups
             ? pick(ndims - 3, gOiw16o, gOihw16o, gOidhw16o)
             : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o);
+
+        auto current_wei_tag = format_tag::undef;
+        if (diff_weights_d.format_kind() != format_kind::any)
+            current_wei_tag = diff_weights_d.matches_one_of_tag(wei_4fma_tag);
+
         const bool use_4fma = true
             && one_of(ndims, 3, 4)
             && mayiuse(avx512_mic_4ops)
@@ -4660,48 +4677,60 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             && jcp.stride_w == 4
             && tr_ld / jcp.simd_w <= 4 /* [bwd_w:tr_src:r1] */
             && IMPLICATION(jcp.with_bias, kh_step_rem == 1) /* [bwd_w:b:r1] */
-            && IMPLICATION(diff_weights_d.format() != any,
-                    diff_weights_d.format() == want_4fma_wfmt);
+            && IMPLICATION(diff_weights_d.format_kind() != format_kind::any,
+                    current_wei_tag == wei_4fma_tag);
 
         if (use_4fma) {
             jcp.ver = ver_4fma;
             jcp.kh_step = kh_step;
             jcp.tr_ld = tr_ld;
             jcp.ic_block = 1;
-            if (diff_weights_d.format() == any)
-                CHECK(types::set_default_format(diff_weights_md, want_4fma_wfmt));
+            if (diff_weights_d.format_kind() == format_kind::any)
+                CHECK(memory_desc_init_by_tag(diff_weights_md, wei_4fma_tag));
+            jcp.wei_tag = wei_4fma_tag;
         } else {
             jcp.ver = ver_fma;
             jcp.ic_block = jcp.ic;
 
-            const auto want_wfmt = with_groups
+            wei_tag = with_groups
                 ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
                 : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
-            if (diff_weights_d.format() == any)
-                CHECK(types::set_default_format(diff_weights_md, want_wfmt));
-            if (diff_weights_d.format() != want_wfmt)
+
+            if (diff_weights_d.format_kind() == format_kind::any) {
+                CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+                jcp.wei_tag = wei_tag;
+            } else {
+                jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+            }
+            if (jcp.wei_tag != wei_tag)
                 return status::unimplemented;
         }
 
         jcp.nb_ic = jcp.ic / jcp.ic_block;
-        jcp.src_fmt = src_d.format();
     } else {
-        if (src_d.format() == any)
-            CHECK(types::set_default_format(src_md, src_format));
-        if (diff_weights_d.format() == any)
-            CHECK(types::set_default_format(diff_weights_md, wei_format));
+        auto src_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+        if (src_d.format_kind() == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(src_md, src_tag));
+            jcp.src_tag = src_tag;
+        } else {
+            jcp.src_tag = src_d.matches_one_of_tag(src_tag);
+        }
+        if (jcp.src_tag != src_tag)
+            return status::unimplemented;
 
-        const bool ok = true
-            && src_d.format() == src_format
-            && diff_weights_d.format() == (wei_format);
-        if (!ok)
+        if (diff_weights_d.format_kind() == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+            jcp.wei_tag = wei_tag;
+        } else {
+            jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+        }
+        if (jcp.wei_tag != wei_tag)
             return status::unimplemented;
 
         jcp.ic_block = jcp.simd_w;
         if (ok_to_pad_channels)
             jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
         jcp.nb_ic = jcp.ic / jcp.ic_block;
-        jcp.src_fmt = src_d.format();
         if ((mayiuse(avx512_mic_4ops) || mayiuse(avx512_core_vnni))
             && mkldnn_thr_syncable()
             && one_of(ndims, 3, 4)
@@ -4763,7 +4792,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         && jcp.oc % jcp.oc_block == 0
         && jcp.ic <= src_d.padded_dims()[1]
         && jcp.oc <= diff_dst_d.padded_dims()[1]
-        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 0]
+        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
         && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 

@@ -21,9 +21,7 @@ file(GLOB_RECURSE HEADERS
     )
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.hpp
     )
 include_directories(
     ${PROJECT_BINARY_DIR}/include

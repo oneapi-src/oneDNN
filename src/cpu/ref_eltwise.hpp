@@ -52,7 +52,6 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_fwd_t);
 
         status_t init() {
-            using namespace memory_format;
             using namespace utils;
 
             auto src_d = memory_desc_wrapper(src_md());
@@ -62,8 +61,9 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
                 || (src_d.is_dense(true) && is_zero_preserved());
 
             use_nCspBc_padded_ = !use_dense_
-                && one_of(desc()->data_desc.format, nChw8c, nChw16c,
-                    nCdhw8c, nCdhw16c)
+                && src_d.blocking_desc().inner_nblks == 1
+                && one_of(src_d.blocking_desc().inner_blks[0], 8, 16)
+                && src_d.blocking_desc().inner_idxs[0] == 1
                 && src_d.only_padded_dim(1)
                 && src_d.is_dense(true);
 

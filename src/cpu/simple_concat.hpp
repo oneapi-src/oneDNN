@@ -31,12 +31,11 @@ struct simple_concat_t: public cpu_primitive_t {
     struct pd_t: public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs)
-        {
-            for (size_t i = 0; i < sizeof(perm_) / sizeof(perm_[0]); i++) {
-                perm_[i] = rhs.perm_[i];
-                iperm_[i] = rhs.iperm_[i];
-            }
+        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) {
+            int ndims = rhs.dst_md_.ndims;
+            utils::array_copy(perm_, rhs.perm_, ndims);
+            utils::array_copy(iperm_, rhs.iperm_, ndims);
+            utils::array_copy(blocks_, rhs.blocks_, ndims);
         }
 
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
@@ -51,26 +50,45 @@ struct simple_concat_t: public cpu_primitive_t {
             for (size_t i = 0; i < src_mds_.size(); ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
                 const memory_desc_wrapper o_d(&src_image_mds_[i]);
+
+                const int ignore_strides = 0;
+
                 ok = ok
                     && utils::everyone_is(data_type, i_d.data_type(),
                             o_d.data_type())
-                    && i_d.format() == o_d.format()
-                    && !utils::one_of(i_d.format(), memory_format::blocked,
-                            memory_format::wino_fmt)
+                    && utils::everyone_is(format_kind::blocked,
+                            i_d.format_kind(), o_d.format_kind())
+                    && types::blocking_desc_is_equal(i_d.blocking_desc(),
+                            o_d.blocking_desc(), ignore_strides)
+                    && types::blocking_desc_is_equal(i_d.blocking_desc(),
+                            dst_d.blocking_desc(), ignore_strides)
                     && !i_d.is_additional_buffer();
                 if (!ok) return status::unimplemented;
             }
 
+            dst_d.compute_blocks(blocks_);
             format_perm();
 
-            // density check
+            // start dim is the first dimension after which the concatenation
+            // would happen contiguously
+            const int start_dim = perm_[concat_dim()];
+
+            // check that contiguous part is indeed contiguous (i.e. dense)
+            if (nelems_to_concat(dst_d) !=
+                    dst_d.padded_dims()[concat_dim()] / blocks_[concat_dim()]
+                    * dst_d.blocking_desc().strides[concat_dim()])
+                return status::unimplemented;
+
+            // check that all inputs have the same strides for the
+            // contiguous part [concat_dim .. ndims] for the *major* dims.
+            // the block part is already checked above
             for (size_t i = 0; i < src_mds_.size(); ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
-                const memory_desc_wrapper o_d(&src_image_mds_[i]);
-                ok = ok
-                    && nelems_to_concat(i_d) == size_to_concat(i_d)
-                    && nelems_to_concat(o_d) == size_to_concat(o_d);
-                if (!ok) return status::unimplemented;
+                for (int d = start_dim; d < dst_d.ndims(); ++d) {
+                    if (dst_d.blocking_desc().strides[iperm_[d]]
+                            != i_d.blocking_desc().strides[iperm_[d]])
+                        return status::unimplemented;
+                }
             }
 
             init_scratchpad();
@@ -80,16 +98,16 @@ struct simple_concat_t: public cpu_primitive_t {
 
         int perm_[TENSOR_MAX_DIMS];
         int iperm_[TENSOR_MAX_DIMS];
+        dims_t blocks_;
 
-        size_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
+        dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
             const int ndims = data_d.ndims();
-            auto &blk = data_d.blocking_desc();
 
-            size_t nelems = 1;
+            dim_t nelems = 1;
             for (int i = perm_[concat_dim()]; i < ndims; i++)
-                nelems *= data_d.dims()[iperm_[i]] / blk.block_dims[iperm_[i]];
+                nelems *= data_d.dims()[iperm_[i]] / blocks_[iperm_[i]];
             for (int i = 0; i < ndims; i++)
-                nelems *= blk.block_dims[i];
+                nelems *= blocks_[i];
 
             return nelems;
         }
@@ -100,7 +118,7 @@ struct simple_concat_t: public cpu_primitive_t {
             const int ndims = dst_d.ndims();
 
             strides_t strides;
-            utils::array_copy(strides, dst_d.blocking_desc().strides[0], ndims);
+            utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
 
             for (int i = 0; i < ndims; i++) iperm_[i] = i;
 
@@ -120,26 +138,12 @@ struct simple_concat_t: public cpu_primitive_t {
             for (int i = 0; i < ndims; i++) perm_[iperm_[i]] = i;
         }
 
-        size_t size_to_concat(const memory_desc_wrapper &data_d) const {
-            size_t max_size = 0;
-            auto &blk = data_d.blocking_desc();
-            for (int d = perm_[concat_dim()]; d < data_d.ndims(); ++d) {
-                auto block = blk.block_dims[iperm_[d]];
-                max_size = nstl::max<size_t>(max_size,
-                        size_t(data_d.padded_dims()[iperm_[d]] / block)
-                        * blk.strides[0][iperm_[d]]);
-                if (block > 1) max_size = nstl::max(max_size,
-                        size_t(block * blk.strides[1][iperm_[d]]));
-            }
-            return max_size;
-        }
-
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_concat_iptrs, sizeof(data_t *) * n_inputs());
             scratchpad.book(key_concat_optrs, sizeof(data_t *) * n_inputs());
-            scratchpad.book(key_concat_nelems, sizeof(size_t) * n_inputs());
+            scratchpad.book(key_concat_nelems, sizeof(dim_t) * n_inputs());
             scratchpad.book(key_concat_istrides,
                     sizeof(strides_t) * n_inputs());
         }

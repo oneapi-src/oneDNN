@@ -53,7 +53,7 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
                 && !has_zero_dim_memory()
                 && src_md()->data_type == f32
                 && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
-                && utils::one_of(src_md()->format, memory_format::nhwc)
+                && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                 && (attr()->has_default_values() || this->with_relu_post_op());
             if (!ok) return status::unimplemented;
 
@@ -118,8 +118,8 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
                         utils::everyone_is(f32,
                             weights_md()->data_type,
                             diff_weights_md()->data_type))
-                && utils::everyone_is(memory_format::nhwc, src_md()->format,
-                        diff_src_md()->format)
+                && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
+                && memory_desc_matches_tag(*diff_src_md(), format_tag::nhwc)
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

@@ -40,13 +40,26 @@ struct ref_shuffle_t : public cpu_primitive_t {
         DECLARE_COMMON_PD_T("ref:any", shuffle_class);
 
         status_t init() {
+            using namespace format_tag;
+
             bool ok = true
                  && data_type_size
                     == types::data_type_size(data_md()->data_type);
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            if (ndims() == 5) {
+                dat_tag_ = memory_desc_matches_one_of_tag(
+                        *data_md(), nCdhw16c, nCdhw8c, ncdhw, ndhwc);
+            } else if (ndims() == 4) {
+                dat_tag_ = memory_desc_matches_one_of_tag(
+                        *data_md(), nChw16c, nChw8c, nchw, nhwc);
+            } else
+                dat_tag_ = any;
+
             return status::success;
         }
+
+        format_tag_t dat_tag_;
     };
 
     ref_shuffle_t(const pd_t *apd): cpu_primitive_t(apd) {
@@ -67,8 +80,8 @@ struct ref_shuffle_t : public cpu_primitive_t {
     typedef typename typesize_traits<data_type_size>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        using namespace memory_format;
-        switch (pd()->data_md()->format) {
+        using namespace format_tag;
+        switch (pd()->dat_tag_) {
         case nCdhw16c: execute_<nCdhw16c>(ctx); break;
         case nChw16c:  execute_<nChw16c>(ctx); break;
         case nCdhw8c:  execute_<nCdhw8c>(ctx); break;
@@ -77,13 +90,13 @@ struct ref_shuffle_t : public cpu_primitive_t {
         case nchw:     execute_<nchw>(ctx); break;
         case ndhwc:    execute_<ndhwc>(ctx); break;
         case nhwc:     execute_<nhwc>(ctx); break;
-        default:       execute_<mkldnn_any>(ctx); break;
+        default:       execute_<any>(ctx); break;
         }
         return status::success;
     }
 
 private:
-    template<memory_format_t fmt>
+    template<format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int *rev_transposed_;

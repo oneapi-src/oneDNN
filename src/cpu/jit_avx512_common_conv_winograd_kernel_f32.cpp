@@ -183,7 +183,7 @@ bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
 }
 }
 
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
@@ -404,12 +404,15 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
         return status::unimplemented;
 
-    if (src_d.format() != nChw16c)
-        return status::unimplemented;
-    if (weights_d.format() != (with_groups ? gOIhw16i16o : OIhw16i16o))
-        return status::unimplemented;
-    if (dst_d.format() != nChw16c)
-        return status::unimplemented;
+    format_tag_t dat_tag = nChw16c;
+    format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+
+    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
     bool layout_consistency = true
         && jcp.ic <= src_d.padded_dims()[1]
@@ -569,7 +572,7 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -1042,7 +1045,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
-    jcp.with_bias = (cd.diff_bias_desc.format != memory_format::undef);
+    jcp.with_bias = (cd.diff_bias_desc.format_kind != format_kind::undef);
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
@@ -1080,12 +1083,16 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
     if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
         return status::unimplemented;
-    if (src_d.format() != nChw16c)
-        return status::unimplemented;
-    if (diff_weights_d.format() != (with_groups ? gOIhw16i16o : OIhw16i16o))
-        return status::unimplemented;
-    if (diff_dst_d.format() != nChw16c)
-        return status::unimplemented;
+
+    format_tag_t dat_tag = nChw16c;
+    format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+
+    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
     bool layout_consistency = true
         && jcp.ic <= src_d.padded_dims()[1]

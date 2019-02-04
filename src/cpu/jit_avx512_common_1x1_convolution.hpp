@@ -83,19 +83,19 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
             const bool is_f32 = utils::everyone_is(data_type::f32,
                     src_type, dst_type, wei_type);
 
-            auto dat_fmt = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_fmt = is_f32
+            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            auto wei_tag = is_f32
                 ? utils::pick(2 * ndims() - 6 + with_groups(),
                         OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o)
                 : utils::pick(2 * ndims() - 6 + with_groups(),
                         OIw8i16o2i, gOIw8i16o2i, OIhw8i16o2i, gOIhw8i16o2i);
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -193,19 +193,19 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
             const bool is_f32 = utils::everyone_is(data_type::f32,
                     diff_src_type, diff_dst_type, wei_type);
 
-            auto dat_fmt = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_fmt = is_f32
+            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            auto wei_tag = is_f32
                 ? utils::pick(2 * ndims() - 6 + with_groups(),
                         IOw16o16i, gIOw16o16i, IOhw16o16i, gIOhw16o16i)
                 : utils::pick(2 * ndims() - 6 + with_groups(),
                         OIw8o16i2o, gOIw8o16i2o, OIhw8o16i2o, gOIhw8o16i2o);
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -304,13 +304,13 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
-            auto dat_fmt = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_fmt = utils::pick(2 * ndims() - 6 + with_groups(),
+            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
                     OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o);
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
     private:

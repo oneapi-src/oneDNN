@@ -46,10 +46,10 @@ static inline float fast_negative_powf(float omega, float beta) {
 };
 
 template <impl::data_type_t data_type>
-template <mkldnn_memory_format_t fmt>
+template <impl::format_tag_t tag>
 void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
-    using namespace memory_format;
+    using namespace format_tag;
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
@@ -59,12 +59,12 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int C = pd()->C();
     const int H = pd()->H();
     const int W = pd()->W();
-    const size_t stride_mb = data_d.blocking_desc().strides[0][0];
+    const size_t stride_mb = data_d.blocking_desc().strides[0];
     const bool across_channels = pd()->desc()->alg_kind == lrn_across_channels;
-    constexpr int blksize = fmt == nChw16c ? 16 : 8;
+    constexpr int blksize = tag == nChw16c ? 16 : 8;
 
     auto data_off = [&](int mb, int c, int h, int w) -> size_t {
-        switch (fmt) {
+        switch (tag) {
         case nChw16c:
         case nChw8c: return mb * stride_mb + c / blksize * H * W * blksize
                      + h * W * blksize + w * blksize + c % blksize;
@@ -110,7 +110,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     };
 
     const int MB = pd()->MB();
-    if (fmt == nChw16c || fmt == nChw8c) {
+    if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
             [&](int mb, int c_blk, int h, int w) {
             int c = c_blk * blksize;
@@ -120,7 +120,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
             for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
                 ker(&dst[off + cc], mb, c + cc, h, w);
         });
-    } else if (fmt == nhwc) {
+    } else if (tag == nhwc) {
         parallel_nd(MB, H, W, C,
             [&](int mb, int h, int w, int c) {
             const size_t off = mb * stride_mb + h * W * C + w * C + c;
@@ -136,10 +136,10 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 template <impl::data_type_t data_type>
-template <mkldnn_memory_format_t fmt>
+template <mkldnn_format_tag_t tag>
 void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
-    using namespace memory_format;
+    using namespace format_tag;
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
@@ -151,8 +151,8 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     const int C = pd()->C();
     const int H = pd()->H();
     const int W = pd()->W();
-    const size_t stride_mb = data_d.blocking_desc().strides[0][0];
-    constexpr int blksize = fmt == nChw16c ? 16 : 8;
+    const size_t stride_mb = data_d.blocking_desc().strides[0];
+    constexpr int blksize = tag == nChw16c ? 16 : 8;
 
     const float alpha = static_cast<float>(pd()->desc()->lrn_alpha);
     const float beta = static_cast<float>(pd()->desc()->lrn_beta);
@@ -161,7 +161,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     const int half_ksize = (kernel_size - 1) / 2;
 
     auto data_off = [&](int mb, int c, int h, int w) -> size_t {
-        switch (fmt) {
+        switch (tag) {
         case nChw16c:
         case nChw8c: return mb * stride_mb + c/blksize * H * W * blksize
                      + h * W * blksize + w * blksize + c%blksize;
@@ -199,7 +199,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
         *d = static_cast<data_t>(A - B); // final cast down to data_t
     };
 
-    if (fmt == nChw16c || fmt == nChw8c) {
+    if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
             [&](int mb, int c_blk, int h, int w) {
             int c = c_blk * blksize;
@@ -209,7 +209,7 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
             for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
                 ker(&diff_src[off + cc], mb, c + cc, h, w);
         });
-    } else if (fmt == nhwc) {
+    } else if (tag == nhwc) {
         parallel_nd(MB, H, W, C,
             [&](int mb, int h, int w, int c) {
             const size_t off = mb * stride_mb + h * W * C + w * C + c;
@@ -225,25 +225,25 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
 }
 
 template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<memory_format::nChw16c>(const exec_ctx_t &ctx) const;
+execute_forward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
 template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<memory_format::nChw8c>(const exec_ctx_t &ctx) const;
+execute_forward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
 template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<memory_format::nchw>(const exec_ctx_t &ctx) const;
+execute_forward<format_tag::nchw>(const exec_ctx_t &ctx) const;
 template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<memory_format::nhwc>(const exec_ctx_t &ctx) const;
+execute_forward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
 template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<memory_format::any>(const exec_ctx_t &ctx) const;
+execute_forward<format_tag::any>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<memory_format::nChw16c>(const exec_ctx_t &ctx) const;
+execute_backward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<memory_format::nChw8c>(const exec_ctx_t &ctx) const;
+execute_backward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<memory_format::nchw>(const exec_ctx_t &ctx) const;
+execute_backward<format_tag::nchw>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<memory_format::nhwc>(const exec_ctx_t &ctx) const;
+execute_backward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<memory_format::any>(const exec_ctx_t &ctx) const;
+execute_backward<format_tag::any>(const exec_ctx_t &ctx) const;
 
 }
 }

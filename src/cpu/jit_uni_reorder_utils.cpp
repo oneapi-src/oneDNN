@@ -45,10 +45,14 @@ struct layout_desc_t {
 
 status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         layout_desc_t &ld) {
-    using namespace mkldnn::impl::memory_format;
+    const auto md = memory_desc_wrapper(md_);
 
-    auto md = memory_desc_wrapper(md_);
-    auto bd = md.blocking_desc();
+    bool ok = true
+        && md.is_blocking_desc()
+        && md.extra().flags == 0;
+    if (!ok) return invalid_arguments;
+
+    const auto &bd = md.blocking_desc();
 
     ld.ndims = 0;
     ld.dt = md.data_type();
@@ -61,115 +65,30 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         ++ld.ndims;
     };
 
-    /* special cases */
-    switch (md.format()) {
-    case memory_format::undef:
-    case memory_format::any:
-    case hwio_s8s8:
-    case hwigo_s8s8:
-    case gOIhw4o4i_s8s8:
-    case gOIhw2i8o4i_s8s8:
-    case gOIw4i16o4i_s8s8:
-    case OIw4i16o4i_s8s8:
-    case gOIhw4i16o4i_s8s8:
-    case OIhw4i16o4i_s8s8:
-    case Goihw16g_s8s8:
-    case Goiw16g_s8s8:
-    case wino_fmt:
-        return invalid_arguments;
-    case OIw4i16o4i:
-    case OIhw4i16o4i:
-        P(0, md.padded_dims()[0] / 16, bd.strides[0][0]);
-        P(0, 16, 4);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 4, 16*4);
-        P(1, 4, 1);
-        P(2, md.padded_dims()[2], bd.strides[0][2]);
-        if (md.format() == OIhw4i16o4i)
-            P(3, md.padded_dims()[3], bd.strides[0][3]);
-        return success;
-    case OIw8i16o2i:
-    case OIhw8i16o2i:
-    case OIdhw8i16o2i:
-        P(0, md.padded_dims()[0] / 16, bd.strides[0][0]);
-        P(0, 16, 2);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 8, 16*2);
-        P(1, 2, 1);
-        P(2, md.padded_dims()[2], bd.strides[0][2]);
-        if (md.format() == OIhw8i16o2i || md.format() == OIdhw8i16o2i)
-            P(3, md.padded_dims()[3], bd.strides[0][3]);
-        if (md.format() == OIdhw8i16o2i)
-            P(4, md.padded_dims()[4], bd.strides[0][4]);
-        return success;
-    case OIw8o16i2o:
-    case OIhw8o16i2o:
-        P(0, md.padded_dims()[0] / 16, bd.strides[0][0]);
-        P(0, 8, 16*2);
-        P(0, 2, 1);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 16, 2);
-        P(2, md.padded_dims()[2], bd.strides[0][2]);
-        if (md.format() == OIhw8o16i2o)
-            P(3, md.padded_dims()[3], bd.strides[0][3]);
-        return success;
-    case gOIhw2i8o4i:
-        P(0, md.padded_dims()[0], bd.strides[0][0]);
-        P(1, md.padded_dims()[1] / 8, bd.strides[0][1]);
-        P(1, 8, 4);
-        P(2, md.padded_dims()[2] / 8, bd.strides[0][2]);
-        P(2, 2, 8*4);
-        P(2, 4, 1);
-        P(3, md.padded_dims()[3], bd.strides[0][3]);
-        P(4, md.padded_dims()[4], bd.strides[0][4]);
-        return success;
-    case gOIw4i16o4i:
-    case gOIhw4i16o4i:
-        P(0, md.padded_dims()[0], bd.strides[0][0]);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 16, 4);
-        P(2, md.padded_dims()[2] / 16, bd.strides[0][2]);
-        P(2, 4, 16*4);
-        P(2, 4, 1);
-        P(3, md.padded_dims()[3], bd.strides[0][3]);
-        if (md.format() == gOIhw4i16o4i)
-            P(4, md.padded_dims()[4], bd.strides[0][4]);
-        return success;
-    case gOIw8i16o2i:
-    case gOIhw8i16o2i:
-    case gOIdhw8i16o2i:
-        P(0, md.padded_dims()[0], bd.strides[0][0]);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 16, 2);
-        P(2, md.padded_dims()[2] / 16, bd.strides[0][2]);
-        P(2, 8, 16*2);
-        P(2, 2, 1);
-        P(3, md.padded_dims()[3], bd.strides[0][3]);
-        if (md.format() == gOIhw8i16o2i || md.format() == gOIdhw8i16o2i)
-            P(4, md.padded_dims()[4], bd.strides[0][4]);
-        if (md.format() == gOIdhw8i16o2i)
-            P(5, md.padded_dims()[5], bd.strides[0][5]);
-        return success;
-    case gOIw8o16i2o:
-    case gOIhw8o16i2o:
-        P(0, md.padded_dims()[0], bd.strides[0][0]);
-        P(1, md.padded_dims()[1] / 16, bd.strides[0][1]);
-        P(1, 8, 16*2);
-        P(1, 2, 1);
-        P(2, md.padded_dims()[2] / 16, bd.strides[0][2]);
-        P(2, 16, 2);
-        P(3, md.padded_dims()[3], bd.strides[0][3]);
-        if (md.format() == gOIhw8o16i2o)
-            P(4, md.padded_dims()[4], bd.strides[0][4]);
-        return success;
-    default: break;
-    }
+    dims_t blocks;
+    md.compute_blocks(blocks);
 
-    /* regular blocked format */
     for (int d = 0; d < md.ndims(); ++d) {
-        P(d, md.padded_dims()[d] / bd.block_dims[d], bd.strides[0][d]);
-        if (bd.block_dims[d] != 1)
-            P(d, bd.block_dims[d], bd.strides[1][d]);
+        const int ld_ndims_start = ld.ndims;
+        if (blocks[d] != 1) {
+            stride_t stride = 1;
+            for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
+                if (bd.inner_idxs[iblk] == d)
+                    P(d, bd.inner_blks[iblk], stride);
+                stride *= bd.inner_blks[iblk];
+            }
+        }
+        P(d, md.padded_dims()[d] / blocks[d], bd.strides[d]);
+
+        // TODO: NOW: revisit, do we need a reverse?
+        // TODO: NOW: consider using strides instead of block sizes in md
+        // reverse the order of dims
+        for (int ld_d = 0; ld_d < (ld.ndims - ld_ndims_start) / 2; ++ld_d) {
+            const int idx0 = ld_ndims_start + ld_d;
+            const int idx1 = ld.ndims - 1 - ld_d;
+            nstl::swap(ld.dims[idx0], ld.dims[idx1]);
+            nstl::swap(ld.strides[idx0], ld.strides[idx1]);
+        }
     }
 
     return success;
@@ -188,13 +107,17 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     if (!ok)
         return unimplemented;
 
+    dims_t iblocks, oblocks;
+    im_d.compute_blocks(iblocks);
+    om_d.compute_blocks(oblocks);
+
     /* padding_dim consistency check */
     for (int d = 0; d < im_d.ndims(); ++d) {
         const auto pdim = im_d.padded_dims()[d];
         bool ok = true
             && pdim == om_d.padded_dims()[d]
-            && pdim % im_d.blocking_desc().block_dims[d] == 0
-            && pdim % om_d.blocking_desc().block_dims[d] == 0;
+            && pdim % iblocks[d] == 0
+            && pdim % oblocks[d] == 0;
             if (!ok) return unimplemented;
     }
 

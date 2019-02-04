@@ -30,26 +30,36 @@ namespace cpu {
 namespace {
 inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d) {
-    using namespace memory_format;
     using namespace utils;
-    return true
-        && IMPLICATION(src_d.format() == nChw8c, wei_d.format() == oIhw8i)
-        && IMPLICATION(src_d.format() == nChw16c, wei_d.format() == oIhw16i)
-        && IMPLICATION(src_d.format() == nCdhw8c, wei_d.format() == oIdhw8i)
-        && IMPLICATION(src_d.format() == nCdhw16c, wei_d.format() == oIdhw16i)
-        && IMPLICATION(src_d.format() == nchw, wei_d.format() == oihw)
-        && IMPLICATION(src_d.format() == ncdhw, wei_d.format() == oidhw)
-        && IMPLICATION(src_d.format() == nhwc, wei_d.format() == hwio)
-        && IMPLICATION(src_d.format() == ndhwc, wei_d.format() == dhwio)
-        && IMPLICATION(src_d.format() == nc, one_of(wei_d.format(), oi, io))
-        && dst_d.format() == nc
-        && src_d.only_padded_dim(1)
-        && wei_d.only_padded_dim(1)
-        && src_d.padded_dims()[1]
-            == wei_d.padded_dims()[1]
-        && src_d.is_dense(true)
-        && dst_d.is_dense()
-        && wei_d.is_dense(true);
+
+    auto strides_compatible = [&]() {
+        bool ok = true;
+        auto w_str = wei_d.blocking_desc().strides;
+        auto d_str = src_d.blocking_desc().strides;
+        for (int i = 1; i < src_d.ndims() - 1; i++) {
+            ok = ok && w_str[i] / d_str[i] == w_str[i + 1] / d_str[i + 1];
+        }
+        return ok && one_of(w_str[1] / d_str[1], 1, wei_d.padded_dims()[0]);
+    };
+    return true && src_d.is_blocking_desc() && wei_d.is_blocking_desc()
+            && src_d.ndims() == wei_d.ndims()
+            && src_d.blocking_desc().inner_nblks
+            == wei_d.blocking_desc().inner_nblks
+            && utils::one_of(src_d.blocking_desc().inner_nblks, 0, 1)
+            && array_cmp(src_d.blocking_desc().inner_blks,
+                       wei_d.blocking_desc().inner_blks,
+                       wei_d.blocking_desc().inner_nblks)
+            && array_cmp(src_d.blocking_desc().inner_idxs,
+                       wei_d.blocking_desc().inner_idxs,
+                       wei_d.blocking_desc().inner_nblks)
+            && strides_compatible()
+            && dst_d.matches_tag(format_tag::nc)
+            && src_d.only_padded_dim(1)
+            && wei_d.only_padded_dim(1)
+            && src_d.padded_dims()[1] == wei_d.padded_dims()[1]
+            && src_d.is_dense(true)
+            && dst_d.is_dense()
+            && wei_d.is_dense(true);
 }
 }
 

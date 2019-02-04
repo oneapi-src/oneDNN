@@ -30,7 +30,6 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 using namespace prop_kind;
 using namespace data_type;
@@ -511,17 +510,14 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef
-        || cd.diff_bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef
+        || cd.diff_bias_desc.format_kind != format_kind::undef;
 
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
     jcp.ks = jcp.kh * jcp.kw * jcp.kd;
 
     jcp.signed_input = src_d.data_type() == data_type::s8;
-    jcp.wei_adj_scale =
-        !jcp.signed_input || mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
 
     jcp.im2col_sz = !everyone_is(true,
             jcp.ow == jcp.iw, jcp.oh == jcp.ih, jcp.od == jcp.id,

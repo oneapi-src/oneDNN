@@ -62,7 +62,7 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
         }
     } else {
         dummy_dst_md = src_mds[0];
-        dummy_dst_md.format = memory_format::any;
+        dummy_dst_md.format_kind = format_kind::any;
         dst_md = &dummy_dst_md;
     }
 

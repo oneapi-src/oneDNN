@@ -155,7 +155,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
             auto wei_fmt = desc()->prop_kind == prop_kind::forward_training
                 ? (with_groups() ? gOIhw16i16o : OIhw16i16o) : any;
             return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
@@ -238,7 +238,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
             auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
             return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
         }
@@ -323,7 +323,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
             auto wei_fmt = with_groups() ? gOIhw16i16o : OIhw16i16o;
             return set_default_formats_common(nChw16c, wei_fmt, nChw16c);
         }

@@ -156,19 +156,19 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
             const bool is_f32 = utils::everyone_is(data_type::f32,
                     diff_src_type, diff_dst_type, wei_type);
 
-            auto dat_fmt = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_fmt = is_f32
+            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+            auto wei_tag = is_f32
                 ? utils::pick(2 * ndims() - 6 + with_groups(),
                         OIw16o16i, gOIw16o16i, OIhw16o16i, gOIhw16o16i,
                         OIdhw16o16i, gOIdhw16o16i)
                 : (with_groups() ? gOIhw8o16i2o : OIhw8o16i2o);
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 

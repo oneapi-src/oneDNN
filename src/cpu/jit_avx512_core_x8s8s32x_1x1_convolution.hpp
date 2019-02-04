@@ -56,7 +56,9 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
                             desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
                 && !has_zero_dim_memory()
-                && set_default_formats();
+                && set_default_formats_common(dat_tag(), format_tag::any,
+                        dat_tag())
+                && set_or_check_wei_format();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -82,16 +84,32 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        bool set_default_formats() {
-            using namespace memory_format;
-            bool is_sign_input = src_md()->data_type == data_type::s8;
+        format_tag_t dat_tag() const { return format_tag::nhwc; }
 
-            auto dat_fmt = nhwc;
-            auto wei_fmt = with_groups()
-                ? (is_sign_input ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
-                : (is_sign_input ? OIhw4i16o4i_s8s8 : OIhw4i16o4i);
+        bool set_or_check_wei_format() {
+            using namespace format_tag;
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            const bool is_src_s8 = src_md_.data_type == data_type::s8;
+            format_tag_t wei_tag = with_groups() ? gOIhw4i16o4i : OIhw4i16o4i;
+
+            memory_desc_t want_wei_md = weights_md_;
+            memory_desc_init_by_tag(want_wei_md, wei_tag);
+            if (is_src_s8) {
+                want_wei_md.extra.flags = 0
+                    | memory_extra_flags::compensation_conv_s8s8
+                    | memory_extra_flags::scale_adjust;
+                want_wei_md.extra.compensation_mask = (1 << 0)
+                    + (with_groups() ? (1 << 1) : 0);
+                want_wei_md.extra.scale_adjust =
+                    mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+            }
+
+            if (weights_md_.format_kind == format_kind::any) {
+                weights_md_ = want_wei_md;
+                return true;
+            }
+
+            return weights_md_ == want_wei_md;
         }
     };
 

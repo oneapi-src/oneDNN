@@ -94,11 +94,11 @@ inline void format_mem_desc_str(char *str, int len, const memory_desc_t *md) {
 template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_data = s->src_md()->format;
+    auto fmt_data = s->src_md()->format_kind;
     auto fmt_diff = s->is_bwd()
-        ? s->diff_src_md()->format : memory_format::undef;
+        ? s->diff_src_md()->format_kind : format_kind::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
-            mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
+            mkldnn_fmt_kind2str(fmt_data), mkldnn_fmt_kind2str(fmt_diff));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "flags:%u", s->desc()->flags);
 
@@ -112,20 +112,20 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     auto fmt_src = (s->desc()->prop_kind == prop_kind::backward_data
-            ? s->diff_src_md() : s->src_md())->format;
+            ? s->diff_src_md() : s->src_md())->format_kind;
     auto fmt_wei = (s->desc()->prop_kind == prop_kind::backward_weights
-            ? s->diff_weights_md(0) : s->weights_md(0))->format;
+            ? s->diff_weights_md(0) : s->weights_md(0))->format_kind;
     auto fmt_bia = s->with_bias()
         ? (s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md(1) : s->weights_md(1))->format
-        : memory_format::undef;
+                ? s->diff_weights_md(1) : s->weights_md(1))->format_kind
+        : format_kind::undef;
     auto fmt_dst = (s->desc()->prop_kind == prop_kind::backward_data
             || s->desc()->prop_kind == prop_kind::backward_weights
-        ? s->diff_dst_md() : s->dst_md())->format;
+        ? s->diff_dst_md() : s->dst_md())->format_kind;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN,
             "fsrc:%s fwei:%s fbia:%s fdst:%s",
-            mkldnn_fmt2str(fmt_src), mkldnn_fmt2str(fmt_wei),
-            mkldnn_fmt2str(fmt_bia), mkldnn_fmt2str(fmt_dst));
+            mkldnn_fmt_kind2str(fmt_src), mkldnn_fmt_kind2str(fmt_wei),
+            mkldnn_fmt_kind2str(fmt_bia), mkldnn_fmt_kind2str(fmt_dst));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
@@ -181,7 +181,7 @@ template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
             ? s->diff_dst_md() : s->src_md());
 
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "dt:%s fmt:%s",
-            mkldnn_dt2str(md->data_type), mkldnn_fmt2str(md->format));
+            mkldnn_dt2str(md->data_type), mkldnn_fmt_kind2str(md->format_kind));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "axis:%d group_size:" DFMT,
             s->axis(), s->group_size());
@@ -195,11 +195,11 @@ template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_data = s->src_md()->format;
+    auto fmt_data = s->src_md()->format_kind;
     auto fmt_diff = s->desc()->prop_kind == prop_kind::backward_data
-        ? s->diff_src_md()->format : memory_format::undef;
+        ? s->diff_src_md()->format_kind : format_kind::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
-            mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
+            mkldnn_fmt_kind2str(fmt_data), mkldnn_fmt_kind2str(fmt_diff));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
@@ -214,20 +214,20 @@ template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     auto fmt_src = (s->desc()->prop_kind == prop_kind::backward_data
-            ? s->diff_src_md() : s->src_md())->format;
+            ? s->diff_src_md() : s->src_md())->format_kind;
     auto fmt_wei = (s->desc()->prop_kind == prop_kind::backward_weights
-            ? s->diff_weights_md(0) : s->weights_md(0))->format;
+            ? s->diff_weights_md(0) : s->weights_md(0))->format_kind;
     auto fmt_bia = s->with_bias()
         ? (s->desc()->prop_kind == prop_kind::backward_weights
-                ? s->diff_weights_md(1) : s->weights_md(1))->format
-        : memory_format::undef;
+                ? s->diff_weights_md(1) : s->weights_md(1))->format_kind
+        : format_kind::undef;
     auto fmt_dst = (s->desc()->prop_kind == prop_kind::backward_data
             || s->desc()->prop_kind == prop_kind::backward_weights
-        ? s->diff_dst_md() : s->dst_md())->format;
+        ? s->diff_dst_md() : s->dst_md())->format_kind;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN,
             "fsrc:%s fwei:%s fbia:%s fdst:%s",
-            mkldnn_fmt2str(fmt_src), mkldnn_fmt2str(fmt_wei),
-            mkldnn_fmt2str(fmt_bia), mkldnn_fmt2str(fmt_dst));
+            mkldnn_fmt_kind2str(fmt_src), mkldnn_fmt_kind2str(fmt_wei),
+            mkldnn_fmt_kind2str(fmt_bia), mkldnn_fmt_kind2str(fmt_dst));
 
     snprintf(prb_str, MKLDNN_VERBOSE_PRB_LEN,
             "mb" DFMT "ic" DFMT "oc" DFMT, s->MB(), s->IC_total(), s->OC());
@@ -239,11 +239,11 @@ template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
 template <typename pd_t> static void init_info_lrn(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
-    auto fmt_data = s->src_md()->format;
+    auto fmt_data = s->src_md()->format_kind;
     auto fmt_diff = s->desc()->prop_kind == prop_kind::backward_data
-        ? s->diff_src_md()->format : memory_format::undef;
+        ? s->diff_src_md()->format_kind : format_kind::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
-            mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
+            mkldnn_fmt_kind2str(fmt_data), mkldnn_fmt_kind2str(fmt_diff));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
@@ -261,8 +261,8 @@ template <typename pd_t> static void init_info_mem(pd_t *s, char *buffer) {
     const auto o_md = s->dst_md();
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN,
             "in:%s_%s out:%s_%s",
-            mkldnn_dt2str(i_md->data_type), mkldnn_fmt2str(i_md->format),
-            mkldnn_dt2str(o_md->data_type), mkldnn_fmt2str(o_md->format));
+            mkldnn_dt2str(i_md->data_type), mkldnn_fmt_kind2str(i_md->format_kind),
+            mkldnn_dt2str(o_md->data_type), mkldnn_fmt_kind2str(o_md->format_kind));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN, "num:%d", s->n_inputs());
 
@@ -276,11 +276,11 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     auto fmt_data = (s->desc()->prop_kind == prop_kind::backward_data
-            ? s->diff_src_md() : s->src_md())->format;
+            ? s->diff_src_md() : s->src_md())->format_kind;
     auto fmt_ws = s->workspace_md()
-        ? s->workspace_md()->format : memory_format::undef;
+        ? s->workspace_md()->format_kind : format_kind::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fws:%s",
-            mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_ws));
+            mkldnn_fmt_kind2str(fmt_data), mkldnn_fmt_kind2str(fmt_ws));
 
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
@@ -315,11 +315,11 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
 
     auto md = (s->desc()->prop_kind == prop_kind::backward_data
         ? s->diff_src_md() : s->src_md());
-    auto fmt_data = md->format;
+    auto fmt_data = md->format_kind;
     auto fmt_diff = s->desc()->prop_kind == prop_kind::backward_data
-        ? s->diff_src_md()->format : memory_format::undef;
+        ? s->diff_src_md()->format_kind : format_kind::undef;
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s fdiff:%s",
-            mkldnn_fmt2str(fmt_data), mkldnn_fmt2str(fmt_diff));
+            mkldnn_fmt_kind2str(fmt_data), mkldnn_fmt_kind2str(fmt_diff));
 
     format_mem_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, md);
 
@@ -356,13 +356,13 @@ template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
     snprintf(aux_str, MKLDNN_VERBOSE_AUX_LEN,
             "alg:%s_%s", mkldnn_alg_kind2str(alg_kind), mkldnn_rnn_direction2str(rnn_dir));
     snprintf(dat_str, MKLDNN_VERBOSE_DAT_LEN, "fdata:%s-%s-%s-%s fwei:%s-%s-%s ddata:%s%s-%s%s dwei:%s%s%s",
-             mkldnn_fmt2str(src_lay_md->format),
-             mkldnn_fmt2str(src_iter_md ? src_iter_md->format : memory_format::undef),
-             mkldnn_fmt2str(dst_lay_md->format),
-             mkldnn_fmt2str(dst_iter_md ? dst_iter_md->format : memory_format::undef),
-             mkldnn_fmt2str(wei_lay_md->format),
-             mkldnn_fmt2str(wei_iter_md->format),
-             mkldnn_fmt2str(bias_md->format),
+             mkldnn_fmt_kind2str(src_lay_md->format_kind),
+             mkldnn_fmt_kind2str(src_iter_md ? src_iter_md->format_kind : format_kind::undef),
+             mkldnn_fmt_kind2str(dst_lay_md->format_kind),
+             mkldnn_fmt_kind2str(dst_iter_md ? dst_iter_md->format_kind : format_kind::undef),
+             mkldnn_fmt_kind2str(wei_lay_md->format_kind),
+             mkldnn_fmt_kind2str(wei_iter_md->format_kind),
+             mkldnn_fmt_kind2str(bias_md->format_kind),
              mkldnn_dt2str(src_lay_md->data_type),
              mkldnn_dt2str(src_iter_md ? src_iter_md->data_type : data_type::undef),
              mkldnn_dt2str(dst_lay_md->data_type),

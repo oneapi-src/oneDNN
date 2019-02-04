@@ -599,15 +599,18 @@ rnn_bias_finalize_sig(
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
         weights_type>::assign_packed_weights)) {
-    AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
+    assert(md->format_kind == format_kind::rnn_packed);
+    const auto packed_desc = md->format_desc.rnn_packed_desc;
+    AOC<weights_data_t *, 3> weights(weights_,
+            rnn.n_layer, rnn.n_dir, packed_desc.n_parts);
 
     size_t offset_packed = 0;
     for (int l = 0; l < rnn.n_layer; l++)
         for (int d = 0; d < rnn.n_dir; d++) {
-            for (int p = 0; p < n_parts; p++) {
+            for (int p = 0; p < packed_desc.n_parts; p++) {
                 weights(l, d, p) = (weights_data_t *)&w_[offset_packed];
                 offset_packed
-                        += part_weights_pack_size[p] / sizeof(weights_data_t);
+                    += packed_desc.part_pack_size[p] / sizeof(weights_data_t);
             }
         }
 }
@@ -615,9 +618,11 @@ rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_weights_assign_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) {
-    assert(nld * ld != 0);
+    assert(md->format_kind == format_kind::blocked);
+    const auto &blk = md->format_desc.blocking;
     /* Original set of weights provided by the user */
-    AOC<const weights_data_t, 3> w(w_, rnn.n_layer, rnn.n_dir, nld * ld);
+    AOC<const weights_data_t, 3> w(w_,
+            rnn.n_layer, rnn.n_dir, (int)blk.strides[1]);
     /* Array of pointers for each part of weights */
     AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
 
@@ -626,9 +631,7 @@ rnn_weights_assign_sig(
             size_t offset_weights = 0;
             for (int p = 0; p < n_parts; p++) {
                 weights(i, d, p) = (weights_data_t *)&w(i, d, offset_weights);
-                offset_weights += fmt == memory_format::ldigo ?
-                        gates_per_part[p] * OC_size :
-                        gates_per_part[p] * OC_size * ld;
+                offset_weights += gates_per_part[p] * blk.strides[3];
             }
         }
 }
@@ -705,12 +708,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
      * dimension */
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
-    (this->*weights_iter_assign_func)(rnn, rnn.weights_iter_fmt,
+    (this->*weights_iter_assign_func)(rnn, pd()->weights_md(1),
             rnn.weights_iter_nld, rnn.weights_iter_ld, rnn.dic,
             rnn.sic, rnn.n_parts_weights_iter, rnn.parts_weights_iter,
             rnn.part_weights_iter_pack_size, ptr_wei_iter, w_iter,
             ptr_bias, bias, ws_bias);
-    (this->*weights_layer_assign_func)(rnn, rnn.weights_layer_fmt,
+    (this->*weights_layer_assign_func)(rnn, pd()->weights_md(0),
             rnn.weights_layer_nld, rnn.weights_layer_ld, rnn.dic, rnn.slc,
             rnn.n_parts_weights_layer, rnn.parts_weights_layer,
             rnn.part_weights_layer_pack_size, ptr_wei_layer, w_layer, ptr_bias,

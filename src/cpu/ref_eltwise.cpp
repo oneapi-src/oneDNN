@@ -67,7 +67,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const blocking_desc_t &blk = data_d.blocking_desc();
-    const int block = blk.block_dims[1];
+    const int block = blk.inner_blks[0];
 
     const int MB = pd()->MB();
     const int C = pd()->C() / block;

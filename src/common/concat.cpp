@@ -68,7 +68,7 @@ status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
     } else {
         dummy_dst_md = src_mds[0];
         dummy_dst_md.dims[concat_dim] = concat_dim_sz;
-        dummy_dst_md.format = memory_format::any;
+        dummy_dst_md.format_kind = format_kind::any;
         dst_md = &dummy_dst_md;
     }
 

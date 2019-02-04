@@ -69,12 +69,12 @@ struct _jit_uni_dw_convolution_fwd_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
-            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+            auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -144,12 +144,12 @@ struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
-            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+            auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
@@ -221,12 +221,12 @@ struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
     protected:
         bool set_default_formats() {
-            using namespace memory_format;
+            using namespace format_tag;
 
-            auto dat_fmt = isa == avx512_common ? nChw16c : nChw8c;
-            auto wei_fmt = isa == avx512_common ? Goihw16g : Goihw8g;
+            auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
+            auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 

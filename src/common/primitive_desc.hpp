@@ -84,7 +84,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     virtual void init_scratchpad_md() {
         auto size = (mkldnn::impl::dim_t)scratchpad_registry().size();
         mkldnn::impl::dims_t dims = { size };
-        mkldnn_memory_desc_init(&scratchpad_md_, size ? 1 : 0, dims,
+        mkldnn_memory_desc_init_by_tag(&scratchpad_md_, size ? 1 : 0, dims,
                 mkldnn::impl::data_type::u8, mkldnn_x);
     }
 

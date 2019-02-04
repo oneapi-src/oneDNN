@@ -44,7 +44,8 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     id.diff_bias_desc = id.bias_desc = zero_md();
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    const bool with_bias = bias_desc && bias_desc->format != memory_format::undef;
+    const bool with_bias =
+        bias_desc && bias_desc->format_kind != format_kind::undef;
 
     (prop_kind == backward_data ? id.diff_src_desc : id.src_desc) = *src_desc;
     (is_fwd ? id.dst_desc : id.diff_dst_desc)  = *dst_desc;

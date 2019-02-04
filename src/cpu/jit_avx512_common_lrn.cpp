@@ -41,7 +41,6 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -331,14 +330,15 @@ status_t jit_avx512_common_lrn_fwd_t::pd_t::init() {
 
     if (desc()->prop_kind == forward_training) {
         dims_t ws_dims = { MB(), C(), H(), 2*W() };
-        mkldnn_memory_desc_init(&ws_md_, 4, ws_dims, data_type::f32, nChw16c);
+        mkldnn_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, data_type::f32,
+                format_tag::nChw16c);
     }
 
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
         && desc()->lrn_beta == 0.75
-        && data_d.format() == nChw16c;
+        && data_d.matches_tag(format_tag::nChw16c);
 
     return args_ok_across ? success : unimplemented;
 }
@@ -730,7 +730,8 @@ status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
     if (!ok) return unimplemented;
 
     dims_t ws_dims = { MB(), C(), H(), 2*W() };
-    mkldnn_memory_desc_init(&ws_md_, 4, ws_dims, data_type::f32, nChw16c);
+    mkldnn_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, data_type::f32,
+            format_tag::nChw16c);
 
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
@@ -738,7 +739,7 @@ status_t jit_avx512_common_lrn_bwd_t::pd_t::init() {
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
         && desc()->lrn_beta == 0.75
-        && data_d.format() == nChw16c;
+        && data_d.matches_tag(format_tag::nChw16c);
 
     return args_ok_across ? success : unimplemented;
 }

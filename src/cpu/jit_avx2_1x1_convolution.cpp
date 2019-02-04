@@ -28,7 +28,6 @@ namespace impl {
 namespace cpu {
 
 using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
@@ -398,11 +397,11 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                             + (ic_b * jcp.is + sp) * jcp.ic_block;
                         if (ndims == 3)
                             rp.src = src
-                                + iw * src_d.blocking_desc().strides[0][2];
+                                + iw * src_d.blocking_desc().strides[2];
                         else
                             rp.src = src
-                                + ih * src_d.blocking_desc().strides[0][2]
-                                + iw * src_d.blocking_desc().strides[0][3];
+                                + ih * src_d.blocking_desc().strides[2]
+                                + iw * src_d.blocking_desc().strides[3];
 
                         if (oc_b == 0)
                             rtus_driver_->ker_(&rp);

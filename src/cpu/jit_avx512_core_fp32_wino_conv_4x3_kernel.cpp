@@ -233,7 +233,7 @@ bool check_kernel_cond(int dimM_block, int dimM_reg_block, int dimM_simd_block,
 }
 }
 
-using namespace mkldnn::impl::memory_format;
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
@@ -1185,18 +1185,25 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
     if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
         return status::unimplemented;
 
-    if (src_d.format() != nChw16c)
-        return status::unimplemented;
-    if (!one_of(weights_d.format(), any,
-                with_groups ? gOIhw16i16o : OIhw16i16o, wino_fmt))
-        return status::unimplemented;
-    if (dst_d.format() != nChw16c)
-        return status::unimplemented;
+    format_tag_t dat_tag = nChw16c;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+
+    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    if (jcp.dst_tag != dat_tag) return status::unimplemented;
+
+    if (!one_of(weights_d.format_kind(), format_kind::any, format_kind::wino_fmt)) {
+        format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
+        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag)
+            return status::unimplemented;
+    }
 
     bool layout_consistency = true
             && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1]
-            && (weights_d.format() == any || weights_d.format() == wino_fmt
+            && (one_of(weights_d.format_kind(),
+                        format_kind::any, format_kind::wino_fmt)
                     || (jcp.ic <= weights_d.padded_dims()[with_groups + 1]
                         && jcp.oc <= weights_d.padded_dims()[with_groups + 0]));
     if (!layout_consistency)
@@ -1435,7 +1442,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
     jcp.jtiles = (jcp.oh + tile_size - 1) / tile_size;
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -1468,9 +1475,9 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
     if (cd.prop_kind == mkldnn_forward_inference) {
         memory_desc_t expect_wei_md = weights_md;
 
-        expect_wei_md.format = mkldnn_wino_fmt;
+        expect_wei_md.format_kind = mkldnn_wino_fmt;
         expect_wei_md.data_type = data_type::f32;
-        mkldnn_wino_desc_t &wd = expect_wei_md.layout_desc.wino_desc;
+        mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
         wd.wino_format = mkldnn_wino_wei_OBaaIBOIio;
         wd.r = 3;
         wd.alpha = 6;
@@ -1485,7 +1492,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
         wd.size = max_size;
         wd.adj_scale = 1.f;
 
-        if (weights_md.format == memory_format::any)
+        if (weights_md.format_kind == format_kind::any)
             weights_md = expect_wei_md;
         if (weights_md != expect_wei_md)
             return status::unimplemented;
@@ -2517,7 +2524,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
     jcp.ohp = jcp.oh;
     jcp.owp = jcp.ow;
-    jcp.with_bias = (cd.diff_bias_desc.format != memory_format::undef);
+    jcp.with_bias = (cd.diff_bias_desc.format_kind != format_kind::undef);
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
@@ -2547,12 +2554,16 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         return status::unimplemented;
     if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
         return status::unimplemented;
-    if (src_d.format() != nChw16c)
-        return status::unimplemented;
-    if (diff_weights_d.format() != (with_groups ? gOIhw16i16o : OIhw16i16o))
-        return status::unimplemented;
-    if (diff_dst_d.format() != nChw16c)
-        return status::unimplemented;
+
+    format_tag_t dat_tag = nChw16c;
+    format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+
+    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
     bool layout_consistency = true
         && jcp.ic <= src_d.padded_dims()[1]

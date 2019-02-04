@@ -90,7 +90,23 @@ typedef enum {
     mkldnn_round_down = 2,
 } mkldnn_round_mode_t;
 
-/** Memory format specification.
+/** Memory format kind */
+typedef enum {
+    /** Undefined memory format, used for empty memory descriptors. */
+    mkldnn_format_kind_undef = 0,
+    /** Unspecified format. The primitive selects a format automatically. */
+    mkldnn_format_kind_any,
+    /** A tensor in a generic format described by the stride and blocking
+     * values in each dimension. See #mkldnn_blocking_desc_t for more
+     * information. */
+    mkldnn_blocked,
+    /** Weights format used in 8bit Winograd convolution */
+    mkldnn_wino_fmt,
+    /** Packed weights format used in RNN */
+    mkldnn_rnn_packed,
+} mkldnn_format_kind_t;
+
+/** Memory format tag specification.
  *
  * Intel MKL-DNN formats describe physical data layout. The physical layout
  * is described as a sequence of the dimensions as they are laid out in the
@@ -141,289 +157,309 @@ typedef enum {
  * @sa @ref understanding_memory_formats
  */
 typedef enum {
-    /** Undefined memory format, used for empty memory descriptors. */
-    mkldnn_format_undef = 0,
-    /** Unspecified format. The primitive selects a format
-     * automatically. */
-    mkldnn_any,
-    /** A tensor in a generic format described by the stride and blocking
-     * values in each dimension. See #mkldnn_blocking_desc_t for more
-     * information. */
-    mkldnn_blocked,
-    /** 1D data tensor. */
-    mkldnn_x,
-    /** 2D data tensor. */
-    mkldnn_nc,
-    /** 3D data tensor with the physical layout @c ncw.
-     * Logical dimensions come in the order: (n, c, w) */
-    mkldnn_ncw,
-    /** 3D data tensor with the physical layout @c nwc.
-     * Logical dimensions come in the order: (n, c, w) */
-    mkldnn_nwc,
-    /** 4D data tensor with the physical layout @c nchw, used in Caffe.
-     * Logical dimensions come in the order: (n, c, h, w) */
-    mkldnn_nchw,
-    /** 4D data tensor with the physical layout @c nhwc, used in TensorFlow.
-     * Logical dimensions come in the order: (n, c, h, w) */
-    mkldnn_nhwc,
-    /** 4D data tensor with the physical layout @c chwn, used in Neon.
-     * Logical dimensions come in the order: (n, c, h, w) */
-    mkldnn_chwn,
-    /** 5D data tensor with the physical layout @c ncdhw.
-     * Logical dimensions come in the order: (n, c, d, h, w) */
-    mkldnn_ncdhw,
-    /** 5D data tensor with the physical layout @c ndhwc, used in TensorFlow.
-     * Logical dimensions come in the order: (n, c, d, h, w) */
-    mkldnn_ndhwc,
-    /** 2D weights tensor with physical layout @c oi.
-     * Logical dimensions come in the order: (o, i) */
-    mkldnn_oi,
-    /** 2D weights tensor with physical layout @c io.
-     * Logical dimensions come in the order: (o, i) */
-    mkldnn_io,
-    /** 3D weights tensor with physical layout @c oiw.
-     * Logical dimensions come in the order: (o, i, w) */
-    mkldnn_oiw,
-    /** 3D weights tensor with physical layout @c wio.
-     * Logical dimensions come in the order: (o, i, w) */
-    mkldnn_wio,
-    /** 4D weights tensor with physical layout @c oihw, used in Caffe.
-     * Logical dimensions come in the order: (o, i, h, w) */
-    mkldnn_oihw,
-    /** 4D weights tensor with physical layout @c hwio, used in TensorFlow.
-     * Logical dimensions come in the order: (o, i, h, w) */
-    mkldnn_hwio,
-    /** 4D weights tensor with physical layout @c ihwo.
-     * Logical dimensions come in the order: (o, i, h, w) */
-    mkldnn_ihwo,
-    /** 4D weights tensor with physical layout @c iohw.
-     * Logical dimensions come in the order: (o, i, h, w) */
-    mkldnn_iohw,
-    /** 5D weights tensor with physical layout @c iodhw, used in Caffe.
-     * Logical dimensions come in the order: (o, i, d, h, w) */
-    mkldnn_oidhw,
-    /** 5D weights tensor with physical layout @c dhwio, used in TensorFlow.
-     * Logical dimensions come in the order: (o, i, d, h, w) */
-    mkldnn_dhwio,
-    /** 4D grouped weights tensor with the physical layout @c goiw.
-     * Logical dimensions come in the order: (g, o, i, w) */
-    mkldnn_goiw,
-    /** 5D grouped weights tensor with the physical layout @c goihw,
-     * used in Caffe.
-     * Logical dimensions come in the order: (g, o, i, h, w) */
-    mkldnn_goihw,
-    /** 5D grouped weights tensor with the physical layout @c hwigo,
-     * used in TensorFlow.
-     * Logical dimensions come in the order: (g, o, i, h, w) */
-    mkldnn_hwigo,
-    /** 5D grouped weights tensor with the physical layout @c giohw.
-     * Logical dimensions come in the order: (g, o, i, h, w) */
-    mkldnn_giohw,
-    /** 6D grouped weights tensor with the physical layout @c goidhw,
-     * used in Caffe.
-     * Logical dimensions come in the order: (g, o, i, d, h, w) */
-    mkldnn_goidhw,
-    /** 3D RNN data tensor in the format (batch, seq_length, input channels). */
-    mkldnn_ntc,
+    /** Undefined memory format tag */
+    mkldnn_format_tag_undef = 0,
+    /** Undefined memory format tag.
+     * The primitive selects a format automatically. */
+    mkldnn_format_tag_any,
+
+    /* Semantic agnostic section */
+    /* The physical order of dimensions is defined by the permutation of the
+     * characters, assuming that ab..z defines the natural order.
+     */
+
+    /* Plain formats */
+
+    mkldnn_a,
+    mkldnn_ab,
+    mkldnn_abc,
+    mkldnn_abcd,
+    mkldnn_abcde,
+    mkldnn_abcdef,
+    mkldnn_abdec,
+    mkldnn_acb,
+    mkldnn_acbde,
+    mkldnn_acdb,
+    mkldnn_acdeb,
+    mkldnn_ba,
+    mkldnn_bac,
+    mkldnn_bacd,
+    mkldnn_bcda,
+    mkldnn_cba,
+    mkldnn_cdba,
+    mkldnn_cdeba,
+    mkldnn_decab,
+
+    /* Opaque blocked formats */
+
+    mkldnn_Abc16a,
+    mkldnn_ABc16a16b,
+    mkldnn_aBc16b,
+    mkldnn_ABc16b16a,
+    mkldnn_Abc4a,
+    mkldnn_aBc4b,
+    mkldnn_ABc4b16a4b,
+    mkldnn_ABc4b4a,
+    mkldnn_ABc8a16b2a,
+    mkldnn_ABc8a8b,
+    mkldnn_aBc8b,
+    mkldnn_ABc8b16a2b,
+    mkldnn_ABc8b8a,
+    mkldnn_Abcd16a,
+    mkldnn_ABcd16a16b,
+    mkldnn_aBcd16b,
+    mkldnn_ABcd16b16a,
+    mkldnn_aBCd16b16c,
+    mkldnn_aBCd16c16b,
+    mkldnn_Abcd4a,
+    mkldnn_aBcd4b,
+    mkldnn_ABcd4b16a4b,
+    mkldnn_ABcd4b4a,
+    mkldnn_aBCd4c16b4c,
+    mkldnn_aBCd4c4b,
+    mkldnn_Abcd8a,
+    mkldnn_ABcd8a16b2a,
+    mkldnn_ABcd8a8b,
+    mkldnn_aBcd8b,
+    mkldnn_ABcd8b16a2b,
+    mkldnn_aBCd8b16c2b,
+    mkldnn_ABcd8b8a,
+    mkldnn_aBCd8b8c,
+    mkldnn_aBCd8c16b2c,
+    mkldnn_aBCd8c8b,
+    mkldnn_Abcde16a,
+    mkldnn_ABcde16a16b,
+    mkldnn_aBcde16b,
+    mkldnn_ABcde16b16a,
+    mkldnn_aBCde16b16c,
+    mkldnn_aBCde16c16b,
+    mkldnn_aBCde2c8b4c,
+    mkldnn_Abcde4a,
+    mkldnn_aBcde4b,
+    mkldnn_ABcde4b4a,
+    mkldnn_aBCde4b4c,
+    mkldnn_aBCde4c16b4c,
+    mkldnn_aBCde4c4b,
+    mkldnn_Abcde8a,
+    mkldnn_ABcde8a8b,
+    mkldnn_aBcde8b,
+    mkldnn_ABcde8b16a2b,
+    mkldnn_aBCde8b16c2b,
+    mkldnn_ABcde8b8a,
+    mkldnn_aBCde8b8c,
+    mkldnn_aBCde8c16b2c,
+    mkldnn_aBCde8c8b,
+    mkldnn_aBcdef16b,
+    mkldnn_aBCdef16b16c,
+    mkldnn_aBCdef16c16b,
+    mkldnn_aBcdef4b,
+    mkldnn_aBCdef4c4b,
+    mkldnn_aBCdef8b8c,
+    mkldnn_aBCdef8c16b2c,
+    mkldnn_aBCdef8c8b,
+    mkldnn_aBdc16b,
+    mkldnn_aBdc4b,
+    mkldnn_aBdc8b,
+    mkldnn_aBdCe16b4c,
+    mkldnn_aBdec16b,
+    mkldnn_aBdec4b,
+    mkldnn_aBdec8b,
+    mkldnn_aBdefc16b,
+    mkldnn_aBdefc4b,
+    mkldnn_aBdefc8b,
+    mkldnn_Acb16a,
+    mkldnn_Acb4a,
+    mkldnn_Acb8a,
+    mkldnn_AcBd16a4b,
+    mkldnn_aCBd16b16c,
+    mkldnn_aCBde16b16c,
+    mkldnn_Acdb16a,
+    mkldnn_Acdb4a,
+    mkldnn_Acdb8a,
+    mkldnn_Acdeb16a,
+    mkldnn_Acdeb4a,
+    mkldnn_Acdeb8a,
+    mkldnn_BAc16a16b,
+    mkldnn_BAcd16a16b,
+
+    /** Just a sentinel, not real memory format tag. Must be changed after new
+     * format tag is added. */
+    mkldnn_format_tag_last,
+
+    /* Aliases */
+
+    mkldnn_x = mkldnn_a,
+    mkldnn_nc = mkldnn_ab,
+    mkldnn_cn = mkldnn_ba,
+    mkldnn_ncw = mkldnn_abc,
+    mkldnn_nwc = mkldnn_acb,
+    mkldnn_nchw = mkldnn_abcd,
+    mkldnn_nhwc = mkldnn_acdb,
+    mkldnn_chwn = mkldnn_bcda,
+    mkldnn_ncdhw = mkldnn_abcde,
+    mkldnn_ndhwc = mkldnn_acdeb,
+
+    mkldnn_oi = mkldnn_ab,
+    mkldnn_io = mkldnn_ba,
+    mkldnn_oiw = mkldnn_abc,
+    mkldnn_wio = mkldnn_cba,
+    mkldnn_oihw = mkldnn_abcd,
+    mkldnn_hwio = mkldnn_cdba,
+    mkldnn_ihwo = mkldnn_bcda,
+    mkldnn_iohw = mkldnn_bacd,
+    mkldnn_oidhw = mkldnn_abcde,
+    mkldnn_dhwio = mkldnn_cdeba,
+    mkldnn_goiw = mkldnn_abcd,
+    mkldnn_goihw = mkldnn_abcde,
+    mkldnn_hwigo = mkldnn_decab,
+    mkldnn_giohw = mkldnn_acbde,
+    mkldnn_goidhw = mkldnn_abcdef,
+
     /** 3D RNN data tensor in the format (seq_length, batch, input channels). */
-    mkldnn_tnc,
+    mkldnn_tnc = mkldnn_abc,
+    /** 3D RNN data tensor in the format (batch, seq_length, input channels). */
+    mkldnn_ntc = mkldnn_bac,
     /** 5D RNN states tensor in the format (num_layers, num_directions,
      * num_states, batch, state channels). */
-    mkldnn_ldsnc,
+    mkldnn_ldsnc = mkldnn_abcde,
     /** 5D RNN weights tensor in the format (num_layers, num_directions,
      *  input_channels, num_gates, output_channels).
      *
      *  - For LSTM cells, the gates order is input, forget, candidate
      *    and output gate.
      *  - For GRU cells, the gates order is update, reset and output gate. */
-    mkldnn_ldigo,
+    mkldnn_ldigo = mkldnn_abcde,
     /** 5D RNN weights tensor in the format (num_layers, num_directions,
      * num_gates, output_channels, input_channels).
      *
      *  - For LSTM cells, the gates order is input, forget, candidate
      *    and output gate.
      *  - For GRU cells, the gates order is update, reset and output gate. */
-    mkldnn_ldgoi,
+    mkldnn_ldgoi = mkldnn_abdec,
     /** 4D RNN bias tensor in the format (num_layers, num_directions,
      * num_gates, output_channels).
      *
      *  - For LSTM cells, the gates order is input, forget, candidate
      *    and output gate.
      *  - For GRU cells, the gates order is update, reset and output gate. */
-    mkldnn_ldgo,
+    mkldnn_ldgo = mkldnn_abcd,
 
     /* Opaque data types, are not to be used explicitly */
 
     /* data */
-    mkldnn_nCw4c /** blocked data format */,
-    mkldnn_nCw8c /** blocked data format */,
-    mkldnn_nCw16c /** blocked data format */,
-    mkldnn_nChw4c /** blocked data format */,
-    mkldnn_nChw8c /** blocked data format */,
-    mkldnn_nChw16c /** blocked data format */,
-    mkldnn_nCdhw4c /** blocked data format */,
-    mkldnn_nCdhw8c /** blocked data format */,
-    mkldnn_nCdhw16c /** blocked data format */,
+    mkldnn_nCdhw16c = mkldnn_aBcde16b,
+    mkldnn_nCdhw4c = mkldnn_aBcde4b,
+    mkldnn_nCdhw8c = mkldnn_aBcde8b,
+    mkldnn_nChw16c = mkldnn_aBcd16b,
+    mkldnn_nChw4c = mkldnn_aBcd4b,
+    mkldnn_nChw8c = mkldnn_aBcd8b,
+    mkldnn_nCw16c = mkldnn_aBc16b,
+    mkldnn_nCw4c = mkldnn_aBc4b,
+    mkldnn_nCw8c = mkldnn_aBc8b,
 
     /* weights, 3D */
-    mkldnn_Owi4o /** blocked weights format */,
-    mkldnn_OIw4i4o /** blocked weights format */,
-    mkldnn_Owi8o /** blocked weights format */,
-    mkldnn_OIw8i8o /** blocked weights format */,
-    mkldnn_OIw8o8i /** blocked weights format */,
-    mkldnn_OIw16i16o /** blocked weights format */,
-    mkldnn_OIw16o16i /** blocked weights format */,
-    mkldnn_Oiw4o /** blocked weights format */,
-    mkldnn_Oiw16o /** blocked weights format */,
-    mkldnn_Owi16o /** blocked weights format */,
-    mkldnn_OIw8i16o2i /** blocked weights format */,
-    mkldnn_OIw8o16i2o /** blocked weights format */,
-    mkldnn_IOw16o16i /** blocked weights format */,
-    mkldnn_OIw4i16o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * and containing the values:
-     * O[i:0,OC] = -128 * SUM(j:0,IC;w:0,W)(weights(i,j,w))*/
-    mkldnn_OIw4i16o4i_s8s8,
+    mkldnn_IOw16o16i = mkldnn_BAc16a16b,
+    mkldnn_OIw16i16o = mkldnn_ABc16b16a,
+    mkldnn_OIw16o16i = mkldnn_ABc16a16b,
+    mkldnn_Oiw16o = mkldnn_Abc16a,
+    mkldnn_OIw4i16o4i = mkldnn_ABc4b16a4b,
+    mkldnn_OIw4i4o = mkldnn_ABc4b4a,
+    mkldnn_Oiw4o = mkldnn_Abc4a,
+    mkldnn_OIw8i16o2i = mkldnn_ABc8b16a2b,
+    mkldnn_OIw8i8o = mkldnn_ABc8b8a,
+    mkldnn_OIw8o16i2o = mkldnn_ABc8a16b2a,
+    mkldnn_OIw8o8i = mkldnn_ABc8a8b,
+    mkldnn_Owi16o = mkldnn_Acb16a,
+    mkldnn_Owi4o = mkldnn_Acb4a,
+    mkldnn_Owi8o = mkldnn_Acb8a,
 
     /* weights, 4D */
-    /** weights format with additional buffer
-     * size equal to the number of output channels
-     * and containing the values:
-     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_hwio_s8s8,
-    mkldnn_oIhw8i /** blocked weights format */,
-    mkldnn_oIhw16i /** blocked weights format */,
-    mkldnn_OIhw4i4o /** blocked weights format */,
-    mkldnn_OIhw8i8o /** blocked weights format */,
-    mkldnn_OIhw16i16o /** blocked weights format */,
-    mkldnn_OIhw4i16o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * and containing the values:
-     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_OIhw4i16o4i_s8s8,
-    mkldnn_OIhw8i16o2i /** blocked weights format */,
-    mkldnn_OIhw8o16i2o /** blocked weights format */,
-    mkldnn_OIhw8o8i /** blocked weights format */,
-    mkldnn_OIhw16o16i /** blocked weights format */,
-    mkldnn_IOhw16o16i /** blocked weights format */,
-    mkldnn_Oihw8o /** blocked weights format */,
-    mkldnn_Oihw4o /** blocked weights format */,
-    mkldnn_Oihw16o /** blocked weights format */,
-    mkldnn_Ohwi8o /** blocked weights format */,
-    mkldnn_Ohwi4o /** blocked weights format */,
-    mkldnn_Ohwi16o /** blocked weights format */,
-    mkldnn_OhIw16o4i /** blocked weights format */,
+    mkldnn_IOhw16o16i = mkldnn_BAcd16a16b,
+    mkldnn_OhIw16o4i = mkldnn_AcBd16a4b,
+    mkldnn_Ohwi16o = mkldnn_Acdb16a,
+    mkldnn_Ohwi4o = mkldnn_Acdb4a,
+    mkldnn_Ohwi8o = mkldnn_Acdb8a,
+    mkldnn_OIhw16i16o = mkldnn_ABcd16b16a,
+    mkldnn_oIhw16i = mkldnn_aBcd16b,
+    mkldnn_OIhw16o16i = mkldnn_ABcd16a16b,
+    mkldnn_Oihw16o = mkldnn_Abcd16a,
+    mkldnn_OIhw4i16o4i = mkldnn_ABcd4b16a4b,
+    mkldnn_OIhw4i4o = mkldnn_ABcd4b4a,
+    mkldnn_Oihw4o = mkldnn_Abcd4a,
+    mkldnn_OIhw8i16o2i = mkldnn_ABcd8b16a2b,
+    mkldnn_OIhw8i8o = mkldnn_ABcd8b8a,
+    mkldnn_oIhw8i = mkldnn_aBcd8b,
+    mkldnn_OIhw8o16i2o = mkldnn_ABcd8a16b2a,
+    mkldnn_OIhw8o8i = mkldnn_ABcd8a8b,
+    mkldnn_Oihw8o = mkldnn_Abcd8a,
 
     /* weights, 5D */
-    mkldnn_oIdhw8i /** blocked weights format */,
-    mkldnn_oIdhw16i /** blocked weights format */,
-    mkldnn_OIdhw4i4o /** blocked weights format */,
-    mkldnn_Odhwi4o /** blocked weights format */,
-    mkldnn_OIdhw8i8o /** blocked weights format */,
-    mkldnn_OIdhw8o8i /** blocked weights format */,
-    mkldnn_Odhwi8o /** blocked weights format */,
-    mkldnn_OIdhw16i16o /** blocked weights format */,
-    mkldnn_OIdhw16o16i /** blocked weights format */,
-    mkldnn_Oidhw4o /** blocked weights format */,
-    mkldnn_Oidhw16o /** blocked weights format */,
-    mkldnn_Odhwi16o /** blocked weights format */,
-    mkldnn_OIdhw8i16o2i /** blocked weights format */,
+    mkldnn_Odhwi16o = mkldnn_Acdeb16a,
+    mkldnn_Odhwi4o = mkldnn_Acdeb4a,
+    mkldnn_Odhwi8o = mkldnn_Acdeb8a,
+    mkldnn_OIdhw16i16o = mkldnn_ABcde16b16a,
+    mkldnn_oIdhw16i = mkldnn_aBcde16b,
+    mkldnn_OIdhw16o16i = mkldnn_ABcde16a16b,
+    mkldnn_Oidhw16o = mkldnn_Abcde16a,
+    mkldnn_OIdhw4i4o = mkldnn_ABcde4b4a,
+    mkldnn_Oidhw4o = mkldnn_Abcde4a,
+    mkldnn_OIdhw8i16o2i = mkldnn_ABcde8b16a2b,
+    mkldnn_OIdhw8i8o = mkldnn_ABcde8b8a,
+    mkldnn_oIdhw8i = mkldnn_aBcde8b,
+    mkldnn_OIdhw8o8i = mkldnn_ABcde8a8b,
+
+    /* weights w/ groups, 3D */
+    mkldnn_Goiw16g = mkldnn_Abcd16a,
+    mkldnn_gIOw16o16i = mkldnn_aCBd16b16c,
+    mkldnn_gOIw16i16o = mkldnn_aBCd16c16b,
+    mkldnn_gOIw16o16i = mkldnn_aBCd16b16c,
+    mkldnn_gOiw16o = mkldnn_aBcd16b,
+    mkldnn_gOIw4i16o4i = mkldnn_aBCd4c16b4c,
+    mkldnn_gOIw4i4o = mkldnn_aBCd4c4b,
+    mkldnn_gOiw4o = mkldnn_aBcd4b,
+    mkldnn_gOIw8i16o2i = mkldnn_aBCd8c16b2c,
+    mkldnn_gOIw8i8o = mkldnn_aBCd8c8b,
+    mkldnn_gOIw8o16i2o = mkldnn_aBCd8b16c2b,
+    mkldnn_gOIw8o8i = mkldnn_aBCd8b8c,
+    mkldnn_gOwi16o = mkldnn_aBdc16b,
+    mkldnn_gOwi4o = mkldnn_aBdc4b,
+    mkldnn_gOwi8o = mkldnn_aBdc8b,
 
     /* weights w/ groups, 4D */
-    mkldnn_gOwi4o /** blocked weights format */,
-    mkldnn_gOIw4i4o /** blocked weights format */,
-    mkldnn_gOwi8o /** blocked weights format */,
-    mkldnn_gOIw8o8i /** blocked weights format */,
-    mkldnn_gOIw8i8o /** blocked weights format */,
-    mkldnn_gOIw16i16o /** blocked weights format */,
-    mkldnn_gOIw16o16i /** blocked weights format */,
-    mkldnn_gOiw4o /** blocked weights format */,
-    mkldnn_gOiw16o /** blocked weights format */,
-    mkldnn_gOwi16o /** blocked weights format */,
-    mkldnn_gOIw8i16o2i /** blocked weights format */,
-    mkldnn_gOIw8o16i2o /** blocked weights format */,
-    mkldnn_gIOw16o16i /** blocked weights format */,
-    mkldnn_gOIw4i16o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * multiplied by number of groups and containing the values:
-     * O[i:0,G*OC] = -128 * SUM(j:0,IC;w:0,W)(weights(i,j,w))*/
-    mkldnn_gOIw4i16o4i_s8s8,
-    mkldnn_Goiw16g /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of groups and containing the values:
-     * O[i:0,G] = -128 * SUM(w:0,W)(weights(i,i,w))*/
-    mkldnn_Goiw16g_s8s8,
-
-    /* weights w/ groups, 5D */
-    /** weights format with additional buffer
-     * size equal to the number of output channels
-     * multiplied by number of groups and containing the values:
-     * O[i:0,G*OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_hwigo_s8s8,
-    mkldnn_gOIhw4i4o /** blocked weights format */,
-    mkldnn_gOIhw8i8o /** blocked weights format */,
-    mkldnn_gOIhw16i16o /** blocked weights format */,
-    mkldnn_gOIhw4i16o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * multiplied by number of groups and containing the values:
-     * O[i:0,G*OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_gOIhw4i16o4i_s8s8,
-    mkldnn_gOIhw2i8o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * multiplied by number of groups and containing the values:
-     * O[i:0,G*OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_gOIhw2i8o4i_s8s8,
-    mkldnn_gOIhw8i16o2i /** blocked weights format */,
-    mkldnn_gOIhw8o16i2o /** blocked weights format */,
-    mkldnn_gOIhw4o4i /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of output channels
-     * and containing the values:
-     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
-    mkldnn_gOIhw4o4i_s8s8 /** blocked weights format */,
-    mkldnn_gOIhw8o8i /** blocked weights format */,
-    mkldnn_gOIhw16o16i /** blocked weights format */,
-    mkldnn_gIOhw16o16i /** blocked weights format */,
-    mkldnn_gOihw8o /** blocked weights format */,
-    mkldnn_gOihw4o /** blocked weights format */,
-    mkldnn_gOihw16o /** blocked weights format */,
-    mkldnn_gOhwi8o /** blocked weights format */,
-    mkldnn_gOhwi4o /** blocked weights format */,
-    mkldnn_gOhwi16o /** blocked weights format */,
-    mkldnn_Goihw8g /** blocked weights format */,
-    mkldnn_Goihw16g /** blocked weights format */,
-    /** blocked weights format with additional buffer
-     * with size equal to the number of groups and containing the values:
-     * O[i:0,G] = -128 * SUM(h:0,H;w:0,W)(weights(i,i,h,w))*/
-    mkldnn_Goihw16g_s8s8,
-    mkldnn_gOhIw16o4i /** blocked weights format */,
+    mkldnn_gIOhw16o16i = mkldnn_aCBde16b16c,
+    mkldnn_gOhIw16o4i = mkldnn_aBdCe16b4c,
+    mkldnn_gOhwi16o = mkldnn_aBdec16b,
+    mkldnn_gOhwi4o = mkldnn_aBdec4b,
+    mkldnn_gOhwi8o = mkldnn_aBdec8b,
+    mkldnn_Goihw16g = mkldnn_Abcde16a,
+    mkldnn_gOIhw16i16o = mkldnn_aBCde16c16b,
+    mkldnn_gOIhw16o16i = mkldnn_aBCde16b16c,
+    mkldnn_gOihw16o = mkldnn_aBcde16b,
+    mkldnn_gOIhw2i8o4i = mkldnn_aBCde2c8b4c,
+    mkldnn_gOIhw4i16o4i = mkldnn_aBCde4c16b4c,
+    mkldnn_gOIhw4i4o = mkldnn_aBCde4c4b,
+    mkldnn_gOIhw4o4i = mkldnn_aBCde4b4c,
+    mkldnn_gOihw4o = mkldnn_aBcde4b,
+    mkldnn_Goihw8g = mkldnn_Abcde8a,
+    mkldnn_gOIhw8i16o2i = mkldnn_aBCde8c16b2c,
+    mkldnn_gOIhw8i8o = mkldnn_aBCde8c8b,
+    mkldnn_gOIhw8o16i2o = mkldnn_aBCde8b16c2b,
+    mkldnn_gOIhw8o8i = mkldnn_aBCde8b8c,
+    mkldnn_gOihw8o = mkldnn_aBcde8b,
 
     /* weights w/ groups, 6D */
-    mkldnn_gOIdhw4i4o /** blocked weights format */,
-    mkldnn_gOdhwi4o /** blocked weights format */,
-    mkldnn_gOIdhw8i8o /** blocked weights format */,
-    mkldnn_gOIdhw8o8i /** blocked weights format */,
-    mkldnn_gOdhwi8o /** blocked weights format */,
-    mkldnn_gOIdhw8i16o2i /** blocked weights format */,
-    mkldnn_gOIdhw16i16o /** blocked weights format */,
-    mkldnn_gOIdhw16o16i /** blocked weights format */,
-    mkldnn_gOidhw4o /** blocked weights format */,
-    mkldnn_gOidhw16o /** blocked weights format */,
-    mkldnn_gOdhwi16o /** blocked weights format */,
-
-    mkldnn_wino_fmt /** Weights format used in 8bit Winograd convolution */,
-
-    mkldnn_rnn_packed /** Packed weights format used in RNN */,
-
-    /** Just a sentinel, not real memory format. Must be changed after new
-     * format is added. */
-    mkldnn_format_last,
-} mkldnn_memory_format_t;
+    mkldnn_gOdhwi16o = mkldnn_aBdefc16b,
+    mkldnn_gOdhwi4o = mkldnn_aBdefc4b,
+    mkldnn_gOdhwi8o = mkldnn_aBdefc8b,
+    mkldnn_gOIdhw16i16o = mkldnn_aBCdef16c16b,
+    mkldnn_gOIdhw16o16i = mkldnn_aBCdef16b16c,
+    mkldnn_gOidhw16o = mkldnn_aBcdef16b,
+    mkldnn_gOIdhw4i4o = mkldnn_aBCdef4c4b,
+    mkldnn_gOidhw4o = mkldnn_aBcdef4b,
+    mkldnn_gOIdhw8i16o2i = mkldnn_aBCdef8c16b2c,
+    mkldnn_gOIdhw8i8o = mkldnn_aBCdef8c8b,
+    mkldnn_gOIdhw8o8i = mkldnn_aBCdef8b8c,
+} mkldnn_format_tag_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */
 typedef enum {
@@ -615,11 +651,18 @@ typedef mkldnn_dim_t mkldnn_strides_t[TENSOR_MAX_DIMS];
  *
  * @sa @ref understanding_memory_formats */
 typedef struct {
-    /** Block size for each of the dimensions. */
-    mkldnn_dims_t block_dims;
-    /** strides[0]: stride between the first elements of adjacent blocks.
-     * @n strides[1]: strides between elements in the same block. */
-    mkldnn_strides_t strides[2];
+    /** The strides between the outermost blocks.
+     * In case of plain (non-blocked) formats the strides between dimensions. */
+    mkldnn_dims_t strides;
+    /* Innermost section
+     * ASSUMPTION: the innermost blocks are always dense */
+    /** The number of innermost blocks, e.g. 3 in case of `OIhw_4i16o4i_` */
+    int inner_nblks;
+    /** The size of the blocks, e.g. `{4, 16, 4}` in case of `OIhw_4i16o4i` */
+    mkldnn_dims_t inner_blks;
+    /** The logical indices of the blocks, e.g. `{1, 0, 1}` in case of
+     * `4i16o4i`, because `i` is the 1st dim and `o` is the 0st dim */
+    mkldnn_dims_t inner_idxs;
 } mkldnn_blocking_desc_t;
 
 typedef enum {
@@ -669,6 +712,33 @@ typedef struct {
     size_t size;
 } mkldnn_rnn_packed_desc_t;
 
+typedef enum {
+    mkldnn_memory_extra_flag_none = 0x0U,
+    /** Indicates the weights have an additional buffer, that depends on the
+     * @p compensation_mask.
+     *
+     * For instance, in 4D case with the compensation mask equals (1 << 0)
+     * the additional buffer would consist of OC values:
+     * O[oc : 0,OC] =
+     *  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
+     */
+    mkldnn_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
+    mkldnn_memory_extra_flag_scale_adjust = 0x2U,
+} mkldnn_memory_extra_flags_t;
+
+/** Description of extra information stored in memory */
+typedef struct {
+    /** The flags contain arbitrary extra information, such as compensation.
+     * @sa mkldnn_memory_extra_flags_t */
+    uint64_t flags;
+    /** Compensation mask */
+    int compensation_mask;
+    /** Scale applied to the data */
+    float scale_adjust;
+    /** For future backwards compatibility */
+    char reserved[64];
+} mkldnn_memory_extra_desc_t;
+
 /** Memory descriptor. The description is based on a number of dimensions,
  * dimensions themselves, plus information about elements type and memory
  * format. Additionally, contains format-specific descriptions of the data
@@ -705,8 +775,8 @@ typedef struct {
      * a description of a memory sub-block. */
     mkldnn_dim_t offset0;
 
-    /** Memory format. */
-    mkldnn_memory_format_t format;
+    /** Memory format kind. */
+    mkldnn_format_kind_t format_kind;
     union {
         /** Description of the data layout for memory formats that use
          * blocking. */
@@ -716,7 +786,9 @@ typedef struct {
         /** Tensor of packed weights for RNN. */
         mkldnn_rnn_packed_desc_t rnn_packed_desc;
         /* ... other descriptions possible */
-    } layout_desc;
+    } format_desc;
+
+    mkldnn_memory_extra_desc_t extra;
 } mkldnn_memory_desc_t;
 
 /** @struct mkldnn_memory

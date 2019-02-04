@@ -36,8 +36,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -663,10 +663,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
     jcp.stride_w = cd.strides[ndims - 3];
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = pick_by_prop_kind(jcp.prop_kind, cd.bias_desc.format,
-            memory_format::undef, cd.diff_bias_desc.format)
-        != memory_format::undef;
+    jcp.with_bias = pick_by_prop_kind(jcp.prop_kind, cd.bias_desc.format_kind,
+            format_kind::undef, cd.diff_bias_desc.format_kind)
+        != format_kind::undef;
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
@@ -684,11 +683,14 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
 
+    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c);
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+
     bool args_ok = true
         && jcp.ngroups == 1
-        && everyone_is(pick(ndims - 3, nCw16c, nChw16c), src_d.format(),
-            dst_d.format())
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x);
+        && jcp.src_tag == dat_tag
+        && jcp.dst_tag == dat_tag;
     if (!args_ok) return status::unimplemented;
 
     args_ok = true
@@ -712,13 +714,14 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             && dst_d.data_type() == data_type::s16)))
     {
         const int is_bwd_d = jcp.prop_kind == backward_data;
-        memory_format_t weights_format = with_groups
+        format_tag_t wei_tag = with_groups
             ? pick(2 * ndims - 6 + is_bwd_d, gOIw8i16o2i, gOIw8o16i2o,
                 gOIhw8i16o2i, gOIhw8o16i2o)
             : pick(2 * ndims - 6 + is_bwd_d, OIw8i16o2i, OIw8o16i2o,
                 OIhw8i16o2i, OIhw8o16i2o);
 
-        if (weights_d.format() != weights_format)
+        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag)
             return status::unimplemented;
 
         jcp.ver = ver_4vnni;
@@ -730,14 +733,16 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                             weights_d.data_type(), dst_d.data_type()))
     {
         const int is_bwd_d = jcp.prop_kind == backward_data;
-        memory_format_t weights_format = with_groups
+        format_tag_t wei_tag = with_groups
             ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
                 gOIhw16i16o, gIOhw16o16i)
             : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i,
                 OIhw16i16o, IOhw16o16i);
 
-        if (weights_d.format() != weights_format)
+        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag)
             return status::unimplemented;
+
         if (jcp.prop_kind != backward_weights && mayiuse(avx512_mic_4ops) &&
             ((jcp.prop_kind == backward_data) ? jcp.oc_block : jcp.ic_block) % 4
             == 0) {

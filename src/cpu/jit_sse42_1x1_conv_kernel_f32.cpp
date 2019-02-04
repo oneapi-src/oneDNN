@@ -28,8 +28,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -486,8 +486,7 @@ status_t jit_sse42_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
     jcp.stride_w = cd.strides[ndims - 3];
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
@@ -503,19 +502,23 @@ status_t jit_sse42_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
     const int is_bwd_d = jcp.prop_kind == backward_data;
-    memory_format_t weights_format = with_groups
+
+    format_tag_t dat_tag = ndims == 3 ? nCw8c : nChw8c;
+    format_tag_t wei_tag = with_groups
         ? utils::pick(2 * ndims - 6 + is_bwd_d, gOIw8i8o, gOIw8o8i, gOIhw8i8o,
             gOIhw8o8i)
         : utils::pick(2 * ndims - 6 + is_bwd_d, OIw8i8o, OIw8o8i, OIhw8i8o,
             OIhw8o8i);
 
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
     bool args_ok = true
         && jcp.ngroups == 1
-        && one_of(src_d.format(), nCw8c, nChw8c)
-        && weights_d.format() == weights_format
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && one_of(dst_d.format(), nCw8c, nChw8c);
+        && jcp.src_tag == dat_tag
+        && jcp.wei_tag == wei_tag
+        && jcp.dst_tag == dat_tag;
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = 4;

@@ -27,8 +27,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
@@ -53,7 +53,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
-                if (one_of(jcp.src_fmt, ncw, nchw))
+                if (one_of(jcp.src_tag, ncw, nchw))
                     inp_off = ifm2*ih*iw + (ki*dilate_w + jj*stride_w - pad_l);
                 else
                     inp_off = (ki*dilate_w + jj*stride_w - pad_l)*ic_blk + ifm2;
@@ -103,7 +103,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
                 int inp_off;
-                if (one_of(jcp.src_fmt, ncw, nchw))
+                if (one_of(jcp.src_tag, ncw, nchw))
                     inp_off = ifm2 * ih * iw + (jj * stride_w - pad_l);
                 else
                     inp_off = (jj * stride_w - pad_l) * ic_blk + ifm2;
@@ -125,7 +125,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
             }
         }
         add(aux_reg_kernel, sizeof(float) * oc_blk * ic_blk);
-        add(aux_reg_input, sizeof(float) * (one_of(jcp.src_fmt, ncw, nchw) ?
+        add(aux_reg_input, sizeof(float) * (one_of(jcp.src_tag, ncw, nchw) ?
             dilate_w : ic_blk * dilate_w));
 
         inc(ki_iter);
@@ -145,9 +145,9 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
-    const int inp_mult = one_of(jcp.src_fmt, ncw, nchw)
+    const int inp_mult = one_of(jcp.src_tag, ncw, nchw)
         ? dilate_h : ic_blk * dilate_h;
-    const int inp_off = one_of(jcp.src_fmt, ncw, nchw)
+    const int inp_off = one_of(jcp.src_tag, ncw, nchw)
         ? dilate_w : ic_blk * dilate_w;
 
     xor_(simd_iter, simd_iter);
@@ -268,7 +268,7 @@ inline void jit_sse42_conv_fwd_kernel_f32::solve_common(int oc_blocks)
     int oc_blk = jcp.oc_block;
     int dilate_w = jcp.dilate_w + 1;
     int str_w = jcp.stride_w;
-    const int inp_mult = one_of(jcp.src_fmt, ncw, nchw) ? 1 : ic_blk;
+    const int inp_mult = one_of(jcp.src_tag, ncw, nchw) ? 1 : ic_blk;
 
     int l_pad = jcp.l_pad;
     int r_pad = nstl::max(0, (int(jcp.ow) - 1) * str_w + (kw - 1) * dilate_w
@@ -366,7 +366,6 @@ bool jit_sse42_conv_fwd_kernel_f32::post_ops_ok(
     return false;
 }
 
-
 status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
@@ -405,8 +404,18 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
             - (jcp.ih + jcp.t_pad - 1);
 
-    jcp.src_fmt = src_d.format();
-    jcp.with_bias = cd.bias_desc.format != memory_format::undef;
+    if (ndims == 3) {
+        jcp.src_tag = src_d.matches_one_of_tag(ncw, nwc, nCw8c);
+        jcp.wei_tag = weights_d.matches_one_of_tag(
+                Owi8o, gOwi8o, OIw8i8o, gOIw8i8o);
+        jcp.dst_tag = dst_d.matches_one_of_tag(nCw8c);
+    } else if (ndims == 4) {
+        jcp.src_tag = src_d.matches_one_of_tag(nchw, nhwc, nChw8c);
+        jcp.wei_tag = weights_d.matches_one_of_tag(
+                Ohwi8o, gOhwi8o, OIhw8i8o, gOIhw8i8o);
+        jcp.dst_tag = dst_d.matches_one_of_tag(nChw8c);
+    }
+    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -422,13 +431,11 @@ status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     const bool mimo = !flat;
 
     bool args_ok = true
-        && IMPLICATION(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc)
-                && one_of(weights_d.format(), Owi8o, gOwi8o, Ohwi8o, gOhwi8o))
-        && IMPLICATION(mimo, one_of(src_d.format(), nCw8c, nChw8c)
-                && one_of(weights_d.format(), OIw8i8o, gOIw8i8o, OIhw8i8o,
-                    gOIhw8i8o))
-        && one_of(cd.bias_desc.format, memory_format::undef, any, x)
-        && one_of(dst_d.format(), nCw8c, nChw8c);
+        && IMPLICATION(flat, one_of(jcp.src_tag, ncw, nwc, nchw, nhwc)
+                && one_of(jcp.wei_tag, Owi8o, gOwi8o, Ohwi8o, gOhwi8o))
+        && IMPLICATION(mimo, one_of(jcp.src_tag, nCw8c, nChw8c)
+                && one_of(jcp.wei_tag, OIw8i8o, gOIw8i8o, OIhw8i8o, gOIhw8i8o))
+        && one_of(jcp.dst_tag, nCw8c, nChw8c);
     if (!args_ok) return status::unimplemented;
 
     const int simd_w = 8; // 2 SSE vectors processing at once

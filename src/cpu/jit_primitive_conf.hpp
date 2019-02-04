@@ -65,7 +65,7 @@ struct jit_conv_conf_t {
     int kd, kh, kw;
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
-    memory_format_t src_fmt;
+    format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
@@ -160,7 +160,7 @@ struct jit_conv_conf_2x3_wino_t {
     int typesize_bia;
     int typesize_acc;
 
-    memory_format_t src_fmt;
+    format_tag_t src_tag, dst_tag; // temporary workaround
     bool with_bias;
     bool small_mb;
 
@@ -347,7 +347,7 @@ struct jit_1x1_conv_conf_t {
     int l_pad, t_pad;
     int kh, kw;
     int stride_h, stride_w;
-    memory_format_t src_fmt;
+    format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
@@ -402,7 +402,6 @@ struct jit_gemm_conv_conf_t {
     int kh, kw, kd;
     int stride_h, stride_w, stride_d;
     int dilate_h, dilate_w, dilate_d;
-    memory_format_t src_fmt;
     bool with_bias;
 
     int is, os, ks;
@@ -412,7 +411,6 @@ struct jit_gemm_conv_conf_t {
     ptrdiff_t im2col_sz;
     bool need_wei_reduction;
     bool signed_input;
-    float wei_adj_scale;
     int oh_block;
     int ow_block;
     bool outer_threading;

@@ -42,6 +42,8 @@ struct jit_uni_lrn_fwd_t: public cpu_primitive_t {
                 jit_uni_lrn_fwd_t<isa>);
 
         status_t init();
+
+        format_tag_t dat_tag_;
     };
 
     jit_uni_lrn_fwd_t(const pd_t *apd);
@@ -71,6 +73,8 @@ struct jit_uni_lrn_bwd_t: public cpu_primitive_t {
                 jit_uni_lrn_bwd_t<isa>);
 
         status_t init();
+
+        format_tag_t dat_tag_;
     };
 
     jit_uni_lrn_bwd_t(const pd_t *apd);

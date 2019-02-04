@@ -47,7 +47,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
 
         status_t init() {
             using namespace data_type;
-            using namespace memory_format;
 
             bool ok = true
                 && is_fwd()
@@ -57,12 +56,12 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, f32, s32, s8, u8))
                 && !has_zero_dim_memory()
-                && set_default_formats()
-                && utils::everyone_is(nhwc, src_md_.format, dst_md_.format)
-                && weights_md_.format == (with_groups()
-                        ? (src_type == s8 ? hwigo_s8s8 : hwigo)
-                        : (src_type == s8 ? hwio_s8s8 : hwio))
-                && is_gemm_conv_format();
+                && set_default_formats_common(
+                        dat_tag(), format_tag::any, dat_tag())
+                && post_ops_ok()
+                && memory_desc_matches_tag(*src_md(), dat_tag())
+                && memory_desc_matches_tag(*dst_md(), dat_tag())
+                && set_or_check_wei_format();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -74,19 +73,35 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        bool set_default_formats() {
-            using namespace memory_format;
-            const bool is_sign_input = src_md_.data_type == data_type::s8;
+        format_tag_t dat_tag() const { return format_tag::nhwc; }
 
-            auto dat_fmt = nhwc;
-            auto wei_fmt = with_groups()
-                ? (is_sign_input ? hwigo_s8s8 : hwigo)
-                : (is_sign_input ? hwio_s8s8 : hwio);
+        bool set_or_check_wei_format() {
+            using namespace format_tag;
 
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+            const bool is_src_s8 = src_md_.data_type == data_type::s8;
+
+            memory_desc_t want_wei_md = weights_md_;
+            memory_desc_init_by_tag(want_wei_md, with_groups() ? hwigo : hwio);
+
+            if (is_src_s8) {
+                want_wei_md.extra.flags = 0
+                    | memory_extra_flags::compensation_conv_s8s8
+                    | memory_extra_flags::scale_adjust;
+                want_wei_md.extra.compensation_mask = (1 << 0)
+                    + (with_groups() ? (1 << 1) : 0);
+                want_wei_md.extra.scale_adjust =
+                    mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+            }
+
+            if (weights_md_.format_kind == format_kind::any) {
+                weights_md_ = want_wei_md;
+                return true;
+            }
+
+            return weights_md_ == want_wei_md;
         }
 
-        bool is_gemm_conv_format() {
+        bool post_ops_ok() const {
             using namespace mkldnn::impl::primitive_kind;
             auto const &po = attr()->post_ops_;
             auto is_relu = [&](int idx) {
@@ -190,7 +205,6 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             using namespace data_type;
-            using namespace memory_format;
 
             bool ok = true
                 && desc()->prop_kind == prop_kind::backward_data
@@ -199,11 +213,11 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
                 && IMPLICATION(with_bias(), utils::one_of(
                             desc()->bias_desc.data_type, f32, s32, s8, u8))
                 && !has_zero_dim_memory()
-                && set_default_formats()
-                && utils::everyone_is(nhwc, diff_src_md_.format,
-                        diff_dst_md_.format)
-                && weights_md_.format == (with_groups() ? hwigo : hwio)
-                && attr()->post_ops_.has_default_values();
+                && set_default_formats_common(dat_tag(), wei_tag(), dat_tag())
+                && attr()->post_ops_.has_default_values()
+                && memory_desc_matches_tag(*diff_src_md(), dat_tag())
+                && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
+                && memory_desc_matches_tag(*weights_md(), wei_tag());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -217,13 +231,10 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        bool set_default_formats() {
-            using namespace memory_format;
+        format_tag_t dat_tag() const { return format_tag::nhwc; }
 
-            auto dat_fmt = nhwc;
-            auto wei_fmt = with_groups() ? hwigo : hwio;
-
-            return set_default_formats_common(dat_fmt, wei_fmt, dat_fmt);
+        format_tag_t wei_tag() const {
+            return with_groups() ? format_tag::hwigo : format_tag::hwio;
         }
     };
 

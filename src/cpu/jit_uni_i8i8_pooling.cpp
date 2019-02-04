@@ -30,7 +30,6 @@ namespace cpu {
 using namespace Xbyak;
 
 using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::memory_format;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::types;
 using namespace alg_kind;

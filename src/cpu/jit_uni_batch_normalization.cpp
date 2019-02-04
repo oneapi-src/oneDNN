@@ -1240,14 +1240,14 @@ private:
 }
 
 using namespace data_type;
-using namespace memory_format;
+using namespace format_tag;
 using namespace utils;
 
 /* fwd */
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
-    auto desired_fmt = (ndims() == 4)
+    auto desired_fmt_tag = (ndims() == 4)
         ? isa == avx512_common ? nChw16c : nChw8c
         : isa == avx512_common ? nCdhw16c : nCdhw8c;
 
@@ -1258,7 +1258,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         && one_of(ndims(), 4, 5)
         && src_md()->data_type == f32
         && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
-        && src_md()->format == desired_fmt
+        && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
         && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
@@ -1318,7 +1318,7 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t()
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
-    auto desired_fmt = (ndims() == 4)
+    auto desired_fmt_tag = (ndims() == 4)
         ? one_of(isa, sse42, avx2) ? nChw8c : nChw16c
         : one_of(isa, sse42, avx2) ? nCdhw8c : nCdhw16c;
 
@@ -1332,7 +1332,8 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
                 utils::everyone_is(f32,
                     weights_md()->data_type,
                     diff_weights_md()->data_type))
-        && everyone_is(desired_fmt, src_md()->format, diff_src_md()->format)
+        && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+        && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
         && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 

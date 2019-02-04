@@ -145,19 +145,19 @@ protected:
     status_t template_set_default_params(memory_desc_t &src_md,
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             memory_desc_t *bias_md) {
-        using namespace memory_format;
-        if (src_md.format == any) {
-            CHECK(types::set_default_format(src_md,
+        using namespace format_tag;
+        if (src_md.format_kind == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(src_md,
                         utils::pick(ndims() - 2, nc, ncw, nchw, ncdhw)));
         }
-        if (dst_md.format == any)
-            CHECK(types::set_default_format(dst_md, nc));
-        if (weights_md.format == any) {
-            CHECK(types::set_default_format(weights_md,
+        if (dst_md.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(dst_md, nc));
+        if (weights_md.format_kind == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(weights_md,
                         utils::pick(ndims() - 2, oi, oiw, oihw, oidhw)));
         }
-        if (bias_md && bias_md->format == any)
-            CHECK(types::set_default_format(*bias_md, x));
+        if (bias_md && bias_md->format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(*bias_md, x));
         return status::success;
     }
 };

@@ -28,9 +28,33 @@ namespace cpu {
 
 using namespace mkldnn::impl::utils;
 using namespace rnn_utils;
-using namespace memory_format;
+using namespace format_tag;
 using namespace rnn_packed_format;
 using namespace data_type;
+
+bool rnn_utils::is_ldigo(const memory_desc_wrapper &md) {
+    if (md.format_kind() != format_kind::blocked)
+        return false;
+
+    auto blk = md.blocking_desc();
+    auto str = blk.strides;
+    auto dims = md.dims();
+    return md.ndims() == 5 && blk.inner_nblks == 0 && str[4] == 1
+            && str[3] == dims[4] && str[1] == str[2] * dims[2]
+            && str[0] == str[1] * dims[1];
+};
+
+bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
+    if (md.format_kind() != format_kind::blocked)
+        return false;
+
+    auto blk = md.blocking_desc();
+    auto str = blk.strides;
+    auto dims = md.dims();
+    return md.ndims() == 5 && blk.inner_nblks == 0 && str[2] == 1
+            && str[3] == dims[4] * str[4] && str[1] == str[3] * dims[3]
+            && str[0] == str[1] * dims[1];
+};
 
 void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
@@ -56,12 +80,12 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 weights_layer_d.data_type()))
         rnn.dt_conf = all_f32;
     else if (dst_layer_d.data_type() == u8) {
-        if (IMPLICATION(src_iter_d._md, src_iter_d.data_type() == u8))
+        if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
             rnn.dt_conf = u8u8u8u8;
         else
             rnn.dt_conf = f32u8f32u8;
     } else {
-        if (IMPLICATION(src_iter_d._md, src_iter_d.data_type() == u8))
+        if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
             rnn.dt_conf = u8u8u8f32;
         else
             rnn.dt_conf = f32u8f32f32;
@@ -116,11 +140,12 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
 #if USE_MKL_PACKED_GEMM
     rnn.use_layer_packed_gemm
-            = (weights_layer_d.format() == any && rnn.slc > 760 && rnn.dic > 760
-                      && is_inference)
+            = (weights_layer_d.format_kind() == format_kind::any
+                      && rnn.slc > 760 && rnn.dic > 760 && is_inference)
             || is_int8; // packed gemm is the only supported option for int8
-    rnn.use_iter_packed_gemm = (weights_iter_d.format() == any && rnn.sic > 760
-                                       && rnn.dic > 760 && is_inference)
+    rnn.use_iter_packed_gemm
+            = (weights_iter_d.format_kind() == format_kind::any && rnn.sic > 760
+                      && rnn.dic > 760 && is_inference)
             || is_int8;
 #else
     rnn.use_layer_packed_gemm = false;
@@ -202,22 +227,22 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Set leading dimensions for input weights arrays depending on input format
      */
-    rnn.weights_layer_fmt = weights_layer_d.format();
-    rnn.weights_iter_fmt = weights_iter_d.format();
-    rnn.weights_layer_is_packed = rnn.weights_layer_fmt == rnn_packed;
-    rnn.weights_iter_is_packed = rnn.weights_iter_fmt == rnn_packed;
+    rnn.weights_layer_is_packed
+            = weights_layer_d.format_kind() == format_kind::rnn_packed;
+    rnn.weights_iter_is_packed
+            = weights_iter_d.format_kind() == format_kind::rnn_packed;
 
     auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
-        switch (md.format()) {
-        case ldigo:
-            ld = (int)md.blocking_desc().strides[0][2];
-            nld = md.dims()[2];
-            return;
-        case ldgoi:
-            ld = (int)md.blocking_desc().strides[0][4];
-            nld = md.dims()[3] * md.dims()[4];
-            return;
-        default: ld = 0; nld = 0;
+        ld = 0; nld = 0;
+        if (md.is_blocking_desc()) {
+            if (is_ldigo(md)) {
+                ld = (int)md.blocking_desc().strides[2];
+                nld = md.dims()[2];
+            } else if (is_ldgoi(md)) {
+                ld = (int)md.blocking_desc().strides[4];
+                nld = md.dims()[3] * md.dims()[4];
+            } else
+                assert(!"unsupported weights format");
         }
     };
     set_dims(weights_layer_d, rnn.weights_layer_ld, rnn.weights_layer_nld);
@@ -337,16 +362,17 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
             ws_bias_offset, scratchpad_size, workspace_size);
 }
 
-status_t rnn_utils::set_good_strides(memory_desc_t &weights_md) {
-    auto &strides = weights_md.layout_desc.blocking.strides[0];
+status_t rnn_utils::set_good_strides(
+        memory_desc_t &weights_md, format_tag_t tag) {
+    auto &strides = weights_md.format_desc.blocking.strides;
     auto dims = weights_md.dims;
 
-    if (weights_md.format == ldigo) {
+    if (tag == ldigo) {
         strides[2] = rnn_utils::get_good_ld((int)strides[2],
                 (int)types::data_type_size(weights_md.data_type));
         strides[1] = dims[2] * strides[2];
         strides[0] = dims[1] * strides[1];
-    } else if (weights_md.format == ldgoi) {
+    } else if (tag == ldgoi) {
         strides[4] = rnn_utils::get_good_ld((int)strides[4],
                 (int)types::data_type_size(weights_md.data_type));
         strides[3] = dims[4] * strides[4];
@@ -360,12 +386,13 @@ status_t rnn_utils::set_good_strides(memory_desc_t &weights_md) {
 
 status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         memory_desc_t &weights_md, bool is_iter) {
+    using namespace format_tag;
     bool use_packed_gemm = is_iter
         ? rnn.use_iter_packed_gemm
         : rnn.use_layer_packed_gemm;
     if (use_packed_gemm) {
-        weights_md.format = rnn_packed;
-        rnn_packed_data_t &rnn_pdata = weights_md.layout_desc.rnn_packed_desc;
+        weights_md.format_kind = format_kind::rnn_packed;
+        rnn_packed_data_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
         rnn_pdata.format = rnn.is_fwd ? mkldnn_ldigo_p : mkldnn_ldgoi_p;
         if (is_iter) {
             rnn_pdata.n = rnn.mb;
@@ -387,10 +414,9 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
             rnn_pdata.size = rnn.weights_layer_pack_size;
         }
     } else {
-        weights_md.format = rnn.is_fwd ? ldigo : ldgoi;
-        CHECK(memory_desc_wrapper::compute_blocking(weights_md));
+        CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
         // Adjust strides for good leading dimension in GEMM
-        CHECK(set_good_strides(weights_md));
+        CHECK(set_good_strides(weights_md, rnn.is_fwd ? ldigo : ldgoi));
     }
     return status::success;
 }

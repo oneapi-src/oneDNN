@@ -26,7 +26,7 @@ namespace impl {
 namespace cpu {
 
 using namespace math;
-using namespace memory_format;
+using namespace format_tag;
 using namespace memory_tracking::names;
 
 template<data_type_t src_type, data_type_t dst_type>
@@ -407,8 +407,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const int MB = pd()->MB();
     const int OC = pd()->OC();
 
-    bool wei_tr = utils::one_of(pd()->weights_md()->format,
-            oiw, oihw, oidhw, oi);
+    bool wei_tr = memory_desc_matches_one_of_tag(
+            *pd()->weights_md(), oiw, oihw, oidhw, oi);
 
     const int M = OC;
     const int N = MB;

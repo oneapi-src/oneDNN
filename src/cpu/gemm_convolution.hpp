@@ -41,20 +41,17 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_fwd_t);
 
         status_t init() {
-            using namespace memory_format;
-
             bool ok = true
                 && is_fwd()
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
                 && !has_zero_dim_memory()
-                && set_default_formats_common(
-                        dat_format(), wei_format(), dat_format())
-                && src_md_.format == dat_format()
-                && dst_md_.format == dat_format()
-                && weights_md_.format == wei_format()
-                && is_gemm_conv_format();
+                && set_default_formats_common(dat_tag(), wei_tag(), dat_tag())
+                && post_ops_ok()
+                && memory_desc_matches_tag(*src_md(), dat_tag())
+                && memory_desc_matches_tag(*dst_md(), dat_tag())
+                && memory_desc_matches_tag(*weights_md(), wei_tag());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -66,19 +63,19 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t dat_format() const {
-            using namespace memory_format;
+        format_tag_t dat_tag() const {
+            using namespace format_tag;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
 
-        memory_format_t wei_format() const {
-            using namespace memory_format;
+        format_tag_t wei_tag() const {
+            using namespace format_tag;
             return with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
         }
 
-        bool is_gemm_conv_format() const {
+        bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
             auto is_eltwise = [&](int idx)
             { return po.entry_[idx].is_eltwise(); };
@@ -136,19 +133,16 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t);
 
         status_t init() {
-            using namespace memory_format;
-
             bool ok = true
                 && desc()->prop_kind == prop_kind::backward_data
                 && set_default_alg_kind(alg_kind::convolution_direct)
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::undef, data_type::f32, data_type::f32)
                 && !has_zero_dim_memory()
-                && set_default_formats_common(
-                        dat_format(), wei_format(), dat_format())
-                && diff_src_md_.format == dat_format()
-                && diff_dst_md_.format == dat_format()
-                && weights_md_.format == wei_format();
+                && set_default_formats_common(dat_tag(), wei_tag(), dat_tag())
+                && memory_desc_matches_tag(*diff_src_md(), dat_tag())
+                && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
+                && memory_desc_matches_tag(*weights_md(), wei_tag());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -160,13 +154,13 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t dat_format() const {
-            using namespace memory_format;
+        format_tag_t dat_tag() const {
+            using namespace format_tag;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
 
-        memory_format_t wei_format() const {
-            using namespace memory_format;
+        format_tag_t wei_tag() const {
+            using namespace format_tag;
             return with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
@@ -206,11 +200,10 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
                 && expect_data_types(data_type::f32, data_type::f32,
                         data_type::f32, data_type::f32, data_type::f32)
                 && !has_zero_dim_memory()
-                && set_default_formats_common(
-                        dat_format(), wei_format(), dat_format())
-                && src_md_.format == dat_format()
-                && diff_dst_md_.format == dat_format()
-                && diff_weights_md_.format == wei_format();
+                && set_default_formats_common(dat_tag(), wei_tag(), dat_tag())
+                && memory_desc_matches_tag(*src_md(), dat_tag())
+                && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
+                && memory_desc_matches_tag(*diff_weights_md(), wei_tag());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -222,14 +215,14 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_gemm_conv_conf_t jcp_;
 
     protected:
-        memory_format_t dat_format() const {
-            using namespace memory_format;
+        format_tag_t dat_tag() const {
+            using namespace format_tag;
             return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
         }
 
-        memory_format_t wei_format() const {
-            using namespace memory_format;
-            return this->with_groups()
+        format_tag_t wei_tag() const {
+            using namespace format_tag;
+            return with_groups()
                 ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
         }

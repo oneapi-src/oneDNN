@@ -49,19 +49,17 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         bd.diff_data_desc = *diff_data_desc;
 
     dims_t scaleshift_dims = { 2, data_desc->dims[1] };
-    mkldnn_memory_desc_init(&bd.data_scaleshift_desc, 2, scaleshift_dims,
-            data_desc->data_type, mkldnn_nc);
+    mkldnn_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 2,
+            scaleshift_dims, data_desc->data_type, mkldnn_nc);
     bd.diff_data_scaleshift_desc = zero_md();
     if (bd.prop_kind == backward) {
-        mkldnn_memory_desc_init(&bd.diff_data_scaleshift_desc, 2,
-                scaleshift_dims, data_desc->data_type, mkldnn_nc);
+        bd.diff_data_scaleshift_desc = bd.data_scaleshift_desc;
     }
 
     dims_t stats_dims = { data_desc->dims[1] };
-    mkldnn_memory_desc_init(&bd.mean_desc, 1, stats_dims,
+    mkldnn_memory_desc_init_by_tag(&bd.mean_desc, 1, stats_dims,
             data_desc->data_type, mkldnn_x);
-    mkldnn_memory_desc_init(&bd.variance_desc, 1, stats_dims,
-            data_desc->data_type, mkldnn_x);
+    bd.variance_desc = bd.mean_desc;
 
     bd.batch_norm_epsilon = epsilon;
 
