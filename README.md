@@ -32,6 +32,7 @@ Intel MKL-DNN is used in the following software products:
 * [Chainer\*](https://chainer.org)
 * [DeepBench](https://github.com/baidu-research/DeepBench)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [PyTorch\*](https://pytorch.org/)
 * [Tensorflow\*](https://www.tensorflow.org)
 * [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
 * [Apache\* MXNet](https://mxnet.apache.org)
