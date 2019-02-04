@@ -50,7 +50,7 @@ typed_zero_pad_data(
     constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const int C = pdims[1] / blksize - 1;
     const int c_tail_start = dims[1] % blksize;
@@ -79,7 +79,7 @@ typename utils::enable_if<false
     constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const int G = w_groups ? dims[0] : 1;
     const int NB_OC = pdims[w_groups + 0] / blksize;
@@ -111,7 +111,7 @@ typename utils::enable_if<false
     constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const int G = w_groups ? dims[0] : 1;
     const int OC = dims[w_groups + 0];
@@ -142,7 +142,7 @@ typed_zero_pad_weights(const memory_desc_wrapper &m_d,
     constexpr int is_3d = format_traits<fmt>::ndims_sp == 3;
     constexpr int blksize = format_traits<fmt>::blk_size;
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const int G = w_groups ? dims[0] : 1;
     const int NB_OC = pdims[w_groups + 0] / blksize;
@@ -195,7 +195,7 @@ typename utils::enable_if<false
     constexpr int blksize = format_traits<fmt>::blk_size;
 
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const int G = pdims[0] / blksize - 1;
     const int g_tail_start = dims[0] % blksize;
@@ -216,7 +216,7 @@ void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
     const int ndims = m_d.ndims();
     const auto &dims = m_d.dims();
-    const auto &pdims = m_d.blocking_desc().padding_dims;
+    const auto &pdims = m_d.padded_dims();
 
     const ptrdiff_t nelems = (ptrdiff_t)m_d.nelems(true);
 

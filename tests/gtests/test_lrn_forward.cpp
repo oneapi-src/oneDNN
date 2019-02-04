@@ -48,7 +48,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
     const memory::dim CSIZE = ld.kind == ACROSS ? size : 1;
     const memory::dim HWSIZE = size + 1 - CSIZE;
     const memory::dim summands = ld.kind == ACROSS ? size : size*size;
-    const auto padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
+    const auto padded_c = src.get_desc().data.padded_dims[1];
 
     auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w)
     { return ((n * padded_c + c) * ld.h + h) * ld.w + w; };

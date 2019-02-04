@@ -42,6 +42,11 @@ struct memory_desc_wrapper: public c_compatible {
     inline int ndims() const { return _md->ndims; }
     const dims_t &dims() const { return _md->dims; }
     data_type_t data_type() const { return _md->data_type; }
+
+    const dims_t &padded_dims() const { return _md->padded_dims; }
+    const dims_t &padded_offsets() const { return _md->padded_offsets; }
+    dim_t offset0() const { return _md->offset0; }
+
     memory_format_t format() const { return _md->format; }
     bool is_blocking_desc() const {
         return (format() != memory_format::wino_fmt
@@ -72,10 +77,10 @@ struct memory_desc_wrapper: public c_compatible {
 
     /** returns the number of elements including padding if \param with_padding
      * is true, and the number of data elements otherwise */
-    size_t nelems(bool with_padding = false) const {
+    dim_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
-        return (utils::array_product<dim_t, size_t>(with_padding
-                ? blocking_desc().padding_dims : dims(), ndims()));
+        return utils::array_product(
+                with_padding ? padded_dims() : dims(), ndims());
     }
 
     /** returns true if memory descriptor is zero */
@@ -112,7 +117,6 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns the size of additional buffer */
     size_t additional_buffer_size() const {
         using namespace mkldnn::impl::memory_format;
-        const auto &padding_dims = blocking_desc().padding_dims;
         switch(format()) {
             case hwigo_s8s8:
             case Goiw16g_s8s8:
@@ -121,19 +125,19 @@ struct memory_desc_wrapper: public c_compatible {
             case gOIhw2i8o4i_s8s8:
             case gOIw4i16o4i_s8s8:
             case gOIhw4i16o4i_s8s8:
-                return size_t(padding_dims[0]) * size_t(padding_dims[1])
+                return size_t(padded_dims()[0]) * size_t(padded_dims()[1])
                     * additional_buffer_data_size();
             case hwio_s8s8:
             case OIw4i16o4i_s8s8:
             case OIhw4i16o4i_s8s8:
-                return size_t(padding_dims[0]) * additional_buffer_data_size();
+                return size_t(padded_dims()[0]) * additional_buffer_data_size();
             default:
                 return 0;
         }
     }
 
     /** returns the size required to store described memory
-     * note: if offset_padding != 0 returns 0 (need to specify the behavior) */
+     * note: if offset0 != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
         using namespace mkldnn::impl::memory_format;
         if (is_zero() || has_zero_dim() || format() == memory_format::any)
@@ -151,22 +155,22 @@ struct memory_desc_wrapper: public c_compatible {
         } else if (format() == rnn_packed) {
             return rnn_packed_desc().size;
         } else {
-            if (blocking_desc().offset_padding != 0) return 0;
+            if (offset0() != 0) return 0;
 
             const auto &block_dims = blocking_desc().block_dims;
             const auto &strides = blocking_desc().strides;
-            const auto &padding_dims = blocking_desc().padding_dims;
 
             size_t max_size = 0;
             for (int d = 0; d < ndims(); ++d) {
                 auto block = block_dims[d];
                 max_size = nstl::max<size_t>(max_size,
-                    size_t(padding_dims[d] / block) * strides[0][d]);
+                    size_t(padded_dims()[d] / block) * strides[0][d]);
                 if (block > 1)
                     max_size = nstl::max(max_size,
                             size_t(block * strides[1][d]));
             }
-            return max_size * data_type_size() + additional_buffer_size();;
+
+            return max_size * data_type_size() + additional_buffer_size();
         }
     }
 
@@ -178,10 +182,8 @@ struct memory_desc_wrapper: public c_compatible {
 
     /** returns true if the only (potentially) padded dim is \param dim */
     bool only_padded_dim(int dim) const {
-        assert(is_blocking_desc());
-        const auto pdims = blocking_desc().padding_dims;
         for (int d = 0; d < ndims(); ++d)
-            if (d != dim && dims()[d] != pdims[d])
+            if (d != dim && dims()[d] != padded_dims()[d])
                 return false;
         return true;
     }
@@ -228,13 +230,12 @@ struct memory_desc_wrapper: public c_compatible {
         assert(format() != memory_format::any);
         assert(is_blocking_desc());
         const blocking_desc_t &blk = blocking_desc();
-        const dims_t &optd = blk.offset_padding_to_data;
 
-        size_t phys_offset = blk.offset_padding;
+        size_t phys_offset = offset0();
         for (int d = 0; d < ndims(); ++d) {
             const dim_t block = blk.block_dims[d];
 
-            const dim_t p = pos[d] + (is_pos_padded ? 0 : optd[d]);
+            const dim_t p = pos[d] + (is_pos_padded ? 0 : padded_offsets()[d]);
             const dim_t pos_within_block = p % block;
             const dim_t pos_block = p / block;
 
@@ -301,11 +302,10 @@ struct memory_desc_wrapper: public c_compatible {
      * l_offset represents logical offset in already padded area */
     inline size_t off_l(size_t l_offset, bool is_pos_padded = false) const {
         assert(is_blocking_desc());
-        const dims_t &padding_dims = blocking_desc().padding_dims;
         dims_t pos;
         for (int rd = 0; rd < ndims(); ++rd) {
             const int d = ndims() - 1 - rd;
-            const dim_t cur_dim = is_pos_padded ? padding_dims[d] : dims()[d];
+            const dim_t cur_dim = is_pos_padded ? padded_dims()[d] : dims()[d];
             pos[d] = l_offset % cur_dim;
             l_offset /= cur_dim;
         }
@@ -361,10 +361,7 @@ private:
     }
 
     template<int ORIG_LEN, typename ...Void>
-    inline size_t _blk_off() const {
-        assert(is_blocking_desc());
-        return blocking_desc().offset_padding;
-    }
+    inline size_t _blk_off() const { return offset0(); }
 
     template<int ORIG_LEN, typename T, typename ...Args>
     inline size_t _blk_off(T xc, Args ...args) const {
@@ -384,23 +381,7 @@ inline bool memory_desc_wrapper::is_dense(bool with_padding) const {
 inline bool memory_desc_wrapper::operator==(const memory_desc_wrapper &rhs)
     const
 {
-    using namespace impl::types;
-    return ndims() == rhs.ndims()
-            && utils::array_cmp(dims(), rhs.dims(), ndims())
-            && data_type() == rhs.data_type()
-            && ((is_blocking_desc() && rhs.is_blocking_desc())
-                       || (is_wino_desc() && rhs.is_wino_desc())
-                       || (is_rnn_packed_desc() && rhs.is_rnn_packed_desc()))
-            && (is_blocking_desc() ? blocking_desc_is_equal(blocking_desc(),
-                                             rhs.blocking_desc(), ndims()) :
-                                     true)
-            && (is_wino_desc() ? wino_desc_is_equal(
-                                         wino_desc(), rhs.wino_desc()) :
-                                 true)
-            && (is_rnn_packed_desc() ?
-                               rnn_packed_desc_is_equal(rnn_packed_desc(),
-                                       rhs.rnn_packed_desc()) :
-                               true);
+    return *(this->_md) == *(rhs._md);
 }
 
 inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
@@ -425,11 +406,11 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
         && array_cmp(blk.block_dims + ds, r_blk.block_dims + ds, ndims() - ds)
         && array_cmp(blk.strides[0] + ds, r_blk.strides[0] + ds, ndims() - ds)
         && array_cmp(blk.strides[1] + ds, r_blk.strides[1] + ds, ndims() - ds)
-        && IMPLICATION(with_padding,
-                array_cmp(blk.padding_dims + ds, r_blk.padding_dims + ds,
+        && IMPLICATION(with_padding, true
+                && array_cmp(padded_dims() + ds, rhs.padded_dims() + ds,
                     ndims() - ds)
-                && array_cmp(blk.offset_padding_to_data + ds,
-                    r_blk.offset_padding_to_data + ds, ndims() - ds));
+                && array_cmp(padded_offsets() + ds, rhs.padded_offsets() + ds,
+                    ndims() - ds));
 }
 
 inline bool memory_desc_wrapper::consistent_with(
@@ -455,4 +436,3 @@ inline bool memory_desc_wrapper::consistent_with(
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
-

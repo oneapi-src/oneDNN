@@ -1742,10 +1742,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
 
     args_ok = true
         && jcp.l_pad <= jcp.ur_w
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= dst_d.padded_dims()[1]
+        && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!args_ok)
         return status::unimplemented;
 
@@ -2797,10 +2797,10 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     }
 
     args_ok = true
-        && jcp.ic <= diff_src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= diff_src_d.padded_dims()[1]
+        && jcp.oc <= diff_dst_d.padded_dims()[1]
+        && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
     return status::success;
@@ -4761,10 +4761,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     bool args_ok = true
         && jcp.ic % jcp.ic_block == 0
         && jcp.oc % jcp.oc_block == 0
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= diff_weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= diff_weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= diff_dst_d.padded_dims()[1]
+        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 0]
+        && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
     {   // balancing

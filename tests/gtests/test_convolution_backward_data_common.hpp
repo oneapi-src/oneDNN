@@ -37,8 +37,8 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
 
-    auto padded_ic = diff_src_d.data.layout_desc.blocking.padding_dims[1];
-    auto padded_oc = diff_dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = diff_src_d.data.padded_dims[1];
+    auto padded_oc = diff_dst_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.ic / c.ng, c.ih, c.iw,
         [&](memory::dim mb, memory::dim g, memory::dim ic, memory::dim ih,

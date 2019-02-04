@@ -767,10 +767,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     /* once all the formats are set, check the padding consistency */
     args_ok = true
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= dst_d.padded_dims()[1]
+        && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
     const int SMALL_SPATIAL = 10;

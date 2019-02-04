@@ -45,8 +45,8 @@ inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
         && dst_d.format() == nc
         && src_d.only_padded_dim(1)
         && wei_d.only_padded_dim(1)
-        && src_d.blocking_desc().padding_dims[1]
-            == wei_d.blocking_desc().padding_dims[1]
+        && src_d.padded_dims()[1]
+            == wei_d.padded_dims()[1]
         && src_d.is_dense(true)
         && dst_d.is_dense()
         && wei_d.is_dense(true);

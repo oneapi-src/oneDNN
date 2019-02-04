@@ -37,9 +37,9 @@ status_t fill_x(memory_desc_t &md) {
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     blk.strides[0][0] = 1;
-    array_copy(blk.padding_dims, md.dims, ndims);
-    array_set(blk.offset_padding_to_data, 0, ndims);
-    blk.offset_padding = 0;
+    array_copy(md.padded_dims, md.dims, ndims);
+    array_set(md.padded_offsets, 0, ndims);
+    md.offset0 = 0;
     return success;
 }
 
@@ -69,9 +69,9 @@ status_t fill_nonblocked(memory_desc_t &md, const int perm[]) {
     array_set(blk.block_dims, 1, ndims);
     array_set(blk.strides[1], 1, ndims);
     set_default_strides(blk.strides[0], md.dims, ndims, perm);
-    array_copy(blk.padding_dims, md.dims, ndims);
-    array_set(blk.offset_padding_to_data, 0, ndims);
-    blk.offset_padding = 0;
+    array_copy(md.padded_dims, md.dims, ndims);
+    array_set(md.padded_offsets, 0, ndims);
+    md.offset0 = 0;
     return success;
 }
 
@@ -84,20 +84,20 @@ status_t fill_contiguous_blocked(memory_desc_t &md, const dims_t block_dims,
 
     dim_t unrolled_dims[2*TENSOR_MAX_DIMS];
     stride_t unrolled_strides[2*TENSOR_MAX_DIMS];
-    dims_t padding_dims;
+    dims_t padded_dims;
 
     for (int d = 0; d < ndims; ++d) {
         unrolled_dims[d] = div_up(md.dims[d], block_dims[d]);
         unrolled_dims[ndims + d] = block_dims[d];
-        padding_dims[d] = rnd_up(md.dims[d], block_dims[d]);
+        padded_dims[d] = rnd_up(md.dims[d], block_dims[d]);
     }
 
     set_default_strides(unrolled_strides, unrolled_dims, 2*ndims, perm);
     array_copy(blk.strides[0], &unrolled_strides[0], ndims);
     array_copy(blk.strides[1], &unrolled_strides[ndims], ndims);
-    array_copy(blk.padding_dims, padding_dims, ndims);
-    array_set(blk.offset_padding_to_data, 0, ndims);
-    blk.offset_padding = 0;
+    array_copy(md.padded_dims, padded_dims, ndims);
+    array_set(md.padded_offsets, 0, ndims);
+    md.offset0 = 0;
     return success;
 }
 

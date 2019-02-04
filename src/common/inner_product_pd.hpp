@@ -119,8 +119,7 @@ struct inner_product_pd_t: public primitive_desc_t {
             : memory_desc_wrapper(src_md());
         assert(src_d.is_blocking_desc());
         if (!src_d.is_blocking_desc()) return -1;
-        return utils::array_product(src_d.blocking_desc().padding_dims + 1,
-                ndims() - 1);
+        return utils::array_product(src_d.padded_dims() + 1, ndims() - 1);
     }
 
     int ndims() const { return ip_prop_agnostic_src_d(&desc_)->ndims; }

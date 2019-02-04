@@ -1194,13 +1194,11 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
         return status::unimplemented;
 
     bool layout_consistency = true
-            && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-            && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
+            && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= dst_d.padded_dims()[1]
             && (weights_d.format() == any || weights_d.format() == wino_fmt
-                    || (jcp.ic <= weights_d.blocking_desc()
-                                            .padding_dims[with_groups + 1]
-                            && jcp.oc <= weights_d.blocking_desc()
-                                            .padding_dims[with_groups + 0]));
+                    || (jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+                        && jcp.oc <= weights_d.padded_dims()[with_groups + 0]));
     if (!layout_consistency)
         return status::unimplemented;
 
@@ -2557,10 +2555,10 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         return status::unimplemented;
 
     bool layout_consistency = true
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= diff_weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= diff_weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= diff_dst_d.padded_dims()[1]
+        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!layout_consistency) return status::unimplemented;
 
     /******************Kernel blocking Parameters ***********/

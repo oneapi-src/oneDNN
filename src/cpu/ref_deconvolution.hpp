@@ -43,9 +43,9 @@ static status_t compute_blocked_format(bool with_groups,
     io_blk = oi_blk;
     nstl::swap(io_blk.strides[0][0+with_groups], io_blk.strides[0][1+with_groups]);
     nstl::swap(io_blk.strides[1][0+with_groups], io_blk.strides[1][1+with_groups]);
-    nstl::swap(io_blk.padding_dims[0+with_groups], io_blk.padding_dims[1+with_groups]);
-    nstl::swap(io_blk.offset_padding_to_data[0+with_groups],
-         io_blk.offset_padding_to_data[1+with_groups]);
+    nstl::swap(io_md->padded_dims[0+with_groups], io_md->padded_dims[1+with_groups]);
+    nstl::swap(io_md->padded_offsets[0+with_groups],
+         io_md->padded_offsets[1+with_groups]);
     nstl::swap(io_blk.block_dims[0+with_groups], io_blk.block_dims[1+with_groups]);
     io_md->format = memory_format::blocked;
     return status::success;

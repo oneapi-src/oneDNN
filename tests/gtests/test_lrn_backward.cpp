@@ -57,7 +57,7 @@ void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &ds
     const memory::dim CSIZE = p.test_ld.kind == ACROSS ? size : 1;
     const memory::dim HWSIZE = size + 1 - CSIZE;
     const memory::dim summands = p.test_ld.kind == ACROSS ? size : size*size;
-    auto padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src.get_desc().data.padded_dims[1];
 
     const memory::desc src_d = src.get_desc();
     const memory::desc dst_d = dst.get_desc();
@@ -113,7 +113,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
     const memory::dim H = p.test_ld.h;
     const memory::dim W = p.test_ld.w;
     const memory::dim local_size = p.test_ld.local_size;
-    auto padded_c = src.get_desc().data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src.get_desc().data.padded_dims[1];
 
     data_t *ref_diff_src_ptr = new data_t[MB*(padded_c)*H*W];
 

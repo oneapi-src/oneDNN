@@ -243,13 +243,10 @@ inline bool is_format_double_blocked(memory_format_t fmt) {
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, int ndims = TENSOR_MAX_DIMS) {
     using mkldnn::impl::utils::array_cmp;
-    return lhs.offset_padding == rhs.offset_padding
+    return true
         && array_cmp(lhs.block_dims, rhs.block_dims, ndims)
         && array_cmp(lhs.strides[0], rhs.strides[0], ndims)
-        && array_cmp(lhs.strides[1], rhs.strides[1], ndims)
-        && array_cmp(lhs.padding_dims, rhs.padding_dims, ndims)
-        && array_cmp(lhs.offset_padding_to_data, rhs.offset_padding_to_data,
-                ndims);
+        && array_cmp(lhs.strides[1], rhs.strides[1], ndims);
 }
 
 inline bool wino_desc_is_equal(const wino_data_t &lhs,
@@ -342,10 +339,14 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 }
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
+    using namespace mkldnn::impl::utils;
     bool base_equal = true
         && lhs.ndims == rhs.ndims
-        && mkldnn::impl::utils::array_cmp(lhs.dims, rhs.dims, lhs.ndims)
+        && array_cmp(lhs.dims, rhs.dims, lhs.ndims)
         && lhs.data_type == rhs.data_type
+        && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
+        && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)
+        && lhs.offset0 == rhs.offset0
         && lhs.format == rhs.format; /* FIXME: normalize format? */
     if (!base_equal) return false;
     if (lhs.format == memory_format::blocked)
@@ -363,8 +364,6 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     return !operator==(lhs, rhs);
 }
-
-
 
 }
 }

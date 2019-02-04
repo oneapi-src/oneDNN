@@ -81,9 +81,9 @@ struct dnn_mem_t {
 
     size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
-    int64_t nelems(bool with_padding_dims = false) const {
-        auto dims = with_padding_dims
-            ? md_.layout_desc.blocking.padding_dims
+    int64_t nelems(bool with_padded_dims = false) const {
+        auto dims = with_padded_dims
+            ? md_.padded_dims
             : md_.dims;
         int64_t n = 1;
         for (int i = 0; i < md_.ndims; ++i)

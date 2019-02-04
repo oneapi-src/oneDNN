@@ -72,6 +72,7 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     md.ndims = ndims;
     array_copy(md.dims, dims, ndims);
     md.data_type = data_type;
+    array_copy(md.padded_dims, dims, ndims);
     md.format = format;
 
     status_t status = success;
@@ -119,7 +120,7 @@ status_t mkldnn_memory_desc_init_submemory(memory_desc_t *md,
         /* very limited functionality for now */
         const bool ok = true
             && offsets[d] % src_d_blk.block_dims[d] == 0 /* [r1] */
-            && src_d_blk.offset_padding_to_data[d] == 0
+            && src_d.padded_offsets[d] == 0
             && (false
                     || dims[d] % src_d_blk.block_dims[d] == 0
                     || dims[d] < src_d_blk.block_dims[d]);
@@ -129,11 +130,10 @@ status_t mkldnn_memory_desc_init_submemory(memory_desc_t *md,
         const bool is_right_border = offsets[d] + dims[d] == src_d.dims[d];
 
         dst_d.dims[d] = dims[d];
-        dst_d_blk.padding_dims[d] = is_right_border
-            ? src_d_blk.padding_dims[d] - offsets[d] : dst_d.dims[d];
-        dst_d_blk.offset_padding_to_data[d] =
-            src_d_blk.offset_padding_to_data[d];
-        dst_d_blk.offset_padding += /* [r1] */
+        dst_d.padded_dims[d] = is_right_border
+            ? src_d.padded_dims[d] - offsets[d] : dst_d.dims[d];
+        dst_d.padded_offsets[d] = src_d.padded_offsets[d];
+        dst_d.offset0 += /* [r1] */
             offsets[d] / src_d_blk.block_dims[d] * dst_d_blk.strides[0][d];
     }
 

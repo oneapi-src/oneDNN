@@ -63,7 +63,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     const memory::desc ws_d  = ws.get_desc();
 
     auto pd = p.test_pd;
-    size_t padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+    size_t padded_c = src_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
         [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,

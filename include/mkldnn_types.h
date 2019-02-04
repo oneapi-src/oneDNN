@@ -620,14 +620,6 @@ typedef struct {
     /** strides[0]: stride between the first elements of adjacent blocks.
      * @n strides[1]: strides between elements in the same block. */
     mkldnn_strides_t strides[2];
-    /** Size of the data including padding in each dimension. */
-    mkldnn_dims_t padding_dims;
-    /** Per-dimension offset from the padding to actual data, the top-level
-     * tensor with offsets applied must lie within the padding area. */
-    mkldnn_dims_t offset_padding_to_data;
-    /** Offset from memory origin to the current block, non-zero only in
-     * a description of a memory sub-block. */
-    ptrdiff_t offset_padding;
 } mkldnn_blocking_desc_t;
 
 typedef enum {
@@ -702,6 +694,17 @@ typedef struct {
     mkldnn_dims_t dims;
     /** Data type of the tensor elements. */
     mkldnn_data_type_t data_type;
+
+    /** Size of the data including padding in each dimension. */
+    mkldnn_dims_t padded_dims;
+    /** Per-dimension offset from the padding to actual data, the top-level
+     * tensor with offsets applied must lie within the padding area. */
+    mkldnn_dims_t padded_offsets;
+
+    /** Offset from memory origin to the current block, non-zero only in
+     * a description of a memory sub-block. */
+    mkldnn_dim_t offset0;
+
     /** Memory format. */
     mkldnn_memory_format_t format;
     union {

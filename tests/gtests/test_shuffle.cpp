@@ -49,7 +49,7 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     const int axis = p.axis;
     memory::dim inner_size = 1, outer_size = 1;
     const memory::dim axis_size = dims[axis];
-    const memory::dim padded_axis = in_d.data.layout_desc.blocking.padding_dims[axis];
+    const memory::dim padded_axis = in_d.data.padded_dims[axis];
 
     auto rev_transpose = [=] (memory::dim a) {
         memory::dim COL = axis_size / ROW;

@@ -90,7 +90,7 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
 
-    diff_dst += diff_dst_d.blocking_desc().offset_padding;
+    diff_dst += diff_dst_d.offset0();
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -108,7 +108,7 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
                 &beta, diff_weights, &IC);
 
     if (diff_bias) {
-        diff_bias += diff_bias_d.blocking_desc().offset_padding;
+        diff_bias += diff_bias_d.offset0();
         constexpr int blksize = 8;
         const int OC_blocks = OC / blksize;
         const int rem_OC = OC % blksize;

@@ -1044,8 +1044,8 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
 
     const size_t nelems = data_d.nelems(true);
 
-    src += data_d.blocking_desc().offset_padding;
-    dst += data_d.blocking_desc().offset_padding;
+    src += data_d.offset0();
+    dst += data_d.offset0();
 
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
@@ -1107,9 +1107,9 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
 
     const size_t nelems = data_d.nelems();
 
-    src += data_d.blocking_desc().offset_padding;
-    diff_dst += diff_data_d.blocking_desc().offset_padding;
-    diff_src += diff_data_d.blocking_desc().offset_padding;
+    src += data_d.offset0();
+    diff_dst += diff_data_d.offset0();
+    diff_src += diff_data_d.offset0();
 
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};

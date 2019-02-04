@@ -126,7 +126,7 @@ typename utils::enable_if<fmt_i == any && (false
         static constexpr bool w_groups = fmt_o == hwigo_s8s8;
 
         const auto &dims = input_d.dims();
-        const auto &pdims = output_d.blocking_desc().padding_dims;
+        const auto &pdims = output_d.padded_dims();
 
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
@@ -197,8 +197,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
-            ? output_d.blocking_desc().padding_dims
-            : input_d.blocking_desc().padding_dims;
+            ? output_d.padded_dims()
+            : input_d.padded_dims();
 
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
@@ -293,7 +293,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int blksize = 16;
 
         const auto &dims = input_d.dims();
-        const auto &pdims = output_d.blocking_desc().padding_dims;
+        const auto &pdims = output_d.padded_dims();
         const int G = dims[0];
         const int Gp = pdims[0];
         const int OC = dims[1];
@@ -443,8 +443,8 @@ typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
 
         const auto &nchw8c_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
-        const auto &pdims = order_keep ? output_d.blocking_desc().padding_dims
-                                       : input_d.blocking_desc().padding_dims;
+        const auto &pdims = order_keep ? output_d.padded_dims()
+                                       : input_d.padded_dims();
         const auto stride_8c = nchw8c_d.blocking_desc().strides[0];
 
         const int C = dims[1];
@@ -530,8 +530,8 @@ typename utils::enable_if<fmt_i == any && (false
         const auto &flat_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
-            ? output_d.blocking_desc().padding_dims
-            : input_d.blocking_desc().padding_dims;
+            ? output_d.padded_dims()
+            : input_d.padded_dims();
 
         const int C = dims[1];
         const int D = is_3d ? dims[2] : 1;
@@ -614,8 +614,8 @@ typename utils::enable_if<fmt_i == any
         const auto &flat_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
-            ? output_d.blocking_desc().padding_dims
-            : input_d.blocking_desc().padding_dims;
+            ? output_d.padded_dims()
+            : input_d.padded_dims();
 
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
@@ -704,8 +704,8 @@ typename utils::enable_if<fmt_i == any && (false
         const auto &flat_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
-            ? output_d.blocking_desc().padding_dims
-            : input_d.blocking_desc().padding_dims;
+            ? output_d.padded_dims()
+            : input_d.padded_dims();
 
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
@@ -934,7 +934,7 @@ private:
         for (int d = 1; d < data_d.ndims(); ++d) {
             auto block = blk.block_dims[d];
             max_size = nstl::max(max_size,
-                    size_t(size_t(blk.padding_dims[d] / block)
+                    size_t(size_t(data_d.padded_dims()[d] / block)
                         * blk.strides[0][d]));
             if (block > 1)
                 max_size = nstl::max(max_size,

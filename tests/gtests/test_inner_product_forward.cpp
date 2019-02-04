@@ -45,7 +45,7 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(ipd.mb, ipd.oc, [&](memory::dim n, memory::dim oc) {
         memory::dim oidx = n * ipd.oc + oc;

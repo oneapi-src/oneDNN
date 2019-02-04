@@ -117,8 +117,8 @@ inline memory::dim map_index(const memory::desc &md, memory::dim index,
 
     const int ndims = md.data.ndims;
     const auto *dims = md.data.dims;
-    const auto *pdims = md.data.layout_desc.blocking.padding_dims;
-    const auto *optd = md.data.layout_desc.blocking.offset_padding_to_data;
+    const auto *pdims = md.data.padded_dims;
+    const auto *optd = md.data.padded_offsets;
 
     auto *strides_block = md.data.layout_desc.blocking.strides[0];
     auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
@@ -168,7 +168,7 @@ inline memory::dim map_index(const memory::desc &md, memory::dim index,
             EXPECT_GE(ph_index, 16 * oc_sb);
             ph_index -= 16 * oc_sb;
         }
-    ph_index += md.data.layout_desc.blocking.offset_padding;
+    ph_index += md.data.offset0;
 
     return ph_index;
 }
@@ -183,7 +183,7 @@ void check_zero_tail(int set_zero_flag, memory &src) {
     const memory::desc src_d = src.get_desc();
     const int ndims = src_d.data.ndims;
     const auto *dims = src_d.data.dims;
-    const auto *pdims = src_d.data.layout_desc.blocking.padding_dims;
+    const auto *pdims = src_d.data.padded_dims;
 
     memory::dim idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
     memory::dim nelems = 1;

@@ -267,7 +267,7 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     });
 
     if (diff_bias) {
-        diff_bias += diff_bias_d.blocking_desc().offset_padding;
+        diff_bias += diff_bias_d.offset0();
 
         parallel_nd(OC, [&](int oc) {
             data_t *db = &diff_bias[oc];

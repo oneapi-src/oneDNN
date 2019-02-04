@@ -67,7 +67,7 @@ void check_bnrm_fwd(const test_bnrm_params_t &p,
 
     data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    auto padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
         data_t ref_mean = calculate_stats ? data_t(0) : mean_data[c];
@@ -182,7 +182,7 @@ void check_bnrm_bwd(const test_bnrm_params_t &p,
 
     const data_t eps = static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
-    auto padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
         data_t ref_diff_gamma = data_t(0);

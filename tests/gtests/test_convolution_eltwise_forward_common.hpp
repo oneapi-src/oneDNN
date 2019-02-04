@@ -40,8 +40,8 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
     const memory::desc weights_d = weights.get_desc();
     const memory::desc dst_d = dst.get_desc();
 
-    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
-    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.padded_dims[1];
+    auto padded_oc = dst_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,

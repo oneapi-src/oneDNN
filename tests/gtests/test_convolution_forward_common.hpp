@@ -47,8 +47,8 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
     data_t_dst *bias_data = w_bias ? (data_t_dst *)bias.get_data_handle() : nullptr;
     data_t_dst *dst_data = (data_t_dst *)dst.get_data_handle();
 
-    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
-    auto padded_oc = dst_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.padded_dims[1];
+    auto padded_oc = dst_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](memory::dim n, memory::dim g, memory::dim oc,

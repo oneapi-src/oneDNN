@@ -158,7 +158,7 @@ struct jit_bnorm_t: public jit_generator {
 
     bool is_c_padded() const {
         const memory_desc_wrapper data_d(bdesc_->src_md());
-        return bdesc_->C() != data_d.blocking_desc().padding_dims[1];
+        return bdesc_->C() != data_d.padded_dims()[1];
     }
 
     void compute_static_strides() {
@@ -1228,7 +1228,7 @@ private:
     }
 
     static int get_c_padded(const batch_normalization_pd_t *bdesc)
-    { return bdesc->src_md()->layout_desc.blocking.padding_dims[1]; }
+    { return bdesc->src_md()->padded_dims[1]; }
 
     const batch_normalization_pd_t *bdesc_;
     bool do_blocking_;
@@ -1267,7 +1267,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         init_default_ws(1);
     }
 
-    if (memory_desc_wrapper(src_md()).blocking_desc().padding_dims[1] != C()
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
             && isa < avx2)
         return status::unimplemented;
 
@@ -1336,7 +1336,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
         && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
-    if (memory_desc_wrapper(src_md()).blocking_desc().padding_dims[1] != C()
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
             && isa < avx2)
         return status::unimplemented;
 

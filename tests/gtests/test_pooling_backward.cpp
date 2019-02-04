@@ -55,7 +55,7 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
     auto apply_offset = [=](memory::dim index, memory::dim offset) {
         return (index > offset) ? index - offset : 0;
     };
-    auto padded_c = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_c = src_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
         [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,

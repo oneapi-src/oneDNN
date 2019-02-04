@@ -71,7 +71,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
 
     const int MB = pd()->MB();
     const int C = pd()->C() / block;
-    const int C_PADDED = blk.padding_dims[1] / block;
+    const int C_PADDED = data_d.padded_dims()[1] / block;
     const int tail = pd()->C() % block;
     const int SP = pd()->D() * pd()->H() * pd()->W();
     const auto alg_kind = pd()->desc()->alg_kind;
@@ -161,8 +161,8 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     const float alpha = pd()->desc()->alpha;
     const float beta  = pd()->desc()->beta;
 
-    src += data_d.blocking_desc().offset_padding;
-    dst += data_d.blocking_desc().offset_padding;
+    src += data_d.offset0();
+    dst += data_d.offset0();
 
     if (alg_kind == eltwise_relu) {
         // a fast path for relu as the most popular activation
@@ -257,9 +257,9 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    src += data_d.blocking_desc().offset_padding;
-    diff_dst += diff_data_d.blocking_desc().offset_padding;
-    diff_src += diff_data_d.blocking_desc().offset_padding;
+    src += data_d.offset0();
+    diff_dst += diff_data_d.offset0();
+    diff_src += diff_data_d.offset0();
 
     parallel_nd(nelems, [&](ptrdiff_t e) {
         const data_t dd = diff_dst[e];

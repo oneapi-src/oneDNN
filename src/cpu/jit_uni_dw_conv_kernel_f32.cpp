@@ -388,9 +388,9 @@ status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
         && weights_d.format() == desired_wei_fmt
         && one_of(cd.bias_desc.format, memory_format::undef, any, x)
         && dst_d.format() == desired_act_fmt
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
-        && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= dst_d.padded_dims()[1]
+        && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
 
     jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
@@ -676,9 +676,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
         && diff_dst_d.format() == desired_act_fmt
         && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
         && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
-        && jcp.ic <= diff_src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
-        && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
+        && jcp.ic <= diff_src_d.padded_dims()[1]
+        && jcp.oc <= diff_dst_d.padded_dims()[1]
+        && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
 
     jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;

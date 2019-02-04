@@ -60,7 +60,7 @@ void compute_ref_inner_product_bwd_weights(int ndims,
     const memory::desc diff_weights_d = diff_weights.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
 
-    auto padded_ic = src_d.data.layout_desc.blocking.padding_dims[1];
+    auto padded_ic = src_d.data.padded_dims[1];
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;

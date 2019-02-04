@@ -412,10 +412,10 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         return status::unimplemented;
 
     bool layout_consistency = true
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= dst_d.padded_dims()[1]
+        && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!layout_consistency) return status::unimplemented;
 
     return status::success;
@@ -1088,10 +1088,10 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
 
     bool layout_consistency = true
-        && jcp.ic <= src_d.blocking_desc().padding_dims[1]
-        && jcp.oc <= diff_dst_d.blocking_desc().padding_dims[1]
-        && jcp.ic <= diff_weights_d.blocking_desc().padding_dims[with_groups + 1]
-        && jcp.oc <= diff_weights_d.blocking_desc().padding_dims[with_groups + 0];
+        && jcp.ic <= src_d.padded_dims()[1]
+        && jcp.oc <= diff_dst_d.padded_dims()[1]
+        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
+        && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!layout_consistency) return status::unimplemented;
 
     /*************************** New Kernel Parameters

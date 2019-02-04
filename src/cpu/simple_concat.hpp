@@ -126,7 +126,7 @@ struct simple_concat_t: public cpu_primitive_t {
             for (int d = perm_[concat_dim()]; d < data_d.ndims(); ++d) {
                 auto block = blk.block_dims[iperm_[d]];
                 max_size = nstl::max<size_t>(max_size,
-                        size_t(blk.padding_dims[iperm_[d]] / block)
+                        size_t(data_d.padded_dims()[iperm_[d]] / block)
                         * blk.strides[0][iperm_[d]]);
                 if (block > 1) max_size = nstl::max(max_size,
                         size_t(block * blk.strides[1][iperm_[d]]));
