@@ -51,7 +51,7 @@ static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
 
 #define IMPLICATION(cause, effect) (!(cause) || !!(effect))
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__GNUC__)
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
