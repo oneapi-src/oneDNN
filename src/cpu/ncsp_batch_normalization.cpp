@@ -48,7 +48,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     data_t *mean, *variance;
@@ -233,7 +233,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward(
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
     auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
     if (diff_scaleshift == nullptr)

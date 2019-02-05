@@ -62,7 +62,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
     data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
     if (inner_size_ > 1) {
         using namespace memory_tracking::names;
-        space_max = scratchpad().template get<data_t>(key_softmax_reduction);
+        space_max = scratchpad(ctx).template get<data_t>(key_softmax_reduction);
         space_denom = space_max + inner_size_;
     }
 

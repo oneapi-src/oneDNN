@@ -184,11 +184,14 @@ protected:
             auto conv_primitive_desc =
                 convolution_forward::primitive_desc(conv_desc, attr, eng);
 
+            auto scratchpad = memory(
+                    conv_primitive_desc.scratchpad_desc(), eng);
             convolution_forward(conv_primitive_desc).execute(strm, {
                     {MKLDNN_ARG_SRC, c_src},
                     {MKLDNN_ARG_WEIGHTS, c_weights},
                     {MKLDNN_ARG_BIAS, c_bias},
-                    {MKLDNN_ARG_DST, c_dst}});
+                    {MKLDNN_ARG_DST, c_dst},
+                    {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
         };
 
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))

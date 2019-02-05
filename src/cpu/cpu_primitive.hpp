@@ -34,34 +34,18 @@ namespace cpu {
 struct cpu_memory_t;
 
 struct cpu_primitive_t: public primitive_t {
-    cpu_primitive_t(const primitive_desc_t *pd,
-            bool use_global_scratchpad = false)
-        : primitive_t(pd)
-        , scratchpad_buffer_(nullptr)
-        , global_scratchpad_(nullptr)
-    {
-        size_t scratchpad_size = this->pd()->scratchpad_registry().size();
-        if (use_global_scratchpad)
-            global_scratchpad_ = create_scratchpad(scratchpad_size);
-        else
-            scratchpad_buffer_ = malloc(scratchpad_size, 64);
-    }
+    cpu_primitive_t(const primitive_desc_t *pd)
+        : primitive_t(pd) { }
 
-    virtual ~cpu_primitive_t() {
-        delete global_scratchpad_;
-        free(scratchpad_buffer_);
-    }
+    virtual ~cpu_primitive_t() { }
 
 protected:
-    memory_tracking::grantor_t scratchpad() const {
-        return pd()->scratchpad_registry().grantor(global_scratchpad_
-                ? global_scratchpad_->get() : scratchpad_buffer_);
+    memory_tracking::grantor_t scratchpad(const exec_ctx_t &ctx) const {
+        return pd()->scratchpad_registry().grantor(
+                CTX_OUT_MEM(void *, MKLDNN_ARG_SCRATCHPAD));
     }
 
 private:
-    /* quite ugly, but luckily both will get away in v1.0 */
-    void *scratchpad_buffer_;
-    scratchpad_t *global_scratchpad_;
 };
 
 }

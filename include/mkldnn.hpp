@@ -306,6 +306,8 @@ enum query {
     time_estimate_f64 = mkldnn_query_time_estimate_f64,
     memory_consumption_s64 = mkldnn_query_memory_consumption_s64,
 
+    query_scratchpad_engine = mkldnn_query_scratchpad_engine,
+
     impl_info_str = mkldnn_query_impl_info_str,
 
     op_d = mkldnn_query_op_d,
@@ -327,6 +329,7 @@ enum query {
     dst_md = mkldnn_query_dst_md,
     diff_dst_md = mkldnn_query_diff_dst_md,
     workspace_md = mkldnn_query_workspace_md,
+    scratchpad_md = mkldnn_query_scratchpad_md,
 };
 
 inline mkldnn_query_t convert_to_c(query aquery) {
@@ -950,6 +953,24 @@ struct reorder : public primitive {
             reset(result);
         }
 
+        memory::desc scratchpad_desc() const {
+            const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
+                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+            if (cdesc == nullptr)
+                return memory::desc();
+            return memory::desc(*cdesc);
+        }
+
+        engine scratchpad_engine() {
+            mkldnn_engine_t engine_q;
+            error::wrap_c_api(
+                mkldnn_primitive_desc_query(get(),
+                    mkldnn::convert_to_c(query_scratchpad_engine), 0, &engine_q),
+                "could not get scratchpad engine from reorder primitive_desc");
+
+            return engine(engine_q);
+        }
+
         engine get_engine() { return engine::query(*this); }
     };
 
@@ -958,9 +979,10 @@ struct reorder : public primitive {
     reorder(const memory &src, const memory &dst):
         primitive(primitive_desc(src, dst).get()) {}
 
-    void execute(stream astream, memory &src, memory &dst) {
+    void execute(stream astream, memory &src, memory &dst, memory &scratchpad) {
         primitive::execute(astream,
-                {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst}});
+                {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst},
+                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
     }
 };
 
@@ -1012,6 +1034,14 @@ struct concat : public primitive {
             error::wrap_c_api(
                     cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
                     "could not get a dst memory descriptor");
+            return memory::desc(*cdesc);
+        }
+
+        memory::desc scratchpad_desc() const {
+            const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
+                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+            if (cdesc == nullptr)
+                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1077,6 +1107,14 @@ struct sum : public primitive {
             error::wrap_c_api(
                     cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
                     "could not get a dst memory descriptor");
+            return memory::desc(*cdesc);
+        }
+
+        memory::desc scratchpad_desc() const {
+            const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
+                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+            if (cdesc == nullptr)
+                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1153,7 +1191,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
     /// Queries and returns requested memory primitive descriptor.
     memory::desc query_md(query what, int idx = 0) const {
         std::vector<query> valid_q{src_md, diff_src_md, weights_md,
-            diff_weights_md, dst_md, diff_dst_md, workspace_md};
+            diff_weights_md, dst_md, diff_dst_md, workspace_md, scratchpad_md};
         if (!std::any_of(valid_q.cbegin(), valid_q.cend(),
                     [=](query q) { return what == q; }))
             throw error(mkldnn_invalid_arguments, "invalid memory query");
@@ -1286,6 +1324,7 @@ struct convolution_forward: public primitive {
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(bias, weights, 1);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     convolution_forward(const primitive_desc &pd): primitive(pd) {}
@@ -1347,6 +1386,7 @@ struct convolution_backward_data : public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     convolution_backward_data(const primitive_desc &pd): primitive(pd) {}
@@ -1451,6 +1491,7 @@ struct convolution_backward_weights : public primitive {
         REG_QUERY_MD(diff_weights, diff_weights, 0);
         REG_QUERY_MD(diff_bias, diff_weights, 1);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     convolution_backward_weights(const primitive_desc &pd): primitive(pd) {}
@@ -1558,6 +1599,7 @@ struct deconvolution_forward: public primitive {
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(bias, weights, 1);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     deconvolution_forward(const primitive_desc &pd): primitive(pd) {}
@@ -1618,6 +1660,7 @@ struct deconvolution_backward_data : public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     deconvolution_backward_data(const primitive_desc &pd): primitive(pd) {}
@@ -1721,6 +1764,7 @@ struct deconvolution_backward_weights : public primitive {
         REG_QUERY_MD(diff_weights, diff_weights, 0);
         REG_QUERY_MD(diff_bias, diff_weights, 1);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     deconvolution_backward_weights(const primitive_desc &pd): primitive(pd) {}
@@ -1759,6 +1803,7 @@ struct lrn_forward : public primitive {
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     lrn_forward(const primitive_desc &pd): primitive(pd) {}
@@ -1790,6 +1835,7 @@ struct lrn_backward : public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     lrn_backward(const primitive_desc &pd): primitive(pd) {}
@@ -1839,6 +1885,7 @@ struct pooling_forward : public primitive {
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     pooling_forward(const primitive_desc &pd): primitive(pd) {}
@@ -1881,6 +1928,7 @@ struct pooling_backward : public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     pooling_backward(const primitive_desc &pd): primitive(pd) {}
@@ -1918,6 +1966,7 @@ struct eltwise_forward : public primitive {
 
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     eltwise_forward(const primitive_desc &pd): primitive(pd) {}
@@ -1950,6 +1999,7 @@ struct eltwise_backward : public primitive {
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     eltwise_backward(const primitive_desc &pd): primitive(pd) {}
@@ -1984,6 +2034,7 @@ struct softmax_forward : public primitive {
 
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     softmax_forward(const primitive_desc &pd): primitive(pd) {}
@@ -2013,6 +2064,7 @@ struct softmax_backward : public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     softmax_backward(const primitive_desc &pd): primitive(pd) {}
@@ -2051,6 +2103,7 @@ struct batch_normalization_forward : public primitive {
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
 
         memory::desc mean_desc() const { return stat_desc(mean); }
         memory::desc variance_desc() const { return stat_desc(var); }
@@ -2103,6 +2156,7 @@ struct batch_normalization_backward : public primitive {
 
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_weights, diff_weights, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     batch_normalization_backward(const primitive_desc &pd): primitive(pd) {}
@@ -2152,6 +2206,7 @@ struct inner_product_forward: public primitive {
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(bias, weights, 1);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     inner_product_forward(const primitive_desc &pd): primitive(pd) {}
@@ -2183,6 +2238,7 @@ struct inner_product_backward_data: public primitive {
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(weights, weights, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     inner_product_backward_data(const primitive_desc &pd): primitive(pd) {}
@@ -2225,6 +2281,7 @@ struct inner_product_backward_weights: public primitive {
         REG_QUERY_MD(diff_weights, diff_weights, 0);
         REG_QUERY_MD(diff_bias, diff_weights, 1);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     inner_product_backward_weights(const primitive_desc &pd): primitive(pd) {}
@@ -2318,6 +2375,7 @@ struct rnn_forward : public primitive {
         REG_QUERY_MD(dst_layer, dst, 0);
         REG_QUERY_MD(dst_iter, dst, 1);
         REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     rnn_forward(const primitive_desc &pd): primitive(pd) {}
@@ -2383,6 +2441,7 @@ struct rnn_backward : public primitive {
         REG_QUERY_MD(diff_bias, diff_weights, 2);
         REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
         REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     // With last iteration (with and without input src_iter)
@@ -2415,6 +2474,7 @@ struct shuffle_forward : public primitive {
 
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     shuffle_forward(const primitive_desc &pd): primitive(pd) {}
@@ -2437,6 +2497,7 @@ struct shuffle_backward : public primitive {
 
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
     shuffle_backward(const primitive_desc &pd): primitive(pd) {}

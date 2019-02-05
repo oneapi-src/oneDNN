@@ -95,7 +95,7 @@ struct gemm_convolution_fwd_t: public cpu_primitive_t {
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true)
+        : cpu_primitive_t(apd)
         , eltwise_(nullptr)
     {
         const auto &post_ops = pd()->attr()->post_ops_;
@@ -174,7 +174,7 @@ struct gemm_convolution_bwd_data_t: public cpu_primitive_t {
     };
 
     gemm_convolution_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {}
+        : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -236,7 +236,7 @@ struct gemm_convolution_bwd_weights_t: public cpu_primitive_t {
     };
 
     gemm_convolution_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {}
+        : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 

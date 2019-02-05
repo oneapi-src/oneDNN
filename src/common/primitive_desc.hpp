@@ -52,13 +52,19 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     { return scratchpad_registry_; }
     const mkldnn::impl::memory_tracking::registry_t &scratchpad_registry() const
     { return scratchpad_registry_; }
+    virtual mkldnn::impl::engine_t *scratchpad_engine() const
+    { return engine_; }
 
     virtual const mkldnn::impl::op_desc_t *op_desc() const { return nullptr; }
 
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(
-            mkldnn::impl::primitive_arg_index_t arg) const
-    { UNUSED(arg); return arg_usage_t::unused; }
+            mkldnn::impl::primitive_arg_index_t arg) const {
+        using mkldnn::impl::types::is_zero_md;
+        if (arg == MKLDNN_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
+            return arg_usage_t::output;
+        return arg_usage_t::unused;
+    }
 
 #   define DECLARE_MD_STUB(stub) \
     virtual const mkldnn::impl::memory_desc_t *stub(int idx = 0) const \
@@ -70,6 +76,17 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     DECLARE_MD_STUB(weights_md); DECLARE_MD_STUB(diff_weights_md);
     DECLARE_MD_STUB(workspace_md);
 #   undef DECLARE_MD_STUB
+
+    const mkldnn::impl::memory_desc_t *scratchpad_md(int idx = 0) const {
+        return idx == 0 ? &scratchpad_md_ : nullptr;
+    }
+
+    virtual void init_scratchpad_md() {
+        auto size = (mkldnn::impl::dim_t)scratchpad_registry().size();
+        mkldnn::impl::dims_t dims = { size };
+        mkldnn_memory_desc_init(&scratchpad_md_, size ? 1 : 0, dims,
+                mkldnn::impl::data_type::u8, mkldnn_x);
+    }
 
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
@@ -101,6 +118,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         if (_pd == nullptr) return out_of_memory;
         if (_pd->init() != success) { delete _pd; return unimplemented; }
         _pd->init_info();
+        _pd->init_scratchpad_md();
         *pd = _pd;
         return success;
     }
@@ -109,6 +127,8 @@ protected:
     mkldnn::impl::engine_t *engine_;
     mkldnn::impl::primitive_attr_t attr_;
     mkldnn::impl::primitive_kind_t kind_;
+
+    mkldnn::impl::memory_desc_t scratchpad_md_;
 
     char info_[MKLDNN_VERBOSE_BUF_LEN];
 

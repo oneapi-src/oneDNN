@@ -270,18 +270,29 @@ void simple_net() {
             = memory(enc_bidir_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_bidir_wei_layer_reorder_pd = reorder::primitive_desc(
             user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory);
-    reorder(enc_bidir_wei_layer_reorder_pd).execute(s,
-            user_enc_bidir_wei_layer_memory, enc_bidir_wei_layer_memory);
+    auto enc_bidir_wei_layer_reorder_scratchpad = memory(
+            enc_bidir_wei_layer_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_bidir_wei_layer_reorder_pd)
+            .execute(s, user_enc_bidir_wei_layer_memory,
+                    enc_bidir_wei_layer_memory,
+                    enc_bidir_wei_layer_reorder_scratchpad);
 
     auto enc_bidir_wei_iter_memory
             = memory(enc_bidir_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_bidir_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory);
-    reorder(enc_bidir_wei_iter_reorder_pd).execute(s,
-            user_enc_bidir_wei_iter_memory, enc_bidir_wei_iter_memory);
+    auto enc_bidir_wei_iter_reorder_scratchpad = memory(
+            enc_bidir_wei_iter_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_bidir_wei_iter_reorder_pd)
+            .execute(s, user_enc_bidir_wei_iter_memory,
+                    enc_bidir_wei_iter_memory,
+                    enc_bidir_wei_iter_reorder_scratchpad);
 
     auto enc_bidir_dst_layer_memory
             = mkldnn::memory(enc_bidir_prim_desc.dst_layer_desc(), cpu_engine);
+
+    auto enc_bidir_scratchpad_memory
+            = mkldnn::memory(enc_bidir_prim_desc.scratchpad_desc(), cpu_engine);
 
     encoder_net.push_back(rnn_forward(enc_bidir_prim_desc));
     encoder_net_args.push_back({
@@ -289,7 +300,8 @@ void simple_net() {
             {MKLDNN_ARG_WEIGHTS_LAYER, enc_bidir_wei_layer_memory},
             {MKLDNN_ARG_WEIGHTS_ITER, enc_bidir_wei_iter_memory},
             {MKLDNN_ARG_BIAS, user_enc_bidir_bias_memory},
-            {MKLDNN_ARG_DST_LAYER, enc_bidir_dst_layer_memory}});
+            {MKLDNN_ARG_DST_LAYER, enc_bidir_dst_layer_memory},
+            {MKLDNN_ARG_SCRATCHPAD, enc_bidir_scratchpad_memory}});
 
     /* GNMT encoder: unidirectional layers */
     // First unidirectinal layer scales 2 * feature_size output of bidirectional
@@ -352,20 +364,32 @@ void simple_net() {
 
     auto enc_uni_first_wei_layer_memory
             = memory(enc_uni_first_prim_desc.weights_layer_desc(), cpu_engine);
-    auto enc_uni_first_wei_layer_reorder_pd = reorder::primitive_desc(
-            user_enc_uni_first_wei_layer_memory, enc_uni_first_wei_layer_memory);
-    reorder(enc_uni_first_wei_layer_reorder_pd).execute(s,
-            user_enc_uni_first_wei_layer_memory, enc_uni_first_wei_layer_memory);
+    auto enc_uni_first_wei_layer_reorder_pd
+            = reorder::primitive_desc(user_enc_uni_first_wei_layer_memory,
+                    enc_uni_first_wei_layer_memory);
+    auto enc_uni_first_wei_layer_reorder_scratchpad = memory(
+            enc_uni_first_wei_layer_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_uni_first_wei_layer_reorder_pd)
+            .execute(s, user_enc_uni_first_wei_layer_memory,
+                    enc_uni_first_wei_layer_memory,
+                    enc_uni_first_wei_layer_reorder_scratchpad);
 
     auto enc_uni_first_wei_iter_memory
             = memory(enc_uni_first_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_uni_first_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory);
-    reorder(enc_uni_first_wei_iter_reorder_pd).execute(s,
-            user_enc_uni_first_wei_iter_memory, enc_uni_first_wei_iter_memory);
+    auto enc_uni_first_wei_iter_reorder_scratchpad = memory(
+            enc_uni_first_wei_iter_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_uni_first_wei_iter_reorder_pd)
+            .execute(s, user_enc_uni_first_wei_iter_memory,
+                    enc_uni_first_wei_iter_memory,
+                    enc_uni_first_wei_iter_reorder_scratchpad);
 
     auto enc_uni_first_dst_layer_memory = mkldnn::memory(
             enc_uni_first_prim_desc.dst_layer_desc(), cpu_engine);
+
+    auto enc_uni_first_scratchpad_memory = mkldnn::memory(
+            enc_uni_first_prim_desc.scratchpad_desc(), cpu_engine);
 
     /// @todo add a reorder when they will be available
     encoder_net.push_back(rnn_forward(enc_uni_first_prim_desc));
@@ -374,7 +398,8 @@ void simple_net() {
             {MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_first_wei_layer_memory},
             {MKLDNN_ARG_WEIGHTS_ITER, enc_uni_first_wei_iter_memory},
             {MKLDNN_ARG_BIAS, user_enc_uni_first_bias_memory},
-            {MKLDNN_ARG_DST_LAYER, enc_uni_first_dst_layer_memory}});
+            {MKLDNN_ARG_DST_LAYER, enc_uni_first_dst_layer_memory},
+            {MKLDNN_ARG_SCRATCHPAD, enc_bidir_scratchpad_memory}});
 
     /* Remainging unidirectional layers */
     std::vector<float> user_enc_uni_wei_layer((enc_unidir_n_layers - 1) * 1
@@ -429,18 +454,27 @@ void simple_net() {
             = memory(enc_uni_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_uni_wei_layer_reorder_pd = reorder::primitive_desc(
             user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory);
-    reorder(enc_uni_wei_layer_reorder_pd).execute(s,
-            user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory);
+    auto enc_uni_wei_layer_reorder_scratchpad = memory(
+            enc_uni_wei_layer_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_uni_wei_layer_reorder_pd)
+            .execute(s, user_enc_uni_wei_layer_memory, enc_uni_wei_layer_memory,
+                    enc_uni_wei_layer_reorder_scratchpad);
 
     auto enc_uni_wei_iter_memory
             = memory(enc_uni_prim_desc.weights_iter_desc(), cpu_engine);
     auto enc_uni_wei_iter_reorder_pd = reorder::primitive_desc(
             user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory);
-    reorder(enc_uni_wei_iter_reorder_pd).execute(s,
-            user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory);
+    auto enc_uni_wei_iter_reorder_scratchpad
+            = memory(enc_uni_wei_iter_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(enc_uni_wei_iter_reorder_pd)
+            .execute(s, user_enc_uni_wei_iter_memory, enc_uni_wei_iter_memory,
+                    enc_uni_wei_iter_reorder_scratchpad);
 
     auto enc_dst_layer_memory
             = mkldnn::memory(enc_uni_prim_desc.dst_layer_desc(), cpu_engine);
+
+    auto enc_uni_scratchpad_memory
+            = mkldnn::memory(enc_uni_prim_desc.scratchpad_desc(), cpu_engine);
 
     /// @todo add a reorder when they will be available
     encoder_net.push_back(rnn_forward(enc_uni_prim_desc));
@@ -449,7 +483,8 @@ void simple_net() {
             {MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_wei_layer_memory},
             {MKLDNN_ARG_WEIGHTS_ITER, enc_uni_wei_iter_memory},
             {MKLDNN_ARG_BIAS, user_enc_uni_bias_memory},
-            {MKLDNN_ARG_DST_LAYER, enc_dst_layer_memory}});
+            {MKLDNN_ARG_DST_LAYER, enc_dst_layer_memory},
+            {MKLDNN_ARG_SCRATCHPAD, enc_uni_scratchpad_memory}});
 
     /* GNMT: decoder with attention mechanism */
     std::vector<float> user_dec_wei_layer(
@@ -543,15 +578,24 @@ void simple_net() {
             = memory(dec_ctx_prim_desc.weights_layer_desc(), cpu_engine);
     auto dec_wei_layer_reorder_pd = reorder::primitive_desc(
             user_dec_wei_layer_memory, dec_wei_layer_memory);
-    reorder(dec_wei_layer_reorder_pd).execute(s,
-            user_dec_wei_layer_memory, dec_wei_layer_memory);
+    auto dec_wei_layer_reorder_scratchpad
+            = memory(dec_wei_layer_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(dec_wei_layer_reorder_pd)
+            .execute(s, user_dec_wei_layer_memory, dec_wei_layer_memory,
+                    dec_wei_layer_reorder_scratchpad);
 
     auto dec_wei_iter_memory
             = memory(dec_ctx_prim_desc.weights_iter_desc(), cpu_engine);
     auto dec_wei_iter_reorder_pd = reorder::primitive_desc(
             user_dec_wei_iter_memory, dec_wei_iter_memory);
-    reorder(dec_wei_iter_reorder_pd).execute(s,
-            user_dec_wei_iter_memory, dec_wei_iter_memory);
+    auto dec_wei_iter_reorder_scratchpad
+            = memory(dec_wei_iter_reorder_pd.scratchpad_desc(), cpu_engine);
+    reorder(dec_wei_iter_reorder_pd)
+            .execute(s, user_dec_wei_iter_memory, dec_wei_iter_memory,
+                    dec_wei_iter_reorder_scratchpad);
+
+    auto dec_ctx_scratchpad_memory
+            = mkldnn::memory(dec_ctx_prim_desc.scratchpad_desc(), cpu_engine);
 
     /// @todo add a reorder when they will be available
     decoder_net.push_back(rnn_forward(dec_ctx_prim_desc));
@@ -562,7 +606,8 @@ void simple_net() {
             {MKLDNN_ARG_WEIGHTS_ITER, dec_wei_iter_memory},
             {MKLDNN_ARG_BIAS, user_dec_bias_memory},
             {MKLDNN_ARG_DST_LAYER, user_dec_dst_layer_memory},
-            {MKLDNN_ARG_DST_ITER, dec_dst_iter_memory}});
+            {MKLDNN_ARG_DST_ITER, dec_dst_iter_memory},
+            {MKLDNN_ARG_SCRATCHPAD, dec_ctx_scratchpad_memory}});
 
     // allocating temporary buffer for attention mechanism
     std::vector<float> weighted_annotations(

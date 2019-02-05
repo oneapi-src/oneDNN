@@ -107,9 +107,11 @@ private:
         const;
     void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, dst_data_t *dst) const;
+            const char *bia, dst_data_t *dst,
+            const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
-            const char *bia, dst_data_t *dst) const;
+            const char *bia, dst_data_t *dst,
+            const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t *kernel_;

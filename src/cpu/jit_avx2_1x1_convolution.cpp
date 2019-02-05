@@ -51,7 +51,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad().get<data_t>(key_conv_rtus_space);
+    auto rtus_space = scratchpad(ctx).get<data_t>(key_conv_rtus_space);
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
     const int ndims = dst_d.ndims();
@@ -156,7 +156,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     };
 
     if (pd()->wants_padded_bias()) {
-        auto padded_bias = scratchpad().get<data_t>(key_conv_padded_bias);
+        auto padded_bias = scratchpad(ctx).get<data_t>(key_conv_padded_bias);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
                 jcp.oc - jcp.oc_without_padding);
@@ -182,7 +182,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad().get<data_t>(key_conv_rtus_space);
+    auto rtus_space = scratchpad(ctx).get<data_t>(key_conv_rtus_space);
 
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
@@ -301,7 +301,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper src_d(pd()->src_md());

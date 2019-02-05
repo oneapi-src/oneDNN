@@ -50,8 +50,11 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         }
     }
 
+    bool scratchpad_required = !types::is_zero_md(pd->scratchpad_md());
+
     if (n_inputs != pd->n_inputs()) return invalid_arguments;
-    if (n_outputs != pd->n_outputs()) return invalid_arguments;
+    if (n_outputs != pd->n_outputs() + (scratchpad_required ? 1 : 0))
+        return invalid_arguments;
 
     return success;
 }

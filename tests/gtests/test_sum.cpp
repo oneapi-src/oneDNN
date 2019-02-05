@@ -145,9 +145,11 @@ protected:
             [&](ptrdiff_t i) { dst_data[i] = -32; }
         );
 
+        auto scratchpad = memory(sum_pd->scratchpad_desc(), eng);
         sum c(*sum_pd);
         std::unordered_map<int, memory> args = {
-            {MKLDNN_ARG_DST, *dst}};
+            {MKLDNN_ARG_DST, *dst},
+            {MKLDNN_ARG_SCRATCHPAD, scratchpad}};
         for (int i = 0; i < (int)num_srcs; i++) {
             args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }

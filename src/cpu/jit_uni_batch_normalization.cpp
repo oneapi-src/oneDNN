@@ -1298,7 +1298,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     bnorm_driver_->init_barriers(scratchpad);
 
@@ -1373,7 +1373,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
     auto diff_scale_shift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     bnorm_driver_->init_barriers(scratchpad);
 

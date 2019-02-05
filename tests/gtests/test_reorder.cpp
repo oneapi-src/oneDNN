@@ -92,7 +92,11 @@ protected:
         auto src = memory(md_i, eng, src_data);
         auto dst = memory(md_o, eng, dst_data);
 
-        reorder(src, dst).execute(strm, src, dst);
+        auto reorder_pd = reorder::primitive_desc(src, dst);
+        auto scratchpad = memory(
+                reorder_pd.scratchpad_desc(), reorder_pd.scratchpad_engine());
+
+        reorder(reorder_pd).execute(strm, src, dst, scratchpad);
 
         check_reorder(md_i, md_o, src_data, dst_data);
         check_zero_tail<data_o_t>(0, dst);

@@ -432,9 +432,13 @@ int doit(const rnn_prb_t *p, res_t *r) {
     }
 
     args_t args;
-
+    dnn_mem_t *scratchpad = nullptr;
     // Running the forward pass
     {
+        const mkldnn_memory_desc_t *scratchpad_md
+                = mkldnn_primitive_desc_query_md(
+                        rpd[0], mkldnn_query_scratchpad_md, 0);
+        scratchpad = new dnn_mem_t(*scratchpad_md);
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[0]), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
 
@@ -443,6 +447,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_WEIGHTS_LAYER, weights_input_dt->m_);
         args.set(MKLDNN_ARG_WEIGHTS_ITER, weights_states_dt->m_);
         args.set(MKLDNN_ARG_BIAS, bias_dt->m_);
+        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad->m_);
 
         args.set(MKLDNN_ARG_DST_LAYER, dst_last_layer_dt->m_);
         args.set(MKLDNN_ARG_DST_ITER, dst_last_iteration_dt->m_);
@@ -469,6 +474,12 @@ int doit(const rnn_prb_t *p, res_t *r) {
     }
 
     if (is_bwd) {
+        const mkldnn_memory_desc_t *scratchpad_md
+                = mkldnn_primitive_desc_query_md(
+                        rpd[1], mkldnn_query_scratchpad_md, 0);
+        delete scratchpad;
+        scratchpad = new dnn_mem_t(*scratchpad_md);
+
         args.clear();
         DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
 
@@ -491,6 +502,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_DIFF_WEIGHTS_LAYER, dst_diff_weights_input_dt->m_);
         args.set(MKLDNN_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt->m_);
         args.set(MKLDNN_ARG_DIFF_BIAS, dst_diff_bias_dt->m_);
+        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad->m_);
 
 #ifdef CALL_MKLDNN_RNN
         DNN_SAFE(mkldnn_primitive_execute(c, stream, args.size(), args), WARN);
@@ -563,6 +575,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
     delete bias_fp;
     delete dst_last_layer_fp;
     delete dst_last_iteration_fp;
+    delete scratchpad;
 
     if (is_bwd) {
         delete bwd_weights_input_dt;

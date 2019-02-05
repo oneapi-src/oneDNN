@@ -61,7 +61,7 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        auto local_scales = scratchpad().template get<float>(
+        auto local_scales = scratchpad(ctx).template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
@@ -179,7 +179,7 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        auto local_scales = scratchpad().template get<float>(
+        auto local_scales = scratchpad(ctx).template get<float>(
                 key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;

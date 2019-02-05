@@ -129,11 +129,12 @@ void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
          : (d).blk_off(__VA_ARGS__))
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_common_convolution_fwd_t<src_type, wei_type, dst_type>::
-prepare_padded_bias(const dst_data_t *&bias) const {
+void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
+        dst_type>::prepare_padded_bias(const dst_data_t *&bias,
+        const memory_tracking::grantor_t &scratchpad) const {
     if (!pd()->wants_padded_bias()) return;
 
-    auto padded_bias = scratchpad().template get<dst_data_t>(
+    auto padded_bias = scratchpad.template get<dst_data_t>(
             key_conv_padded_bias);
     utils::array_copy(padded_bias, bias, pd()->jcp_.oc_without_padding);
     utils::array_set(padded_bias + pd()->jcp_.oc_without_padding,
@@ -150,7 +151,7 @@ execute_forward_1d(const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias);
+    prepare_padded_bias(bias, this->scratchpad(ctx));
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -241,7 +242,7 @@ execute_forward_2d(const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias);
+    prepare_padded_bias(bias, this->scratchpad(ctx));
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -362,7 +363,7 @@ execute_forward_3d(const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias);
+    prepare_padded_bias(bias, this->scratchpad(ctx));
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -923,7 +924,7 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     thread_info_t(const jit_avx512_common_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
-        : scratchpad(self->scratchpad()), ithr(ithr)
+        : scratchpad(self->scratchpad(ctx)), ithr(ithr)
     {
         diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
         src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
@@ -1539,10 +1540,10 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::prepare_scratchpad_data() const
+    diff_weights_type>::prepare_scratchpad_data(const exec_ctx_t &ctx) const
 {
     const auto &j = pd()->jcp_;
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     if (utils::one_of(j.ver, ver_4fma, ver_4vnni, ver_vnni)) {
         if (!j.is_1stconv) {
@@ -1595,7 +1596,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
-    prepare_scratchpad_data();
+    prepare_scratchpad_data(ctx);
 
     parallel(nthr_, [&](const int ithr, const int nthr) {
         assert(nthr_ == nthr);
@@ -1617,7 +1618,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     /* TODO: put that into compute_diff_bias() */
     if (pd()->wants_padded_bias()) {
-        auto diff_bias = scratchpad().template get<const diff_weights_data_t>(
+        auto diff_bias = scratchpad(ctx).template get<const diff_weights_data_t>(
                 key_conv_padded_bias);
         auto diff_bias_in = CTX_OUT_MEM(diff_weights_data_t *, MKLDNN_ARG_DIFF_BIAS);
         for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)

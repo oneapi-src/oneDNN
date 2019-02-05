@@ -77,9 +77,6 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         };
 
         status_t init() {
-            using namespace prop_kind;
-            status_t status;
-
             bool ok = true
                 && is_fwd()
                 && desc()->alg_kind == alg_kind::deconvolution_direct
@@ -91,13 +88,16 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
                             desc()->bias_desc.data_type, data_type::f32,
                             data_type::s32, data_type::s8, data_type::u8))
                 && desc()->accum_data_type == data_type::s32;
+            if (!ok) return status::unimplemented;
 
-            if (ok)
-                status = init_convolution();
-            else
-                status = status::unimplemented;
+            CHECK(init_convolution());
 
-            return status;
+            return status::success;
+        }
+
+        virtual void init_scratchpad_md() override {
+            const auto conv_1x1_pd = static_cast<conv_pd_t *>(conv_pd_);
+            scratchpad_md_ = *conv_1x1_pd->scratchpad_md();
         }
 
     protected:

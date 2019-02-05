@@ -132,7 +132,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     jit_avx512_common_convolution_winograd_fwd_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<true>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , cpu_primitive_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_fwd_t(){};
 
@@ -145,7 +145,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
         this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
-                (float *)bias, this->scratchpad());
+                (float *)bias, this->scratchpad(ctx));
         return status::success;
     }
 
@@ -205,7 +205,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<false>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , cpu_primitive_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t(){};
 
@@ -216,7 +216,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
         this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
-                (float *)weights, nullptr, this->scratchpad());
+                (float *)weights, nullptr, this->scratchpad(ctx));
         return status::success;
     }
 
@@ -275,7 +275,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     };
 
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), kernel_(nullptr)
+        : cpu_primitive_t(apd), kernel_(nullptr)
     {
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
                 pd()->jcp_);
@@ -288,7 +288,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
     virtual status_t execute(const exec_ctx_t &ctx) const override
     {
-        _execute_backward_weights_S_D_G_W(ctx, scratchpad());
+        _execute_backward_weights_S_D_G_W(ctx, scratchpad(ctx));
         return status::success;
     }
 

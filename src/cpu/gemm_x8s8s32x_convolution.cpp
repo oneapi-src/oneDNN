@@ -41,7 +41,7 @@ execute_forward(const exec_ctx_t &ctx) const {
     auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -637,7 +637,7 @@ execute_backward_data(const exec_ctx_t &ctx) const {
     auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 

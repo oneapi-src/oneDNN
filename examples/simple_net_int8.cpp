@@ -129,8 +129,11 @@ void simple_net_int8() {
         auto src_reorder_pd = reorder::primitive_desc(
                 cpu_engine, user_src_memory.get_desc(),
                 cpu_engine, conv_src_memory.get_desc(), src_attr);
+        auto src_reorder_scratchpad_memory
+                = memory(src_reorder_pd.scratchpad_desc(), cpu_engine);
         auto src_reorder = reorder(src_reorder_pd);
-        src_reorder.execute(s, user_src_memory, conv_src_memory);
+        src_reorder.execute(s, user_src_memory, conv_src_memory,
+                src_reorder_scratchpad_memory);
     }
 
     auto conv_weights_memory = memory(conv_prim_desc.weights_desc(), cpu_engine);
@@ -141,8 +144,11 @@ void simple_net_int8() {
         auto weight_reorder_pd = reorder::primitive_desc(
                 cpu_engine, user_weights_memory.get_desc(),
                 cpu_engine, conv_weights_memory.get_desc(), weight_attr);
+        auto weight_reorder_scratchpad_memory
+                = memory(weight_reorder_pd.scratchpad_desc(), cpu_engine);
         auto weight_reorder = reorder(weight_reorder_pd);
-        weight_reorder.execute(s, user_weights_memory, conv_weights_memory);
+        weight_reorder.execute(s, user_weights_memory, conv_weights_memory,
+                weight_reorder_scratchpad_memory);
     }
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), cpu_engine);
@@ -153,11 +159,16 @@ void simple_net_int8() {
         auto bias_reorder_pd = reorder::primitive_desc(
                 cpu_engine, user_bias_memory.get_desc(),
                 cpu_engine, conv_bias_memory.get_desc(), bias_attr);
+        auto bias_reorder_scratchpad_memory
+                = memory(bias_reorder_pd.scratchpad_desc(), cpu_engine);
         auto bias_reorder = reorder(bias_reorder_pd);
-        bias_reorder.execute(s, user_bias_memory, conv_bias_memory);
+        bias_reorder.execute(s, user_bias_memory, conv_bias_memory,
+                bias_reorder_scratchpad_memory);
     }
 
     auto conv_dst_memory = memory(conv_prim_desc.dst_desc(), cpu_engine);
+    auto conv_scratchpad_memory
+            = memory(conv_prim_desc.scratchpad_desc(), cpu_engine);
 
     /* create convolution primitive */
     auto conv = convolution_forward(conv_prim_desc);
@@ -165,7 +176,8 @@ void simple_net_int8() {
             {MKLDNN_ARG_SRC, conv_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv_weights_memory},
             {MKLDNN_ARG_BIAS, conv_bias_memory},
-            {MKLDNN_ARG_DST, conv_dst_memory}});
+            {MKLDNN_ARG_DST, conv_dst_memory},
+            {MKLDNN_ARG_SCRATCHPAD, conv_scratchpad_memory}});
 
     /* Convert data back into fp32 and compare values with u8.
      * Note: data is unsigned since there are no negative values
@@ -181,8 +193,11 @@ void simple_net_int8() {
         auto dst_reorder_pd = reorder::primitive_desc(
                 cpu_engine, conv_dst_memory.get_desc(),
                 cpu_engine, user_dst_memory.get_desc(), dst_attr);
+        auto dst_reorder_scratchpad_memory
+                = memory(dst_reorder_pd.scratchpad_desc(), cpu_engine);
         auto dst_reorder = reorder(dst_reorder_pd);
-        dst_reorder.execute(s, conv_dst_memory, user_dst_memory);
+        dst_reorder.execute(s, conv_dst_memory, user_dst_memory,
+                dst_reorder_scratchpad_memory);
     }
 }
 

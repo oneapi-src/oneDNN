@@ -168,12 +168,16 @@ protected:
         auto softmax_prim_desc
             = softmax_forward::primitive_desc(softmax_desc, eng);
         auto softmax = softmax_forward(softmax_prim_desc);
+        auto scratchpad = memory(softmax_prim_desc.scratchpad_desc(), eng);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(mem_desc.get_size() / sizeof(data_t),
                     (data_t *)src.get_data_handle(), mean, var);
 
-            softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+            softmax.execute(strm, {
+                    {MKLDNN_ARG_SRC, src},
+                    {MKLDNN_ARG_DST, dst},
+                    {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
             check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
         };
 

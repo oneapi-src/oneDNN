@@ -286,7 +286,6 @@ int doit(const prb_t *p, res_t *r) {
         return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&ip, ippd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(ippd), CRIT);
 
     auto &src_dt_d = p->dir == BWD_D ? ipd.diff_src_desc : ipd.src_desc;
     auto &wei_dt_d = p->dir & FLAG_WEI ? ipd.diff_weights_desc : ipd.weights_desc;
@@ -316,6 +315,11 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_BIA)
         SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
 
+    const mkldnn_memory_desc_t *scratchpad_md = mkldnn_primitive_desc_query_md(
+            ippd, mkldnn_query_scratchpad_md, 0);
+    auto scratchpad = dnn_mem_t(*scratchpad_md);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(ippd), CRIT);
+
     args_t args;
 
     if (p->dir & FLAG_FWD) {
@@ -324,6 +328,7 @@ int doit(const prb_t *p, res_t *r) {
         if (p->dir & FLAG_BIA)
             args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
         args.set(MKLDNN_ARG_DST, dst_dt.m_);
+        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
 
@@ -336,6 +341,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
         args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
         args.set(MKLDNN_ARG_DIFF_SRC, src_dt.m_);
+        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
 
@@ -350,6 +356,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.m_);
         if (p->dir & FLAG_BIA)
             args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
+        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
 
         DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
 

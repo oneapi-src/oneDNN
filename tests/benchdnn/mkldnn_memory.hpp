@@ -57,13 +57,28 @@ struct dnn_mem_t {
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
+
+        const mkldnn_memory_desc_t *scratchpad_md
+                = mkldnn_primitive_desc_query_md(
+                        rpd, mkldnn_query_scratchpad_md, 0);
+
+        mkldnn_engine_t scratchpad_engine;
+        mkldnn_primitive_desc_query(
+                rpd, mkldnn_query_scratchpad_engine, 0, &scratchpad_engine);
+
+        mkldnn_memory_t scratchpad_memory;
+        DNN_SAFE(mkldnn_memory_create(&scratchpad_memory, scratchpad_md,
+                scratchpad_engine, MKLDNN_NATIVE_HANDLE_ALLOCATE), CRIT);
 
         mkldnn_exec_arg_t args[] = {
             {MKLDNN_ARG_FROM, rhs.m_},
             {MKLDNN_ARG_TO, m_},
+            {MKLDNN_ARG_SCRATCHPAD, scratchpad_memory}
         };
-        DNN_SAFE(mkldnn_primitive_execute(r, stream, 2, args), WARN);
+        DNN_SAFE(mkldnn_primitive_execute(r, stream, 3, args), WARN);
+
+        DNN_SAFE(mkldnn_memory_destroy(scratchpad_memory), CRIT);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
         DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
 
         return OK;

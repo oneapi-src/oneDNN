@@ -174,9 +174,9 @@ private:
         const bool is_igo = input_d.format() == memory_format::ldigo;
 
         /* Quantize input & compute compensation */
-        auto quantized = (int8_t * __restrict)scratchpad().template get<void>(
+        auto quantized = (int8_t * __restrict)scratchpad(ctx).template get<void>(
                 memory_tracking::names::key_reorder_rnn_weights_quantization);
-        auto reduction = (int32_t * __restrict)scratchpad().template get<void>(
+        auto reduction = (int32_t * __restrict)scratchpad(ctx).template get<void>(
                 memory_tracking::names::key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 output + output_d.rnn_packed_desc().offset_compensation);

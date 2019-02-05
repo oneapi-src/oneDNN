@@ -65,6 +65,8 @@ struct reorder_pd_t: public primitive_desc_t {
         const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
         return sum_idx == -1 ? 0 : attr()->post_ops_.entry_[sum_idx].sum.scale;
     }
+    virtual mkldnn::impl::engine_t *scratchpad_engine() const override
+    { return scratchpad_engine_; }
 
 protected:
     engine_t *src_engine_;

@@ -116,18 +116,20 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
 
         if (pd()->jcp_.small_mb)
-            execute_forward_small_mb(src, wei, bia, dst);
+            execute_forward_small_mb(src, wei, bia, dst, this->scratchpad(ctx));
         else
-            execute_forward_mbN(src, wei, bia, dst);
+            execute_forward_mbN(src, wei, bia, dst, this->scratchpad(ctx));
 
         return status::success;
     }
 
 private:
     void execute_forward_small_mb(const float *src, const float *wei,
-            const float *bia, float *dst) const;
+            const float *bia, float *dst,
+            const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward_mbN(const float *src, const float *wei,
-            const float *bia, float *dst) const;
+            const float *bia, float *dst,
+            const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t *kernel_;

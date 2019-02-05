@@ -103,7 +103,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     };
 
     _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), pp_ker_(nullptr)
+        : cpu_primitive_t(apd), pp_ker_(nullptr)
     { pp_ker_ = new pp_ker_t(pd()); }
     ~_gemm_x8s8s32x_convolution_fwd_t() { delete pp_ker_; }
 
@@ -228,7 +228,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
     };
 
     _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {}
+        : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;

@@ -191,11 +191,13 @@ protected:
         check_zero_tail<data_t>(1, *ip_src);
         check_zero_tail<data_t>(1, *ip_diff_dst);
 
+        auto scratchpad = memory(ip_primitive_desc.scratchpad_desc(), eng);
         inner_product_backward_weights(ip_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_DIFF_DST, *ip_diff_dst},
                 {MKLDNN_ARG_SRC, *ip_src},
                 {MKLDNN_ARG_DIFF_WEIGHTS, *ip_diff_weights},
-                {MKLDNN_ARG_DIFF_BIAS, *ip_diff_bias}});
+                {MKLDNN_ARG_DIFF_BIAS, *ip_diff_bias},
+                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
 
         compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
                 *ip_diff_dst, *diff_weights_ref);

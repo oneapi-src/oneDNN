@@ -296,6 +296,8 @@ namespace query {
     const query_t time_estimate_f64 = mkldnn_query_time_estimate_f64;
     const query_t memory_consumption_s64 = mkldnn_query_memory_consumption_s64;
 
+    const query_t scratchpad_engine = mkldnn_query_scratchpad_engine;
+
     const query_t impl_info_str = mkldnn_query_impl_info_str;
 
     const query_t some_d = mkldnn_query_some_d;
@@ -320,6 +322,7 @@ namespace query {
     const query_t diff_dst_md = mkldnn_query_diff_dst_md;
 
     const query_t workspace_md = mkldnn_query_workspace_md;
+    const query_t scratchpad_md = mkldnn_query_scratchpad_md;
 }
 
 using blocking_desc_t = mkldnn_blocking_desc_t;

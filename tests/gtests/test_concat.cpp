@@ -141,9 +141,11 @@ protected:
         ASSERT_EQ(concat_pd.dst_desc().data.format, dst_desc.data.format);
         ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
 
+        auto scratchpad = memory(concat_pd.scratchpad_desc(), eng);
         concat c(concat_pd);
         std::unordered_map<int, memory> args = {
-            {MKLDNN_ARG_DST, dst}};
+            {MKLDNN_ARG_DST, dst},
+            {MKLDNN_ARG_SCRATCHPAD, scratchpad}};
         for (int i = 0; i < (int)srcs.size(); i++) {
             args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }

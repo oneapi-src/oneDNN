@@ -1012,7 +1012,7 @@ init_scratchpad() {
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd, true)
+    : cpu_primitive_t(apd)
 {
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
@@ -1054,17 +1054,16 @@ execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
-        execute_forward_small_mb(src, weights, bias, dst);
+        execute_forward_small_mb(src, weights, bias, dst, this->scratchpad(ctx));
     else
-        execute_forward_mbN(src, weights, bias, dst);
+        execute_forward_mbN(src, weights, bias, dst, this->scratchpad(ctx));
 }
 
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
-        const char *bia, dst_data_t *dst) const {
-    auto scratchpad = this->scratchpad();
-
+        const char *bia, dst_data_t *dst,
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const float *oscales = adjust_oscales(scratchpad);
 
@@ -1173,9 +1172,8 @@ execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
-        const char *bia, dst_data_t *dst) const {
-    auto scratchpad = this->scratchpad();
-
+        const char *bia, dst_data_t *dst,
+        const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const float *oscales = adjust_oscales(scratchpad);
 

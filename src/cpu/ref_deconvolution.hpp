@@ -179,6 +179,11 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
             return status::unimplemented;
         }
+
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
         primitive_desc_t *conv_pd_;
         bool conv_supports_bias_;
     };
@@ -197,6 +202,8 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
         if (pd()->with_bias() && pd()->conv_supports_bias_)
             conv_args[MKLDNN_ARG_BIAS] = args.at(MKLDNN_ARG_BIAS);
         conv_args[MKLDNN_ARG_DIFF_SRC] = args.at(MKLDNN_ARG_DST);
+        if (!types::is_zero_md(pd()->scratchpad_md()))
+            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
         const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
@@ -308,6 +315,11 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
             return status::unimplemented;
         }
+
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
         primitive_desc_t *conv_pd_;
     };
 
@@ -323,6 +335,8 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
         conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
         conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
+        if (!types::is_zero_md(pd()->scratchpad_md()))
+            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
         const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
@@ -407,6 +421,11 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
             return status::unimplemented;
         }
+
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
         primitive_desc_t *conv_pd_;
     };
 
@@ -422,6 +441,8 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
         conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
         conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
+        if (!types::is_zero_md(pd()->scratchpad_md()))
+            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
         const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         status_t status = conv_p_->execute(conv_ctx);

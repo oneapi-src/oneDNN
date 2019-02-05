@@ -331,9 +331,9 @@ private:
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
 
-        auto wspace = (in_data_t *__restrict)scratchpad().template get<void>(
+        auto wspace = (in_data_t *__restrict)scratchpad(ctx).template get<void>(
                 memory_tracking::names::key_reorder_wino_transform_space);
-        auto tmp_wei = (out_data_t *__restrict)scratchpad().template get<void>(
+        auto tmp_wei = (out_data_t *__restrict)scratchpad(ctx).template get<void>(
                 memory_tracking::names::key_reorder_wino_plain);
 
         transform(tmp_wei, input, wspace);

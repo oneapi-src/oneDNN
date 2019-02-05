@@ -155,10 +155,13 @@ protected:
             = convolution_backward_data::primitive_desc(
                     conv_bwd_data_desc, eng, conv_primitive_desc);
 
+        auto scratchpad
+                = memory(conv_bwd_data_primitive_desc.scratchpad_desc(), eng);
         convolution_backward_data(conv_bwd_data_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
                 {MKLDNN_ARG_WEIGHTS, c_weights.get()},
-                {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()}});
+                {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()},
+                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
 
         auto ref_memory = memory(c_src_desc, eng);
         compute_ref_conv_bwd_data

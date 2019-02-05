@@ -222,11 +222,14 @@ protected:
         auto deconv_primitive_desc = deconvolution_forward::primitive_desc(
                 deconv_desc, *eng);
 
+        auto deconv_scratchpad
+                = memory(deconv_primitive_desc.scratchpad_desc(), *eng);
         deconvolution_forward(deconv_primitive_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, src->get()},
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
                 {MKLDNN_ARG_BIAS, bias->get()},
-                {MKLDNN_ARG_DST, dst->get()}});
+                {MKLDNN_ARG_DST, dst->get()},
+                {MKLDNN_ARG_SCRATCHPAD, deconv_scratchpad}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -247,10 +250,13 @@ protected:
             = convolution_backward_data::primitive_desc(
                     conv_bwd_data_desc, *eng, conv_primitive_desc);
 
+        auto conv_scratchpad
+                = memory(conv_bwd_data_primitive_desc.scratchpad_desc(), *eng);
         convolution_backward_data(conv_bwd_data_primitive_desc).execute(*strm, {
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
-                {MKLDNN_ARG_DIFF_SRC, conv_src.get()}});
+                {MKLDNN_ARG_DIFF_SRC, conv_src.get()},
+                {MKLDNN_ARG_SCRATCHPAD, conv_scratchpad}});
 
         if(with_bias) compute_bias_fwd<data_t>(dd, conv_src.get(), bias->get());
         compare_data<data_t>(conv_src.get(), dst->get());
@@ -288,11 +294,14 @@ protected:
             = deconvolution_backward_data::primitive_desc(
                     deconv_bwd_data_desc, *eng, deconv_primitive_desc);
 
+        auto deconv_scratchpad
+                = memory(deconv_bwd_data_primitive_desc.scratchpad_desc(), *eng);
         deconvolution_backward_data(deconv_bwd_data_primitive_desc).execute(
                 *strm, {
                 {MKLDNN_ARG_DIFF_DST, dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
-                {MKLDNN_ARG_DIFF_SRC, src->get()}});
+                {MKLDNN_ARG_DIFF_SRC, src->get()},
+                {MKLDNN_ARG_SCRATCHPAD, deconv_scratchpad}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -303,10 +312,13 @@ protected:
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, *eng);
 
+        auto conv_scratchpad
+                = memory(conv_primitive_desc.scratchpad_desc(), *eng);
         convolution_forward(conv_primitive_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
-                {MKLDNN_ARG_DST, conv_dst.get()}});
+                {MKLDNN_ARG_DST, conv_dst.get()},
+                {MKLDNN_ARG_SCRATCHPAD, conv_scratchpad}});
 
         compare_data<data_t>(conv_dst.get(), src->get());
     }
@@ -341,12 +353,15 @@ protected:
             = deconvolution_backward_weights::primitive_desc(
                     deconv_bwd_weights_desc, *eng, deconv_primitive_desc);
 
+        auto deconv_scratchpad = memory(
+                deconv_bwd_weights_primitive_desc.scratchpad_desc(), *eng);
         deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
             .execute(*strm, {
                     {MKLDNN_ARG_DIFF_DST, dst->get()},
                     {MKLDNN_ARG_SRC, src->get()},
                     {MKLDNN_ARG_DIFF_WEIGHTS, weights->get()},
-                    {MKLDNN_ARG_DIFF_BIAS, bias->get()}});
+                    {MKLDNN_ARG_DIFF_BIAS, bias->get()},
+                    {MKLDNN_ARG_SCRATCHPAD, deconv_scratchpad}});
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -366,11 +381,14 @@ protected:
             convolution_backward_weights::primitive_desc(
                     conv_bwd_weights_desc, *eng, conv_primitive_desc);
 
+        auto conv_scratchpad = memory(
+                conv_bwd_weights_primitive_desc.scratchpad_desc(), *eng);
         convolution_backward_weights(conv_bwd_weights_primitive_desc).execute(
                 *strm, {
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_SRC, conv_src->get()},
-                {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
+                {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights},
+                {MKLDNN_ARG_SCRATCHPAD, conv_scratchpad}});
 
         auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);

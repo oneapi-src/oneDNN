@@ -661,7 +661,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto w_layer_comp = reinterpret_cast<const float *>(
             layer_weights_n_comp + rnn.weights_layer_comp_offset);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     auto ptr_wei_layer
             = scratchpad.template get<weights_data_t *>(key_rnn_ptrs_wei_layer);

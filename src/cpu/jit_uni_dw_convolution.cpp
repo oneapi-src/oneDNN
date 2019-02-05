@@ -45,7 +45,7 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward(
     const auto &jcp = kernel_->jcp;
 
     if (pd()->wants_padded_bias()) {
-        auto padded_bias = this->scratchpad().template get<data_t>(
+        auto padded_bias = this->scratchpad(ctx).template get<data_t>(
                 key_conv_padded_bias);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
@@ -267,9 +267,9 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights(
     auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
     auto diff_wei_reduction_buf =
-        scratchpad().template get<data_t>(key_conv_wei_reduction);
+        scratchpad(ctx).template get<data_t>(key_conv_wei_reduction);
     auto diff_bia_reduction_buf =
-        scratchpad().template get<data_t>(key_conv_bia_reduction);
+        scratchpad(ctx).template get<data_t>(key_conv_bia_reduction);
 
     const auto &jcp = kernel_->jcp;
 

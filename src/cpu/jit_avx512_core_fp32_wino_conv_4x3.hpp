@@ -164,7 +164,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     jit_avx512_core_fp32_wino_conv_4x3_fwd_t(const pd_t *apd)
         : _jit_avx512_core_fp32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true)
+        , cpu_primitive_t(apd)
          {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -175,7 +175,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
         auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
 
-        auto scratchpad = this->scratchpad();
+        auto scratchpad = this->scratchpad(ctx);
 
         switch ((pd()->jcp_).sched_policy) {
         case WSCHED_DATA_W_S_G_D:
@@ -246,7 +246,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(const pd_t *apd)
         : _jit_avx512_core_fp32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true)
+        , cpu_primitive_t(apd)
          {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -256,7 +256,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
         auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
 
-        auto scratchpad = this->scratchpad();
+        auto scratchpad = this->scratchpad(ctx);
 
         switch ((pd()->jcp_).sched_policy) {
         case WSCHED_DATA_W_S_G_D:
@@ -330,7 +330,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
     };
 
     jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true)
+        : cpu_primitive_t(apd)
         , kernel_(nullptr)
     {
         kernel_ = new jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(
@@ -353,11 +353,11 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
         switch (kernel_->jcp.sched_policy) {
         case WSCHED_WEI_SDGtWo:
             _execute_backward_weights_SDGtWo(src, diff_dst, diff_weights,
-                    diff_bias, scratchpad());
+                    diff_bias, scratchpad(ctx));
             break;
         case WSCHED_WEI_S_D_Giot_W:
             _execute_backward_weights_S_D_Giot_W(src, diff_dst, diff_weights,
-                    diff_bias, scratchpad());
+                    diff_bias, scratchpad(ctx));
             break;
         default:
             assert(kernel_->jcp.sched_policy != WSCHED_INVALID);

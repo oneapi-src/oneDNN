@@ -46,7 +46,7 @@ void nspc_batch_normalization_fwd_t::execute_forward(
     const bool calculate_stats = !pd()->stats_is_src();
     const bool with_relu = pd()->with_relu_post_op();
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
     auto tmp_mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
     auto tmp_var = scratchpad.get<data_t>(key_bnorm_tmp_var);
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
@@ -186,7 +186,7 @@ void nspc_batch_normalization_bwd_t::execute_backward(
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
     auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
     auto tmp_diff_ss = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
 
     if (diff_scaleshift == nullptr)

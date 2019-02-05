@@ -103,7 +103,8 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     }
 
 private:
-    void prepare_padded_bias(const dst_data_t *&bias) const;
+    void prepare_padded_bias(const dst_data_t *&bias,
+            const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
@@ -280,7 +281,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    void prepare_scratchpad_data() const;
+    void prepare_scratchpad_data(const exec_ctx_t &ctx) const;
     struct thread_info_t;
     void compute_diff_weights(const thread_info_t *) const;
     void compute_diff_weights_3d(const thread_info_t *) const;

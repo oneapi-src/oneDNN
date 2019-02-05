@@ -34,6 +34,9 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
         case query::engine: *(engine_t**)result = engine(); break;
         case query::primitive_kind: *(primitive_kind_t*)result = kind(); break;
 
+        case query::scratchpad_engine:
+            *(engine_t**)result = scratchpad_engine(); break;
+
         case query::memory_consumption_s64:
             *(ptrdiff_t*)result = scratchpad_registry().size(); break;
 
@@ -51,6 +54,9 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
         case query::workspace_md:
             if (idx != 0) return status::invalid_arguments;
             return safe_ret_md(workspace_md(idx));
+        case query::scratchpad_md:
+            if (idx != 0) return status::invalid_arguments;
+            return safe_ret_md(scratchpad_md(idx));
 
         case query::num_of_inputs_s32: *(int*)result = n_inputs(); break;
         case query::num_of_outputs_s32: *(int*)result = n_outputs(); break;

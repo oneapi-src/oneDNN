@@ -219,10 +219,12 @@ protected:
         auto workspace_desc = pool_prim_desc.workspace_desc();
         p_workspace.reset(new memory(workspace_desc, eng));
 
+        auto scratchpad = memory(pool_prim_desc.scratchpad_desc(), eng);
         pooling_forward(pool_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, p_src},
                 {MKLDNN_ARG_DST, p_dst},
-                {MKLDNN_ARG_WORKSPACE, *p_workspace}});
+                {MKLDNN_ARG_WORKSPACE, *p_workspace},
+                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
 
         check_pool_fwd<data_t>(p, p_src, p_dst, *p_workspace);
         check_zero_tail<data_t>(0, p_dst);

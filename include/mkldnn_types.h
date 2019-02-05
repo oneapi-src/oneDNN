@@ -1258,18 +1258,19 @@ typedef struct {
  *
  * For generic function mkldnn_primitive_desc_query(), the type of result must
  * agree with the queried argument. The correspondence table:
- *      Query                        | type of result
+ *      Query                           | type of result
  *      --------------------------------------------------------------
- *      #mkldnn_query_engine         | mkldnn_engine_t *
- *      #mkldnn_query_primitive_kind | mkldnn_primitive_kind_t *
- *      *_s32                        | int *
- *      *_s64                        | ptrdiff_t *
- *      *_f64                        | double *
- *      *_str                        | const char **
- *      #mkldnn_query_op_d           | const_mkldnn_op_desc_t *
- *      *_md                         | const mkldnn_memory_desc_t **
- *      *_${op}_d                    | const mkldnn_${op}_desc_t **
- *      *_pd                         | const_mkldnn_primitive_desc_t *
+ *      #mkldnn_query_engine            | mkldnn_engine_t *
+ *      #mkldnn_query_scratchpad_engine | mkldnn_engine_t *
+ *      #mkldnn_query_primitive_kind    | mkldnn_primitive_kind_t *
+ *      *_s32                           | int *
+ *      *_s64                           | ptrdiff_t *
+ *      *_f64                           | double *
+ *      *_str                           | const char **
+ *      #mkldnn_query_op_d              | const_mkldnn_op_desc_t *
+ *      *_md                            | const mkldnn_memory_desc_t **
+ *      *_${op}_d                       | const mkldnn_${op}_desc_t **
+ *      *_pd                            | const_mkldnn_primitive_desc_t *
  *
  * @note
  *     Rule of thumb: all opaque types and structures are returned by
@@ -1294,6 +1295,9 @@ typedef enum {
     mkldnn_query_memory_consumption_s64, /**< memory consumption -- extra
                                            (scratch) memory, additional to all
                                            inputs and outputs memory (bytes) */
+
+    mkldnn_query_scratchpad_engine, /**< scratchpad engine -- engine to be used
+                                       for creating scratchpad memory */
 
     mkldnn_query_impl_info_str, /**< implementation name */
 
@@ -1320,6 +1324,7 @@ typedef enum {
     mkldnn_query_dst_md, /**< destination memory desc */
     mkldnn_query_diff_dst_md, /**< destination grad. memory desc */
     mkldnn_query_workspace_md, /**< workspace memory desc */
+    mkldnn_query_scratchpad_md, /**< scratchpad memory desc */
 } mkldnn_query_t;
 
 /** @} */

@@ -401,9 +401,11 @@ protected:
     }
 
     void execBnrmFwd(bool isTraining, bool useGlobalStats, bool useScaleShift) {
+        auto scratchpad = memory(bnrm_prim_desc->scratchpad_desc(), *eng);
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, src->get()},
             {MKLDNN_ARG_DST, dst->get()},
+            {MKLDNN_ARG_SCRATCHPAD, scratchpad},
         };
 
         if (useScaleShift)
@@ -418,12 +420,14 @@ protected:
     }
 
     void execBnrmBwd(bool useScaleShift, prop_kind pk) {
+        auto scratchpad = memory(bnrm_bwd_prim_desc->scratchpad_desc(), *eng);
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, src->get()},
             {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
             {MKLDNN_ARG_MEAN, *mean},
             {MKLDNN_ARG_VARIANCE, *variance},
             {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
+            {MKLDNN_ARG_SCRATCHPAD, scratchpad},
         };
 
         if (useScaleShift) {

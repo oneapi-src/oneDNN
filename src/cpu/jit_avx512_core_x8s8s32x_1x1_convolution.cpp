@@ -65,7 +65,7 @@ execute_forward(const exec_ctx_t &ctx) const
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    auto scratchpad = this->scratchpad();
+    auto scratchpad = this->scratchpad(ctx);
 
     if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
         auto local_scales = scratchpad.template get<float>(

@@ -858,10 +858,9 @@ jit_avx512_core_fp32_wino_conv_2x3_fwd_t
 }
 
 void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN(
-        const float *src, const float *wei, const float *bia, float *dst) const
+        const float *src, const float *wei, const float *bia, float *dst,
+        const memory_tracking::grantor_t &scratchpad) const
 {
-    auto scratchpad = this->scratchpad();
-
     const auto &jcp = kernel_->jcp;
     const auto &oscales = pd()->attr()->output_scales_;
 
@@ -986,10 +985,9 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN(
 }
 
 void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
-        const float *src, const float *wei, const float *bia, float *dst) const
+        const float *src, const float *wei, const float *bia, float *dst,
+        const memory_tracking::grantor_t &scratchpad) const
 {
-    auto scratchpad = this->scratchpad();
-
     const auto &jcp = kernel_->jcp;
     const auto &oscales = pd()->attr()->output_scales_;
 
