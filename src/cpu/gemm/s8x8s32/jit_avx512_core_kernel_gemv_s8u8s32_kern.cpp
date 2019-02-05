@@ -55,7 +55,7 @@ void jit_avx512_core_gemv_s8u8s32_kern::n_loop_body(int start_a_idx, int start_a
                                                     Xbyak::Reg64 X, Xbyak::Zmm tmp,
                                                     Xbyak::Zmm one, bool swap, int use_vnni,
                                                     int use_mask, Xbyak::Opmask mask_n) {
-    
+
     int i;
     int nreg_A = nreg_acc / 2 + (nreg_acc % 2);
 

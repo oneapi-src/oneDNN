@@ -288,8 +288,8 @@ mkldnn_status_t ref_gemm(
             }
         }
     });
-   
-    if (nthr_k > 1) { 
+
+    if (nthr_k > 1) {
         parallel_nd(nthr, [&](const int ithr) {
             int ithr_mn = ithr % nthr_mn;
             int ithr_m = ithr_mn % nthr_m;
@@ -298,12 +298,12 @@ mkldnn_status_t ref_gemm(
 
             int n_from = 0, n_to = 0, myN = 0;
             int m_from = 0, m_to = 0, myM = 0;
-                           
+
             int cbase = (ithr_m + nthr_m * ithr_n) * (nthr_k - 1);
- 
+
             get_thr_block(n_from, n_to, myN, NB, N, ithr_n);
             get_thr_block(m_from, m_to, myM, MB, M, ithr_m);
-            
+
             // sum matrices partitioned along K dimension
             int offset = 0, block = 0;
             gemm_utils::partition_unit_diff(ithr_k, nthr_k, myN, &offset,

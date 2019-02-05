@@ -226,12 +226,12 @@ int gemv_threading_driver(blas_t *arg) {
                 }
                 else {
                     // need to copy the block of c in new_y
-                    loc_y = new_y + m_id * NEXT_THR_STRIDE(MB, sizeof(int32_t));                
+                    loc_y = new_y + m_id * NEXT_THR_STRIDE(MB, sizeof(int32_t));
                     if (*(arg -> beta) != 0.0f) {
                         for (j = 0; j < myM; j++) {
                             loc_y[j] = arg -> c[(m_from + j) * arg -> ldc];
                         }
-                    }                
+                    }
                 }
             }
 

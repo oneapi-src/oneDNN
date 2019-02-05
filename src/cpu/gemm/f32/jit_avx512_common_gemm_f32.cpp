@@ -1706,7 +1706,7 @@ struct xbyak_gemm : public jit_generator {
         ker_ = this->getCode<ker_t>();
     }
 
-    typedef void (*ker_t)(dim_t m, dim_t n, dim_t k, 
+    typedef void (*ker_t)(dim_t m, dim_t n, dim_t k,
             const float *alpha, const float *a, dim_t lda,
             const float *b, dim_t ldb, const float *beta, float *c,
             dim_t ldc, const float *bias, float *ws);
@@ -1943,6 +1943,8 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
                 ws_buffers + ithr * ws_size_per_thr / sizeof(float) : 0;
         dim_t ld = ldc;
 
+        int sum_later = (mkldnn_get_num_threads() < nthr_m * nthr_n * nthr_k);
+
         if (ithr < nthr_m * nthr_n * nthr_k) {
 
             ithr_mn = ithr % nthr_mn;
@@ -2005,11 +2007,11 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
                 sgemm_nocopy_driver(transa, transb, myM, myN, myK, p_alpha, myA,
                         lda, myB, ldb, &myBeta, myC, ld, myBias, ws);
 
-                if (nthr_k > 1)
+                if (nthr_k > 1 && !sum_later)
                     ompstatus[(ibase + ithr_k) * CACHE_LINE_SIZE] = 1;
             }
 
-            if (nthr_k > 1) {
+            if (nthr_k > 1 && !sum_later) {
 
                 // sum matrices partitioned along K dimension
                 int n1, n2;
@@ -2045,6 +2047,75 @@ mkldnn_status_t jit_avx512_common_gemm_f32(
             }
         }
     });
+
+
+    // handle C summation later
+    if (nthr_k > 1 && ompstatus[0] == 0) {
+
+        parallel_nd(nthr, [&](const int ithr) {
+            int ithr_m, ithr_n, ithr_k, ithr_mn;
+            int m_from, m_to, myM;
+            int n_from, n_to, myN;
+            int cbase;
+            float *myC = C;
+
+            if (ithr < nthr_m * nthr_n * nthr_k) {
+
+                ithr_mn = ithr % nthr_mn;
+                ithr_m = ithr_mn % nthr_m;
+                ithr_n = ithr_mn / nthr_m;
+                ithr_k = ithr / nthr_mn;
+
+                /* swap ithr_k for performance improvement */
+                if (ithr_k == 0)
+                    ithr_k = nthr_k - 1;
+                else if (ithr_k == nthr_k - 1)
+                    ithr_k = 0;
+
+                m_from = MB * (ithr_m);
+                m_to = MB * (ithr_m + 1);
+                if (m_to > m)
+                    m_to = m;
+                myM = m_to - m_from;
+
+                n_from = NB * (ithr_n);
+                n_to = NB * (ithr_n + 1);
+                if (n_to > n)
+                    n_to = n;
+                myN = n_to - n_from;
+
+                cbase = (ithr_m + nthr_m * ithr_n) * (nthr_k - 1);
+
+                if (nthr_k > 1) {
+                    // sum matrices partitioned along K dimension
+                    int n1, n2;
+
+                    partition_unit_diff(ithr_k, nthr_k, myN, &n1, &n2);
+
+                    if (ithr_k > 0) {
+
+                        myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1)
+                            + (dim_t)n1 * MB;
+
+                        /* my cache is hot */
+                        sum_two_matrices(myM, n2, myC, MB,
+                                         &C[m_from + (n_from + n1) * ldc], ldc);
+                    }
+
+                    for (int ik = 1; ik < nthr_k; ++ik) {
+                        if (ik != ithr_k) {
+
+                            myC = c_buffers + (dim_t)MB * NB * (cbase + ik - 1)
+                                + (dim_t)n1 * MB;
+
+                            sum_two_matrices(myM, n2, myC, MB,
+                                             &C[m_from + (n_from + n1) * ldc], ldc);
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     free(c_buffers);
     free(ompstatus_);
