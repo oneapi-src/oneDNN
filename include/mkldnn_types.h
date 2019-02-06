@@ -249,7 +249,7 @@ typedef enum {
      *
      *  - For LSTM cells, the gates order is input, forget, candidate
      *    and output gate.
-     * - For GRU cells, the gates order is update, reset and output gate. */
+     *  - For GRU cells, the gates order is update, reset and output gate. */
     mkldnn_ldgo,
 
     /* Opaque data types, are not to be used explicitly */
