@@ -29,6 +29,7 @@
 
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
+#include "jit_uni_rnn_postgemm.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -171,7 +172,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
     _ref_rnn_common_t(const pd_t *apd, const input_vector &inputs,
             const output_vector &outputs)
-        : cpu_primitive_t(apd, inputs, outputs, true) {
+        : cpu_primitive_t(apd, inputs, outputs, true), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively
@@ -198,6 +199,19 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
             cell_func = &class_name::cell_execution;
+            if (aprop == prop_kind::forward) {
+                if (mayiuse(avx512_core))
+                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<avx512_core, src_type>(
+                        pd()->rnn_, pd()->attr());
+                else if (mayiuse(avx2))
+                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<avx2, src_type>(
+                        pd()->rnn_, pd()->attr());
+                else if (mayiuse(sse42))
+                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<sse42, src_type>(
+                        pd()->rnn_, pd()->attr());
+                assert(rnn_postgemm_ != nullptr);
+                rnn_postgemm_->init();
+            }
             elemwise_func = &class_name::lstm_elemwise;
             break;
         case alg_kind::vanilla_rnn: // @todo switch on cell kind
@@ -295,6 +309,7 @@ private:
     size_t ws_diff_states_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
+    jit_uni_rnn_postgemm_kernel *rnn_postgemm_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
@@ -307,7 +322,6 @@ private:
     gemm_t gemm_layer_func;
     gemm_t gemm_iter_func;
     elemwise_f elemwise_func;
-
 };
 
 using ref_rnn_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;

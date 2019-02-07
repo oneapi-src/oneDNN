@@ -37,10 +37,16 @@ rnn_cell_execution_sig(
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
             rnn.states_ws_ld, 1.0, ws_gates_, rnn.gates_ws_ld);
 
-    (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+    if (rnn_postgemm_ != nullptr)
+        rnn_postgemm_->execute<src_data_t, acc_data_t>(rnn, ws_gates_, states_t_l_, c_states_t_l_,
             states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
             ws_cell_);
+    else
+        (this->*elemwise_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+                states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+                diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
+                ws_cell_);
 }
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
