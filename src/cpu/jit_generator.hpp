@@ -574,11 +574,32 @@ public:
     void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                       const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
-        cmpps(x1, op, 0x6);
+        cmpps(x1, op, _cmp_nle_us);
     }
+
     void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
                       const Xbyak::Operand &op) {
         vcmpgtps(x1, x2, op);
+    }
+
+    void uni_vcmpgeps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                      const Xbyak::Operand &op) {
+        assert(x1.getIdx() == x2.getIdx());
+        cmpps(x1, op, _cmp_nlt_us);
+    }
+
+    void uni_vcmpgeps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                      const Xbyak::Operand &op) {
+        vcmpps(x1, x2, op, _cmp_nlt_us);
+    }
+
+    void uni_vtestps(const Xbyak::Xmm &x1, const Xbyak::Operand &op) {
+        ptest(x1, op);
+    }
+
+    void uni_vtestps(const Xbyak::Ymm &x1, const Xbyak::Operand &op) {
+        assert(!(x1.isZMM() || op.isZMM()));
+        vtestps(x1, op);
     }
 
     void uni_vblendvps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
