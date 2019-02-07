@@ -30,12 +30,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_conv_fwd_ker_t)
+template<typename Vmm>
+struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_x8s8s32x_conv_fwd_ker_t)
 
     enum { STATE_FIRST_DST_LOAD = 0x1U };
 
-    jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
+    _jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
             const primitive_attr_t &attr) : jcp(ajcp), attr_(attr),
             eltwise_injector_(nullptr)
     {
@@ -44,29 +45,16 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
                 this, jcp.eltwise);
 
         generate();
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
+        jit_ker_ = (void (*)(jit_conv_call_s *))getCode();
     }
 
-    ~jit_avx512_core_x8s8s32x_fwd_kernel() {
+    ~_jit_avx512_core_x8s8s32x_fwd_kernel() {
         delete eltwise_injector_;
     }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            cpu_memory_t::pd_t &src_pd,
-            cpu_memory_t::pd_t &weights_pd,
-            cpu_memory_t::pd_t &dst_pd,
-            cpu_memory_t::pd_t &bias_pd,
-            const primitive_attr_t &attr,
-            int nthreads);
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
-
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_conv_call_s *);
+    void (*jit_ker_)(jit_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -105,46 +93,49 @@ private:
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
 
+    const Vmm vmm_wei = Vmm(31);
     /* used during bias section of store_output */
-    const Xbyak::Zmm zmm_comp = Xbyak::Zmm(30); // only for signed input
-    const Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
+    const Vmm vmm_comp = Vmm(30); // only for signed input
+    const Vmm vmm_bias = Vmm(31);
     /* used during post_op sum section of store_output */
-    const Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(31);
+    const Vmm vmm_prev_dst = Vmm(31);
     /* used during write-out section of store_output */
-    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
+    const Vmm vmm_zero = Vmm(31);
 
     /* used in compute_ker (but set during prepare_output) */
-    const Xbyak::Zmm zmm_shift = zmm_comp; // only for signed input
+    const Vmm vmm_shift = vmm_comp; // only for signed input
     /* used in compute_ker (but only for pre-VNNI machines) */
-    const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(28); // not used for depthwise
-    const Xbyak::Zmm zmm_one = Xbyak::Zmm(29); // set at start of kernel, not used for depthwise.
+    const Vmm vmm_tmp = Vmm(28); // not used for depthwise
+    const Vmm vmm_one = Vmm(29); // set at start of kernel, not used for depthwise.
 
-    /* registers use only for depthwise */
-    const Xbyak::Zmm zmm_wei = zmm_bias;
+    /* registers use only for depthwise
+       groups are always blocked by 16(padded if needed),
+       hence use only Zmm registers */
+    const Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_src;
     Xbyak::Zmm zmm_permute;
     Xbyak::Zmm zmm_zero_blend; // used only for fast depthwise
 
+    Vmm vmm_out(int i_ur, int i_oc) {
+        int idx = i_ur + i_oc * jcp.ur_w;
+        assert(idx < (jcp.is_depthwise
+                    ? ker_dw_reg_base_idx : ker_reg_base_idx));
+        return Vmm(idx);
+    }
     Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < (jcp.is_depthwise
                     ? ker_dw_reg_base_idx : ker_reg_base_idx));
         return Xbyak::Zmm(idx);
     }
-    Xbyak::Xmm xmm_out(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
-        assert(idx < (jcp.is_depthwise
-                    ? ker_dw_reg_base_idx : ker_reg_base_idx));
-        return Xbyak::Xmm(idx);
-    }
-    Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
+    Vmm vmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
-        return Xbyak::Zmm(idx);
+        return Vmm(idx);
     }
-    Xbyak::Zmm zmm_bias_alpha() {
+    Vmm vmm_bias_alpha() {
         int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Xbyak::Zmm(nb_c_block * jcp.ur_w);
+        return Vmm(nb_c_block * jcp.ur_w);
     }
     Xbyak::Xmm xmm_bias_alpha() {
         int nb_c_block = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
@@ -173,8 +164,63 @@ private:
     void icb_loop(
             int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
-    void cvt2ps(data_type_t type_in, Xbyak::Zmm zmm_in, const Xbyak::Operand &op,
+    void cvt2ps(data_type_t type_in, Vmm ymm_in, const Xbyak::Operand &op,
         bool mask_flag);
+    const Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store = false);
+};
+
+struct jit_avx512_core_x8s8s32x_fwd_kernel {
+
+    jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
+            const primitive_attr_t &attr) :
+        zmm_kernel_(nullptr),
+        ymm_kernel_(nullptr),
+        xmm_kernel_(nullptr) {
+            int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
+            switch (ch_block) {
+                case 16:
+                    zmm_kernel_ =
+                        new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>(
+                                ajcp, attr);
+                    jit_ker = zmm_kernel_->jit_ker_;
+                    return;
+                case 8:
+                    ymm_kernel_ =
+                        new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
+                                ajcp, attr);
+                    jit_ker = ymm_kernel_->jit_ker_;
+                    return;
+                case 4:
+                    xmm_kernel_ =
+                        new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
+                                ajcp, attr);
+                    jit_ker = xmm_kernel_->jit_ker_;
+                    return;
+                default:
+                    assert(!"invalid channel blocking");
+            }
+    }
+
+    ~jit_avx512_core_x8s8s32x_fwd_kernel() {}
+
+    static bool post_ops_ok(jit_conv_conf_t &jcp,
+            const primitive_attr_t &attr);
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd,
+            cpu_memory_t::pd_t &src_pd,
+            cpu_memory_t::pd_t &weights_pd,
+            cpu_memory_t::pd_t &dst_pd,
+            cpu_memory_t::pd_t &bias_pd,
+            const primitive_attr_t &attr,
+            int nthreads);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+
+    void (*jit_ker)(jit_conv_call_s *);
+    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm> *zmm_kernel_;
+    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm> *ymm_kernel_;
+    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
 };
 
 }

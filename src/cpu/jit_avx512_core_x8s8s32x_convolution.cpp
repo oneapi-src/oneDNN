@@ -56,7 +56,7 @@ execute_forward() const
     const size_t bia_dt_size = pd()->with_bias()
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 

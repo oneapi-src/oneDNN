@@ -145,8 +145,12 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_gOIhw16i16o) return "gOIhw16i16o";
     if (v == mkldnn_gOIhw4i16o4i) return "gOIhw4i16o4i";
     if (v == mkldnn_gOIhw4i16o4i_s8s8) return "gOIhw4i16o4i_s8s8";
+    if (v == mkldnn_gOIhw2i8o4i) return "gOIhw2i8o4i";
+    if (v == mkldnn_gOIhw2i8o4i_s8s8) return "gOIhw2i8o4i_s8s8";
     if (v == mkldnn_gOIhw8i16o2i) return "gOIhw8i16o2i";
     if (v == mkldnn_gOIhw8o16i2o) return "gOIhw8o16i2o";
+    if (v == mkldnn_gOIhw4o4i) return "gOIhw4o4i";
+    if (v == mkldnn_gOIhw4o4i_s8s8) return "gOIhw4o4i_s8s8";
     if (v == mkldnn_gOIhw8o8i) return "gOIhw8o8i";
     if (v == mkldnn_gOIhw16o16i) return "gOIhw16o16i";
     if (v == mkldnn_gIOhw16o16i) return "gIOhw16o16i";

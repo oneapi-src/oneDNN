@@ -93,7 +93,9 @@ struct memory_desc_wrapper: public c_compatible {
     size_t additional_buffer_data_size() const {
         using namespace mkldnn::impl::memory_format;
         return (utils::one_of(format(), hwio_s8s8, hwigo_s8s8,
+                    gOIhw4o4i_s8s8,
                     gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8,
+                    gOIhw2i8o4i_s8s8,
                     Goihw16g_s8s8))
             ? sizeof(int32_t) : 0;
     }
@@ -102,7 +104,9 @@ struct memory_desc_wrapper: public c_compatible {
     bool is_additional_buffer() const {
         using namespace mkldnn::impl::memory_format;
         return (utils::one_of(format(), hwio_s8s8, hwigo_s8s8,
+                    gOIhw4o4i_s8s8,
                     gOIhw4i16o4i_s8s8, OIhw4i16o4i_s8s8,
+                    gOIhw2i8o4i_s8s8,
                     Goihw16g_s8s8))
             ? true : false;
     }
@@ -113,6 +117,8 @@ struct memory_desc_wrapper: public c_compatible {
         const auto &padding_dims = blocking_desc().padding_dims;
         switch(format()) {
             case hwigo_s8s8:
+            case gOIhw4o4i_s8s8:
+            case gOIhw2i8o4i_s8s8:
             case gOIhw4i16o4i_s8s8:
                 return size_t(padding_dims[0]) * size_t(padding_dims[1])
                     * additional_buffer_data_size();
@@ -242,6 +248,13 @@ struct memory_desc_wrapper: public c_compatible {
             const int oc_16 = pos[with_groups + 0] % 16;
             const int ic_4  = pos[with_groups + 1] % 4;
             phys_offset += 4 * oc_16 + ic_4 - (oc_16 + 16 * ic_4);
+        }
+        if (utils::one_of(format(), gOIhw2i8o4i,  gOIhw2i8o4i_s8s8)) {
+            // TODO: Fix temporary workaround for formats with double blocking
+            const bool with_groups = true;
+            const int oc_8 = pos[with_groups + 0] % 8;
+            const int ic_4 = pos[with_groups + 1] % 4;
+            phys_offset += 4 * oc_8 + ic_4 - (oc_8 + 8 * ic_4);
         }
         if (format() == gOIw8i16o2i || format() == OIw8i16o2i) {
             // TODO: Fix temporary workaround for formats with double blocking

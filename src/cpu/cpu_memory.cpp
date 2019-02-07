@@ -311,10 +311,14 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(Oihw16o);
     MAYBE_WEIGHTS(Ohwi8o);
     MAYBE_WEIGHTS(Ohwi16o);
+    MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
+    MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
     MAYBE_WEIGHTS(gOIhw8i8o);
     MAYBE_WEIGHTS(gOIhw16i16o);
     MAYBE_WEIGHTS(gOIhw4i16o4i);
     MAYBE_WEIGHTS(gOIhw4i16o4i_s8s8);
+    MAYBE_WEIGHTS(gOIhw2i8o4i);
+    MAYBE_WEIGHTS(gOIhw2i8o4i_s8s8);
     MAYBE_WEIGHTS(gOwi8o);
     MAYBE_WEIGHTS(gOIw8i8o);
     MAYBE_WEIGHTS(gOIw8o8i);

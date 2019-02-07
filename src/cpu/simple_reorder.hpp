@@ -165,8 +165,10 @@ typename utils::enable_if<fmt_i == any && (false
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-          (fmt_i == goihw && fmt_o == gOIhw4i16o4i_s8s8)
-       || (fmt_i == oihw && fmt_o == OIhw4i16o4i_s8s8)
+          ((fmt_i == goihw || fmt_i == oihw)
+           && (format_traits<fmt_o>::blk_fmt == bf::_4i16o4i_s8s8
+               || format_traits<fmt_o>::blk_fmt == bf::_2i8o4i_s8s8
+               || format_traits<fmt_o>::blk_fmt == bf::_4o4i_s8s8))
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -189,7 +191,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
 
         static constexpr bool w_groups = fmt_i == goihw;
-        const int blksize = 16;
+        const int blksize = format_traits<fmt_o>::blk_size;
         const int sblk = 4;
 
         const auto &_g_oihw_d = order_keep ? input_d : output_d;
@@ -310,7 +312,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const auto i_off = g * input_d.blocking_desc().strides[0][0];
                 out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[i_off], s[g * OC] * adj_scale, rmode);
-                cp[g * OC] -= 128 * (int32_t)(out[g]); 
+                cp[g * OC] -= 128 * (int32_t)(out[g]);
             }
         };
 

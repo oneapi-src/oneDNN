@@ -339,8 +339,20 @@ typedef enum {
      * multiplied by number of groups and containing the values:
      * O[i:0,G*OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
     mkldnn_gOIhw4i16o4i_s8s8,
+    mkldnn_gOIhw2i8o4i /** blocked weights format */,
+    /** blocked weights format with additional buffer
+     * with size equal to the number of output channels
+     * multiplied by number of groups and containing the values:
+     * O[i:0,G*OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
+    mkldnn_gOIhw2i8o4i_s8s8,
     mkldnn_gOIhw8i16o2i /** blocked weights format */,
     mkldnn_gOIhw8o16i2o /** blocked weights format */,
+    mkldnn_gOIhw4o4i /** blocked weights format */,
+    /** blocked weights format with additional buffer
+     * with size equal to the number of output channels
+     * and containing the values:
+     * O[i:0,OC] = -128 * SUM(j:0,IC;h:0,H;w:0,W)(weights(i,j,h,w))*/
+    mkldnn_gOIhw4o4i_s8s8 /** blocked weights format */,
     mkldnn_gOIhw8o8i /** blocked weights format */,
     mkldnn_gOIhw16o16i /** blocked weights format */,
     mkldnn_gIOhw16o16i /** blocked weights format */,

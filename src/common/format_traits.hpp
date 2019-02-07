@@ -36,11 +36,13 @@ enum class data_kind_t {
 enum class block_format_t {
     _,
     _8c, _8g, _8i, _8o,
+    _4o4i, _4o4i_s8s8,
     _8i8o, _8o8i,
     _16c, _16g, _16g_s8s8, _16i, _16o,
     _16i16o, _16o16i,
     _8i16o2i, _8o16i2o,
     _4i16o4i, _4i16o4i_s8s8,
+    _2i8o4i, _2i8o4i_s8s8
 };
 
 template <block_format_t f> struct block_format_traits {
@@ -48,15 +50,18 @@ template <block_format_t f> struct block_format_traits {
     static constexpr int levels = f == bf::_
         ? 0
         : utils::one_of(f, bf::_8i16o2i, bf::_8o16i2o,
-                           bf::_4i16o4i, bf::_4i16o4i_s8s8) ? 2 : 1;
+                           bf::_4i16o4i, bf::_4i16o4i_s8s8,
+                           bf::_2i8o4i, bf::_2i8o4i_s8s8) ? 2 : 1;
     static constexpr int blk_ndims = f == bf::_
         ? 0
         : utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o, bf::_16c,
                 bf::_16g, bf::_16g_s8s8, bf::_16i, bf::_16o) ? 1 : 2;
     static constexpr int blk_size = f == bf::_
         ? 1
-        : utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o, bf::_8i8o,
-                bf::_8o8i) ? 8 : 16;
+        : (utils::one_of(f, bf::_4o4i, bf::_4o4i_s8s8) ? 4
+                : (utils::one_of(f, bf::_8c, bf::_8g, bf::_8i, bf::_8o,
+                        bf::_8i8o, bf::_8o8i,
+                        bf::_2i8o4i, bf::_2i8o4i_s8s8) ? 8 : 16));
 };
 
 template <memory_format_t> struct format_traits {
@@ -64,7 +69,7 @@ template <memory_format_t> struct format_traits {
     // block_format_t blk_fmt;  -- the format of blocks (e.g. 8c or 4i16o4i)
     // int ndims;               -- # of dimensions
     // int ndims_sp;            -- # of spatial dimensions
-    // int blk_size;            -- block size (1, 8, or 16)
+    // int blk_size;            -- block size (1, 4, 8, or 16)
 };
 
 #define DECL_TRAITS(_fmt, _data_kind, _blk_fmt, _ndims, _ndims_sp) \
@@ -178,10 +183,14 @@ DECL_TRAITS(gOIhw8i8o, gwei, _8i8o, 5, 2);
 DECL_TRAITS(gOIhw16i16o, gwei, _16i16o, 5, 2);
 DECL_TRAITS(gOIhw4i16o4i, gwei, _4i16o4i, 5, 2);
 DECL_TRAITS(gOIhw4i16o4i_s8s8, gwei, _4i16o4i_s8s8, 5, 2);
+DECL_TRAITS(gOIhw2i8o4i, gwei, _2i8o4i, 5, 2);
+DECL_TRAITS(gOIhw2i8o4i_s8s8, gwei, _2i8o4i_s8s8, 5, 2);
 DECL_TRAITS(gOIhw8i16o2i, gwei, _8i16o2i, 5, 2);
 DECL_TRAITS(gOIdhw8i16o2i, gwei, _8i16o2i, 5, 2);
 DECL_TRAITS(gOIhw8o16i2o, gwei, _8o16i2o, 5, 2);
 DECL_TRAITS(gOIhw8o8i, gwei, _8o8i, 5, 2);
+DECL_TRAITS(gOIhw4o4i, gwei, _4o4i, 5, 2);
+DECL_TRAITS(gOIhw4o4i_s8s8, gwei, _4o4i_s8s8, 5, 2);
 DECL_TRAITS(gOIhw16o16i, gwei, _16o16i, 5, 2);
 DECL_TRAITS(gIOhw16o16i, gwei, _16o16i, 5, 2);
 DECL_TRAITS(gOihw16o, gwei, _16o, 5, 2);
@@ -215,14 +224,17 @@ DECL_TRAITS(ldgo, rnn, _, 4, 0);
 template <block_format_t f>
 constexpr int OI_blk_off(int oc, int ic) {
     using bf = block_format_t;
-    static_assert(utils::one_of(f, bf::_8i8o, bf::_8o8i, bf::_16i16o,
+    static_assert(utils::one_of(f, bf::_4o4i, bf::_4o4i_s8s8,
+                bf::_8i8o, bf::_8o8i, bf::_16i16o,
                 bf::_16o16i, bf::_8i16o2i, bf::_8o16i2o,
-                bf::_4i16o4i, bf::_4i16o4i_s8s8),
+                bf::_4i16o4i, bf::_4i16o4i_s8s8,
+                bf::_2i8o4i, bf::_2i8o4i_s8s8),
             "unexpected blocked format");
 #   define blksize block_format_traits<f>::blk_size
     return f == bf::_8i16o2i
         ? (ic / 2) * blksize * 2 + 2 * oc + ic % 2
-        : (f == bf::_4i16o4i || f == bf::_4i16o4i_s8s8)
+        : (f == bf::_4i16o4i || f == bf::_4i16o4i_s8s8
+        || f == bf::_2i8o4i || f == bf::_2i8o4i_s8s8)
         ? (ic / 4) * blksize * 4 + oc * 4 + ic % 4
         : f == bf::_8o16i2o
         ? (oc / 2) * blksize * 2 + 2 * ic + oc % 2
