@@ -128,6 +128,7 @@ void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
     vmm_aux1 = Vmm(preserved_vec_idxs[1]);
     vmm_aux2 = Vmm(preserved_vec_idxs[2]);
     vmm_aux3 = Vmm(preserved_vec_idxs[3]);
+    vmm_aux4 = Vmm(preserved_vec_idxs[4]);
 }
 
 template <cpu_isa_t isa>

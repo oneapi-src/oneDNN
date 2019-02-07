@@ -91,7 +91,7 @@ private:
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
     size_t start_idx_tail = 0;
 
-    Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3;
+    Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
 
     Xbyak::Address table_val(int index)
     { return h->ptr[p_table + index * vlen]; }
