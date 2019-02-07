@@ -138,6 +138,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
     const memory::desc ws_d = ws.get_desc();
 
     auto pd = p.test_pd;
+    if (pd.mb * pd.c * pd.id * pd.ih * pd.iw == 0) return;
+
     std::vector<data_t> ref_diff_src_vec(pd.mb * pd.c * pd.id * pd.ih * pd.iw);
     data_t *ref_diff_src = &ref_diff_src_vec[0];
 
