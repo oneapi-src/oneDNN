@@ -32,6 +32,9 @@ namespace cpu {
 
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_injector_f32 {
+    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
+            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+
     jit_uni_eltwise_injector_f32(jit_generator *host, alg_kind_t alg,
             float alpha, float beta, bool save_state = true,
             Xbyak::Reg64 p_table = Xbyak::util::rax,
@@ -77,9 +80,6 @@ private:
         _cmp_nle_us = jit_generator::_cmp_nle_us,
         _op_floor = jit_generator::_op_floor,
     };
-
-    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
-            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
 
     size_t vlen = cpu_isa_traits<isa>::vlen;
 
