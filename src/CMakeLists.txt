@@ -89,60 +89,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-### Installation (https://github.com/forexample/package-example) {
-
-# Introduce variables:
-# * CMAKE_INSTALL_LIBDIR
-# * CMAKE_INSTALL_BINDIR
-# * CMAKE_INSTALL_INCLUDEDIR
-include(GNUInstallDirs)
-
-set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_NAME}")
-set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(version_config "${generated_dir}/${LIB_NAME}ConfigVersion.cmake")
-set(project_config "${generated_dir}/${LIB_NAME}Config.cmake")
-set(TARGETS_EXPORT_NAME "${LIB_NAME}Targets")
-set(namespace "${LIB_NAME}::")
-
-include(CMakePackageConfigHelpers)
-
-write_basic_package_version_file(
-    "${version_config}"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
-# Use:
-# * TARGETS_EXPORT_NAME
-# * LIB_NAME
-configure_package_config_file(
-    "cmake/template/Config.cmake.in"
-    "${project_config}"
-    INSTALL_DESTINATION "${config_install_dir}"
-)
-
-install(
-    FILES "${project_config}" "${version_config}"
-    DESTINATION "${config_install_dir}"
-)
-
-install(
-    EXPORT "${TARGETS_EXPORT_NAME}"
-    NAMESPACE "${namespace}"
-    DESTINATION "${config_install_dir}"
-)
-
-### }
-
 add_library(${TARGET_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
 if (NOT ${CMAKE_VERSION_MAJOR} LESS 3)
-    add_library(${namespace}${TARGET_NAME} ALIAS ${TARGET_NAME})
+    add_library(mkldnn::${TARGET_NAME} ALIAS ${TARGET_NAME})
 endif()
 
 target_include_directories(
     ${TARGET_NAME}
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
+    $<INSTALL_INTERFACE:include>
 )
 
 if(WIN32)
@@ -166,16 +122,55 @@ target_link_libraries(
     $<BUILD_INTERFACE:${EXTRA_LIBS}>
 )
 
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${TARGET_EXPORTAME} PROPERTY CXX_STANDARD 11)
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
 set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
 
+# Introduce variables CMAKE_INSTALL_*DIR
+include(GNUInstallDirs)
+
 install(TARGETS ${TARGET_NAME}
-    EXPORT "${TARGETS_EXPORT_NAME}"
+    EXPORT "${TARGET_NAME}Targets"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 install(FILES ${HEADERS} DESTINATION include)
+
+### Install config see https://pabloariasal.github.io/2018/02/19/its-time-to-do-cmake-right/
+### and https://github.com/forexample/package-example
+# Creates
+#   - <Target>Config.cmake
+#   - <Target>ConfigVersion.cmake
+#   - <Target>Targets.cmake
+
+set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}")
+set(version_config "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}ConfigVersion.cmake")
+set(project_config "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}Config.cmake")
+
+include(CMakePackageConfigHelpers)
+
+# Using:
+# * TARGET_NAME
+configure_package_config_file(
+    "cmake/template/Config.cmake.in"
+    "${project_config}"
+    INSTALL_DESTINATION "${config_install_dir}"
+)
+
+write_basic_package_version_file(
+    "${version_config}"
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES "${project_config}" "${version_config}"
+    DESTINATION "${config_install_dir}"
+)
+
+install(
+    EXPORT "${TARGET_NAME}Targets"
+    NAMESPACE "mkldnn::"
+    DESTINATION "${config_install_dir}"
+)
