@@ -37,7 +37,7 @@ if (GIT_FOUND)
 endif()
 
 if(NOT GIT_FOUND OR RESULT)
-    set(MKLDNN_VERSION_HASH "Unknown")
+    set(MKLDNN_VERSION_HASH "N/A")
 endif()
 
 configure_file(
