@@ -59,7 +59,7 @@ struct jit_uni_eltwise_injector_f32 {
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
     void compute_vector(size_t idx) { compute_vector_range(idx, idx + 1); }
-    void prepare_table();
+    void prepare_table(bool gen_table=true);
     void load_table_addr() { h->mov(p_table, l_table); }
 
     const alg_kind_t alg_;

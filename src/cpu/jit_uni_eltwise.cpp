@@ -716,13 +716,14 @@ void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(size_t start_idx,
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::prepare_table() {
+void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     using namespace alg_kind;
 
     h->align(64);
     h->L(l_table);
 
-    switch (alg_) {
+    if (gen_table) {
+        switch (alg_) {
         case eltwise_relu: relu_prepare_table(); break;
         case eltwise_elu:
         case eltwise_tanh:
@@ -735,6 +736,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table() {
         case eltwise_bounded_relu: bounded_relu_prepare_table(); break;
         case eltwise_square: break;
         default: assert(!"unsupported eltwise algorithm");
+    }
     }
 }
 
