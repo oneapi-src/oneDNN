@@ -26,7 +26,7 @@ The table below summarizes the list of supported functions and their variants.
 |                   | 3D direct deconvolution  | x             | x              |                |
 | Inner Product     | 2D inner product         | x             | x              | x              |
 |                   | 3D inner product         | x             | x              |                |
-| RNN (experimental)| Vanilla RNN cell         | x             | x              |                |
+| RNN               | Vanilla RNN cell         | x             | x              | x              |
 |                   | LSTM cell                | x             | x              |                |
 |                   | GRU cell                 | x             | x              |                |
 | Pooling           | 2D maximum pooling       | x             | x              | x              |
@@ -140,7 +140,7 @@ The following examples are available in the /examples directory and provide more
     - C: simple_training.c
     - C++: simple_training_net.cpp
 
-* Creation of forward propagation of GNMT topology (experimental support)
+* Creation of forward propagation of GNMT topology
     - C++: simple_rnn.cpp
 
 * Training RNN with sequences of variable length
