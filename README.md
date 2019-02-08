@@ -21,8 +21,8 @@ the following deep learning topologies and variations of these:
 | Image segmentation                        | FCN, SegNet, MaskRCNN, U-Net
 | Volumetric segmentation                   | 3D-Unet
 | Object detection                          | SSD, Faster R-CNN, Yolo
-| Neural machine translation (experimental) | GNMT
-| Speech recognition (experimental)         | DeepSpeech
+| Neural machine translation                | GNMT
+| Speech recognition                        | DeepSpeech
 | Adversarial networks                      | DCGAN, 3DGAN
 | Reinforcement learning                    | A3C
 | Text-to-speech                            | WaveNet
@@ -66,8 +66,6 @@ Please submit your questions, feature requests, and bug reports on the
 **WARNING** The following functionality has preview status and might change
 without prior notification in future releases:
 * Convolutions with `s16` data type in source, weights or destination
-* Convolutions and auxiliary primitives for 3D spatial data
-* RNN, LSTM, and GRU primitives
 * Threading Building Blocks (TBB) support
 
 ## How to Contribute
