@@ -42,6 +42,5 @@ endif()
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/mkldnn_version.h.in"
-    "${PROJECT_BINARY_DIR}/mkldnn_version.h"
+    "${PROJECT_BINARY_DIR}/include/mkldnn_version.h"
 )
-include_directories("${PROJECT_BINARY_DIR}")
