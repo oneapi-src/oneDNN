@@ -58,7 +58,8 @@ const verbose_t *mkldnn_verbose() {
         initialized = true;
     }
     if (!version_printed && verbose.level > 0) {
-         printf("mkldnn_verbose,Intel(R) MKL-DNN v%d.%d.%d Git Hash %s\n%s\n",
+         printf("mkldnn_verbose,info,"
+                 "Intel(R) MKL-DNN v%d.%d.%d (Git Hash %s),%s\n",
                 mkldnn_version()->major, mkldnn_version()->minor,
                 mkldnn_version()->patch, mkldnn_version()->hash,
                 get_isa_info());
