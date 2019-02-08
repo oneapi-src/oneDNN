@@ -41,7 +41,7 @@ if(NOT GIT_FOUND OR RESULT)
 endif()
 
 configure_file(
-    "${PROJECT_SOURCE_DIR}/cmake/mkldnn_version.h.in"
+    "${PROJECT_SOURCE_DIR}/include/mkldnn_version.h.in"
     "${PROJECT_BINARY_DIR}/mkldnn_version.h"
 )
 include_directories("${PROJECT_BINARY_DIR}")
