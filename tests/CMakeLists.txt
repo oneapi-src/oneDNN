@@ -68,7 +68,7 @@ if(UNIX OR MINGW)
     add_custom_command(
         OUTPUT ${test_c_symbols}
         COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols}
+        ${CMAKE_CURRENT_SOURCE_DIR}/.. ${PROJECT_BINARY_DIR}/include ${test_c_symbols}
     )
     register_exe(test_c_symbols-c ${test_c_symbols} "test")
 # elseif(WIN32)

@@ -17,6 +17,7 @@
 set(TARGET_NAME ${LIB_NAME})
 
 file(GLOB_RECURSE HEADERS
+    ${PROJECT_BINARY_DIR}/include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
     )
@@ -27,6 +28,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     )
 include_directories(
+    ${PROJECT_BINARY_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/cpu
@@ -143,6 +145,7 @@ target_include_directories(
     ${TARGET_NAME}
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
 )
 
 if(WIN32)
