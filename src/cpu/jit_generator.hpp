@@ -308,6 +308,32 @@ public:
         vpxord(x1, x2, op);
     }
 
+    void uni_vmovss(const Xbyak::Address& addr, const Xbyak::Xmm &x) {
+        movss(addr, x);
+    }
+    void uni_vmovss(const Xbyak::Address& addr, const Xbyak::Ymm &x) {
+        vmovss(addr, x);
+    }
+    void uni_vmovss(const Xbyak::Xmm &x, const Xbyak::Address& addr) {
+        movss(x, addr);
+    }
+    void uni_vmovss(const Xbyak::Ymm &x, const Xbyak::Address& addr) {
+        vmovss(x, addr);
+    }
+
+    void uni_vmovsd(const Xbyak::Address& addr, const Xbyak::Xmm &x) {
+        movsd(addr, x);
+    }
+    void uni_vmovsd(const Xbyak::Address& addr, const Xbyak::Ymm &x) {
+        vmovsd(addr, x);
+    }
+    void uni_vmovsd(const Xbyak::Xmm &x, const Xbyak::Address& addr) {
+        movsd(x, addr);
+    }
+    void uni_vmovsd(const Xbyak::Ymm &x, const Xbyak::Address& addr) {
+        vmovsd(x, addr);
+    }
+
     void uni_vmovdqu(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         movdqu(addr, x);
     }
@@ -377,6 +403,29 @@ public:
             vinsertf128(x, x, t, 1);
             vshufps(x, x, x, 0);
         }
+    }
+
+    void uni_vrcpss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        rcpss(x, op);
+    }
+    void uni_vrcpss(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2) {
+        Xbyak::Xmm x1_(x1.getIdx());
+        Xbyak::Xmm x2_(x2.getIdx());
+        vrcpss(x1_, x1_, x2_);
+    }
+    void uni_vrcpss(const Xbyak::Ymm &x, const Xbyak::Address &op) {
+        Xbyak::Xmm x_(x.getIdx());
+        vrcpss(x_, x_, op);
+    }
+
+    void uni_vrcpps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        rcpps(x, op);
+    }
+    void uni_vrcpps(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
+        vrcpps(x, op);
+    }
+    void uni_vrcpps(const Xbyak::Zmm &x, const Xbyak::Operand &op) {
+        vrcp14ps(x, op);
     }
 
     void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
@@ -642,6 +691,23 @@ public:
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Ymm &x2) {
         vmovmskps(x1, x2);
     }
+
+    void uni_vpackssdw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2, const Xbyak::Operand &op){
+        assert(x1.getIdx() == x1.getIdx());
+        packssdw(x1, op);
+    }
+    void uni_vpackssdw(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2, const Xbyak::Operand &op){
+        vpackssdw(x1, x2, op);
+    }
+
+    void uni_vpackuswb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2, const Xbyak::Operand &op){
+        assert(x1.getIdx() == x1.getIdx());
+        packuswb(x1, op);
+    }
+    void uni_vpackuswb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2, const Xbyak::Operand &op){
+        vpackuswb(x1, x2, op);
+    }
+
 
     void mul_by_const(const Xbyak::Reg &out,
             const Xbyak::Reg64 &tmp, int value) {
