@@ -36,8 +36,12 @@ endif()
 
 macro(forbid_link_compiler_omp_rt)
     if (NOT WIN32)
-        set_if(OpenMP_C_FOUND CMAKE_C_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS ${OpenMP_C_FLAGS})
-        set_if(OpenMP_CXX_FOUND CMAKE_CXX_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS ${OpenMP_CXX_FLAGS})
+        set_if(OpenMP_C_FOUND
+            CMAKE_C_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS
+            "${OpenMP_C_FLAGS}")
+        set_if(OpenMP_CXX_FOUND
+            CMAKE_CXX_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS
+            "${OpenMP_CXX_FLAGS}")
         if (NOT APPLE)
             set (CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
         endif()
