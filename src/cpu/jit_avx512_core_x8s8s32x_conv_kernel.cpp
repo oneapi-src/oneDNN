@@ -982,9 +982,11 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
     // Try to use 4 channel-groups at a time to avoid false sharing (depthwise)
-    jcp.nb_ch_blocking = jcp.is_depthwise
-        ? (jcp.nb_ch % 4 == 0 ? 4 : jcp.nb_ch % 2 == 0 ? 2 : 1)
-        : 1;
+    int nb_ch_blocking = 4;
+    for ( /* init above */ ; nb_ch_blocking > 1; nb_ch_blocking--)
+        if (jcp.nb_ch % nb_ch_blocking == 0)
+            break;
+    jcp.nb_ch_blocking = jcp.is_depthwise ? nb_ch_blocking : 1;
 
     // If OC blocking is incommensurate with the number of OC blocks (general
     // requirement for all convolutions), or if it results in an unrolling
