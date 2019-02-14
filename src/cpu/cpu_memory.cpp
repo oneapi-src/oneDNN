@@ -311,6 +311,8 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(OIw8i16o2i);
     MAYBE_WEIGHTS(OIw8o16i2o);
     MAYBE_WEIGHTS(IOw16o16i);
+    MAYBE_WEIGHTS(OIw4i16o4i);
+    MAYBE_WEIGHTS(OIw4i16o4i_s8s8);
     MAYBE_WEIGHTS(OIhw8i16o2i);
     MAYBE_WEIGHTS(OIdhw8i16o2i);
     MAYBE_WEIGHTS(OIhw8o16i2o);
@@ -343,6 +345,8 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(gOIw8i16o2i);
     MAYBE_WEIGHTS(gOIw8o16i2o);
     MAYBE_WEIGHTS(gIOw16o16i);
+    MAYBE_WEIGHTS(gOIw4i16o4i);
+    MAYBE_WEIGHTS(gOIw4i16o4i_s8s8);
     MAYBE_WEIGHTS(gOIhw8i16o2i);
     MAYBE_WEIGHTS(gOIdhw8i16o2i);
     MAYBE_WEIGHTS(gOIhw8o16i2o);
@@ -365,6 +369,7 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(gOdhwi8o);
     MAYBE_WEIGHTS(Goihw8g);
     MAYBE_WEIGHTS(Goihw16g);
+    MAYBE_WEIGHTS(Goiw16g);
 #   undef MAYBE_WEIGHTS
 
     // the last line of defence
