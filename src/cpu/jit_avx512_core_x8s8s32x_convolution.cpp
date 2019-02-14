@@ -40,9 +40,126 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
          : (d).blk_off(__VA_ARGS__))
 
 template <data_type_t src_type, data_type_t dst_type>
-void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type, dst_type>::
-execute_forward() const
-{
+void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
+        dst_type>::execute_forward_1d() const {
+    auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
+    auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
+    auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+
+    const memory_desc_wrapper src_d(pd()->src_pd());
+    const memory_desc_wrapper dst_d(pd()->dst_pd());
+    const memory_desc_wrapper weights_d(pd()->weights_pd(0));
+    const memory_desc_wrapper bias_d(pd()->weights_pd(1));
+
+    const size_t bia_dt_size = pd()->with_bias()
+        ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
+
+    const auto &jcp = pd()->jcp_;
+    assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
+    assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
+
+    const float *oscales = pd()->attr()->output_scales_.scales_;
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
+        auto local_scales = scratchpad().template get<float>(
+                key_conv_adjusted_scales);
+        size_t count = pd()->attr()->output_scales_.count_;
+        float factor = 1.f / pd()->jcp_.wei_adj_scale;
+        if (count == 1) {
+            utils::array_set(local_scales, oscales[0] * factor, 16);
+        } else {
+            for (size_t c = 0; c < count; c++)
+                local_scales[c] = oscales[c] * factor;
+        }
+        oscales = local_scales;
+    }
+
+    size_t offset = weights_d.size() - weights_d.additional_buffer_size();
+    auto w = const_cast<wei_data_t *>(weights);
+    int32_t* compensation = (jcp.signed_input)
+                                ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
+    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
+    int group_block = jcp.ch_block;
+    int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.nb_ow;
+
+    parallel(0, [&](const int ithr, const int nthr) {
+
+        int start{ 0 }, end{ 0 };
+        balance211(work_amount, nthr, ithr, start, end);
+
+        auto p = jit_conv_call_s();
+
+        int n{ 0 }, gg{ 0 }, occ{ 0 }, owb{ 0 };
+        switch (jcp.loop_order) {
+        case loop_cwgn:
+            nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gg,
+                    nb_groups, n, jcp.mb);
+            break;
+        case loop_gncw:
+            nd_iterator_init(start, gg, nb_groups, n, jcp.mb, occ, oc_chunks,
+                    owb, jcp.nb_ow);
+            break;
+        case loop_ngcw:
+            nd_iterator_init(start, n, jcp.mb, gg, nb_groups, occ, oc_chunks,
+                    owb, jcp.nb_ow);
+            break;
+        case loop_nwcg:
+            nd_iterator_init(start, n, jcp.mb, owb, jcp.nb_ow, occ, oc_chunks,
+                    gg, nb_groups);
+            break;
+        default: assert(!"unsupported loop order");
+        }
+        while (start < end) {
+            int ocb = occ * jcp.nb_oc_blocking;
+            int gb = gg * jcp.nb_ch_blocking;
+            int g = gb * group_block;
+            int g_oc = (g * jcp.nb_oc + ocb) * jcp.oc_block;
+            int g_ic = g * jcp.nb_ic * jcp.ic_block;
+            int ow_s = owb * jcp.ow_block;
+            int iw_s = ow_s * jcp.stride_w;
+
+            p.bias = bias ? bias + (bias_d.blk_off(g_oc) * bia_dt_size) : 0;
+            p.compensation = (jcp.signed_input) ? compensation + g_oc : 0;
+            p.dst = dst + dst_d.blk_off(n, g_oc, ow_s);
+            p.src = src + src_d.blk_off(n, g_ic, iw_s);
+            p.filt = weights + wht_blk_off(weights_d, gb, ocb, 0);
+            p.scales = &oscales[jcp.is_oc_scale * g_oc];
+            p.oc_blocks = jcp.is_depthwise ? gb : ocb;
+            p.kh_padding = jcp.kh;
+            p.t_overflow = 0;
+            p.b_overflow = 0;
+            p.owb = owb;
+
+            kernel_->jit_ker(&p);
+
+            ++start;
+            switch (jcp.loop_order) {
+            case loop_cwgn:
+                nd_iterator_step(occ, oc_chunks, owb, jcp.nb_ow, gg, nb_groups,
+                        n, jcp.mb);
+                break;
+            case loop_gncw:
+                nd_iterator_step(gg, nb_groups, n, jcp.mb, occ, oc_chunks, owb,
+                        jcp.nb_ow);
+                break;
+            case loop_ngcw:
+                nd_iterator_step(n, jcp.mb, gg, nb_groups, occ, oc_chunks, owb,
+                        jcp.nb_ow);
+                break;
+            case loop_nwcg:
+                nd_iterator_step(n, jcp.mb, owb, jcp.nb_ow, occ, oc_chunks, gg,
+                        nb_groups);
+                break;
+            default: assert(!"unsupported loop order");
+            }
+        }
+    });
+}
+
+template <data_type_t src_type, data_type_t dst_type>
+void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
+        dst_type>::execute_forward_2d() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
     auto bias = reinterpret_cast<const char *>(this->input_memory(2));

@@ -42,7 +42,7 @@ void pick_loop_order(jit_conv_conf_t &jcp, int nthr)
     if (jcp.ngroups > 1) {
         jcp.loop_order = loop_ngcw;
         if (jcp.mb < nthr)
-            jcp.loop_order = loop_nhwcg;
+            jcp.loop_order = jcp.ndims == 3 ? loop_nwcg : loop_nhwcg;
     }
 }
 }
@@ -463,7 +463,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
     mov(aux_reg_inp, reg_inp);
     mov(aux_reg_ker, reg_ker);
 
-    if (jcp.signed_input) {
+    if (jcp.signed_input && jcp.ndims > 3) {
         mov(reg_overflow, ptr[param1 + GET_OFF(t_overflow)]);
         cmp(reg_overflow, 0);
         je(no_t_overflow_label, T_NEAR);
@@ -493,7 +493,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         jg(kh_label, T_NEAR);
     }
     L(skip_kh_loop);
-    if (jcp.signed_input) {
+    if (jcp.signed_input && jcp.ndims > 3) {
         mov(reg_overflow, ptr[param1 + GET_OFF(b_overflow)]);
         cmp(reg_overflow, 0);
         je(no_b_overflow_label, T_NEAR);
@@ -840,6 +840,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     const memory_desc_wrapper bias_d(&bias_pd);
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    int ndims = src_d.ndims();
+    bool is_1d = ndims == 3;
 
     if (!(mayiuse(avx512_core)
          && one_of(src_d.data_type(), data_type::u8, data_type::s8)
@@ -849,6 +851,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
+    jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -856,23 +859,23 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.ic_without_padding = jcp.ic;
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[3];
-    jcp.kh = weights_d.dims()[with_groups + 2];
-    jcp.kw = weights_d.dims()[with_groups + 3];
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
+    jcp.ih = is_1d ? 1 : src_d.dims()[ndims - 2];
+    jcp.iw = src_d.dims()[ndims - 1];
+    jcp.oh = is_1d ? 1 : dst_d.dims()[ndims - 2];
+    jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.kh = is_1d ? 1 : weights_d.dims()[with_groups + ndims - 2];
+    jcp.kw = weights_d.dims()[with_groups + ndims - 1];
+    jcp.t_pad = is_1d ? 0 : cd.padding[0][ndims - 4];
+    jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.stride_h = is_1d ? 1 : cd.strides[ndims - 4];
+    jcp.stride_w = cd.strides[ndims - 3];
     jcp.src_fmt = src_d.format();
     jcp.with_bias = cd.bias_desc.format != memory_format::undef;
 
-    jcp.ur_h = 1;
+    jcp.ur_h = 1; /* no code-unrolling by h so far */
 
-    jcp.dilate_h = cd.dilates[0];
-    jcp.dilate_w = cd.dilates[1];
+    jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
+    jcp.dilate_w = cd.dilates[ndims - 3];
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
@@ -890,7 +893,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             /* For non grouped convolutions, pad channels by 16 if needed */
             jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
             jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
-        } else if (jcp.ngroups != 1 && jcp.ic % jcp.ic_block != 0) {
+        } else if (!is_1d && jcp.ngroups != 1 && jcp.ic % jcp.ic_block != 0) {
             /* For grouped convolutions, MKL-DNN doesn't support padding.
                Use Ymm when channels per group is multiple of 8,
                Xmm when channels per group is multiple of 4 */
@@ -915,7 +918,9 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ver = mayiuse(avx512_core_vnni) ? ver_vnni : ver_avx512_core;
     jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.ver == ver_vnni
-        && jcp.ngroups % jcp.ch_block == 0; // for groups not multiple of 16 would require byte masking for load from src
+            && jcp.ngroups % jcp.ch_block == 0; // for groups not multiple of 16
+                                                // would require byte masking
+                                                // for load from src
     if (jcp.is_depthwise) {
         jcp.max_regs_ur = jcp.is_fast_depthwise
             ? (jcp.signed_input ? 27 : 28)
@@ -924,31 +929,37 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.max_regs_ur = jcp.ver == ver_vnni ? 31 : 28;
     }
 
+    auto src_format = pick(ndims - 3, nwc, nhwc);
+    auto dst_format = pick(ndims - 3, nwc, nhwc);
+#define pick_signed(fmt) (jcp.signed_input ? fmt##_s8s8 : fmt)
     memory_format_t w_format;
     if (jcp.ic_block == 16 || jcp.ch_block == 16) {
-        w_format = with_groups
-            ? (jcp.is_depthwise ? (jcp.signed_input ? Goihw16g_s8s8 : Goihw16g)
-                    : (jcp.signed_input) ? gOIhw4i16o4i_s8s8 : gOIhw4i16o4i)
-            : (jcp.signed_input) ? OIhw4i16o4i_s8s8 : OIhw4i16o4i;
-     /* Non-grouped conv will always be padded by 16*/
+        w_format = is_1d ?
+                (with_groups ? (jcp.is_depthwise ? pick_signed(Goiw16g) :
+                                                   pick_signed(gOIw4i16o4i)) :
+                               pick_signed(OIw4i16o4i)) :
+                (with_groups ? (jcp.is_depthwise ? pick_signed(Goihw16g) :
+                                                   pick_signed(gOIhw4i16o4i)) :
+                               pick_signed(OIhw4i16o4i));
+        /* Non-grouped conv will always be padded by 16*/
     } else if (with_groups && jcp.ic_block == 8) {
-        w_format = jcp.signed_input ? gOIhw2i8o4i_s8s8 : gOIhw2i8o4i;
+        w_format = pick_signed(gOIhw2i8o4i);
     } else {
-        w_format = jcp.signed_input ? gOIhw4o4i_s8s8 : gOIhw4o4i;
+        w_format = pick_signed(gOIhw4o4i);
     }
+#undef pick_signed
 
     if (weights_d.format() == any)
         CHECK(weights_pd.set_format(w_format));
     if (weights_d.format() != w_format)
         return status::unimplemented;
-
     if (dst_d.format() == any)
-        CHECK(dst_pd.set_format(nhwc));
-    if (dst_d.format() != nhwc)
+        CHECK(dst_pd.set_format(dst_format));
+    if (dst_d.format() != dst_format)
         return status::unimplemented;
     if (src_d.format() == any)
-        CHECK(src_pd.set_format(nhwc));
-    if (src_d.format() != nhwc)
+        CHECK(src_pd.set_format(src_format));
+    if (src_d.format() != src_format)
         return status::unimplemented;
     if (jcp.with_bias) {
         if (bias_d.format() == any)
