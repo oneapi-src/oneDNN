@@ -100,6 +100,10 @@ data_kind_t fmt2data_kind(mkldnn_memory_format_t fmt) {
     case mkldnn_gOiw16o:
     case mkldnn_gOwi16o:
     case mkldnn_gOIw8i16o2i:
+    case mkldnn_Goiw16g:
+    case mkldnn_Goiw16g_s8s8:
+    case mkldnn_gOIw4i16o4i:
+    case mkldnn_gOIw4i16o4i_s8s8:
     case mkldnn_goihw:
     case mkldnn_hwigo:
     case mkldnn_giohw:
