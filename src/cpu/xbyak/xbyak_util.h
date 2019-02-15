@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,11 @@
 */
 #include "xbyak.h"
 
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+	#define XBYAK_INTEL_CPU_SPECIFIC
+#endif
+
+#ifdef XBYAK_INTEL_CPU_SPECIFIC
 #ifdef _MSC_VER
 	#if (_MSC_VER < 1400) && defined(XBYAK32)
 		static inline __declspec(naked) void __cpuid(int[4], int)
@@ -92,19 +97,30 @@
 		#endif
 	#endif
 #endif
+#endif
 
 namespace Xbyak { namespace util {
 
-typedef enum intel_cpu_topology_level {
-   smt_level = 1,
-   core_level = 2
-}intel_cpu_topology_level_t;
+typedef enum {
+   SmtLevel = 1,
+   CoreLevel = 2
+} IntelCpuTopologyLevel;
 
 /**
 	CPU detection class
 */
 class Cpu {
 	uint64 type_;
+	//system topology
+	bool x2APIC_supported_;
+	static const size_t maxTopologyLevels = 2;
+	unsigned int numCores_[maxTopologyLevels];
+
+	static const unsigned int maxNumberCacheLevels = 10;
+	unsigned int dataCacheSize_[maxNumberCacheLevels];
+	unsigned int coresSharignDataCache_[maxNumberCacheLevels];
+	unsigned int dataCacheLevels_;
+
 	unsigned int get32bitAsBE(const char *x) const
 	{
 		return x[0] | (x[1] << 8) | (x[2] << 16) | (x[3] << 24);
@@ -115,7 +131,7 @@ class Cpu {
 	}
 	void setFamily()
 	{
-		unsigned int data[4];
+		unsigned int data[4] = {};
 		getCpuid(1, data);
 		stepping = data[0] & mask(4);
 		model = (data[0] >> 4) & mask(4);
@@ -138,40 +154,42 @@ class Cpu {
 	{
 		return (val >> base) & ((1u << (end - base)) - 1);
 	}
-        void setNumCores()
-        {
+	void setNumCores()
+	{
 		if ((type_ & tINTEL) == 0) return;
 
-                unsigned int data[4];
+		unsigned int data[4] = {};
 
-                 /* CAUTION: These numbers are configuration as shipped by Intel. */
-                getCpuidEx(0x0, 0, data);
-                if (data[0] >= 0xB) {
-                         /*
-                                if leaf 11 exists(x2APIC is supported),
-                                we use it to get the number of smt cores and cores on socket
+		 /* CAUTION: These numbers are configuration as shipped by Intel. */
+		getCpuidEx(0x0, 0, data);
+		if (data[0] >= 0xB) {
+			 /*
+				if leaf 11 exists(x2APIC is supported),
+				we use it to get the number of smt cores and cores on socket
 
-                                leaf 0xB can be zeroed-out by a hypervisor
-                        */
-                        x2APIC_supported = true;
-                        for (size_t i = 0; i < maxTopologyLevels; i++) {
-                            getCpuidEx(0xB, i, data);
-                            intel_cpu_topology_level_t level_type =
-                                (intel_cpu_topology_level_t)extractBit(data[2], 8, 15);
-                            if (level_type == smt_level
-                                    || level_type == core_level)
-                                n_cores[level_type - 1] = extractBit(data[1], 0, 15);
-                        }
-                        if (n_cores[smt_level - 1] != 0)
-                            n_cores[core_level - 1] /= n_cores[smt_level - 1];
-                } else {
-                        /* Failed to deremine num of cores without x2APIC support.
-                           TODO: USE initial APIC ID to determine ncores. */
-                    n_cores[smt_level - 1] = 0;
-                    n_cores[core_level - 1] = 0;
-                }
+				leaf 0xB can be zeroed-out by a hypervisor
+			*/
+			x2APIC_supported_ = true;
+			for (unsigned int i = 0; i < maxTopologyLevels; i++) {
+				getCpuidEx(0xB, i, data);
+				IntelCpuTopologyLevel level = (IntelCpuTopologyLevel)extractBit(data[2], 8, 15);
+				if (level == SmtLevel || level == CoreLevel) {
+					numCores_[level - 1] = extractBit(data[1], 0, 15);
+				}
+			}
+			if (numCores_[SmtLevel - 1] != 0) {
+				numCores_[CoreLevel - 1] /= numCores_[SmtLevel - 1];
+			}
+		} else {
+			/*
+				Failed to deremine num of cores without x2APIC support.
+				TODO: USE initial APIC ID to determine ncores.
+			*/
+			numCores_[SmtLevel - 1] = 0;
+			numCores_[CoreLevel - 1] = 0;
+		}
 
-        }
+	}
 	void setCacheHierarchy()
 	{
 		if ((type_ & tINTEL) == 0) return;
@@ -181,48 +199,45 @@ class Cpu {
 		const unsigned int UNIFIED_CACHE = 3;
 		unsigned int smt_width = 0;
 		unsigned int logical_cores = 0;
-		unsigned int data[4];
+		unsigned int data[4] = {};
 
-                if (x2APIC_supported) {
-                    smt_width = n_cores[0];
-                    logical_cores = n_cores[1];
-                }
+		if (x2APIC_supported_) {
+			smt_width = numCores_[0];
+			logical_cores = numCores_[1];
+		}
 
 		/*
 			Assumptions:
 			the first level of data cache is not shared (which is the
 			case for every existing architecture) and use this to
 			determine the SMT width for arch not supporting leaf 11.
-			when leaf 4 reports a number of core less than n_cores
+			when leaf 4 reports a number of core less than numCores_
 			on socket reported by leaf 11, then it is a correct number
 			of cores not an upperbound.
 		*/
-		for (int i = 0; data_cache_levels < maxNumberCacheLevels; i++) {
+		for (int i = 0; dataCacheLevels_ < maxNumberCacheLevels; i++) {
 			getCpuidEx(0x4, i, data);
 			unsigned int cacheType = extractBit(data[0], 0, 4);
 			if (cacheType == NO_CACHE) break;
 			if (cacheType == DATA_CACHE || cacheType == UNIFIED_CACHE) {
 				unsigned int actual_logical_cores = extractBit(data[0], 14, 25) + 1;
-				if (logical_cores != 0) // true only if leaf 0xB is supported and valid
+				if (logical_cores != 0) { // true only if leaf 0xB is supported and valid
 					actual_logical_cores = (std::min)(actual_logical_cores, logical_cores);
+				}
 				assert(actual_logical_cores != 0);
-				data_cache_size[data_cache_levels] =
+				dataCacheSize_[dataCacheLevels_] =
 					(extractBit(data[1], 22, 31) + 1)
 					* (extractBit(data[1], 12, 21) + 1)
 					* (extractBit(data[1], 0, 11) + 1)
 					* (data[2] + 1);
 				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = actual_logical_cores;
 				assert(smt_width != 0);
-				cores_sharing_data_cache[data_cache_levels] = (std::max)(actual_logical_cores / smt_width, 1u);
-				data_cache_levels++;
+				coresSharignDataCache_[dataCacheLevels_] = (std::max)(actual_logical_cores / smt_width, 1u);
+				dataCacheLevels_++;
 			}
 		}
 	}
 
-        //system topology
-        bool x2APIC_supported;
-        static const unsigned int maxTopologyLevels = 2;
-        unsigned int n_cores[maxTopologyLevels];
 public:
 	int model;
 	int family;
@@ -232,30 +247,22 @@ public:
 	int displayFamily; // family + extFamily
 	int displayModel; // model + extModel
 
-	// may I move these members into private?
-	static const unsigned int maxNumberCacheLevels = 10;
-	unsigned int data_cache_size[maxNumberCacheLevels];
-	unsigned int cores_sharing_data_cache[maxNumberCacheLevels];
-	unsigned int data_cache_levels;
+	unsigned int getNumCores(IntelCpuTopologyLevel level) {
+		if (level != SmtLevel && level != CoreLevel) throw Error(ERR_BAD_PARAMETER);
+		if (!x2APIC_supported_) throw Error(ERR_X2APIC_IS_NOT_SUPPORTED);
+		return numCores_[level - 1];
+	}
 
-
-        unsigned int getNumCores(intel_cpu_topology_level_t topology_level) {
-            if (topology_level != smt_level
-                    && topology_level != core_level) throw Error(ERR_BAD_PARAMETER);
-            if (!x2APIC_supported) throw Error(ERR_x2APIC_NOT_SUPPORTED_CANT_GET_NCORES);
-            return n_cores[topology_level - 1];
-        }
-
-	unsigned int getDataCacheLevels() const { return data_cache_levels; }
+	unsigned int getDataCacheLevels() const { return dataCacheLevels_; }
 	unsigned int getCoresSharingDataCache(unsigned int i) const
 	{
-		if (i >= data_cache_levels) throw  Error(ERR_BAD_PARAMETER);
-		return cores_sharing_data_cache[i];
+		if (i >= dataCacheLevels_) throw  Error(ERR_BAD_PARAMETER);
+		return coresSharignDataCache_[i];
 	}
 	unsigned int getDataCacheSize(unsigned int i) const
 	{
-		if (i >= data_cache_levels) throw  Error(ERR_BAD_PARAMETER);
-		return data_cache_size[i];
+		if (i >= dataCacheLevels_) throw  Error(ERR_BAD_PARAMETER);
+		return dataCacheSize_[i];
 	}
 
 	/*
@@ -263,30 +270,45 @@ public:
 	*/
 	static inline void getCpuid(unsigned int eaxIn, unsigned int data[4])
 	{
-#ifdef _MSC_VER
+#ifdef XBYAK_INTEL_CPU_SPECIFIC
+	#ifdef _MSC_VER
 		__cpuid(reinterpret_cast<int*>(data), eaxIn);
-#else
+	#else
 		__cpuid(eaxIn, data[0], data[1], data[2], data[3]);
+	#endif
+#else
+		(void)eaxIn;
+		(void)data;
 #endif
 	}
 	static inline void getCpuidEx(unsigned int eaxIn, unsigned int ecxIn, unsigned int data[4])
 	{
-#ifdef _MSC_VER
+#ifdef XBYAK_INTEL_CPU_SPECIFIC
+	#ifdef _MSC_VER
 		__cpuidex(reinterpret_cast<int*>(data), eaxIn, ecxIn);
-#else
+	#else
 		__cpuid_count(eaxIn, ecxIn, data[0], data[1], data[2], data[3]);
+	#endif
+#else
+		(void)eaxIn;
+		(void)ecxIn;
+		(void)data;
 #endif
 	}
 	static inline uint64 getXfeature()
 	{
-#ifdef _MSC_VER
+#ifdef XBYAK_INTEL_CPU_SPECIFIC
+	#ifdef _MSC_VER
 		return _xgetbv(0);
-#else
+	#else
 		unsigned int eax, edx;
 		// xgetvb is not support on gcc 4.2
 //		__asm__ volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
 		__asm__ volatile(".byte 0x0f, 0x01, 0xd0" : "=a"(eax), "=d"(edx) : "c"(0));
 		return ((uint64)edx << 32) | eax;
+	#endif
+#else
+		return 0;
 #endif
 	}
 	typedef uint64 Type;
@@ -356,11 +378,14 @@ public:
 	static const Type tAVX512_VPOPCNTDQ = uint64(1) << 56;
 
 	Cpu()
-                : type_(NONE)
-		, x2APIC_supported(false)
-		, data_cache_levels(0)
+		: type_(NONE)
+		, x2APIC_supported_(false)
+		, numCores_()
+		, dataCacheSize_()
+		, coresSharignDataCache_()
+		, dataCacheLevels_(0)
 	{
-		unsigned int data[4];
+		unsigned int data[4] = {};
 		const unsigned int& EAX = data[0];
 		const unsigned int& EBX = data[1];
 		const unsigned int& ECX = data[2];
@@ -450,7 +475,7 @@ public:
 			if (ECX & (1U << 0)) type_ |= tPREFETCHWT1;
 		}
 		setFamily();
-                setNumCores();
+		setNumCores();
 		setCacheHierarchy();
 	}
 	void putFamily() const
@@ -469,12 +494,17 @@ class Clock {
 public:
 	static inline uint64 getRdtsc()
 	{
-#ifdef _MSC_VER
+#ifdef XBYAK_INTEL_CPU_SPECIFIC
+	#ifdef _MSC_VER
 		return __rdtsc();
-#else
+	#else
 		unsigned int eax, edx;
 		__asm__ volatile("rdtsc" : "=a"(eax), "=d"(edx));
 		return ((uint64)edx << 32) | eax;
+	#endif
+#else
+		// TODO: Need another impl of Clock or rdtsc-equivalent for non-x86 cpu
+		return 0;
 #endif
 	}
 	Clock()

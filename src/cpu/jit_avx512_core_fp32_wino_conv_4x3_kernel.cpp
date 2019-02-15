@@ -67,7 +67,7 @@ bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
     /* Determines if current winograd implementation is faster than direct.
        Following conditions are empirical and based on performance data */
     unsigned int ncores_per_socket =
-        cpu.getNumCores(Xbyak::util::intel_cpu_topology_level::core_level);
+        cpu.getNumCores(Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
     unsigned int nthreads = mkldnn_get_max_threads();
 
     if (jcp.prop_kind == prop_kind::forward_inference) {

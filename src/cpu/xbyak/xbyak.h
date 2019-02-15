@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5751 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5760 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -232,7 +232,7 @@ enum {
 	ERR_INVALID_RIP_IN_AUTO_GROW,
 	ERR_INVALID_MIB_ADDRESS,
 	ERR_INTERNAL,
-        ERR_x2APIC_NOT_SUPPORTED_CANT_GET_NCORES
+	ERR_X2APIC_IS_NOT_SUPPORTED
 };
 
 class Error : public std::exception {
@@ -294,7 +294,7 @@ public:
 			"invalid rip in AutoGrow",
 			"invalid mib address",
 			"internal error",
-                        "cannot determine num of cores because x2APIC not supported"
+			"x2APIC is not supported"
 		};
 		assert((size_t)err_ < sizeof(errTbl) / sizeof(*errTbl));
 		return errTbl[err_];
