@@ -509,6 +509,7 @@ typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<fmt_i == any && (false
+    || format_traits<fmt_o>::blk_fmt == bf::_4c
     || format_traits<fmt_o>::blk_fmt == bf::_8c
     || format_traits<fmt_o>::blk_fmt == bf::_16c)>::type>
 {
@@ -680,6 +681,7 @@ typename utils::enable_if<fmt_i == any
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<fmt_i == any && (false
+    || format_traits<fmt_o>::blk_fmt == bf::_4o
     || format_traits<fmt_o>::blk_fmt == bf::_8o
     || format_traits<fmt_o>::blk_fmt == bf::_16o)>::type>
 {

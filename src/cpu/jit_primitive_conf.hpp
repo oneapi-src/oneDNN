@@ -55,6 +55,7 @@ struct jit_conv_conf_t {
     conv_version_t ver;
     conv_loop_order_t loop_order;
 
+    int simd_w;
     int ndims;
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;

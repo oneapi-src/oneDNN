@@ -63,6 +63,7 @@ typed_zero_pad_data(
 
 template <data_type_t dt, memory_format_t fmt>
 typename utils::enable_if<false
+|| format_traits<fmt>::blk_fmt == bf::_4o
 || format_traits<fmt>::blk_fmt == bf::_8o
 || format_traits<fmt>::blk_fmt == bf::_16o
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
@@ -267,9 +268,12 @@ status_t cpu_memory_t::typed_zero_pad() const {
     /* data */
 #   define MAYBE_DATA(f) if (fmt == f) \
     { typed_zero_pad_data<dt, f>(mpd, data); return success; }
+    MAYBE_DATA(nCw4c);
     MAYBE_DATA(nCw8c);
     MAYBE_DATA(nCw16c);
+    MAYBE_DATA(nChw4c);
     MAYBE_DATA(nChw8c);
+    MAYBE_DATA(nCdhw4c);
     MAYBE_DATA(nCdhw8c);
     MAYBE_DATA(nChw16c);
     MAYBE_DATA(nCdhw16c);
@@ -277,10 +281,12 @@ status_t cpu_memory_t::typed_zero_pad() const {
     /* weights */
 #   define MAYBE_WEIGHTS(f) if (fmt == f) \
     { typed_zero_pad_weights<dt, f>(mpd, data); return success; }
+    MAYBE_WEIGHTS(OIdhw4i4o);
     MAYBE_WEIGHTS(OIdhw8i8o);
     MAYBE_WEIGHTS(OIdhw8o8i);
     MAYBE_WEIGHTS(OIdhw16i16o);
     MAYBE_WEIGHTS(OIdhw16o16i);
+    MAYBE_WEIGHTS(Oidhw4o);
     MAYBE_WEIGHTS(Oidhw16o);
     MAYBE_WEIGHTS(Odhwi16o);
     MAYBE_WEIGHTS(Odhwi8o);
@@ -288,15 +294,18 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(oIhw16i);
     MAYBE_WEIGHTS(oIdhw8i);
     MAYBE_WEIGHTS(oIdhw16i);
+    MAYBE_WEIGHTS(OIhw4i4o);
     MAYBE_WEIGHTS(OIhw8i8o);
     MAYBE_WEIGHTS(OIhw16i16o);
     MAYBE_WEIGHTS(OIhw4i16o4i);
     MAYBE_WEIGHTS(OIhw4i16o4i_s8s8);
+    MAYBE_WEIGHTS(OIw4i4o);
     MAYBE_WEIGHTS(Owi8o);
     MAYBE_WEIGHTS(OIw8i8o);
     MAYBE_WEIGHTS(OIw8o8i);
     MAYBE_WEIGHTS(OIw16i16o);
     MAYBE_WEIGHTS(OIw16o16i);
+    MAYBE_WEIGHTS(Oiw4o);
     MAYBE_WEIGHTS(Oiw16o);
     MAYBE_WEIGHTS(Owi16o);
     MAYBE_WEIGHTS(OIw8i16o2i);
@@ -308,22 +317,27 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(OIhw8o8i);
     MAYBE_WEIGHTS(OIhw16o16i);
     MAYBE_WEIGHTS(IOhw16o16i);
+    MAYBE_WEIGHTS(Oihw4o);
     MAYBE_WEIGHTS(Oihw16o);
     MAYBE_WEIGHTS(Ohwi8o);
+    MAYBE_WEIGHTS(Ohwi4o);
     MAYBE_WEIGHTS(Ohwi16o);
     MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
     MAYBE_WEIGHTS(gOIhw4o4i_s8s8);
+    MAYBE_WEIGHTS(gOIhw4i4o);
     MAYBE_WEIGHTS(gOIhw8i8o);
     MAYBE_WEIGHTS(gOIhw16i16o);
     MAYBE_WEIGHTS(gOIhw4i16o4i);
     MAYBE_WEIGHTS(gOIhw4i16o4i_s8s8);
     MAYBE_WEIGHTS(gOIhw2i8o4i);
     MAYBE_WEIGHTS(gOIhw2i8o4i_s8s8);
+    MAYBE_WEIGHTS(gOIw4i4o);
     MAYBE_WEIGHTS(gOwi8o);
     MAYBE_WEIGHTS(gOIw8i8o);
     MAYBE_WEIGHTS(gOIw8o8i);
     MAYBE_WEIGHTS(gOIw16i16o);
     MAYBE_WEIGHTS(gOIw16o16i);
+    MAYBE_WEIGHTS(gOiw4o);
     MAYBE_WEIGHTS(gOiw16o);
     MAYBE_WEIGHTS(gOwi16o);
     MAYBE_WEIGHTS(gOIw8i16o2i);
@@ -335,13 +349,17 @@ status_t cpu_memory_t::typed_zero_pad() const {
     MAYBE_WEIGHTS(gOIhw8o8i);
     MAYBE_WEIGHTS(gOIhw16o16i);
     MAYBE_WEIGHTS(gIOhw16o16i);
+    MAYBE_WEIGHTS(gOihw4o);
     MAYBE_WEIGHTS(gOihw16o);
     MAYBE_WEIGHTS(gOhwi8o);
+    MAYBE_WEIGHTS(gOhwi4o);
     MAYBE_WEIGHTS(gOhwi16o);
+    MAYBE_WEIGHTS(gOIdhw4i4o);
     MAYBE_WEIGHTS(gOIdhw8i8o);
     MAYBE_WEIGHTS(gOIdhw8o8i);
     MAYBE_WEIGHTS(gOIdhw16i16o);
     MAYBE_WEIGHTS(gOIdhw16o16i);
+    MAYBE_WEIGHTS(gOidhw4o);
     MAYBE_WEIGHTS(gOidhw16o);
     MAYBE_WEIGHTS(gOdhwi16o);
     MAYBE_WEIGHTS(gOdhwi8o);

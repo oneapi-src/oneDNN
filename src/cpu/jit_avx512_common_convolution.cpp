@@ -157,7 +157,7 @@ void jit_avx512_common_convolution_fwd_t
     const memory_desc_wrapper dst_d(pd()->dst_pd());
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -249,7 +249,7 @@ void jit_avx512_common_convolution_fwd_t
     const memory_desc_wrapper dst_d(pd()->dst_pd());
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -372,7 +372,7 @@ void jit_avx512_common_convolution_fwd_t
     const memory_desc_wrapper weights_d(pd()->weights_pd(0));
     const memory_desc_wrapper bias_d(pd()->weights_pd(1));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     parallel(0, [&](const int ithr, const int nthr) {
