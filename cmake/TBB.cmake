@@ -44,6 +44,6 @@ elseif(UNIX)
 endif()
 
 set_threading("TBB")
-list(APPEND mkldnn_LINKER_LIBS ${TBB_IMPORTED_TARGETS})
+list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 
 message(STATUS "Intel(R) TBB: ${TBBROOT}")
