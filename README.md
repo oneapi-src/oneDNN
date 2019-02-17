@@ -115,7 +115,7 @@ The software was validated on RedHat\* Enterprise Linux 7 with
   17.0, 18.0, and 19.0
 
 on Windows Server\* 2012 R2 with
-* Microsoft Visual C++ 14.0 (Visual Studio 2015)
+* Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   17.0 and 19.0
 
