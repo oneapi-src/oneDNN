@@ -40,7 +40,7 @@ endfunction()
 #   arg4 -- (optional) list of extra library dependencies
 function(register_exe name srcs test)
     add_executable(${name} ${srcs})
-    target_link_libraries(${name} ${LIB_NAME} ${EXTRA_LIBS} ${ARGV3})
+    target_link_libraries(${name} ${LIB_NAME} ${EXTRA_SHARED_LIBS} ${ARGV3})
     if("${test}" STREQUAL "test")
         add_test(${name} ${name})
         maybe_configure_windows_test(${name} TEST)
@@ -103,4 +103,12 @@ macro(append_to_windows_path_list path_list path)
         set(${path_list}
             "${append_to_windows_path_list_tmp__}")
     endif()
+endmacro()
+
+# Strip path from all files in a list
+macro(strip_paths out_list path_list)
+    foreach(item ${path_list})
+        get_filename_component(basename "${item}" NAME)
+        list(APPEND ${out_list} "${basename}")
+    endforeach(item)
 endmacro()
