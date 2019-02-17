@@ -162,17 +162,21 @@ if(WIN32)
     set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}" PARENT_SCOPE)
 endif()
 
-target_link_libraries(
-    ${TARGET_NAME}
-    LINK_PUBLIC
-    $<BUILD_INTERFACE:${${TARGET_NAME}_LINKER_LIBS}>
-    $<BUILD_INTERFACE:${EXTRA_LIBS}>
-)
+# This is rather ugly, but required for the generator expressions to
+# expand correctly
+foreach(l IN LISTS EXTRA_SHARED_LIBS EXTRA_STATIC_LIBS)
+    target_link_libraries(${TARGET_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
+endforeach()
+strip_paths(EXTRA_SHARED_LIBS_PUBLIC "${EXTRA_SHARED_LIBS}")
+foreach(l IN LISTS EXTRA_SHARED_LIBS_PUBLIC)
+    target_link_libraries(${TARGET_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
+endforeach()
 
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
 set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
+set_property(TARGET ${TARGET_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
 install(TARGETS ${TARGET_NAME}
     EXPORT "${TARGETS_EXPORT_NAME}"
