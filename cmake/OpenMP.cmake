@@ -43,7 +43,7 @@ macro(forbid_link_compiler_omp_rt)
             CMAKE_CXX_CREATE_SHARED_LIBRARY_FORBIDDEN_FLAGS
             "${OpenMP_CXX_FLAGS}")
         if (NOT APPLE)
-            set (CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
+            append(CMAKE_SHARED_LINKER_FLAGS "-Wl,--as-needed")
         endif()
     endif()
 endmacro()
