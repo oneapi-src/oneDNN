@@ -97,7 +97,6 @@ endif()
 # * CMAKE_INSTALL_LIBDIR
 # * CMAKE_INSTALL_BINDIR
 # * CMAKE_INSTALL_INCLUDEDIR
-include(GNUInstallDirs)
 
 set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_NAME}")
 set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")

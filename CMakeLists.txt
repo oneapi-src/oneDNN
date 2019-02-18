@@ -64,6 +64,8 @@ set(CMAKE_SRC_CCXX_FLAGS)       # SRC specifics
 set(CMAKE_EXAMPLE_CCXX_FLAGS)   # EXAMPLE specifics
 set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
+include(GNUInstallDirs)
+
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
 include("cmake/OpenMP.cmake")
@@ -83,4 +85,5 @@ add_subdirectory(src)
 add_subdirectory(examples)
 add_subdirectory(tests)
 
-install(FILES LICENSE DESTINATION share/doc/${LIB_NAME})
+# Cannot use CMAKE_INSTALL_DOCDIR since it uses PROJECT_NAME and not LIB_NAME
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
