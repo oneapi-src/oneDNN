@@ -168,9 +168,11 @@ function(detect_mkl LIBNAME)
     string(FIND "${MKLLIBPATH}" ${CMAKE_CURRENT_SOURCE_DIR}/external __idx)
     if(${__idx} EQUAL 0)
         if(WIN32)
-            install(PROGRAMS ${MKLDLL} ${MKLIOMP5DLL} DESTINATION bin)
+            install(PROGRAMS ${MKLDLL} ${MKLIOMP5DLL}
+                DESTINATION ${CMAKE_INSTALL_BINDIR})
         else()
-            install(PROGRAMS ${MKLLIB} ${MKLIOMP5LIB} DESTINATION lib${LIB_SUFFIX})
+            install(PROGRAMS ${MKLLIB} ${MKLIOMP5LIB}
+                DESTINATION ${CMAKE_INSTALL_LIBDIR})
         endif()
     endif()
 
