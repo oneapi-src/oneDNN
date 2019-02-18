@@ -21,6 +21,7 @@ if(TBB_cmake_included)
     return()
 endif()
 set(TBB_cmake_included true)
+include("cmake/Threading.cmake")
 
 if(NOT MKLDNN_THREADING STREQUAL "TBB")
     return()

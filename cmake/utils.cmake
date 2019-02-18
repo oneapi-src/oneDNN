@@ -21,7 +21,6 @@ if(utils_cmake_included)
     return()
 endif()
 set(utils_cmake_included true)
-
 include("cmake/options.cmake")
 
 # Common configuration for tests / test cases on Windows

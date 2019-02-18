@@ -21,7 +21,6 @@ if(OpenMP_cmake_included)
     return()
 endif()
 set(OpenMP_cmake_included true)
-
 include("cmake/Threading.cmake")
 include("cmake/MKL.cmake")
 
