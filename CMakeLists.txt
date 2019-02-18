@@ -16,6 +16,10 @@
 
 cmake_minimum_required(VERSION 2.8)
 
+if(POLICY CMP0022)
+    cmake_policy(SET CMP0022 NEW)
+endif()
+
 if(POLICY CMP0054)
     cmake_policy(SET CMP0054 NEW)
 endif()
@@ -65,6 +69,7 @@ set(CMAKE_EXAMPLE_CCXX_FLAGS)   # EXAMPLE specifics
 set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")

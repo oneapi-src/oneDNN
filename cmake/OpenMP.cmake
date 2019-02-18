@@ -24,6 +24,8 @@ set(OpenMP_cmake_included true)
 include("cmake/Threading.cmake")
 include("cmake/MKL.cmake")
 
+set(MKLDNN_USES_INTEL_OPENMP FALSE)
+
 if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # OSX Clang doesn't have OpenMP by default.
     # But we still want to build the library.
@@ -49,6 +51,7 @@ endmacro()
 macro(use_intel_omp_rt)
     # fast return
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        set(MKLDNN_USES_INTEL_OPENMP TRUE)
         return()
     endif()
 
@@ -107,6 +110,10 @@ if (MKLDNN_THREADING MATCHES "OMP")
         set(MKLIOMP5DLL "")
     else()
         use_intel_omp_rt()
+    endif()
+
+    if(MKLIOMP5LIB)
+        set(MKLDNN_USES_INTEL_OPENMP TRUE)
     endif()
 else()
     # Compilation happens with OpenMP to enable `#pragma omp simd`
