@@ -97,15 +97,44 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() const {
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
         data_t *max_data) const {
-#ifdef USE_CBLAS
-    if (data_type == data_type::f32) {
-        max_data[0] = x[cblas_isamax(n, x, 1)];
+// Intel Compiler generates the maxps + shuffle pattern for the max search
+// which works faster
+#if !defined(__INTEL_COMPILER)
+    // The code below makes a compiler to generate maxps instruction
+    // rather than maxss, which is generated for the 'else' code path
+    auto max_wrapper = [](data_t a, data_t b) { return nstl::max(a, b); };
+    auto min_wrapper = [](int a, int b) { return nstl::min(a, b); };
+
+    constexpr int unroll_factor = 32;
+    data_t max_values[unroll_factor];
+
+    if (n < unroll_factor) {
+        data_t max_val = x[0];
+        for (int i = 1; i < n; i++) {
+            max_val = max_wrapper(max_val, x[i]);
+        }
+        max_data[0] = max_val;
         return;
     }
-#endif
+    for (int i = 0; i < unroll_factor; i++) {
+        max_values[i] = x[i];
+    }
+    for (int i = unroll_factor; i < n; i += unroll_factor) {
+        int offset = min_wrapper(i, n - unroll_factor);
+        for (int j = 0; j < unroll_factor; j++) {
+            max_values[j] = max_wrapper(max_values[j], x[offset + j]);
+        }
+    }
+    data_t max_val = max_values[0];
+    for (int i = 1; i < unroll_factor; i++) {
+        max_val = max_wrapper(max_val, max_values[i]);
+    }
+    max_data[0] = max_val;
+#else
     max_data[0] = x[0];
     for (int c = 1; c < n; ++c)
         max_data[0] = nstl::max(max_data[0], x[c]);
+#endif
 }
 
 template <impl::data_type_t data_type>
