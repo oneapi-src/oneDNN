@@ -147,8 +147,9 @@ target_include_directories(
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
 )
 
+# On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
+# passed to ctest and Visual Studio solutions
 if(WIN32)
-    # Add mkldnn.dll to execution PATH
     if(NOT(MINGW))
         foreach(BUILD_TYPE Release Debug RelWithDebInfo MinSizeRel)
             append_to_windows_path_list(CTESTCONFIG_PATH
