@@ -105,10 +105,19 @@ macro(append_to_windows_path_list path_list path)
     endif()
 endmacro()
 
-# Strip path from all files in a list
-macro(strip_paths out_list path_list)
-    foreach(item ${path_list})
-        get_filename_component(basename "${item}" NAME)
-        list(APPEND ${out_list} "${basename}")
-    endforeach(item)
-endmacro()
+function(target_link_libraries_private target list)
+    # Foreach is required for compatibility with 2.8.11 ways
+    foreach(lib ${list})
+        target_link_libraries(${target} LINK_PRIVATE
+            "$<BUILD_INTERFACE:${lib}>")
+    endforeach(lib)
+endfunction()
+
+function(target_link_libraries_public target list)
+    # Foreach is required for compatibility with 2.8.11 ways
+    foreach(lib ${list})
+        get_filename_component(base "${lib}" NAME)
+        target_link_libraries(${target} LINK_PUBLIC
+            "$<INSTALL_INTERFACE:${base}>")
+    endforeach(lib)
+endfunction()
