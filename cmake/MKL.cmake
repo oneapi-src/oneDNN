@@ -22,6 +22,8 @@ if(MKL_cmake_included)
     return()
 endif()
 set(MKL_cmake_included true)
+include("cmake/utils.cmake")
+include("cmake/options.cmake")
 
 # set SKIP_THIS_MKL to true if given configuration is not supported
 function(maybe_skip_this_mkl LIBNAME)

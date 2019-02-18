@@ -21,6 +21,7 @@ if(SDL_cmake_included)
     return()
 endif()
 set(SDL_cmake_included true)
+include("cmake/utils.cmake")
 
 if(UNIX)
     set(CMAKE_CCXX_FLAGS "-fPIC -Wformat -Wformat-security")
