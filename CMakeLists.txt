@@ -65,6 +65,7 @@ set(CMAKE_EXAMPLE_CCXX_FLAGS)   # EXAMPLE specifics
 set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")

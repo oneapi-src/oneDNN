@@ -91,61 +91,61 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-### Installation (https://github.com/forexample/package-example) {
-
-# Introduce variables:
-# * CMAKE_INSTALL_LIBDIR
-# * CMAKE_INSTALL_BINDIR
-# * CMAKE_INSTALL_INCLUDEDIR
-
-set(config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_NAME}")
-set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(version_config "${generated_dir}/${LIB_NAME}ConfigVersion.cmake")
-set(project_config "${generated_dir}/${LIB_NAME}Config.cmake")
-set(TARGETS_EXPORT_NAME "${LIB_NAME}Targets")
-set(namespace "${LIB_NAME}::")
-
-include(CMakePackageConfigHelpers)
-
-write_basic_package_version_file(
-    "${version_config}"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
-# Use:
-# * TARGETS_EXPORT_NAME
-# * LIB_NAME
-configure_package_config_file(
-    "cmake/template/Config.cmake.in"
-    "${project_config}"
-    INSTALL_DESTINATION "${config_install_dir}"
-)
-
-install(
-    FILES "${project_config}" "${version_config}"
-    DESTINATION "${config_install_dir}"
-)
-
-install(
-    EXPORT "${TARGETS_EXPORT_NAME}"
-    NAMESPACE "${namespace}"
-    DESTINATION "${config_install_dir}"
-)
-
-### }
-
 add_library(${TARGET_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
-if (NOT ${CMAKE_VERSION_MAJOR} LESS 3)
-    add_library(${namespace}${TARGET_NAME} ALIAS ${TARGET_NAME})
-endif()
+set(TARGET_EXPORT_NAME "${TARGET_NAME}-targets")
+string(TOUPPER "${TARGET_NAME}::" TARGET_NAMESPACE_NAME)
+set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
+set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
+set_property(TARGET ${TARGET_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
-target_include_directories(
-    ${TARGET_NAME}
-    PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
+target_include_directories(${TARGET_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
+    # $<INSTALL_PREFIX> is required for compatibility with cmake 2.8
+    $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+
+# Link to static and shared libs with full paths privately during build time
+# This is rather ugly, but required for the generator expressions to
+# expand correctly
+foreach(l IN LISTS EXTRA_SHARED_LIBS EXTRA_STATIC_LIBS)
+    target_link_libraries(${TARGET_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
+endforeach()
+# Note external dependencies with paths stripped publicly
+strip_paths(EXTRA_SHARED_LIBS_PUBLIC "${EXTRA_SHARED_LIBS}")
+foreach(l IN LISTS EXTRA_SHARED_LIBS_PUBLIC)
+    target_link_libraries(${TARGET_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
+endforeach()
+
+install(TARGETS ${TARGET_NAME}
+    EXPORT "${TARGET_EXPORT_NAME}"
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+
+# Write version and package config files
+set(TARGET_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(TARGET_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}")
+set(TARGET_VERSION_FILE
+    "${TARGET_CONFIG_GENERATE_DIR}/${TARGET_NAME}-config-version.cmake")
+set(TARGET_CONFIG_FILE
+    "${TARGET_CONFIG_GENERATE_DIR}/${TARGET_NAME}-config.cmake")
+write_basic_package_version_file(
+    "${TARGET_VERSION_FILE}"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+configure_package_config_file(
+    "../cmake/Config.cmake.in"
+    "${TARGET_CONFIG_FILE}"
+    INSTALL_DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
+install(FILES ${TARGET_CONFIG_FILE} ${TARGET_VERSION_FILE}
+    DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
+install(EXPORT ${TARGET_EXPORT_NAME}
+    NAMESPACE ${TARGET_NAMESPACE_NAME}
+    DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
 
 # On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
@@ -161,27 +161,3 @@ if(WIN32)
     endif()
     set(CTESTCONFIG_PATH "${CTESTCONFIG_PATH}" PARENT_SCOPE)
 endif()
-
-# This is rather ugly, but required for the generator expressions to
-# expand correctly
-foreach(l IN LISTS EXTRA_SHARED_LIBS EXTRA_STATIC_LIBS)
-    target_link_libraries(${TARGET_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
-endforeach()
-strip_paths(EXTRA_SHARED_LIBS_PUBLIC "${EXTRA_SHARED_LIBS}")
-foreach(l IN LISTS EXTRA_SHARED_LIBS_PUBLIC)
-    target_link_libraries(${TARGET_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
-endforeach()
-
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
-set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
-set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
-set_property(TARGET ${TARGET_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
-
-install(TARGETS ${TARGET_NAME}
-    EXPORT "${TARGETS_EXPORT_NAME}"
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
