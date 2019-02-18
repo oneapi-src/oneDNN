@@ -32,7 +32,6 @@ else()
     set(_omp_severity "FATAL_ERROR")
 endif()
 
-
 macro(forbid_link_compiler_omp_rt)
     if (NOT WIN32)
         set_if(OpenMP_C_FOUND
@@ -62,22 +61,13 @@ macro(use_intel_omp_rt)
                 HINTS  ${MKLIOMP5LIB} )
     if(IOMP5LIB)
         forbid_link_compiler_omp_rt()
-        if (UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-            # For some reasons Clang ignores `-fopenmp=libiomp5` switch and
-            # links against libomp.so anyways.
-            # The workaround is to set the full path to libiomp5.so
-            add_library(libiomp5 SHARED IMPORTED)
-            set_property(TARGET libiomp5 PROPERTY IMPORTED_LOCATION "${IOMP5LIB}")
-            list(APPEND EXTRA_LIBS libiomp5)
-        else()
-            list(APPEND EXTRA_LIBS ${IOMP5LIB})
-        endif()
         if (WIN32)
             get_filename_component(MKLIOMP5DLL "${MKLIOMP5DLL}" PATH)
             find_file(IOMP5DLL
                 NAMES "libiomp5.dll" "libiomp5md.dll"
                 HINTS ${MKLIOMP5DLL})
         endif()
+        list(APPEND EXTRA_LIBS ${IOMP5LIB})
     else()
         if (MKLDNN_THREADING STREQUAL "OMP:INTEL")
             message(${_omp_severity} "Intel OpenMP runtime could not be found. "
