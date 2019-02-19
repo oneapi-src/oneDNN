@@ -47,7 +47,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone())
-            , conv_supports_bias_(other.conv_supports_bias_) {}
+        {}
 
         ~pd_t() { delete conv_pd_; }
 
@@ -120,7 +120,6 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             <src_type, dst_type>::pd_t;
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
         primitive_desc_t *conv_pd_;
-        bool conv_supports_bias_;
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
