@@ -252,12 +252,7 @@ bool jit_avx512_core_x8s8s32x_deconv_fwd_kernel::maybe_eltwise(int position) {
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::compute_eltwise(int ur_w) {
     int nb_oc_block
             = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-    if (ur_w == jcp.ur_w)
-        eltwise_injector_->compute_vector_range(0, nb_oc_block * jcp.ur_w);
-    else
-        for (int k = 0; k < nb_oc_block; k++)
-            eltwise_injector_->compute_vector_range(
-                    k * jcp.ur_w, k * jcp.ur_w + ur_w);
+    eltwise_injector_->compute_vector_range(0, nb_oc_block * ur_w);
 }
 
 bool jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
