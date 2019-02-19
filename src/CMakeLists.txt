@@ -14,8 +14,6 @@
 # limitations under the License.
 #===============================================================================
 
-set(TARGET_NAME ${LIB_NAME})
-
 file(GLOB_RECURSE HEADERS
     ${PROJECT_BINARY_DIR}/include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
@@ -91,16 +89,14 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-add_library(${TARGET_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
-set(TARGET_EXPORT_NAME "${TARGET_NAME}-targets")
-string(TOUPPER "${TARGET_NAME}::" TARGET_NAMESPACE_NAME)
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 11)
-set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
-set_property(TARGET ${TARGET_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
-set_property(TARGET ${TARGET_NAME} PROPERTY SOVERSION "0")
-set_property(TARGET ${TARGET_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
+add_library(${LIB_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
+set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
+set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "0")
+set_property(TARGET ${LIB_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
-target_include_directories(${TARGET_NAME} PUBLIC
+target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>
     # $<INSTALL_PREFIX> is required for compatibility with cmake 2.8
@@ -111,41 +107,43 @@ target_include_directories(${TARGET_NAME} PUBLIC
 # This is rather ugly, but required for the generator expressions to
 # expand correctly
 foreach(l IN LISTS EXTRA_SHARED_LIBS EXTRA_STATIC_LIBS)
-    target_link_libraries(${TARGET_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
+    target_link_libraries(${LIB_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
 endforeach()
 # Note external dependencies with paths stripped publicly
 strip_paths(EXTRA_SHARED_LIBS_PUBLIC "${EXTRA_SHARED_LIBS}")
 foreach(l IN LISTS EXTRA_SHARED_LIBS_PUBLIC)
-    target_link_libraries(${TARGET_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
+    target_link_libraries(${LIB_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
 endforeach()
 
-install(TARGETS ${TARGET_NAME}
-    EXPORT "${TARGET_EXPORT_NAME}"
+set(LIB_EXPORT_NAME "${LIB_NAME}-targets")
+install(TARGETS ${LIB_NAME}
+    EXPORT "${LIB_EXPORT_NAME}"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
 # Write version and package config files
-set(TARGET_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(TARGET_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${TARGET_NAME}")
-set(TARGET_VERSION_FILE
-    "${TARGET_CONFIG_GENERATE_DIR}/${TARGET_NAME}-config-version.cmake")
-set(TARGET_CONFIG_FILE
-    "${TARGET_CONFIG_GENERATE_DIR}/${TARGET_NAME}-config.cmake")
+set(LIB_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(LIB_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${LIB_NAME}")
+set(LIB_VERSION_FILE
+    "${LIB_CONFIG_GENERATE_DIR}/${LIB_NAME}-config-version.cmake")
+set(LIB_CONFIG_FILE
+    "${LIB_CONFIG_GENERATE_DIR}/${LIB_NAME}-config.cmake")
 write_basic_package_version_file(
-    "${TARGET_VERSION_FILE}"
+    "${LIB_VERSION_FILE}"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
 configure_package_config_file(
     "../cmake/Config.cmake.in"
-    "${TARGET_CONFIG_FILE}"
-    INSTALL_DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
-install(FILES ${TARGET_CONFIG_FILE} ${TARGET_VERSION_FILE}
-    DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
-install(EXPORT ${TARGET_EXPORT_NAME}
-    NAMESPACE ${TARGET_NAMESPACE_NAME}
-    DESTINATION ${TARGET_CONFIG_INSTALL_DIR})
+    "${LIB_CONFIG_FILE}"
+    INSTALL_DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+install(FILES ${LIB_CONFIG_FILE} ${LIB_VERSION_FILE}
+    DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+string(TOUPPER "${LIB_NAME}::" LIB_NAMESPACE)
+install(EXPORT ${LIB_EXPORT_NAME}
+    NAMESPACE ${LIB_NAMESPACE}
+    DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
 # On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
