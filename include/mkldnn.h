@@ -1772,16 +1772,25 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
 /** @} */
 
 /** @addtogroup c_api_blas BLAS functions
+ * A subset of Basic Linear ALgebra (BLAS) functions to perform
+ * matrix-matrix multiplication.
  * @{ */
 
-/** SGEMM performs matrix-matrix multiplication operation
- * C := alpha*op( A )*op( B ) + beta*C,
- * where  op( X ) is one of
- * op( X ) = X or op( X ) = X**T,
- * alpha and beta are scalars, and A, B and C are matrices, with op( A )
- * an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
+/** SGEMM performs a matrix-matrix multiplication operation defined as
+ *
+ * C := alpha*op( A )*op( B ) + beta*C
+ *
+ * where
+ *  - op( X ) is one of op( X ) = X or op( X ) = X**T,
+ *  - alpha and beta are scalars,
+ *  - A, B and C are matrices, with op( A ) an m by k matrix, op( B ) a k by n matrix
+ *    and C an m by n matrix.
+ *
+ * The matrices are assumed to be stored in column-major order (the elements
+ * in a matrix columns are contiguous in memory).
+ *
  * @note
- *      The API is different compared with the standard BLAS routine
+ *      The API is different from the standard BLAS routine
  *      because it returns mkldnn_status_t for error handling.
  *      XERBLA is not supported: no error message will be printed
  *      in case of incorrect parameters. */
@@ -1795,16 +1804,23 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(const char *transa, const char *transb,
  * operation and add the result to a scalar-matrix product. For the final
  * result, a vector is added to each row or column of the output matrix.
  * The operation is defined as:
+ *
  * C := alpha*(op(A) + A_offset) * (op(B) + B_offset) + beta*C + C_offset
- * where op( X ) = X or op( X ) = X**T,
- * A_offset is an m-by-k matrix with every element equal to the value oa,
- * B_offset is an k-by-n matrix with every element equal to the value ob,
- * C_offset is an m-by-n matrix defined by the oc array, size len:
- * if offsetc = F: len must be at least 1
- * if offsetc = C: len must be at least max(1, m)
- * if offsetc = R: len must be at least max(1, n)
- * alpha and beta are scalars, and A, B and C are matrices, with op( A )
- * an m-by-k matrix, op( B ) a k-by-n matrix and C an m-by-n matrix.
+ *
+ * where
+ *  - op( X ) = X or op( X ) = X**T,
+ *  - A_offset is an m-by-k matrix with every element equal to the value oa,
+ *  - B_offset is an k-by-n matrix with every element equal to the value ob,
+ *  - C_offset is an m-by-n matrix defined by the oc array, size len:
+ *    - if offsetc = F: len must be at least 1
+ *    - if offsetc = C: len must be at least max(1, m)
+ *    - if offsetc = R: len must be at least max(1, n)
+ *  - alpha and beta are scalars, and A, B and C are matrices, with op( A )
+ *    an m-by-k matrix, op( B ) a k-by-n matrix and C an m-by-n matrix.
+ *
+ * The matrices are assumed to be stored in column-major order (the elements
+ * in a matrix columns are contiguous in memory).
+ *
  * @note
  *      The API is different compared with the standard BLAS routine
  *      because it returns mkldnn_status_t for error handling.
