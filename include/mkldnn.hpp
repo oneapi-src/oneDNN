@@ -49,7 +49,7 @@ template <typename T> class handle_traits {};
 ///    by @p std::shared_ptr with a proper deleter function specified through
 ///    the @p handle_traits class.
 ///  - Pre-existing handles returned by the Intel(R) MKL-DNN C API (for
-///    example, through #mkldnn_primitive_get_output()).
+///    example, through #mkldnn_primitive_get_primitive_desc()).
 ///    @n In this case, an Intel(R) MKL-DNN C API handle is wrapped without a
 ///    deleter because it is assumed that the handle wrapper for the original
 ///    object deletes the handle (this model is similar to @p std::weak_ptr).
@@ -916,7 +916,8 @@ struct memory: public handle<mkldnn_memory_t> {
 
     /// Constructs a memory
     ///
-    /// @param adesc Memory primitive descriptor.
+    /// @param md Memory primitive descriptor.
+    /// @param aengine Engine
     /// @param ahandle Native handle
     memory(const desc &md, const engine &aengine, void *ahandle) {
         mkldnn_memory_t result;
@@ -927,7 +928,8 @@ struct memory: public handle<mkldnn_memory_t> {
 
     /// Constructs a memory
     ///
-    /// @param adesc Memory primitive descriptor.
+    /// @param md Memory primitive descriptor.
+    /// @param aengine Engine
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, MKLDNN_NATIVE_HANDLE_ALLOCATE) {}
 

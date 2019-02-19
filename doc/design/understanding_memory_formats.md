@@ -118,7 +118,7 @@ TensorFlow\* also supports this data format.
 >       in this example.
 
 One can create memory with **NCHW** data layout using
-#mkldnn_nchw of the enum type #mkldnn_memory_format_t defined in
+#mkldnn_nchw of the enum type #mkldnn_format_tag_t defined in
 [mkldnn_types.h](https://github.com/intel/mkl-dnn/blob/master/include/mkldnn_types.h)
 for C API and mkldnn::memory::nchw defined in
 [mkldnn.hpp](https://github.com/intel/mkl-dnn/blob/master/include/mkldnn.hpp)

@@ -132,19 +132,17 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
  *
  * One of the most typical use cases is to query a convolution primitive
  * descriptor created with source, weights, and destination formats equal
- * to #mkldnn_any about the corresponding memory primitive descriptors
- * (@p what equals #mkldnn_query_src_pd, #mkldnn_query_weights_pd, and
- * #mkldnn_query_dst_pd respectively) to be able to prepare memory and
+ * to #mkldnn_format_tag_any about the corresponding memory primitive descriptors
+ * (@p what equals #mkldnn_query_src_md, #mkldnn_query_weights_md, and
+ * #mkldnn_query_dst_md respectively) to be able to prepare memory and
  * create reorders if required.
  *
  * Another quite typical use case is to query an operation primitive
- * descriptor for a workspace (@p what equals #mkldnn_query_workspace_pd).
+ * descriptor for a workspace (@p what equals #mkldnn_query_workspace_md).
  * The returned status #mkldnn_not_required indicates that a workspace is
  * not required.
  *
  * A few other possibilities:
- *  - query a memory primitive descriptor for the underlying memory
- *    descriptor (#mkldnn_query_memory_d)
  *  - query an operation primitive descriptor for the underlying operation
  *    descriptor (#mkldnn_query_convolution_d, #mkldnn_query_eltwise_d,
  *    #mkldnn_query_rnn_d, etc.)
@@ -415,7 +413,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
  *      (number of dimensions, dimensions themselves, and data type), and
  *      optionally the format/layout that describes the physical representation
  *      of data in memory. If the format is not known yet, one can pass
- *      #mkldnn_any. This approach is used to allow compute-intensive
+ *      #mkldnn_format_tag_any. This approach is used to allow compute-intensive
  *      primitives to specify the most appropriate format on their own with
  *      users required to reorder the data if the incoming format doesn't match
  *      the primitive's selection. Memory descriptor can be created with the
@@ -424,7 +422,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
  *      how the physical data representation is mapped to the structure. The
  *      @ref understanding_memory_formats topic should shed some light on that.
  * 2. **Memory primitive descriptor** -- logical description of data that is
- *      fully defined; that is, it cannot contain #mkldnn_any as a format. It
+ *      fully defined; that is, it cannot contain #mkldnn_format_tag_any as a format. It
  *      also has the engine specified. A memory primitive descriptor is created
  *      by calling mkldnn_memory_primitive_desc_create() with two arguments: an
  *      mkldnn_memory_desc_t and an mkldnn_engine_t. It has the same type as
@@ -577,15 +575,15 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
  * descriptors of @p input and @p output memory primitives.
  *
  * Inputs:
- *  - input (#mkldnn_query_input_pd, 0)
+ *  - input (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - output (#mkldnn_query_output_pd, 0)
+ *  - output (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
         mkldnn_primitive_desc_t *reorder_primitive_desc,
-        mkldnn_engine_t input_engine, const mkldnn_memory_desc_t *input_md,
-        mkldnn_engine_t output_engine, const mkldnn_memory_desc_t *output_md,
+        mkldnn_engine_t src_engine, const mkldnn_memory_desc_t *src_md,
+        mkldnn_engine_t dst_engine, const mkldnn_memory_desc_t *dst_md,
         const_mkldnn_primitive_attr_t attr);
 
 /** @} */
@@ -601,19 +599,19 @@ mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
  * format would be chosen automatically.
  *
  * Inputs:
- *  - input 0 (#mkldnn_query_input_pd, 0)
- *  - input 1 (#mkldnn_query_input_pd, 1)
+ *  - input 0 (#mkldnn_query_src_md, 0)
+ *  - input 1 (#mkldnn_query_src_md, 1)
  *  - ...
- *  - input @p n - 1 (#mkldnn_query_input_pd, @p n - 1)
+ *  - input @p n - 1 (#mkldnn_query_src_md, @p n - 1)
  *
  * Outputs:
- *  - output (#mkldnn_query_output_pd, 0)
+ *  - output (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
         mkldnn_primitive_desc_t *concat_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc,
+        const mkldnn_memory_desc_t *dst_md,
         int n, int concat_dimension,
-        const mkldnn_memory_desc_t *input_descs,
+        const mkldnn_memory_desc_t *src_mds,
         const_mkldnn_primitive_attr_t attr,
         mkldnn_engine_t engine);
 
@@ -630,19 +628,19 @@ mkldnn_status_t MKLDNN_API mkldnn_concat_primitive_desc_create(
  * format would be chosen automatically.
  *
  * Inputs:
- *  - input 0 (#mkldnn_query_input_pd, 0)
- *  - input 1 (#mkldnn_query_input_pd, 1)
+ *  - src 0 (#mkldnn_query_src_md, 0)
+ *  - src 1 (#mkldnn_query_src_md, 1)
  *  - ...
- *  - input @p n - 1 (#mkldnn_query_input_pd, @p n - 1)
+ *  - src @p n - 1 (#mkldnn_query_src_md, @p n - 1)
  *
  * Outputs:
- *  - output (#mkldnn_query_output_pd, 0)
+ *  - output (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
         mkldnn_primitive_desc_t *sum_primitive_desc,
-        const mkldnn_memory_desc_t *output_desc,
+        const mkldnn_memory_desc_t *dst_mds,
         int n, const float *scales,
-        const mkldnn_memory_desc_t *input_descs,
+        const mkldnn_memory_desc_t *src_mds,
         const_mkldnn_primitive_attr_t attr,
         mkldnn_engine_t engine);
 
@@ -681,12 +679,12 @@ mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1), if created with bias
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
+ *  - bias (#mkldnn_query_weights_md, 1), if created with bias
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_forward_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
@@ -711,12 +709,12 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_forward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1), if created with bias
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
+ *  - bias (#mkldnn_query_weights_md, 1), if created with bias
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_forward_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
@@ -735,11 +733,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_forward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_data_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -757,11 +755,11 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_data_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_backward_data_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -779,12 +777,12 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_backward_data_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_weights (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 1), if created with bias
+ *  - diff_weights (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 1), if created with bias
  */
 mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
         mkldnn_convolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -803,12 +801,12 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_weights (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 1), if created with bias
+ *  - diff_weights (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 1), if created with bias
  */
 mkldnn_status_t MKLDNN_API
 mkldnn_dilated_convolution_backward_weights_desc_init(
@@ -841,12 +839,12 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1), if created with bias
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
+ *  - bias (#mkldnn_query_weights_md, 1), if created with bias
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_deconvolution_forward_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
@@ -871,12 +869,12 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_forward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1), if created with bias
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
+ *  - bias (#mkldnn_query_weights_md, 1), if created with bias
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_forward_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_prop_kind_t prop_kind,
@@ -895,11 +893,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_forward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_data_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -917,11 +915,11 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_data_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_data_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -939,12 +937,12 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_data_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_weights (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 1), if created with bias
+ *  - diff_weights (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 1), if created with bias
  */
 mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -963,12 +961,12 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_weights (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 1), if created with bias
+ *  - diff_weights (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 1), if created with bias
  */
 mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_init(
         mkldnn_deconvolution_desc_t *conv_desc, mkldnn_alg_kind_t alg_kind,
@@ -989,10 +987,10 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_in
  * memory descriptor @p data_desc, @p axis, and @p group_size.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  *
  */
 mkldnn_status_t MKLDNN_API mkldnn_shuffle_forward_desc_init(
@@ -1005,10 +1003,10 @@ mkldnn_status_t MKLDNN_API mkldnn_shuffle_forward_desc_init(
  *
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  *
  */
 mkldnn_status_t MKLDNN_API mkldnn_shuffle_backward_desc_init(
@@ -1042,10 +1040,10 @@ mkldnn_status_t MKLDNN_API mkldnn_shuffle_backward_desc_init(
  * @sa mkldnn_eltwise_desc_t for details.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_prop_kind_t prop_kind,
@@ -1059,11 +1057,11 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_forward_desc_init(
  * @sa mkldnn_eltwise_desc_t for details.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
         mkldnn_eltwise_desc_t *eltwise_desc, mkldnn_alg_kind_t alg_kind,
@@ -1089,10 +1087,10 @@ mkldnn_status_t MKLDNN_API mkldnn_eltwise_backward_desc_init(
  * and memory descriptor @p data_desc.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_softmax_forward_desc_init(
         mkldnn_softmax_desc_t *softmax_desc, mkldnn_prop_kind_t prop_kind,
@@ -1102,11 +1100,11 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_forward_desc_init(
  * descriptors @p diff_desc and @p data_desc.
  *
  * Inputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
         mkldnn_softmax_desc_t *softmax_desc,
@@ -1149,11 +1147,11 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - dst (#mkldnn_query_dst_md, 0)
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if @p alg_kind = #mkldnn_pooling_max and
  *      @p prop_kind = #mkldnn_forward_training
  */
@@ -1172,12 +1170,12 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_forward_desc_init(
  * @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if @p alg_kind = #mkldnn_pooling_max
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
         mkldnn_pooling_desc_t *pool_desc, mkldnn_alg_kind_t alg_kind,
@@ -1213,7 +1211,7 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
  * forward pass that accelerate computations on the backward pass.
  *
  * To check whether a workspace is required, query the LRN primitive descriptor
- * for the workspace (#mkldnn_query_workspace_pd). Success indicates that the
+ * for the workspace (#mkldnn_query_workspace_md). Success indicates that the
  * workspace is required and its description will be returned.
  * @sa mkldnn_primitive_desc_query and mkldnn_primitive_desc_query_pd
  *
@@ -1225,11 +1223,11 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
  * parameters @p local_size, @p alpha, @p beta, and @p k.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - dst (#mkldnn_query_dst_md, 0)
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if the underlying implementation requires
  */
 mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
@@ -1242,13 +1240,13 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_forward_desc_init(
  * parameters @p local_size, @p alpha, @p beta, and @p k.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if the underlying implementation requires
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
         mkldnn_lrn_desc_t *lrn_desc, mkldnn_alg_kind_t alg_kind,
@@ -1293,23 +1291,23 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
  * flags of type mkldnn_batch_normalization_desc_t.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - mean (#mkldnn_query_src_pd, 1),
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - mean (#mkldnn_query_src_md, 1),
  *      if #mkldnn_use_global_stats bit-flags is set in @p flags
- *  - variance (#mkldnn_query_src_pd, 2),
+ *  - variance (#mkldnn_query_src_md, 2),
  *      if #mkldnn_use_global_stats bit-flags is set in @p flags
- *  - scale_and_shift (#mkldnn_query_weights_pd, 0),
+ *  - scale_and_shift (#mkldnn_query_weights_md, 0),
  *      if #mkldnn_use_scaleshift bit-flags is set in @p flags
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
- *  - mean (#mkldnn_query_dst_pd, 1),
+ *  - dst (#mkldnn_query_dst_md, 0)
+ *  - mean (#mkldnn_query_dst_md, 1),
  *      if #mkldnn_use_global_stats bit-flags is not set in @p flags
  *      @p prop_kind = #mkldnn_forward_training
- *  - variance (#mkldnn_query_dst_pd, 2),
+ *  - variance (#mkldnn_query_dst_md, 2),
  *      if #mkldnn_use_global_stats bit-flags is not set in @p flags
  *      and @p prop_kind = #mkldnn_forward_training
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if #mkldnn_fuse_bn_relu bit-flags is set in @p flags
  *      and @p prop_kind = #mkldnn_forward_training
  *
@@ -1330,18 +1328,18 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
  * mkldnn_batch_normalization_desc_t.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - mean (#mkldnn_query_src_pd, 1)
- *  - variance (#mkldnn_query_src_pd, 2)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - scale_and_shift (#mkldnn_query_weights_pd, 0),
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - mean (#mkldnn_query_src_md, 1)
+ *  - variance (#mkldnn_query_src_md, 2)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - scale_and_shift (#mkldnn_query_weights_md, 0),
  *      if #mkldnn_use_scaleshift bit-flags is set in @p flags
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if #mkldnn_fuse_bn_relu bit-flags is set in @p flags
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
- *  - diff_scale_and_shift (#mkldnn_query_diff_weights_pd, 0),
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
+ *  - diff_scale_and_shift (#mkldnn_query_diff_weights_md, 0),
  *      if #mkldnn_use_scaleshift bit-flags is set in @p flags
  *      and @p prop_kind = #mkldnn_backward
  *
@@ -1381,12 +1379,12 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
- *  - bias (#mkldnn_query_weights_pd, 1), if created with bias
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
+ *  - bias (#mkldnn_query_weights_md, 1), if created with bias
  *
  * Outputs:
- *  - dst (#mkldnn_query_dst_pd, 0)
+ *  - dst (#mkldnn_query_dst_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_inner_product_forward_desc_init(
         mkldnn_inner_product_desc_t *ip_desc, mkldnn_prop_kind_t prop_kind,
@@ -1402,11 +1400,11 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_forward_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
- *  - weights (#mkldnn_query_weights_pd, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+ *  - weights (#mkldnn_query_weights_md, 0)
  *
  * Outputs:
- *  - diff_src (#mkldnn_query_diff_src_pd, 0)
+ *  - diff_src (#mkldnn_query_diff_src_md, 0)
  */
 mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_data_desc_init(
         mkldnn_inner_product_desc_t *ip_desc,
@@ -1421,12 +1419,12 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_data_desc_init(
  *       #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src (#mkldnn_query_src_pd, 0)
- *  - diff_dst (#mkldnn_query_diff_dst_pd, 0)
+ *  - src (#mkldnn_query_src_md, 0)
+ *  - diff_dst (#mkldnn_query_diff_dst_md, 0)
  *
  * Outputs:
- *  - diff_weights (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 1), if created with bias
+ *  - diff_weights (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 1), if created with bias
  */
 mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
         mkldnn_inner_product_desc_t *ip_desc,
@@ -1554,16 +1552,16 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
  *       initialized with #mkldnn_format_kind_any value of @p format_kind.
  *
  * Inputs:
- *  - src_layer (#mkldnn_query_src_pd, 0)
- *  - src_iter (#mkldnn_query_src_pd, 1), if used
- *  - weights_layer (#mkldnn_query_weights_pd, 0)
- *  - weights_iter (#mkldnn_query_weights_pd, 1)
- *  - bias (#mkldnn_query_weights_pd, 2), if used
+ *  - src_layer (#mkldnn_query_src_md, 0)
+ *  - src_iter (#mkldnn_query_src_md, 1), if used
+ *  - weights_layer (#mkldnn_query_weights_md, 0)
+ *  - weights_iter (#mkldnn_query_weights_md, 1)
+ *  - bias (#mkldnn_query_weights_md, 2), if used
  *
  * Outputs:
- *  - dst_layer (#mkldnn_query_dst_pd, 0)
- *  - dst_iter (#mkldnn_query_dst_pd, 1), if used
- *  - workspace (#mkldnn_query_workspace_pd, 0),
+ *  - dst_layer (#mkldnn_query_dst_md, 0)
+ *  - dst_iter (#mkldnn_query_dst_md, 1), if used
+ *  - workspace (#mkldnn_query_workspace_md, 0),
  *      if @p prop_kind equals #mkldnn_forward_training
  */
 mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
@@ -1591,23 +1589,23 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
  * that the RNN primitive should not use them.
  *
  * Inputs:
- *  - src_layer (#mkldnn_query_src_pd, 0)
- *  - src_iter (#mkldnn_query_src_pd, 1), if used
- *  - weights_layer (#mkldnn_query_weights_pd, 0)
- *  - weights_iter (#mkldnn_query_weights_pd, 1)
- *  - bias (#mkldnn_query_weights_pd, 2), if used
- *  - dst_layer (#mkldnn_query_dst_pd, 0)
- *  - dst_iter (#mkldnn_query_dst_pd, 1), if used
- *  - diff_dst_layer (#mkldnn_query_diff_dst_pd, 0)
- *  - diff_dst_iter (#mkldnn_query_diff_dst_pd, 1), if used
- *  - workspace (#mkldnn_query_workspace_pd, 0)
+ *  - src_layer (#mkldnn_query_src_md, 0)
+ *  - src_iter (#mkldnn_query_src_md, 1), if used
+ *  - weights_layer (#mkldnn_query_weights_md, 0)
+ *  - weights_iter (#mkldnn_query_weights_md, 1)
+ *  - bias (#mkldnn_query_weights_md, 2), if used
+ *  - dst_layer (#mkldnn_query_dst_md, 0)
+ *  - dst_iter (#mkldnn_query_dst_md, 1), if used
+ *  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
+ *  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+ *  - workspace (#mkldnn_query_workspace_md, 0)
  *
  * Outputs:
- *  - diff_src_layer (#mkldnn_query_diff_src_pd, 0)
- *  - diff_src_iter (#mkldnn_query_diff_src_pd, 1), if used
- *  - diff_weights_layer (#mkldnn_query_diff_weights_pd, 0)
- *  - diff_weights_iter (#mkldnn_query_diff_weights_pd, 1)
- *  - diff_bias (#mkldnn_query_diff_weights_pd, 2), if used
+ *  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
+ *  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+ *  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
+ *  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
+ *  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
  */
 mkldnn_status_t MKLDNN_API mkldnn_rnn_backward_desc_init(
         mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
