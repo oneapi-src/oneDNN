@@ -601,7 +601,7 @@ struct memory: public handle<mkldnn_memory_t> {
     typedef std::vector<dim> dims;
 
     template <typename T> static void validate_dims(const std::vector<T> &v) {
-        if (v.size() > TENSOR_MAX_DIMS)
+        if (v.size() > MKLDNN_MAX_NDIMS)
             throw error(mkldnn_invalid_arguments, "invalid dimensions");
     }
 

@@ -45,7 +45,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
             + i_d.blk_off(0);
         optrs[a] = o_base_ptr + o_d.blk_off(0);
         nelems_to_copy[a] = pd()->nelems_to_concat(i_d);
-        for (int i = 0; i < TENSOR_MAX_DIMS; i++) {
+        for (int i = 0; i < MKLDNN_MAX_NDIMS; i++) {
             if (i < perm[concat_dim])
                 is[a][i] = size_t(i_d.blocking_desc().strides[iperm[i]]);
             else

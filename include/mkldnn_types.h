@@ -636,16 +636,16 @@ typedef enum {
 /** Maximum number of dimensions a tensor can have. Only restricts the amount
  * of space used for the tensor description. Individual computational
  * primitives may support only tensors of certain dimensions. */
-#define TENSOR_MAX_DIMS 12
+#define MKLDNN_MAX_NDIMS 12
 
 /** A type to describe tensor dimension. */
 typedef int64_t mkldnn_dim_t;
 
 /** A type to describe tensor dimensions. */
-typedef mkldnn_dim_t mkldnn_dims_t[TENSOR_MAX_DIMS];
+typedef mkldnn_dim_t mkldnn_dims_t[MKLDNN_MAX_NDIMS];
 
 /** A type to describe strides within a tensor. */
-typedef mkldnn_dim_t mkldnn_strides_t[TENSOR_MAX_DIMS];
+typedef mkldnn_dim_t mkldnn_strides_t[MKLDNN_MAX_NDIMS];
 
 /** Generic description of blocked data layout for most memory formats.
  *

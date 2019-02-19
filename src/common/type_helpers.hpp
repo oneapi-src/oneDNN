@@ -95,7 +95,7 @@ inline bool memory_extra_desc_is_equal(const memory_extra_desc_t &lhs,
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
-        const blocking_desc_t &rhs, int ndims = TENSOR_MAX_DIMS) {
+        const blocking_desc_t &rhs, int ndims = MKLDNN_MAX_NDIMS) {
     using mkldnn::impl::utils::array_cmp;
     return true
         && lhs.inner_nblks == rhs.inner_nblks
@@ -267,8 +267,8 @@ inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
     auto &mblk = md.format_desc.blocking;
     mblk = blk;
 
-    int perm[TENSOR_MAX_DIMS];
-    const int ndims = nstl::min(TENSOR_MAX_DIMS, md.ndims); // make GCC 5 happy
+    int perm[MKLDNN_MAX_NDIMS];
+    const int ndims = nstl::min(MKLDNN_MAX_NDIMS, md.ndims); // make GCC 5 happy
     for (int d = 0; d < ndims; ++d) perm[d] = d;
 
     for (int d = 0; d < ndims; ++d) {

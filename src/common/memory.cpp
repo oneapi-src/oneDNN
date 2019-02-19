@@ -37,7 +37,7 @@ bool memory_desc_sanity_check(int ndims,const dims_t dims,
 
     bool ok = true
         && dims != nullptr
-        && 0 < ndims && ndims <= TENSOR_MAX_DIMS
+        && 0 < ndims && ndims <= MKLDNN_MAX_NDIMS
         && one_of(data_type, f32, s32, s16, s8, u8)
         && format_kind != format_kind::undef;
     if (!ok) return false;

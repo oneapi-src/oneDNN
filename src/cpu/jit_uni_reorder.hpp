@@ -31,7 +31,7 @@ namespace cpu {
 
 namespace tr {
 
-constexpr int max_ndims = TENSOR_MAX_DIMS;
+constexpr int max_ndims = MKLDNN_MAX_NDIMS;
 
 struct node_t {
     size_t n;

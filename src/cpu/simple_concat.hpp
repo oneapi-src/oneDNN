@@ -96,8 +96,8 @@ struct simple_concat_t: public cpu_primitive_t {
             return status::success;
         }
 
-        int perm_[TENSOR_MAX_DIMS];
-        int iperm_[TENSOR_MAX_DIMS];
+        int perm_[MKLDNN_MAX_NDIMS];
+        int iperm_[MKLDNN_MAX_NDIMS];
         dims_t blocks_;
 
         dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {

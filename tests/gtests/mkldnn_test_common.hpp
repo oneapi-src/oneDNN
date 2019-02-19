@@ -84,7 +84,6 @@ template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };
 
-#define MAX_NDIMS 12
 // check_zero_tail - check on zero or set to zero padded memory
 template <typename data_t>
 void check_zero_tail(int set_zero_flag, memory &src) {
@@ -97,7 +96,7 @@ void check_zero_tail(int set_zero_flag, memory &src) {
     const auto *pdims = src_d.data.padded_dims;
     const mkldnn::impl::memory_desc_wrapper mdw(src_d.data);
 
-    memory::dim idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
+    memory::dim idx[MKLDNN_MAX_NDIMS] = {}, str[MKLDNN_MAX_NDIMS] = {};
     memory::dim nelems = 1;
     int tail_flag = 0;
     for (int i = 0; i < ndims; ++i) {
