@@ -40,6 +40,10 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
     auto padded_ic = diff_src_d.data.padded_dims[1];
     auto padded_oc = diff_dst_d.data.padded_dims[1];
 
+    const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.ic / c.ng, c.ih, c.iw,
         [&](memory::dim mb, memory::dim g, memory::dim ic, memory::dim ih,
             memory::dim iw) {
@@ -70,13 +74,13 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
                                 + ic * c.kh * c.kw + kh * c.kw + kw;
 
                             a += (data_t_acc)(
-                                diff_dst_data[map_index(diff_dst_d, didx)]
-                                * weights_data[map_index(weights_d, widx)]);
+                                diff_dst_data[diff_dst_mdw.off_l(didx, true)]
+                                * weights_data[weights_mdw.off_l(widx, true)]);
                         }
                     }
                 }
             }
-            diff_src_data[map_index(diff_src_d, sidx)] = (data_t_diff_src)a;
+            diff_src_data[diff_src_mdw.off_l(sidx, true)] = (data_t_diff_src)a;
     });
 }
 

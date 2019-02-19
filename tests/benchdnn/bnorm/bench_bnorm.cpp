@@ -35,7 +35,7 @@ check_alg_t check_alg = ALG_AUTO;
 int64_t mb = 0;
 dir_t dir = FWD_D;
 mkldnn_data_type_t dt = mkldnn_f32;
-mkldnn_memory_format_t fmt = mkldnn_nchw;
+mkldnn_format_tag_t tag = mkldnn_nchw;
 flags_t flags = (flags_t)0;
 attr_t attr;
 const char *pattern = NULL;
@@ -48,7 +48,7 @@ void reset_parameters() {
     mb = 0;
     dir = FWD_B;
     dt = mkldnn_f32;
-    fmt = mkldnn_nchw;
+    tag = mkldnn_nchw;
     flags = (flags_t)0;
     attr = attr_t();
     pattern = NULL;
@@ -57,7 +57,7 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    const prb_t p(*c, mb, dir, dt, fmt, flags, attr, check_alg);
+    const prb_t p(*c, mb, dir, dt, tag, flags, attr, check_alg);
     char pstr[max_prb_len];
     prb2str(&p, pstr);
 
@@ -89,8 +89,8 @@ int bench(int argc, char **argv, bool main_bench) {
             dir = str2dir(argv[arg] + 6);
         else if (!strncmp("--dt=", argv[arg], 5))
             dt = str2dt(argv[arg] + 5);
-        else if (!strncmp("--fmt=", argv[arg], 6))
-            fmt = str2fmt(argv[arg] + 6);
+        else if (!strncmp("--tag=", argv[arg], 6))
+            tag = str2tag(argv[arg] + 6);
         else if (!strncmp("--flags=", argv[arg], 8))
             flags = str2flags(argv[arg] + 8);
         else if (!strncmp("--attr=", argv[arg], 7))

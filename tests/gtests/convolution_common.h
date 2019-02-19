@@ -19,8 +19,8 @@
 #include "mkldnn.hpp"
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
-    { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
-    mkldnn::memory::format::bias, mkldnn::memory::format::dst }
+    { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
+    mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
 #define ENGINE mkldnn::engine::kind::cpu
 #define ALGORITHM mkldnn::convolution_direct

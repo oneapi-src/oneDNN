@@ -1,5 +1,5 @@
 --skip-impl=ref
---fmt=nhwc
+--tag=nhwc
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_regressions
@@ -19,7 +19,7 @@
 --dir=BWD_D
 --flags=   --batch=bnorm_regressions
 
---fmt=nchw
+--tag=nchw
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_regressions
@@ -39,7 +39,7 @@
 --dir=BWD_D
 --flags=   --batch=bnorm_regressions
 
---fmt=nChw16c # avx512
+--tag=nChw16c # avx512
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_regressions

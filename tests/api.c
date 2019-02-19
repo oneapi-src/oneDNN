@@ -58,7 +58,7 @@ void test1() {
     const mkldnn_memory_desc_t *c_md_tmp;
     mkldnn_memory_t m;
 
-    CHECK(mkldnn_memory_desc_init(&md, 1, dims, mkldnn_f32, mkldnn_x));
+    CHECK(mkldnn_memory_desc_init_by_tag(&md, 1, dims, mkldnn_f32, mkldnn_x));
     CHECK(mkldnn_memory_create(&m, &md, engine, NULL));
 
     void *req = NULL;
@@ -120,13 +120,13 @@ void test2() {
 
     // src
     {
-        CHECK(mkldnn_memory_desc_init(&c3_src_md, 4, c3_src_sizes, mkldnn_f32, mkldnn_nChw8c));
+        CHECK(mkldnn_memory_desc_init_by_tag(&c3_src_md, 4, c3_src_sizes, mkldnn_f32, mkldnn_nChw8c));
         CHECK(mkldnn_memory_create(&c3_src, &c3_src_md, engine, src));
     }
 
     // weights
     {
-        CHECK(mkldnn_memory_desc_init(&c3_weights_md, 4 + (groups != 1),
+        CHECK(mkldnn_memory_desc_init_by_tag(&c3_weights_md, 4 + (groups != 1),
                     c3_weights_sizes + (groups == 1), mkldnn_f32,
                     groups == 1 ? mkldnn_OIhw8i8o : mkldnn_gOIhw8i8o));
         CHECK(mkldnn_memory_create(&c3_weights, &c3_weights_md, engine, weights));
@@ -134,19 +134,19 @@ void test2() {
 
     // bias
     {
-        CHECK(mkldnn_memory_desc_init(&c3_bias_md, 1, c3_bias_sizes, mkldnn_f32, mkldnn_x));
+        CHECK(mkldnn_memory_desc_init_by_tag(&c3_bias_md, 1, c3_bias_sizes, mkldnn_f32, mkldnn_x));
         CHECK(mkldnn_memory_create(&c3_bias, &c3_bias_md, engine, bias));
     }
 
     // c3_dst
     {
-        CHECK(mkldnn_memory_desc_init(&c3_dst_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nChw8c));
+        CHECK(mkldnn_memory_desc_init_by_tag(&c3_dst_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nChw8c));
         CHECK(mkldnn_memory_create(&c3_dst, &c3_dst_md, engine, dst));
     }
 
     // out
     {
-        CHECK(mkldnn_memory_desc_init(&out_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nchw));
+        CHECK(mkldnn_memory_desc_init_by_tag(&out_md, 4, c3_dst_sizes, mkldnn_f32, mkldnn_nchw));
         CHECK(mkldnn_memory_create(&out, &out_md, engine, out_mem));
     }
 
@@ -269,7 +269,8 @@ void test3() {
 
     // src, dst
     {
-        CHECK(mkldnn_memory_desc_init(&l2_data_md, 4, l2_data_sizes, mkldnn_f32, mkldnn_nchw));
+        CHECK(mkldnn_memory_desc_init_by_tag(
+                &l2_data_md, 4, l2_data_sizes, mkldnn_f32, mkldnn_nchw));
         CHECK(mkldnn_memory_create(&l2_src, &l2_data_md, engine, src));
         CHECK(mkldnn_memory_create(&l2_dst, &l2_data_md, engine, dst));
     }

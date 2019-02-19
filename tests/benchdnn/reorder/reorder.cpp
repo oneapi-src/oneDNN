@@ -28,18 +28,12 @@ int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
     using P = attr_t::scale_t::policy_t;
     const auto policy = attr.oscale.policy;
 
-    const bool is_data = fmt2data_kind(md.format) == DATA;
-    const bool is_gwei = fmt2data_kind(md.format) == GWEI;
-
     int scale_mask = 0;
 
     switch (policy) {
-    case P::PER_OC:
-        if (md.ndims < 2) SAFE_V(FAIL);
-        scale_mask = is_data
-            ? 1 << 1
-            : (is_gwei ? (1 << 0) + (1 << 1) : 1 << 0);
-        break;
+    case P::PER_DIM_0: scale_mask = (1 << 0); break;
+    case P::PER_DIM_1: scale_mask = (1 << 1); break;
+    case P::PER_DIM_01: scale_mask = (1 << 0) + (1 << 1); break;
     case P::COMMON:
     case P::NONE: scale_mask = 0; break;
     default: SAFE_V(FAIL);
@@ -260,32 +254,12 @@ int check_reorder(const prb_t *p, res_t *res) {
     const int ndims = (int)r.dims.size();
     const int64_t *dims = &r.dims[0];
 
-    mkldnn_memory_format_t fmt_ref;
-    const bool is_data = fmt2data_kind(r.fmt_in) == DATA;
-    const bool is_gwei = fmt2data_kind(r.fmt_in) == GWEI;
-
-    switch (ndims) {
-    case 1: assert(is_data); fmt_ref = mkldnn_x; break;
-    case 2: fmt_ref = is_data ? mkldnn_nc : mkldnn_oi; break;
-    case 3: assert(is_data); fmt_ref = mkldnn_tnc; break;
-    case 4: fmt_ref = is_data ? mkldnn_nchw : mkldnn_oihw; break;
-    case 5:
-            fmt_ref = is_data
-                ? mkldnn_ncdhw
-                : (is_gwei ? mkldnn_goihw : mkldnn_oidhw);
-            break;
-    case 6: assert(!is_data);
-            fmt_ref = is_gwei ? mkldnn_goidhw : mkldnn_ldigo;
-            break;
-    default: assert(!"bad ndims"); return FAIL;
-    }
-
     /* Step 1: create memory */
-    dnn_mem_t mem_dt_in_fmt_ref(ndims, dims, p->conf_in->dt, fmt_ref);
-    dnn_mem_t mem_dt_in_fmt_in(ndims, dims, p->conf_in->dt, r.fmt_in);
-    dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.fmt_out);
-    dnn_mem_t mem_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
-    dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
+    dnn_mem_t mem_dt_in_fmt_ref(ndims, dims, p->conf_in->dt, nullptr);
+    dnn_mem_t mem_dt_in_fmt_in(ndims, dims, p->conf_in->dt, r.tag_in);
+    dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out);
+    dnn_mem_t mem_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, nullptr);
+    dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, nullptr);
 
     /* Step 2: fill scales */
     int64_t count = 0;

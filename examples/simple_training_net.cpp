@@ -30,7 +30,7 @@ memory::dim product(const memory::dims &dims) {
 }
 
 void simple_net() {
-    using fmt = memory::format;
+    using tag = memory::format_tag;
     using dt = memory::data_type;
 
     auto cpu_engine = engine(engine::cpu, 0);
@@ -71,20 +71,20 @@ void simple_net() {
 
     /* create memory for user data */
     auto conv_user_src_memory = memory(
-            {{conv_src_tz}, dt::f32, fmt::nchw}, cpu_engine, net_src.data());
+            {{conv_src_tz}, dt::f32, tag::nchw}, cpu_engine, net_src.data());
     auto conv_user_weights_memory = memory(
-            {{conv_weights_tz}, dt::f32, fmt::oihw}, cpu_engine, conv_weights.data());
+            {{conv_weights_tz}, dt::f32, tag::oihw}, cpu_engine, conv_weights.data());
     auto conv_user_bias_memory = memory(
-            {{conv_bias_tz}, dt::f32, fmt::x}, cpu_engine, conv_bias.data());
+            {{conv_bias_tz}, dt::f32, tag::x}, cpu_engine, conv_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified
-     * format(`any`)
-     * format `any` lets a primitive(convolution in this case)
+     * format tag(`any`)
+     * tag `any` lets a primitive(convolution in this case)
      * chose the memory format preferred for best performance. */
-    auto conv_src_md = memory::desc({conv_src_tz}, dt::f32, fmt::any);
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::f32, fmt::any);
-    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::f32, fmt::any);
-    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::f32, fmt::any);
+    auto conv_src_md = memory::desc({conv_src_tz}, dt::f32, tag::any);
+    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::f32, tag::any);
+    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::f32, tag::any);
+    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution primitive descriptor */
     auto conv_desc = convolution_forward::desc(
@@ -143,7 +143,7 @@ void simple_net() {
     const float negative_slope = 1.0f;
 
     /* create relu primitive desc */
-    /* keep memory format of source same as the format of convolution
+    /* keep memory format tag of source same as the format tag of convolution
      * output in order to avoid reorder */
     auto relu_desc = eltwise_forward::desc(prop_kind::forward,
             algorithm::eltwise_relu, conv_pd.dst_desc(), negative_slope);
@@ -209,10 +209,10 @@ void simple_net() {
 
     /* create memory for pool dst data in user format */
     auto pool_user_dst_memory = memory(
-            {{pool_dst_tz}, dt::f32, fmt::nchw}, cpu_engine, net_dst.data());
+            {{pool_dst_tz}, dt::f32, tag::nchw}, cpu_engine, net_dst.data());
 
     /* create pool dst memory descriptor in format any */
-    auto pool_dst_md = memory::desc({pool_dst_tz}, dt::f32, fmt::any);
+    auto pool_dst_md = memory::desc({pool_dst_tz}, dt::f32, tag::any);
 
     /* create a pooling primitive descriptor */
     auto pool_desc = pooling_forward::desc(
@@ -266,7 +266,7 @@ void simple_net() {
 
     /* create memory for user diff dst data */
     auto pool_user_diff_dst_memory = memory(
-            {{pool_dst_tz}, dt::f32, fmt::nchw}, cpu_engine, net_diff_dst.data());
+            {{pool_dst_tz}, dt::f32, tag::nchw}, cpu_engine, net_diff_dst.data());
 
     /* Backward pooling */
     /* create memory descriptors for pooling */
@@ -369,18 +369,18 @@ void simple_net() {
     std::vector<float> conv_diff_bias_buffer(product(conv_bias_tz));
 
     auto conv_user_diff_weights_memory = memory(
-            {{conv_weights_tz}, dt::f32, fmt::nchw}, cpu_engine,
+            {{conv_weights_tz}, dt::f32, tag::nchw}, cpu_engine,
             conv_user_diff_weights_buffer.data());
     auto conv_diff_bias_memory = memory(
-            {{conv_bias_tz}, dt::f32, fmt::x}, cpu_engine,
+            {{conv_bias_tz}, dt::f32, tag::x}, cpu_engine,
             conv_diff_bias_buffer.data());
 
     /* create memory primitives descriptors */
 
-    auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::f32, fmt::any);
-    auto conv_diff_bias_md = memory::desc({conv_bias_tz}, dt::f32, fmt::any);
-    auto conv_diff_weights_md = memory::desc({conv_weights_tz}, dt::f32, fmt::any);
-    auto conv_diff_dst_md = memory::desc({conv_dst_tz}, dt::f32, fmt::any);
+    auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::f32, tag::any);
+    auto conv_diff_bias_md = memory::desc({conv_bias_tz}, dt::f32, tag::any);
+    auto conv_diff_weights_md = memory::desc({conv_weights_tz}, dt::f32, tag::any);
+    auto conv_diff_dst_md = memory::desc({conv_dst_tz}, dt::f32, tag::any);
 
     /* create backward convolution primitive descriptor */
     auto conv_bwd_weights_desc = convolution_backward_weights::desc(

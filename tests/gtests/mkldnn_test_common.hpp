@@ -33,6 +33,7 @@
 #include "mkldnn.hpp"
 
 #include "src/common/mkldnn_thread.hpp"
+#include "src/common/memory_desc_wrapper.hpp"
 
 using memory = mkldnn::memory;
 
@@ -83,96 +84,6 @@ template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };
 
-inline memory::dim map_index(const memory::desc &md, memory::dim index,
-        bool with_padding = true) {
-    using fmt = memory::format;
-
-    const fmt fwd_weights_g_qvnni = fmt::gOIhw8i16o2i;
-    const fmt fwd_weights_qvnni = fmt::OIhw8i16o2i;
-    const fmt bwd_weights_g_qvnni = fmt::gOIhw8o16i2o;
-    const fmt bwd_weights_qvnni = fmt::OIhw8o16i2o;
-
-    const fmt fwd_weights_g_vnni = fmt::gOIhw4i16o4i;
-    const fmt fwd_weights_vnni = fmt::OIhw4i16o4i;
-
-    const bool with_groups = (md.data.format == fwd_weights_g_qvnni)
-                          || (md.data.format == bwd_weights_g_qvnni)
-                          || (md.data.format == fwd_weights_g_vnni);
-
-    const bool qvnni = (md.data.format == fwd_weights_g_qvnni)
-                    || (md.data.format == bwd_weights_g_qvnni)
-                    || (md.data.format == fwd_weights_qvnni)
-                    || (md.data.format == bwd_weights_qvnni);
-
-    const bool vnni = (md.data.format == fwd_weights_g_vnni)
-                   || (md.data.format == fwd_weights_vnni);
-
-    const bool fwd_wei = (md.data.format == fwd_weights_g_qvnni)
-                      || (md.data.format == fwd_weights_qvnni)
-                      || (md.data.format == fwd_weights_g_vnni)
-                      || (md.data.format == fwd_weights_vnni);
-
-    const bool bwd_wei = (md.data.format == bwd_weights_g_qvnni)
-                      || (md.data.format == bwd_weights_qvnni);
-
-    const int ndims = md.data.ndims;
-    const auto *dims = md.data.dims;
-    const auto *pdims = md.data.padded_dims;
-    const auto *optd = md.data.padded_offsets;
-
-    auto *strides_block = md.data.layout_desc.blocking.strides[0];
-    auto *strides_within_block = md.data.layout_desc.blocking.strides[1];
-
-    memory::dim ph_index = 0;
-    memory::dim oc_lb = 0, ic_sb = 0, oc_sb = 0, ic_lb = 0;
-
-    for (int rd = 0; rd < ndims; ++rd) {
-        int d = ndims - rd - 1;
-
-        EXPECT_LE(dims[d], pdims[d]);
-
-        memory::dim cur_dim = with_padding ? pdims[d] : dims[d];
-        EXPECT_GT(cur_dim, 0);
-        memory::dim cur_block = md.data.layout_desc.blocking.block_dims[d];
-
-        memory::dim pos_d = (index % cur_dim);
-        EXPECT_GE(optd[d], 0);
-        memory::dim cur_pos = optd[d] + pos_d;
-
-        memory::dim cur_pos_block = cur_pos / cur_block;
-        memory::dim cur_pos_within_block = cur_pos % cur_block;
-
-        if (d == (with_groups + 0)) {
-            if (qvnni) { oc_lb = pos_d % 16;  oc_sb = pos_d % 2; }
-            else  if (vnni) { oc_lb = pos_d % 16; }
-        }
-        if (d == (with_groups + 1)) {
-            if (qvnni) { ic_sb = pos_d % 2; ic_lb = pos_d % 16; }
-            else if (vnni) { ic_sb = pos_d % 4; }
-        }
-        ph_index += cur_pos_block*strides_block[d];
-        ph_index += cur_pos_within_block*strides_within_block[d];
-
-        index /= cur_dim;
-    }
-    int scale = (vnni) ? 3 : 1;
-    if (fwd_wei) {
-        //ph_index += -16 * ic_2 + oc_16 + ic_2;
-        ph_index += scale * oc_lb + ic_sb;
-        EXPECT_GE(ph_index, 16 * ic_sb);
-        ph_index -= 16 * ic_sb;
-    } else
-        if (bwd_wei) {
-            //ph_index += -16 * oc_2 + ic_16 + oc_2;
-            ph_index += ic_lb + oc_sb;
-            EXPECT_GE(ph_index, 16 * oc_sb);
-            ph_index -= 16 * oc_sb;
-        }
-    ph_index += md.data.offset0;
-
-    return ph_index;
-}
-
 #define MAX_NDIMS 12
 // check_zero_tail - check on zero or set to zero padded memory
 template <typename data_t>
@@ -184,6 +95,7 @@ void check_zero_tail(int set_zero_flag, memory &src) {
     const int ndims = src_d.data.ndims;
     const auto *dims = src_d.data.dims;
     const auto *pdims = src_d.data.padded_dims;
+    const mkldnn::impl::memory_desc_wrapper mdw(src_d.data);
 
     memory::dim idx[MAX_NDIMS] = {}, str[MAX_NDIMS] = {};
     memory::dim nelems = 1;
@@ -204,7 +116,7 @@ void check_zero_tail(int set_zero_flag, memory &src) {
             if (idx[j] >= dims[ndims-j-1]) flag = 1;
         }
         if (flag == 1) {
-            memory::dim blk_off = map_index(src_d,off);
+            memory::dim blk_off = mdw.off_l(off, true);
             if (set_zero_flag) {
                 src_data[blk_off] = 0.0;
             } else {
@@ -222,83 +134,8 @@ void check_zero_tail(int set_zero_flag, memory &src) {
 }
 
 inline memory::desc create_md(memory::dims dims,
-        memory::data_type data_type, memory::format fmt) {
-    using f = memory::format;
-    size_t ndims = 0;
-
-    switch (fmt) {
-    case f::x:
-        ndims = 1; break;
-    case f::nc:
-    case f::oi:
-    case f::io:
-        ndims = 2; break;
-    case f::nchw:
-    case f::nhwc:
-    case f::chwn:
-    case f::nChw8c:
-    case f::nChw16c:
-    case f::oihw:
-    case f::hwio:
-    case f::iohw:
-    case f::oIhw8i:
-    case f::oIhw16i:
-    case f::OIhw8i8o:
-    case f::OIhw16i16o:
-    case f::OIhw8i16o2i:
-    case f::OIhw8o16i2o:
-    case f::OIhw4i16o4i:
-    case f::OIhw8o8i:
-    case f::OIhw16o16i:
-    case f::IOhw16o16i:
-    case f::Ohwi8o:
-    case f::Ohwi16o:
-        ndims = 4; break;
-    case f::ncdhw:
-    case f::ndhwc:
-    case f::nCdhw8c:
-    case f::nCdhw16c:
-    case f::dhwio:
-    case f::oidhw:
-    case f::goihw:
-    case f::hwigo:
-    case f::giohw:
-    case f::oIdhw8i:
-    case f::oIdhw16i:
-    case f::OIdhw8i8o:
-    case f::OIdhw16i16o:
-    case f::OIdhw8o8i:
-    case f::OIdhw16o16i:
-    case f::gOhwi8o:
-    case f::Goihw8g:
-    case f::Goihw16g:
-    case f::gOhwi16o:
-    case f::gOIhw8i8o:
-    case f::gOIhw16i16o:
-    case f::gOIhw8i16o2i:
-    case f::gOIhw8o16i2o:
-    case f::gOIhw4i16o4i:
-    case f::gOIhw8o8i:
-    case f::gOIhw16o16i:
-    case f::gIOhw16o16i:
-        ndims = 5; break;
-    case f::gOIdhw8i8o:
-    case f::gOIdhw16i16o:
-    case f::gOIdhw8o8i:
-    case f::gOIdhw16o16i:
-    case f::gOdhwi16o:
-    case f::goidhw:
-        ndims = 6; break;
-    case f::format_undef:
-        ndims = 0; break;
-    case f::any:
-        return memory::desc(dims, data_type, fmt);
-    default: EXPECT_TRUE(false) << "test does not support format: " << int(fmt);
-    }
-
-    EXPECT_EQ(dims.size(), ndims) << "dims and format are inconsistent";
-
-    return memory::desc(dims, data_type, fmt);
+        memory::data_type data_type, memory::format_tag fmt_tag) {
+    return memory::desc(dims, data_type, fmt_tag);
 }
 
 template <typename data_t>
@@ -356,6 +193,8 @@ static void compare_data(memory& ref, memory& dst,
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();
     auto dst_desc = dst.get_desc();
+    const mkldnn::impl::memory_desc_wrapper mdw_ref(ref_desc.data);
+    const mkldnn::impl::memory_desc_wrapper mdw_dst(dst_desc.data);
 
     ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
 
@@ -376,8 +215,8 @@ static void compare_data(memory& ref, memory& dst,
     data_t *dst_data = (data_t *)dst.get_data_handle();
 
     mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
-        data_t ref = ref_data[map_index(ref_desc, i)];
-        data_t got = dst_data[map_index(dst_desc, i)];
+        data_t ref = ref_data[mdw_ref.off_l(i, true)];
+        data_t got = dst_data[mdw_dst.off_l(i, true)];
 
         if (data_traits<data_t>::data_type == data_type::f32) {
             data_t diff = got - ref;
@@ -471,10 +310,10 @@ struct test_convolution_attr_t {
 };
 
 struct test_convolution_formats_t {
-    memory::format src_format;
-    memory::format weights_format;
-    memory::format bias_format;
-    memory::format dst_format;
+    memory::format_tag src_format;
+    memory::format_tag weights_format;
+    memory::format_tag bias_format;
+    memory::format_tag dst_format;
 };
 
 struct test_convolution_params_t {

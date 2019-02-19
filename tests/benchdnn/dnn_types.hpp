@@ -47,7 +47,6 @@ enum {
     GWEI,
     DAT_TOTAL };
 const char *data_kind2str(data_kind_t kind);
-data_kind_t fmt2data_kind(mkldnn_memory_format_t fmt);
 
 struct attr_t {
     enum round_mode_t {
@@ -56,7 +55,14 @@ struct attr_t {
     };
 
     struct scale_t {
-        enum policy_t { NONE = 0, COMMON, PER_OC, POLICY_TOTAL };
+        enum policy_t { NONE = 0, COMMON, PER_OC,
+            // reorder section
+            // XXX: order is important, from longer name to a shorter one
+            // TODO: generalize, use numbers instead of predefined enum
+            PER_DIM_01,
+            PER_DIM_0, PER_DIM_1,
+            // reorder section ends
+            POLICY_TOTAL };
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
@@ -110,7 +116,7 @@ const size_t max_attr_len = 128;
 int str2attr(attr_t *attr, const char *str);
 void attr2str(const attr_t *attr, char *buffer);
 
-mkldnn_memory_format_t get_default_format(int ndims, data_kind_t kind);
+mkldnn_format_tag_t get_default_tag(int ndims);
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales);
 inline mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,

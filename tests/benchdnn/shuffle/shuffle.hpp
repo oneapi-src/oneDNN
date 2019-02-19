@@ -49,14 +49,14 @@ const size_t max_desc_len = 196;
 
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt, int axis, int64_t group)
-        : dims(dims), dir(dir), dt(dt), fmt(fmt), a(axis), g(group) {}
+            mkldnn_format_tag_t tag, int axis, int64_t group)
+        : dims(dims), dir(dir), dt(dt), tag(tag), a(axis), g(group) {}
     ~prb_t() {}
 
     dims_t dims;
     dir_t dir;
     mkldnn_data_type_t dt;
-    mkldnn_memory_format_t fmt;
+    mkldnn_format_tag_t tag;
     int a;
     int64_t g;
 };

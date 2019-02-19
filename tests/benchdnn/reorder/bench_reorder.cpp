@@ -29,11 +29,11 @@ namespace reorder {
 attr_t attr;
 bool allow_unimpl = false;
 bool both_dir_dt = false;
-bool both_dir_fmt = false;
+bool both_dir_tag = false;
 const char *perf_template = "perf,%n,%D,%O,%-t,%-Gp,%0t,%0Gp";
 
 std::vector<mkldnn_data_type_t> v_idt, v_odt;
-std::vector<mkldnn_memory_format_t> v_ifmt, v_ofmt;
+std::vector<mkldnn_format_tag_t> v_itag, v_otag;
 std::vector<dims_t> v_dims;
 std::vector<float> v_def_scale;
 
@@ -41,7 +41,7 @@ void reset_parameters() {
     attr = attr_t();
     allow_unimpl = false;
     both_dir_dt = false;
-    both_dir_fmt = false;
+    both_dir_tag = false;
 
     v_def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
 }
@@ -68,14 +68,14 @@ void run() {
     for (auto &idt: v_idt)
     for (auto &odt: v_odt)
     for (int swap_dt = 0; swap_dt < (both_dir_dt && idt != odt ? 2 : 1); ++swap_dt)
-    for (auto &ifmt: v_ifmt)
-    for (auto &ofmt: v_ofmt)
-    for (int swap_fmt = 0; swap_fmt < (both_dir_fmt && ifmt != ofmt ? 2 : 1); ++swap_fmt)
+    for (auto &itag: v_itag)
+    for (auto &otag: v_otag)
+    for (int swap_tag = 0; swap_tag < (both_dir_tag && itag != otag ? 2 : 1); ++swap_tag)
     for (auto &dims: v_dims)
     {
         reorder_conf_t reorder_conf{dims,
-            swap_fmt ? ofmt : ifmt,
-            swap_fmt ? ifmt : ofmt};
+            swap_tag ? otag : itag,
+            swap_tag ? itag : otag};
 
         dt_conf_t iconf = dt2cfg(swap_dt ? odt : idt);
         dt_conf_t oconf = dt2cfg(swap_dt ? idt : odt);
@@ -109,17 +109,17 @@ int bench(int argc, char **argv, bool main_bench) {
                     v_idt.push_back(str2dt(str));
                     v_odt.push_back(str2dt(str));
                     });
-        else if (!strncmp("--ifmt=", argv[arg], 7))
-            read_csv(argv[arg] + 7, [&]() { v_ifmt.clear(); },
-                    [&](const char *str) { v_ifmt.push_back(str2fmt(str)); });
-        else if (!strncmp("--ofmt=", argv[arg], 7))
-            read_csv(argv[arg] + 7, [&]() { v_ofmt.clear(); },
-                    [&](const char *str) { v_ofmt.push_back(str2fmt(str)); });
-        else if (!strncmp("--fmt=", argv[arg], 6))
-            read_csv(argv[arg] + 6, [&]() { v_ifmt.clear(); v_ofmt.clear(); },
+        else if (!strncmp("--itag=", argv[arg], 7))
+            read_csv(argv[arg] + 7, [&]() { v_itag.clear(); },
+                    [&](const char *str) { v_itag.push_back(str2tag(str)); });
+        else if (!strncmp("--otag=", argv[arg], 7))
+            read_csv(argv[arg] + 7, [&]() { v_otag.clear(); },
+                    [&](const char *str) { v_otag.push_back(str2tag(str)); });
+        else if (!strncmp("--tag=", argv[arg], 6))
+            read_csv(argv[arg] + 6, [&]() { v_itag.clear(); v_otag.clear(); },
                     [&](const char *str) {
-                    v_ifmt.push_back(str2fmt(str));
-                    v_ofmt.push_back(str2fmt(str));
+                    v_itag.push_back(str2tag(str));
+                    v_otag.push_back(str2tag(str));
                     });
         else if (!strncmp("--def-scales=", argv[arg], 13))
             read_csv(argv[arg] + 13, [&]() { v_def_scale.clear(); },
@@ -128,8 +128,8 @@ int bench(int argc, char **argv, bool main_bench) {
             SAFE(str2attr(&attr, argv[arg] + 7), CRIT);
         else if (!strncmp("--both-dir-dt=", argv[arg], 14))
             both_dir_dt = str2bool(argv[arg] + 14);
-        else if (!strncmp("--both-dir-fmt=", argv[arg], 14))
-            both_dir_fmt = str2bool(argv[arg] + 15);
+        else if (!strncmp("--both-dir-tag=", argv[arg], 14))
+            both_dir_tag = str2bool(argv[arg] + 15);
         else if (!strncmp("--allow-unimpl=", argv[arg], 15))
             allow_unimpl = str2bool(argv[arg] + 15);
         else if (!strcmp("--run", argv[arg]))

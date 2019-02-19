@@ -34,7 +34,7 @@ namespace shuffle {
 int64_t mb = 0;
 dir_t dir = FWD_D;
 mkldnn_data_type_t dt = mkldnn_f32;
-mkldnn_memory_format_t fmt = mkldnn_nchw;
+mkldnn_format_tag_t tag = mkldnn_nchw;
 dims_t dims;
 int axis = 1;
 int64_t group = 1;
@@ -45,14 +45,14 @@ const char *perf_template = "perf,%z,%q,%f,%D,%a,%g,%-t,%0t";
 void reset_parameters() {
     dir = FWD_D;
     dt = mkldnn_f32;
-    fmt = mkldnn_nchw;
+    tag = mkldnn_nchw;
     axis = 1;
     group = 1;
     pattern = NULL;
 }
 
 void check_correctness() {
-    const prb_t p(dims, dir, dt, fmt, axis, group);
+    const prb_t p(dims, dir, dt, tag, axis, group);
     char pstr[max_prb_len];
     prb2str(&p, pstr);
 
@@ -80,8 +80,8 @@ int bench(int argc, char **argv, bool main_bench) {
             dir = str2dir(argv[arg] + 6);
         else if (!strncmp("--dt=", argv[arg], 5))
             dt = str2dt(argv[arg] + 5);
-        else if (!strncmp("--fmt=", argv[arg], 6))
-            fmt = str2fmt(argv[arg] + 6);
+        else if (!strncmp("--tag=", argv[arg], 6))
+            tag = str2tag(argv[arg] + 6);
         else if (!strncmp("--axis=", argv[arg], 7))
             axis = atoi(argv[arg] + 7);
         else if (!strncmp("--group=", argv[arg], 8))

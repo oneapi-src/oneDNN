@@ -31,7 +31,7 @@ const char *rmode2str(mkldnn_round_mode_t rmode);
 mkldnn_round_mode_t str2rmode(const char *str);
 
 /* format */
-const char *fmt2str(mkldnn_memory_format_t fmt);
-mkldnn_memory_format_t str2fmt(const char *str);
+const char *tag2str(mkldnn_format_tag_t tag);
+mkldnn_format_tag_t str2tag(const char *str);
 
 #endif

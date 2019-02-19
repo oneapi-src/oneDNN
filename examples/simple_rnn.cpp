@@ -219,18 +219,18 @@ void simple_net() {
     /* Create the memory for user data */
     auto user_enc_bidir_src_layer_md = mkldnn::memory::desc(
             { enc_bidir_src_layer_tz }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::tnc);
+            mkldnn::memory::format_tag::tnc);
 
     auto user_enc_bidir_wei_layer_md = mkldnn::memory::desc(
             { enc_bidir_weights_layer_tz }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldigo);
+            mkldnn::memory::format_tag::ldigo);
 
     auto user_enc_bidir_wei_iter_md = mkldnn::memory::desc(
             { enc_bidir_weights_iter_tz }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldigo);
+            mkldnn::memory::format_tag::ldigo);
 
     auto user_enc_bidir_bias_md = mkldnn::memory::desc({ enc_bidir_bias_tz },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldgo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldgo);
 
     auto user_enc_bidir_src_layer_memory = mkldnn::memory(
             user_enc_bidir_src_layer_md, cpu_engine, net_src.data());
@@ -245,13 +245,13 @@ void simple_net() {
 
     /* Create memory descriptors for RNN data w/o specified layout */
     auto enc_bidir_wei_layer_md = memory::desc({ enc_bidir_weights_layer_tz },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
 
     auto enc_bidir_wei_iter_md = memory::desc({ enc_bidir_weights_iter_tz },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
 
     auto enc_bidir_dst_layer_md = memory::desc({ enc_bidir_dst_layer_tz },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
 
     /* Create bidirectional RNN */
     rnn_cell::desc bi_cell(algorithm::vanilla_lstm);
@@ -322,13 +322,13 @@ void simple_net() {
             = { src_seq_length_max, batch, feature_size };
     auto user_enc_uni_first_wei_layer_md = mkldnn::memory::desc(
             { user_enc_uni_first_wei_layer_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldigo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldigo);
     auto user_enc_uni_first_wei_iter_md = mkldnn::memory::desc(
             { user_enc_uni_first_wei_iter_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldigo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldigo);
     auto user_enc_uni_first_bias_md = mkldnn::memory::desc(
             { user_enc_uni_first_bias_dims }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldgo);
+            mkldnn::memory::format_tag::ldgo);
     auto user_enc_uni_first_wei_layer_memory
             = mkldnn::memory(user_enc_uni_first_wei_layer_md, cpu_engine,
                     user_enc_uni_first_wei_layer.data());
@@ -341,13 +341,13 @@ void simple_net() {
 
     auto enc_uni_first_wei_layer_md
             = memory::desc({ user_enc_uni_first_wei_layer_dims },
-                    memory::data_type::f32, memory::format::any);
+                    memory::data_type::f32, memory::format_tag::any);
     auto enc_uni_first_wei_iter_md
             = memory::desc({ user_enc_uni_first_wei_iter_dims },
-                    memory::data_type::f32, memory::format::any);
+                    memory::data_type::f32, memory::format_tag::any);
     auto enc_uni_first_dst_layer_md
             = memory::desc({ enc_uni_first_dst_layer_dims },
-                    memory::data_type::f32, memory::format::any);
+                    memory::data_type::f32, memory::format_tag::any);
 
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?
@@ -418,12 +418,12 @@ void simple_net() {
             = { src_seq_length_max, batch, feature_size };
     auto user_enc_uni_wei_layer_md = mkldnn::memory::desc(
             { user_enc_uni_wei_layer_dims }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldigo);
+            mkldnn::memory::format_tag::ldigo);
     auto user_enc_uni_wei_iter_md = mkldnn::memory::desc(
             { user_enc_uni_wei_iter_dims }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldigo);
+            mkldnn::memory::format_tag::ldigo);
     auto user_enc_uni_bias_md = mkldnn::memory::desc({ user_enc_uni_bias_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldgo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldgo);
     auto user_enc_uni_wei_layer_memory = mkldnn::memory(
             user_enc_uni_wei_layer_md, cpu_engine, user_enc_uni_wei_layer.data());
     auto user_enc_uni_wei_iter_memory = mkldnn::memory(
@@ -432,11 +432,11 @@ void simple_net() {
             user_enc_uni_bias_md, cpu_engine, user_enc_uni_bias.data());
 
     auto enc_uni_wei_layer_md = memory::desc({ user_enc_uni_wei_layer_dims },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
     auto enc_uni_wei_iter_md = memory::desc({ user_enc_uni_wei_iter_dims },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
     auto enc_dst_layer_md = memory::desc({ enc_dst_layer_dims },
-            memory::data_type::f32, memory::format::any);
+            memory::data_type::f32, memory::format_tag::any);
 
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?
@@ -529,17 +529,17 @@ void simple_net() {
 
     auto user_dec_wei_layer_md = mkldnn::memory::desc(
             { user_dec_wei_layer_dims }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::ldigo);
+            mkldnn::memory::format_tag::ldigo);
     auto user_dec_wei_iter_md = mkldnn::memory::desc({ user_dec_wei_iter_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldigo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldigo);
     auto user_dec_bias_md = mkldnn::memory::desc({ user_dec_bias_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldgo);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldgo);
     auto dec_dst_layer_md = mkldnn::memory::desc({ dec_dst_layer_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::tnc);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::tnc);
     auto dec_src_layer_md = mkldnn::memory::desc({ dec_src_layer_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::tnc);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::tnc);
     auto dec_dst_iter_md = mkldnn::memory::desc({ dec_dst_iter_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::ldsnc);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::ldsnc);
     auto user_dec_wei_layer_memory = mkldnn::memory(
             user_dec_wei_layer_md, cpu_engine, user_dec_wei_layer.data());
     auto user_dec_wei_iter_memory = mkldnn::memory(
@@ -553,9 +553,9 @@ void simple_net() {
 
     auto dec_wei_layer_md = mkldnn::memory::desc(
             { user_dec_wei_layer_dims }, mkldnn::memory::data_type::f32,
-            mkldnn::memory::format::any);
+            mkldnn::memory::format_tag::any);
     auto dec_wei_iter_md = mkldnn::memory::desc({ user_dec_wei_iter_dims },
-            mkldnn::memory::data_type::f32, mkldnn::memory::format::any);
+            mkldnn::memory::data_type::f32, mkldnn::memory::format_tag::any);
 
     // As mentioned above, we create a view without context out of the
     // memory with context.

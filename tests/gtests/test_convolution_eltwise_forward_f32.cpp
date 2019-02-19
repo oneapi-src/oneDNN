@@ -29,8 +29,8 @@ TEST_P(convolution_test, TestConvolutionEltwise)
 }
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
-    { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
-    mkldnn::memory::format::bias, mkldnn::memory::format::dst }
+    { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
+    mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)

@@ -52,16 +52,16 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
 
     char dir_str[32] = {0};
     char dt_str[16] = {0};
-    char fmt_str[32] = {0};
+    char tag_str[32] = {0};
     char axis_str[16] = {0};
     char group_str[16] = {0};
 
     snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
     snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
-    snprintf(fmt_str, sizeof(fmt_str), "--fmt=%s ", fmt2str(p->fmt));
+    snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
     snprintf(axis_str, sizeof(axis_str), "--axis=%d ", p->a);
     snprintf(group_str, sizeof(group_str), "--group=" IFMT " ", p->g);
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s", dir_str, dt_str, fmt_str,
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s", dir_str, dt_str, tag_str,
            axis_str, group_str, dims_buf);
 }
 

@@ -52,14 +52,14 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     mkldnn_dims_t bia_dims = {p->oc};
     mkldnn_dims_t dst_dims = {p->mb, p->oc};
 
-    DNN_SAFE(mkldnn_memory_desc_init(&src_d, ndims,
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
         is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims,
-        p->cfg[SRC].dt, mkldnn_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init(&wei_d, ndims,
+        p->cfg[SRC].dt, mkldnn_format_tag_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims,
         is_3d(p) ? wei_3d_dims : is_1d(p) ? wei_1d_dims : wei_2d_dims,
-            p->cfg[WEI].dt, mkldnn_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init(&dst_d, 2, dst_dims, p->cfg[DST].dt, mkldnn_any), WARN);
+        p->cfg[WEI].dt, mkldnn_format_tag_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_format_tag_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt, mkldnn_format_tag_any), WARN);
 
     switch (p->dir) {
     case FWD_D: case FWD_B:
@@ -299,12 +299,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_dt = p->dir & FLAG_BIA
         ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt) : dnn_mem_t();
 
-    auto src_format
-            = is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw;
-    auto wei_format
-            = is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw;
-    dnn_mem_t src_fp(src_dt_d, fp, src_format);
-    dnn_mem_t wei_fp(wei_dt_d, fp, wei_format);
+    auto src_tag = is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw;
+    auto wei_tag = is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw;
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag);
+    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag);
     dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc);
     dnn_mem_t bia_fp = p->dir & FLAG_BIA
         ? dnn_mem_t(bia_dt_d, fp, mkldnn_x) : dnn_mem_t();
@@ -347,7 +345,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
-            dnn_mem_t src(src_dt, fp, src_format);
+            dnn_mem_t src(src_dt, fp, src_tag);
             SAFE(compare_dat(p, SRC, src, src_fp, r), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
@@ -362,7 +360,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t wei(wei_dt, fp, wei_format);
+            dnn_mem_t wei(wei_dt, fp, wei_tag);
             if (compare_dat(p, WEI, wei, wei_fp, r) != OK) return FAIL;
             if (p->dir & FLAG_BIA) {
                 dnn_mem_t bia(bia_dt, fp, mkldnn_x);

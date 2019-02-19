@@ -56,7 +56,7 @@ table of modifiers below.
 | G         | Giga (1e9)
 
 The definition of expanded problem descriptor is:
-`idt,odt,ifmt,ofmt,attrs,dims`.
+`idt,odt,itag,otag,attrs,dims`.
 #endif
 
 void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
@@ -113,7 +113,7 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
         else if (c == 'D') {
             DPRINT("%s,%s,%s,%s,",
                     dt2str(cfg2dt(p->conf_in)), dt2str(cfg2dt(p->conf_out)),
-                    fmt2str(p->reorder.fmt_in), fmt2str(p->reorder.fmt_out));
+                    tag2str(p->reorder.tag_in), tag2str(p->reorder.tag_out));
 
             attr2str(&p->attr, buf);
             int len = (int)strnlen(buf, rem_len);

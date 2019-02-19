@@ -1,6 +1,6 @@
 --skip-impl=ref
 
---fmt=nChw8c # sse4.2 and avx2
+--tag=nChw8c # sse4.2 and avx2
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_topo
@@ -20,7 +20,7 @@
 --dir=BWD_D
 --flags=   --batch=bnorm_topo
 
---fmt=nChw16c # avx512
+--tag=nChw16c # avx512
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_topo
@@ -40,7 +40,7 @@
 --dir=BWD_D
 --flags=   --batch=bnorm_topo
 
---fmt=nCdhw16c # 3D avx512
+--tag=nCdhw16c # 3D avx512
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_3d

@@ -26,76 +26,68 @@ namespace mkldnn {
 
 typedef float data_t;
 
-class memory_test: public ::testing::Test {
-protected:
-    virtual void SetUp() {}
+struct memory_test_params {
+    memory::dims dims;
+    memory::format_tag fmt_tag;
+    bool expect_to_fail;
+    mkldnn_status_t expected_status;
 };
 
-TEST_F(memory_test, DataZeroDim) {
-    auto e = engine(engine::kind::cpu, 0);
-    mkldnn::memory mem0({{2, 0, 3, 4}, memory::data_type::f32,
-            memory::format::nChw16c}, e);
-}
+class memory_test: public ::testing::TestWithParam<memory_test_params> {
+protected:
+    virtual void SetUp() {
+        memory_test_params p
+            = ::testing::TestWithParam<decltype(p)>::GetParam();
+        catch_expected_failures([=](){Test();}, p.expect_to_fail,
+                    p.expected_status);
+    }
+    void Test() {
+        memory_test_params p
+            = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-TEST_F(memory_test, DataPaddingTest) {
-    auto e = engine(engine::kind::cpu, 0);
+        auto e = engine(engine::kind::cpu, 0);
 
-    const memory::dim N = 2, C = 28, C_16 = 32, H = 3, W = 4;
-    const memory::dim phys_sz = N * C_16 * H * W;
+        mkldnn::memory mem0({p.dims, memory::data_type::f32, p.fmt_tag}, e);
+        data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
+        memory::dim phys_size = mem0.get_desc().get_size() / sizeof(data_t);
+        fill_data<data_t>(phys_size, mem0_ptr);
 
-    mkldnn::memory mem0({{N, C, H, W}, memory::data_type::f32,
-            memory::format::nChw16c}, e);
-    data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
-    fill_data<data_t>(N*C_16*H*W, mem0_ptr);
+        std::vector<data_t> mem1_vec(phys_size);
+        mem1_vec.assign(mem0_ptr, mem0_ptr + phys_size);
 
-    std::vector<data_t> mem1_vec(phys_sz);
-    mem1_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
+        mkldnn::memory mem1({p.dims, memory::data_type::f32, p.fmt_tag}, e,
+                &mem1_vec[0]);
 
-    mkldnn::memory mem1({{N, C, H, W}, memory::data_type::f32,
-            memory::format::nChw16c}, e, &mem1_vec[0]);
+        check_zero_tail<data_t>(0, mem1);
+        check_zero_tail<data_t>(1, mem0);
 
-    check_zero_tail<data_t>(0, mem1);
-    check_zero_tail<data_t>(1, mem0);
+        for (memory::dim i = 0; i < phys_size; ++i)
+            EXPECT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i;
+    }
+};
 
-    for (memory::dim i = 0; i < phys_sz; ++i)
-        EXPECT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i;
-}
+using fmt = memory::format_tag;
 
-TEST_F(memory_test, WeightPaddingTest) {
-    auto e = engine(engine::kind::cpu, 0);
-
-    const memory::dim O = 13, O_16 = 16, I = 28, I_16 = 32, H = 2, W = 3;
-    const memory::dim phys_sz = (size_t)O_16 * I_16 * H * W;
-
-    mkldnn::memory mem0({{O, I, H, W}, memory::data_type::f32,
-            memory::format::OIhw16i16o}, e);
-    data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
-    fill_data<data_t>(O_16*I_16*H*W, mem0_ptr);
-
-    /* mem1 is OIhw16i16o with fmt = OIhw16i16o */
-    std::vector<data_t> mem1_vec(phys_sz);
-    mem1_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
-    mkldnn::memory mem1({{O, I, H, W}, memory::data_type::f32,
-            memory::format::OIhw16i16o}, e, &mem1_vec[0]);
-    check_zero_tail<data_t>(0, mem1);
-
-    /* mem2 is OIhw16i16o with fmt = blocked */
-    std::vector<data_t> mem2_vec(phys_sz);
-    mem2_vec.assign(mem0_ptr,
-            mem0_ptr + mem0.get_desc().get_size() / sizeof(data_t));
-    mkldnn::memory::desc mem2_d = mem1.get_desc();
-    mem2_d.data.format = mkldnn_blocked;
-    mkldnn::memory mem2(mem2_d, e, &mem2_vec[0]);
-    check_zero_tail<data_t>(0, mem2);
-
-    check_zero_tail<data_t>(1, mem0);
-    for (memory::dim i = 0; i < phys_sz; ++i)
-        EXPECT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i << " :mem1";
-
-    for (memory::dim i = 0; i < phys_sz; ++i)
-        EXPECT_NEAR(mem0_ptr[i], mem2_vec[i], 1e-7) << i << " :mem2";
-}
-
+TEST_P(memory_test, TestsMemory) { }
+INSTANTIATE_TEST_CASE_P(TestMemory, memory_test,
+        ::testing::Values(
+            memory_test_params{{2, 0, 1, 1}, fmt::nChw16c},
+            memory_test_params{{2, 15, 3, 2}, fmt::nChw16c},
+            memory_test_params{{2, 15, 3, 2, 4}, fmt::nCdhw8c},
+            memory_test_params{{9, 4, 3, 2}, fmt::Oihw8o},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw8o8i},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw8i16o2i},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw8o16i2o},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw16o16i},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw16i16o},
+            memory_test_params{{2, 9, 3, 2}, fmt::OIhw4i16o4i},
+            memory_test_params{{2, 9, 4, 3, 2}, fmt::gOihw16o},
+            memory_test_params{{1, 2, 9, 3, 2}, fmt::gOIhw8o8i},
+            memory_test_params{{1, 2, 9, 3, 2}, fmt::gOIhw4o4i},
+            memory_test_params{{1, 2, 9, 3, 2}, fmt::gOIhw8i8o},
+            memory_test_params{{2, 17, 9, 3, 2}, fmt::gOIhw4i16o4i},
+            memory_test_params{{2, 17, 9, 3, 2}, fmt::gOIhw2i8o4i},
+            memory_test_params{{15, 16, 16, 3, 3}, fmt::Goihw8g}
+            )
+        );
 }

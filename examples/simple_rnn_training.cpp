@@ -59,7 +59,7 @@ const int lstm_n_gates = 4;
 const int lstm_n_states = 2;
 
 void simple_net() {
-    using fmt = memory::format;
+    using tag = memory::format_tag;
     using dt = memory::data_type;
 
     auto cpu_engine = engine(engine::cpu, 0);
@@ -159,13 +159,13 @@ void simple_net() {
 
     // Create auxillary f32 memory descriptor
     // based on user- supplied dimensions and layout.
-    auto formatted_md = [=](memory::dims dimensions, memory::format layout) {
+    auto formatted_md = [=](memory::dims dimensions, memory::format_tag layout) {
         return memory::desc{{ dimensions }, dt::f32, layout};
     };
     // Create auxillary generic f32 memory descriptor
-    // based on supplied dimensions, with format::any.
+    // based on supplied dimensions, with format_tag::any.
     auto generic_md = [=](memory::dims dimensions) {
-        return formatted_md( dimensions, fmt::any);
+        return formatted_md( dimensions, tag::any);
     };
 
     //
@@ -179,7 +179,7 @@ void simple_net() {
     // NOTE: in this example we study input sequences with variable batch
     // dimension, which get processed by two separate RNN primitives, thus
     // the destination memory for the two will have different shapes: batch
-    // is the second dimension currently: see format::tnc.
+    // is the second dimension currently: see format_tag::tnc.
     // We are not copying the output to some common user provided memory as we
     // suggest that the user should rather keep the two output memories separate
     // throughout the whole topology and only reorder to something else as
@@ -191,7 +191,7 @@ void simple_net() {
     // Memory primitive for the user allocated memory
     // Suppose user data is in tnc format.
     auto net_src_memory = mkldnn::memory(
-            {{net_src_dims}, dt::f32, fmt::tnc}, cpu_engine,
+            {{net_src_dims}, dt::f32, tag::tnc}, cpu_engine,
             net_src.data());
     // src_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memories in larger memory.
@@ -214,35 +214,35 @@ void simple_net() {
             tz_volume(common_weights_layer_dims),
             1.0f);
     auto user_common_weights_layer_memory = mkldnn::memory(
-            {common_weights_layer_dims, dt::f32, fmt::ldigo},
+            {common_weights_layer_dims, dt::f32, tag::ldigo},
             cpu_engine, user_common_weights_layer.data());
 
     std::vector<float> user_common_weights_iter(
             tz_volume(common_weights_iter_dims),
             1.0f);
     auto user_common_weights_iter_memory = mkldnn::memory(
-            { { common_weights_iter_dims }, dt::f32, fmt::ldigo }, cpu_engine,
+            { { common_weights_iter_dims }, dt::f32, tag::ldigo }, cpu_engine,
             user_common_weights_layer.data());
 
     std::vector<float> user_common_bias(
             tz_volume(common_bias_dims),
             1.0f);
     auto user_common_bias_memory
-        = mkldnn::memory({{common_bias_dims}, dt::f32, fmt::ldgo},
+        = mkldnn::memory({{common_bias_dims}, dt::f32, tag::ldgo},
                 cpu_engine, user_common_bias.data());
 
     std::vector<float> user_leftmost_dst_layer(
             tz_volume(leftmost_dst_layer_dims),
             1.0f);
     auto user_leftmost_dst_layer_memory = mkldnn::memory(
-            {{leftmost_dst_layer_dims}, dt::f32, fmt::tnc},
+            {{leftmost_dst_layer_dims}, dt::f32, tag::tnc},
             cpu_engine, user_leftmost_dst_layer.data());
 
     std::vector<float> user_rightmost_dst_layer(
             tz_volume(rightmost_dst_layer_dims),
             1.0f);
     auto user_rightmost_dst_layer_memory = mkldnn::memory(
-            {{rightmost_dst_layer_dims}, dt::f32, fmt::tnc},
+            {{rightmost_dst_layer_dims}, dt::f32, tag::tnc},
             cpu_engine, user_rightmost_dst_layer.data());
 
     // Describe RNN cell
@@ -261,7 +261,7 @@ void simple_net() {
         /* weights_iter_desc  */ generic_md(common_weights_iter_dims),
         /* bias_desc          */ generic_md(common_bias_dims),
         /* dst_layer_desc     */ formatted_md(leftmost_dst_layer_dims,
-                                                memory::format::tnc),
+                                                tag::tnc),
         /* dst_iter_desc      */ generic_md(leftmost_dst_iter_dims)
     );
     // Describe primitive
@@ -297,7 +297,7 @@ void simple_net() {
         /* weights_iter_desc  */ generic_md(common_weights_iter_dims),
         /* bias_desc          */ generic_md(common_bias_dims),
         /* dst_layer_desc     */ formatted_md(rightmost_dst_layer_dims,
-                                                memory::format::tnc),
+                                                tag::tnc),
         /* dst_iter_desc      */ memory::desc()
     );
     auto rightmost_prim_desc
@@ -435,7 +435,7 @@ void simple_net() {
             tz_volume(net_src_dims),
             1.0f);
     auto net_diff_src_memory = mkldnn::memory(
-            formatted_md(net_src_dims, memory::format::tnc),
+            formatted_md(net_src_dims, tag::tnc),
             cpu_engine, net_diff_src.data());
 
     // diff_src follows the same layout we have for net_src
@@ -456,12 +456,12 @@ void simple_net() {
             tz_volume(common_weights_layer_dims),
             1.0f);
     auto user_common_diff_weights_layer_memory = mkldnn::memory(
-            formatted_md(common_weights_layer_dims, memory::format::ldigo),
+            formatted_md(common_weights_layer_dims, tag::ldigo),
             cpu_engine, user_common_diff_weights_layer.data());
 
     std::vector<float> user_common_diff_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_diff_bias_memory = mkldnn::memory(
-            formatted_md(common_bias_dims, memory::format::ldgo),
+            formatted_md(common_bias_dims, tag::ldgo),
             cpu_engine, user_common_diff_bias.data());
 
     // User-provided input to the backward primitive.
@@ -474,7 +474,7 @@ void simple_net() {
     // Suppose user data is in tnc format.
     std::vector<float> net_diff_dst(tz_volume(net_diff_dst_dims), 1.0f);
     auto net_diff_dst_memory = mkldnn::memory(
-            formatted_md(net_diff_dst_dims, memory::format::tnc),
+            formatted_md(net_diff_dst_dims, tag::tnc),
             cpu_engine, net_diff_dst.data());
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memory in larger memory.
@@ -501,7 +501,7 @@ void simple_net() {
         /* weights_iter_desc       */ generic_md(common_weights_iter_dims),
         /* bias_desc               */ generic_md(common_bias_dims),
         /* dst_layer_desc          */ formatted_md(leftmost_dst_layer_dims,
-                                                    memory::format::tnc),
+                                                    tag::tnc),
         /* dst_iter_desc           */ generic_md(leftmost_dst_iter_dims),
         /* diff_src_layer_desc     */ user_leftmost_diff_src_layer_md,
         /* diff_src_iter_desc      */ memory::desc(),
@@ -539,7 +539,7 @@ void simple_net() {
         /* weights_iter_desc       */ generic_md(common_weights_iter_dims),
         /* bias_desc               */ generic_md(common_bias_dims),
         /* dst_layer_desc          */ formatted_md(rightmost_dst_layer_dims,
-                                                    memory::format::tnc),
+                                                    tag::tnc),
         /* dst_iter_desc           */ memory::desc(),
         /* diff_src_layer_desc     */ user_rightmost_diff_src_layer_md,
         /* diff_src_iter_desc      */ rightmost_diff_src_iter_md,

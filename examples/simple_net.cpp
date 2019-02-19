@@ -35,7 +35,7 @@ memory::dim product(const memory::dims &dims) {
 }
 
 void simple_net(int times = 100) {
-    using fmt = memory::format;
+    using tag = memory::format_tag;
     using dt = memory::data_type;
 
     engine eng(engine::cpu, 0);
@@ -69,18 +69,18 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto user_src_memory = memory(
-            {{conv1_src_tz}, dt::f32, fmt::nchw}, eng, user_src.data());
+            {{conv1_src_tz}, dt::f32, tag::nchw}, eng, user_src.data());
     auto user_weights_memory = memory(
-            {{conv1_weights_tz}, dt::f32, fmt::oihw}, eng, conv1_weights.data());
+            {{conv1_weights_tz}, dt::f32, tag::oihw}, eng, conv1_weights.data());
     auto conv1_user_bias_memory = memory(
-            {{conv1_bias_tz}, dt::f32, fmt::x}, eng, conv1_bias.data());
+            {{conv1_bias_tz}, dt::f32, tag::x}, eng, conv1_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto conv1_src_md = memory::desc({conv1_src_tz}, dt::f32, fmt::any);
-    auto conv1_bias_md = memory::desc({conv1_bias_tz}, dt::f32, fmt::any);
-    auto conv1_weights_md = memory::desc({conv1_weights_tz}, dt::f32, fmt::any);
-    auto conv1_dst_md = memory::desc({conv1_dst_tz}, dt::f32, fmt::any);
+    auto conv1_src_md = memory::desc({conv1_src_tz}, dt::f32, tag::any);
+    auto conv1_bias_md = memory::desc({conv1_bias_tz}, dt::f32, tag::any);
+    auto conv1_weights_md = memory::desc({conv1_weights_tz}, dt::f32, tag::any);
+    auto conv1_dst_md = memory::desc({conv1_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution */
     auto conv1_desc = convolution_forward::desc(
@@ -186,7 +186,7 @@ void simple_net(int times = 100) {
     memory::dims pool1_strides = { 2, 2 };
     memory::dims pool_padding = { 0, 0 };
 
-    auto pool1_dst_md = memory::desc({ pool1_dst_tz }, dt::f32, fmt::any);
+    auto pool1_dst_md = memory::desc({ pool1_dst_tz }, dt::f32, tag::any);
 
     /* create a pooling */
     auto pool1_desc = pooling_forward::desc(prop_kind::forward_inference,
@@ -221,16 +221,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto conv2_user_weights_memory = memory(
-            {{conv2_weights_tz}, dt::f32, fmt::goihw}, eng, conv2_weights.data());
+            {{conv2_weights_tz}, dt::f32, tag::goihw}, eng, conv2_weights.data());
     auto conv2_user_bias_memory = memory(
-            {{conv2_bias_tz}, dt::f32, fmt::x}, eng, conv2_bias.data());
+            {{conv2_bias_tz}, dt::f32, tag::x}, eng, conv2_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto conv2_src_md = memory::desc({conv2_src_tz}, dt::f32, fmt::any);
-    auto conv2_bias_md = memory::desc({conv2_bias_tz}, dt::f32, fmt::any);
-    auto conv2_weights_md = memory::desc({conv2_weights_tz}, dt::f32, fmt::any);
-    auto conv2_dst_md = memory::desc({conv2_dst_tz}, dt::f32, fmt::any);
+    auto conv2_src_md = memory::desc({conv2_src_tz}, dt::f32, tag::any);
+    auto conv2_bias_md = memory::desc({conv2_bias_tz}, dt::f32, tag::any);
+    auto conv2_weights_md = memory::desc({conv2_weights_tz}, dt::f32, tag::any);
+    auto conv2_dst_md = memory::desc({conv2_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution */
     auto conv2_desc = convolution_forward::desc(
@@ -334,7 +334,7 @@ void simple_net(int times = 100) {
     memory::dims pool2_strides = { 2, 2 };
     memory::dims pool2_padding = { 0, 0 };
 
-    auto pool2_dst_md = memory::desc({pool2_dst_tz}, dt::f32, fmt::any);
+    auto pool2_dst_md = memory::desc({pool2_dst_tz}, dt::f32, tag::any);
 
     /* create a pooling */
     auto pool2_desc = pooling_forward::desc(prop_kind::forward_inference,
@@ -369,16 +369,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto conv3_user_weights_memory = memory(
-            {{conv3_weights_tz}, dt::f32, fmt::oihw}, eng, conv3_weights.data());
+            {{conv3_weights_tz}, dt::f32, tag::oihw}, eng, conv3_weights.data());
     auto conv3_user_bias_memory = memory(
-            {{conv3_bias_tz}, dt::f32, fmt::x}, eng, conv3_bias.data());
+            {{conv3_bias_tz}, dt::f32, tag::x}, eng, conv3_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto conv3_src_md = memory::desc({conv3_src_tz}, dt::f32, fmt::any);
-    auto conv3_bias_md = memory::desc({conv3_bias_tz}, dt::f32, fmt::any);
-    auto conv3_weights_md = memory::desc({conv3_weights_tz}, dt::f32, fmt::any);
-    auto conv3_dst_md = memory::desc({conv3_dst_tz}, dt::f32, fmt::any);
+    auto conv3_src_md = memory::desc({conv3_src_tz}, dt::f32, tag::any);
+    auto conv3_bias_md = memory::desc({conv3_bias_tz}, dt::f32, tag::any);
+    auto conv3_weights_md = memory::desc({conv3_weights_tz}, dt::f32, tag::any);
+    auto conv3_dst_md = memory::desc({conv3_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution */
     auto conv3_desc = convolution_forward::desc(
@@ -463,16 +463,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto conv4_user_weights_memory = memory(
-            {{conv4_weights_tz}, dt::f32, fmt::goihw}, eng, conv4_weights.data());
+            {{conv4_weights_tz}, dt::f32, tag::goihw}, eng, conv4_weights.data());
     auto conv4_user_bias_memory = memory(
-            {{conv4_bias_tz}, dt::f32, fmt::x}, eng, conv4_bias.data());
+            {{conv4_bias_tz}, dt::f32, tag::x}, eng, conv4_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto conv4_src_md = memory::desc({conv4_src_tz}, dt::f32, fmt::any);
-    auto conv4_bias_md = memory::desc({conv4_bias_tz}, dt::f32, fmt::any);
-    auto conv4_weights_md = memory::desc({conv4_weights_tz}, dt::f32, fmt::any);
-    auto conv4_dst_md = memory::desc({conv4_dst_tz}, dt::f32, fmt::any);
+    auto conv4_src_md = memory::desc({conv4_src_tz}, dt::f32, tag::any);
+    auto conv4_bias_md = memory::desc({conv4_bias_tz}, dt::f32, tag::any);
+    auto conv4_weights_md = memory::desc({conv4_weights_tz}, dt::f32, tag::any);
+    auto conv4_dst_md = memory::desc({conv4_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution */
     auto conv4_desc = convolution_forward::desc(
@@ -556,16 +556,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto conv5_user_weights_memory = memory(
-            {{conv5_weights_tz}, dt::f32, fmt::goihw}, eng, conv5_weights.data());
+            {{conv5_weights_tz}, dt::f32, tag::goihw}, eng, conv5_weights.data());
     auto conv5_user_bias_memory = memory(
-            {{conv5_bias_tz}, dt::f32, fmt::x}, eng, conv5_bias.data());
+            {{conv5_bias_tz}, dt::f32, tag::x}, eng, conv5_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto conv5_src_md = memory::desc({conv5_src_tz}, dt::f32, fmt::any);
-    auto conv5_weights_md = memory::desc({conv5_weights_tz}, dt::f32, fmt::any);
-    auto conv5_bias_md = memory::desc({conv5_bias_tz}, dt::f32, fmt::any);
-    auto conv5_dst_md = memory::desc({conv5_dst_tz}, dt::f32, fmt::any);
+    auto conv5_src_md = memory::desc({conv5_src_tz}, dt::f32, tag::any);
+    auto conv5_weights_md = memory::desc({conv5_weights_tz}, dt::f32, tag::any);
+    auto conv5_bias_md = memory::desc({conv5_bias_tz}, dt::f32, tag::any);
+    auto conv5_dst_md = memory::desc({conv5_dst_tz}, dt::f32, tag::any);
 
     /* create a convolution */
     auto conv5_desc = convolution_forward::desc(prop_kind::forward_inference,
@@ -646,7 +646,7 @@ void simple_net(int times = 100) {
 
     std::vector<float> pool5_dst(product(pool5_dst_tz));
 
-    auto pool5_dst_md = memory::desc({pool5_dst_tz}, dt::f32, fmt::any);
+    auto pool5_dst_md = memory::desc({pool5_dst_tz}, dt::f32, tag::any);
 
     /* create a pooling */
     auto pool5_desc = pooling_forward::desc(prop_kind::forward_inference,
@@ -679,16 +679,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto fc6_user_weights_memory = memory(
-            {{fc6_weights_tz}, dt::f32, fmt::oihw}, eng, fc6_weights.data());
+            {{fc6_weights_tz}, dt::f32, tag::oihw}, eng, fc6_weights.data());
     auto fc6_user_bias_memory = memory(
-            {{fc6_bias_tz}, dt::f32, fmt::x}, eng, fc6_bias.data());
+            {{fc6_bias_tz}, dt::f32, tag::x}, eng, fc6_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto fc6_src_md = memory::desc({fc6_src_tz}, dt::f32, fmt::any);
-    auto fc6_bias_md = memory::desc({fc6_bias_tz}, dt::f32, fmt::any);
-    auto fc6_weights_md = memory::desc({fc6_weights_tz}, dt::f32, fmt::any);
-    auto fc6_dst_md = memory::desc({fc6_dst_tz}, dt::f32, fmt::any);
+    auto fc6_src_md = memory::desc({fc6_src_tz}, dt::f32, tag::any);
+    auto fc6_bias_md = memory::desc({fc6_bias_tz}, dt::f32, tag::any);
+    auto fc6_weights_md = memory::desc({fc6_weights_tz}, dt::f32, tag::any);
+    auto fc6_dst_md = memory::desc({fc6_dst_tz}, dt::f32, tag::any);
 
     /* create a inner_product */
     auto fc6_desc = inner_product_forward::desc(prop_kind::forward_inference,
@@ -745,16 +745,16 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto fc7_user_weights_memory = memory(
-            {{fc7_weights_tz }, dt::f32, fmt::nc}, eng, fc7_weights.data());
+            {{fc7_weights_tz }, dt::f32, tag::nc}, eng, fc7_weights.data());
 
     auto fc7_user_bias_memory = memory(
-            {{fc7_bias_tz}, dt::f32, fmt::x}, eng, fc7_bias.data());
+            {{fc7_bias_tz}, dt::f32, tag::x}, eng, fc7_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto fc7_bias_md = memory::desc({fc7_bias_tz}, dt::f32, fmt::any);
-    auto fc7_weights_md = memory::desc({fc7_weights_tz}, dt::f32, fmt::any);
-    auto fc7_dst_md = memory::desc({fc7_dst_tz}, dt::f32, fmt::any);
+    auto fc7_bias_md = memory::desc({fc7_bias_tz}, dt::f32, tag::any);
+    auto fc7_weights_md = memory::desc({fc7_weights_tz}, dt::f32, tag::any);
+    auto fc7_dst_md = memory::desc({fc7_dst_tz}, dt::f32, tag::any);
 
     /* create a inner_product */
     auto fc7_desc = inner_product_forward::desc(prop_kind::forward_inference,
@@ -797,17 +797,17 @@ void simple_net(int times = 100) {
 
     /* create memory for user data */
     auto fc8_user_weights_memory = memory(
-            {{fc8_weights_tz}, dt::f32, fmt::nc}, eng, fc8_weights.data());
+            {{fc8_weights_tz}, dt::f32, tag::nc}, eng, fc8_weights.data());
     auto fc8_user_bias_memory = memory(
-            {{fc8_bias_tz}, dt::f32, fmt::x}, eng, fc8_bias.data());
+            {{fc8_bias_tz}, dt::f32, tag::x}, eng, fc8_bias.data());
     auto user_dst_memory = memory(
-            {{fc8_dst_tz}, dt::f32, fmt::nc}, eng, user_dst.data());
+            {{fc8_dst_tz}, dt::f32, tag::nc}, eng, user_dst.data());
 
     /* create memory descriptors for convolution data w/ no specified format
      */
-    auto fc8_bias_md = memory::desc({fc8_bias_tz}, dt::f32, fmt::any);
-    auto fc8_weights_md = memory::desc({fc8_weights_tz}, dt::f32, fmt::any);
-    auto fc8_dst_md = memory::desc({fc8_dst_tz}, dt::f32, fmt::any);
+    auto fc8_bias_md = memory::desc({fc8_bias_tz}, dt::f32, tag::any);
+    auto fc8_weights_md = memory::desc({fc8_weights_tz}, dt::f32, tag::any);
+    auto fc8_dst_md = memory::desc({fc8_dst_tz}, dt::f32, tag::any);
 
     /* create a inner_product */
     auto fc8_desc = inner_product_forward::desc(prop_kind::forward_inference,

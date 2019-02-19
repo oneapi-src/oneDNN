@@ -121,8 +121,8 @@ template <typename data_t>
 struct eltwise_test_params {
     engine::kind engine_kind;
     algorithm alg_kind;
-    memory::format data_format;
-    memory::format diff_format;
+    memory::format_tag data_format;
+    memory::format_tag diff_format;
     data_t alpha, beta;
     memory::dims dims;
     bool expect_to_fail;
@@ -199,13 +199,15 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
 
     const memory::desc data_d = src.get_desc();
     const memory::desc diff_data_d = diff_src.get_desc();
+    const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
-        data_t ref_s = src_data[map_index(data_d, i)];
-        data_t ref_dd = diff_dst_data[map_index(diff_data_d, i)];
+        data_t ref_s = src_data[data_mdw.off_l(i)];
+        data_t ref_dd = diff_dst_data[diff_data_mdw.off_l(i)];
         data_t ref_ds = 0;
         switch (p.alg_kind) {
         case eltwise_relu:   ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
@@ -226,7 +228,7 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
         case eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
-        EXPECT_NEAR(diff_src_data[map_index(diff_data_d, i)], ref_ds, 1.e-6);
+        EXPECT_NEAR(diff_src_data[diff_data_mdw.off_l(i)], ref_ds, 1.e-6);
     }
 }
 
@@ -339,7 +341,7 @@ TEST_P(eltwise_test_float, TestsEltwise)
 
 #define EXPAND(args) args
 
-#define EXPAND_FORMATS(data) memory::format::data
+#define EXPAND_FORMATS(data) memory::format_tag::data
 #define EXPAND_DIMS(...) { __VA_ARGS__ }
 
 #define ENGINE engine::kind::cpu

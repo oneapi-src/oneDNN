@@ -95,13 +95,13 @@ static void set_arg(mkldnn_exec_arg_t *arg, int arg_idx, mkldnn_memory_t memory)
 { arg->arg = arg_idx; arg->memory = memory; }
 
 static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
-                             mkldnn_memory_format_t user_fmt,
+                             mkldnn_format_tag_t user_fmt,
                              mkldnn_data_type_t data_type,
                              mkldnn_engine_t engine, float *data,
                              mkldnn_memory_t *memory)
 {
     mkldnn_memory_desc_t user_md;
-    CHECK(mkldnn_memory_desc_init(&user_md, dim, dims, mkldnn_f32, user_fmt));
+    CHECK(mkldnn_memory_desc_init_by_tag(&user_md, dim, dims, mkldnn_f32, user_fmt));
     CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
 }
 
@@ -227,10 +227,10 @@ mkldnn_status_t simple_net()
     {
         /* create data descriptors for convolution w/ no specified format */
         mkldnn_memory_desc_t conv_src_md, conv_weights_md, conv_bias_md, conv_dst_md;
-        CHECK(mkldnn_memory_desc_init(&conv_src_md, 4, conv_user_src_sizes, mkldnn_f32, mkldnn_any));
-        CHECK(mkldnn_memory_desc_init(&conv_weights_md, 4, conv_user_weights_sizes, mkldnn_f32, mkldnn_any));
-        CHECK(mkldnn_memory_desc_init(&conv_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
-        CHECK(mkldnn_memory_desc_init(&conv_dst_md, 4, conv_user_dst_sizes, mkldnn_f32, mkldnn_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_src_md, 4, conv_user_src_sizes, mkldnn_f32, mkldnn_format_tag_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_weights_md, 4, conv_user_weights_sizes, mkldnn_f32, mkldnn_format_tag_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_dst_md, 4, conv_user_dst_sizes, mkldnn_f32, mkldnn_format_tag_any));
 
         mkldnn_convolution_desc_t conv_any_desc;
         CHECK(mkldnn_convolution_forward_desc_init(
@@ -417,8 +417,8 @@ mkldnn_status_t simple_net()
 
         /* create descriptors for dst pooling data */
         mkldnn_memory_desc_t pool_dst_md;
-        CHECK(mkldnn_memory_desc_init(&pool_dst_md, 4, pool_dst_sizes, mkldnn_f32,
-                    mkldnn_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes, mkldnn_f32,
+                    mkldnn_format_tag_any));
 
         mkldnn_pooling_desc_t pool_desc;
         CHECK(mkldnn_pooling_forward_desc_init(
@@ -641,10 +641,10 @@ mkldnn_status_t simple_net()
          * convolution for
          * weights to chose the format it prefers for best performance */
         mkldnn_memory_desc_t conv_diff_src_md, conv_diff_weights_md, conv_diff_bias_md, conv_diff_dst_md;
-        CHECK(mkldnn_memory_desc_init(&conv_diff_src_md, 4, conv_user_src_sizes, mkldnn_f32, mkldnn_any));
-        CHECK(mkldnn_memory_desc_init(&conv_diff_weights_md, 4, conv_user_weights_sizes, mkldnn_f32, mkldnn_any));
-        CHECK(mkldnn_memory_desc_init(&conv_diff_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
-        CHECK(mkldnn_memory_desc_init(&conv_diff_dst_md, 4, conv_user_dst_sizes, mkldnn_f32, mkldnn_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_src_md, 4, conv_user_src_sizes, mkldnn_f32, mkldnn_format_tag_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_weights_md, 4, conv_user_weights_sizes, mkldnn_f32, mkldnn_format_tag_any));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
+        CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_dst_md, 4, conv_user_dst_sizes, mkldnn_f32, mkldnn_format_tag_any));
 
         /* create backward convolution descriptor */
         mkldnn_convolution_desc_t conv_bwd_weights_desc;

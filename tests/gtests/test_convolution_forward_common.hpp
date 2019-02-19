@@ -40,7 +40,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
         const memory &bias,
         const memory &dst)
 {
-    const bool w_bias = bias_d.data.format != memory::format::format_undef;
+    const bool w_bias = bias_d.data.ndims != 0;
     data_t_src *src_data = (data_t_src *)src.get_data_handle();
     data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
 
@@ -49,6 +49,11 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
 
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
+
+    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](memory::dim n, memory::dim g, memory::dim oc,
@@ -71,9 +76,8 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
                             + oc * padded_ic / c.ng * c.kh * c.kw
                             + ic * c.kh * c.kw + kh * c.kw + kw;
                         a += ((data_t_acc)
-                            src_data[map_index(src_d, iidx)])
-                            *  weights_data[map_index(
-                            weights_d, widx)];
+                            src_data[src_mdw.off_l(iidx, true)])
+                            *  weights_data[weights_mdw.off_l(widx, true)];
                     }
                 }
             }
@@ -81,7 +85,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
             float a_fp = (float)a;
 
             a_fp += (float)(bias_data
-                ?  bias_data[map_index(bias_d, g * c.oc / c.ng + oc)] : 0);
+                ?  bias_data[bias_mdw.off_l(g * c.oc / c.ng + oc, true)] : 0);
 
             if (attr.oscale.is_def()) {
                 const auto &s = attr.oscale;
@@ -103,7 +107,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
             memory::dim oidx = n * padded_oc * c.oh * c.ow
                      + g * padded_oc / c.ng * c.oh * c.ow
                      + oc * c.oh * c.ow + oh * c.ow + ow;
-            dst_data[map_index(dst_d, oidx)] = (data_t_dst)a_fp;
+            dst_data[dst_mdw.off_l(oidx, true)] = (data_t_dst)a_fp;
         }
     );
 }
@@ -136,7 +140,7 @@ protected:
         attr.mkldnn_attr_recreate();
 
         auto aprop_kind = prop_kind::forward;
-        bool with_bias = p.formats.bias_format != memory::format::format_undef;
+        bool with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
 
         auto c_src_desc = create_md({ cd.mb, cd.ic, cd.ih, cd.iw },
             data_type_src, p.formats.src_format);

@@ -23,8 +23,8 @@ namespace mkldnn {
 
 struct sum_test_params {
     const engine::kind engine_kind;
-    std::vector<memory::format> srcs_format;
-    memory::format dst_format;
+    std::vector<memory::format_tag> srcs_format;
+    memory::format_tag dst_format;
     memory::dims dims;
     std::vector<float> scale;
     bool is_output_omitted;
@@ -42,6 +42,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
         const data_t *dst_data = (const data_t *)dst.get_data_handle();
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
+        const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
         mkldnn::impl::parallel_nd(
             dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
@@ -52,15 +53,16 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                     (const data_t *)srcs[num].get_data_handle();
                 const auto &src_d = srcs[num].get_desc();
                 const auto src_dims = src_d.data.dims;
+                const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
 
                 auto src_idx = w
                     + src_dims[3]*h
                     + src_dims[2]*src_dims[3]*c
                     + src_dims[1]*src_dims[2]*src_dims[3]*n;
                 if (num == 0) {
-                    src_sum = data_t(scale[num]) * src_data[map_index(src_d, src_idx)];
+                    src_sum = data_t(scale[num]) * src_data[src_mdw.off_l(src_idx, true)];
                 } else {
-                    src_sum += data_t(scale[num])* src_data[map_index(src_d, src_idx)];
+                    src_sum += data_t(scale[num])* src_data[src_mdw.off_l(src_idx, true)];
                 }
 
                 src_sum = std::max(std::min(src_sum,
@@ -73,7 +75,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 + dst_dims[3]*h
                 + dst_dims[2]*dst_dims[3]*c
                 + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
-            auto diff = src_sum - dst_data[map_index(dst_d, dst_idx)];
+            auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, true)];
             auto e = (std::abs(src_sum) > 1e-4) ? diff / src_sum : diff;
             EXPECT_NEAR(e, 0.0, 1.2e-7);
             }
@@ -104,11 +106,7 @@ protected:
         std::vector<memory> srcs;
 
         for (size_t i = 0; i < num_srcs; i++) {
-            bool is_fmt_blocked = p.srcs_format[i] == memory::format::blocked;
-            auto desc = memory::desc(p.dims, data_type, is_fmt_blocked
-                ? memory::format::nchw
-                : p.srcs_format[i]);
-            if (is_fmt_blocked) desc.data.format = mkldnn_blocked;
+            auto desc = memory::desc(p.dims, data_type, p.srcs_format[i]);
             auto src_memory = memory(desc, eng);
             const size_t sz =
                 src_memory.get_desc().get_size() / sizeof(data_t);
@@ -124,15 +122,10 @@ protected:
             ASSERT_NO_THROW(sum_pd.reset(
                 new sum::primitive_desc(p.scale, srcs_md, eng)));
         } else {
-            bool is_fmt_blocked = p.dst_format == memory::format::blocked;
-            auto dst_desc = memory::desc(p.dims, data_type, is_fmt_blocked
-                ? memory::format::nchw
-                : p.dst_format);
-            if (is_fmt_blocked) dst_desc.data.format = mkldnn_blocked;
+            auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
             sum_pd.reset(
                 new sum::primitive_desc(dst_desc, p.scale, srcs_md, eng));
 
-            ASSERT_EQ(sum_pd->dst_desc().data.format, dst_desc.data.format);
             ASSERT_EQ(sum_pd->dst_desc().data.ndims, dst_desc.data.ndims);
         }
         ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_desc(), eng)));
@@ -162,82 +155,70 @@ protected:
 /* corner cases */
 #define CASE_CC(ifmt0, ifmt1, ofmt, dims_, ef, st) \
     sum_test_params{engine::kind::cpu, \
-        {memory::format::ifmt0, memory::format::ifmt1}, memory::format::ofmt, \
+        {memory::format_tag::ifmt0, memory::format_tag::ifmt1}, memory::format_tag::ofmt, \
         memory::dims dims_, {1.0f, 1.0f}, 0, ef, st}
 
 #define INST_TEST_CASE(test, omit_output) \
 TEST_P(test, TestsSum) {} \
 INSTANTIATE_TEST_CASE_P(TestSum, test, ::testing::Values( \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::blocked, memory::format::blocked}, memory::format::blocked, \
-    {2, 8, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::blocked}, memory::format::blocked, \
-    {2, 8, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::blocked, memory::format::nchw}, memory::format::blocked, \
-    {2, 8, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::blocked, \
-    {2, 8, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {0, 7, 4, 4}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {1, 0, 4, 4}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {1, 8, 0, 4}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {-1, 8, 4, 4}, {1.0f, 1.0f}, omit_output, true, mkldnn_invalid_arguments}, \
     \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {1, 1024, 38, 50}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw, \
     {2, 8, 2, 2}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c, \
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c, \
     {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c, \
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c, \
     {2, 16, 2, 2}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw, \
     {2, 8, 2, 2}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nChw8c,\
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c,\
     {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nchw}, memory::format::nChw8c, \
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c, \
     {2, 16, 2, 2}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nChw8c, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {5, 8, 3, 3}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {32, 32, 13, 14}, {2.0f, 3.0f}, omit_output}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nChw16c, memory::format::nChw8c}, \
-    memory::format::nChw16c, \
+    {memory::format_tag::nChw16c, memory::format_tag::nChw8c}, \
+    memory::format_tag::nChw16c, \
     {2, 16, 3, 3}, {2.0f, 3.0f}, omit_output} \
 )); \
 \
 INSTANTIATE_TEST_CASE_P(TestSumEF, test, ::testing::Values( \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {1, 8, 4 ,4}, {1.0f}, 0, true, mkldnn_invalid_arguments}, \
     sum_test_params{engine::kind::cpu, \
-    {memory::format::nchw, memory::format::nChw8c}, memory::format::nchw, \
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {2, 8, 4 ,4}, {0.1f}, 0, true, mkldnn_invalid_arguments} \
 ));
 

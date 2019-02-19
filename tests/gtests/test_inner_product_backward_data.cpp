@@ -40,6 +40,9 @@ void compute_ref_inner_product_bwd_data(int ndims,
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc weights_d = weights.get_desc();
     const memory::desc diff_src_d = diff_src.get_desc();
+    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
@@ -53,26 +56,26 @@ void compute_ref_inner_product_bwd_data(int ndims,
                 memory::dim dsidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
                     + ic * ipd.kd * ipd.kh * ipd.kw
                     + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
+                data_t *ds = &diff_src_data[diff_src_mdw.off_l(dsidx, true)];
                     *ds = data_t(0);
                 for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
                     memory::dim ddidx = n * ipd.oc + oc;
                     memory::dim widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
                         + ic * ipd.kd * ipd.kh * ipd.kw
                         + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
-                            * weights_data[map_index(weights_d, widx)];
+                        *ds += diff_dst_data[diff_dst_mdw.off_l(ddidx, true)]
+                            * weights_data[weights_mdw.off_l(widx, true)];
                 }
             }
         } else {
             memory::dim dsidx = n * ipd.ic + ic;
-            data_t *ds = &diff_src_data[map_index(diff_src_d, dsidx)];
+            data_t *ds = &diff_src_data[diff_src_mdw.off_l(dsidx, true)];
             *ds = data_t(0);
             for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
                 memory::dim ddidx = n * ipd.oc + oc;
                 memory::dim widx = oc * ipd.ic + ic;
-                *ds += diff_dst_data[map_index(diff_dst_d, ddidx)]
-                    * weights_data[map_index(weights_d, widx)];
+                *ds += diff_dst_data[diff_dst_mdw.off_l(ddidx, true)]
+                    * weights_data[weights_mdw.off_l(widx, true)];
             }
         }
     });
@@ -80,9 +83,9 @@ void compute_ref_inner_product_bwd_data(int ndims,
 
 struct inprod_test_params {
     const engine::kind engine_kind;
-    memory::format diff_src_format;
-    memory::format weights_format;
-    memory::format diff_dst_format;
+    memory::format_tag diff_src_format;
+    memory::format_tag weights_format;
+    memory::format_tag diff_dst_format;
     int ndims;
     test_inner_product_descr_t test_ipd;
     bool expect_to_fail;
@@ -186,26 +189,26 @@ INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardDataEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, 0, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments},
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( -1, 32, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments},
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
@@ -213,124 +216,124 @@ INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData_nCdhw8c, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw8c, memory::format::oIdhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw8c, memory::format_tag::oIdhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 9, 4, 2, 2, 2) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw8c, memory::format::oIdhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw8c, memory::format_tag::oIdhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 17, 16, 2, 2, 2) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw8c, memory::format::oIdhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw8c, memory::format_tag::oIdhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData_nCdhw16c, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw16c, memory::format::oIdhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw16c, memory::format_tag::oIdhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 9, 4, 2, 2, 2) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw16c, memory::format::oIdhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw16c, memory::format_tag::oIdhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 17, 16, 2, 2, 2) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nCdhw16c, memory::format::oIdhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nCdhw16c, memory::format_tag::oIdhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw16c, memory::format::oIhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nChw16c, memory::format_tag::oIhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 9, 4, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw16c, memory::format::oIhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nChw16c, memory::format_tag::oIhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 17, 16, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw16c, memory::format::oIhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nChw16c, memory::format_tag::oIhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 29, 7, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw8c, memory::format::oIhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nChw8c, memory::format_tag::oIhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 4, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw8c, memory::format::oIhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nChw8c, memory::format_tag::oIhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 14, 16, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw8c, memory::format::oIhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nChw8c, memory::format_tag::oIhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 33, 7, 2, 2 ) }));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nhwc, memory::format::hwio,
-                        memory::format::nc,
+                        memory::format_tag::nhwc, memory::format_tag::hwio,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nhwc, memory::format::oihw,
-                        memory::format::nc,
+                        memory::format_tag::nhwc, memory::format_tag::oihw,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nchw, memory::format::oihw,
-                        memory::format::nc,
+                        memory::format_tag::nchw, memory::format_tag::oihw,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw8c, memory::format::oIhw8i,
-                        memory::format::nc,
+                        memory::format_tag::nChw8c, memory::format_tag::oIhw8i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nChw16c, memory::format::oIhw16i,
-                        memory::format::nc,
+                        memory::format_tag::nChw16c, memory::format_tag::oIhw16i,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nc, memory::format::oi,
-                        memory::format::nc,
+                        memory::format_tag::nc, memory::format_tag::oi,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 1152, 1, 1 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nc, memory::format::oi,
-                        memory::format::nc,
+                        memory::format_tag::nc, memory::format_tag::oi,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 2, 4, 1, 1 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::nc, memory::format::io,
-                        memory::format::nc,
+                        memory::format_tag::nc, memory::format_tag::io,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
 INSTANTIATE_TEST_CASE_P(
         TestInnerProductBackwardData3D, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::any, memory::format::any,
-                        memory::format::any,
+                        memory::format_tag::any, memory::format_tag::any,
+                        memory::format_tag::any,
                         EXPAND_SIZES_3D( 2, 1024, 48, 2, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::ncdhw, memory::format::oidhw,
-                        memory::format::nc,
+                        memory::format_tag::ncdhw, memory::format_tag::oidhw,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 32, 48, 6, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
-                        memory::format::ndhwc, memory::format::dhwio,
-                        memory::format::nc,
+                        memory::format_tag::ndhwc, memory::format_tag::dhwio,
+                        memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 16, 48, 3, 3, 3 ) }));
 
 }

@@ -117,59 +117,59 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
             : p->dlc;
     mkldnn_dims_t dst_last_layer_dims = { p->n_iter, p->mb, lastlay_dlc };
 
-    DNN_SAFE(mkldnn_memory_desc_init(
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
                      &input_d, 3, input_dims, p->cfg[input].dt, mkldnn_tnc),
             WARN);
-    input_d.layout_desc.blocking.strides[0][0] += the_stride;
+    input_d.format_desc.blocking.strides[0] += the_stride;
 
     mkldnn_dims_t states_dims
             = { p->n_layer, p->n_directions(), p->n_states(), p->mb, p->sic };
-    DNN_SAFE(mkldnn_memory_desc_init(&states_d, 5, states_dims,
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&states_d, 5, states_dims,
                      p->cfg[states].dt, mkldnn_ldsnc),
             WARN);
 
-    states_d.layout_desc.blocking.strides[0][3] = p->sic + the_stride;
-    states_d.layout_desc.blocking.strides[0][2]
-            = states_d.layout_desc.blocking.strides[0][3] * states_d.dims[3]
+    states_d.format_desc.blocking.strides[3] = p->sic + the_stride;
+    states_d.format_desc.blocking.strides[2]
+            = states_d.format_desc.blocking.strides[3] * states_d.dims[3]
             + the_stride;
     for (int d = 1; d >= 0; --d)
-        states_d.layout_desc.blocking.strides[0][d]
-                = states_d.layout_desc.blocking.strides[0][d + 1]
+        states_d.format_desc.blocking.strides[d]
+                = states_d.format_desc.blocking.strides[d + 1]
                 * states_d.dims[d + 1];
 
-    DNN_SAFE(mkldnn_memory_desc_init(&weights_input_d, 5, weights_input_dims,
-                     p->cfg[weights_input].dt, mkldnn_any),
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&weights_input_d, 5, weights_input_dims,
+                     p->cfg[weights_input].dt, mkldnn_format_tag_any),
             WARN);
 
-    DNN_SAFE(mkldnn_memory_desc_init(&weights_states_d, 5, weights_states_dims,
-                     p->cfg[weights_states].dt, mkldnn_any),
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&weights_states_d, 5, weights_states_dims,
+                     p->cfg[weights_states].dt, mkldnn_format_tag_any),
             WARN);
 
-    DNN_SAFE(mkldnn_memory_desc_init(
-                     &bias_d, 4, bias_dims, p->cfg[bias].dt, mkldnn_any),
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &bias_d, 4, bias_dims, p->cfg[bias].dt, mkldnn_format_tag_any),
             WARN);
 
-    DNN_SAFE(mkldnn_memory_desc_init(&dst_last_layer_d, 3, dst_last_layer_dims,
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_last_layer_d, 3, dst_last_layer_dims,
                      p->cfg[dst_last_layer].dt, mkldnn_tnc),
             WARN);
-    dst_last_layer_d.layout_desc.blocking.strides[0][0] += the_stride;
+    dst_last_layer_d.format_desc.blocking.strides[0] += the_stride;
 
     mkldnn_dims_t dst_last_iteration_dims
             = { p->n_layer, p->n_directions(), p->n_states(), p->mb, p->dic };
-    DNN_SAFE(mkldnn_memory_desc_init(&dst_last_iteration_d, 5,
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_last_iteration_d, 5,
                      dst_last_iteration_dims, p->cfg[dst_last_iteration].dt,
                      mkldnn_ldsnc),
             WARN);
 
-    dst_last_iteration_d.layout_desc.blocking.strides[0][3]
+    dst_last_iteration_d.format_desc.blocking.strides[3]
             = p->sic + the_stride;
-    dst_last_iteration_d.layout_desc.blocking.strides[0][2]
-            = dst_last_iteration_d.layout_desc.blocking.strides[0][3]
+    dst_last_iteration_d.format_desc.blocking.strides[2]
+            = dst_last_iteration_d.format_desc.blocking.strides[3]
                     * dst_last_iteration_d.dims[3]
             + the_stride;
     for (int d = 1; d >= 0; --d)
-        dst_last_iteration_d.layout_desc.blocking.strides[0][d]
-                = dst_last_iteration_d.layout_desc.blocking.strides[0][d + 1]
+        dst_last_iteration_d.format_desc.blocking.strides[d]
+                = dst_last_iteration_d.format_desc.blocking.strides[d + 1]
                 * dst_last_iteration_d.dims[d + 1];
 
     mkldnn_alg_kind_t kind = alg2kind(p->alg);
@@ -193,30 +193,30 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     }
 
     if (is_bwd) {
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_input_d, 3, input_dims,
-                         p->cfg[dst_diff_input].dt, mkldnn_any),
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_input_d, 3, input_dims,
+                         p->cfg[dst_diff_input].dt, mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_states_d, 5, states_dims,
-                         p->cfg[dst_diff_states].dt, mkldnn_any),
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_states_d, 5, states_dims,
+                         p->cfg[dst_diff_states].dt, mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_weights_input_d, 5,
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_weights_input_d, 5,
                          weights_input_dims, p->cfg[dst_diff_weights_input].dt,
-                         mkldnn_any),
+                         mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_weights_states_d, 5,
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_weights_states_d, 5,
                          weights_states_dims,
-                         p->cfg[dst_diff_weights_states].dt, mkldnn_any),
+                         p->cfg[dst_diff_weights_states].dt, mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_bias_d, 4, bias_dims,
-                         p->cfg[dst_diff_bias].dt, mkldnn_any),
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_bias_d, 4, bias_dims,
+                         p->cfg[dst_diff_bias].dt, mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_last_layer_d, 3,
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_last_layer_d, 3,
                          dst_last_layer_dims, p->cfg[diff_last_layer].dt,
-                         mkldnn_any),
+                         mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_memory_desc_init(&diff_last_iteration_d, 5,
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&diff_last_iteration_d, 5,
                          dst_last_iteration_dims,
-                         p->cfg[diff_last_iteration].dt, mkldnn_any),
+                         p->cfg[diff_last_iteration].dt, mkldnn_format_tag_any),
                 WARN);
         DNN_SAFE(mkldnn_rnn_backward_desc_init(&rd[1], p->prop, &rcd,
                          p->direction, &input_d, &states_d, &weights_input_d,

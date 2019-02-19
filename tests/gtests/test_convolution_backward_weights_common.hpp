@@ -35,21 +35,23 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = diff_bias.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
+    const mkldnn::impl::memory_desc_wrapper diff_bias_mdw(bias_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
 
     auto padded_oc = dst_d.data.padded_dims[1];
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng,
         [&](memory::dim g, memory::dim oc) {
         memory::dim bidx = g * padded_oc / c.ng + oc;
-        diff_bias_data[map_index(bias_d, bidx)] = 0.0;
+        diff_bias_data[diff_bias_mdw.off_l(bidx, true)] = 0.0;
         for (memory::dim mb = 0; mb < c.mb; ++mb) {
             for (memory::dim oh = 0; oh < c.oh; ++oh) {
                 for (memory::dim ow = 0; ow < c.ow; ++ow) {
                     memory::dim oidx = mb * padded_oc * c.oh * c.ow
                             + g * padded_oc / c.ng * c.oh * c.ow
                             + oc * c.oh * c.ow + oh * c.ow + ow;
-                    diff_bias_data[map_index(bias_d, bidx)]
-                        += diff_dst_data[map_index(dst_d, oidx)];
+                    diff_bias_data[diff_bias_mdw.off_l(bidx, true)]
+                        += diff_dst_data[diff_dst_mdw.off_l(oidx, true)];
                 }
             }
         }
@@ -70,6 +72,9 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const memory::desc src_d = src.get_desc();
     const memory::desc weights_d = diff_weights.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
+    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(weights_d.data);
+    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
 
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
@@ -80,7 +85,7 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
         memory::dim widx = g * padded_oc / c.ng * padded_ic / c.ng * c.kh * c.kw
                 + oc * padded_ic / c.ng * c.kh * c.kw
                 + ic * c.kh * c.kw + kh * c.kw + kw;
-        diff_weights_data[map_index(weights_d, widx)] = 0.0;
+        diff_weights_data[diff_weights_mdw.off_l(widx, true)] = 0.0;
         for (memory::dim mb = 0; mb < c.mb; ++mb) {
             for (memory::dim oh = 0; oh < c.oh; ++oh) {
                 for (memory::dim ow = 0; ow < c.ow; ++ow) {
@@ -101,9 +106,9 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
                         + g * padded_oc / c.ng * c.oh * c.ow
                         + oc * c.oh * c.ow + oh * c.ow + ow;
 
-                    diff_weights_data[map_index(weights_d, widx)]
-                        += src_data[map_index(src_d, sidx)]
-                        * diff_dst_data[map_index(dst_d, didx)];
+                    diff_weights_data[diff_weights_mdw.off_l(widx, true)]
+                        += src_data[src_mdw.off_l(sidx, true)]
+                        * diff_dst_data[diff_dst_mdw.off_l(didx, true)];
                 }
             }
         }

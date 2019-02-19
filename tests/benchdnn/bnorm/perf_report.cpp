@@ -39,7 +39,7 @@ See modifiers at the same place.
 | %z            | direction
 | %F            | flags
 | %q            | data type (precision)
-| %f            | data format (layout)
+| %f            | data format tag (layout)
 | %@t           | time in ms
 
 The definition of expanded problem descriptor is: `mb,ic,ih,iw,eps`.
@@ -105,7 +105,7 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
         else if (c == 'q')
             DPRINT("%s", dt2str(p->dt));
         else if (c == 'f')
-            DPRINT("%s", fmt2str(p->fmt));
+            DPRINT("%s", tag2str(p->tag));
         else if (c == 't')
             DPRINT("%g", t.ms(mode) / unit);
         else

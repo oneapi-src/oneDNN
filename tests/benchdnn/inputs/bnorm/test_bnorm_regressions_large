@@ -1,5 +1,5 @@
 --skip-impl=ref
---fmt=nhwc
+--tag=nhwc
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_large
@@ -7,7 +7,7 @@
 --dir=BWD_DW
 --flags=SR --batch=bnorm_large
 
---fmt=nchw
+--tag=nchw
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_large
@@ -15,7 +15,7 @@
 --dir=BWD_DW
 --flags=SR --batch=bnorm_large
 
---fmt=nChw16c # avx512
+--tag=nChw16c # avx512
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_large

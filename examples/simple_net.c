@@ -71,11 +71,12 @@ static void set_arg(mkldnn_exec_arg_t *arg, int arg_idx, mkldnn_memory_t memory)
 { arg->arg = arg_idx; arg->memory = memory; }
 
 static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
-        mkldnn_memory_format_t user_fmt, mkldnn_data_type_t mkldnn_f32,
+        mkldnn_format_tag_t user_tag, mkldnn_data_type_t mkldnn_f32,
         mkldnn_engine_t engine, float *data, mkldnn_memory_t *memory)
 {
     mkldnn_memory_desc_t user_md;
-    CHECK(mkldnn_memory_desc_init(&user_md, dim, dims, mkldnn_f32, user_fmt));
+    CHECK(mkldnn_memory_desc_init_by_tag(
+            &user_md, dim, dims, mkldnn_f32, user_tag));
     CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
 }
 
@@ -188,14 +189,14 @@ mkldnn_status_t simple_net() {
 
     mkldnn_memory_desc_t conv_src_md, conv_weights_md, conv_bias_md,
         conv_dst_md;
-    CHECK(mkldnn_memory_desc_init(&conv_src_md, 4, conv_user_src_sizes,
-        mkldnn_f32, mkldnn_any));
-    CHECK(mkldnn_memory_desc_init(&conv_weights_md, 4, conv_user_weights_sizes,
-        mkldnn_f32, mkldnn_any));
-    CHECK(mkldnn_memory_desc_init(&conv_bias_md, 1, conv_bias_sizes,
-        mkldnn_f32, mkldnn_x));
-    CHECK(mkldnn_memory_desc_init(&conv_dst_md, 4, conv_user_dst_sizes,
-        mkldnn_f32, mkldnn_any));
+    CHECK(mkldnn_memory_desc_init_by_tag(&conv_src_md, 4, conv_user_src_sizes,
+            mkldnn_f32, mkldnn_format_tag_any));
+    CHECK(mkldnn_memory_desc_init_by_tag(&conv_weights_md, 4,
+            conv_user_weights_sizes, mkldnn_f32, mkldnn_format_tag_any));
+    CHECK(mkldnn_memory_desc_init_by_tag(
+            &conv_bias_md, 1, conv_bias_sizes, mkldnn_f32, mkldnn_x));
+    CHECK(mkldnn_memory_desc_init_by_tag(&conv_dst_md, 4, conv_user_dst_sizes,
+            mkldnn_f32, mkldnn_format_tag_any));
 
     /* create a convolution */
     mkldnn_convolution_desc_t conv_any_desc;
@@ -372,8 +373,8 @@ mkldnn_status_t simple_net() {
 
     /* create descriptors for dst pooling data */
     mkldnn_memory_desc_t pool_dst_any_md;
-    CHECK(mkldnn_memory_desc_init(
-            &pool_dst_any_md, 4, pool_dst_sizes, mkldnn_f32, mkldnn_any));
+    CHECK(mkldnn_memory_desc_init_by_tag(&pool_dst_any_md, 4, pool_dst_sizes,
+            mkldnn_f32, mkldnn_format_tag_any));
 
     /* create memory for user data */
     mkldnn_memory_t pool_user_dst_memory;

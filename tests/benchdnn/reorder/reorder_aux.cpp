@@ -60,9 +60,9 @@ void prb2str(const prb_t *p, const res_t *res, char *buffer) {
     }
 
     int rem_len = max_prb_len;
-    DPRINT("--idt=%s --odt=%s --ifmt=%s --ofmt=%s %s%s",
+    DPRINT("--idt=%s --odt=%s --itag=%s --otag=%s %s%s",
             dt2str(cfg2dt(p->conf_in)), dt2str(cfg2dt(p->conf_out)),
-            fmt2str(p->reorder.fmt_in), fmt2str(p->reorder.fmt_out),
+            tag2str(p->reorder.tag_in), tag2str(p->reorder.tag_out),
             attr_buf, dims_buf);
 }
 

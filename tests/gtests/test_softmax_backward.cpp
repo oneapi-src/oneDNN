@@ -32,7 +32,10 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     const memory::desc dst_pd = dst.get_desc();
     const memory::desc diff_dst_pd = diff_dst.get_desc();
 
-    ASSERT_EQ(diff_dst_pd.data.data_type,
+    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
+    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_pd.data);
+
+    ASSERT_EQ(diff_dst_mdw.data_type(),
             memory::data_type::f32); // TODO: type assert
 
     // Allocate buffer for reference BW result
@@ -56,14 +59,14 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
 
         float sbr = 0.0;
         for (memory::dim c=0; c < C ; ++c) {
-            auto off_d = map_index(dst_pd, idx_start + c * IN);
-            auto off_dd = map_index(diff_dst_pd, idx_start + c * IN);
+            auto off_d = dst_mdw.off_l(idx_start + c * IN, true);
+            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN, true);
             sbr += dst_ptr[off_d] * diff_dst_ptr[off_dd];
         }
 
         for (memory::dim c=0; c < C ; ++c) {
-            auto off_d = map_index(dst_pd, idx_start + c * IN);
-            auto off_dd = map_index(diff_dst_pd, idx_start + c * IN);
+            auto off_d = dst_mdw.off_l(idx_start + c * IN, true);
+            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN, true);
             diff_src_ref_ptr[off_dd] =
                 dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
         }
@@ -77,8 +80,8 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
 template <typename data_t>
 struct softmax_test_params {
     engine::kind engine_kind;
-    memory::format data_memory_format;
-    memory::format diff_memory_format;
+    memory::format_tag data_memory_format;
+    memory::format_tag diff_memory_format;
     memory::dims dims;
     int axis;
     bool expect_to_fail;
@@ -174,15 +177,15 @@ using softmax_bwd_test_params_float = softmax_test_params<float>;
 TEST_P(softmax_backward_test_float, TestsSoftmax) { }
 INSTANTIATE_TEST_CASE_P(TestSoftmaxBackward, softmax_backward_test_float,
         ::testing::Values(
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, -2, 128, 256}, 0, true, mkldnn_invalid_arguments},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 19, 128, 256}, 5, true, mkldnn_invalid_arguments},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 0, 5, 5}, 0},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 0, 5, 5}, 1},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 19, 128, 256}, 0},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 19, 128, 256}, 2},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nchw, memory::format::nchw, {2, 19, 128, 256}, 3},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nc, memory::format::nc, {16, 300}, 0},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nc, memory::format::nc, {16, 30000}, 1},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format::nc, memory::format::nc, {2, 1000}, 1}
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, -2, 128, 256}, 0, true, mkldnn_invalid_arguments},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 5, true, mkldnn_invalid_arguments},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 0, 5, 5}, 0},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 0, 5, 5}, 1},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 0},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 2},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 3},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {16, 300}, 0},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {16, 30000}, 1},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {2, 1000}, 1}
 ));
 }

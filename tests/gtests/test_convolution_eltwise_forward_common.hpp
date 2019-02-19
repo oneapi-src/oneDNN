@@ -43,6 +43,10 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
 
+    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
             memory::dim ow) {
@@ -50,7 +54,7 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                     + g * padded_oc / c.ng * c.oh * c.ow
                     + oc * c.oh * c.ow + oh * c.ow + ow;
 
-            memory::dim didx = map_index(dst_d, oidx);
+            memory::dim didx = dst_mdw.off_l(oidx, true);
             dst_data[didx] = bias_data
                     ? bias_data[g * c.oc / c.ng + oc] : data_t_dst{0};
 
@@ -71,8 +75,8 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                         + oc * padded_ic / c.ng * c.kh * c.kw
                         + ic * c.kh * c.kw + kh * c.kw + kw;
 
-                dst_data[didx] += src_data[map_index(src_d, iidx)]
-                        * weights_data[map_index(weights_d, widx)];
+                dst_data[didx] += src_data[src_mdw.off_l(iidx, true)]
+                        * weights_data[weights_mdw.off_l(widx, true)];
             }
 
             auto &d = dst_data[didx];
@@ -143,7 +147,7 @@ protected:
                 data_t_wei(0), data_t_wei(1));
         check_zero_tail<data_t_wei>(1, c_weights);
 
-        bool with_bias = p.formats.bias_format != memory::format::format_undef;
+        bool with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
         auto c_bias_desc = with_bias ?
                 create_md({ cd.oc }, data_type_dst, p.formats.bias_format) :
                 create_md({}, data_type_dst, p.formats.bias_format);

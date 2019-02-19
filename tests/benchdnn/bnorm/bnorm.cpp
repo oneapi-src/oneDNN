@@ -422,8 +422,8 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     mkldnn_memory_desc_t data_d;
     mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
     mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
-    DNN_SAFE(mkldnn_memory_desc_init(&data_d, is_bnorm_3d(p) ? 5 : 4,
-        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->fmt), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, is_bnorm_3d(p) ? 5 : 4,
+        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->tag), WARN);
 
     auto flags = (mkldnn_batch_normalization_flag_t)p->flags;
     if (p->dir & FLAG_FWD) {
@@ -487,7 +487,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
     dnn_mem_t data(is_bnorm_3d(p) ? 5 : 4,
-        is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->fmt);
+        is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->tag);
     SAFE(data.reorder(mask_fp), WARN);
 
     dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x);
@@ -542,11 +542,11 @@ int doit(const prb_t *p, res_t *r) {
 
     const mkldnn_dims_t dims1d = {p->ic};
     const mkldnn_dims_t dims2d = {2, p->ic};
-    const auto src_format = is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
+    const auto src_tag = is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
 
-    dnn_mem_t data_fp(data_dt_d, fp, src_format),
+    dnn_mem_t data_fp(data_dt_d, fp, src_tag),
               data_dt(data_dt_d);
-    dnn_mem_t d_data_fp(data_dt_d, fp, src_format),
+    dnn_mem_t d_data_fp(data_dt_d, fp, src_tag),
               d_data_dt(data_dt_d);
 
     dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x),
@@ -614,7 +614,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
-            dnn_mem_t data(data_dt, fp, src_format);
+            dnn_mem_t data(data_dt, fp, src_tag);
             SAFE(compare(p, DATA, data_fp, data, r), WARN);
             if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF))
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);

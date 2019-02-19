@@ -63,6 +63,11 @@ static int check_attr2str() {
     attr.oscale.scale = 3.2;
     CHECK_ATTR_STR_EQ(attr, "irmode=nearest;oscale=per_oc:3.2;post_ops=''");
 
+    attr.irmode = attr_t::round_mode_t::NEAREST;
+    attr.oscale.policy = attr_t::scale_t::policy_t::PER_DIM_01;
+    attr.oscale.scale = 3.2;
+    CHECK_ATTR_STR_EQ(attr, "irmode=nearest;oscale=per_dim_01:3.2;post_ops=''");
+
 #   undef CHECK_ATTR_STR_EQ
 
     return OK;

@@ -39,7 +39,7 @@ typedef const dt_conf_s *dt_conf_t;
 
 struct reorder_conf_t {
     dims_t dims;
-    mkldnn_memory_format_t fmt_in, fmt_out;
+    mkldnn_format_tag_t tag_in, tag_out;
 };
 
 struct q10n_conf_t {
@@ -80,12 +80,6 @@ dims_t str2dims(const char *str);
 void dims2str(const dims_t &dims, char *buffer);
 void prb2str(const prb_t *p, const res_t *res, char *buffer);
 void perf_report(const prb_t *p, const res_t *r, const char *pstr);
-
-inline size_t data_off_f(const prb_t *p,
-        int64_t mb, int64_t ic, int64_t ih, int64_t iw) {
-    const auto &dims = p->reorder.dims;
-    return ((mb * dims[1] + ic) * dims[2] + ih) * dims[3] + iw;
-}
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv, bool main_bench = true);

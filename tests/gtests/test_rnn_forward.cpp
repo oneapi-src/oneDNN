@@ -37,13 +37,13 @@ struct test_rnn_sizes_t {
 };
 
 struct test_rnn_formats_t {
-    mkldnn::memory::format src_layer_fmt;
-    mkldnn::memory::format src_iter_fmt;
-    mkldnn::memory::format weights_layer_fmt;
-    mkldnn::memory::format weights_iter_fmt;
-    mkldnn::memory::format bias_fmt;
-    mkldnn::memory::format dst_layer_fmt;
-    mkldnn::memory::format dst_iter_fmt;
+    mkldnn::memory::format_tag src_layer_fmt;
+    mkldnn::memory::format_tag src_iter_fmt;
+    mkldnn::memory::format_tag weights_layer_fmt;
+    mkldnn::memory::format_tag weights_iter_fmt;
+    mkldnn::memory::format_tag bias_fmt;
+    mkldnn::memory::format_tag dst_layer_fmt;
+    mkldnn::memory::format_tag dst_iter_fmt;
 };
 
 struct test_rnn_params_t {
@@ -101,13 +101,13 @@ protected:
         auto dst_layer_dims = {t, mb, dlc};
         auto dst_iter_dims = {l, d, s, mb, dic};
 
-        auto weights_layer_md_any = memory::desc({weights_layer_dims}, prec, memory::format::any);
-        auto weights_iter_md_any = memory::desc({weights_iter_dims}, prec, memory::format::any);
-        auto bias_md_any = memory::desc({bias_dims}, prec, memory::format::any);
-        auto src_layer_md_any = memory::desc({src_layer_dims}, prec, memory::format::any);
-        auto src_iter_md_any = memory::desc({src_iter_dims}, prec, memory::format::any);
-        auto dst_layer_md_any = memory::desc({dst_layer_dims}, prec, memory::format::any);
-        auto dst_iter_md_any = memory::desc({dst_iter_dims}, prec, memory::format::any);
+        auto weights_layer_md_any = memory::desc({weights_layer_dims}, prec, memory::format_tag::any);
+        auto weights_iter_md_any = memory::desc({weights_iter_dims}, prec, memory::format_tag::any);
+        auto bias_md_any = memory::desc({bias_dims}, prec, memory::format_tag::any);
+        auto src_layer_md_any = memory::desc({src_layer_dims}, prec, memory::format_tag::any);
+        auto src_iter_md_any = memory::desc({src_iter_dims}, prec, memory::format_tag::any);
+        auto dst_layer_md_any = memory::desc({dst_layer_dims}, prec, memory::format_tag::any);
+        auto dst_iter_md_any = memory::desc({dst_iter_dims}, prec, memory::format_tag::any);
 
         auto weights_layer_md_tgt = memory::desc({weights_layer_dims}, prec, p.fmts.weights_layer_fmt);
         auto weights_iter_md_tgt = memory::desc({weights_iter_dims}, prec, p.fmts.weights_iter_fmt);
@@ -172,8 +172,9 @@ protected:
             auto a_ndims = desc.data.ndims;
             auto n_elems = std::accumulate(a_dims, a_dims + a_ndims, size_t(1),
                     std::multiplies<float>());
+            const mkldnn::impl::memory_desc_wrapper mdw(desc.data);
             for(size_t i = 0; i < n_elems; i++)
-                a_ptr[map_index(desc, i, false)] = i;
+                a_ptr[mdw.off_l(i, false)] = i;
             auto reorder_pd = reorder::primitive_desc(a, b);
             auto scratchpad = memory(reorder_pd.scratchpad_desc(), eng);
             reorder(reorder_pd).execute(strm, a, b, scratchpad);
@@ -221,7 +222,7 @@ protected:
 };
 
     using eng = engine::kind;
-    using fmt = memory::format;
+    using fmt = memory::format_tag;
     using alg = algorithm;
     using dir = rnn_direction;
     using rnn_forward_test_f32 = rnn_forward_test<float>;

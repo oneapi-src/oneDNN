@@ -33,10 +33,12 @@ inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());
 
+    const mkldnn::impl::memory_desc_wrapper mdw_i(md_i.data);
+    const mkldnn::impl::memory_desc_wrapper mdw_o(md_o.data);
     for (size_t i = 0; i < nelems; ++i) {
-        data_i_t s_raw = src[map_index(md_i, i, false)];
+        data_i_t s_raw = src[mdw_i.off_l(i, false)];
         data_o_t s = static_cast<data_o_t>(s_raw);
-        data_o_t d = dst[map_index(md_o, i, false)];
+        data_o_t d = dst[mdw_o.off_l(i, false)];
         ASSERT_EQ(s, d) << "mismatch at position " << i;
     }
 }
@@ -44,8 +46,8 @@ inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
 template <typename reorder_types>
 struct test_simple_params {
     engine::kind engine_kind;
-    memory::format fmt_i;
-    memory::format fmt_o;
+    memory::format_tag fmt_i;
+    memory::format_tag fmt_o;
     memory::dims dims;
     bool expect_to_fail;
     mkldnn_status_t expected_status;
@@ -86,8 +88,9 @@ protected:
         auto dst_data = new data_o_t[md_o.get_size()];
 
         /* initialize input data */
+        const mkldnn::impl::memory_desc_wrapper mdw_i(md_i.data);
         for (size_t i = 0; i < nelems; ++i)
-            src_data[map_index(md_i, i, false)] = data_i_t(i);
+            src_data[mdw_i.off_l(i, false)] = data_i_t(i);
 
         auto src = memory(md_i, eng, src_data);
         auto dst = memory(md_o, eng, dst_data);
@@ -125,7 +128,7 @@ using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
 using reorder_simple_test_s8_s8 = reorder_simple_test<s8_s8>;
 
 using eng = engine::kind;
-using fmt = memory::format;
+using fmt = memory::format_tag;
 
 using test_simple_params_s32_s32 = test_simple_params<s32_s32>;
 using test_simple_params_f32_f32 = test_simple_params<f32_f32>;

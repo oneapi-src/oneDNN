@@ -89,7 +89,7 @@ static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
     const int ndims = (int)p->dims.size();
 
     for (int i = 0; i < ndims; ++i) data_dims[i] = p->dims[i];
-    DNN_SAFE(mkldnn_memory_desc_init(&data_d, ndims, data_dims, p->dt, p->fmt),
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, ndims, data_dims, p->dt, p->tag),
            WARN);
 
     mkldnn_status_t init_status = mkldnn_success;
@@ -141,14 +141,10 @@ int doit(const prb_t *p, res_t *r) {
     auto &src_dt_d = sd.data_desc;
 
     const int ndims = (int)p->dims.size();
-    const auto src_format = (ndims == 1)
-           ? mkldnn_x
-           : (ndims == 2)
-           ? mkldnn_nc
-           : get_default_format(ndims, fmt2data_kind(p->fmt));
+    const auto src_tag = get_default_tag(ndims);
 
-    dnn_mem_t src_fp(src_dt_d, fp, src_format), src_dt(src_dt_d);
-    dnn_mem_t dst_fp(src_dt_d, fp, src_format), dst_dt(src_dt_d);
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag), src_dt(src_dt_d);
+    dnn_mem_t dst_fp(src_dt_d, fp, src_tag), dst_dt(src_dt_d);
 
     SAFE(fill_memory(p, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
@@ -169,7 +165,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
-        dnn_mem_t data(dst_dt, fp, src_format);
+        dnn_mem_t data(dst_dt, fp, src_tag);
         SAFE(compare(p, dst_fp, data, r), WARN);
     }
 

@@ -27,7 +27,7 @@ memory::dim product(const memory::dims &dims) {
 }
 
 void simple_net_int8() {
-    using fmt = memory::format;
+    using tag = memory::format_tag;
     using dt = memory::data_type;
 
     auto cpu_engine = engine(engine::cpu, 0);
@@ -73,17 +73,17 @@ void simple_net_int8() {
 
     /* create memory for user data */
     auto user_src_memory = memory(
-            {{conv_src_tz}, dt::f32, fmt::nchw}, cpu_engine, user_src.data());
+            {{conv_src_tz}, dt::f32, tag::nchw}, cpu_engine, user_src.data());
     auto user_weights_memory = memory(
-            {{conv_weights_tz}, dt::f32, fmt::oihw}, cpu_engine, conv_weights.data());
+            {{conv_weights_tz}, dt::f32, tag::oihw}, cpu_engine, conv_weights.data());
     auto user_bias_memory = memory(
-            {{conv_bias_tz}, dt::f32, fmt::x}, cpu_engine, conv_bias.data());
+            {{conv_bias_tz}, dt::f32, tag::x}, cpu_engine, conv_bias.data());
 
     /* create memory descriptors for convolution data w/ no specified format */
-    auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, fmt::any);
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::s8, fmt::any);
-    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::s8, fmt::any);
-    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, fmt::any);
+    auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, tag::any);
+    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::s8, tag::any);
+    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::s8, tag::any);
+    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
 
     /* create a convolution */
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
@@ -185,7 +185,7 @@ void simple_net_int8() {
 
     /* Create a memory primitive for user data output */
     auto user_dst_memory = memory(
-            {{conv_dst_tz}, dt::f32, fmt::nchw}, cpu_engine, user_dst.data());
+            {{conv_dst_tz}, dt::f32, tag::nchw}, cpu_engine, user_dst.data());
     {
         primitive_attr dst_attr;
         dst_attr.set_int_output_round_mode(round_mode::round_nearest);

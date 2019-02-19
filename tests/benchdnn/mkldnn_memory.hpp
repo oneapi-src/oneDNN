@@ -26,17 +26,21 @@ struct dnn_mem_t {
         : active_(initialize(md, data) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt, void *data = NULL)
-        : active_(initialize(ndims, dims, dt, fmt, data) == OK) {}
+            mkldnn_format_tag_t tag, void *data = NULL)
+        : active_(initialize(ndims, dims, dt, tag, data) == OK) {}
+
+    dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            const mkldnn_dims_t strides, void *data = NULL)
+        : active_(initialize(ndims, dims, dt, strides, data) == OK) {}
 
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt = mkldnn_format_undef,
+            mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
             void *data = NULL)
-        : active_(initialize(md, dt, fmt, data) == OK) {}
+        : active_(initialize(md, dt, tag, data) == OK) {}
 
     dnn_mem_t(const dnn_mem_t &rhs, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt = mkldnn_format_undef,
-            void *data = NULL): dnn_mem_t(rhs.md_, dt, fmt, data)
+            mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
+            void *data = NULL): dnn_mem_t(rhs.md_, dt, tag, data)
     { if (active_) reorder(rhs); }
 
     /* FIXME: ugly RT assert... need better mkldnn memory handling */
@@ -166,13 +170,13 @@ struct dnn_mem_t {
 
 private:
     int initialize(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
-            mkldnn_memory_format_t fmt, void *data) {
-        if (fmt == mkldnn_format_undef || fmt == mkldnn_blocked) {
+            mkldnn_format_tag_t tag, void *data) {
+        if (tag == mkldnn_format_tag_undef) {
             md_ = md;
             md_.data_type = dt;
         } else {
-            DNN_SAFE(mkldnn_memory_desc_init(&md_, md.ndims, md.dims, dt, fmt),
-                    CRIT);
+            DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                        &md_, md.ndims, md.dims, dt, tag), CRIT);
         }
         DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, NULL), CRIT);
         is_data_owner_ = data == NULL;
@@ -191,13 +195,22 @@ private:
     }
 
     int initialize(const mkldnn_memory_desc_t &md, void *data) {
-        return initialize(md, md.data_type, mkldnn_format_undef, data);
+        return initialize(md, md.data_type, mkldnn_format_tag_undef, data);
     }
 
     int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-                    mkldnn_memory_format_t fmt, void* data) {
+                    mkldnn_format_tag_t tag, void* data) {
         mkldnn_memory_desc_t xmd;
-        DNN_SAFE(mkldnn_memory_desc_init(&xmd, ndims, dims, dt, fmt), CRIT);
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        SAFE(initialize(xmd, data), CRIT);
+        return OK;
+    }
+
+    int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            const mkldnn_dims_t strides, void *data) {
+        mkldnn_memory_desc_t xmd;
+        DNN_SAFE(mkldnn_memory_desc_init_by_strides(
+                    &xmd, ndims, dims, dt, strides), CRIT);
         SAFE(initialize(xmd, data), CRIT);
         return OK;
     }

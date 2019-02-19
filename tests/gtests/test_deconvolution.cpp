@@ -20,7 +20,7 @@
 #include "mkldnn.hpp"
 #include "mkldnn_debug.h"
 namespace mkldnn {
-using fmt = memory::format;
+using fmt = memory::format_tag;
 struct deconvolution_test_params {
     const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
@@ -38,15 +38,17 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
+    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
+    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
     mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
         [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
             memory::dim ow) {
-            data_t b = bias_data[map_index(bias_d, g * c.oc / c.ng + oc)];
+            data_t b = bias_data[bias_mdw.off_l(g * c.oc / c.ng + oc, true)];
             memory::dim oidx = n * c.oc * c.oh * c.ow
                 + g * c.oc / c.ng * c.oh * c.ow
                 + oc * c.oh * c.ow + oh * c.ow + ow;
-            dst_data[map_index(dst_d, oidx)] += b;
+            dst_data[dst_mdw.off_l(oidx, true)] += b;
         }
     );
 }
@@ -59,11 +61,13 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
+    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
+    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng,
         [&](memory::dim g, memory::dim oc) {
         memory::dim bidx = g * c.oc / c.ng + oc;
-        bias_data[map_index(bias_d, bidx)] = 0.0;
+        bias_data[bias_mdw.off_l(bidx, true)] = 0.0;
         for (memory::dim mb = 0; mb < c.mb; ++mb)
         for (memory::dim oh = 0; oh < c.oh; ++oh)
         for (memory::dim ow = 0; ow < c.ow; ++ow)
@@ -71,8 +75,8 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
             memory::dim oidx = mb * c.oc * c.oh * c.ow
                     + g * c.oc / c.ng * c.oh * c.ow
                     + oc * c.oh * c.ow + oh * c.ow + ow;
-            bias_data[map_index(bias_d, bidx)]
-                += dst_data[map_index(dst_d, oidx)];
+            bias_data[bias_mdw.off_l(bidx, true)]
+                += dst_data[dst_mdw.off_l(oidx, true)];
         }
     });
 }
@@ -83,8 +87,10 @@ void transpose_wei(const test_convolution_sizes_t &c,
 
     data_t *weights_data = (data_t *)weights.get_data_handle();
     const memory::desc weights_d = weights.get_desc();
+    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
     data_t *weights_tr_data = (data_t *)weights_tr.get_data_handle();
     const memory::desc weights_tr_d = weights_tr.get_desc();
+    const mkldnn::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.data);
 
     mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
         [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,
@@ -95,8 +101,8 @@ void transpose_wei(const test_convolution_sizes_t &c,
             memory::dim widx_tr = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
                      + ic * c.oc / c.ng * c.kh * c.kw
                      + oc * c.kh * c.kw + kh * c.kw + kw;
-            weights_tr_data[map_index(weights_tr_d, widx_tr)]
-                 = weights_data[map_index(weights_d, widx)];
+            weights_tr_data[weights_tr_mdw.off_l(widx_tr, true)]
+                 = weights_data[weights_mdw.off_l(widx, true)];
         }
     );
 }
@@ -142,8 +148,8 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_convolution_sizes_t dd = p.sizes;
-        p.formats.bias_format = memory::format::format_undef;
-        with_bias = p.formats.bias_format != memory::format::format_undef;
+        p.formats.bias_format = memory::format_tag::format_tag_undef;
+        with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
 
         memory::dims src_dims = {dd.mb, dd.ic, dd.ih, dd.iw};
         memory::dims dst_dims = {dd.mb, dd.oc, dd.oh, dd.ow};
@@ -410,8 +416,8 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
 }
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
-    { mkldnn::memory::format::src, mkldnn::memory::format::weights, \
-    mkldnn::memory::format::bias, mkldnn::memory::format::dst }
+    { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
+    mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
 #define ENGINE engine::kind::cpu
 #define ALGORITHM mkldnn::deconvolution_direct
