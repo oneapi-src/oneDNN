@@ -297,7 +297,7 @@ inline mkldnn_rnn_direction_t convert_to_c(rnn_direction adir) {
 enum query {
     undef = mkldnn_query_undef,
 
-    eengine = mkldnn_query_engine,
+    query_engine = mkldnn_query_engine,
     primitive_kind = mkldnn_query_primitive_kind,
 
     num_of_inputs_s32 = mkldnn_query_num_of_inputs_s32,
@@ -529,7 +529,7 @@ struct engine: public handle<mkldnn_engine_t> {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
                 mkldnn_primitive_desc_query(pd.get(),
-                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                    mkldnn::convert_to_c(query_engine), 0, &engine_q),
                 "could not get engine from primitive_desc");
         reset(engine_q, true);
     }
@@ -539,7 +539,7 @@ struct engine: public handle<mkldnn_engine_t> {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
                 mkldnn_primitive_desc_query(pd.get(),
-                    mkldnn::convert_to_c(eengine), 0, &engine_q),
+                    mkldnn::convert_to_c(query_engine), 0, &engine_q),
                 "could not get engine from primitive_desc");
 
         return engine(engine_q);
