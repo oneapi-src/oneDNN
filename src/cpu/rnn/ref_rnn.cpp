@@ -69,19 +69,19 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm)) {
+rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm)) {
     assert(ldA * ldB * ldC != 0);
     extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_, &ldB,
             &beta, c_, &ldC, nullptr, pd()->rnn_.use_jit_gemm);
 }
 
 template <>
-gemm_sig((ref_rnn_fwd_u8s8_t::gemm)) {
+rnn_gemm_sig((ref_rnn_fwd_u8s8_t::gemm)) {
     assert(!"non packed gemm is disabled for int8");
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
+rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 #if (USE_MKL_PACKED_GEMM)
     assert(transA == 'N');
     cblas_sgemm_compute(CblasColMajor, CblasPacked,
@@ -105,7 +105,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 }
 
 template <>
-gemm_sig((ref_rnn_fwd_u8s8_t::packed_gemm)) {
+rnn_gemm_sig((ref_rnn_fwd_u8s8_t::packed_gemm)) {
 #if (USE_MKL_PACKED_GEMM)
     int8_t offseta = 0, offsetb = 0;
     int32_t offsetc = 0;
@@ -131,7 +131,7 @@ gemm_sig((ref_rnn_fwd_u8s8_t::packed_gemm)) {
 
 //*************** Grid computations strategy: linear ***************//
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-grid_execution_sig(
+rnn_grid_execution_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::linear_execution)) {
     AOC<src_data_t, 4> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.states_nld * rnn.states_ws_ld);
@@ -549,7 +549,7 @@ void ref_rnn_bwd_f32_t::copy_res_iter(
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare)) {
+rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare)) {
     /* Original set of bias provided by the user */
     AOC<const float, 5> b(
             b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
@@ -578,7 +578,7 @@ bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-bias_finalize_sig(
+rnn_bias_finalize_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::bias_finalize)) {
     if (rnn.dt_conf != all_f32) {
         float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
@@ -597,7 +597,7 @@ bias_finalize_sig(
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
+rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
         weights_type>::assign_packed_weights)) {
     AOC<weights_data_t *, 3> weights(weights_, rnn.n_layer, rnn.n_dir, n_parts);
 
@@ -613,7 +613,7 @@ weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-weights_assign_sig(
+rnn_weights_assign_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) {
     assert(nld * ld != 0);
     /* Original set of weights provided by the user */
@@ -778,24 +778,24 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
 };
 
 /* Fix for MSVS warning C4661 */
-template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
-template<> cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
-template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
-template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
-template<> cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
-template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
-template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
-template<> cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
-template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
-template<> elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
-template<> elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
-template<> elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
-template<> elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
-template<> elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
-template<> elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
-template<> elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
-template<> elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
-template<> elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
+template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
+template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
+template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;

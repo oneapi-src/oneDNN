@@ -33,7 +33,7 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 
 template <>
-elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -57,7 +57,7 @@ elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
 }
 
 template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
     ws_gates_aoc_s32_t ws_gates_s32(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_u8_t states_t_l(rnn, states_t_l_);
@@ -100,7 +100,7 @@ elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
 }
 
 template <>
-elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise) {
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);

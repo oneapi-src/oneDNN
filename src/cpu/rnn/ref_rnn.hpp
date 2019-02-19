@@ -34,53 +34,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-#define elemwise_sig(f)                                               \
-    void f(const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,   \
-            src_data_t *states_t_l_, float *c_states_t_l_,            \
-            src_data_t *states_tm1_l_, float *c_states_tm1_l_,        \
-            float *diff_states_t_l_, float *diff_states_t_lp1_,       \
-            float *diff_states_tp1_l_, float *bias_, float *ws_grid_, \
-            float *ws_cell_) const
-
-#define cell_execution_sig(f)                                             \
-    void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *states_t_l_,     \
-            float *c_states_t_l_, float *diff_states_t_l_,                \
-            weights_data_t **w_layer_, weights_data_t **w_iter_,          \
-            float **bias_, src_data_t *states_t_lm1_,                     \
-            src_data_t *states_tm1_l_, float *c_states_tm1_l_,            \
-            float *diff_states_t_lp1_, float *diff_states_tp1_l_,         \
-            float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_, \
-            acc_data_t *ws_gates_, float *ws_grid_, float *ws_cell_) const
-
-#define grid_execution_sig(f)                                                 \
-    void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
-            weights_data_t **weights_states_, float **bias_,                  \
-            src_data_t *ws_states_, float *ws_c_states_,                      \
-            float *ws_diff_states_, acc_data_t *ws_gates_, float *ws_cell_,   \
-            float *ws_grid_, float *diff_weights_layer_,                      \
-            float *diff_weights_iter_, float *diff_bias_) const
-
-#define gemm_sig(f)                                                     \
-    void f(const char transA, const char transB, int m, int n, int k,   \
-            const float alpha, const weights_data_t *a_, const int ldA, \
-            const src_data_t *b_, const int ldB, const float beta,      \
-            acc_data_t *c_, const int ldC) const
-
-#define bias_prepare_sig(f)                                                  \
-    void f(const rnn_utils::rnn_conf_t &rnn, float **bias_, const float *b_, \
-            float *scratch_bias_) const
-
-#define bias_finalize_sig(f)                                       \
-    void f(const rnn_utils::rnn_conf_t &rnn, float *scratch_bias_, \
-            const float *w_iter_comp, const float *w_layer_comp) const
-
-#define weights_assign_sig(f)                                                \
-    void f(const rnn_utils::rnn_conf_t &rnn, memory_format_t fmt, int nld,   \
-            int ld, int OC_size, int IC_size, const int n_parts,             \
-            const int *gates_per_part, const size_t *part_weights_pack_size, \
-            weights_data_t **weights_, const weights_data_t *w_,             \
-            float **bias_, const float *b_, float *scratch_bias_) const
-
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping, float dd);
 
@@ -94,14 +47,14 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
     using class_name = _ref_rnn_common_t<aprop, src_type, weights_type>;
 
-    typedef elemwise_sig((class_name::*elemwise_f));
-    typedef cell_execution_sig((class_name::*cell_execution_f));
-    typedef grid_execution_sig((class_name::*grid_execution_f));
+    typedef rnn_elemwise_sig((class_name::*elemwise_f));
+    typedef rnn_cell_execution_sig((class_name::*cell_execution_f));
+    typedef rnn_grid_execution_sig((class_name::*grid_execution_f));
 
-    typedef gemm_sig((class_name::*gemm_t));
-    typedef bias_prepare_sig((class_name::*bias_prepare_t));
-    typedef bias_finalize_sig((class_name::*bias_finalize_t));
-    typedef weights_assign_sig((class_name::*weights_assign_t));
+    typedef rnn_gemm_sig((class_name::*gemm_t));
+    typedef rnn_bias_prepare_sig((class_name::*bias_prepare_t));
+    typedef rnn_bias_finalize_sig((class_name::*bias_finalize_t));
+    typedef rnn_weights_assign_sig((class_name::*weights_assign_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -293,19 +246,19 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
 private:
     void execute_() const;
-    grid_execution_sig(linear_execution);
-    cell_execution_sig(cell_execution);
-    cell_execution_sig(cell_execution_gru);
-    cell_execution_sig(cell_execution_gru_lbr);
-    elemwise_sig(rnn_elemwise);
-    elemwise_sig(lstm_elemwise);
-    elemwise_sig(gru_lbr_elemwise);
-    gemm_sig(gemm);
-    gemm_sig(packed_gemm);
-    bias_prepare_sig(bias_prepare);
-    bias_finalize_sig(bias_finalize);
-    weights_assign_sig(assign_weights);
-    weights_assign_sig(assign_packed_weights);
+    rnn_grid_execution_sig(linear_execution);
+    rnn_cell_execution_sig(cell_execution);
+    rnn_cell_execution_sig(cell_execution_gru);
+    rnn_cell_execution_sig(cell_execution_gru_lbr);
+    rnn_elemwise_sig(rnn_elemwise);
+    rnn_elemwise_sig(lstm_elemwise);
+    rnn_elemwise_sig(gru_lbr_elemwise);
+    rnn_gemm_sig(gemm);
+    rnn_gemm_sig(packed_gemm);
+    rnn_bias_prepare_sig(bias_prepare);
+    rnn_bias_finalize_sig(bias_finalize);
+    rnn_weights_assign_sig(assign_weights);
+    rnn_weights_assign_sig(assign_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
 

@@ -68,7 +68,7 @@ float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
 }
 
 template <>
-elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -84,12 +84,12 @@ elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise) {
 }
 
 template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise) {
     assert(!"VANILLA RNN int8 is not supported");
 }
 
 template <>
-elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise) {
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);

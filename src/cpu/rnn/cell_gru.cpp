@@ -33,7 +33,7 @@ using namespace rnn_utils;
 
 #define AOC array_offset_calculator
 template <>
-cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_[0]);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -79,12 +79,12 @@ cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
 }
 
 template <>
-cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru) {
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru) {
     assert(!"GRU int8 is not supported");
 }
 
 template <>
-cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
     ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);

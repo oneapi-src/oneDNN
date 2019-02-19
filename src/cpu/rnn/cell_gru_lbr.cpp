@@ -33,7 +33,7 @@ using namespace rnn_utils;
 #define AOC array_offset_calculator
 
 template <>
-elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -60,12 +60,12 @@ elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise) {
 }
 
 template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise) {
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise) {
     assert(!"GRU LBR int8 is not supported");
 }
 
 template <>
-cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr) {
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
@@ -82,12 +82,12 @@ cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr) {
 }
 
 template <>
-cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
     assert(!"GRU LBR int8 is not supported");
 }
 
 template <>
-elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise) {
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     ws_states_aoc_t states_tm1_l(rnn, states_tm1_l_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
@@ -122,7 +122,7 @@ elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise) {
 }
 
 template <>
-cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
     ws_gates_aoc_t ws_gates_r(rnn, ws_cell_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
 
