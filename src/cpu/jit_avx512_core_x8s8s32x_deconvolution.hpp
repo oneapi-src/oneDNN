@@ -44,7 +44,7 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_deconv_fwd_ker_t);
 
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
@@ -72,7 +72,7 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
-    jit_conv_conf_t jcp;
+    const jit_conv_conf_t &jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_deconv_call_s *);
 private:
