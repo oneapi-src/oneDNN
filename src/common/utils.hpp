@@ -37,15 +37,14 @@
 #endif
 
 #include "c_types_map.hpp"
+#include "nstl.hpp"
+#include "z_magic.hpp"
 
 namespace mkldnn {
 namespace impl {
 
 // Sanity check for 64 bits
 static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
-
-#define UNUSED(x) ((void)x)
-#define MAYBE_UNUSED(x) UNUSED(x)
 
 #define CHECK(f) do { \
     status_t status = f; \
@@ -54,10 +53,6 @@ static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
 } while (0)
 
 #define IMPLICATION(cause, effect) (!(cause) || !!(effect))
-
-#if defined(_WIN32) && !defined(__GNUC__)
-#define __PRETTY_FUNCTION__ __FUNCSIG__
-#endif
 
 namespace utils {
 
@@ -304,24 +299,8 @@ private:
 
 }
 
-void *malloc(size_t size, int alignment);
-void free(void *p);
 int32_t mkldnn_fetch_and_add(int32_t *dst, int32_t val);
-
-struct c_compatible {
-    enum { default_alignment = 64 };
-    static void *operator new(size_t sz) {
-        return malloc(sz, default_alignment);
-    }
-    static void *operator new(size_t sz, void *p) { UNUSED(sz); return p; }
-    static void *operator new[](size_t sz) {
-        return malloc(sz, default_alignment);
-    }
-    static void operator delete(void *p) { free(p); }
-    static void operator delete[](void *p) { free(p); }
-};
-
-inline void yield_thread() { }
+inline void yield_thread() {}
 
 int mkldnn_getenv(char *value, const char *name, int len);
 bool mkldnn_jit_dump();

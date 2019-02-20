@@ -24,10 +24,27 @@
 #include <vector>
 #include <map>
 
-#include "utils.hpp"
+#include "z_magic.hpp"
 
 namespace mkldnn {
 namespace impl {
+
+void *malloc(size_t size, int alignment);
+void free(void *p);
+
+struct c_compatible {
+    enum { default_alignment = 64 };
+    static void *operator new(size_t sz) {
+        return malloc(sz, default_alignment);
+    }
+    static void *operator new(size_t sz, void *p) { UNUSED(sz); return p; }
+    static void *operator new[](size_t sz) {
+        return malloc(sz, default_alignment);
+    }
+    static void operator delete(void *p) { free(p); }
+    static void operator delete[](void *p) { free(p); }
+};
+
 namespace nstl {
 
 template<typename T>

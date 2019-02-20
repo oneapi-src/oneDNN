@@ -34,6 +34,13 @@
 #   define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
 #endif
 
+#define UNUSED(x) ((void)x)
+#define MAYBE_UNUSED(x) UNUSED(x)
+
+#if defined(_WIN32) && !defined(__GNUC__)
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
