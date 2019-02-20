@@ -103,17 +103,19 @@ target_include_directories(${LIB_NAME} PUBLIC
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
     )
 
-# Link to static and shared libs with full paths privately during build time
-# This is rather ugly, but required for the generator expressions to
-# expand correctly
-foreach(l IN LISTS EXTRA_SHARED_LIBS EXTRA_STATIC_LIBS)
-    target_link_libraries(${LIB_NAME} LINK_PRIVATE $<BUILD_INTERFACE:${l}>)
-endforeach()
-# Note external dependencies with paths stripped publicly
+# Private dependencies: all the shared and static dependencies with full path
+target_link_libraries(${LIB_NAME} LINK_PRIVATE
+    "$<BUILD_INTERFACE:${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}>")
+# Public dependencies: all shared dependencies with path removes ...
 strip_paths(EXTRA_SHARED_LIBS_PUBLIC "${EXTRA_SHARED_LIBS}")
-foreach(l IN LISTS EXTRA_SHARED_LIBS_PUBLIC)
-    target_link_libraries(${LIB_NAME} LINK_PUBLIC $<INSTALL_INTERFACE:${l}>)
-endforeach()
+target_link_libraries(${LIB_NAME} LINK_PUBLIC
+    "$<INSTALL_INTERFACE:${EXTRA_SHARED_LIBS_PUBLIC}>")
+if(EXTRA_STATIC_LIBS AND MKLDNN_LIBRARY_TYPE STREQUAL "STATIC")
+    # ... and static depdencies too if we are building a static library
+    strip_paths(EXTRA_STATIC_LIBS_PUBLIC "${EXTRA_STATIC_LIBS}")
+    target_link_libraries(${LIB_NAME} LINK_PUBLIC
+        "$<INSTALL_INTERFACE:${EXTRA_STATIC_LIBS_PUBLIC}>")
+endif()
 
 set(LIB_EXPORT_NAME "${LIB_NAME}-targets")
 install(TARGETS ${LIB_NAME}
