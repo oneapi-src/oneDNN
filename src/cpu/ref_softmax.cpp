@@ -97,8 +97,8 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic() const {
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
         data_t *max_data) const {
-// Intel Compiler generates the maxps + shuffle pattern for the max search
-// which works faster
+// Intel(R) C++ Compiler generates the maxps + shuffle pattern
+// for the max search which works faster
 #if !defined(__INTEL_COMPILER)
     // The code below makes a compiler to generate maxps instruction
     // rather than maxss, which is generated for the 'else' code path
