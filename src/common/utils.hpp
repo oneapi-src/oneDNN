@@ -23,6 +23,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#if defined(__x86_64__) || defined(_M_X64)
+#define MKLDNN_X86_64
+#endif
+
 #define MSAN_ENABLED 0
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)

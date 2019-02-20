@@ -19,10 +19,13 @@
 #include <malloc.h>
 #include <windows.h>
 #endif
-#include "xmmintrin.h"
 
 #include "mkldnn.h"
 #include "utils.hpp"
+
+#if defined(MKLDNN_X86_64)
+#include "xmmintrin.h"
+#endif
 
 namespace mkldnn {
 namespace impl {
@@ -85,6 +88,7 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
 thread_local unsigned int mxcsr_save;
 
 void set_rnd_mode(round_mode_t rnd_mode) {
+#if defined(MKLDNN_X86_64)
     mxcsr_save = _mm_getcsr();
     unsigned int mxcsr = mxcsr_save & ~(3u << 13);
     switch (rnd_mode) {
@@ -93,10 +97,15 @@ void set_rnd_mode(round_mode_t rnd_mode) {
     default: assert(!"unreachable");
     }
     if (mxcsr != mxcsr_save) _mm_setcsr(mxcsr);
+#else
+    UNUSED(rnd_mode);
+#endif
 }
 
 void restore_rnd_mode() {
+#if defined(MKLDNN_X86_64)
     _mm_setcsr(mxcsr_save);
+#endif
 }
 
 void *malloc(size_t size, int alignment) {
