@@ -158,6 +158,31 @@ inline R array_product(const T *arr, size_t size) {
     return prod;
 }
 
+/** sorts an array of values using @p comparator. While sorting the array
+ * of value, the function permutes an array of @p keys accordingly.
+ *
+ * @note The arrays of @p keys can be omitted. In this case the function
+ *       sorts the array of @vals only.
+ */
+template <typename T, typename U, typename F>
+inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
+    if (size == 0) return;
+
+    for (size_t i = 0; i < size - 1; ++i) {
+        bool swapped = false;
+
+        for (size_t j = 0; j < size - i - 1; j++) {
+            if (comparator(vals[j], vals[j + 1]) > 0) {
+                nstl::swap(vals[j], vals[j + 1]);
+                if (keys) nstl::swap(keys[j], keys[j + 1]);
+                swapped = true;
+            }
+        }
+
+        if (swapped == false) break;
+    }
+}
+
 template <typename T, typename U>
 inline typename remove_reference<T>::type div_up(const T a, const U b) {
     assert(b);

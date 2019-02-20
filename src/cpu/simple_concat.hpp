@@ -119,21 +119,10 @@ struct simple_concat_t: public cpu_primitive_t {
 
             strides_t strides;
             utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
-
             for (int i = 0; i < ndims; i++) iperm_[i] = i;
 
-            for (int i = 0; i < ndims - 1; i++) {
-                bool swapped = false;
-                for (int j = 0; j < ndims - i - 1; j++) {
-                    if (strides[j] < strides[j + 1]) {
-                        nstl::swap(strides[j], strides[j + 1]);
-                        nstl::swap(iperm_[j], iperm_[j + 1]);
-                        swapped = true;
-                    }
-                }
-                if (swapped == false)
-                    break;
-            }
+            utils::simultaneous_sort(strides, iperm_, ndims,
+                    [](stride_t a, stride_t b) { return b - a; });
 
             for (int i = 0; i < ndims; i++) perm_[iperm_[i]] = i;
         }

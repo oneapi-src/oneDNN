@@ -267,21 +267,17 @@ inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
     auto &mblk = md.format_desc.blocking;
     mblk = blk;
 
-    int perm[MKLDNN_MAX_NDIMS];
     const int ndims = nstl::min(MKLDNN_MAX_NDIMS, md.ndims); // make GCC 5 happy
+    utils::array_copy(mblk.strides, blk.strides, ndims);
+
+    int perm[MKLDNN_MAX_NDIMS];
     for (int d = 0; d < ndims; ++d) perm[d] = d;
 
-    for (int d = 0; d < ndims; ++d) {
-        for (int _ = d + 1; _ < ndims; ++_) {
-            if (blk.strides[perm[_]] < blk.strides[perm[d]]) {
-                nstl::swap(perm[_], perm[d]);
-                nstl::swap(mblk.strides[perm[_]], mblk.strides[perm[d]]);
-            }
-        }
-    }
+    utils::simultaneous_sort(mblk.strides, perm, ndims,
+            [](stride_t a, stride_t b) { return b - a; });
 
     dim_t stride = block_size;
-    for (int _d = 0; _d < ndims; ++_d) {
+    for (int _d = ndims - 1; _d >= 0; --_d) {
         const int d = perm[_d];
         md.format_desc.blocking.strides[d] = stride;
         stride *= md.padded_dims[d] / blocks[d];
