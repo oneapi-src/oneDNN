@@ -519,11 +519,41 @@ namespace stream_kind {
 }
 using stream_t = mkldnn_stream;
 
-/* forward declaration of internal primitive_desc types */
+/* forward declaration of the internal primitive_desc types */
+struct batch_normalization_bwd_pd_t;
+struct batch_normalization_fwd_pd_t;
+struct batch_normalization_pd_t;
 struct concat_pd_t;
-struct sum_pd_t;
+struct convolution_bwd_data_pd_t;
+struct convolution_bwd_weights_pd_t;
+struct convolution_fwd_pd_t;
+struct convolution_pd_t;
+struct deconvolution_bwd_data_pd_t;
+struct deconvolution_bwd_weights_pd_t;
+struct deconvolution_fwd_pd_t;
+struct deconvolution_pd_t;
+struct eltwise_bwd_pd_t;
+struct eltwise_fwd_pd_t;
+struct eltwise_pd_t;
+struct inner_product_bwd_data_pd_t;
+struct inner_product_bwd_weights_pd_t;
+struct inner_product_fwd_pd_t;
+struct inner_product_pd_t;
+struct lrn_bwd_pd_t;
+struct lrn_fwd_pd_t;
+struct lrn_pd_t;
+struct pooling_bwd_pd_t;
+struct pooling_fwd_pd_t;
+struct pooling_pd_t;
 struct reorder_pd_t;
+struct rnn_bwd_pd_t;
+struct rnn_fwd_pd_t;
+struct rnn_pd_t;
 struct shuffle_pd_t;
+struct softmax_bwd_pd_t;
+struct softmax_fwd_pd_t;
+struct softmax_pd_t;
+struct sum_pd_t;
 
 }
 }

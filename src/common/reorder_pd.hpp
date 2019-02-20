@@ -40,7 +40,7 @@ struct reorder_pd_t: public primitive_desc_t {
     {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
-    virtual void init_info() override { init_info_mem(this, this->info_); }
+    virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg == MKLDNN_ARG_FROM)

@@ -41,7 +41,7 @@ struct concat_pd_t: public primitive_desc_t {
 
     concat_pd_t(const concat_pd_t &rhs) = default;
 
-    virtual void init_info() override { init_info_mem(this, this->info_); }
+    virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
         if (arg >= MKLDNN_ARG_MULTIPLE_SRC
