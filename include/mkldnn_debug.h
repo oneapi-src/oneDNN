@@ -70,6 +70,28 @@ const char MKLDNN_API *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v);
 const char MKLDNN_API *mkldnn_alg_kind2str(mkldnn_alg_kind_t v);
 const char MKLDNN_API *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v);
 
+/** Forms a format string for a given memory descriptor.
+ *
+ * The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+ * Here:
+ *  - dt       -- data type
+ *  - p        -- indicates there is non-trivial padding
+ *  - o        -- indicates there is non-trivial padding offset
+ *  - 0        -- indicates there is non-trivial offset0
+ *  - fmt_kind -- format kind (blocked, wino, etc...)
+ *  - fmt      -- extended format string (format_kind specific)
+ *  - extra    -- shows extra fields (underspecified)
+ */
+int MKLDNN_API mkldnn_md2fmt_str(char *fmt_str, size_t fmt_str_len,
+        const mkldnn_memory_desc_t *md);
+
+/** Forms a dimension string for a given memory descriptor.
+ *
+ * The format is defined as: 'dim0xdim1x...xdimN
+ */
+int MKLDNN_API mkldnn_md2dim_str(char *dim_str, size_t dim_str_len,
+        const mkldnn_memory_desc_t *md);
+
 #ifdef __cplusplus
 }
 #endif
