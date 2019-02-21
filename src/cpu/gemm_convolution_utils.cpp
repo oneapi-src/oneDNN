@@ -579,13 +579,16 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         }
     } else {
         if (is_fwd) {
-            // looking for oh and ow blocking
-            int h_block{ jcp.oh }, w_block{ jcp.ow };
-            if (jcp.im2col_sz && jcp.id == 1 && jcp.od == 1) {
+            const int L2 = get_cache_size(2, true) / sizeof(float);
+            const int wei_size = jcp.oc * jcp.ic * jcp.kh * jcp.kw;
+
+            // It makes sense to try blocking for some special cases:
+            // when weights size is small and we have to do im2col
+            if (wei_size < L2/2 && jcp.im2col_sz && jcp.id == 1 && jcp.od == 1) {
+                // looking for oh and ow blocking
+                int h_block{ jcp.oh }, w_block{ jcp.ow };
                 // 1. cache requirement
-                const int L2 = get_cache_size(2, true) / sizeof(float);
                 // !!! used memory (assuming strides = 1 and dilate = 0 etc):
-                const int wei_size = jcp.oc * jcp.ic * jcp.kh * jcp.kw;
                 const int row_size = jcp.ic * jcp.kh * jcp.kw * jcp.ow
                     + 2 * jcp.ic * jcp.iw + 2 * jcp.oc * jcp.ow;
                 h_block = nstl::max(
@@ -644,12 +647,24 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                     jcp.ow_block = w_block;
                     jcp.outer_threading = true;
                 }
+                // updating jcp.im2col_sz
+                if (jcp.oh_block != 1)
+                    jcp.ow_block = jcp.ow;
+                jcp.im2col_sz
+                    = (ptrdiff_t)jcp.ic * jcp.ks * jcp.oh_block * jcp.ow_block;
+            } else {
+                const size_t outer_work_amount = jcp.ngroups * jcp.mb * jcp.od;
+                const float outer_thr_eff = (float)outer_work_amount
+                        / rnd_up(outer_work_amount, max_threads);
+                const size_t inner_work_amount
+                        = div_up(jcp.os, simd_w) * div_up(jcp.oc, simd_w);
+                const float inner_thr_eff = (float)inner_work_amount
+                        / rnd_up(inner_work_amount, max_threads);
+                jcp.outer_threading = jcp.os / max_threads < 512
+                    && IMPLICATION(jcp.od == 1, jcp.mb != 1 || jcp.ngroups > 2)
+                    && (outer_thr_eff / inner_thr_eff >= 1.f
+                      || (jcp.os * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
             }
-            // updating jcp.im2col_sz
-            if (jcp.oh_block != 1)
-                jcp.ow_block = jcp.ow;
-            jcp.im2col_sz
-                = (ptrdiff_t)jcp.ic * jcp.ks * jcp.oh_block * jcp.ow_block;
         } else if (is_bwd_d) {
             const size_t outer_work_amount = jcp.ngroups * jcp.mb;
             const float outer_thr_eff = (float)outer_work_amount
