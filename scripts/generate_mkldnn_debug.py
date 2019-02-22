@@ -167,6 +167,7 @@ def enum_abbrev(enum):
 def sanitize_value(v):
     if 'undef' in v:
         return 'undef'
+    v = v.split('mkldnn_format_kind_')[-1]
     v = v.split('mkldnn_')[-1]
     return v
 

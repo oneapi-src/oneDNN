@@ -42,7 +42,7 @@ struct wino_reorder_t : public cpu_primitive_t {
                 && od.data_type() == type_o
                 && id.matches_tag(utils::pick(id.ndims() - 4,
                             format_tag::oihw, format_tag::goihw))
-                && od.format_kind() == format_kind::wino_fmt
+                && od.format_kind() == format_kind::wino
                 && utils::one_of(od.wino_desc().wino_format,
                         mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
                         mkldnn_wino_wei_aaOBiOo, mkldnn_wino_wei_OBaaIBOIio);

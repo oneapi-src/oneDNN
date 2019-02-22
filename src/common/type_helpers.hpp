@@ -206,7 +206,7 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (lhs.format_kind == format_kind::blocked)
         return types::blocking_desc_is_equal(lhs.format_desc.blocking,
                 rhs.format_desc.blocking, lhs.ndims);
-    else if (lhs.format_kind == format_kind::wino_fmt)
+    else if (lhs.format_kind == format_kind::wino)
         return types::wino_desc_is_equal(lhs.format_desc.wino_desc,
             rhs.format_desc.wino_desc);
     else if (lhs.format_kind == format_kind::rnn_packed)

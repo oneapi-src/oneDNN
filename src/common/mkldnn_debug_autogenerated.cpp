@@ -55,10 +55,10 @@ const char *mkldnn_rmode2str(mkldnn_round_mode_t v) {
 
 const char *mkldnn_fmt_kind2str(mkldnn_format_kind_t v) {
     if (v == mkldnn_format_kind_undef) return "undef";
-    if (v == mkldnn_format_kind_any) return "format_kind_any";
+    if (v == mkldnn_format_kind_any) return "any";
     if (v == mkldnn_blocked) return "blocked";
-    if (v == mkldnn_wino_fmt) return "wino_fmt";
-    if (v == mkldnn_rnn_packed) return "rnn_packed";
+    if (v == mkldnn_format_kind_wino) return "wino";
+    if (v == mkldnn_format_kind_rnn_packed) return "rnn_packed";
     assert(!"unknown fmt_kind");
     return "unknown fmt_kind";
 }

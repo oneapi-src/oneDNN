@@ -1192,7 +1192,7 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
     if (jcp.src_tag != dat_tag) return status::unimplemented;
     if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
-    if (!one_of(weights_d.format_kind(), format_kind::any, format_kind::wino_fmt)) {
+    if (!one_of(weights_d.format_kind(), format_kind::any, format_kind::wino)) {
         format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
         if (jcp.wei_tag != wei_tag)
@@ -1203,7 +1203,7 @@ status_t _jit_avx512_core_fp32_wino_conv_4x3_data_kernel::init_conf_common(
             && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1]
             && (one_of(weights_d.format_kind(),
-                        format_kind::any, format_kind::wino_fmt)
+                        format_kind::any, format_kind::wino)
                     || (jcp.ic <= weights_d.padded_dims()[with_groups + 1]
                         && jcp.oc <= weights_d.padded_dims()[with_groups + 0]));
     if (!layout_consistency)
@@ -1475,7 +1475,7 @@ status_t jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::init_conf(
     if (cd.prop_kind == mkldnn_forward_inference) {
         memory_desc_t expect_wei_md = weights_md;
 
-        expect_wei_md.format_kind = mkldnn_wino_fmt;
+        expect_wei_md.format_kind = format_kind::wino;
         expect_wei_md.data_type = data_type::f32;
         mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
         wd.wino_format = mkldnn_wino_wei_OBaaIBOIio;

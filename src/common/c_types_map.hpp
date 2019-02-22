@@ -113,8 +113,8 @@ namespace format_kind {
     const format_kind_t undef = mkldnn_format_kind_undef;
     const format_kind_t any = mkldnn_format_kind_any;
     const format_kind_t blocked = mkldnn_blocked;
-    const format_kind_t wino_fmt = mkldnn_wino_fmt;
-    const format_kind_t rnn_packed = mkldnn_rnn_packed;
+    const format_kind_t wino = mkldnn_format_kind_wino;
+    const format_kind_t rnn_packed = mkldnn_format_kind_rnn_packed;
 }
 
 using format_tag_t = mkldnn_format_tag_t;

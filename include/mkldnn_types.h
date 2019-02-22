@@ -101,9 +101,9 @@ typedef enum {
      * information. */
     mkldnn_blocked,
     /** Weights format used in 8bit Winograd convolution */
-    mkldnn_wino_fmt,
+    mkldnn_format_kind_wino,
     /** Packed weights format used in RNN */
-    mkldnn_rnn_packed,
+    mkldnn_format_kind_rnn_packed,
 } mkldnn_format_kind_t;
 
 /** Memory format tag specification.

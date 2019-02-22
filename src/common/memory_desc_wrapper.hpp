@@ -52,7 +52,7 @@ struct memory_desc_wrapper: public c_compatible {
     bool is_blocking_desc() const
     { return format_kind() == format_kind::blocked; }
     bool is_wino_desc() const
-    { return format_kind() == format_kind::wino_fmt; }
+    { return format_kind() == format_kind::wino; }
     bool is_rnn_packed_desc() const
     { return format_kind() == format_kind::rnn_packed; }
 
@@ -123,7 +123,7 @@ struct memory_desc_wrapper: public c_compatible {
         if (is_zero() || has_zero_dim() || format_kind() == format_kind::any)
             return 0;
 
-        if (format_kind() == format_kind::wino_fmt) {
+        if (format_kind() == format_kind::wino) {
             return wino_desc().size;
         } else if (format_kind() == format_kind::rnn_packed) {
             return rnn_packed_desc().size;

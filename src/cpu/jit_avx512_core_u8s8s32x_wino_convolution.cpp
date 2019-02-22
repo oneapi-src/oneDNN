@@ -944,7 +944,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
                                     and set weights wino_blocking */
     memory_desc_t expect_wei_md = wei_md;
 
-    expect_wei_md.format_kind = mkldnn_wino_fmt;
+    expect_wei_md.format_kind = format_kind::wino;
     expect_wei_md.data_type = data_type::s8;
     mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
     wd.wino_format = mkldnn_wino_wei_aaOIoi;
