@@ -676,7 +676,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             jcp.outer_threading = (jcp.os / max_threads < 512 || jcp.ks < 64)
                 && (jcp.mb != 1 || jcp.ngroups > 2)
                 && (outer_thr_eff / inner_thr_eff >= 1.f
-                  || (jcp.is * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
+                  || (jcp.os * jcp.ic * jcp.oc) / max_threads < gemm_threshold);
         } else if (is_bwd_w)
             jcp.outer_threading = jcp.os / max_threads < 256
                 && (jcp.mb != 1 || jcp.ngroups > 2);
