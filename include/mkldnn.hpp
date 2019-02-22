@@ -24,7 +24,6 @@
 #include <unordered_map>
 #include <algorithm>
 #include <iterator>
-#include <string>
 
 #include "mkldnn.h"
 #endif
@@ -49,7 +48,7 @@ template <typename T> class handle_traits {};
 ///    by @p std::shared_ptr with a proper deleter function specified through
 ///    the @p handle_traits class.
 ///  - Pre-existing handles returned by the Intel(R) MKL-DNN C API (for
-///    example, through #mkldnn_primitive_get_primitive_desc()).
+///    example, through mkldnn_primitive_get_primitive_desc()).
 ///    @n In this case, an Intel(R) MKL-DNN C API handle is wrapped without a
 ///    deleter because it is assumed that the handle wrapper for the original
 ///    object deletes the handle (this model is similar to @p std::weak_ptr).
@@ -155,41 +154,23 @@ inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
 /// message, and, optionally, handle of the primitive that caused the error.
 struct error: public std::exception {
     mkldnn_status_t status;
-    std::string message;
-    primitive error_primitive;
+    const char *message;
 
     /// Constructs an error instance.
     ///
     /// @param astatus The error status returned by the C API.
     /// @param amessage The error message.
-    /// @param aerror_primitive (optional) A C handle of the primitive that
-    ///                         caused the error.
-
-    error(mkldnn_status_t astatus, const std::string &amessage,
-            mkldnn_primitive_t aerror_primitive = 0)
-        : status(astatus)
-        , message(amessage)
-        , error_primitive(aerror_primitive, true)
-    {}
+    error(mkldnn_status_t astatus, const char *amessage)
+        : status(astatus), message(amessage) {}
 
     /// A convenience function for wrapping calls to the C API. Checks the
     /// return status and throws an #error in case of failure.
     ///
     /// @param status The error status returned by the C API.
     /// @param message The error message.
-    /// @param error_primitive (optional) A C handle of the primitive that
-    ///                        caused the error.
-
-    static void wrap_c_api(mkldnn_status_t status,
-            const std::string &message,
-            mkldnn_primitive_t *error_primitive = 0)
-    {
-        if (status != mkldnn_success) {
-            if (nullptr != error_primitive)
-                throw error(status, message, *error_primitive);
-            else
-                throw error(status, message, nullptr);
-        }
+    static void wrap_c_api(mkldnn_status_t status, const char *message) {
+        if (status != mkldnn_success)
+            throw error(status, message);
     }
 };
 
