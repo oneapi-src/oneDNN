@@ -60,11 +60,11 @@ struct memory_desc_wrapper: public c_compatible {
         assert(is_blocking_desc());
         return md_->format_desc.blocking;
     }
-    const wino_data_t &wino_desc() const {
+    const wino_desc_t &wino_desc() const {
         assert(is_wino_desc());
         return md_->format_desc.wino_desc;
     }
-    const rnn_packed_data_t &rnn_packed_desc() const {
+    const rnn_packed_desc_t &rnn_packed_desc() const {
         assert(is_rnn_packed_desc());
         return md_->format_desc.rnn_packed_desc;
     }

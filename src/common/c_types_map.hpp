@@ -444,8 +444,8 @@ namespace query {
 }
 
 using blocking_desc_t = mkldnn_blocking_desc_t;
-using rnn_packed_data_t = mkldnn_rnn_packed_desc_t;
-using wino_data_t = mkldnn_wino_desc_t;
+using rnn_packed_desc_t = mkldnn_rnn_packed_desc_t;
+using wino_desc_t = mkldnn_wino_desc_t;
 using memory_extra_desc_t = mkldnn_memory_extra_desc_t;
 using memory_desc_t = mkldnn_memory_desc_t;
 using convolution_desc_t = mkldnn_convolution_desc_t;

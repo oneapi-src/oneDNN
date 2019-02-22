@@ -392,7 +392,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         : rnn.use_layer_packed_gemm;
     if (use_packed_gemm) {
         weights_md.format_kind = format_kind::rnn_packed;
-        rnn_packed_data_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
+        rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
         rnn_pdata.format = rnn.is_fwd ? mkldnn_ldigo_p : mkldnn_ldgoi_p;
         if (is_iter) {
             rnn_pdata.n = rnn.mb;

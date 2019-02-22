@@ -104,8 +104,8 @@ inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
 }
 
-inline bool wino_desc_is_equal(const wino_data_t &lhs,
-    const wino_data_t &rhs) {
+inline bool wino_desc_is_equal(const wino_desc_t &lhs,
+    const wino_desc_t &rhs) {
     return lhs.wino_format == rhs.wino_format
         && lhs.alpha == rhs.alpha
         && lhs.ic == rhs.ic
@@ -118,7 +118,7 @@ inline bool wino_desc_is_equal(const wino_data_t &lhs,
 }
 
 inline bool rnn_packed_desc_is_equal(
-        const rnn_packed_data_t &lhs, const rnn_packed_data_t &rhs) {
+        const rnn_packed_desc_t &lhs, const rnn_packed_desc_t &rhs) {
     bool ok = true
         && lhs.format == rhs.format
         && lhs.n_parts == rhs.n_parts
