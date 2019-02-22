@@ -19,6 +19,9 @@
 #include <malloc.h>
 #include <windows.h>
 #endif
+#include <limits.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "mkldnn.h"
 #include "utils.hpp"
@@ -26,34 +29,38 @@
 namespace mkldnn {
 namespace impl {
 
-int getenv(char *value, const char *name, int length) {
+int getenv(const char *name, char *buffer, int buffer_size) {
+    if (name == NULL || buffer_size < 0 || (buffer == NULL && buffer_size > 0))
+        return INT_MIN;
+
     int result = 0;
-    int last_idx = 0;
-    if (length > 1) {
-        int value_length = 0;
+    int term_zero_idx = 0;
+    size_t value_length = 0;
+
 #ifdef _WIN32
-        value_length = GetEnvironmentVariable(name, value, length);
-        if (value_length >= length) {
-            result = -value_length;
-        } else {
-            last_idx = value_length;
-            result = value_length;
-        }
+    value_length = GetEnvironmentVariable(name, buffer, buffer_size);
 #else
-        char *buffer = ::getenv(name);
-        if (buffer != NULL) {
-            value_length = strlen(buffer);
-            if (value_length >= length) {
-                result = -value_length;
-            } else {
-                strncpy(value, buffer, value_length);
-                last_idx = value_length;
-                result = value_length;
-            }
-        }
+    const char *value = ::getenv(name);
+    value_length = value == NULL ? 0 : strlen(value);
 #endif
+
+    if (value_length > INT_MAX)
+        result = INT_MIN;
+    else {
+        int int_value_length = (int)value_length;
+        if (int_value_length >= buffer_size) {
+            result = -int_value_length;
+        } else {
+            term_zero_idx = int_value_length;
+            result = int_value_length;
+#ifndef _WIN32
+            strncpy(buffer, value, value_length);
+#endif
+        }
     }
-    value[last_idx] = '\0';
+
+    if (buffer != NULL)
+        buffer[term_zero_idx] = '\0';
     return result;
 }
 
@@ -66,7 +73,7 @@ bool jit_dump_enabled() {
     if (!initialized) {
         const int len = 2;
         char env_dump[len] = {0};
-        dump_jit_code = getenv(env_dump, "MKLDNN_JIT_DUMP", len) == 1
+        dump_jit_code = getenv("MKLDNN_JIT_DUMP", env_dump, len) == 1
             && atoi(env_dump) == 1;
         initialized = true;
     }
