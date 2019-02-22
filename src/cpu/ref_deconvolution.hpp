@@ -196,6 +196,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             (conv_p_)->execute(e);
             if (pd()->with_bias() && !pd()->conv_supports_bias_) {
                 switch (pd()->dst_pd()->desc()->format) {
+                    case memory_format::ncw :
                     case memory_format::nchw :
                     case memory_format::ncdhw :
                         compute_fwd_bias_ncdhw();
@@ -204,6 +205,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                     case memory_format::nCdhw8c :
                         compute_fwd_bias_nCdhwXc<8>();
                         break;
+                    case memory_format::nCw16c :
                     case memory_format::nChw16c :
                     case memory_format::nCdhw16c :
                         compute_fwd_bias_nCdhwXc<16>();
@@ -415,6 +417,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             (conv_p_)->execute(e);
             if (pd()->with_bias()) {
                 switch (pd()->diff_dst_pd()->desc()->format) {
+                    case memory_format::ncw :
                     case memory_format::nchw :
                     case memory_format::ncdhw :
                         compute_bwd_bias_ncdhw();
@@ -422,6 +425,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                     case memory_format::nChw8c :
                         compute_bwd_bias_nCdhwXc<8>();
                         break;
+                    case memory_format::nCw16c :
                     case memory_format::nChw16c :
                     case memory_format::nCdhw16c :
                         compute_bwd_bias_nCdhwXc<16>();

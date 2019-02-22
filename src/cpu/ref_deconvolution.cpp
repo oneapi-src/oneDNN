@@ -44,10 +44,12 @@ void ref_deconvolution_fwd_t::compute_fwd_bias() const {
     parallel_nd(MB, G, OC, OD, OH, OW,
         [&](int mb, int g, int oc, int od, int oh, int ow) {
             auto b = bias[g * OC + oc];
-            if (ndims == 5)
-                dst[dst_d.off(mb, g*OC + oc, od, oh, ow)] += b;
-            else
-                dst[dst_d.off(mb, g*OC + oc, oh, ow)] += b;
+            switch (ndims) {
+            case 5: dst[dst_d.off(mb, g * OC + oc, od, oh, ow)] += b; break;
+            case 4: dst[dst_d.off(mb, g * OC + oc, oh, ow)] += b; break;
+            case 3: dst[dst_d.off(mb, g * OC + oc, ow)] += b; break;
+            default: assert(!"invalid dimension size");
+            }
     });
 }
 
@@ -114,12 +116,20 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias() const {
             for (int od = 0; od < OD; ++od) {
                 for (int oh = 0; oh < OH; ++oh) {
                     for (int ow = 0; ow < OW; ++ow) {
-                        if (ndims == 5)
-                            db += diff_dst[
-                                diff_dst_d.off(mb, g*OC + oc, od, oh, ow)];
-                        else
-                            db += diff_dst[
-                                diff_dst_d.off(mb, g*OC + oc, oh, ow)];
+                        switch (ndims) {
+                        case 5:
+                            db += diff_dst[diff_dst_d.off(
+                                    mb, g * OC + oc, od, oh, ow)];
+                            break;
+                        case 4:
+                            db += diff_dst[diff_dst_d.off(
+                                    mb, g * OC + oc, oh, ow)];
+                            break;
+                        case 3:
+                            db += diff_dst[diff_dst_d.off(mb, g * OC + oc, ow)];
+                            break;
+                        default: assert(!"invalid dimension size");
+                        }
                     }
                 }
             }
