@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT WITH_TEST)
+if (NOT MKLDNN_BUILD_TESTS)
     return()
 endif()
 

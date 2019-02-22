@@ -158,9 +158,9 @@ you can pass Intel MKL-DNN specific options:
 |:---                   |:---                                  | :---
 |MKLDNN_LIBRARY_TYPE    | **SHARED**, STATIC                   | Defines the resulting library type
 |MKLDNN_THREADING       | **OMP**, OMP:INTEL, OMP:COMP, TBB    | Defines the threading type
-|WITH_EXAMPLE           | **ON**, OFF                          | Controls building the examples
-|WITH_TEST              | **ON**, OFF                          | Controls building the tests
-|ARCH_OPT_FLAGS         | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
+|MKLDNN_BUILD_EXAMPLES  | **ON**, OFF                          | Controls building the examples
+|MKLDNN_BUILD_TESTS     | **ON**, OFF                          | Controls building the tests
+|MKLDNN_ARCH_OPT_FLAGS  | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
 |VTUNEROOT              | *path*                               | Enables integration with Intel(R) VTune(TM) Amplifier
 
 > **WARNING**
@@ -171,7 +171,7 @@ you can pass Intel MKL-DNN specific options:
 > that are instruction-set compatible with the compiling machine.
 >
 > Therefore, if Intel MKL-DNN is to be shipped to other platforms (for example, built by
-> Linux distribution maintainers), consider setting `ARCH_OPT_FLAGS` to `""`.
+> Linux distribution maintainers), consider setting `MKLDNN_ARCH_OPT_FLAGS` to `""`.
 
 For more options and details, check [cmake/options.cmake](cmake/options.cmake).
 

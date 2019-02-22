@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT WITH_EXAMPLE)
+if (NOT MKLDNN_BUILD_EXAMPLES)
     return()
 endif()
 

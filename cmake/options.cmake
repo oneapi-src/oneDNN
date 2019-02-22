@@ -43,8 +43,8 @@ option(MKLDNN_ENABLE_CONCURRENT_EXEC
 
 set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether Intel(R) MKL-DNN library should be SHARED or STATIC")
-option(WITH_EXAMPLE "builds examples"  ON)
-option(WITH_TEST "builds tests" ON)
+option(MKLDNN_BUILD_EXAMPLES "builds examples"  ON)
+option(MKLDNN_BUILD_TESTS "builds tests" ON)
 
 set(MKLDNN_THREADING "OMP" CACHE STRING
     "specifies threading type; supports OMP (default), OMP:COMP, OMP:INTEL, or TBB.
@@ -94,7 +94,7 @@ set(MKLDNN_USE_MKL "DEF" CACHE STRING
 # Optimizations
 # =============
 
-set(ARCH_OPT_FLAGS "HostOpts" CACHE STRING
+set(MKLDNN_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     "specifies compiler optimization flags (see below for more information).
     If empty default optimization level would be applied which depends on the
     compiler being used.
@@ -111,7 +111,7 @@ set(ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     - For all other cases there are no special optimizations flags.
 
     If the library is to be built for generic architecture (e.g. built by a
-    Linux distributive maintainer) one may want to specify ARCH_OPT_FLAGS=\"\"
+    Linux distributive maintainer) one may want to specify MKLDNN_ARCH_OPT_FLAGS=\"\"
     to not use any host specific instructions")
 
 # ======================
