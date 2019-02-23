@@ -350,6 +350,8 @@ inline void yield_thread() {}
 // retrieve the length of the environment variable value string.
 //
 int getenv(const char *name, char *buffer, int buffer_size);
+// Reads an integer from the environment
+int getenv_int(const char *name, int default_value = 0);
 bool jit_dump_enabled();
 FILE *fopen(const char *filename, const char *mode);
 

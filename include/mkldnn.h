@@ -1668,14 +1668,14 @@ mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
  *     This setting overrides the MKLDNN_VERBOSE environment variable. */
 mkldnn_status_t MKLDNN_API mkldnn_set_verbose(int level);
 
-/** Sets jit dump control.
- * dump equals:
- *  - zero -- turn jit dump off (default)
- *  - non-zero -- turn jit dump on
+/** Enables or disables dumping of JIT-generated code.
+ * The enable parameter can be:
+ *  - 0 -- disable
+ *  - any other value -- enable
  *
  * @note
  *     This setting overrides the MKLDNN_JIT_DUMP environment variable. */
-mkldnn_status_t MKLDNN_API mkldnn_set_jit_dump(int dump);
+mkldnn_status_t MKLDNN_API mkldnn_set_jit_dump(int enable);
 
 /** Gets library version information.
  * Version information includes:

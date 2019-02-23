@@ -84,8 +84,10 @@ to path to VTune before building of Intel MKL-DNN. For example:
     $ mkdir -p build && cd build && cmake -DVTUNEROOT=/path/to/vtune .. && make
 ```
 
-## Dump JIT-kernels
-To dump JIT-kernels set MKLDNN_JIT_DUMP environment variable to `1`. For example:
+## Dumping JIT-kernels
+
+To write JIT-kernels code to files, set `MKLDNN_JIT_DUMP` environment variable
+to `1`. For example:
 
 ```
     $ export MKLDNN_JIT_DUMP=1
@@ -94,6 +96,7 @@ To dump JIT-kernels set MKLDNN_JIT_DUMP environment variable to `1`. For example
 
 This will produce the following output files:
 
+```
     mkldnn_dump_jit_uni_reorder_kernel_f32.0.bin
     mkldnn_dump_jit_avx2_conv_fwd_kernel_f32.1.bin
     mkldnn_dump_jit_uni_relu_kernel_f32.2.bin
@@ -102,8 +105,9 @@ This will produce the following output files:
     mkldnn_dump_jit_uni_lrn_fwd_kernel_f32.5.bin
     mkldnn_dump_jit_uni_reorder_kernel_f32.6.bin
     mkldnn_dump_jit_uni_pool_kernel_f32.7.bin
+```
 
-To open these files any disassembler can be used. For example:
+Use any disassembler to view the code. For example:
 
 ```
     $ xed -64 -ir mkldnn_dump_jit_avx2_conv_fwd_kernel_f32.1.bin
@@ -131,5 +135,7 @@ To open these files any disassembler can be used. For example:
     XDIS 56: DATAXFER  AVX        C5FC109E207A0100         vmovups ymm3, ymmword ptr [rsi+0x17a20]
     ...
 ```
+
+Or use `objdump -D -b binary -mi386:x86-64`.
 
 [Legal information](@ref legal_information)

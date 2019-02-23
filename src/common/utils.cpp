@@ -64,20 +64,15 @@ int getenv(const char *name, char *buffer, int buffer_size) {
     return result;
 }
 
-static bool dump_jit_code;
-static bool initialized;
-
-// TODO: move this to jit_utils when possible
-bool jit_dump_enabled() {
-    static bool initialized = false;
-    if (!initialized) {
-        const int len = 2;
-        char env_dump[len] = {0};
-        dump_jit_code = getenv("MKLDNN_JIT_DUMP", env_dump, len) == 1
-            && atoi(env_dump) == 1;
-        initialized = true;
-    }
-    return dump_jit_code;
+int getenv_int(const char *name, int default_value)
+{
+    int value = default_value;
+    // # of digits in the longest 32-bit signed int + sign + terminating null
+    const int len = 12;
+    char value_str[len];
+    if (getenv(name, value_str, len) > 0)
+        value = atoi(value_str);
+    return value;
 }
 
 FILE *fopen(const char *filename, const char *mode) {
@@ -119,13 +114,22 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #endif
 }
 
+static int jit_dump_flag = 0;
+static bool jit_dump_flag_initialized = false;
+bool jit_dump_enabled() {
+    if (!jit_dump_flag_initialized) {
+        jit_dump_flag = getenv_int("MKLDNN_JIT_DUMP");
+        jit_dump_flag_initialized = true;
+    }
+    return jit_dump_flag != 0;
+}
+
 }
 }
 
-mkldnn_status_t mkldnn_set_jit_dump(int dump) {
+mkldnn_status_t mkldnn_set_jit_dump(int enabled) {
     using namespace mkldnn::impl::status;
-    if (dump < 0) return invalid_arguments;
-    mkldnn::impl::dump_jit_code = dump;
-    mkldnn::impl::initialized = true;
+    mkldnn::impl::jit_dump_flag = enabled;
+    mkldnn::impl::jit_dump_flag_initialized = true;
     return success;
 }
