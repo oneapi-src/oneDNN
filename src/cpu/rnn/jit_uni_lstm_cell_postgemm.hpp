@@ -14,62 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-/*
- * Cell execution LSTM
- */
+#ifndef CPU_JIT_LSTM_CELL_POSTGEMM
+#define CPU_JIT_LSTM_CELL_POSTGEMM
 
-#include "rnn_utils.hpp"
-#include "../jit_generator.hpp"
-#include "../jit_uni_eltwise.hpp"
-#include "c_types_map.hpp"
-#include "utils.hpp"
-
-#include "mkldnn_thread.hpp"
-
+#include "jit_uni_rnn_common_postgemm.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_uni_rnn_postgemm_kernel : public jit_generator {
-
-    typedef void (*kernel_t)(void *gates_, const void *bias, void *states_t_l_,
-                     void *c_states_t_l_, void *c_states_tm1_l_);
-
-    jit_uni_rnn_postgemm_kernel(const rnn_utils::rnn_conf_t &rnn, const primitive_attr_t *attr): rnn_(rnn), attr_(attr){}
-
-    virtual void init() = 0;
-
-template <typename src_data_t, typename acc_data_t>
-    rnn_elemwise_sig(execute) {
-        rnn_utils::ws_gates_aoc<acc_data_t> ws_gates(rnn, ws_gates_);
-        rnn_utils::bias_aoc_t bias(rnn, bias_);
-        rnn_utils::ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-        rnn_utils::ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
-        rnn_utils::ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
-
-        // Todo: add parallelization on dic for the batch 1 case
-        // Assumption: the kernel runs a loop on dic elements
-        parallel_nd(rnn.mb, [&](int i) {
-                auto b_ = &bias(0, 0);
-                auto g_ = &ws_gates(i, 0, 0);
-                auto s_tl_ = &states_t_l(i, 0);
-                auto c_tl_ = &c_states_t_l(i, 0);
-                auto c_tm1l_ = &c_states_tm1_l(i, 0);
-                kernel_(g_, b_, s_tl_, c_tm1l_, c_tl_);
-            });
-    }
-
-protected:
-    kernel_t kernel_;
-    const rnn_utils::rnn_conf_t &rnn_;
-    const primitive_attr_t *attr_;
-};
-
 template <cpu_isa_t isa, impl::data_type_t src_data_t>
-struct jit_uni_lstm_postgemm_kernel_fwd: public jit_uni_rnn_postgemm_kernel
+struct jit_uni_lstm_cell_postgemm_fwd: public jit_uni_rnn_postgemm
 {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lstm_postgemm_kernel_fwd)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lstm_cell_postgemm_fwd)
 
     typedef typename utils::conditional<src_data_t == data_type::u8, int32_t,
             float>::type acc_data_t;
@@ -77,8 +34,8 @@ struct jit_uni_lstm_postgemm_kernel_fwd: public jit_uni_rnn_postgemm_kernel
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
 
-    jit_uni_lstm_postgemm_kernel_fwd(const rnn_utils::rnn_conf_t &rnn, const primitive_attr_t *attr)
-    : jit_uni_rnn_postgemm_kernel(rnn, attr){}
+    jit_uni_lstm_cell_postgemm_fwd(const rnn_utils::rnn_conf_t &rnn, const primitive_attr_t *attr)
+    : jit_uni_rnn_postgemm(rnn, attr){}
 
     void init() override {
         // we use rax for both constant tables as they use the same table
@@ -140,12 +97,12 @@ protected:
             uni_vpackuswb(f, f, tmp_vmm); // convert from s16 to u8 with saturation
             // Note that the results are interleaved by 128 bit chunks, so we need to merge them together
             switch (vlen) {
-            case 64:  { //avx512
+            case 64:  { // Intel AVX-512
                 Zmm fz(f.getIdx()), tmpz(tmp_vmm.getIdx());
                 uni_vmovups(tmpz, zmm_perm_mask_addr);
                 vpermd(fz, tmpz, fz);
                 break; }
-            case 32: { //avx
+            case 32: { // Intel AVX
                 Ymm fy(f.getIdx()), tmpy(tmp_vmm.getIdx());
                 uni_vmovups(tmpy, ymm_perm_mask_addr);
                 vpermd(fy, tmpy, fy);
@@ -389,13 +346,16 @@ protected:
 
 };
 
-template struct jit_uni_lstm_postgemm_kernel_fwd<sse42, data_type::f32>;
-template struct jit_uni_lstm_postgemm_kernel_fwd<avx2, data_type::f32>;
-template struct jit_uni_lstm_postgemm_kernel_fwd<avx512_core, data_type::f32>;
+template struct jit_uni_lstm_cell_postgemm_fwd<sse42, data_type::f32>;
+template struct jit_uni_lstm_cell_postgemm_fwd<avx2, data_type::f32>;
+template struct jit_uni_lstm_cell_postgemm_fwd<avx512_core, data_type::f32>;
 
-template struct jit_uni_lstm_postgemm_kernel_fwd<sse42, data_type::u8>;
-template struct jit_uni_lstm_postgemm_kernel_fwd<avx2, data_type::u8>;
-template struct jit_uni_lstm_postgemm_kernel_fwd<avx512_core, data_type::u8>;
+template struct jit_uni_lstm_cell_postgemm_fwd<sse42, data_type::u8>;
+template struct jit_uni_lstm_cell_postgemm_fwd<avx2, data_type::u8>;
+template struct jit_uni_lstm_cell_postgemm_fwd<avx512_core, data_type::u8>;
+
 }
 }
 }
+
+#endif

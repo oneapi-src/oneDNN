@@ -30,7 +30,7 @@
 #include "cpu_rnn_pd.hpp"
 #include "../cpu_primitive.hpp"
 #include "rnn_utils.hpp"
-#include "jit_uni_rnn_postgemm.hpp"
+#include "jit_uni_lstm_cell_postgemm.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -194,14 +194,17 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             cell_func = &class_name::cell_execution;
             if (aprop == prop_kind::forward) {
                 if (mayiuse(avx512_core))
-                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<avx512_core, src_type>(
-                        pd()->rnn_, pd()->attr());
+                    rnn_postgemm_ =
+                        new jit_uni_lstm_cell_postgemm_fwd<avx512_core, src_type>(
+                            pd()->rnn_, pd()->attr());
                 else if (mayiuse(avx2))
-                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<avx2, src_type>(
-                        pd()->rnn_, pd()->attr());
+                    rnn_postgemm_ =
+                        new jit_uni_lstm_cell_postgemm_fwd<avx2, src_type>(
+                            pd()->rnn_, pd()->attr());
                 else if (mayiuse(sse42))
-                    rnn_postgemm_ = new jit_uni_lstm_postgemm_kernel_fwd<sse42, src_type>(
-                        pd()->rnn_, pd()->attr());
+                    rnn_postgemm_ =
+                        new jit_uni_lstm_cell_postgemm_fwd<sse42, src_type>(
+                            pd()->rnn_, pd()->attr());
                 assert(rnn_postgemm_ != nullptr);
                 rnn_postgemm_->init();
             }
@@ -302,7 +305,7 @@ private:
     size_t ws_diff_states_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
-    jit_uni_rnn_postgemm_kernel *rnn_postgemm_;
+    jit_uni_rnn_postgemm *rnn_postgemm_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
