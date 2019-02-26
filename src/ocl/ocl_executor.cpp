@@ -17,6 +17,7 @@
 #include <CL/cl.h>
 
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -31,6 +32,11 @@ ocl_executor_t::ocl_executor_t(ocl_stream_t *stream) : cl_executor_t(stream) {}
 
 status_t ocl_executor_t::parallel_for(
         const cl_nd_range_t &range, const ocl_kernel_t &kernel) {
+    if (mkldnn_verbose()->level >= 4) {
+        printf("[mkldnn_trace] ocl_executor_t::parallel_for: %s\n",
+                range.str().c_str());
+    }
+
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(stream());
     cl_command_queue queue = ocl_stream->queue();
     cl_kernel ocl_kernel = kernel.kernel();

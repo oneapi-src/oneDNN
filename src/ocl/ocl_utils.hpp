@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <initializer_list>
 #include <memory>
+#include <sstream>
 #include <string.h>
 #include <type_traits>
 #include <utility>
@@ -438,6 +439,19 @@ struct cl_nd_range_t {
 
     const size_t *local_range() const {
         return with_local_range_ ? local_range_ : nullptr;
+    }
+
+    std::string str() const {
+        std::stringstream oss;
+        oss << "gws = [" << global_range_[0] << ", " << global_range_[1] << ", "
+            << global_range_[2] << "] lws = ";
+        if (local_range()) {
+            oss << "[" << local_range_[0] << ", " << local_range_[1] << ", "
+                << local_range_[2] << "]";
+        } else {
+            oss << "(nil)";
+        }
+        return oss.str();
     }
 
 private:

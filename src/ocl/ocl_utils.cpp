@@ -16,6 +16,7 @@
 
 #include <CL/cl_ext.h>
 
+#include "common/verbose.hpp"
 #include "ocl/cl_engine.hpp"
 
 #include "ocl/ocl_utils.hpp"
@@ -79,6 +80,11 @@ status_t ocl_jit_t::build(const engine_t *engine) {
     status_t status = ocl_utils::convert_to_mkldnn(err);
     if (status != status::success)
         return status;
+
+    if (mkldnn_verbose()->level >= 4) {
+        printf("[mkldnn_trace] clBuildProgram\n");
+        printf("[mkldnn_trace]     options: %s\n", opt_str);
+    }
 
     err = clBuildProgram(program_, 1, &dev, opt_str, nullptr, nullptr);
 #ifndef NDEBUG
