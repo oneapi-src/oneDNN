@@ -213,20 +213,25 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
         int n{ 0 }, gg{ 0 }, occ{ 0 }, oh_s{ 0 }, owb{ 0 };
-        if (jcp.loop_order == loop_cwgn)
+        switch (jcp.loop_order) {
+        case loop_cwgn:
             nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gg,
                     nb_groups, n, jcp.mb, oh_s, jcp.oh);
-        else if (jcp.loop_order == loop_gncw)
+            break;
+        case loop_gncw:
             nd_iterator_init(start, gg, nb_groups, n, jcp.mb, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
-        else if (jcp.loop_order == loop_ngcw)
+            break;
+        case loop_ngcw:
             nd_iterator_init(start, n, jcp.mb, gg, nb_groups, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
-        else if (jcp.loop_order == loop_nhwcg)
+            break;
+        case loop_nhwcg:
             nd_iterator_init(start, n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow,
                     occ, oc_chunks, gg, nb_groups);
-        else
-            assert(!"unsupported loop order");
+            break;
+        default: assert(!"unsupported loop order");
+        }
         while (start < end) {
             int ocb = occ * jcp.nb_oc_blocking;
             int gb = gg * jcp.nb_ch_blocking;
@@ -284,22 +289,26 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
                 src_w += src_h_stride * jcp.stride_h;
                 dst_w += dst_h_stride;
             }
-            if (jcp.loop_order == loop_cwgn)
+            switch (jcp.loop_order) {
+            case loop_cwgn:
                 nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow, gg,
                         nb_groups, n, jcp.mb, oh_s, jcp.oh);
-            else if (jcp.loop_order == loop_gncw)
+                break;
+            case loop_gncw:
                 nd_iterator_jump(start, end, gg, nb_groups, n, jcp.mb, occ,
                         oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
-            else if (jcp.loop_order == loop_ngcw)
+                break;
+            case loop_ngcw:
                 nd_iterator_jump(start, end, n, jcp.mb, gg, nb_groups, occ,
                         oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
-            else if (jcp.loop_order == loop_nhwcg) {
+                break;
+            case loop_nhwcg:
                 ++start;
                 nd_iterator_step(n, jcp.mb, oh_s, jcp.oh, owb, jcp.nb_ow, occ,
                         oc_chunks, gg, nb_groups);
+                break;
+            default: assert(!"unsupported loop order");
             }
-            else
-                assert(!"unsupported loop order");
         }
     });
 }
