@@ -14,7 +14,9 @@ computational functions (also called primitives) used in deep neural
 networks covering a wide range of applications, including image recognition,
 object detection, semantic segmentation, neural machine translation,
 and speech recognition.
-The table below summarizes the list of supported functions and their variants.
+The tables below summarize the list of supported functions and their variants for CPU and GPU.
+
+## CPU support
 
 | Primitive class   | Primitive                | fp32 training | fp32 inference | int8 inference |
 | :---------------- | :----------------------- | :-----------: | :------------: | :------------: |
@@ -52,6 +54,45 @@ The table below summarizes the list of supported functions and their variants.
 |                   | Sum                      | x             | x              | x              |
 |                   | Concat                   | x             | x              | x              |
 |                   | Shuffle                  | x             | x              | x              |
+
+## GPU support
+
+| Primitive class   | Primitive                | fp32 training | fp32 inference | fp16 inference | int8 inference |
+| :---------------- | :----------------------- | :-----------: | :------------: | :------------: | :------------: |
+| Convolution       | 1D direct convolution    |               |                |                |                |
+|                   | 2D direct convolution    | x             | x              | x              |                |
+|                   | 2D direct deconvolution  |               |                |                |                |
+|                   | 2D winograd convolution  |               |                |                |                |
+|                   | 3D direct convolution    | x             | x              | x              |                |
+|                   | 3D direct deconvolution  |               |                |                |                |
+| Inner Product     | 2D inner product         | x             | x              | x              |                |
+|                   | 3D inner product         | x             | x              | x              |                |
+| RNN               | Vanilla RNN              |               | x              | x              |                |
+|                   | LSTM                     |               | x              | x              |                |
+|                   | GRU                      |               |                |                |                |
+| Pooling           | 2D maximum pooling       | x             | x              | x              |                |
+|                   | 2D average pooling       | x             | x              | x              |                |
+|                   | 3D maximum pooling       | x             | x              | x              |                |
+|                   | 3D average pooling       | x             | x              | x              |                |
+| Normalization     | 2D LRN (within channel)  |               | x              |                |                |
+|                   | 2D LRN (across channels) |               | x              |                |                |
+|                   | 2D batch normalization   | x             | x              |                |                |
+|                   | 3D batch normalization   | x             | x              |                |                |
+| Activation and    | ReLU                     | x             | x              | x              |                |
+| elementwise       | Tanh                     |               |                |                |                |
+| functions         | ELU                      |               |                |                |                |
+|                   | Square                   |               |                |                |                |
+|                   | Sqrt                     |               |                |                |                |
+|                   | Abs                      |               |                |                |                |
+|                   | Linear                   | x             | x              | x              |                |
+|                   | Bounded ReLU             | x             | x              | x              |                |
+|                   | Soft ReLU                | x             | x              | x              |                |
+|                   | Logistic                 | x             | x              | x              |                |
+|                   | Softmax                  |               | x              |                |                |
+| Data manipulation | Reorder                  | x             | x              | x              | x              |
+|                   | Sum                      | x             | x              |                |                |
+|                   | Concat                   | x             | x              | x              | x              |
+|                   | Shuffle                  |               |                |                |                |
 
 ## Programming Model
 
@@ -133,6 +174,10 @@ A walk-through example for implementing an AlexNet topology using the c++ API:
 An introductory example to low-precision 8-bit computations:
 
 * [Int8 SimpleNet Example](@ref ex_int8_simplenet)
+
+Getting started with GPU support:
+
+* [Getting Started with GPU Support](@ref getting_started_gpu)
 
 The following examples are available in the /examples directory and provide more details about the API.
 * Creation of forward primitives

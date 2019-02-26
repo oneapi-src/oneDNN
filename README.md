@@ -13,7 +13,8 @@
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is
 an open-source performance library for deep-learning applications. The library
-accelerates deep-learning applications and frameworks on Intel architecture.
+accelerates deep-learning applications and frameworks on Intel(R) architecture and
+Intel(R) Processor Graphics Architecture.
 Intel MKL-DNN contains vectorized and threaded building blocks that you can
 use to implement deep neural networks (DNN) with C and C++ interfaces.
 
@@ -80,6 +81,7 @@ Please submit your questions, feature requests, and bug reports on the
 **WARNING** The following functionality has preview status and might change
 without prior notification in future releases:
 * Threading Building Blocks (TBB) support
+* Intel(R) Processor Graphics support
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea on how to improve the library:
@@ -106,6 +108,10 @@ Ivy Bridge, Haswell, and Broadwell)
 
 and compatible processors.
 
+Intel MKL-DNN supports Intel(R) Processor Graphics.
+The library is optimized for the systems based on
+* Intel(R) Iris(R) Pro Graphics.
+
 The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
 * [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html#srcbin) 1.8.5 or later
@@ -114,6 +120,9 @@ The software dependencies are:
   * GNU\* OpenMP\*, LLVM OpenMP, or Intel OpenMP
   * Threading Building Blocks (TBB) 2017 or later
   * Intel MKL 2017 Update 1 or Intel MKL small libraries
+
+The additional software dependencies for Intel(R) Processor Graphics support:
+* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl)
 
 > **Note**
 > Building Intel MKL-DNN with optional dependencies may introduce additional
@@ -135,6 +144,13 @@ on macOS\* 10.13 (High Sierra) with
 * Apple LLVM version 9.2 (XCode 9.2)
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   18.0 and 19.0
+
+Intel(R) Processor Graphics support was validated on Ubuntu\* 18.04 with
+* GNU Compiler Collection 5.4 and 8.1
+* Clang\* 3.8.0
+* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+  19.0
+* Intel(R) SDK for OpenCL\* applications version 18.1
 
 The implementation uses OpenMP 4.0 SIMD extensions. We recommend using the
 Intel C++ Compiler for the best performance results.
@@ -265,9 +281,21 @@ supported version.
 
 Configure CMake and create a makefile:
 
+The library can be built in the following configurations:
+
+Configuration with **CPU support (Native backend)**:
+
 ```
 mkdir -p build && cd build && cmake $CMAKE_OPTIONS ..
 ```
+
+Configuration with **CPU support (Native backend) and GPU support (OpenCL backend)**:
+
+```
+mkdir -p build && cd build && cmake -DMKLDNN_GPU_BACKEND=OPENCL $CMAKE_OPTIONS ..
+```
+
+You can use the option `-DOPENCLROOT=...` to specify the path to the OpenCL installation manually.
 
 Build the application:
 
@@ -353,6 +381,7 @@ Intel MKL-DNN was built.
 |:---                   |:---
 |include/mkldnn.h       | C header
 |include/mkldnn.hpp     | C++ header
+|include/mkldnn_config.h| Library configuration file
 |include/mkldnn_types.h | Auxiliary C header
 |lib/libmkldnn.so       | Intel MKL-DNN dynamic library
 |lib/libmkldnn.a        | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
@@ -366,6 +395,7 @@ Intel MKL-DNN was built.
 |:---                     |:---
 |include/mkldnn.h         | C header
 |include/mkldnn.hpp       | C++ header
+|include/mkldnn_config.h  | Library configuration file
 |include/mkldnn_types.h   | Auxiliary C header
 |lib/libmkldnn.dylib      | Intel MKL-DNN dynamic library
 |lib/libmkldnn.a          | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
@@ -407,6 +437,7 @@ Intel MKL-DNN was built.
 |bin\libmklml.dll       | Intel MKL small library (if built with `MKLDNN_USE_MKL=ML`)
 |include\mkldnn.h       | C header
 |include\mkldnn.hpp     | C++ header
+|include\mkldnn_config.h| Library configuration file
 |include\mkldnn_types.h | Auxiliary C header
 |lib\libmkldnn.lib      | Intel MKL-DNN import library
 |lib\libiomp5.lib       | Intel OpenMP\* runtime import library (if built with `MKLDNN_USE_MKL=ML`)
