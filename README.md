@@ -82,6 +82,7 @@ Please submit your questions, feature requests, and bug reports on the
 without prior notification in future releases:
 * Threading Building Blocks (TBB) support
 * Intel(R) Processor Graphics support
+* SYCL\* support
 
 ## How to Contribute
 We welcome community contributions to Intel MKL-DNN. If you have an idea on how to improve the library:
@@ -123,6 +124,13 @@ The software dependencies are:
 
 The additional software dependencies for Intel(R) Processor Graphics support:
 * [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl)
+
+The additional software dependencies for SYCL support:
+* SYCL compiler with SYCL 1.2.1 support:
+    * [ComputeCpp* Compiler](https://developer.codeplay.com/computecppce/) 1.0.3 or later
+    * [Intel(R) Compiler for SYCL\*](https://soco.intel.com/groups/dpc-incremental-releases-for-internal) April 2019 release or later
+* [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl)
+    * Not required for Intel Compiler for SYCL - it is distributed with OpenCL libraries
 
 > **Note**
 > Building Intel MKL-DNN with optional dependencies may introduce additional
@@ -289,13 +297,23 @@ Configuration with **CPU support (Native backend)**:
 mkdir -p build && cd build && cmake $CMAKE_OPTIONS ..
 ```
 
-Configuration with **CPU support (Native backend) and GPU support (OpenCL backend)**:
+Configuration with **CPU support (Native backend)** and **GPU support (OpenCL backend)**:
 
 ```
 mkdir -p build && cd build && cmake -DMKLDNN_GPU_BACKEND=OPENCL $CMAKE_OPTIONS ..
 ```
 
 You can use the option `-DOPENCLROOT=...` to specify the path to the OpenCL installation manually.
+
+Configuration with **CPU support (SYCL backend)** and **GPU support (SYCL backend)**:
+
+```
+export CC=path/to/c/compiler
+export CXX=path/to/cpp/sycl/compiler
+mkdir -p build && cd build && cmake -DMKLDNN_CPU_BACKEND=SYCL -DMKLDNN_GPU_BACKEND=SYCL $CMAKE_OPTIONS ..
+```
+
+You can use the option `-DSYCLROOT=...` to specify the path to the SYCL installation manually.
 
 Build the application:
 

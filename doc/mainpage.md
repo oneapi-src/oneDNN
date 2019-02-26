@@ -179,6 +179,10 @@ Getting started with GPU support:
 
 * [Getting Started with GPU Support](@ref getting_started_gpu)
 
+Getting started with SYCL support:
+
+* [Getting Started with SYCL Support](@ref getting_started_sycl)
+
 The following examples are available in the /examples directory and provide more details about the API.
 * Creation of forward primitives
     - C: simple_net.c
