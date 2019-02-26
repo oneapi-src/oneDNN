@@ -26,9 +26,9 @@ The table below summarizes the list of supported functions and their variants.
 |                   | 3D direct deconvolution  | x             | x              |                |
 | Inner Product     | 2D inner product         | x             | x              | x              |
 |                   | 3D inner product         | x             | x              |                |
-| RNN               | Vanilla RNN cell         | x             | x              | x              |
-|                   | LSTM cell                | x             | x              |                |
-|                   | GRU cell                 | x             | x              |                |
+| RNN               | Vanilla RNN              | x             | x              |                |
+|                   | LSTM                     | x             | x              | x              |
+|                   | GRU                      | x             | x              |                |
 | Pooling           | 2D maximum pooling       | x             | x              | x              |
 |                   | 2D average pooling       | x             | x              | x              |
 |                   | 3D maximum pooling       | x             | x              |                |
@@ -36,19 +36,22 @@ The table below summarizes the list of supported functions and their variants.
 | Normalization     | 2D LRN (within channel)  | x             | x              |                |
 |                   | 2D LRN (across channels) | x             | x              |                |
 |                   | 2D batch normalization   | x             | x              |                |
-|                   | 3D Batch Normalization   | x             | x              |                |
-| Activation        | ReLU                     | x             | x              | x              |
-|                   | Tanh                     |               | x              |                |
-|                   | ELU                      |               | x              |                |
-|                   | Bounded ReLU             |               | x              |                |
-|                   | Soft ReLU                |               | x              |                |
-|                   | Logistic regression      |               | x              |                |
+|                   | 3D batch normalization   | x             | x              |                |
+| Activation and    | ReLU                     | x             | x              | x              |
+| elementwise       | Tanh                     | x             | x              |                |
+| functions         | ELU                      | x             | x              |                |
+|                   | Square                   | x             | x              |                |
+|                   | Sqrt                     | x             | x              |                |
+|                   | Abs                      | x             | x              |                |
+|                   | Linear                   | x             | x              |                |
+|                   | Bounded ReLU             | x             | x              |                |
+|                   | Soft ReLU                | x             | x              |                |
+|                   | Logistic                 | x             | x              |                |
 |                   | Softmax                  | x             | x              |                |
 | Data manipulation | Reorder/quantization     | x             | x              | x              |
 |                   | Sum                      | x             | x              | x              |
 |                   | Concat                   | x             | x              | x              |
-|                   | Elementwise operations   |               | x              |                |
-|                   | Channel Shuffle          | x             | x              | x              |
+|                   | Shuffle                  | x             | x              | x              |
 
 ## Programming Model
 
