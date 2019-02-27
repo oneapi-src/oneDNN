@@ -196,7 +196,7 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
     auto w = const_cast<wei_data_t *>(weights);
     int32_t* compensation = (jcp.signed_input)
                                 ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
-    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk;
     int nb_groups = jcp.nb_ch / jcp.nb_ch_blocking;
     int group_block = jcp.ch_block;
     int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh * jcp.nb_ow;
@@ -218,10 +218,6 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
             nd_iterator_init(start, occ, oc_chunks, owb, jcp.nb_ow, gg,
                     nb_groups, n, jcp.mb, oh_s, jcp.oh);
             break;
-        case loop_gncw:
-            nd_iterator_init(start, gg, nb_groups, n, jcp.mb, occ, oc_chunks,
-                    owb, jcp.nb_ow, oh_s, jcp.oh);
-            break;
         case loop_ngcw:
             nd_iterator_init(start, n, jcp.mb, gg, nb_groups, occ, oc_chunks,
                     owb, jcp.nb_ow, oh_s, jcp.oh);
@@ -233,70 +229,69 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
         default: assert(!"unsupported loop order");
         }
         while (start < end) {
-            int ocb = occ * jcp.nb_oc_blocking;
-            int gb = gg * jcp.nb_ch_blocking;
-            int g = gb * group_block;
-            int g_oc = (g * jcp.nb_oc + ocb) * jcp.oc_block;
+            for (int occ1 = 0; occ1 < jcp.nb_oc_blocking_thr_chunk;
+                occ1 += jcp.nb_oc_blocking) {
+                int ocb = occ * jcp.nb_oc_blocking_thr_chunk + occ1;
+                int gb = gg * jcp.nb_ch_blocking;
+                int g = gb * group_block;
+                int g_oc = (g * jcp.nb_oc + ocb) * jcp.oc_block;
 
-            int g_ic = g * jcp.nb_ic * jcp.ic_block;
+                int g_ic = g * jcp.nb_ic * jcp.ic_block;
 
-            int work_rem = end - start;
-            int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
-            int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
-            if (jcp.loop_order == loop_nhwcg) oh_e = oh_s + 1; // step instead
-            int ow_s = owb * jcp.ow_block;
-            int iw_s = ow_s * jcp.stride_w;
+                int work_rem = end - start;
+                int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
+                int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
+                if (jcp.loop_order == loop_nhwcg)
+                    oh_e = oh_s + 1; // step instead
+                int ow_s = owb * jcp.ow_block;
+                int iw_s = ow_s * jcp.stride_w;
 
-            auto bias_w = bias
-                ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
-                : 0;
-            int32_t *compensation_w = (jcp.signed_input)
-                                                    ? compensation + g_oc : 0;
+                auto bias_w = bias
+                    ? bias + (bias_d.blk_off(g_oc) * bia_dt_size)
+                    : 0;
+                int32_t *compensation_w = (jcp.signed_input)
+                                          ? compensation + g_oc : 0;
 
-            auto dst_w = dst + dst_d.blk_off(n, g_oc, oh_s, ow_s);
-            auto src_w = src + src_d.blk_off(n, g_ic, ih_s, iw_s);
-            auto wht_w = weights + wht_blk_off(weights_d, gb, ocb, 0);
+                auto dst_w = dst + dst_d.blk_off(n, g_oc, oh_s, ow_s);
+                auto src_w = src + src_d.blk_off(n, g_ic, ih_s, iw_s);
+                auto wht_w = weights + wht_blk_off(weights_d, gb, ocb, 0);
 
-            auto scales = &oscales[jcp.is_oc_scale * g_oc];
+                auto scales = &oscales[jcp.is_oc_scale * g_oc];
 
-            for (int oj = oh_s, ij = ih_s; oj < oh_e;
-                ++oj, ij += jcp.stride_h) {
-                int dilate_h = jcp.dilate_h + 1;
-                int i_t_overflow = nstl::min(jcp.kh,
+                for (int oj = oh_s, ij = ih_s; oj < oh_e;
+                    ++oj, ij += jcp.stride_h) {
+                    int dilate_h = jcp.dilate_h + 1;
+                    int i_t_overflow = nstl::min(jcp.kh,
                                                 div_up(max(0, -ij), dilate_h));
-                int i_b_overflow = nstl::min(jcp.kh, div_up(
-                        max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h + 1),
-                        dilate_h));
-                int kh_padding = nstl::max(0,
-                    jcp.kh - i_t_overflow - i_b_overflow);
+                    int i_b_overflow = nstl::min(jcp.kh, div_up(
+                            max(0, ij - jcp.ih + (jcp.kh - 1) * dilate_h + 1),
+                            dilate_h));
+                    int kh_padding = nstl::max(0,
+                        jcp.kh - i_t_overflow - i_b_overflow);
 
-                size_t wei_stride = (!jcp.signed_input)
+                    size_t wei_stride = (!jcp.signed_input)
                                             ? i_t_overflow * wht_h_stride : 0;
-                p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
-                p.dst = dst_w;
-                p.filt = wht_w + wei_stride;
-                p.bias = bias_w;
-                p.compensation = compensation_w;
-                p.oc_blocks = jcp.is_depthwise ? gb : ocb;
-                p.kh_padding = kh_padding;
-                p.scales = scales;
-                p.t_overflow = i_t_overflow;
-                p.b_overflow = i_b_overflow;
-                p.owb = owb;
+                    p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
+                    p.dst = dst_w;
+                    p.filt = wht_w + wei_stride;
+                    p.bias = bias_w;
+                    p.compensation = compensation_w;
+                    p.oc_blocks = jcp.is_depthwise ? gb : ocb;
+                    p.kh_padding = kh_padding;
+                    p.scales = scales;
+                    p.t_overflow = i_t_overflow;
+                    p.b_overflow = i_b_overflow;
+                    p.owb = owb;
 
-                kernel_->jit_ker(&p);
-
-                src_w += src_h_stride * jcp.stride_h;
-                dst_w += dst_h_stride;
+                    kernel_->jit_ker(&p);
+                    src_w += src_h_stride * jcp.stride_h;
+                    dst_w += dst_h_stride;
+                }
             }
             switch (jcp.loop_order) {
             case loop_cwgn:
                 nd_iterator_jump(start, end, occ, oc_chunks, owb, jcp.nb_ow, gg,
                         nb_groups, n, jcp.mb, oh_s, jcp.oh);
-                break;
-            case loop_gncw:
-                nd_iterator_jump(start, end, gg, nb_groups, n, jcp.mb, occ,
-                        oc_chunks, owb, jcp.nb_ow, oh_s, jcp.oh);
                 break;
             case loop_ngcw:
                 nd_iterator_jump(start, end, n, jcp.mb, gg, nb_groups, occ,

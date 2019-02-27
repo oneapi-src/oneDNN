@@ -990,13 +990,41 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     // requirement for all convolutions), or if it results in an unrolling
     // factor smaller than the left padding (special requirement for SSD:fc6),
     // then search for a smaller OC blocking that satisfies both constraints.
-    jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
-    for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--) {
-        int ur_w = jcp.max_regs_ur / (jcp.nb_oc_blocking + 1);
-        if (jcp.nb_oc % jcp.nb_oc_blocking == 0
-                && (jcp.l_pad <= ur_w
-                         && IMPLICATION(jcp.ow != 1, jcp.ow % ur_w != 1)))
+    auto is_oc_blocking_ok = [&](int block) {
+        int ur_w = nstl::min(jcp.ow, jcp.max_regs_ur / (block + 1));
+        return jcp.nb_oc % block == 0
+                && jcp.l_pad <= ur_w && jcp.ow % ur_w != 1;
+    };
+
+    // choose nb_oc work chunk size for distribution within threads
+    int max_threading_nb_oc_chunk = 4;
+    // Performance improvements for googlenet_v3 and resnet_50 with mb = 1;
+    // TODO: generalize this condition and rewrite it in appropriate manner
+    if (jcp.ver == ver_vnni && jcp.mb == 1 && jcp.kh == 3 && jcp.kw == 3
+            && jcp.stride_w == 1 && jcp.ic % 64 == 0)
+        max_threading_nb_oc_chunk = 2;
+    jcp.nb_oc_blocking_thr_chunk =
+        nstl::min(max_threading_nb_oc_chunk, jcp.nb_oc);
+    for (; jcp.nb_oc_blocking_thr_chunk > 1; jcp.nb_oc_blocking_thr_chunk--) {
+        if (is_oc_blocking_ok(jcp.nb_oc_blocking_thr_chunk))
             break;
+    }
+
+    // choose oc blocking for computational kernel
+    jcp.nb_oc_blocking = jcp.nb_oc_blocking_thr_chunk;
+    // Performance improvements for googlenet_v3 with mb = 1;
+    // TODO: generalize this condition and rewrite it in appropriate manner
+    const int size_treshold_for_nb_oc_blocking_reduction = 17;
+    if (jcp.mb == 1 && jcp.ow <= size_treshold_for_nb_oc_blocking_reduction
+            && jcp.stride_w == 1
+            && !(jcp.kh == 1 && jcp.kw == 3)
+            && !(jcp.kh >= 7 && jcp.oc % 64 == 0)) {
+        const int max_nb_oc_blocking = 2;
+        jcp.nb_oc_blocking = nstl::min(max_nb_oc_blocking, jcp.nb_oc);
+        for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
+            if (jcp.nb_oc_blocking_thr_chunk % jcp.nb_oc_blocking == 0
+                && is_oc_blocking_ok(jcp.nb_oc_blocking))
+                break;
     }
 
     jcp.ur_w = jcp.max_regs_ur
@@ -1006,15 +1034,16 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     jcp.ow_block = jcp.ow;
-    int base_work_amount
-            = jcp.mb * jcp.nb_ch * jcp.oh * (jcp.nb_oc / jcp.nb_oc_blocking);
+    int base_work_amount = jcp.mb * jcp.nb_ch * jcp.oh
+                         * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
     float best_thr_eff
             = (float)base_work_amount / rnd_up(base_work_amount, nthreads);
     int max_nb_ow = div_up(jcp.ow, 2 * jcp.ur_w);
     for (int nb_ow = 1; nb_ow <= max_nb_ow; nb_ow++) {
         int ow_block
                 = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), jcp.ur_w), jcp.ow);
-        if (ow_block < jcp.nb_oc_blocking * jcp.oc_block && best_thr_eff > 0.8f)
+        if (ow_block < jcp.nb_oc_blocking_thr_chunk * jcp.oc_block
+             && best_thr_eff > 0.8f)
             break;
         if (div_up(jcp.ow, ow_block) != nb_ow)
             continue;

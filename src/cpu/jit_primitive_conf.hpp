@@ -78,8 +78,11 @@ struct jit_conv_conf_t {
     int nb_ic, ic_block;
     int nb_oc, oc_block;
     int nb_ow, ow_block;
-    int nb_ic_blocking, nb_oc_blocking; // blocking of nb_ic and nb_ic
-    int nb_ic_blocking_max;
+    int nb_oc_blocking; /* used in jit kernels for nb_oc work bloking taking
+                           into account vector registers distribution */
+    int nb_oc_blocking_thr_chunk; /* used for distibution of nb_oc work
+                                      within threads */
+    int nb_ic_blocking, nb_ic_blocking_max; // blocking of nb_ic work
     int nb_ic_L2;
     int h_blocking;
     int nb_oc_L2;
