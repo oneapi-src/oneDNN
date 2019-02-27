@@ -173,6 +173,7 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,
             const primitive_attr_t &attr) :
+        jit_ker(nullptr),
         zmm_kernel_(nullptr),
         ymm_kernel_(nullptr),
         xmm_kernel_(nullptr) {
@@ -201,7 +202,11 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
             }
     }
 
-    ~jit_avx512_core_x8s8s32x_fwd_kernel() {}
+    ~jit_avx512_core_x8s8s32x_fwd_kernel() {
+        delete xmm_kernel_;
+        delete ymm_kernel_;
+        delete zmm_kernel_;
+    }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp,
             const primitive_attr_t &attr);
