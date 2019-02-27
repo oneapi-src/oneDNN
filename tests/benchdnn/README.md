@@ -25,7 +25,7 @@ Usage:
 ```
 where:
 
- - `ENGINE_KIND` -- specifies the engine kind to use for benchmark. Can be `cpu` [default].
+ - `ENGINE_KIND` -- specifies the engine kind to use for benchmark. Can be `cpu` [default] or `gpu`.
 
  - `HARNESS` is either `conv` [default], `ip`, `shuffle`, `reorder`, `bnorm`, `rnn`, or `self`
 
