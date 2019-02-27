@@ -362,7 +362,7 @@ struct jit_1x1_conv_conf_t {
     int reduce_dim, reduce_block, nb_reduce,
         nb_reduce_blocking, nb_reduce_blocking_max;
     int load_dim, load_block, nb_load,
-        nb_load_blocking, nb_load_blocking_max;
+        nb_load_blocking, nb_load_blocking_max, nb_load_chunk;
     int bcast_dim, bcast_block, nb_bcast,
         nb_bcast_blocking, nb_bcast_blocking_max;
 
