@@ -122,7 +122,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
     _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd, const input_vector &inputs,
            const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs, true) {
-        pp_ker_ = new pp_ker_t(apd);
+        pp_ker_ = new pp_ker_t(this->pd());
     }
     ~_gemm_x8s8s32x_convolution_fwd_t() {
         delete pp_ker_;
