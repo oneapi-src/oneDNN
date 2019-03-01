@@ -162,8 +162,6 @@ class Cpu {
                                     || level_type == core_level)
                                 n_cores[level_type - 1] = extractBit(data[1], 0, 15);
                         }
-                        if (n_cores[smt_level - 1] != 0)
-                            n_cores[core_level - 1] /= n_cores[smt_level - 1];
                 } else {
                         /* Failed to deremine num of cores without x2APIC support.
                            TODO: USE initial APIC ID to determine ncores. */
@@ -213,6 +211,8 @@ class Cpu {
 					* (data[2] + 1);
 				if (cacheType == DATA_CACHE && smt_width == 0) smt_width = actual_logical_cores;
 				assert(smt_width != 0);
+				// FIXME: check and fix number of cores sharing L3 cache for different configurations
+				// (HT-, 2 sockets), (HT-, 1 socket), (HT+, 2 sockets), (HT+, 1 socket)
 				cores_sharing_data_cache[data_cache_levels] = (std::max)(actual_logical_cores / smt_width, 1u);
 				data_cache_levels++;
 			}
@@ -243,7 +243,9 @@ public:
             if (topology_level != smt_level
                     && topology_level != core_level) throw Error(ERR_BAD_PARAMETER);
             if (!x2APIC_supported) throw Error(ERR_x2APIC_NOT_SUPPORTED_CANT_GET_NCORES);
-            return n_cores[topology_level - 1];
+            return (topology_level == core_level)
+                ? n_cores[topology_level - 1] / n_cores[smt_level - 1]
+                : n_cores[topology_level - 1];
         }
 
 	unsigned int getDataCacheLevels() const { return data_cache_levels; }
