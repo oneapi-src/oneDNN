@@ -100,7 +100,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     };
 
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
+        : cpu_primitive_t(apd, true)
     { pp_kernel_ = new pp_kernel_t(apd, pd()->dst_is_acc_); }
     ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 

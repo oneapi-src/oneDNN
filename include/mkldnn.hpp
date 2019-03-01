@@ -187,6 +187,15 @@ const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
 ///
 /// @{
 
+enum scratchpad_mode {
+    scratchpad_mode_library = mkldnn_scratchpad_mode_library,
+    scratchpad_mode_user = mkldnn_scratchpad_mode_user,
+};
+
+inline mkldnn_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
+    return static_cast<mkldnn_scratchpad_mode_t>(mode);
+}
+
 enum round_mode {
     round_nearest = mkldnn_round_nearest,
     round_down = mkldnn_round_down,
@@ -388,6 +397,19 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_create(&result),
                 "could not create a primitive attr");
         reset(result);
+    }
+
+    scratchpad_mode get_scratchpad_mode() const {
+        mkldnn_scratchpad_mode_t result;
+        error::wrap_c_api(mkldnn_primitive_attr_get_scratchpad_mode(
+                    get(), &result), "could not get scratchpad mode");
+        return scratchpad_mode(result);
+    }
+
+    void set_scratchpad_mode(scratchpad_mode mode) {
+        error::wrap_c_api(mkldnn_primitive_attr_set_scratchpad_mode(
+                    get(), mkldnn::convert_to_c(mode)),
+                "could not set scratchpad mode");
     }
 
     round_mode get_int_output_round_mode() const {
@@ -1249,6 +1271,14 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
                     mkldnn_query_impl_info_str, 0, &res),
                 "could not query implementation info string");
         return res;
+    }
+
+    /// Queries the memory::dim value (same as int64_t)
+    memory::dim query_s64(query q) const {
+        memory::dim res;
+        mkldnn_status_t status = mkldnn_primitive_desc_query(get(),
+                mkldnn::convert_to_c(q), 0, &res);
+        return status == mkldnn_success ? res : 0;
     }
 
     /// Advances the next implementation for the given op descriptor.

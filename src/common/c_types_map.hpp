@@ -95,6 +95,12 @@ namespace data_type {
     const data_type_t u8 = mkldnn_u8;
 }
 
+using scratchpad_mode_t = mkldnn_scratchpad_mode_t;
+namespace scratchpad_mode {
+    const scratchpad_mode_t library = mkldnn_scratchpad_mode_library;
+    const scratchpad_mode_t user = mkldnn_scratchpad_mode_user;
+}
+
 using round_mode_t = mkldnn_round_mode_t;
 namespace round_mode {
     const round_mode_t nearest = mkldnn_round_nearest;

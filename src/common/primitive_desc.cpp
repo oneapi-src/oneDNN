@@ -38,7 +38,7 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
             *(engine_t**)result = scratchpad_engine(); break;
 
         case query::memory_consumption_s64:
-            *(ptrdiff_t*)result = scratchpad_registry().size(); break;
+            *(dim_t *)result = scratchpad_size(scratchpad_mode::library); break;
 
         case query::op_d:
             if (idx != 0 || op_desc() == nullptr) return invalid_arguments;

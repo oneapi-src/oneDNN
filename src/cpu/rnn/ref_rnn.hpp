@@ -165,7 +165,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     };
 
     _ref_rnn_common_t(const pd_t *apd)
-        : cpu_primitive_t(apd), rnn_postgemm_(nullptr) {
+        : cpu_primitive_t(apd, true), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively

@@ -26,6 +26,41 @@ protected:
     virtual void SetUp() {}
 };
 
+TEST_F(attr_test, TestScratchpadMode) {
+    mkldnn::primitive_attr attr;
+    for (auto m: {scratchpad_mode_library, scratchpad_mode_user}) {
+        attr.set_scratchpad_mode(m);
+        EXPECT_EQ(m, attr.get_scratchpad_mode());
+    }
+}
+
+TEST_F(attr_test, TestScratchpadModeEx) {
+    engine eng(engine::cpu, 0);
+
+    const memory::dim N = 2, C = 2, W = 2;
+
+    memory::desc data_md({N, C, W}, memory::f32, memory::ncw);
+
+    mkldnn::primitive_attr attr;
+    auto softmax_d = softmax_forward::desc(forward_inference, data_md, 1);
+    for (auto m: {scratchpad_mode_library, scratchpad_mode_user}) {
+        attr.set_scratchpad_mode(m);
+        auto softmax_pd = softmax_forward::primitive_desc(
+                softmax_d, attr, eng);
+        auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
+        auto mem_consumption = (long)softmax_pd.query_s64(memory_consumption_s64);
+
+        // printf("scratchpad_size: %ld\n", scratchpad_size);
+        // printf("mem consumption: %ld\n", mem_consumption);
+
+        if (m == scratchpad_mode_library) {
+            EXPECT_EQ(scratchpad_size, 0L);
+        } else {
+            EXPECT_EQ(mem_consumption, 0L);
+        }
+    }
+}
+
 TEST_F(attr_test, TestIntOutputRoundMode) {
     mkldnn::primitive_attr attr;
     for (auto r: {round_nearest, round_down})

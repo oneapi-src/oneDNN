@@ -231,6 +231,17 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_clone(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_destroy(
         mkldnn_primitive_attr_t attr);
 
+/** Returns the scratchpad @p mode set in the attribute @p attr */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_scratchpad_mode(
+        const_mkldnn_primitive_attr_t attr, mkldnn_scratchpad_mode_t *mode);
+
+/** Sets scratchpad @p mode.
+ *
+ * The possible values are: #mkldnn_scratchpad_mode_library (default) and
+ * #mkldnn_scratchpad_mode_user. */
+mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_scratchpad_mode(
+        mkldnn_primitive_attr_t attr, mkldnn_scratchpad_mode_t mode);
+
 /** Returns integer output rounding mode @p round_mode for a given @p attr,
  * previously set by mkldnn_primitive_attr_set_int_output_round_mode. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_int_output_round_mode(

@@ -164,7 +164,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
     jit_avx512_core_fp32_wino_conv_4x3_fwd_t(const pd_t *apd)
         : _jit_avx512_core_fp32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd)
+        , cpu_primitive_t(apd, true)
          {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -246,7 +246,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
     jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(const pd_t *apd)
         : _jit_avx512_core_fp32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd)
+        , cpu_primitive_t(apd, true)
          {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -330,7 +330,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
     };
 
     jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
+        : cpu_primitive_t(apd, true)
         , kernel_(nullptr)
     {
         kernel_ = new jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(

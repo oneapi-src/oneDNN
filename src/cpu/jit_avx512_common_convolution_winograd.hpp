@@ -132,7 +132,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     jit_avx512_common_convolution_winograd_fwd_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<true>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd) {}
+        , cpu_primitive_t(apd, true) {}
 
     ~jit_avx512_common_convolution_winograd_fwd_t(){};
 
@@ -205,7 +205,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<false>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd) {}
+        , cpu_primitive_t(apd, true) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t(){};
 
@@ -275,7 +275,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     };
 
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd), kernel_(nullptr)
+        : cpu_primitive_t(apd, true), kernel_(nullptr)
     {
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
                 pd()->jcp_);

@@ -87,6 +87,18 @@ status_t post_ops_t::append_eltwise(float scale, alg_kind_t alg, float alpha,
     return success;
 }
 
+status_t primitive_attr_t::set_scratchpad_mode(
+        scratchpad_mode_t scratchpad_mode) {
+    using namespace mkldnn::impl::scratchpad_mode;
+
+    const bool ok = one_of(scratchpad_mode, library, user);
+    if (!ok)
+        return invalid_arguments;
+
+    scratchpad_mode_ = scratchpad_mode;
+    return success;
+}
+
 status_t primitive_attr_t::set_round_mode(round_mode_t round_mode) {
     using namespace mkldnn::impl::round_mode;
 
@@ -127,6 +139,24 @@ status_t mkldnn_primitive_attr_destroy(primitive_attr_t *attr) {
         delete attr;
 
     return success;
+}
+
+status_t mkldnn_primitive_attr_get_scratchpad_mode(
+        const primitive_attr_t *attr, scratchpad_mode_t *scratchpad_mode) {
+    if (any_null(attr, scratchpad_mode))
+        return invalid_arguments;
+
+    *scratchpad_mode = attr->scratchpad_mode_;
+
+    return success;
+}
+
+status_t mkldnn_primitive_attr_set_scratchpad_mode(
+        primitive_attr_t *attr, scratchpad_mode_t scratchpad_mode) {
+    if (any_null(attr))
+        return invalid_arguments;
+
+    return attr->set_scratchpad_mode(scratchpad_mode);
 }
 
 status_t mkldnn_primitive_attr_get_int_output_round_mode(

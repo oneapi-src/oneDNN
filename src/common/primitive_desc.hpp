@@ -82,10 +82,17 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     }
 
     virtual void init_scratchpad_md() {
-        auto size = (mkldnn::impl::dim_t)scratchpad_registry().size();
+        auto size = scratchpad_size(mkldnn::impl::scratchpad_mode::user);
         mkldnn::impl::dims_t dims = { size };
         mkldnn_memory_desc_init_by_tag(&scratchpad_md_, size ? 1 : 0, dims,
                 mkldnn::impl::data_type::u8, mkldnn_x);
+    }
+
+    /** returns the scratchpad size for the given scratchpad mode. */
+    mkldnn::impl::dim_t scratchpad_size(
+            mkldnn::impl::scratchpad_mode_t mode) const {
+        if (mode != attr_.scratchpad_mode_) return 0;
+        return scratchpad_registry().size();
     }
 
     virtual int n_inputs() const { return 0; }

@@ -1190,6 +1190,14 @@ typedef const struct mkldnn_primitive_desc *const_mkldnn_primitive_desc_t;
 /** @addtogroup c_api_primitive_attr Primitive descriptor attributes
  * @{ */
 
+/** Scratchpad mode */
+typedef enum {
+    /** The library manages scratchpad (default) */
+    mkldnn_scratchpad_mode_library,
+    /** A user shall query and provide the scratchpad memory to primitives */
+    mkldnn_scratchpad_mode_user,
+} mkldnn_scratchpad_mode_t;
+
 /** @struct mkldnn_primitive_attr
  * @brief An opaque structure for primitive descriptor attributes.
  *
