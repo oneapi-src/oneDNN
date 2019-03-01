@@ -156,6 +156,7 @@ enum {
     key_conv_adjusted_scales,
     key_conv_bia_reduction,
     key_conv_gemm_col,
+    key_conv_gemm_imtr,
     key_conv_int_dat_in_acc_dt,
     key_conv_padded_bias,
     key_conv_rtus_space,

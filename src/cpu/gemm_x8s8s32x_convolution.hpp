@@ -154,6 +154,9 @@ private:
             const char *bias, const float *scales,
             float nslope, float sum_scale, float signed_scale,
             int g, size_t start, size_t end);
+
+        size_t dst_os_stride_;
+
     private:
         void generate();
 
@@ -181,7 +184,6 @@ private:
         bool do_relu_;
         bool do_sum_;
         bool do_signed_scaling_;
-        size_t dst_os_stride_;
         size_t vlen_;
     };
 
