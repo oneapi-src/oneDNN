@@ -84,7 +84,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         eng.reset(new engine(p.engine_kind, 0));
         memory::data_type data_type = data_traits<data_t>::data_type;
-        ASSERT_TRUE(isF32(data_type));
+        ASSERT_TRUE(isF32(data_type) || isS8(data_type));
 
         test_bnorm_sizes_t bs = p.sizes;
         bool has_spatial = (p.formats.data_format != mkldnn_nc);
@@ -115,20 +115,25 @@ protected:
         auto training = prop_kind::forward_training;
         auto inference = prop_kind::forward_inference;
 
-        Forward(training);
-        Forward(training, use_global_stats);
-        Forward(training, use_scale_shift);
-        Forward(training, use_scale_shift | use_global_stats);
-        Forward(inference);
-        Forward(inference, use_global_stats);
-        Forward(inference, use_scale_shift);
+        if (isF32(data_type)) {
+            Forward(training);
+            Forward(training, use_global_stats);
+            Forward(training, use_scale_shift);
+            Forward(training, use_scale_shift | use_global_stats);
+            Forward(inference);
+            Forward(inference, use_global_stats);
+            Forward(inference, use_scale_shift);
 
-        Backward(backward_data);
-        Backward(backward_data, use_global_stats);
-        Backward(backward_data, use_scale_shift);
-        Backward(backward_data, use_scale_shift | use_global_stats);
-        Backward(backward, use_scale_shift);
-        Backward(backward, use_scale_shift | use_global_stats);
+            Backward(backward_data);
+            Backward(backward_data, use_global_stats);
+            Backward(backward_data, use_scale_shift);
+            Backward(backward_data, use_scale_shift | use_global_stats);
+            Backward(backward, use_scale_shift);
+            Backward(backward, use_scale_shift | use_global_stats);
+        } else if (isS8(data_type)) {
+            Forward(inference, use_global_stats);
+            Forward(inference, use_global_stats | use_scale_shift);
+        }
     }
 
     void Forward(prop_kind pk, unsigned flags = 0u) {
@@ -218,6 +223,10 @@ protected:
         return data_type == mkldnn::memory::data_type::f32;
     }
 
+    inline bool isS8(memory::data_type data_type) {
+        return data_type == mkldnn::memory::data_type::s8;
+    }
+
     primitive createBnormFwd(bool isTraining, bool useGlobalStats,
             bool useScaleShift)
     {
@@ -265,6 +274,7 @@ protected:
     void check_bnorm_fwd(const test_bnorm_params_t &p, const memory &src,
             const memory &mean, const memory &variance, const memory &weights,
             const memory &dst, unsigned flags, prop_kind pk) {
+        memory::data_type data_type = data_traits<data_t>::data_type;
         const test_bnorm_sizes_t &bp = p.sizes;
         if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0)
             return;
@@ -308,7 +318,7 @@ protected:
                 ref_mean /= bp.mb * bp.d * bp.h * bp.w;
                 if (is_training) {
                     float mean_norm_max =
-                        std::max(fabs(mean_data[c]), fabs(ref_mean));
+                        std::max(std::abs(mean_data[c]), std::abs(ref_mean));
                     if (mean_norm_max < eps)
                         mean_norm_max = float(1);
                     EXPECT_NEAR((mean_data[c] - ref_mean) / mean_norm_max,
@@ -326,8 +336,8 @@ protected:
                 }
                 ref_variance /= bp.mb * bp.d * bp.h * bp.w;
                 if (is_training) {
-                    float variance_norm_max =
-                        std::max(fabs(variance_data[c]), fabs(ref_variance));
+                    float variance_norm_max = std::max(
+                            std::abs(variance_data[c]), std::abs(ref_variance));
                     if (variance_norm_max < eps)
                         variance_norm_max = float(1);
                     EXPECT_NEAR((variance_data[c] - ref_variance) /
@@ -345,18 +355,27 @@ protected:
                 size_t sdidx = n * padded_c * bp.d * bp.h * bp.w +
                     c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
                 data_t ref_dst = data_t(0);
+                float tmp_dst = float(0);
                 if (use_weights) {
-                    ref_dst = weights_data[map_index(weights_d, c)] *
-                            (src_data[map_index(src_d, sdidx)] - ref_mean) *
-                            ref_rsqrt_variance +
-                            weights_data[map_index(weights_d, bp.c + c)];
+                    tmp_dst = weights_data[map_index(weights_d, c)] *
+                        ((float)src_data[map_index(src_d, sdidx)] - ref_mean) *
+                        ref_rsqrt_variance +
+                        weights_data[map_index(weights_d, bp.c + c)];
                 } else {
-                    ref_dst = (src_data[map_index(src_d, sdidx)] - ref_mean) *
-                        ref_rsqrt_variance;
+                    tmp_dst = ((float)src_data[map_index(src_d, sdidx)] -
+                        ref_mean) * ref_rsqrt_variance;
                 }
+
+                if (isF32(data_type)) {
+                    ref_dst = tmp_dst;
+                } else if (isS8(data_type)) {
+                    ref_dst = out_round<data_t>(
+                        saturate<data_t, float>(tmp_dst));
+                }
+
                 data_t out = dst_data[map_index(dst_d, sdidx)];
-                float norm_max = std::max(fabs(out), fabs(ref_dst));
-                if (norm_max < 1e-2)
+                float norm_max = std::max(std::abs(out), std::abs(ref_dst));
+                if (norm_max < 1e-2 || isS8(data_type))
                     norm_max = 1.;
                 EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
             }
@@ -371,17 +390,17 @@ protected:
         const bool use_weights = flags & use_scale_shift;
         const bool calculate_diff_stats = !(flags & use_global_stats);
 
-        const data_t *src_data = (const data_t *)src.get_data_handle();
-        const data_t *weights_data = use_weights ?
-            (const data_t *)weights.get_data_handle() : nullptr;
-        const data_t *diff_dst_data =
-            (const data_t *)diff_dst.get_data_handle();
-        const data_t *mean_data = (const data_t *)mean.get_data_handle();
-        const data_t *variance_data =
-            (const data_t *)variance.get_data_handle();
-        const data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
-        const data_t *diff_weights_data = (pk == prop_kind::backward) ?
-            (data_t *)diff_weights.get_data_handle() : nullptr;
+        const float *src_data = (const float *)src.get_data_handle();
+        const float *weights_data = use_weights ?
+            (const float *)weights.get_data_handle() : nullptr;
+        const float *diff_dst_data =
+            (const float *)diff_dst.get_data_handle();
+        const float *mean_data = (const float *)mean.get_data_handle();
+        const float *variance_data =
+            (const float *)variance.get_data_handle();
+        const float *diff_src_data = (float *)diff_src.get_data_handle();
+        const float *diff_weights_data = (pk == prop_kind::backward) ?
+            (float *)diff_weights.get_data_handle() : nullptr;
 
         const memory::desc src_d = src.get_primitive_desc().desc();
         const memory::desc diff_dst_d = diff_dst.get_primitive_desc().desc();
@@ -403,18 +422,18 @@ protected:
             return;
         }
 
-        const data_t eps =
-            static_cast<data_t>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
+        const float eps =
+            static_cast<float>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
         size_t padded_c = src.get_primitive_desc().desc().data.layout_desc.
             blocking.padding_dims[1];
         mkldnn::impl::parallel_nd(bp.c, [&](int c) {
-            data_t ref_diff_gamma = data_t(0);
-            data_t ref_diff_beta = data_t(0);
+            float ref_diff_gamma = float(0);
+            float ref_diff_beta = float(0);
 
             auto v_mean = mean_data[c];
             auto v_variance = variance_data[c];
-            const data_t sqrt_variance = data_t(1.0 / sqrt(v_variance + p.epsilon));
+            const float sqrt_variance = 1.0f / sqrt(v_variance + p.epsilon);
 
             auto gamma =
                 use_weights ? weights_data[map_index(weights_d, c)] : 1;
@@ -434,17 +453,18 @@ protected:
             if (pk == backward) {
                 auto diff_gamma =
                     diff_weights_data[map_index(diff_weights_d, c)];
-                data_t norm_max =
-                    std::max(fabs(diff_gamma), fabs(ref_diff_gamma));
+                float norm_max =
+                    std::max(std::abs(diff_gamma), std::abs(ref_diff_gamma));
                 if (norm_max < 10e-3)
-                    norm_max = data_t(1);
+                    norm_max = float(1);
                 EXPECT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
 
                 auto diff_beta =
                     diff_weights_data[map_index(diff_weights_d, bp.c + c)];
-                norm_max = std::max(fabs(diff_beta), fabs(ref_diff_beta));
+                norm_max =
+                    std::max(std::abs(diff_beta), std::abs(ref_diff_beta));
                 if (norm_max < 10e-3)
-                    norm_max = data_t(1);
+                    norm_max = float(1);
                 EXPECT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
@@ -454,7 +474,7 @@ protected:
             for (int w = 0; w < bp.w; w++) {
                 size_t sidx = n * padded_c * bp.d * bp.h * bp.w +
                     c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
-                data_t ref_diff_src =
+                float ref_diff_src =
                     diff_dst_data[map_index(diff_dst_d, sidx)];
                 if (calculate_diff_stats) {
                     ref_diff_src -= ref_diff_beta/(bp.mb*bp.d*bp.h*bp.w)
@@ -462,12 +482,12 @@ protected:
                     *ref_diff_gamma*sqrt_variance/(bp.mb*bp.d*bp.h*bp.w);
                 }
                 ref_diff_src *= gamma*sqrt_variance;
-                data_t out_diff_src =
+                float out_diff_src =
                     diff_src_data[map_index(diff_src_d, sidx)];
-                data_t norm_max =
-                    std::max(fabs(out_diff_src), fabs(ref_diff_src));
+                float norm_max =
+                    std::max(std::abs(out_diff_src), std::abs(ref_diff_src));
                 if (norm_max < eps)
-                    norm_max = data_t(1);
+                    norm_max = float(1);
                 EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
         });

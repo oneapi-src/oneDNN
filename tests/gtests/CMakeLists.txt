@@ -49,6 +49,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp
                               test_batch_normalization_f32.cpp
+                              test_batch_normalization_s8.cpp
                               test_inner_product_forward.cpp
                               test_inner_product_backward_data.cpp
                               test_inner_product_backward_weights.cpp
