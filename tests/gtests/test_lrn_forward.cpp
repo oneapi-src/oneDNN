@@ -146,14 +146,12 @@ protected:
         auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
         std::shared_ptr<memory> workspace;
-        auto scratchpad = memory(lrn_prim_desc.scratchpad_desc(), eng);
 
         // Execute
         auto l = lrn_forward(lrn_prim_desc);
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, l_src.get()},
-            {MKLDNN_ARG_DST, l_dst.get()},
-            {MKLDNN_ARG_SCRATCHPAD, scratchpad}
+            {MKLDNN_ARG_DST, l_dst.get()}
         };
         if (with_workspace) {
             auto workspace_md = lrn_prim_desc.workspace_desc();

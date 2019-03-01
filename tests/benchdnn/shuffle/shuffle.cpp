@@ -136,6 +136,7 @@ int doit(const prb_t *p, res_t *r) {
         return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&s, spd), WARN);
+    DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
 
     const auto fp = p->dt;
     auto &src_dt_d = sd.data_desc;
@@ -149,17 +150,11 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_memory(p, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
 
-    const mkldnn_memory_desc_t *scratchpad_md = mkldnn_primitive_desc_query_md(
-            spd, mkldnn_query_scratchpad_md, 0);
-    auto scratchpad = dnn_mem_t(*scratchpad_md);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
-
     const int i_arg = p->dir == FWD_D ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
     const int o_arg = p->dir == FWD_D ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
     args_t args;
     args.set(i_arg, src_dt.m_);
     args.set(o_arg, dst_dt.m_);
-    args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
 
     DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
 

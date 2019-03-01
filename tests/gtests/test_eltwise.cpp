@@ -291,11 +291,9 @@ protected:
         eltwise_prim_desc.reset(
                 new eltwise_forward::primitive_desc(eltwise_desc, *eng));
 
-        auto scratchpad = memory((*eltwise_prim_desc).scratchpad_desc(), *eng);
         eltwise_forward(*eltwise_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DST, *dst},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DST, *dst}});
 
         check_zero_tail<data_t>(0, *dst);
         check_eltwise_fwd(p, *data_desc, *src, *ref_dst);
@@ -320,12 +318,10 @@ protected:
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
                 eltwise_bwd_desc, *eng, *eltwise_prim_desc);
 
-        auto scratchpad = memory(eltwise_bwd_prim_desc.scratchpad_desc(), *eng);
         eltwise_backward(eltwise_bwd_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, *src},
                 {MKLDNN_ARG_DIFF_DST, *diff_dst},
-                {MKLDNN_ARG_DIFF_SRC, *diff_src},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DIFF_SRC, *diff_src}});
 
         check_zero_tail<data_t>(0, *diff_src);
         check_eltwise_bwd(p, *data_desc, *src, *diff_dst, *diff_src);

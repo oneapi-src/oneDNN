@@ -95,32 +95,20 @@ void simple_net(int times = 100) {
     auto conv1_src_memory = user_src_memory;
     if (conv1_prim_desc.src_desc() != user_src_memory.get_desc()) {
         conv1_src_memory = memory(conv1_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(user_src_memory, conv1_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(user_src_memory, conv1_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, user_src_memory},
-                {MKLDNN_ARG_TO, conv1_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv1_src_memory}});
     }
 
     auto conv1_weights_memory = user_weights_memory;
     if (conv1_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
         conv1_weights_memory = memory(conv1_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                user_weights_memory, conv1_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        reorder(reorder_pd)
-                .execute(s, user_weights_memory, conv1_weights_memory,
-                        reorder_scratchpad_memory);
+        reorder(user_weights_memory, conv1_weights_memory)
+            .execute(s, user_weights_memory, conv1_weights_memory);
     }
 
     auto conv1_dst_memory = memory(conv1_prim_desc.dst_desc(), eng);
-    auto conv1_scratchpad_memory
-            = memory(conv1_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(convolution_forward(conv1_prim_desc));
@@ -128,8 +116,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, conv1_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv1_weights_memory},
             {MKLDNN_ARG_BIAS, conv1_user_bias_memory},
-            {MKLDNN_ARG_DST, conv1_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv1_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
 
     /* AlexNet: relu1
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -141,14 +128,11 @@ void simple_net(int times = 100) {
             algorithm::eltwise_relu, conv1_dst_memory.get_desc(),
             negative1_slope);
     auto relu1_prim_desc = eltwise_forward::primitive_desc(relu1_desc, eng);
-    auto relu1_scratchpad_memory
-            = memory(relu1_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(eltwise_forward(relu1_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv1_dst_memory},
-            {MKLDNN_ARG_DST, conv1_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu1_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
 
     /* AlexNet: lrn1
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -167,13 +151,11 @@ void simple_net(int times = 100) {
             alpha1, beta1, k1);
     auto lrn1_prim_desc = lrn_forward::primitive_desc(lrn1_desc, eng);
     auto lrn1_dst_memory = memory(lrn1_prim_desc.dst_desc(), eng);
-    auto lrn1_scratchpad_memory = memory(lrn1_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(lrn_forward(lrn1_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv1_dst_memory},
-            {MKLDNN_ARG_DST, lrn1_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, lrn1_scratchpad_memory}});
+            {MKLDNN_ARG_DST, lrn1_dst_memory}});
 
     /* AlexNet: pool1
      * {batch, 96, 55, 55} -> {batch, 96, 27, 27}
@@ -195,15 +177,12 @@ void simple_net(int times = 100) {
             padding_kind::zero);
     auto pool1_pd = pooling_forward::primitive_desc(pool1_desc, eng);
     auto pool1_dst_memory = memory(pool1_pd.dst_desc(), eng);
-    auto pool1_scratchpad_memory
-            = memory(pool1_pd.scratchpad_desc(), eng);
 
     /* create pooling primitive an add it to net */
     net.push_back(pooling_forward(pool1_pd));
     net_args.push_back({
             {MKLDNN_ARG_SRC, lrn1_dst_memory},
-            {MKLDNN_ARG_DST, pool1_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, pool1_scratchpad_memory}});
+            {MKLDNN_ARG_DST, pool1_dst_memory}});
 
     /* AlexNet: conv2
     * {batch, 96, 27, 27} (x) {2, 128, 48, 5, 5} -> {batch, 256, 27, 27}
@@ -242,33 +221,21 @@ void simple_net(int times = 100) {
     auto conv2_src_memory = pool1_dst_memory;
     if (conv2_prim_desc.src_desc() != conv2_src_memory.get_desc()) {
         conv2_src_memory = memory(conv2_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(pool1_dst_memory, conv2_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(pool1_dst_memory, conv2_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, pool1_dst_memory},
-                {MKLDNN_ARG_TO, conv2_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv2_src_memory}});
     }
 
     auto conv2_weights_memory = conv2_user_weights_memory;
     if (conv2_prim_desc.weights_desc() != conv2_user_weights_memory.get_desc())
     {
         conv2_weights_memory = memory(conv2_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                conv2_user_weights_memory, conv2_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        reorder(reorder_pd)
-                .execute(s, conv2_user_weights_memory, conv2_weights_memory,
-                        reorder_scratchpad_memory);
+        reorder(conv2_user_weights_memory, conv2_weights_memory)
+            .execute(s, conv2_user_weights_memory, conv2_weights_memory);
     }
 
     auto conv2_dst_memory = memory(conv2_prim_desc.dst_desc(), eng);
-    auto conv2_scratchpad_memory
-            = memory(conv2_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(convolution_forward(conv2_prim_desc));
@@ -276,8 +243,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, conv2_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv2_weights_memory},
             {MKLDNN_ARG_BIAS, conv2_user_bias_memory},
-            {MKLDNN_ARG_DST, conv2_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv2_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     /* AlexNet: relu2
     * {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -289,14 +255,11 @@ void simple_net(int times = 100) {
             algorithm::eltwise_relu, conv2_dst_memory.get_desc(),
             negative2_slope);
     auto relu2_prim_desc = eltwise_forward::primitive_desc(relu2_desc, eng);
-    auto relu2_scratchpad_memory
-            = memory(relu2_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(eltwise_forward(relu2_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv2_dst_memory},
-            {MKLDNN_ARG_DST, conv2_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu2_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     /* AlexNet: lrn2
      * {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -315,13 +278,11 @@ void simple_net(int times = 100) {
             alpha2, beta2, k2);
     auto lrn2_prim_desc = lrn_forward::primitive_desc(lrn2_desc, eng);
     auto lrn2_dst_memory = memory(lrn2_prim_desc.dst_desc(), eng);
-    auto lrn2_scratchpad_memory = memory(lrn2_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(lrn_forward(lrn2_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv2_dst_memory},
-            {MKLDNN_ARG_DST, lrn2_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, lrn2_scratchpad_memory}});
+            {MKLDNN_ARG_DST, lrn2_dst_memory}});
 
     /* AlexNet: pool2
     * {batch, 256, 27, 27} -> {batch, 256, 13, 13}
@@ -343,14 +304,12 @@ void simple_net(int times = 100) {
             padding_kind::zero);
     auto pool2_pd = pooling_forward::primitive_desc(pool2_desc, eng);
     auto pool2_dst_memory = memory(pool2_pd.dst_desc(), eng);
-    auto pool2_scratchpad_memory = memory(pool2_pd.scratchpad_desc(), eng);
 
     /* create pooling primitive an add it to net */
     net.push_back(pooling_forward(pool2_pd));
     net_args.push_back({
             {MKLDNN_ARG_SRC, lrn2_dst_memory},
-            {MKLDNN_ARG_DST, pool2_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, pool2_scratchpad_memory}});
+            {MKLDNN_ARG_DST, pool2_dst_memory}});
 
     // -------
     /* AlexNet: conv3
@@ -390,33 +349,21 @@ void simple_net(int times = 100) {
     auto conv3_src_memory = pool2_dst_memory;
     if (conv3_prim_desc.src_desc() != conv3_src_memory.get_desc()) {
         conv3_src_memory = memory(conv3_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(pool2_dst_memory, conv3_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(pool2_dst_memory, conv3_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, pool2_dst_memory},
-                {MKLDNN_ARG_TO, conv3_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv3_src_memory}});
     }
 
     auto conv3_weights_memory = conv3_user_weights_memory;
     if (conv3_prim_desc.weights_desc() != conv3_user_weights_memory.get_desc())
     {
         conv3_weights_memory = memory(conv3_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                conv3_user_weights_memory, conv3_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        reorder(reorder_pd)
-                .execute(s, conv3_user_weights_memory, conv3_weights_memory,
-                        reorder_scratchpad_memory);
+        reorder(conv3_user_weights_memory, conv3_weights_memory)
+            .execute(s, conv3_user_weights_memory, conv3_weights_memory);
     }
 
     auto conv3_dst_memory = memory(conv3_prim_desc.dst_desc(), eng);
-    auto conv3_scratchpad_memory
-            = memory(conv3_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(convolution_forward(conv3_prim_desc));
@@ -424,8 +371,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, conv3_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv3_weights_memory},
             {MKLDNN_ARG_BIAS, conv3_user_bias_memory},
-            {MKLDNN_ARG_DST, conv3_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv3_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     /* AlexNet: relu3
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -437,14 +383,11 @@ void simple_net(int times = 100) {
             algorithm::eltwise_relu, conv3_dst_memory.get_desc(),
             negative3_slope);
     auto relu3_prim_desc = eltwise_forward::primitive_desc(relu3_desc, eng);
-    auto relu3_scratchpad_memory
-            = memory(relu3_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(eltwise_forward(relu3_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv3_dst_memory},
-            {MKLDNN_ARG_DST, conv3_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu3_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     /* AlexNet: conv4
     * {batch, 384, 13, 13} (x)  {2, 192, 192, 3, 3}; -> {batch, 384, 13,
@@ -484,33 +427,21 @@ void simple_net(int times = 100) {
     auto conv4_src_memory = conv3_dst_memory;
     if (conv4_prim_desc.src_desc() != conv4_src_memory.get_desc()) {
         conv4_src_memory = memory(conv4_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(conv3_dst_memory, conv4_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(conv3_dst_memory, conv4_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, conv3_dst_memory},
-                {MKLDNN_ARG_TO, conv4_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv4_src_memory}});
     }
 
     auto conv4_weights_memory = conv4_user_weights_memory;
     if (conv4_prim_desc.weights_desc() != conv4_user_weights_memory.get_desc())
     {
         conv4_weights_memory = memory(conv4_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                conv4_user_weights_memory, conv4_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
         reorder(conv4_user_weights_memory, conv4_weights_memory)
-                .execute(s, conv4_user_weights_memory, conv4_weights_memory,
-                        reorder_scratchpad_memory);
+            .execute(s, conv4_user_weights_memory, conv4_weights_memory);
     }
 
     auto conv4_dst_memory = memory(conv4_prim_desc.dst_desc(), eng);
-    auto conv4_scratchpad_memory
-            = memory(conv4_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(convolution_forward(conv4_prim_desc));
@@ -518,8 +449,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, conv4_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv4_weights_memory},
             {MKLDNN_ARG_BIAS, conv4_user_bias_memory},
-            {MKLDNN_ARG_DST, conv4_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv4_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     /* AlexNet: relu4
     * {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -531,14 +461,11 @@ void simple_net(int times = 100) {
             algorithm::eltwise_relu, conv4_dst_memory.get_desc(),
             negative4_slope);
     auto relu4_prim_desc = eltwise_forward::primitive_desc(relu4_desc, eng);
-    auto relu4_scratchpad_memory
-            = memory(relu4_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(eltwise_forward(relu4_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv4_dst_memory},
-            {MKLDNN_ARG_DST, conv4_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu4_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     /* AlexNet: conv5
     * {batch, 384, 13, 13} (x)  {2, 128, 192, 3, 3}; -> {batch, 256, 13, 13};
@@ -577,33 +504,21 @@ void simple_net(int times = 100) {
     auto conv5_src_memory = conv4_dst_memory;
     if (conv5_prim_desc.src_desc() != conv5_src_memory.get_desc()) {
         conv5_src_memory = memory(conv5_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(conv4_dst_memory, conv5_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(conv4_dst_memory, conv5_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, conv4_dst_memory},
-                {MKLDNN_ARG_TO, conv5_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv5_src_memory}});
     }
 
     auto conv5_weights_memory = conv5_user_weights_memory;
     if (conv5_prim_desc.weights_desc() != conv5_user_weights_memory.get_desc())
     {
         conv5_weights_memory = memory(conv5_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                conv5_user_weights_memory, conv5_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
         reorder(conv5_user_weights_memory, conv5_weights_memory)
-                .execute(s, conv5_user_weights_memory, conv5_weights_memory,
-                        reorder_scratchpad_memory);
+            .execute(s, conv5_user_weights_memory, conv5_weights_memory);
     }
 
     auto conv5_dst_memory = memory(conv5_prim_desc.dst_desc(), eng);
-    auto conv5_scratchpad_memory
-            = memory(conv5_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(convolution_forward(conv5_prim_desc));
@@ -611,8 +526,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, conv5_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv5_weights_memory},
             {MKLDNN_ARG_BIAS, conv5_user_bias_memory},
-            {MKLDNN_ARG_DST, conv5_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv5_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     /* AlexNet: relu5
     * {batch, 256, 13, 13} -> {batch, 256, 13, 13}
@@ -624,14 +538,11 @@ void simple_net(int times = 100) {
             algorithm::eltwise_relu, conv5_dst_memory.get_desc(),
             negative5_slope);
     auto relu5_prim_desc = eltwise_forward::primitive_desc(relu5_desc, eng);
-    auto relu5_scratchpad_memory
-            = memory(relu5_prim_desc.scratchpad_desc(), eng);
 
     net.push_back(eltwise_forward(relu5_prim_desc));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv5_dst_memory},
-            {MKLDNN_ARG_DST, conv5_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu5_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     /* AlexNet: pool5
     * {batch, 256, 13, 13} -> {batch, 256, 6, 6}
@@ -656,14 +567,12 @@ void simple_net(int times = 100) {
     auto pool5_pd = pooling_forward::primitive_desc(pool5_desc, eng);
 
     auto pool5_dst_memory = memory(pool5_pd.dst_desc(), eng);
-    auto pool5_scratchpad_memory = memory(pool5_pd.scratchpad_desc(), eng);
 
     /* create pooling primitive an add it to net */
     net.push_back(pooling_forward(pool5_pd));
     net_args.push_back({
             {MKLDNN_ARG_SRC, conv5_dst_memory},
-            {MKLDNN_ARG_DST, pool5_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, pool5_scratchpad_memory}});
+            {MKLDNN_ARG_DST, pool5_dst_memory}});
 
     /**
      * fc6 inner product {batch, 256, 6, 6} (x) {4096, 256, 6, 6}-> {batch,
@@ -698,31 +607,20 @@ void simple_net(int times = 100) {
     auto fc6_src_memory = pool5_dst_memory;
     if (fc6_prim_desc.src_desc() != fc6_src_memory.get_desc()) {
         fc6_src_memory = memory(fc6_prim_desc.src_desc(), eng);
-        auto reorder_pd
-                = reorder::primitive_desc(pool5_dst_memory, fc6_src_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(pool5_dst_memory, fc6_src_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, pool5_dst_memory},
-                {MKLDNN_ARG_TO, fc6_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, fc6_src_memory}});
     }
 
     auto fc6_weights_memory = fc6_user_weights_memory;
     if (fc6_prim_desc.weights_desc() != fc6_user_weights_memory.get_desc()) {
         fc6_weights_memory = memory(fc6_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                fc6_user_weights_memory, fc6_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
         reorder(fc6_user_weights_memory, fc6_weights_memory)
-                .execute(s, fc6_user_weights_memory, fc6_weights_memory,
-                        reorder_scratchpad_memory);
+            .execute(s, fc6_user_weights_memory, fc6_weights_memory);
     }
 
     auto fc6_dst_memory = memory(fc6_prim_desc.dst_desc(), eng);
-    auto fc6_scratchpad_memory = memory(fc6_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(inner_product_forward(fc6_prim_desc));
@@ -730,8 +628,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, fc6_src_memory},
             {MKLDNN_ARG_WEIGHTS, fc6_weights_memory},
             {MKLDNN_ARG_BIAS, fc6_user_bias_memory},
-            {MKLDNN_ARG_DST, fc6_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, fc6_scratchpad_memory}});
+            {MKLDNN_ARG_DST, fc6_dst_memory}});
 
     /**
      * fc7 inner product {batch, 4096} (x) {4096, 4096}-> {batch, 4096}
@@ -764,17 +661,11 @@ void simple_net(int times = 100) {
     auto fc7_weights_memory = fc7_user_weights_memory;
     if (fc7_prim_desc.weights_desc() != fc7_user_weights_memory.get_desc()) {
         fc7_weights_memory = memory(fc7_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                fc7_user_weights_memory, fc7_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
         reorder(fc7_user_weights_memory, fc7_weights_memory)
-                .execute(s, fc7_user_weights_memory, fc7_weights_memory,
-                        reorder_scratchpad_memory);
+            .execute(s, fc7_user_weights_memory, fc7_weights_memory);
     }
 
     auto fc7_dst_memory = memory(fc7_prim_desc.dst_desc(), eng);
-    auto fc7_scratchpad_memory = memory(fc7_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(inner_product_forward(fc7_prim_desc));
@@ -782,8 +673,7 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, fc6_dst_memory},
             {MKLDNN_ARG_WEIGHTS, fc7_weights_memory},
             {MKLDNN_ARG_BIAS, fc7_user_bias_memory},
-            {MKLDNN_ARG_DST, fc7_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, fc7_scratchpad_memory}});
+            {MKLDNN_ARG_DST, fc7_dst_memory}});
 
     /**
     * fc8 inner product {batch, 4096} (x) {1000, 4096}-> {batch, 1000}
@@ -817,17 +707,11 @@ void simple_net(int times = 100) {
     auto fc8_weights_memory = fc8_user_weights_memory;
     if (fc8_prim_desc.weights_desc() != fc8_user_weights_memory.get_desc()) {
         fc8_weights_memory = memory(fc8_prim_desc.weights_desc(), eng);
-        auto reorder_pd = reorder::primitive_desc(
-                fc8_user_weights_memory, fc8_weights_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
         reorder(fc8_user_weights_memory, fc8_weights_memory)
-                .execute(s, fc8_user_weights_memory, fc8_weights_memory,
-                        reorder_scratchpad_memory);
+            .execute(s, fc8_user_weights_memory, fc8_weights_memory);
     }
 
     auto fc8_dst_memory = memory(fc8_prim_desc.dst_desc(), eng);
-    auto fc8_scratchpad_memory = memory(fc8_prim_desc.scratchpad_desc(), eng);
 
     /* create convolution primitive and add it to net */
     net.push_back(inner_product_forward(fc8_prim_desc));
@@ -835,21 +719,15 @@ void simple_net(int times = 100) {
             {MKLDNN_ARG_SRC, fc7_dst_memory},
             {MKLDNN_ARG_WEIGHTS, fc8_weights_memory},
             {MKLDNN_ARG_BIAS, fc8_user_bias_memory},
-            {MKLDNN_ARG_DST, fc8_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, fc8_scratchpad_memory}});
+            {MKLDNN_ARG_DST, fc8_dst_memory}});
 
     /* create reorder between internal and user data if it is needed and
      *  add it to net after pooling */
     if (fc8_dst_memory != user_dst_memory) {
-        auto reorder_pd
-                = reorder::primitive_desc(fc8_dst_memory, user_dst_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), eng);
-        net.push_back(reorder(reorder_pd));
+        net.push_back(reorder(fc8_dst_memory, user_dst_memory));
         net_args.push_back({
                 {MKLDNN_ARG_FROM, fc8_dst_memory},
-                {MKLDNN_ARG_TO, user_dst_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, user_dst_memory}});
     }
 
     for (int j = 0; j < times; ++j) {

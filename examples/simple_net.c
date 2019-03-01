@@ -85,7 +85,6 @@ mkldnn_status_t prepare_reorder(
         const mkldnn_memory_desc_t *prim_memory_md, /** in */
         mkldnn_engine_t prim_engine, /** in: primitive's engine */
         int dir_is_user_to_prim, /** in: user -> prim or prim -> user */
-        mkldnn_memory_t *scratchpad_memory, /** out: memory for scratchpad created */
         mkldnn_memory_t *prim_memory, /** out: memory primitive created */
         mkldnn_primitive_t *reorder, /** out: reorder primitive created */
         uint32_t *net_index,  /** primitive index in net (inc if reorder created) */
@@ -115,28 +114,19 @@ mkldnn_status_t prepare_reorder(
                         user_mem_engine, user_memory_md,
                         NULL));
         }
-        const mkldnn_memory_desc_t *scratchpad_md
-                = mkldnn_primitive_desc_query_md(
-                        reorder_pd, mkldnn_query_scratchpad_md, 0);
-        CHECK(mkldnn_memory_create(scratchpad_memory, scratchpad_md,
-                user_mem_engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
         CHECK(mkldnn_primitive_create(reorder, reorder_pd));
         CHECK(mkldnn_primitive_desc_destroy(reorder_pd));
 
         net[*net_index] = *reorder;
-        prepare_arg_node(&net_args[*net_index], 3);
+        prepare_arg_node(&net_args[*net_index], 2);
         set_arg(&net_args[*net_index].args[0], MKLDNN_ARG_FROM,
                 dir_is_user_to_prim ? *user_memory : *prim_memory);
         set_arg(&net_args[*net_index].args[1], MKLDNN_ARG_TO,
                 dir_is_user_to_prim ? *prim_memory : *user_memory);
-        set_arg(&net_args[*net_index].args[2], MKLDNN_ARG_SCRATCHPAD,
-                *scratchpad_memory);
         (*net_index)++;
     } else {
         *prim_memory = NULL;
         *reorder = NULL;
-        *scratchpad_memory = NULL;
     }
 
     return mkldnn_success;
@@ -221,28 +211,17 @@ mkldnn_status_t simple_net() {
     /* create reorder primitives between user data and convolution srcs
      * if required */
     mkldnn_primitive_t conv_reorder_src, conv_reorder_weights;
-    mkldnn_memory_t conv_reorder_src_scratchpad_memory,
-            conv_reorder_weights_scratchpad_memory;
 
-    const mkldnn_memory_desc_t *src_md
-            = mkldnn_primitive_desc_query_md(conv_pd, mkldnn_query_src_md, 0);
+    const mkldnn_memory_desc_t *src_md = mkldnn_primitive_desc_query_md(
+            conv_pd, mkldnn_query_src_md, 0);
     CHECK(prepare_reorder(&conv_user_src_memory, src_md, engine, 1,
-            &conv_reorder_src_scratchpad_memory, &conv_internal_src_memory,
-            &conv_reorder_src, &n, net, net_args));
+            &conv_internal_src_memory, &conv_reorder_src, &n, net, net_args));
 
     const mkldnn_memory_desc_t *weights_md = mkldnn_primitive_desc_query_md(
             conv_pd, mkldnn_query_weights_md, 0);
     CHECK(prepare_reorder(&conv_user_weights_memory, weights_md, engine, 1,
-            &conv_reorder_weights_scratchpad_memory,
             &conv_internal_weights_memory, &conv_reorder_weights, &n, net,
             net_args));
-
-    mkldnn_memory_t conv_scratchpad_memory;
-    const mkldnn_memory_desc_t *conv_scratchpad_md
-            = mkldnn_primitive_desc_query_md(
-                    conv_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&conv_scratchpad_memory, conv_scratchpad_md,
-            engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
 
     mkldnn_memory_t conv_src_memory = conv_internal_src_memory ?
         conv_internal_src_memory : conv_user_src_memory;
@@ -253,12 +232,11 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t conv;
     CHECK(mkldnn_primitive_create(&conv, conv_pd));
     net[n] = conv;
-    prepare_arg_node(&net_args[n], 5);
+    prepare_arg_node(&net_args[n], 4);
     set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, conv_src_memory);
     set_arg(&net_args[n].args[1], MKLDNN_ARG_WEIGHTS, conv_weights_memory);
     set_arg(&net_args[n].args[2], MKLDNN_ARG_BIAS, conv_user_bias_memory);
     set_arg(&net_args[n].args[3], MKLDNN_ARG_DST, conv_internal_dst_memory);
-    set_arg(&net_args[n].args[4], MKLDNN_ARG_SCRATCHPAD, conv_scratchpad_memory);
     n++;
 
     /* AlexNet: relu
@@ -285,21 +263,13 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_create(&relu_dst_memory, relu_dst_md, engine,
                 MKLDNN_NATIVE_HANDLE_ALLOCATE));
 
-    mkldnn_memory_t relu_scratchpad_memory;
-    const mkldnn_memory_desc_t *relu_scratchpad_md
-            = mkldnn_primitive_desc_query_md(
-                    relu_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&relu_scratchpad_memory, relu_scratchpad_md,
-            engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
     /* finally create a relu primitive */
     mkldnn_primitive_t relu;
     CHECK(mkldnn_primitive_create(&relu, relu_pd));
     net[n] = relu;
-    prepare_arg_node(&net_args[n], 3);
+    prepare_arg_node(&net_args[n], 2);
     set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, conv_internal_dst_memory);
     set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, relu_dst_memory);
-    set_arg(&net_args[n].args[2], MKLDNN_ARG_SCRATCHPAD, relu_scratchpad_memory);
     n++;
 
     /* AlexNet: lrn
@@ -338,22 +308,14 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_create(&lrn_ws_memory, lrn_ws_md, engine,
                 MKLDNN_NATIVE_HANDLE_ALLOCATE));
 
-    mkldnn_memory_t lrn_scratchpad_memory;
-    const mkldnn_memory_desc_t *lrn_scratchpad_md
-            = mkldnn_primitive_desc_query_md(
-                    lrn_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&lrn_scratchpad_memory, lrn_scratchpad_md,
-            engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
     /* finally create a lrn primitive */
     mkldnn_primitive_t lrn;
     CHECK(mkldnn_primitive_create(&lrn, lrn_pd));
     net[n] = lrn;
-    prepare_arg_node(&net_args[n], 4);
+    prepare_arg_node(&net_args[n], 3);
     set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, relu_dst_memory);
     set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, lrn_dst_memory);
     set_arg(&net_args[n].args[2], MKLDNN_ARG_WORKSPACE, lrn_ws_memory);
-    set_arg(&net_args[n].args[3], MKLDNN_ARG_SCRATCHPAD, lrn_scratchpad_memory);
     n++;
 
     /* AlexNet: pool
@@ -407,19 +369,9 @@ mkldnn_status_t simple_net() {
         mkldnn_primitive_desc_query_md(pool_pd, mkldnn_query_dst_md, 0);
     n += 1; /* tentative workaround: preserve space for pooling that should
                                      happen before the reorder */
-
-    mkldnn_memory_t pool_reorder_scratchpad_memory;
     CHECK(prepare_reorder(&pool_user_dst_memory, pool_dst_md, engine, 0,
-            &pool_reorder_scratchpad_memory, &pool_internal_dst_memory,
-            &pool_reorder_dst, &n, net, net_args));
+            &pool_internal_dst_memory, &pool_reorder_dst, &n, net, net_args));
     n -= pool_reorder_dst ? 2 : 1;
-
-    mkldnn_memory_t pool_scratchpad_memory;
-    const mkldnn_memory_desc_t *pool_scratchpad_md
-            = mkldnn_primitive_desc_query_md(
-                    pool_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&pool_scratchpad_memory, pool_scratchpad_md,
-            engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
 
     pool_dst_memory = pool_internal_dst_memory
         ? pool_internal_dst_memory : pool_user_dst_memory;
@@ -428,11 +380,10 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_t pool;
     CHECK(mkldnn_primitive_create(&pool, pool_pd));
     net[n] = pool;
-    prepare_arg_node(&net_args[n], 4);
+    prepare_arg_node(&net_args[n], 3);
     set_arg(&net_args[n].args[0], MKLDNN_ARG_SRC, lrn_dst_memory);
     set_arg(&net_args[n].args[1], MKLDNN_ARG_DST, pool_dst_memory);
     set_arg(&net_args[n].args[2], MKLDNN_ARG_WORKSPACE, pool_ws_memory);
-    set_arg(&net_args[n].args[3], MKLDNN_ARG_SCRATCHPAD, pool_scratchpad_memory);
     n++;
 
     if (pool_reorder_dst) n += 1;
@@ -466,9 +417,6 @@ mkldnn_status_t simple_net() {
     mkldnn_memory_destroy(conv_internal_src_memory);
     mkldnn_memory_destroy(conv_internal_weights_memory);
     mkldnn_memory_destroy(conv_internal_dst_memory);
-    mkldnn_memory_destroy(conv_scratchpad_memory);
-    mkldnn_memory_destroy(conv_reorder_src_scratchpad_memory);
-    mkldnn_memory_destroy(conv_reorder_weights_scratchpad_memory);
     mkldnn_primitive_destroy(conv_reorder_src);
     mkldnn_primitive_destroy(conv_reorder_weights);
     mkldnn_primitive_destroy(conv);
@@ -477,19 +425,15 @@ mkldnn_status_t simple_net() {
     free(conv_bias);
 
     mkldnn_memory_destroy(relu_dst_memory);
-    mkldnn_memory_destroy(relu_scratchpad_memory);
     mkldnn_primitive_destroy(relu);
 
     mkldnn_memory_destroy(lrn_ws_memory);
     mkldnn_memory_destroy(lrn_dst_memory);
-    mkldnn_memory_destroy(lrn_scratchpad_memory);
     mkldnn_primitive_destroy(lrn);
 
     mkldnn_memory_destroy(pool_user_dst_memory);
     mkldnn_memory_destroy(pool_internal_dst_memory);
     mkldnn_memory_destroy(pool_ws_memory);
-    mkldnn_memory_destroy(pool_scratchpad_memory);
-    mkldnn_memory_destroy(pool_reorder_scratchpad_memory);
     mkldnn_primitive_destroy(pool_reorder_dst);
     mkldnn_primitive_destroy(pool);
 

@@ -504,9 +504,6 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     mkldnn_primitive_desc_t bpd;
     DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine, NULL),
             WARN);
-    const mkldnn_memory_desc_t *scratchpad_md = mkldnn_primitive_desc_query_md(
-            bpd, mkldnn_query_scratchpad_md, 0);
-    auto scratchpad = dnn_mem_t(*scratchpad_md);
 
     mkldnn_primitive_t b{};
     DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
@@ -518,7 +515,6 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     args.set(MKLDNN_ARG_VARIANCE, var.m_);
     args.set(MKLDNN_ARG_DST, data.m_);
     args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
-    args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
     DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 
@@ -570,9 +566,6 @@ int doit(const prb_t *p, res_t *r) {
         p_ws_dt = new dnn_mem_t();
     }
     dnn_mem_t &ws_dt = *p_ws_dt;
-    const mkldnn_memory_desc_t *scratchpad_md = mkldnn_primitive_desc_query_md(
-            bpd, mkldnn_query_scratchpad_md, 0);
-    auto scratchpad = dnn_mem_t(*scratchpad_md);
 
     DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
@@ -605,7 +598,6 @@ int doit(const prb_t *p, res_t *r) {
         if (p->flags & FUSE_BN_RELU)
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
-        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
         DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
@@ -648,7 +640,6 @@ int doit(const prb_t *p, res_t *r) {
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
         }
 
-        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
         DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
 
         if (bench_mode & CORR) {

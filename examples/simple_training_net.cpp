@@ -97,36 +97,24 @@ void simple_net() {
     auto conv_src_memory = conv_user_src_memory;
     if (conv_pd.src_desc() != conv_user_src_memory.get_desc()) {
         conv_src_memory = memory(conv_pd.src_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                conv_user_src_memory, conv_src_memory);
-        net_fwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_fwd.push_back(reorder(conv_user_src_memory, conv_src_memory));
         net_fwd_args.push_back({
                 {MKLDNN_ARG_FROM, conv_user_src_memory},
-                {MKLDNN_ARG_TO, conv_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv_src_memory}});
     }
 
     auto conv_weights_memory = conv_user_weights_memory;
     if (conv_pd.weights_desc() != conv_user_weights_memory.get_desc()) {
         conv_weights_memory = memory(conv_pd.weights_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                conv_user_weights_memory, conv_weights_memory);
-        net_fwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_fwd.push_back(
+                reorder(conv_user_weights_memory, conv_weights_memory));
         net_fwd_args.push_back({
                 {MKLDNN_ARG_FROM, conv_user_weights_memory},
-                {MKLDNN_ARG_TO, conv_weights_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv_weights_memory}});
     }
 
     /* create memory primitive for conv dst */
     auto conv_dst_memory = memory(conv_pd.dst_desc(), cpu_engine);
-
-    /* create memory primitive for scratchpad */
-    auto conv_scratchpad_memory = memory(conv_pd.scratchpad_desc(), cpu_engine);
 
     /* finally create a convolution primitive */
     net_fwd.push_back(convolution_forward(conv_pd));
@@ -134,8 +122,7 @@ void simple_net() {
             {MKLDNN_ARG_SRC, conv_src_memory},
             {MKLDNN_ARG_WEIGHTS, conv_weights_memory},
             {MKLDNN_ARG_BIAS, conv_user_bias_memory},
-            {MKLDNN_ARG_DST, conv_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv_scratchpad_memory}});
+            {MKLDNN_ARG_DST, conv_dst_memory}});
 
     /* AlexNet: relu
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -152,15 +139,11 @@ void simple_net() {
     /* create relu dst memory primitive */
     auto relu_dst_memory = memory(relu_pd.dst_desc(), cpu_engine);
 
-    /* create memory primitive for scratchpad */
-    auto relu_scratchpad_memory = memory(relu_pd.scratchpad_desc(), cpu_engine);
-
     /* finally create a relu primitive */
     net_fwd.push_back(eltwise_forward(relu_pd));
     net_fwd_args.push_back({
             {MKLDNN_ARG_SRC, conv_dst_memory},
-            {MKLDNN_ARG_DST, relu_dst_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu_scratchpad_memory}});
+            {MKLDNN_ARG_DST, relu_dst_memory}});
 
     /* AlexNet: lrn
      * {batch, 96, 55, 55} -> {batch, 96, 55, 55}
@@ -186,16 +169,12 @@ void simple_net() {
     /* query lrn_pd for workspace, this memory will be shared with forward lrn*/
     auto lrn_workspace_memory = memory(lrn_pd.workspace_desc(), cpu_engine);
 
-    /* create memory primitive for scratchpad */
-    auto lrn_scratchpad_memory = memory(lrn_pd.scratchpad_desc(), cpu_engine);
-
     /* finally create a lrn primitive */
     net_fwd.push_back(lrn_forward(lrn_pd));
     net_fwd_args.push_back({
             {MKLDNN_ARG_SRC, relu_dst_memory},
             {MKLDNN_ARG_DST, lrn_dst_memory},
-            {MKLDNN_ARG_WORKSPACE, lrn_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, lrn_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, lrn_workspace_memory}});
 
     /* AlexNet: pool
      * {batch, 96, 55, 55} -> {batch, 96, 27, 27}
@@ -225,17 +204,13 @@ void simple_net() {
     /* create pooling workspace memory if training */
     auto pool_workspace_memory = memory(pool_pd.workspace_desc(), cpu_engine);
 
-    /* create memory primitive for scratchpad */
-    auto pool_scratchpad_memory = memory(pool_pd.scratchpad_desc(), cpu_engine);
-
     /* create a pooling primitive */
     net_fwd.push_back(pooling_forward(pool_pd));
     /* leave DST unknown for now (see the next reorder) */
     net_fwd_args.push_back({
             {MKLDNN_ARG_SRC, lrn_dst_memory},
             /* delay putting DST until reorder (if needed) */
-            {MKLDNN_ARG_WORKSPACE, pool_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, pool_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, pool_workspace_memory}});
 
     /* create reorder primitive between pool dst and user dst format
      * if needed */
@@ -244,15 +219,10 @@ void simple_net() {
         pool_dst_memory = memory(pool_pd.dst_desc(), cpu_engine);
         net_fwd_args.back().insert({MKLDNN_ARG_DST, pool_dst_memory});
 
-        auto reorder_pd = reorder::primitive_desc(
-                pool_dst_memory, pool_user_dst_memory);
-        net_fwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_fwd.push_back(reorder(pool_dst_memory, pool_user_dst_memory));
         net_fwd_args.push_back({
                 {MKLDNN_ARG_FROM, pool_dst_memory},
-                {MKLDNN_ARG_TO, pool_user_dst_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, pool_user_dst_memory}});
     } else {
         net_fwd_args.back().insert({MKLDNN_ARG_DST, pool_dst_memory});
     }
@@ -286,31 +256,22 @@ void simple_net() {
     auto pool_diff_dst_memory = pool_user_diff_dst_memory;
     if (pool_dst_memory.get_desc() != pool_user_diff_dst_memory.get_desc()) {
         pool_diff_dst_memory = memory(pool_dst_memory.get_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                pool_user_diff_dst_memory, pool_diff_dst_memory);
-        net_bwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_bwd.push_back(
+                reorder(pool_user_diff_dst_memory, pool_diff_dst_memory));
         net_bwd_args.push_back({
                 {MKLDNN_ARG_FROM, pool_user_diff_dst_memory},
-                {MKLDNN_ARG_TO, pool_diff_dst_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, pool_diff_dst_memory}});
     }
 
     /* create memory primitive for pool diff src */
     auto pool_diff_src_memory = memory(pool_bwd_pd.diff_src_desc(), cpu_engine);
-
-    /* create memory primitive for scratchpad */
-    auto pool_bwd_scratchpad_memory
-            = memory(pool_bwd_pd.scratchpad_desc(), cpu_engine);
 
     /* finally create backward pooling primitive */
     net_bwd.push_back(pooling_backward(pool_bwd_pd));
     net_bwd_args.push_back({
             {MKLDNN_ARG_DIFF_DST, pool_diff_dst_memory},
             {MKLDNN_ARG_DIFF_SRC, pool_diff_src_memory},
-            {MKLDNN_ARG_WORKSPACE, pool_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, pool_bwd_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, pool_workspace_memory}});
 
     /* Backward lrn */
     auto lrn_diff_dst_md = lrn_dst_memory.get_desc();
@@ -324,10 +285,6 @@ void simple_net() {
     /* create memory for lrn diff src */
     auto lrn_diff_src_memory = memory(lrn_bwd_pd.diff_src_desc(), cpu_engine);
 
-    /* create memory primitive for scratchpad */
-    auto lrn_bwd_scratchpad_memory
-            = memory(lrn_bwd_pd.scratchpad_desc(), cpu_engine);
-
     /* finally create a lrn backward primitive */
     // backward lrn needs src: relu dst in this topology
     net_bwd.push_back(lrn_backward(lrn_bwd_pd));
@@ -335,8 +292,7 @@ void simple_net() {
             {MKLDNN_ARG_SRC, relu_dst_memory},
             {MKLDNN_ARG_DIFF_DST, pool_diff_src_memory},
             {MKLDNN_ARG_DIFF_SRC, lrn_diff_src_memory},
-            {MKLDNN_ARG_WORKSPACE, lrn_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, lrn_bwd_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, lrn_workspace_memory}});
 
     /* Backward relu */
     auto relu_diff_dst_md = lrn_diff_src_memory.get_desc();
@@ -351,17 +307,12 @@ void simple_net() {
     /* create memory for relu diff src */
     auto relu_diff_src_memory = memory(relu_bwd_pd.diff_src_desc(), cpu_engine);
 
-    /* create memory primitive for scratchpad */
-    auto relu_bwd_scratchpad_memory
-            = memory(relu_bwd_pd.scratchpad_desc(), cpu_engine);
-
     /* finally create a backward relu primitive */
     net_bwd.push_back(eltwise_backward(relu_bwd_pd));
     net_bwd_args.push_back({
             {MKLDNN_ARG_SRC, conv_dst_memory},
             {MKLDNN_ARG_DIFF_DST, lrn_diff_src_memory},
-            {MKLDNN_ARG_DIFF_SRC, relu_diff_src_memory},
-            {MKLDNN_ARG_SCRATCHPAD, relu_bwd_scratchpad_memory}});
+            {MKLDNN_ARG_DIFF_SRC, relu_diff_src_memory}});
 
     /* Backward convolution with respect to weights */
     /* create user format diff weights and diff bias memory */
@@ -399,15 +350,10 @@ void simple_net() {
     auto conv_bwd_src_memory = conv_src_memory;
     if (conv_bwd_weights_pd.src_desc() != conv_src_memory.get_desc()) {
         conv_bwd_src_memory = memory(conv_bwd_weights_pd.src_desc(), cpu_engine);
-        auto reorder_pd
-                = reorder::primitive_desc(conv_src_memory, conv_bwd_src_memory);
-        net_bwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_bwd.push_back(reorder(conv_src_memory, conv_bwd_src_memory));
         net_bwd_args.push_back({
                 {MKLDNN_ARG_FROM, conv_src_memory},
-                {MKLDNN_ARG_TO, conv_bwd_src_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv_bwd_src_memory}});
     }
 
     /* create reorder primitives for diff_dst between diff_src from relu_bwd
@@ -417,20 +363,11 @@ void simple_net() {
     {
         conv_diff_dst_memory
                 = memory(conv_bwd_weights_pd.diff_dst_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                relu_diff_src_memory, conv_diff_dst_memory);
-        net_bwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_bwd.push_back(reorder(relu_diff_src_memory, conv_diff_dst_memory));
         net_bwd_args.push_back({
                 {MKLDNN_ARG_FROM, relu_diff_src_memory},
-                {MKLDNN_ARG_TO, conv_diff_dst_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv_diff_dst_memory}});
     }
-
-    /* create memory primitive for scratchpad */
-    auto conv_bwd_weights_scratchpad_memory
-            = memory(conv_bwd_weights_pd.scratchpad_desc(), cpu_engine);
 
     /* create backward convolution primitive */
     net_bwd.push_back(convolution_backward_weights(conv_bwd_weights_pd));
@@ -438,8 +375,7 @@ void simple_net() {
             {MKLDNN_ARG_SRC, conv_bwd_src_memory},
             {MKLDNN_ARG_DIFF_DST, conv_diff_dst_memory},
             /* delay putting DIFF_WEIGHTS until reorder (if needed) */
-            {MKLDNN_ARG_DIFF_BIAS, conv_diff_bias_memory},
-            {MKLDNN_ARG_SCRATCHPAD, conv_bwd_weights_scratchpad_memory}});
+            {MKLDNN_ARG_DIFF_BIAS, conv_diff_bias_memory}});
 
     /* create reorder primitives between conv diff weights and user diff weights
      * if needed */
@@ -451,15 +387,11 @@ void simple_net() {
         net_bwd_args.back().insert(
                 {MKLDNN_ARG_DIFF_WEIGHTS, conv_diff_weights_memory});
 
-        auto reorder_pd = reorder::primitive_desc(
-                conv_diff_weights_memory, conv_user_diff_weights_memory);
-        net_bwd.push_back(reorder(reorder_pd));
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
+        net_bwd.push_back(reorder(conv_diff_weights_memory,
+                    conv_user_diff_weights_memory));
         net_bwd_args.push_back({
                 {MKLDNN_ARG_FROM, conv_diff_weights_memory},
-                {MKLDNN_ARG_TO, conv_user_diff_weights_memory},
-                {MKLDNN_ARG_SCRATCHPAD, reorder_scratchpad_memory}});
+                {MKLDNN_ARG_TO, conv_user_diff_weights_memory}});
     } else {
         net_bwd_args.back().insert(
                 {MKLDNN_ARG_DIFF_WEIGHTS, conv_diff_weights_memory});

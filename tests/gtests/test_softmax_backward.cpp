@@ -137,10 +137,6 @@ protected:
             = softmax_backward::primitive_desc(softmax_desc, eng, softmax_fwd_pdesc);
         auto softmax_bwd = softmax_backward(softmax_prim_desc);
 
-        auto fwd_scratchpad = memory(softmax_fwd_pdesc.scratchpad_desc(), eng);
-        auto bwd_scratchpad = memory(softmax_prim_desc.scratchpad_desc(), eng);
-
-
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the softmax forward input
             fill_data<data_t>(data_mem_desc.get_size(),
@@ -151,16 +147,11 @@ protected:
             fill_data<data_t>(diff_mem_desc.get_size(),
                     (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
 
-            softmax.execute(strm, {
-                    {MKLDNN_ARG_SRC, src},
-                    {MKLDNN_ARG_DST, dst},
-                    {MKLDNN_ARG_SCRATCHPAD, fwd_scratchpad}});
-
+            softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
             softmax_bwd.execute(strm, {
                     {MKLDNN_ARG_DST, dst},
                     {MKLDNN_ARG_DIFF_DST, diff_dst},
-                    {MKLDNN_ARG_DIFF_SRC, diff_src},
-                    {MKLDNN_ARG_SCRATCHPAD, bwd_scratchpad}});
+                    {MKLDNN_ARG_DIFF_SRC, diff_src}});
 
             check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
         };

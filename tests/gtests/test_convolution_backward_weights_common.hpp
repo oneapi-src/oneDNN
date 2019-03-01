@@ -204,15 +204,12 @@ protected:
             convolution_backward_weights::primitive_desc(
                     conv_bwd_weights_desc, eng, conv_primitive_desc);
 
-        auto scratchpad = memory(
-                conv_bwd_weights_primitive_desc.scratchpad_desc(), eng);
         convolution_backward_weights(conv_bwd_weights_primitive_desc).execute(
                 strm, {
                 {MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
                 {MKLDNN_ARG_SRC, c_src.get()},
                 {MKLDNN_ARG_DIFF_WEIGHTS, c_diff_weights.get()},
-                {MKLDNN_ARG_DIFF_BIAS, c_diff_bias.get()},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DIFF_BIAS, c_diff_bias.get()}});
 
         auto ref_diff_weights = memory(c_diff_weights_desc, eng);
         auto ref_diff_bias = memory(c_diff_bias_desc, eng);

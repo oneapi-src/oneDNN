@@ -175,9 +175,7 @@ protected:
             const mkldnn::impl::memory_desc_wrapper mdw(desc.data);
             for(size_t i = 0; i < n_elems; i++)
                 a_ptr[mdw.off_l(i, false)] = i;
-            auto reorder_pd = reorder::primitive_desc(a, b);
-            auto scratchpad = memory(reorder_pd.scratchpad_desc(), eng);
-            reorder(reorder_pd).execute(strm, a, b, scratchpad);
+            reorder(a, b).execute(strm, a, b);
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
@@ -186,7 +184,6 @@ protected:
         init_tensor(src_layer_ref, src_layer_tgt);
         init_tensor(src_iter_ref, src_iter_tgt);
 
-        auto ref_scratchpad = memory(ref_prim_desc.scratchpad_desc(), eng);
         // run the non packed version
         rnn_forward(ref_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC_LAYER, src_layer_ref},
@@ -195,8 +192,7 @@ protected:
                 {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_ref},
                 {MKLDNN_ARG_BIAS, bias_ref},
                 {MKLDNN_ARG_DST_LAYER, dst_layer_ref},
-                {MKLDNN_ARG_DST_ITER, dst_iter_ref},
-                {MKLDNN_ARG_SCRATCHPAD, ref_scratchpad}});
+                {MKLDNN_ARG_DST_ITER, dst_iter_ref}});
 
         // run the packed version
         rnn_forward::desc tgt_desc(prop_kind::forward_inference, cell,
@@ -204,7 +200,6 @@ protected:
                 weights_layer_md_tgt, weights_iter_md_tgt, bias_md_tgt,
                 dst_layer_md_tgt, dst_iter_md_tgt);
         auto tgt_prim_desc = rnn_forward::primitive_desc(tgt_desc, eng);
-        auto tgt_scratchpad = memory(tgt_prim_desc.scratchpad_desc(), eng);
         rnn_forward(tgt_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC_LAYER, src_layer_tgt},
                 {MKLDNN_ARG_SRC_ITER, src_iter_tgt},
@@ -212,8 +207,7 @@ protected:
                 {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_tgt},
                 {MKLDNN_ARG_BIAS, bias_tgt},
                 {MKLDNN_ARG_DST_LAYER, dst_layer_tgt},
-                {MKLDNN_ARG_DST_ITER, dst_iter_tgt},
-                {MKLDNN_ARG_SCRATCHPAD, tgt_scratchpad}});
+                {MKLDNN_ARG_DST_ITER, dst_iter_tgt}});
 
         // compare dst_layer and dst_iter
         compare_data<data_t>(dst_layer_ref, dst_layer_tgt, 1e-5);

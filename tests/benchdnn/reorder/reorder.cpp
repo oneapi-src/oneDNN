@@ -311,17 +311,11 @@ int check_reorder(const prb_t *p, res_t *res) {
 
         mkldnn_primitive_t perf_r;
         DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd), WARN);
-        const mkldnn_memory_desc_t *scratchpad_md
-                = mkldnn_primitive_desc_query_md(
-                        perf_r_pd, mkldnn_query_scratchpad_md, 0);
-        auto scratchpad = dnn_mem_t(*scratchpad_md);
-
         DNN_SAFE_V(mkldnn_primitive_desc_destroy(perf_r_pd));
 
         args_t args;
         args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.m_);
         args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.m_);
-        args.set(MKLDNN_ARG_SCRATCHPAD, scratchpad.m_);
 
         auto &t = res->timer;
         t.reset();

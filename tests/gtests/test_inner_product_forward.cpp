@@ -156,13 +156,11 @@ protected:
         check_zero_tail<data_t>(1, *ip_src);
         check_zero_tail<data_t>(1, *ip_weights);
 
-        auto scratchpad = memory(ip_primitive_desc.scratchpad_desc(), eng);
         inner_product_forward(ip_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, *ip_src},
                 {MKLDNN_ARG_WEIGHTS, *ip_weights},
                 {MKLDNN_ARG_BIAS, *ip_bias},
-                {MKLDNN_ARG_DST, *ip_dst},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DST, *ip_dst}});
 
         compute_ref_inner_product_fwd<data_t>(ipd, *ip_src, *ip_weights,
                 *ip_bias, *dst_ref);

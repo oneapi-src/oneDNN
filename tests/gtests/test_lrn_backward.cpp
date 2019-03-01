@@ -263,14 +263,11 @@ protected:
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
 
-        auto scratchpad = memory(lrn_fwd_prim_desc->scratchpad_desc(), *eng);
-
         // Execute
         auto l = lrn_forward(*lrn_fwd_prim_desc);
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, src->get()},
-            {MKLDNN_ARG_DST, dst->get()},
-            {MKLDNN_ARG_SCRATCHPAD, scratchpad}
+            {MKLDNN_ARG_DST, dst->get()}
         };
         if (is_training) {
             auto workspace_md = lrn_fwd_prim_desc->workspace_desc();
@@ -309,15 +306,12 @@ protected:
         check_zero_tail<data_t>(1, diff_dst->get());
         check_zero_tail<data_t>(1, diff_src->get());
 
-        auto scratchpad = memory(lrn_prim_desc.scratchpad_desc(), *eng);
-
         // Execute
         lrn_backward(lrn_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, src->get()},
                 {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
                 {MKLDNN_ARG_WORKSPACE, *workspace},
-                {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
 
         check_zero_tail<data_t>(0, diff_src->get());
 

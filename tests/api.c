@@ -172,24 +172,15 @@ void test2() {
 
     /* create a convolution and execute it */
     CHECK(mkldnn_primitive_create(&c3, c3_pd));
-
-    mkldnn_memory_t c3_scratchpad;
-        const mkldnn_memory_desc_t *c3_scratchpad_md
-                = mkldnn_primitive_desc_query_md(
-                        c3_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&c3_scratchpad, c3_scratchpad_md, engine,
-                     MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
     CHECK(mkldnn_primitive_desc_destroy(c3_pd));
 
-    mkldnn_exec_arg_t c3_args[5] = {
+    mkldnn_exec_arg_t c3_args[4] = {
         {MKLDNN_ARG_SRC, c3_src},
         {MKLDNN_ARG_WEIGHTS, c3_weights},
         {MKLDNN_ARG_BIAS, c3_bias},
         {MKLDNN_ARG_DST, c3_dst},
-        {MKLDNN_ARG_SCRATCHPAD, c3_scratchpad}
     };
-    CHECK(mkldnn_primitive_execute(c3, stream, 5, c3_args));
+    CHECK(mkldnn_primitive_execute(c3, stream, 4, c3_args));
     CHECK(mkldnn_primitive_destroy(c3));
 
     /* create a reorder primitive descriptor */
@@ -200,22 +191,13 @@ void test2() {
     /* create a reorder and execute it */
     mkldnn_primitive_t r;
     CHECK(mkldnn_primitive_create(&r, r_pd));
-
-    mkldnn_memory_t r_scratchpad;
-        const mkldnn_memory_desc_t *r_scratchpad_md
-                = mkldnn_primitive_desc_query_md(
-                        r_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&r_scratchpad, r_scratchpad_md, engine,
-                     MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
     CHECK(mkldnn_primitive_desc_destroy(r_pd));
 
-    mkldnn_exec_arg_t r_args[3] = {
+    mkldnn_exec_arg_t r_args[2] = {
         {MKLDNN_ARG_FROM, c3_dst},
         {MKLDNN_ARG_TO, out},
-        {MKLDNN_ARG_SCRATCHPAD, r_scratchpad}
     };
-    CHECK(mkldnn_primitive_execute(r, stream, 3, r_args));
+    CHECK(mkldnn_primitive_execute(r, stream, 2, r_args));
     CHECK(mkldnn_primitive_destroy(r));
 
     /* clean-up */
@@ -224,8 +206,6 @@ void test2() {
     CHECK(mkldnn_memory_destroy(c3_bias));
     CHECK(mkldnn_memory_destroy(c3_dst));
     CHECK(mkldnn_memory_destroy(out));
-    CHECK(mkldnn_memory_destroy(c3_scratchpad));
-    CHECK(mkldnn_memory_destroy(r_scratchpad));
     CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 
@@ -295,28 +275,18 @@ void test3() {
                 l2_pd, mkldnn_query_num_of_outputs_s32, 0) == 1);
 
     CHECK(mkldnn_primitive_create(&l2, l2_pd));
-
-    mkldnn_memory_t scratchpad;
-        const mkldnn_memory_desc_t *scratchpad_md
-                = mkldnn_primitive_desc_query_md(
-                        l2_pd, mkldnn_query_scratchpad_md, 0);
-    CHECK(mkldnn_memory_create(&scratchpad, scratchpad_md, engine,
-                     MKLDNN_NATIVE_HANDLE_ALLOCATE));
-
     CHECK(mkldnn_primitive_desc_destroy(l2_pd));
 
-    mkldnn_exec_arg_t l2_args[3] = {
+    mkldnn_exec_arg_t l2_args[2] = {
         {MKLDNN_ARG_SRC, l2_src},
         {MKLDNN_ARG_DST, l2_dst},
-        {MKLDNN_ARG_SCRATCHPAD, scratchpad}
     };
-    CHECK(mkldnn_primitive_execute(l2, stream, 3, l2_args));
+    CHECK(mkldnn_primitive_execute(l2, stream, 2, l2_args));
     CHECK(mkldnn_primitive_destroy(l2));
 
     /* clean-up */
     CHECK(mkldnn_memory_destroy(l2_src));
     CHECK(mkldnn_memory_destroy(l2_dst));
-    CHECK(mkldnn_memory_destroy(scratchpad));
     CHECK(mkldnn_stream_destroy(stream));
     CHECK(mkldnn_engine_destroy(engine));
 

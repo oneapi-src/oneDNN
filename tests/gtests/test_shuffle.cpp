@@ -137,13 +137,9 @@ protected:
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
 
-        auto scratchpad
-                = memory((*shuffle_fwd_prim_desc).scratchpad_desc(), *eng);
-
         shuffle_forward(*shuffle_fwd_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DST, dst->get()},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DST, dst->get()}});
 
         check_shuffle<data_t>(p, src->get(), dst->get(), p.group_size);
     }
@@ -164,13 +160,10 @@ protected:
         check_zero_tail<data_t>(1, diff_dst->get());
         check_zero_tail<data_t>(1, diff_src->get());
 
-        auto scratchpad = memory(shuffle_prim_desc.scratchpad_desc(), *eng);
-
         // Execute
         shuffle_backward(shuffle_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
 
         const int axis_size = diff_dst_desc->data.dims[p.axis];
         check_shuffle<data_t>(p, diff_dst->get(), diff_src->get(),

@@ -1080,10 +1080,9 @@ struct reorder : public primitive {
     reorder(const memory &src, const memory &dst):
         primitive(primitive_desc(src, dst).get()) {}
 
-    void execute(stream astream, memory &src, memory &dst, memory &scratchpad) {
+    void execute(stream astream, memory &src, memory &dst) {
         primitive::execute(astream,
-                {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst}});
     }
 };
 

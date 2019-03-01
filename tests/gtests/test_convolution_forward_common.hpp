@@ -195,13 +195,11 @@ protected:
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, attr.mkl_attr, eng);
 
-        auto scratchpad = memory(conv_primitive_desc.scratchpad_desc(), eng);
         convolution_forward(conv_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, c_src.get()},
                 {MKLDNN_ARG_WEIGHTS, c_weights.get()},
                 {MKLDNN_ARG_BIAS, c_bias.get()},
-                {MKLDNN_ARG_DST, c_dst.get()},
-                {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {MKLDNN_ARG_DST, c_dst.get()}});
 
         auto ref_memory = memory(c_dst_desc, eng, &ref_dst_data[0]);
         compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(

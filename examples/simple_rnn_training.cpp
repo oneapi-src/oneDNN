@@ -315,13 +315,9 @@ void simple_net() {
             != common_weights_layer_memory.get_desc()) {
         common_weights_layer_memory = mkldnn::memory(
                 leftmost_prim_desc.weights_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                user_common_weights_layer_memory, common_weights_layer_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, user_common_weights_layer_memory,
-                        common_weights_layer_memory, reorder_scratchpad_memory);
+        reorder(user_common_weights_layer_memory, common_weights_layer_memory)
+            .execute(s, user_common_weights_layer_memory,
+                    common_weights_layer_memory);
     }
 
     auto common_weights_iter_memory = user_common_weights_iter_memory;
@@ -329,27 +325,17 @@ void simple_net() {
             != common_weights_iter_memory.get_desc()) {
         common_weights_iter_memory = mkldnn::memory(
                 leftmost_prim_desc.weights_iter_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                user_common_weights_iter_memory, common_weights_iter_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
+        reorder(user_common_weights_iter_memory, common_weights_iter_memory)
                 .execute(s, user_common_weights_iter_memory,
-                        common_weights_iter_memory, reorder_scratchpad_memory);
+                        common_weights_iter_memory);
     }
 
     auto common_bias_memory = user_common_bias_memory;
     if (leftmost_prim_desc.bias_desc() != common_bias_memory.get_desc()) {
-        common_bias_memory
-                = mkldnn::memory(leftmost_prim_desc.bias_desc(), cpu_engine);
-
-        auto reorder_pd = reorder::primitive_desc(
-                user_common_bias_memory, common_bias_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, user_common_bias_memory, common_bias_memory,
-                        reorder_scratchpad_memory);
+        common_bias_memory = mkldnn::memory(
+                leftmost_prim_desc.bias_desc(), cpu_engine);
+        reorder(user_common_bias_memory, common_bias_memory)
+            .execute(s, user_common_bias_memory, common_bias_memory);
     }
 
     //
@@ -361,13 +347,9 @@ void simple_net() {
             != leftmost_dst_layer_memory.get_desc()) {
         leftmost_dst_layer_memory = mkldnn::memory(
                 leftmost_prim_desc.dst_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                user_leftmost_dst_layer_memory, leftmost_dst_layer_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, user_leftmost_dst_layer_memory,
-                        leftmost_dst_layer_memory, reorder_scratchpad_memory);
+        reorder(user_leftmost_dst_layer_memory, leftmost_dst_layer_memory)
+            .execute(s, user_leftmost_dst_layer_memory,
+                    leftmost_dst_layer_memory);
     }
 
     auto rightmost_dst_layer_memory = user_rightmost_dst_layer_memory;
@@ -375,13 +357,9 @@ void simple_net() {
             != rightmost_dst_layer_memory.get_desc()) {
         rightmost_dst_layer_memory = mkldnn::memory(
                 rightmost_prim_desc.dst_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                user_rightmost_dst_layer_memory, rightmost_dst_layer_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, user_rightmost_dst_layer_memory,
-                        rightmost_dst_layer_memory, reorder_scratchpad_memory);
+        reorder(user_rightmost_dst_layer_memory, rightmost_dst_layer_memory)
+            .execute(s, user_rightmost_dst_layer_memory,
+                    rightmost_dst_layer_memory);
     }
 
     // We also create workspace memory based on the information from
@@ -393,12 +371,6 @@ void simple_net() {
     auto leftmost_workspace_memory = create_ws(leftmost_prim_desc);
     auto rightmost_workspace_memory = create_ws(rightmost_prim_desc);
 
-    // Create scratchpad memory
-    auto create_scratchpad = [=](mkldnn::rnn_forward::primitive_desc &pd)
-    { return mkldnn::memory(pd.scratchpad_desc(), cpu_engine); };
-    auto leftmost_scratchpad_memory = create_scratchpad(leftmost_prim_desc);
-    auto rightmost_scratchpad_memory = create_scratchpad(rightmost_prim_desc);
-
     // Construct the RNN primitive objects
     rnn_forward leftmost_layer(leftmost_prim_desc);
     leftmost_layer.execute(s, {
@@ -408,8 +380,7 @@ void simple_net() {
             {MKLDNN_ARG_BIAS, common_bias_memory},
             {MKLDNN_ARG_DST_LAYER, leftmost_dst_layer_memory},
             {MKLDNN_ARG_DST_ITER, leftmost_dst_iter_memory},
-            {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, leftmost_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory}});
 
     rnn_forward rightmost_layer(rightmost_prim_desc);
     rightmost_layer.execute(s, {
@@ -419,8 +390,7 @@ void simple_net() {
             {MKLDNN_ARG_WEIGHTS_ITER, common_weights_iter_memory},
             {MKLDNN_ARG_BIAS, common_bias_memory},
             {MKLDNN_ARG_DST_LAYER, rightmost_dst_layer_memory},
-            {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, rightmost_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory}});
 
     // No backward pass for inference
     if (!is_training) return;
@@ -569,14 +539,9 @@ void simple_net() {
             != leftmost_prim_desc.weights_layer_desc()) {
         common_weights_layer_bwd_memory = memory(
                 leftmost_bwd_prim_desc.weights_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                common_weights_layer_memory, common_weights_layer_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, common_weights_layer_memory,
-                        common_weights_layer_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(common_weights_layer_memory, common_weights_layer_bwd_memory)
+            .execute(s, common_weights_layer_memory,
+                    common_weights_layer_bwd_memory);
     }
 
     auto common_weights_iter_bwd_memory = common_weights_iter_memory;
@@ -584,14 +549,9 @@ void simple_net() {
             != leftmost_prim_desc.weights_iter_desc()) {
         common_weights_iter_bwd_memory = memory(
                 leftmost_bwd_prim_desc.weights_iter_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                common_weights_iter_memory, common_weights_iter_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, common_weights_iter_memory,
-                        common_weights_iter_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(common_weights_iter_memory, common_weights_iter_bwd_memory)
+            .execute(s, common_weights_iter_memory,
+                    common_weights_iter_bwd_memory);
     }
 
     auto common_bias_bwd_memory = common_bias_memory;
@@ -599,13 +559,8 @@ void simple_net() {
             != common_bias_memory.get_desc()) {
         common_bias_bwd_memory = mkldnn::memory(
                 leftmost_bwd_prim_desc.bias_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                common_bias_memory, common_bias_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, common_bias_memory, common_bias_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(common_bias_memory, common_bias_bwd_memory)
+            .execute(s, common_bias_memory, common_bias_bwd_memory);
     }
 
     // diff_weights and biases
@@ -634,14 +589,9 @@ void simple_net() {
             != leftmost_dst_layer_bwd_memory.get_desc()) {
         leftmost_dst_layer_bwd_memory = mkldnn::memory(
                 leftmost_bwd_prim_desc.dst_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                leftmost_dst_layer_memory, leftmost_dst_layer_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, leftmost_dst_layer_memory,
-                        leftmost_dst_layer_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(leftmost_dst_layer_memory, leftmost_dst_layer_bwd_memory).
+            execute(s, leftmost_dst_layer_memory,
+                    leftmost_dst_layer_bwd_memory);
     }
 
     auto rightmost_dst_layer_bwd_memory = rightmost_dst_layer_memory;
@@ -649,14 +599,9 @@ void simple_net() {
             != rightmost_dst_layer_bwd_memory.get_desc()) {
         rightmost_dst_layer_bwd_memory = mkldnn::memory(
                 rightmost_bwd_prim_desc.dst_layer_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                rightmost_dst_layer_memory, rightmost_dst_layer_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, rightmost_dst_layer_memory,
-                        rightmost_dst_layer_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(rightmost_dst_layer_memory, rightmost_dst_layer_bwd_memory)
+            .execute(s, rightmost_dst_layer_memory,
+                    rightmost_dst_layer_bwd_memory);
     }
 
     // Similar to forward, the backward primitives are connected
@@ -669,20 +614,12 @@ void simple_net() {
             != leftmost_dst_iter_bwd_memory.get_desc()) {
         leftmost_dst_iter_bwd_memory = mkldnn::memory(
                 leftmost_bwd_prim_desc.dst_iter_desc(), cpu_engine);
-        auto reorder_pd = reorder::primitive_desc(
-                leftmost_dst_iter_memory, leftmost_dst_iter_bwd_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, leftmost_dst_iter_memory,
-                        leftmost_dst_iter_bwd_memory,
-                        reorder_scratchpad_memory);
+        reorder(leftmost_dst_iter_memory, leftmost_dst_iter_bwd_memory)
+            .execute(s, leftmost_dst_iter_memory, leftmost_dst_iter_bwd_memory);
     }
 
     // Construct the RNN primitive objects for backward
     rnn_backward rightmost_layer_bwd(rightmost_bwd_prim_desc);
-    auto rightmost_bwd_scratchpad_memory = mkldnn::memory(
-            rightmost_bwd_prim_desc.scratchpad_desc(), cpu_engine);
     rightmost_layer_bwd.execute(s, {
             {MKLDNN_ARG_SRC_LAYER, rightmost_src_layer_bwd_memory},
             {MKLDNN_ARG_SRC_ITER, rightmost_src_iter_memory},
@@ -696,12 +633,9 @@ void simple_net() {
             {MKLDNN_ARG_DIFF_WEIGHTS_ITER, common_diff_weights_iter_memory},
             {MKLDNN_ARG_DIFF_BIAS, common_diff_bias_memory},
             {MKLDNN_ARG_DIFF_DST_LAYER, rightmost_diff_dst_layer_memory},
-            {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, rightmost_bwd_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory}});
 
     rnn_backward leftmost_layer_bwd(leftmost_bwd_prim_desc);
-    auto leftmost_bwd_scratchpad_memory = mkldnn::memory(
-            leftmost_bwd_prim_desc.scratchpad_desc(), cpu_engine);
     leftmost_layer_bwd.execute(s, {
             {MKLDNN_ARG_SRC_LAYER, leftmost_src_layer_bwd_memory},
             {MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_bwd_memory},
@@ -715,30 +649,18 @@ void simple_net() {
             {MKLDNN_ARG_DIFF_BIAS, common_diff_bias_memory},
             {MKLDNN_ARG_DIFF_DST_LAYER, leftmost_diff_dst_layer_memory},
             {MKLDNN_ARG_DIFF_DST_ITER, leftmost_diff_dst_iter_memory},
-            {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory},
-            {MKLDNN_ARG_SCRATCHPAD, leftmost_bwd_scratchpad_memory}});
+            {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory}});
 
     if (reorder_common_diff_weights_layer) {
-        auto reorder_pd
-                = reorder::primitive_desc(common_diff_weights_layer_memory,
-                        user_common_diff_weights_layer_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, common_diff_weights_layer_memory,
-                        user_common_diff_weights_layer_memory,
-                        reorder_scratchpad_memory);
+        reorder(common_diff_weights_layer_memory,
+                user_common_diff_weights_layer_memory)
+            .execute(s, common_diff_weights_layer_memory,
+                    user_common_diff_weights_layer_memory);
     }
 
     if (reorder_common_diff_bias) {
-        auto reorder_pd = reorder::primitive_desc(
-                common_diff_bias_memory, user_common_diff_bias_memory);
-        auto reorder_scratchpad_memory
-                = memory(reorder_pd.scratchpad_desc(), cpu_engine);
-        reorder(reorder_pd)
-                .execute(s, common_diff_bias_memory,
-                        user_common_diff_bias_memory,
-                        reorder_scratchpad_memory);
+        reorder(common_diff_bias_memory, user_common_diff_bias_memory)
+            .execute(s, common_diff_bias_memory, user_common_diff_bias_memory);
     }
 
     //
