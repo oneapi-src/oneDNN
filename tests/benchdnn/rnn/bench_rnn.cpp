@@ -35,7 +35,7 @@ mkldnn_prop_kind_t prop = mkldnn_forward;
 alg_t alg = VANILLA_RNN;
 mkldnn_rnn_direction_t direction = mkldnn_unidirectional_left2right;
 activation_t activation = RELU;
-const char *perf_template = "perf,%n,%d,,,%-t,,%0t,";
+const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
 const dt_conf_t *cfg = conf_f32;
 policy_t scale_policy = NONE;
 attr_t attr;
