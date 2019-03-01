@@ -215,7 +215,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
 int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32,
-            is_3d(p) ? mkldnn_goihw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw);
+            is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw);
 
     const auto &c = p->cfg[WEI];
     const int range = c.f_max - c.f_min + 1;
