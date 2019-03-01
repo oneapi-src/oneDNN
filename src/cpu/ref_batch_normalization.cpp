@@ -31,21 +31,21 @@ template <impl::data_type_t data_type>
 void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     /* FIXME: check this */
-    data_t* mean = pd()->stats_is_src() ?
-        const_cast<data_t*>(reinterpret_cast<const data_t*>(
+    data_t *mean = pd()->stats_is_src() ?
+        const_cast<data_t *>(reinterpret_cast<const data_t *>(
                this->input_memory(1))) :
-        reinterpret_cast<data_t*>(this->memory(1));
+        reinterpret_cast<data_t *>(this->memory(1));
 
-    data_t* variance = pd()->stats_is_src() ?
-        const_cast<data_t*>(reinterpret_cast<const data_t*>(
+    data_t *variance = pd()->stats_is_src() ?
+        const_cast<data_t *>(reinterpret_cast<const data_t *>(
                 this->input_memory(2))) :
-        reinterpret_cast<data_t*>(this->memory(2));
+        reinterpret_cast<data_t *>(this->memory(2));
 
     auto idx_scaleshift = 1 + 2*pd()->stats_is_src();
     auto scaleshift =
         reinterpret_cast<const data_t *>(this->input_memory(idx_scaleshift));
 
-    auto dst = reinterpret_cast<data_t*>(this->memory(0));
+    auto dst = reinterpret_cast<data_t *>(this->memory(0));
     auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
 
     /* fast return */
@@ -57,9 +57,8 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     const int N = pd()->MB();
     const int C = pd()->C();
     int H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 4 ,5);
-    if (has_spatial)
-    {
+    const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
+    if (has_spatial) {
         D = pd()->D();
         H = pd()->H();
         W = pd()->W();
@@ -78,14 +77,15 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     };
     const bool is_3d = data_d.ndims() == 5;
 
-    auto data_offset = [&] (const memory_desc_wrapper &data_d, int n, int c, int d,
-            int h, int w) {
-        if (has_spatial)
-        {
-            if (is_3d) return data_d.off(n, c, d, h, w);
-            else return data_d.off(n, c, h, w);
-        }
-        else return data_d.off(n, c);
+    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c,
+            int d, int h, int w) {
+        if (has_spatial) {
+            if (is_3d)
+                return data_d.off(n, c, d, h, w);
+            else
+                return data_d.off(n, c, h, w);
+        } else
+            return data_d.off(n, c);
     };
 
     parallel_nd(C, [&](int c) {
@@ -106,7 +106,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
             for (int d = 0; d < D; ++d)
             for (int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
-                data_t m = src[data_offset(data_d,n,c,d,h,w)] - v_mean;
+                data_t m = src[data_offset(data_d, n, c, d, h, w)] - v_mean;
                 v_variance += m*m;
             }
             v_variance /= W*H*N*D;
@@ -119,7 +119,7 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
         for (int d = 0; d < D; ++d)
         for (int h = 0; h < H; ++h)
         for (int w = 0; w < W; ++w) {
-            auto d_off = data_offset(data_d,n,c,d,h,w);
+            auto d_off = data_offset(data_d, n, c, d, h, w);
             data_t bn_res = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
             if (fuse_bn_relu) {
                 if (bn_res <= 0) {
@@ -155,7 +155,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
     auto ws = reinterpret_cast<const uint8_t *>(
             this->input_memory(pd()->ws_idx()));
 
-    auto diff_src = reinterpret_cast<data_t*>(this->memory(0));
+    auto diff_src = reinterpret_cast<data_t *>(this->memory(0));
     auto diff_scaleshift = reinterpret_cast<data_t *>(this->memory(1));
 
     const memory_desc_wrapper data_d(pd()->src_pd());
@@ -180,9 +180,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
 
     const int N = pd()->MB();
     int H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 4 ,5);
-    if (has_spatial)
-    {
+    const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
+    if (has_spatial) {
         D = pd()->D();
         H = pd()->H();
         W = pd()->W();
@@ -195,14 +194,15 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
 
     const bool is_3d = data_d.ndims() == 5;
 
-    auto data_offset = [&] (const memory_desc_wrapper &data_d, int n, int c, int d,
-            int h, int w) {
-        if (has_spatial)
-        {
-            if (is_3d) return data_d.off(n, c, d, h, w);
-            else return data_d.off(n, c, h, w);
-        }
-        else return data_d.off(n, c);
+    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c,
+            int d, int h, int w) {
+        if (has_spatial) {
+            if (is_3d)
+                return data_d.off(n, c, d, h, w);
+            else
+                return data_d.off(n, c, h, w);
+        } else
+            return data_d.off(n, c);
     };
 
     parallel_nd(C, [&](int c) {
