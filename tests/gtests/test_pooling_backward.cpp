@@ -230,8 +230,7 @@ private:
     std::shared_ptr<memory> workspace;
     std::shared_ptr<pooling_forward::primitive_desc> pool_prim_desc;
     pool_bwd_test_params p;
-    memory::dims padR_3d;
-    memory::dims padR_2d;
+    memory::dims strides, ker, pad_l, pad_r;
     std::shared_ptr<engine> eng;
     std::shared_ptr<stream> strm;
     memory::data_type data_type;
@@ -267,16 +266,24 @@ protected:
                 { pd.mb, pd.c, pd.oh, pd.ow }, data_type, p.diff_dst_format));
         }
 
-        // calculate right padding exactly
-        padR_2d = {
-            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
-            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
-        };
-        padR_3d = {
-            right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
-            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
-            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
-        };
+        if (p.ndims == 5) {
+            strides = memory::dims({pd.strd, pd.strh, pd.strw});
+            ker = memory::dims({pd.kd, pd.kh, pd.kw});
+            pad_l = memory::dims({pd.padf, pd.padt, pd.padl});
+            pad_r = memory::dims({
+                right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
+                right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+                right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
+            });
+        } else {
+            strides = memory::dims({pd.strh, pd.strw});
+            ker = memory::dims({pd.kh, pd.kw});
+            pad_l = memory::dims({pd.padt, pd.padl});
+            pad_r = memory::dims({
+                right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+                right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
+            });
+        }
 
         Forward();
         Backward();
@@ -287,19 +294,9 @@ protected:
         std::shared_ptr<memory> src;
         std::shared_ptr<memory> dst;
 
-        test_pool_bwd_desc_t pd = p.test_pd;
-
-        auto pool_desc = (p.ndims == 5)
-            ? pooling_forward::desc(prop_kind::forward_training,
-                    p.aalgorithm, *src_desc, *dst_desc,
-                    {pd.strd, pd.strh, pd.strw},
-                    {pd.kd, pd.kh, pd.kw}, {pd.padf, pd.padt, pd.padl},
-                    padR_3d, padding_kind::zero)
-            : pooling_forward::desc(prop_kind::forward_training,
-                    p.aalgorithm, *src_desc, *dst_desc, {pd.strh, pd.strw},
-                    {pd.kh, pd.kw}, {pd.padt, pd.padl}, padR_2d,
-                    padding_kind::zero);
-
+        auto pool_desc = pooling_forward::desc(prop_kind::forward_training,
+                p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l, pad_r,
+                padding_kind::zero);
         pool_prim_desc.reset(
                 new pooling_forward::primitive_desc(pool_desc, *eng));
 
@@ -332,16 +329,8 @@ protected:
         std::shared_ptr<memory> diff_src;
         std::shared_ptr<memory> diff_dst;
 
-        test_pool_bwd_desc_t pd = p.test_pd;
-
-        auto pool_bwd_desc = (p.ndims == 5)
-            ? pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
-                    {pd.strd, pd.strh, pd.strw}, {pd.kd, pd.kh, pd.kw},
-                    {pd.padf, pd.padt, pd.padl}, padR_3d, padding_kind::zero)
-        : pooling_backward::desc(p.aalgorithm, *src_desc, *dst_desc,
-                {pd.strh, pd.strw}, {pd.kh, pd.kw}, {pd.padt, pd.padl},
-                padR_2d, padding_kind::zero);
-
+        auto pool_bwd_desc = pooling_backward::desc(p.aalgorithm, *src_desc,
+                *dst_desc, strides, ker, pad_l, pad_r, padding_kind::zero);
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_desc, *eng, *pool_prim_desc);
 

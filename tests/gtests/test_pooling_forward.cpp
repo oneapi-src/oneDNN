@@ -195,32 +195,34 @@ protected:
         check_zero_tail<data_t>(1, p_src);
         check_zero_tail<data_t>(1, p_dst);
 
-        // calculate right padding exactly
-        memory::dims padR_2d = {
-            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
-            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
-        };
-        memory::dims padR_3d = {
-            right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
-            right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
-            right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
-        };
+        memory::dims strides, ker, pad_l, pad_r;
+        if (p.ndims == 5) {
+            strides = memory::dims({pd.strd, pd.strh, pd.strw});
+            ker = memory::dims({pd.kd, pd.kh, pd.kw});
+            pad_l = memory::dims({pd.padf, pd.padt, pd.padl});
+            pad_r = memory::dims({
+                right_padding(pd.id, pd.od, pd.kd, pd.padf, pd.strd),
+                right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+                right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
+            });
+        } else {
+            strides = memory::dims({pd.strh, pd.strw});
+            ker = memory::dims({pd.kh, pd.kw});
+            pad_l = memory::dims({pd.padt, pd.padl});
+            pad_r = memory::dims({
+                right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
+                right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw)
+            });
+        }
 
-        std::shared_ptr<memory> p_workspace;
-
-        auto pool_desc = (p.ndims == 5)
-            ? pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                    p_src_desc, p_dst_desc, {pd.strd, pd.strh, pd.strw},
-                    {pd.kd, pd.kh, pd.kw}, {pd.padf, pd.padt, pd.padl}, padR_3d,
-                    padding_kind::zero)
-            : pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                    p_src_desc, p_dst_desc, {pd.strh, pd.strw}, {pd.kh, pd.kw},
-                    {pd.padt, pd.padl}, padR_2d, padding_kind::zero);
-
+        auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
+                p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r,
+                padding_kind::zero);
         auto pool_prim_desc
             = pooling_forward::primitive_desc(pool_desc, eng);
 
         auto workspace_desc = pool_prim_desc.workspace_desc();
+        std::shared_ptr<memory> p_workspace;
         p_workspace.reset(new memory(workspace_desc, eng));
 
         pooling_forward(pool_prim_desc).execute(strm, {
