@@ -11,6 +11,10 @@
 --reset --skip-impl=ref --allow-unimpl=true
 --mb=2 --dir=FWD_B
 
+# 1D
+--cfg=u8s8u8s32 --batch=deconv_1d
+
+# 2D
 --attr=irmode=down;oscale=per_oc:2.25;
 --cfg=u8s8u8s32 --batch=deconv_2d --batch=deconv_dilated
 --cfg=s8s8u8s32 --batch=deconv_2d --batch=deconv_dilated
