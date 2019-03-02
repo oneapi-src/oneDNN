@@ -97,13 +97,6 @@ int bench(int argc, char **argv, bool main_bench) {
                         argv[arg]);
                 exit(2);
             }
-            if (cfg != conf_f32 && alg != VANILLA_LSTM) {
-                fprintf(stderr,
-                        "driver: configuration ``%s` is supported for LSTM "
-                        "cell only, exiting...\n",
-                        cfg2str(cfg));
-                exit(2);
-            }
             if (cfg != conf_f32 && scale_policy == NONE) {
                 fprintf(stderr,
                         "driver: configuration ``%s` requires scale policy to "
