@@ -182,7 +182,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
@@ -190,7 +190,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
@@ -209,7 +209,7 @@ INSTANTIATE_TEST_CASE_P(
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardNoBias_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
@@ -229,7 +229,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 4, 10, 5, 5, 5 ) } ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardNoBias, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
@@ -273,7 +273,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForward3D, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,
@@ -297,7 +297,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 16, 48, 3, 3, 3 ) }));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForward, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward, engine::kind::cpu,

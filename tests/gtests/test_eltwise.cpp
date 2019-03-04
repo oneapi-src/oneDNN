@@ -361,7 +361,7 @@ TEST_P(eltwise_test_float, TestsEltwise)
     EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
-#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
+#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_SUITE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(SimpleZeroDim,

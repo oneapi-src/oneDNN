@@ -477,7 +477,7 @@ TEST_P(bnrm_test_float, TestsBnrm)
 #define PARAMS_B16(...) EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__, false, mkldnn_success))
 #define PARAMS_EF(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
 
-#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_CASE_P( \
+#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_SUITE_P( \
         str, bnrm_test_float, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(SimpleZeroDim,

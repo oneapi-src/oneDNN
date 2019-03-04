@@ -69,7 +69,7 @@ protected:
 using fmt = memory::format_tag;
 
 TEST_P(memory_test, TestsMemory) { }
-INSTANTIATE_TEST_CASE_P(TestMemory, memory_test,
+INSTANTIATE_TEST_SUITE_P(TestMemory, memory_test,
         ::testing::Values(
             memory_test_params{{2, 0, 1, 1}, fmt::nChw16c},
             memory_test_params{{2, 15, 3, 2}, fmt::nChw16c},

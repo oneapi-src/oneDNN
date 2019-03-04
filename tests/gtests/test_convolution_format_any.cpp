@@ -106,7 +106,7 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 #define BLK data_fmt_t::blocked_cX
 
 using tf32 = conv_any_fmt_test_params;
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TestConvolutionAlexnetAnyFmtForwardxlocked, conv_any_fmt_test_float,
     ::testing::Values(
         tf32{CPARAMS, FLT, BLK, {2, 1,   3, 227, 227,  96, 55, 55, 11, 11, 0, 0, 4, 4 } },

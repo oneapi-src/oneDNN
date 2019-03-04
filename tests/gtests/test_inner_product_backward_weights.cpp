@@ -227,7 +227,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -235,7 +235,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -254,7 +254,7 @@ INSTANTIATE_TEST_CASE_P(
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -274,7 +274,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -318,7 +318,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeights, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,
@@ -362,7 +362,7 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format_tag::x, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeights3D, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ engine::kind::cpu,

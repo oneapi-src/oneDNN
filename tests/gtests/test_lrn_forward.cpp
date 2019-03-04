@@ -174,7 +174,7 @@ TEST_P(lrn_forward_test_float, TestsLRN)
 {
 }
 
-INSTANTIATE_TEST_CASE_P(TestLRNForwardZeroDim, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardZeroDim, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nchw,
@@ -187,7 +187,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForwardZeroDim, lrn_forward_test_float,
             memory::format_tag::nChw16c, { 2, 16, 0, 4, 5, 1.0e-4f, 0.75f, 3.0f, ACROSS }}
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForwardEF, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardEF, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nchw,
@@ -203,7 +203,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForwardEF, lrn_forward_test_float,
             true, mkldnn_invalid_arguments }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c_padded, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c_padded, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nChw16c,
@@ -219,7 +219,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c_padded, lrn_forward_test_float,
             memory::format_tag::nChw16c, { 2, 12, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nChw8c,
@@ -235,7 +235,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_float,
             memory::format_tag::nChw8c, { 2, 12, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForward, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nchw,
@@ -251,7 +251,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward, lrn_forward_test_float,
             memory::format_tag::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 3.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForwardNHWC, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardNHWC, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nhwc,
@@ -267,7 +267,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForwardNHWC, lrn_forward_test_float,
             memory::format_tag::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.85f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nChw8c,
@@ -283,7 +283,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c, lrn_forward_test_float,
             memory::format_tag::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::lrn_across_channels, memory::format_tag::nChw16c,
@@ -299,7 +299,7 @@ INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
             memory::format_tag::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForwardNCHW, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -316,7 +316,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nchw, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForwardNHWC, lrn_forward_test_float,
         ::testing::Values(
                 lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -333,7 +333,7 @@ INSTANTIATE_TEST_CASE_P(
                 memory::format_tag::nhwc, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -350,7 +350,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nChw8c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetForward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -367,7 +367,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nChw16c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1ForwardNCHW, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -384,7 +384,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nchw, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1Forward_nChw8c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -401,7 +401,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nChw8c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1Forward_nChw16c, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -418,7 +418,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::nChw16c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -448,7 +448,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 // This tests compatibility with MKL-DNN 0.14
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNRegressionWeightFormat, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
@@ -456,7 +456,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format_tag::oihw, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f, ACROSS } }
         ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardNCHWTail, lrn_forward_test_float,
         ::testing::Values(
             lrn_fwd_test_params_float{ prop_kind::forward_training,
