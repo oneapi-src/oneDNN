@@ -42,7 +42,8 @@ include_directories(${PROJECT_SOURCE_DIR})
 if(UNIX OR MINGW)
     # workaround for Intel Compiler 16.0 that doesn't suppress warning on
     # deprecation with "-Wno-deprecated" compiler flag
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel"
+            AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
         append(CMAKE_TEST_CCXX_NOWARN_FLAGS "-diag-disable:1478")
     else()
         append(CMAKE_TEST_CCXX_NOWARN_FLAGS "-Wno-deprecated-declarations")
@@ -50,7 +51,8 @@ if(UNIX OR MINGW)
 elseif(WIN32 AND NOT MINGW)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
         # 1478, 1786: deprecated functions
-        append(CMAKE_TEST_CCXX_NOWARN_FLAGS "/Qdiag-disable:1478 /Qdiag-disable:1786")
+        append(CMAKE_TEST_CCXX_NOWARN_FLAGS "/Qdiag-disable:1478")
+        append(CMAKE_TEST_CCXX_NOWARN_FLAGS "/Qdiag-disable:1786")
     else()
         # c4244: conversion with possible loss of data
         # c4996: unsafe / deprecated functions
