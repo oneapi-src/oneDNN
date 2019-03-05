@@ -182,7 +182,7 @@ int MKLDNN_API mkldnn_primitive_desc_query_s32(
         const_mkldnn_primitive_desc_t primitive_desc, mkldnn_query_t what,
         int index);
 
-/** Creates a @p primitive using a @p primitive_desc descriptor */
+/** Creates a @p primitive using a @p primitive_desc descriptor. */
 mkldnn_status_t MKLDNN_API mkldnn_primitive_create(
         mkldnn_primitive_t *primitive,
         const_mkldnn_primitive_desc_t primitive_desc);
@@ -555,12 +555,12 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_create(mkldnn_memory_t *memory,
         const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine,
         void *native_handle);
 
-/** Returns a @p memory_desc associated with @p memory */
+/** Returns a @p memory_desc associated with @p memory. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_memory_desc(
         const_mkldnn_memory_t memory,
         const mkldnn_memory_desc_t **memory_desc);
 
-/** Returns an @p engine associated with @p memory */
+/** Returns an @p engine associated with @p memory. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
         const_mkldnn_memory_t memory, mkldnn_engine_t *engine);
 
