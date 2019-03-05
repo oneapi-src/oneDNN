@@ -50,23 +50,31 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
 
 void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-    auto ker = [&](float &d, int g, int mb, int oc, int od, int oh, int ow) {
-        for (int ic = 0; ic < p->ic/p->g; ++ic) {
-            for (int kd = 0; kd < p->kd; ++kd) {
+    auto ker = [&](float &d, int g, int mb,
+            int oc, int od, int oh, int ow) {
+        /* help compiler optimize the code */
+        const int G = p->g, OC = p->oc, IC = p->ic;
+        const int OCG = OC / G, ICG = IC / G;
+        const int ID = p->id, IH = p->ih, IW = p->iw;
+        const int KD = p->kd, KH = p->kh, KW = p->kw;
+
+        for (int ic = 0; ic < ICG; ++ic) {
+            for (int kd = 0; kd < KD; ++kd) {
                 const int id = od * p->sd - p->pd + kd * (p->dd + 1);
-                if (id < 0 || id >= p->id) continue;
-                for (int kh = 0; kh < p->kh; ++kh) {
+                if (id < 0 || id >= ID) continue;
+                for (int kh = 0; kh < KH; ++kh) {
                     const int ih = oh * p->sh - p->ph + kh * (p->dh + 1);
-                    if (ih < 0 || ih >= p->ih) continue;
+                    if (ih < 0 || ih >= IH) continue;
 
-                    for (int kw = 0; kw < p->kw; ++kw) {
+                    for (int kw = 0; kw < KW; ++kw) {
                         const int iw = ow * p->sw - p->pw + kw * (p->dw + 1);
-                        if (iw < 0 || iw >= p->iw) continue;
+                        if (iw < 0 || iw >= IW) continue;
 
-                        size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
-                        size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
-                        d += ((float*)src_m)[src_off]
-                            * ((float*)wei_m)[wei_off];
+                        int64_t src_off = ((((int64_t)mb * IC + g * ICG + ic)
+                                    * ID + id) * IH + ih) * IW + iw;
+                        int64_t wei_off = (((((int64_t)g * OCG + oc) * ICG + ic)
+                                    * KD + kd) * KH + kh) * KW + kw;
+                        d += ((float*)src_m)[src_off] * ((float*)wei_m)[wei_off];
                     }
                 }
             }
@@ -165,17 +173,23 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         precompute_ok(ih, p->oh, p->kh, p->sh, p->ph, p->dh, num_h, oh, kh);
         precompute_ok(iw, p->ow, p->kw, p->sw, p->pw, p->dw, num_w, ow, kw);
 
-        for (int oc = 0; oc < p->oc/p->g; ++oc) {
-            for (int d = 0; d < num_d; ++d) {
-                for (int h = 0; h < num_h; ++h) {
-                    for (int w = 0; w < num_w; ++w) {
+        /* help compiler optimize the code */
+        const int G = p->g, OC = p->oc, IC = p->ic;
+        const int OCG = OC / G, ICG = IC / G;
+        const int KD = p->kd, KH = p->kh, KW = p->kw;
+        const int OD = p->od, OH = p->oh, OW = p->ow;
 
-                        size_t dst_off = dst_off_f(p, mb, g, oc, od[d], oh[h], ow[w]);
-                        size_t wei_off = wei_off_f(p, g, oc, ic, kd[d], kh[h], kw[w]);
-                        ds += ((float*)diff_dst_m)[dst_off]
-                        * ((float*)wei_m)[wei_off];
-                    }
-                }
+        for (int oc = 0; oc < OCG; ++oc)
+        {
+            for (int d = 0; d < num_d; ++d)
+            for (int h = 0; h < num_h; ++h)
+            for (int w = 0; w < num_w; ++w)
+            {
+                int64_t dst_off = ((((int64_t)mb * OC + g * OCG + oc) * OD
+                            + od[d]) * OH + oh[h]) * OW + ow[w];
+                int64_t wei_off = (((((int64_t)g * OCG + oc) * ICG + ic)
+                            * KD + kd[d]) * KH + kh[h]) * KW + kw[w];
+                ds += ((float*)diff_dst_m)[dst_off] * ((float*)wei_m)[wei_off];
             }
         }
     };
