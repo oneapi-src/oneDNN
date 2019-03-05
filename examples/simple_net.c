@@ -85,7 +85,7 @@ mkldnn_status_t prepare_reorder(
         const mkldnn_memory_desc_t *prim_memory_md, /** in */
         mkldnn_engine_t prim_engine, /** in: primitive's engine */
         int dir_is_user_to_prim, /** in: user -> prim or prim -> user */
-        mkldnn_memory_t *prim_memory, /** out: memory primitive created */
+        mkldnn_memory_t *prim_memory, /** out: primitive's memory created */
         mkldnn_primitive_t *reorder, /** out: reorder primitive created */
         uint32_t *net_index,  /** primitive index in net (inc if reorder created) */
         mkldnn_primitive_t *net, args_t *net_args /** net params */)
@@ -102,8 +102,6 @@ mkldnn_status_t prepare_reorder(
                     MKLDNN_NATIVE_HANDLE_ALLOCATE));
         mkldnn_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
-            /* reorder primitive descriptor doesn't need engine, because it is
-             * already appeared in in- and out- memory primitive descriptors */
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
                         user_mem_engine, user_memory_md,
                         prim_engine, prim_memory_md,

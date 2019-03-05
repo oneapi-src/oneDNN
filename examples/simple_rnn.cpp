@@ -263,9 +263,8 @@ void simple_net() {
     auto enc_bidir_prim_desc
             = mkldnn::rnn_forward::primitive_desc(bi_layer_desc, cpu_engine);
 
-    /* Create memory primitives for input data and use reorders to reorder
-     * user data to internal representation
-     */
+    /* Create memory for input data and use reorders to reorder user data
+     * to internal representation */
     auto enc_bidir_wei_layer_memory
             = memory(enc_bidir_prim_desc.weights_layer_desc(), cpu_engine);
     auto enc_bidir_wei_layer_reorder_pd = reorder::primitive_desc(

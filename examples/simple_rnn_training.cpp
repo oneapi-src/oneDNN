@@ -188,7 +188,7 @@ void simple_net() {
     //    leftmost_dst_layer_memory
     //    rightmost_dst_layer_memory
 
-    // Memory primitive for the user allocated memory
+    // Memory for the user allocated memory
     // Suppose user data is in tnc format.
     auto net_src_memory = mkldnn::memory(
             {{net_src_dims}, dt::f32, tag::tnc}, cpu_engine,
@@ -524,7 +524,7 @@ void simple_net() {
             rightmost_layer_bwd_desc, cpu_engine, rightmost_prim_desc);
 
     //
-    // Memory primitives for backward pass
+    // Memory for backward pass
     //
 
     // src layer uses the same memory as forward

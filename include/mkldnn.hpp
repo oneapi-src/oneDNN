@@ -596,7 +596,7 @@ struct stream: public handle<mkldnn_stream_t> {
 /// For more information, refer to @ref c_api_memory in @ref c_api.
 /// @{
 
-/// Memory primitive that describes the data.
+/// Memory that describes the data.
 struct memory: public handle<mkldnn_memory_t> {
     public:
     typedef mkldnn_dim_t dim;
@@ -916,11 +916,11 @@ struct memory: public handle<mkldnn_memory_t> {
         bool operator!=(const desc &other) const { return !operator==(other); }
     };
 
-    /// Constructs a memory
+    /// Constructs a memory.
     ///
-    /// @param md Memory primitive descriptor.
-    /// @param aengine Engine
-    /// @param ahandle Native handle
+    /// @param md Memory descriptor.
+    /// @param aengine Engine.
+    /// @param ahandle Native handle.
     memory(const desc &md, const engine &aengine, void *ahandle) {
         mkldnn_memory_t result;
         error::wrap_c_api(mkldnn_memory_create(&result, &md.data,
@@ -928,14 +928,14 @@ struct memory: public handle<mkldnn_memory_t> {
         reset(result);
     }
 
-    /// Constructs a memory
+    /// Constructs a memory.
     ///
-    /// @param md Memory primitive descriptor.
-    /// @param aengine Engine
+    /// @param md Memory descriptor.
+    /// @param aengine Engine.
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, MKLDNN_NATIVE_HANDLE_ALLOCATE) {}
 
-    /// Returns the descriptor of the memory primitive.
+    /// Returns the descriptor of the memory.
     desc get_desc() const {
         const mkldnn_memory_desc_t *cdesc;
         error::wrap_c_api(mkldnn_memory_get_memory_desc(get(), &cdesc),
@@ -943,6 +943,7 @@ struct memory: public handle<mkldnn_memory_t> {
         return desc(*cdesc);
     }
 
+    /// Returns the engine of the memory.
     engine get_engine() const {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(mkldnn_memory_get_engine(get(), &engine_q),
@@ -950,8 +951,9 @@ struct memory: public handle<mkldnn_memory_t> {
         return engine(engine_q);
     }
 
-    /// Returns a handle of the data contained in the memory primitive. On
-    /// the CPU engine, this is a pointer to the allocated memory.
+    /// Returns a handle of the data contained in the memory.
+    ///
+    /// On the CPU engine, this is a pointer to the allocated memory.
     void *get_data_handle() const {
         void *handle;
         error::wrap_c_api(mkldnn_memory_get_data_handle(get(), &handle),
@@ -1295,7 +1297,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return true;
     }
 
-    /// Queries and returns requested memory primitive descriptor.
+    /// Queries and returns requested memory descriptor.
     memory::desc query_md(query what, int idx = 0) const {
         std::vector<query> valid_q{src_md, diff_src_md, weights_md,
             diff_weights_md, dst_md, diff_dst_md, workspace_md, scratchpad_md};

@@ -119,7 +119,7 @@ void simple_net_int8() {
     auto conv_prim_desc = convolution_forward::primitive_desc(
             conv_desc, conv_attr, cpu_engine);
 
-    /* Next: create memory primitives for the convolution's input data
+    /* Next: create memory for the convolution's input data
      * and use reorder to quantize the values into int8 */
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), cpu_engine);
     {
@@ -171,7 +171,7 @@ void simple_net_int8() {
      * Note: data is unsigned since there are no negative values
      * after ReLU */
 
-    /* Create a memory primitive for user data output */
+    /* Create a memory for user data output */
     auto user_dst_memory = memory(
             {{conv_dst_tz}, dt::f32, tag::nchw}, cpu_engine, user_dst.data());
     {

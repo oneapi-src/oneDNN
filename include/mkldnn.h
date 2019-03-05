@@ -132,7 +132,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
  *
  * One of the most typical use cases is to query a convolution primitive
  * descriptor created with source, weights, and destination formats equal
- * to #mkldnn_format_tag_any about the corresponding memory primitive descriptors
+ * to #mkldnn_format_tag_any about the corresponding memory descriptors
  * (@p what equals #mkldnn_query_src_md, #mkldnn_query_weights_md, and
  * #mkldnn_query_dst_md respectively) to be able to prepare memory and
  * create reorders if required.
@@ -427,42 +427,35 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
  *      #mkldnn_format_tag_any. This approach is used to allow compute-intensive
  *      primitives to specify the most appropriate format on their own with
  *      users required to reorder the data if the incoming format doesn't match
- *      the primitive's selection. Memory descriptor can be created with the
- *      mkldnn_memory_desc_init() function or by directly filling the
- *      mkldnn_memory_desc_t structure. The latter requires deep knowledge of
- *      how the physical data representation is mapped to the structure. The
- *      @ref understanding_memory_formats topic should shed some light on that.
- * 2. **Memory primitive descriptor** -- logical description of data that is
- *      fully defined; that is, it cannot contain #mkldnn_format_tag_any as a format. It
- *      also has the engine specified. A memory primitive descriptor is created
- *      by calling mkldnn_memory_primitive_desc_create() with two arguments: an
- *      mkldnn_memory_desc_t and an mkldnn_engine_t. It has the same type as
- *      other primitive descriptors and can be:
- *      - queried to return the underlying memory descriptor using
- *        mkldnn_primitive_desc_query() and
- *        mkldnn_primitive_desc_query_memory_d().
- *      - compared with another memory primitive descriptor using
- *        mkldnn_memory_primitive_desc_equal(). This is especially useful when
- *        checking whether a primitive requires reorder from the user's data
- *        format to the primitive's format.
- *      - queried to return the size of the data using
- *        mkldnn_memory_primitive_desc_get_size(). As described in
- *        @ref understanding_memory_formats, the size of data sometimes cannot
- *        be computed as the product of dimensions times the size of the data
- *        type. So users are encouraged to use this function for better code
- *        portability.
- * 3. **Memory primitive** or simply **memory** -- a pseudo-primitive that is
- *      defined by a memory primitive descriptor and a handle to the data
- *      itself. (In the case of CPU engine, the handle is simply a pointer to
- *      @c void.) The data handle can be queried using
+ *      the primitive's selection. Memory descriptor can be initialized with
+ *      mkldnn_memory_desc_init_by_tag() or mkldnn_memory_desc_init_by_strides()
+ *      functions, or by directly filling the mkldnn_memory_desc_t structure.
+ *      The latter requires deep knowledge of how the physical data
+ *      representation is mapped to the structure.
+ *      The @ref understanding_memory_formats topic should shed some light on
+ *      that.
+ *      For the fully defined memory descriptors (i.e. where the format kind is
+ *      not equal to #mkldnn_format_kind_any) a user can the size, using the
+ *      mkldnn_memory_desc_get_size() function. As described in
+ *      @ref understanding_memory_formats, the size of data sometimes cannot
+ *      be computed as the product of dimensions times the size of the data
+ *      type. So users are encouraged to use this function for better code
+ *      portability.
+ *      Two memory descriptors can be compared with mkldnn_memory_desc_equal().
+ *      The comparison is especially useful when checking whether a primitive
+ *      requires reorder from the user's data format to the primitive's format.
+ * 2. **Memory** -- an engine-specific object that handles the data and its
+ *      description (a memory descriptor). For CPU enigne, the data handle is
+ *      simply a pointer to @c void. The data handle can be queried using
  *      mkldnn_memory_get_data_handle() and set using
  *      mkldnn_memory_set_data_handle(). The latter function always sets the
  *      memory in the padding region to zero, which is the invariant maintained
- *      by all the primitives in Intel MKL-DNN. See
- *      @ref understanding_memory_formats for more details.
- *      A memory primitive can be created using mkldnn_primitive_create() with
- *      empty inputs and outputs. In this case, the memory primitive's data
- *      handle must be set manually using mkldnn_memory_set_data_handle().
+ *      by all the primitives in Intel MKL-DNN.
+ *      See @ref understanding_memory_formats for more details.
+ *      A memory can be created using mkldnn_memory_create() function.
+ *      A memory can also be queried for the underlying memory descriptor and
+ *      engine using mkldnn_memory_get_memory_desc() and
+ *      mkldnn_memory_get_engine() functions.
  *
  * Along with ordinary memory with all dimensions being positive, Intel
  * MKL-DNN supports *zero-volume* memory with one or more dimensions set to
@@ -471,7 +464,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
  * not perform any computations on this memory. For example:
  *  - Convolution with `(0 batch, 3 input channels, 13 height, 13 width)`
  *    source and `(16 output channels, 3 inputs, channel, 3 height, 3 width)`
- *    weights would produce `(0 batch, 16 ouput channels, 11 height, 11 width)`
+ *    weights would produce `(0 batch, 16 output channels, 11 height, 11 width)`
  *    destination (assuming strides are `1` and paddings are zero) and perform
  *    zero multiply-add operations.
  *  - Concatenation of three memories of shapes `(3, 4, 13, 13)`,
@@ -564,12 +557,13 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_memory_desc(
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
         const_mkldnn_memory_t memory, mkldnn_engine_t *engine);
 
-/** For a @p memory primitive, returns the data @p handle. For the CPU engine,
- * the data handle is a pointer to the actual data. */
+/** For a @p memory, returns the data @p handle.
+ *
+ * For the CPU engine, the data handle is a pointer to the actual data. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
         const_mkldnn_memory_t memory, void **handle);
 
-/** For a @p memory primitive, sets the data @p handle. */
+/** For a @p memory, sets the data @p handle. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_set_data_handle(
         mkldnn_memory_t memory, void *handle);
 
@@ -582,8 +576,9 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
  * A primitive to copy data between memory formats.
  * @{ */
 
-/** Initializes a @p reorder_primitive_desc using an @p attr attribute and
- * descriptors of @p input and @p output memory primitives.
+/** Initializes a @p reorder_primitive_desc using the description of the source
+ * (@p src_engine and @p src_md) and destination (@p dst_engine and @p dst_md)
+ * memory, and an @p attr attribute.
  *
  * Inputs:
  *  - input (#mkldnn_query_src_md, 0)

@@ -327,8 +327,7 @@ void simple_net() {
     auto enc_bidir_prim_desc
             = rnn_forward::primitive_desc(bi_layer_desc, attr, cpu_engine);
 
-    /* Create memory primitives for input data and use reorders to quantize
-     * values to int8
+    /* Create memory for input data and use reorders to quantize values to int8
      * NOTE: same attributes are used when creating RNN primitive and reorders
      */
     auto enc_bidir_src_layer_memory
@@ -607,8 +606,8 @@ void simple_net() {
     auto dec_ctx_prim_desc
             = rnn_forward::primitive_desc(dec_ctx_desc, attr, cpu_engine);
 
-    /* Create memory primitives for input data and use reorders to quantize
-     * values to int8 */
+    /* Create memory for input data and use reorders to quantize values
+     * to int8 */
     auto dec_wei_layer_memory
             = memory(dec_ctx_prim_desc.weights_layer_desc(), cpu_engine);
     auto dec_wei_layer_reorder_pd = reorder::primitive_desc(

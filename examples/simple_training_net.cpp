@@ -113,7 +113,7 @@ void simple_net() {
                 {MKLDNN_ARG_TO, conv_weights_memory}});
     }
 
-    /* create memory primitive for conv dst */
+    /* create memory for conv dst */
     auto conv_dst_memory = memory(conv_pd.dst_desc(), cpu_engine);
 
     /* finally create a convolution primitive */
@@ -136,7 +136,7 @@ void simple_net() {
             algorithm::eltwise_relu, conv_pd.dst_desc(), negative_slope);
     auto relu_pd = eltwise_forward::primitive_desc(relu_desc, cpu_engine);
 
-    /* create relu dst memory primitive */
+    /* create relu dst memory */
     auto relu_dst_memory = memory(relu_pd.dst_desc(), cpu_engine);
 
     /* finally create a relu primitive */
@@ -263,7 +263,7 @@ void simple_net() {
                 {MKLDNN_ARG_TO, pool_diff_dst_memory}});
     }
 
-    /* create memory primitive for pool diff src */
+    /* create memory for pool diff src */
     auto pool_diff_src_memory = memory(pool_bwd_pd.diff_src_desc(), cpu_engine);
 
     /* finally create backward pooling primitive */
@@ -326,8 +326,7 @@ void simple_net() {
             {{conv_bias_tz}, dt::f32, tag::x}, cpu_engine,
             conv_diff_bias_buffer.data());
 
-    /* create memory primitives descriptors */
-
+    /* create memory descriptors */
     auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::f32, tag::any);
     auto conv_diff_bias_md = memory::desc({conv_bias_tz}, dt::f32, tag::any);
     auto conv_diff_weights_md = memory::desc({conv_weights_tz}, dt::f32, tag::any);
