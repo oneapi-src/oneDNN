@@ -118,7 +118,6 @@ public:
     /// A proxy to C primitive kind enum
     enum class kind {
         undefined_primitive = mkldnn_undefined_primitive,
-        memory_primitive_kind = mkldnn_memory_primitive_kind,
         reorder = mkldnn_reorder,
         concat = mkldnn_concat,
         sum = mkldnn_sum,

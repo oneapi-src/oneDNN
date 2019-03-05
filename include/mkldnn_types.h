@@ -498,8 +498,6 @@ typedef enum {
 typedef enum {
     /** Undefined primitive (XXX: why do we have it?). */
     mkldnn_undefined_primitive,
-    /** A memory primitive. */
-    mkldnn_memory_primitive_kind,
     /** A reorder primitive.*/
     mkldnn_reorder,
     /** A shuffle primitive.*/

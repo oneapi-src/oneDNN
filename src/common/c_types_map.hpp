@@ -391,7 +391,6 @@ namespace engine_kind {
 using primitive_kind_t = mkldnn_primitive_kind_t;
 namespace primitive_kind {
     const primitive_kind_t undefined = mkldnn_undefined_primitive;
-    const primitive_kind_t memory_primitive_kind = mkldnn_memory_primitive_kind;
     const primitive_kind_t reorder = mkldnn_reorder;
     const primitive_kind_t concat = mkldnn_concat;
     const primitive_kind_t sum = mkldnn_sum;
