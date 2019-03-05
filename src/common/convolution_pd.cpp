@@ -23,34 +23,34 @@ namespace impl {
 
 using namespace prop_kind;
 
-memory_desc_t *conv_prop_agnostic_src_d(convolution_desc_t *desc) {
+memory_desc_t *conv_prop_invariant_src_d(convolution_desc_t *desc) {
     return desc->prop_kind == backward_data
         ? &desc->diff_src_desc : &desc->src_desc;
 }
 
-memory_desc_t *conv_prop_agnostic_wei_d(convolution_desc_t *desc) {
+memory_desc_t *conv_prop_invariant_wei_d(convolution_desc_t *desc) {
     return desc->prop_kind == backward_weights
         ? &desc->diff_weights_desc : &desc->weights_desc;
 }
 
-memory_desc_t *conv_prop_agnostic_bia_d(convolution_desc_t *desc) {
+memory_desc_t *conv_prop_invariant_bia_d(convolution_desc_t *desc) {
     return desc->prop_kind == backward_weights
         ? &desc->diff_bias_desc : &desc->bias_desc;
 }
 
-memory_desc_t *conv_prop_agnostic_dst_d(convolution_desc_t *desc) {
+memory_desc_t *conv_prop_invariant_dst_d(convolution_desc_t *desc) {
     return utils::one_of(desc->prop_kind, forward_inference, forward_training)
         ? &desc->dst_desc : &desc->diff_dst_desc;
 }
 
-const memory_desc_t *conv_prop_agnostic_src_d(const convolution_desc_t *desc)
-{ return conv_prop_agnostic_src_d(const_cast<convolution_desc_t *>(desc)); }
-const memory_desc_t *conv_prop_agnostic_wei_d(const convolution_desc_t *desc)
-{ return conv_prop_agnostic_wei_d(const_cast<convolution_desc_t *>(desc)); }
-const memory_desc_t *conv_prop_agnostic_bia_d(const convolution_desc_t *desc)
-{ return conv_prop_agnostic_bia_d(const_cast<convolution_desc_t *>(desc)); }
-const memory_desc_t *conv_prop_agnostic_dst_d(const convolution_desc_t *desc)
-{ return conv_prop_agnostic_dst_d(const_cast<convolution_desc_t *>(desc)); }
+const memory_desc_t *conv_prop_invariant_src_d(const convolution_desc_t *desc)
+{ return conv_prop_invariant_src_d(const_cast<convolution_desc_t *>(desc)); }
+const memory_desc_t *conv_prop_invariant_wei_d(const convolution_desc_t *desc)
+{ return conv_prop_invariant_wei_d(const_cast<convolution_desc_t *>(desc)); }
+const memory_desc_t *conv_prop_invariant_bia_d(const convolution_desc_t *desc)
+{ return conv_prop_invariant_bia_d(const_cast<convolution_desc_t *>(desc)); }
+const memory_desc_t *conv_prop_invariant_dst_d(const convolution_desc_t *desc)
+{ return conv_prop_invariant_dst_d(const_cast<convolution_desc_t *>(desc)); }
 
 }
 }

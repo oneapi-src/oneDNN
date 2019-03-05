@@ -23,34 +23,34 @@ namespace impl {
 
 using namespace prop_kind;
 
-memory_desc_t *ip_prop_agnostic_src_d(inner_product_desc_t *desc) {
+memory_desc_t *ip_prop_invariant_src_d(inner_product_desc_t *desc) {
     return desc->prop_kind == backward_data
         ? &desc->diff_src_desc : &desc->src_desc;
 }
 
-memory_desc_t *ip_prop_agnostic_wei_d(inner_product_desc_t *desc) {
+memory_desc_t *ip_prop_invariant_wei_d(inner_product_desc_t *desc) {
     return desc->prop_kind == backward_weights
         ? &desc->diff_weights_desc : &desc->weights_desc;
 }
 
-memory_desc_t *ip_prop_agnostic_bia_d(inner_product_desc_t *desc) {
+memory_desc_t *ip_prop_invariant_bia_d(inner_product_desc_t *desc) {
     return desc->prop_kind == backward_weights
         ? &desc->diff_bias_desc : &desc->bias_desc;
 }
 
-memory_desc_t *ip_prop_agnostic_dst_d(inner_product_desc_t *desc) {
+memory_desc_t *ip_prop_invariant_dst_d(inner_product_desc_t *desc) {
     return utils::one_of(desc->prop_kind, forward_inference, forward_training)
         ? &desc->dst_desc : &desc->diff_dst_desc;
 }
 
-const memory_desc_t *ip_prop_agnostic_src_d(const inner_product_desc_t *desc)
-{ return ip_prop_agnostic_src_d(const_cast<inner_product_desc_t *>(desc)); }
-const memory_desc_t *ip_prop_agnostic_wei_d(const inner_product_desc_t *desc)
-{ return ip_prop_agnostic_wei_d(const_cast<inner_product_desc_t *>(desc)); }
-const memory_desc_t *ip_prop_agnostic_bia_d(const inner_product_desc_t *desc)
-{ return ip_prop_agnostic_bia_d(const_cast<inner_product_desc_t *>(desc)); }
-const memory_desc_t *ip_prop_agnostic_dst_d(const inner_product_desc_t *desc)
-{ return ip_prop_agnostic_dst_d(const_cast<inner_product_desc_t *>(desc)); }
+const memory_desc_t *ip_prop_invariant_src_d(const inner_product_desc_t *desc)
+{ return ip_prop_invariant_src_d(const_cast<inner_product_desc_t *>(desc)); }
+const memory_desc_t *ip_prop_invariant_wei_d(const inner_product_desc_t *desc)
+{ return ip_prop_invariant_wei_d(const_cast<inner_product_desc_t *>(desc)); }
+const memory_desc_t *ip_prop_invariant_bia_d(const inner_product_desc_t *desc)
+{ return ip_prop_invariant_bia_d(const_cast<inner_product_desc_t *>(desc)); }
+const memory_desc_t *ip_prop_invariant_dst_d(const inner_product_desc_t *desc)
+{ return ip_prop_invariant_dst_d(const_cast<inner_product_desc_t *>(desc)); }
 
 }
 }

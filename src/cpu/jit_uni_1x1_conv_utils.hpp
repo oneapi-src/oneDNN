@@ -104,7 +104,7 @@ inline void rtus_prepare_space_info(conv_pd_t *self,
     const size_t factor = utils::pick_by_prop_kind(self->desc()->prop_kind,
             jcp.nb_reduce, jcp.nb_load_blocking_max, jcp.nb_bcast_blocking);
     size_t typesize = types::data_type_size(
-            conv_prop_agnostic_src_d(self->desc())->data_type);
+            conv_prop_invariant_src_d(self->desc())->data_type);
 
     self->rtus_.space_per_thread_ = factor * jcp.is * jcp.ic_block;
     scratchpad.book(memory_tracking::names::key_conv_rtus_space,
@@ -293,7 +293,7 @@ inline void init_rtus_driver(conv_t *self) {
     const int ws_step_icb = conf.jcp_.is;
     const bool src_to_ws = !is_bwd_data;
     const size_t typesize = types::data_type_size(
-            conv_prop_agnostic_src_d(self->pd()->desc())->data_type);
+            conv_prop_invariant_src_d(self->pd()->desc())->data_type);
 
     self->rtus_driver_ = new rtus_driver_t<isa>(iw, stride_w, src_step_h,
             src_step_icb, ws_step_icb, src_to_ws, typesize);

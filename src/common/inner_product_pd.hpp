@@ -26,14 +26,14 @@
 namespace mkldnn {
 namespace impl {
 
-memory_desc_t *ip_prop_agnostic_src_d(inner_product_desc_t *desc);
-memory_desc_t *ip_prop_agnostic_wei_d(inner_product_desc_t *desc);
-memory_desc_t *ip_prop_agnostic_bia_d(inner_product_desc_t *desc);
-memory_desc_t *ip_prop_agnostic_dst_d(inner_product_desc_t *desc);
-const memory_desc_t *ip_prop_agnostic_src_d(const inner_product_desc_t *desc);
-const memory_desc_t *ip_prop_agnostic_wei_d(const inner_product_desc_t *desc);
-const memory_desc_t *ip_prop_agnostic_bia_d(const inner_product_desc_t *desc);
-const memory_desc_t *ip_prop_agnostic_dst_d(const inner_product_desc_t *desc);
+memory_desc_t *ip_prop_invariant_src_d(inner_product_desc_t *desc);
+memory_desc_t *ip_prop_invariant_wei_d(inner_product_desc_t *desc);
+memory_desc_t *ip_prop_invariant_bia_d(inner_product_desc_t *desc);
+memory_desc_t *ip_prop_invariant_dst_d(inner_product_desc_t *desc);
+const memory_desc_t *ip_prop_invariant_src_d(const inner_product_desc_t *desc);
+const memory_desc_t *ip_prop_invariant_wei_d(const inner_product_desc_t *desc);
+const memory_desc_t *ip_prop_invariant_bia_d(const inner_product_desc_t *desc);
+const memory_desc_t *ip_prop_invariant_dst_d(const inner_product_desc_t *desc);
 
 struct inner_product_fwd_pd_t;
 
@@ -65,51 +65,51 @@ struct inner_product_pd_t: public primitive_desc_t {
 
     /* common inner_product aux functions */
 
-    dim_t MB() const { return ip_prop_agnostic_src_d(&desc_)->dims[0]; }
-    dim_t IC() const { return ip_prop_agnostic_src_d(&desc_)->dims[1]; }
-    dim_t OC() const { return ip_prop_agnostic_dst_d(&desc_)->dims[1]; }
+    dim_t MB() const { return ip_prop_invariant_src_d(&desc_)->dims[0]; }
+    dim_t IC() const { return ip_prop_invariant_src_d(&desc_)->dims[1]; }
+    dim_t OC() const { return ip_prop_invariant_dst_d(&desc_)->dims[1]; }
 
     dim_t ID() const {
         return ndims() >= 5
-            ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 3] : 1;
+            ? ip_prop_invariant_src_d(&desc_)->dims[ndims() - 3] : 1;
     }
     dim_t IH() const {
         return ndims() >= 4
-            ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 2] : 1;
+            ? ip_prop_invariant_src_d(&desc_)->dims[ndims() - 2] : 1;
     }
     dim_t IW() const {
         return ndims() >= 3
-            ? ip_prop_agnostic_src_d(&desc_)->dims[ndims() - 1] : 1;
+            ? ip_prop_invariant_src_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
     dim_t OD() const {
         return ndims() >= 5
-            ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 3] : 1;
+            ? ip_prop_invariant_dst_d(&desc_)->dims[ndims() - 3] : 1;
     }
     dim_t OH() const {
         return ndims() >= 4
-            ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 2] : 1;
+            ? ip_prop_invariant_dst_d(&desc_)->dims[ndims() - 2] : 1;
     }
     dim_t OW() const {
         return ndims() >= 3
-            ? ip_prop_agnostic_dst_d(&desc_)->dims[ndims() - 1] : 1;
+            ? ip_prop_invariant_dst_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
     dim_t KD() const {
         return ndims() >= 5
-            ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 3] : 1;
+            ? ip_prop_invariant_wei_d(&desc_)->dims[ndims() - 3] : 1;
     }
     dim_t KH() const {
         return ndims() >= 4
-            ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 2] : 1;
+            ? ip_prop_invariant_wei_d(&desc_)->dims[ndims() - 2] : 1;
     }
     dim_t KW() const {
         return ndims() >= 3
-            ? ip_prop_agnostic_wei_d(&desc_)->dims[ndims() - 1] : 1;
+            ? ip_prop_invariant_wei_d(&desc_)->dims[ndims() - 1] : 1;
     }
 
     dim_t IC_total() const {
-        return utils::array_product(&ip_prop_agnostic_src_d(&desc_)->dims[1],
+        return utils::array_product(&ip_prop_invariant_src_d(&desc_)->dims[1],
                 ndims() - 1);
     }
 
@@ -122,14 +122,14 @@ struct inner_product_pd_t: public primitive_desc_t {
         return utils::array_product(src_d.padded_dims() + 1, ndims() - 1);
     }
 
-    int ndims() const { return ip_prop_agnostic_src_d(&desc_)->ndims; }
+    int ndims() const { return ip_prop_invariant_src_d(&desc_)->ndims; }
 
     bool with_bias() const
-    { return !memory_desc_wrapper(*ip_prop_agnostic_bia_d(&desc_)).is_zero(); }
+    { return !memory_desc_wrapper(*ip_prop_invariant_bia_d(&desc_)).is_zero(); }
 
     bool has_zero_dim_memory() const {
-        const auto s_d = memory_desc_wrapper(*ip_prop_agnostic_src_d(&desc_));
-        const auto d_d = memory_desc_wrapper(*ip_prop_agnostic_dst_d(&desc_));
+        const auto s_d = memory_desc_wrapper(*ip_prop_invariant_src_d(&desc_));
+        const auto d_d = memory_desc_wrapper(*ip_prop_invariant_dst_d(&desc_));
         return s_d.has_zero_dim() || d_d.has_zero_dim();
     }
 
