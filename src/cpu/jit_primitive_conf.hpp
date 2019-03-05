@@ -118,7 +118,7 @@ struct jit_conv_conf_t {
     int max_regs_ur; // maximum accumulation registers
     // dw conv
     int nb_ch, ch_block, nb_ch_blocking;
-    bool is_depthwise, is_fast_depthwise;
+    bool is_depthwise, is_fast_depthwise, is_resrc_depthwise;
     int aligned_threads;
     // large spatial
     int oh_blk_size;
