@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #===============================================================================
-# Copyright 2018 Intel Corporation
+# Copyright 2018-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 
 def banner():
     year_now = datetime.datetime.now().year
-    banner_year = '2018' if year_now == 2018 else '2018 - %d' % year_now
+    banner_year = '2018' if year_now == 2018 else '2018-%d' % year_now
     return '''\
 /*******************************************************************************
 * Copyright %s Intel Corporation
