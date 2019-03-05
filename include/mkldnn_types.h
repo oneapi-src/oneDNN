@@ -1342,7 +1342,7 @@ typedef struct {
  *      #mkldnn_query_scratchpad_engine | mkldnn_engine_t *
  *      #mkldnn_query_primitive_kind    | mkldnn_primitive_kind_t *
  *      *_s32                           | int *
- *      *_s64                           | ptrdiff_t *
+ *      *_s64                           | mkldnn_dim_t * (same as int64_t *)
  *      *_f64                           | double *
  *      *_str                           | const char **
  *      #mkldnn_query_op_d              | const_mkldnn_op_desc_t *
