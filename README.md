@@ -1,5 +1,15 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
-![v0.18 beta](https://img.shields.io/badge/v0.18-beta-orange.svg)
+![v0.90 beta](https://img.shields.io/badge/v0.90-beta-orange.svg)
+
+> NOTE
+>
+> The master branch is now used to work on the upcoming Intel MKL-DNN v1.0 with
+> incompatible changes to the v0.x. The changes are described in the following
+> [RFC](https://github.com/intel/mkl-dnn/pull/384).
+>
+> For a limited time the team would maintain
+> [0.x branch](https://github.com/intel/mkl-dnn/tree/mnt-v0),
+> backporting fixes and some of the features from the mainline.
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is
 an open-source performance library for deep-learning applications. The library
