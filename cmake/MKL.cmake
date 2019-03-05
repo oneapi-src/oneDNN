@@ -95,7 +95,8 @@ function(detect_mkl LIBNAME)
     if (MKLINC AND LIBNAME MATCHES "mklml")
         get_filename_component(__mklinc_root "${MKLINC}" PATH)
         find_library(tmp_MKLLIB NAMES "mkl_rt"
-            HINTS ${__mklinc_root}/lib/intel64)
+            HINTS ${__mklinc_root}/lib/intel64
+            NO_DEFAULT_PATH)
         set_if(tmp_MKLLIB MKLINC "")
         unset(tmp_MKLLIB CACHE)
     endif()
