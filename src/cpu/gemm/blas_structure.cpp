@@ -27,7 +27,7 @@
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
-
+#include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -212,13 +212,8 @@ void BlasStructure<a_type, b_type, c_type>::jit_init(void)
             break;
 
         case data_type::f32:
-            if (mayiuse(avx512_core)) {
-                kernel[no_beta0][no_col_offset][no_row_offset] = new jit_avx512_core_kernel_sgemm_kern();
-                kernel[do_beta0][no_col_offset][no_row_offset] = new jit_avx512_core_kernel_b0_sgemm_kern();
-            } else if (mayiuse(avx2)) {
-                kernel[no_beta0][no_col_offset][no_row_offset] = new jit_avx2_kernel_sgemm_kern();
-                kernel[do_beta0][no_col_offset][no_row_offset] = new jit_avx2_kernel_b0_sgemm_kern();
-            }
+            kernel[no_beta0][no_col_offset][no_row_offset] = new jit_avx2_kernel_sgemm_kern(false);
+            kernel[do_beta0][no_col_offset][no_row_offset] = new jit_avx2_kernel_sgemm_kern(true);
             break;
         }
 

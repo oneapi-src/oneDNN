@@ -290,6 +290,11 @@ public:
     void L(const char *label) = delete;
     void L(Xbyak::Label& label) { Xbyak::CodeGenerator::L(label); }
 
+    void L_aligned(Xbyak::Label &label, int alignment = 16) {
+        align(alignment);
+        L(label);
+    }
+
     void uni_vpxor(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                    const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
