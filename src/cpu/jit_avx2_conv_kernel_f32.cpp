@@ -1062,11 +1062,24 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     const int simd_w = 8;
 
+    jcp.b_pad = nstl::max(
+            0, (jcp.oh - 1) * jcp.stride_h + jcp.kh - jcp.ih - jcp.t_pad);
+    jcp.r_pad = nstl::max(
+            0, (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
+
     int back_pad = nstl::max(0, (jcp.od - 1) * jcp.stride_d + jcp.kd - jcp.id
         - jcp.f_pad);
     if (ndims == 5)
         if (jcp.f_pad != 0 || back_pad != 0)
             return status::unimplemented;
+
+    const int max_h_pad = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1);
+    const int max_w_pad = ((jcp.kw - 1) * (jcp.dilate_w + 1) + 1);
+    const bool boundaries_ok = true
+        && jcp.t_pad < max_h_pad && jcp.b_pad < max_h_pad
+        && jcp.l_pad < max_w_pad && jcp.r_pad < max_w_pad;
+    if (!boundaries_ok)
+        return status::unimplemented;
 
     bool ok_to_pad_channels = true
         && jcp.ngroups == 1;
@@ -1297,9 +1310,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
     int inp_mul = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : jcp.ic_block;
     Label kd_loop;
 
-    const int r_pad
-        = nstl::max(0,
-                (jcp.ow - 1) * jcp.stride_w + jcp.kw - jcp.iw - jcp.l_pad);
+    const int r_pad = jcp.r_pad;
 
     int ur_w = nstl::min(jcp.ow, max_ur_w);
     int ur_w_trips = jcp.ow / ur_w;
@@ -1404,8 +1415,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
     const int stride_h = jcp.stride_h;
     const int inp_mult = one_of(jcp.src_tag, ncw, nchw, ncdhw)
         ? 1 : jcp.ic_block;
-    int b_pad
-        = nstl::max(0, (jcp.oh - 1) * stride_h + jcp.kh - jcp.ih - t_pad);
+    int b_pad = jcp.b_pad;
 
     Label oh_tpad_loop, oh_loop, oh_loop_end;
 
