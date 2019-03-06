@@ -21,23 +21,15 @@
 
 #define GEMM_CODE_SIZE          (4096L * 32)
 
+#ifdef _WIN32
+#define is_windows 1
+#else
+#define is_windows 0
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-class jit_avx512_core_kernel_b0_sgemm_kern : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_b0_sgemm_kern);
-
-    public:
-        jit_avx512_core_kernel_b0_sgemm_kern();
-};
-
-class jit_avx512_core_kernel_sgemm_kern : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_kernel_sgemm_kern);
-
-    public:
-        jit_avx512_core_kernel_sgemm_kern();
-};
 
 class jit_avx512_core_f32_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_copy_an_kern);
@@ -65,20 +57,6 @@ class jit_avx512_core_f32_copy_bt_kern : public jit_generator {
 
     public:
         jit_avx512_core_f32_copy_bt_kern();
-};
-
-class jit_avx2_kernel_b0_sgemm_kern : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_kernel_b0_sgemm_kern);
-
-    public:
-        jit_avx2_kernel_b0_sgemm_kern();
-};
-
-class jit_avx2_kernel_sgemm_kern : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_kernel_sgemm_kern);
-
-    public:
-        jit_avx2_kernel_sgemm_kern();
 };
 
 class jit_avx2_f32_copy_an_kern : public jit_generator {

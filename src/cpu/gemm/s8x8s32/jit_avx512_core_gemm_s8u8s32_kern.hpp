@@ -88,10 +88,6 @@ private:
     Xbyak::Address arg_a, arg_b, arg_c, arg_ldc, arg_coffset_c, arg_coffset_r;
     Xbyak::Address coffset_cx, coffset_cy, coffset_rx, coffset_ry;
 
-    void L_aligned(Xbyak::Label &label, int alignment = 16) {
-        align(alignment);
-        L(label);
-    }
 };
 
 }
