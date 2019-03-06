@@ -518,9 +518,9 @@ using primitive_t = mkldnn_primitive;
 
 using primitive_arg_index_t = int;
 
-using stream_kind_t = mkldnn_stream_kind_t;
-namespace stream_kind {
-    const stream_kind_t stream_kind_default = mkldnn_stream_kind_default;
+using stream_flags_t = mkldnn_stream_flags_t;
+namespace stream_flags {
+    const stream_flags_t default_flags = mkldnn_stream_default_flags;
 }
 using stream_t = mkldnn_stream;
 

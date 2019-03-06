@@ -111,7 +111,7 @@ void test2() {
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
 
     mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
 
     /* first describe user data and create data descriptors for future
      * convolution w/ the specified format -- we do not want to do a reorder */
@@ -242,7 +242,7 @@ void test3() {
     CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
 
     mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
 
     mkldnn_memory_desc_t l2_data_md;
     mkldnn_memory_t l2_src, l2_dst;

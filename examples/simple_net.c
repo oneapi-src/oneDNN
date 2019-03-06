@@ -401,7 +401,7 @@ mkldnn_status_t simple_net() {
     /*********************/
 
     mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
     for (uint32_t i = 0; i < n; ++i) {
         CHECK(mkldnn_primitive_execute(
                 net[i], stream, net_args[i].nargs, net_args[i].args));

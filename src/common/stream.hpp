@@ -24,19 +24,19 @@
 #include "engine.hpp"
 
 struct mkldnn_stream: public mkldnn::impl::c_compatible {
-    mkldnn_stream(mkldnn::impl::engine_t *engine,
-            mkldnn::impl::stream_kind_t kind): engine_(engine), kind_(kind) {}
+    mkldnn_stream(mkldnn::impl::engine_t *engine, unsigned flags)
+        : engine_(engine), flags_(flags) {}
     virtual ~mkldnn_stream() {}
 
     /** returns stream's engine */
     mkldnn::impl::engine_t *engine() const { return engine_; }
 
     /** returns stream's kind */
-    virtual mkldnn::impl::stream_kind_t kind() const { return kind_; }
+    unsigned flags() const { return flags_; }
 
 protected:
     mkldnn::impl::engine_t *engine_;
-    mkldnn::impl::stream_kind_t kind_;
+    unsigned flags_;
 };
 
 #endif

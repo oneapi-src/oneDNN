@@ -100,7 +100,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
         auto eng =  engine(p.engine_kind, 0);
-        auto strm = stream(eng, stream::stream_kind_default);
+        auto strm = stream(eng);
         auto data_type_diff_src = data_traits<data_t_diff_src>::data_type;
         auto data_type_diff_dst = data_traits<data_t_diff_dst>::data_type;
         auto data_type_wei = data_traits<data_t_wei>::data_type;

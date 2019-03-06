@@ -146,7 +146,7 @@ def maybe_skip(enum):
         'mkldnn_rnn_packed_memory_format_t',
         'mkldnn_engine_kind_t',
         'mkldnn_query_t',
-        'mkldnn_stream_kind_t',
+        'mkldnn_stream_flags_t',
         )
 
 

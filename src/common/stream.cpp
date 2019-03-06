@@ -28,15 +28,14 @@ using namespace mkldnn::impl::status;
 /* API */
 
 status_t mkldnn_stream_create(stream_t **stream, engine_t *engine,
-        stream_kind_t stream_kind) {
+        unsigned flags) {
     bool args_ok = true
         && !utils::any_null(stream, engine)
-        && utils::one_of(stream_kind, stream_kind::stream_kind_default);
+        && flags == stream_flags::default_flags;
     if (!args_ok)
         return invalid_arguments;
 
-    return safe_ptr_assign<stream_t>(*stream,
-            new stream_t(engine, stream_kind));
+    return safe_ptr_assign<stream_t>(*stream, new stream_t(engine, flags));
 }
 
 status_t mkldnn_stream_destroy(stream_t *stream) {

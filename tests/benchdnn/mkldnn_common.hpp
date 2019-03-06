@@ -80,7 +80,7 @@ extern mkldnn_stream_t stream;
 
 inline int init() {
     DNN_SAFE(mkldnn_engine_create(&engine, mkldnn_cpu, 0), CRIT);
-    DNN_SAFE(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default), CRIT);
+    DNN_SAFE(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags), CRIT);
     return OK;
 }
 

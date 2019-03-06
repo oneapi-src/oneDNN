@@ -697,7 +697,7 @@ mkldnn_status_t simple_net() {
 
     int n_iter = 10; // number of iterations for training.
     mkldnn_stream_t stream;
-    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_kind_default));
+    CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
     /* Execute the net */
     for (int i = 0; i < n_iter; i++) {
         for (uint32_t i = 0; i < n_fwd; ++i)

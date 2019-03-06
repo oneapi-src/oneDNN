@@ -1410,11 +1410,11 @@ typedef enum {
 /** @addtogroup c_api_types_stream Execution stream
  * @{ */
 
-/** @brief Kinds of streams. */
+/** @brief Stream flags. */
 typedef enum {
-    /** A default kind of stream. */
-    mkldnn_stream_kind_default,
-} mkldnn_stream_kind_t;
+    /** A default stream configuration. */
+    mkldnn_stream_default_flags = 0x0U,
+} mkldnn_stream_flags_t;
 
 /** @struct mkldnn_stream
  * An opaque structure to describe an execution stream. */

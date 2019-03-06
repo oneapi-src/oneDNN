@@ -570,17 +570,16 @@ template <> struct handle_traits<mkldnn_stream_t> {
 struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
-    enum kind { stream_kind_default = mkldnn_stream_kind_default, };
-
-    static mkldnn_stream_kind_t convert_to_c(kind akind) {
-        return static_cast<mkldnn_stream_kind_t>(akind);
-    }
+    enum: unsigned {
+        default_flags = mkldnn_stream_default_flags,
+    };
 
     /// Constructs a stream.
-    stream(const engine &aengine, kind akind = stream_kind_default) {
+    stream(const engine &aengine,
+            unsigned flags = static_cast<unsigned>(default_flags)) {
         mkldnn_stream_t astream;
-        error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(),
-                    convert_to_c(akind)), "could not create a stream");
+        error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(), flags),
+                "could not create a stream");
         reset(astream);
     }
 };

@@ -128,7 +128,7 @@ protected:
         ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(p.engine_kind, 0);
-        auto strm = stream(eng, stream::stream_kind_default);
+        auto strm = stream(eng);
 
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;
         memory::data_type data_type_dst = data_traits<data_t_dst>::data_type;

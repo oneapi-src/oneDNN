@@ -1658,9 +1658,9 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 /** @addtogroup c_api_stream Execution stream operations
  * @{ */
 
-/** Creates an execution @p stream of @p stream_kind with @p engine. */
+/** Creates an execution @p stream for @p engine and with @p flags. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
-        mkldnn_engine_t engine, mkldnn_stream_kind_t stream_kind);
+        mkldnn_engine_t engine, unsigned flags);
 
 /** Destroys an execution @p stream. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
