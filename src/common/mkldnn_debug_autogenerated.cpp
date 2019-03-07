@@ -102,7 +102,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_ABcd4b4a) return "ABcd4b4a";
     if (v == mkldnn_aBCd4c16b4c) return "aBCd4c16b4c";
     if (v == mkldnn_aBCd4c4b) return "aBCd4c4b";
-    if (v == mkldnn_Abcd8a) return "Abcd8a";
     if (v == mkldnn_ABcd8a16b2a) return "ABcd8a16b2a";
     if (v == mkldnn_ABcd8a8b) return "ABcd8a8b";
     if (v == mkldnn_aBcd8b) return "aBcd8b";
@@ -127,7 +126,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_aBCde4c4b) return "aBCde4c4b";
     if (v == mkldnn_Abcde8a) return "Abcde8a";
     if (v == mkldnn_ABcde8a8b) return "ABcde8a8b";
-    if (v == mkldnn_aBcde8b) return "aBcde8b";
     if (v == mkldnn_ABcde8b16a2b) return "ABcde8b16a2b";
     if (v == mkldnn_aBCde8b16c2b) return "aBCde8b16c2b";
     if (v == mkldnn_ABcde8b8a) return "ABcde8b8a";
@@ -145,7 +143,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_aBdc16b) return "aBdc16b";
     if (v == mkldnn_aBdc4b) return "aBdc4b";
     if (v == mkldnn_aBdc8b) return "aBdc8b";
-    if (v == mkldnn_aBdCe16b4c) return "aBdCe16b4c";
     if (v == mkldnn_aBdec16b) return "aBdec16b";
     if (v == mkldnn_aBdec4b) return "aBdec4b";
     if (v == mkldnn_aBdec8b) return "aBdec8b";
@@ -155,7 +152,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_Acb16a) return "Acb16a";
     if (v == mkldnn_Acb4a) return "Acb4a";
     if (v == mkldnn_Acb8a) return "Acb8a";
-    if (v == mkldnn_AcBd16a4b) return "AcBd16a4b";
     if (v == mkldnn_aCBd16b16c) return "aCBd16b16c";
     if (v == mkldnn_aCBde16b16c) return "aCBde16b16c";
     if (v == mkldnn_Acdb16a) return "Acdb16a";
@@ -222,12 +218,10 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_Owi4o) return "Owi4o";
     if (v == mkldnn_Owi8o) return "Owi8o";
     if (v == mkldnn_IOhw16o16i) return "IOhw16o16i";
-    if (v == mkldnn_OhIw16o4i) return "OhIw16o4i";
     if (v == mkldnn_Ohwi16o) return "Ohwi16o";
     if (v == mkldnn_Ohwi4o) return "Ohwi4o";
     if (v == mkldnn_Ohwi8o) return "Ohwi8o";
     if (v == mkldnn_OIhw16i16o) return "OIhw16i16o";
-    if (v == mkldnn_oIhw16i) return "oIhw16i";
     if (v == mkldnn_OIhw16o16i) return "OIhw16o16i";
     if (v == mkldnn_Oihw16o) return "Oihw16o";
     if (v == mkldnn_OIhw4i16o4i) return "OIhw4i16o4i";
@@ -235,22 +229,18 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_Oihw4o) return "Oihw4o";
     if (v == mkldnn_OIhw8i16o2i) return "OIhw8i16o2i";
     if (v == mkldnn_OIhw8i8o) return "OIhw8i8o";
-    if (v == mkldnn_oIhw8i) return "oIhw8i";
     if (v == mkldnn_OIhw8o16i2o) return "OIhw8o16i2o";
     if (v == mkldnn_OIhw8o8i) return "OIhw8o8i";
-    if (v == mkldnn_Oihw8o) return "Oihw8o";
     if (v == mkldnn_Odhwi16o) return "Odhwi16o";
     if (v == mkldnn_Odhwi4o) return "Odhwi4o";
     if (v == mkldnn_Odhwi8o) return "Odhwi8o";
     if (v == mkldnn_OIdhw16i16o) return "OIdhw16i16o";
-    if (v == mkldnn_oIdhw16i) return "oIdhw16i";
     if (v == mkldnn_OIdhw16o16i) return "OIdhw16o16i";
     if (v == mkldnn_Oidhw16o) return "Oidhw16o";
     if (v == mkldnn_OIdhw4i4o) return "OIdhw4i4o";
     if (v == mkldnn_Oidhw4o) return "Oidhw4o";
     if (v == mkldnn_OIdhw8i16o2i) return "OIdhw8i16o2i";
     if (v == mkldnn_OIdhw8i8o) return "OIdhw8i8o";
-    if (v == mkldnn_oIdhw8i) return "oIdhw8i";
     if (v == mkldnn_OIdhw8o8i) return "OIdhw8o8i";
     if (v == mkldnn_Goiw16g) return "Goiw16g";
     if (v == mkldnn_gIOw16o16i) return "gIOw16o16i";
@@ -268,7 +258,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_gOwi4o) return "gOwi4o";
     if (v == mkldnn_gOwi8o) return "gOwi8o";
     if (v == mkldnn_gIOhw16o16i) return "gIOhw16o16i";
-    if (v == mkldnn_gOhIw16o4i) return "gOhIw16o4i";
     if (v == mkldnn_gOhwi16o) return "gOhwi16o";
     if (v == mkldnn_gOhwi4o) return "gOhwi4o";
     if (v == mkldnn_gOhwi8o) return "gOhwi8o";
@@ -286,7 +275,6 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_gOIhw8i8o) return "gOIhw8i8o";
     if (v == mkldnn_gOIhw8o16i2o) return "gOIhw8o16i2o";
     if (v == mkldnn_gOIhw8o8i) return "gOIhw8o8i";
-    if (v == mkldnn_gOihw8o) return "gOihw8o";
     if (v == mkldnn_gOdhwi16o) return "gOdhwi16o";
     if (v == mkldnn_gOdhwi4o) return "gOdhwi4o";
     if (v == mkldnn_gOdhwi8o) return "gOdhwi8o";

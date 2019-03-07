@@ -207,7 +207,6 @@ typedef enum {
     mkldnn_ABcd4b4a,
     mkldnn_aBCd4c16b4c,
     mkldnn_aBCd4c4b,
-    mkldnn_Abcd8a,
     mkldnn_ABcd8a16b2a,
     mkldnn_ABcd8a8b,
     mkldnn_aBcd8b,
@@ -250,7 +249,6 @@ typedef enum {
     mkldnn_aBdc16b,
     mkldnn_aBdc4b,
     mkldnn_aBdc8b,
-    mkldnn_aBdCe16b4c,
     mkldnn_aBdec16b,
     mkldnn_aBdec4b,
     mkldnn_aBdec8b,
@@ -260,7 +258,6 @@ typedef enum {
     mkldnn_Acb16a,
     mkldnn_Acb4a,
     mkldnn_Acb8a,
-    mkldnn_AcBd16a4b,
     mkldnn_aCBd16b16c,
     mkldnn_aCBde16b16c,
     mkldnn_Acdb16a,
@@ -365,12 +362,10 @@ typedef enum {
 
     /* weights, 4D */
     mkldnn_IOhw16o16i = mkldnn_BAcd16a16b,
-    mkldnn_OhIw16o4i = mkldnn_AcBd16a4b,
     mkldnn_Ohwi16o = mkldnn_Acdb16a,
     mkldnn_Ohwi4o = mkldnn_Acdb4a,
     mkldnn_Ohwi8o = mkldnn_Acdb8a,
     mkldnn_OIhw16i16o = mkldnn_ABcd16b16a,
-    mkldnn_oIhw16i = mkldnn_aBcd16b,
     mkldnn_OIhw16o16i = mkldnn_ABcd16a16b,
     mkldnn_Oihw16o = mkldnn_Abcd16a,
     mkldnn_OIhw4i16o4i = mkldnn_ABcd4b16a4b,
@@ -378,24 +373,20 @@ typedef enum {
     mkldnn_Oihw4o = mkldnn_Abcd4a,
     mkldnn_OIhw8i16o2i = mkldnn_ABcd8b16a2b,
     mkldnn_OIhw8i8o = mkldnn_ABcd8b8a,
-    mkldnn_oIhw8i = mkldnn_aBcd8b,
     mkldnn_OIhw8o16i2o = mkldnn_ABcd8a16b2a,
     mkldnn_OIhw8o8i = mkldnn_ABcd8a8b,
-    mkldnn_Oihw8o = mkldnn_Abcd8a,
 
     /* weights, 5D */
     mkldnn_Odhwi16o = mkldnn_Acdeb16a,
     mkldnn_Odhwi4o = mkldnn_Acdeb4a,
     mkldnn_Odhwi8o = mkldnn_Acdeb8a,
     mkldnn_OIdhw16i16o = mkldnn_ABcde16b16a,
-    mkldnn_oIdhw16i = mkldnn_aBcde16b,
     mkldnn_OIdhw16o16i = mkldnn_ABcde16a16b,
     mkldnn_Oidhw16o = mkldnn_Abcde16a,
     mkldnn_OIdhw4i4o = mkldnn_ABcde4b4a,
     mkldnn_Oidhw4o = mkldnn_Abcde4a,
     mkldnn_OIdhw8i16o2i = mkldnn_ABcde8b16a2b,
     mkldnn_OIdhw8i8o = mkldnn_ABcde8b8a,
-    mkldnn_oIdhw8i = mkldnn_aBcde8b,
     mkldnn_OIdhw8o8i = mkldnn_ABcde8a8b,
 
     /* weights w/ groups, 3D */
@@ -417,7 +408,6 @@ typedef enum {
 
     /* weights w/ groups, 4D */
     mkldnn_gIOhw16o16i = mkldnn_aCBde16b16c,
-    mkldnn_gOhIw16o4i = mkldnn_aBdCe16b4c,
     mkldnn_gOhwi16o = mkldnn_aBdec16b,
     mkldnn_gOhwi4o = mkldnn_aBdec4b,
     mkldnn_gOhwi8o = mkldnn_aBdec8b,
@@ -435,7 +425,6 @@ typedef enum {
     mkldnn_gOIhw8i8o = mkldnn_aBCde8c8b,
     mkldnn_gOIhw8o16i2o = mkldnn_aBCde8b16c2b,
     mkldnn_gOIhw8o8i = mkldnn_aBCde8b8c,
-    mkldnn_gOihw8o = mkldnn_aBcde8b,
 
     /* weights w/ groups, 6D */
     mkldnn_gOdhwi16o = mkldnn_aBdefc16b,
