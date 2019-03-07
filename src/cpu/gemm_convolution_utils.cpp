@@ -250,7 +250,7 @@ void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
         const int imtr_ic_stride = ihb * iwb;
         const ptrdiff_t imtr_idx_shift = ih_start * iwb + iw_start;
         for (int ic = 0; ic < jcp.ic; ic++) {
-            const int imtr_idx_ic = ic * imtr_ic_stride - imtr_idx_shift;
+            const ptrdiff_t imtr_idx_ic = ic * imtr_ic_stride - imtr_idx_shift;
             for (int ih = ih_start; ih < ih_end; ih++) {
                 const ptrdiff_t im_idx_ih = ic + ih * im_ih_stride;
                 const ptrdiff_t imtr_idx_ih = imtr_idx_ic + ih * iwb;
