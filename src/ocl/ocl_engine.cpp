@@ -120,7 +120,9 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<f32>),
     /*softmax*/
-    INSTANCE(ref_softmax_fwd_t),
+    INSTANCE(ref_softmax_fwd_t<f16>),
+    INSTANCE(ref_softmax_fwd_t<f32>),
+    INSTANCE(ref_softmax_bwd_t<f32>),
     /* gemm */
     INSTANCE(jit_gen9_gemm_t<f16>),
     INSTANCE(jit_gen9_gemm_t<f32>),
