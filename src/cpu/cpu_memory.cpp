@@ -32,12 +32,6 @@ using namespace mkldnn::impl::data_type;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::format_tag;
 
-status_t cpu_engine_t::memory_create(memory_t **memory,
-        const memory_desc_t *md, void *handle) {
-    return safe_ptr_assign<memory_t>(*memory,
-            new cpu_memory_t(this, md, handle));
-}
-
 enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 
 template <data_type_t dt, blk_kind_t blk_kind, int blksize>

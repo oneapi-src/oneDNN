@@ -20,6 +20,7 @@
 #include "verbose.hpp"
 
 #include "cpu_engine.hpp"
+#include "cpu_memory.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 
@@ -65,6 +66,12 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+status_t cpu_engine_t::memory_create(memory_t **memory,
+        const memory_desc_t *md, void *handle) {
+    return safe_ptr_assign<memory_t>(*memory,
+            new cpu_memory_t(this, md, handle));
+}
 
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
 
