@@ -75,7 +75,6 @@ Please submit your questions, feature requests, and bug reports on the
 
 **WARNING** The following functionality has preview status and might change
 without prior notification in future releases:
-* Convolutions with `s16` data type in source, weights or destination
 * Threading Building Blocks (TBB) support
 
 ## How to Contribute

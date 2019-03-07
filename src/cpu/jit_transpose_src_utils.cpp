@@ -1177,8 +1177,6 @@ void jit_transpose4x16_src::generate()
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)
         return new jit_trans_iw_ic_t(conf);
-    if ((conf->ver == ver_4vnni || conf->ver == ver_vnni) && !conf->is_1stconv)
-        return new jit_trans_iw_ic_int16_t(conf);
     if (conf->ver == ver_4fma && conf->is_1stconv)
         return new jit_trans_iw_x4_4x_t(conf);
     assert(!"unsupported configuration");
@@ -1186,8 +1184,6 @@ jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
 }
 
 jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf) {
-    if (conf->ver == ver_4vnni || conf->ver == ver_vnni)
-        return new jit_trans_ow_oc_t(conf);
     assert(!"unsupported configuration");
     return nullptr;
 }

@@ -3,9 +3,6 @@
 --cfg=f32
 --dir=FWD_D mb2ic16ih7oc16oh7kh5ph2
 --dir=FWD_D mb2ic16ih29oc16oh29kh5ph2
---cfg=s16s16s32s32
---dir=FWD_D mb2ic16ih7oc16oh7kh5ph2
---dir=FWD_D mb2ic16ih29oc16oh29kh5ph2
 
 # MKLDNN-611
 --reset --cfg=f32
@@ -30,9 +27,6 @@
 # MKLDNN-623
 --reset --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --allow-unimpl=true --cfg=s8s8u8s32 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
---reset --cfg=s16s16s32s32 --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
---reset --cfg=s32s16s16s32 --dir=BWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
---reset --cfg=s16s32s16s32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --dir=BWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"

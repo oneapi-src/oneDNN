@@ -265,7 +265,6 @@ status_t cpu_memory_t::zero_pad() const {
     switch (mdw.data_type()) {
         case f32: return typed_zero_pad<f32>();
         case s32: return typed_zero_pad<s32>();
-        case s16: return typed_zero_pad<s16>();
         case s8: return typed_zero_pad<s8>();
         case u8: return typed_zero_pad<u8>();
         default: assert(!"memory is undefined"); return unimplemented;

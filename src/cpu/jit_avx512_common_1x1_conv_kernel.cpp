@@ -177,10 +177,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         int offt;
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
-        if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
-            offt = (i_load * jcp.reduce_block + u0) * jcp.load_block;
-        else
-            offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
+        offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
         return EVEX_compress_addr(aux_reg_load_data,
                                   u1 * jcp.reduce_loop_load_step
                                   + jcp.typesize_in * offt);
@@ -232,15 +229,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         L(init_done);
     };
 
-    auto vadd = [=](const Xmm& x1, const Xmm& x2, const Operand& op) {
-        if (jcp.ver == ver_4vnni)
-            vpaddd(x1, x2, op);
-        else
-            vaddps(x1, x2, op);
-    };
-
     auto store = [=]() {
-
         Label store_noadd;
         if (!jcp.with_sum) {
             test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
@@ -250,7 +239,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 auto r = vreg_accum(i_load, i_ur);
-                vadd(r, r, output_ptr(i_load, i_ur));
+                vaddps(r, r, output_ptr(i_load, i_ur));
             }
 
         L(store_noadd);
@@ -259,19 +248,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_noeltwise, T_NEAR);
 
-            if (jcp.ver == ver_4vnni) {
-                zmm_t zmm_zero = vreg_bcast;
-                vpxord(zmm_zero, zmm_zero, zmm_zero);
-
-                for (int i_ur = 0; i_ur < ur; ++i_ur)
-                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    Zmm zmm = vreg_accum(i_load, i_ur);
-                    vpcmpd(k1, zmm, zmm_zero, _cmp_lt_os);
-                    vpmulld(zmm | k1, zmm, zmm_zero);
-                }
-            } else {
-                eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
-            }
+            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
 
             L(store_noeltwise);
         }
@@ -356,10 +333,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 if (i_pf < n_pf_ker_l2) {
                     int offt = (i_pf + (i_load + 1) * jcp.reduce_dim)
                         * jcp.load_block;
-                    if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni)
-                        offt = (i_pf + (i_load + 1) * jcp.reduce_block)
-                                * jcp.load_block;
-
                     mic_prefetcht1(ptr[aux_reg_load_data
                                     + offt * jcp.typesize_in]);
                 } else if (i_pf < n_pf_ker_l2 + n_pf_ker_l1) {
@@ -386,12 +359,9 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
         assert(jcp.reduce_loop_unroll % jcp.fma_step == 0);
 
         int reduce_step = jcp.fma_step;
-        if (jcp.ver == ver_4vnni)
-            reduce_step *= 2;
 
         for (int i_reduce = 0; i_reduce < jcp.reduce_loop_unroll;
                 i_reduce += reduce_step) {
-            int load_scale = (jcp.ver == ver_4vnni) ? 2 : 1;
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 // if transposed input data used and if spatial size is
                 // not divided by transpose step (4) then for last reduce step
@@ -408,8 +378,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
                         if (i_fma < n_loads)
                             vmovups(vreg_load(i_load, i_fma),
-                                    load_ptr(i_reduce + load_scale * i_fma,
-                                            i_load));
+                                    load_ptr(i_reduce + i_fma, i_load));
                         else
                             vpxord(vreg_load(i_load, i_fma),
                                     vreg_load(i_load, i_fma),
@@ -420,15 +389,13 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     L(load_all);
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
                         vmovups(vreg_load(i_load, i_fma),
-                            load_ptr(i_reduce + load_scale * i_fma, i_load));
+                            load_ptr(i_reduce + i_fma, i_load));
                     }
                     L(load_finish);
                 } else {
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
                         vmovups(vreg_load(i_load, i_fma),
-                            load_ptr(i_reduce
-                                + load_scale * i_fma,
-                                i_load));
+                            load_ptr(i_reduce + i_fma, i_load));
                     }
                 }
             }
@@ -442,10 +409,6 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                         v4fmaddps(vreg_accum(i_load, i_ur),
                                     vreg_load(i_load, 0),
                                     bcast_ptr(i_reduce, i_ur, false));
-                    else if (jcp.ver == ver_4vnni)
-                        vp4dpwssd(vreg_accum(i_load, i_ur),
-                                vreg_load(i_load, 0),
-                                bcast_ptr(i_reduce, i_ur, false));
                     else if (jcp.ver == ver_avx512_core && jcp.expl_bcast
                             && load_loop_blk > 1)
                         vfmadd231ps(vreg_accum(i_load, i_ur),
@@ -553,12 +516,10 @@ void jit_avx512_common_1x1_conv_kernel::generate()
     const int *ur_cases_fma = (jcp.ver == ver_avx512_core && jcp.expl_bcast) ?
             ur_cases_fma_expl_bcast :
             ur_cases_fma_embd_bcast;
-    const int *ur_cases = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni)
-        ? ur_cases_4fma : ur_cases_fma;
-    const int num_ur_cases = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni ?
-                                             size_ur_cases_4fma :
-                                             size_ur_cases_fma)
-            / sizeof(*ur_cases);
+    const int *ur_cases = jcp.ver == ver_4fma ? ur_cases_4fma : ur_cases_fma;
+    const int num_ur_cases =
+        (jcp.ver == ver_4fma ?  size_ur_cases_4fma : size_ur_cases_fma)
+        / sizeof(*ur_cases);
 
     for (int ur_idx = num_ur_cases - 1; ur_idx > 0; ur_idx--) {
         int label_idx = num_ur_cases - ur_idx - 1;
@@ -703,33 +664,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.ic_block = jcp.oc_block = simd_w;
     jcp.transpose_src = false;
 
-    if (mayiuse(avx512_mic_4ops)
-        && ((one_of(jcp.prop_kind, forward_training, forward_inference)
-            && src_d.data_type() == data_type::s16
-            && weights_d.data_type() == data_type::s16
-            && dst_d.data_type() == data_type::s32)
-        || (jcp.prop_kind == backward_data
-            && src_d.data_type() == data_type::s32
-            && weights_d.data_type() == data_type::s16
-            && dst_d.data_type() == data_type::s16)))
-    {
-        const int is_bwd_d = jcp.prop_kind == backward_data;
-        format_tag_t wei_tag = with_groups
-            ? pick(2 * ndims - 6 + is_bwd_d, gOIw8i16o2i, gOIw8o16i2o,
-                gOIhw8i16o2i, gOIhw8o16i2o)
-            : pick(2 * ndims - 6 + is_bwd_d, OIw8i16o2i, OIw8o16i2o,
-                OIhw8i16o2i, OIhw8o16i2o);
-
-        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-        if (jcp.wei_tag != wei_tag)
-            return status::unimplemented;
-
-        jcp.ver = ver_4vnni;
-        jcp.fma_step = 4;
-        jcp.typesize_in = sizeof(prec_traits<data_type::s16>::type);
-        jcp.typesize_out = sizeof(prec_traits<data_type::s32>::type);
-    }
-    else if (everyone_is(data_type::f32, src_d.data_type(),
+    if (everyone_is(data_type::f32, src_d.data_type(),
                             weights_d.data_type(), dst_d.data_type()))
     {
         const int is_bwd_d = jcp.prop_kind == backward_data;
@@ -819,17 +754,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.reduce_loop_bcast_step
                 = jcp.reduce_loop_unroll * jcp.bcast_dim * jcp.typesize_in;
 
-        if (jcp.prop_kind == backward_data && jcp.ver == ver_4vnni) {
-            jcp.reduce_loop_load_step
-                    = jcp.reduce_loop_unroll * jcp.ic * jcp.typesize_in;
-            jcp.load_loop_load_step
-                    = jcp.oc_block * jcp.ic_block * jcp.typesize_in;
-        } else {
-            jcp.reduce_loop_load_step
-                    = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
-            jcp.load_loop_load_step
-                    = jcp.reduce_dim * jcp.load_block * jcp.typesize_in;
-        }
+        jcp.reduce_loop_load_step
+            = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
+        jcp.load_loop_load_step
+            = jcp.reduce_dim * jcp.load_block * jcp.typesize_in;
 
         // adjusting registry blocking
         int max_regs, min_regs, size_treshold, ur_step;
@@ -850,11 +778,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                 min_regs = 5;
             }
         } else {
-            bool is4ops = (jcp.ver == ver_4fma || jcp.ver == ver_4vnni);
-            max_regs = is4ops ? 28 : 30;
+            max_regs = jcp.ver == ver_4fma ? 28 : 30;
             min_regs = 9;
-            size_treshold = is4ops ? 28 : 14;
-            ur_step = is4ops ? 4 : 1;
+            size_treshold = jcp.ver == ver_4fma ? 28 : 14;
+            ur_step = jcp.ver == ver_4fma ? 4 : 1;
             jcp.expl_bcast = false;
             jcp.use_vmovntps = true;
         }
@@ -1200,11 +1127,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     assert(reduce_blocking % jcp.reduce_block == 0);
     assert(load_blocking_max % jcp.load_block == 0);
     assert(reduce_blocking_max % jcp.reduce_block == 0);
-    if (jcp.ver == ver_4fma || jcp.ver == ver_4vnni) {
-        if (jcp.ver == ver_4fma)
-            assert(jcp.reduce_loop_unroll % jcp.fma_step == 0);
-        if (jcp.ver == ver_4vnni)
-            assert(jcp.reduce_loop_unroll % (2 * jcp.fma_step) == 0);
+    if (jcp.ver == ver_4fma) {
+        assert(jcp.reduce_loop_unroll % jcp.fma_step == 0);
         assert(jcp.reduce_dim % jcp.reduce_loop_unroll == 0);
     }
 

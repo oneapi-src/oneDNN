@@ -43,7 +43,6 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_s32s16s16s32;
 extern const _dt_conf_t conf_u8s8s32s32;
 extern const _dt_conf_t conf_u8s8s8s32;
 extern const _dt_conf_t conf_u8s8u8s32;

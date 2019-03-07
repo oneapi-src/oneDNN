@@ -26,8 +26,7 @@ namespace impl {
 namespace cpu {
 
 /* convolution */
-enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_4vnni,
-                     ver_vnni};
+enum conv_version_t {ver_unused, ver_fma, ver_avx512_core, ver_4fma, ver_vnni};
 enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc, loop_gncw, loop_cwgn,
                             loop_ngcw, loop_nhwcg, loop_nwcg};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
@@ -103,7 +102,6 @@ struct jit_conv_conf_t {
     int typesize_out;
     int typesize_bia;
     int typesize_acc;
-    int tr_ow;
     /* avx512_u8s8u8 */
     int ic_nb1, ic_nb2;
     int oc_nb1;

@@ -29,17 +29,6 @@
 --attr=post_ops='relu'
 --cfg=s8s8s32s32 --batch=conv_vgg_19
 
-# s16 (knm)
---reset --mb=2
---skip-impl="ref:gemm"      # ! test jit version only
---cfg=s16s16s32s32 --dir=FWD_B --batch=conv_all
---cfg=s32s16s16s32 --dir=BWD_D --batch=conv_all
---cfg=s16s32s16s32 --dir=BWD_WB --batch=conv_all
-
---attr=post_ops='relu'                # +relu
---allow-unimpl=true                   # TODO: remove if ref_convolution accepts post_ops
---cfg=s16s16s32s32 --dir=FWD_B --batch=conv_googlenet_v1
-
 # f32 wino
 --reset --cfg=f32_wino --alg=wino
 --match=.*kh3[^0-9].*       # only 3x3 convolutions so far

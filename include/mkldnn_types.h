@@ -74,12 +74,10 @@ typedef enum {
     mkldnn_f32 = 1,
     /** 32-bit signed integer. */
     mkldnn_s32 = 2,
-    /** 16-bit signed integer. */
-    mkldnn_s16 = 4,
     /** 8-bit signed integer. */
-    mkldnn_s8 = 5,
+    mkldnn_s8 = 3,
     /** 8-bit unsigned integer. */
-    mkldnn_u8 = 6,
+    mkldnn_u8 = 4,
 } mkldnn_data_type_t;
 
 /** Memory format kind */

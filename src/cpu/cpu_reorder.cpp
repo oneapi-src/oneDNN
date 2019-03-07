@@ -219,30 +219,16 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR_BIDIR(f32, any, f32, gOIhw4i16o4i),
     REG_SR_BIDIR(s8, any, s8, gOIhw4i16o4i),
 
-    /* s16 <-> s16 */
-    REG_SR_DIRECT_COPY(s16, s16),
-
-    REG_SR_BIDIR(s16, any, s16, OIhw8i16o2i),
-    REG_SR_BIDIR(s16, any, s16, gOIhw8i16o2i),
-    REG_SR_BIDIR(s16, OIhw8i16o2i, s16, OIhw8o16i2o),
-    REG_SR_BIDIR(s16, gOIhw8i16o2i, s16, gOIhw8o16i2o),
-
     /* reference: the last line of defence */
     REG_SR(f32, any, f32, any, fmt_order::any, spec::reference),
     REG_SR(f32, any, s32, any, fmt_order::any, spec::reference),
-    REG_SR(f32, any, s16, any, fmt_order::any, spec::reference),
     REG_SR(f32, any, s8, any, fmt_order::any, spec::reference),
     REG_SR(f32, any, u8, any, fmt_order::any, spec::reference),
 
     REG_SR(s32, any, f32, any, fmt_order::any, spec::reference),
     REG_SR(s32, any, s32, any, fmt_order::any, spec::reference),
-    REG_SR(s32, any, s16, any, fmt_order::any, spec::reference),
     REG_SR(s32, any, s8, any, fmt_order::any, spec::reference),
     REG_SR(s32, any, u8, any, fmt_order::any, spec::reference),
-
-    REG_SR(s16, any, f32, any, fmt_order::any, spec::reference),
-    REG_SR(s16, any, s32, any, fmt_order::any, spec::reference),
-    REG_SR(s16, any, s16, any, fmt_order::any, spec::reference),
 
     REG_SR(s8, any, f32, any, fmt_order::any, spec::reference),
     REG_SR(s8, any, s32, any, fmt_order::any, spec::reference),

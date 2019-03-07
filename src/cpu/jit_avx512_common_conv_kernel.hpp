@@ -133,19 +133,11 @@ private:
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_fma_core(int ur_w, int pad_l, int pad_r);
-    inline void compute_loop_vnni(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
-
-    inline void vadd(Vmm vmm, const Xbyak::Operand& op) {
-        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpaddd(vmm, vmm, op);
-        else
-            vaddps(vmm, vmm, op);
-    }
 
     inline size_t get_output_offset(int oi, int n_oc_block) {
         return (size_t)jcp.typesize_out * ((size_t)n_oc_block * jcp.oh
@@ -153,20 +145,16 @@ private:
     }
 
     inline size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
-        size_t scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         size_t iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
         size_t ic_str = !jcp.is_1stconv ? 1 : (size_t)jcp.iw * jcp.ih * jcp.id;
-        return (size_t)jcp.typesize_in
-                * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
-                                  * iw_str
-                          + scale * ic * ic_str);
+        return (size_t)jcp.typesize_in * ((size_t)(ki * (jcp.dilate_w + 1)
+                    + oi * jcp.stride_w - pad_l) * iw_str + ic * ic_str);
     }
 
     inline int get_kernel_offset(int ki,int ic,int n_oc_block,int ker_number) {
-        int scale = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? 2 : 1;
         return jcp.typesize_in * jcp.oc_block
             * (n_oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd
-                    + (ic + ker_number) * scale + ki * jcp.ic_block);
+                    + (ic + ker_number) + ki * jcp.ic_block);
     }
 
     inline int get_ow_start(int ki, int pad_l) {
@@ -307,26 +295,12 @@ private:
         assert(idx < ker_reg_base_idx);
         return Xbyak::Zmm(idx);
     }
-    inline void vpXdpwssd(Xbyak::Zmm zmm1, Xbyak::Zmm zmm2, reg64_t reg,
-        int offset) {
-        if (jcp.ver == ver_4vnni)
-            vp4dpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, false));
-        else
-            vpdpwssd(zmm1, zmm2, EVEX_compress_addr(reg, offset, true));
-    }
-    inline void vadd(Xbyak::Zmm zmm, const Xbyak::Operand& op) {
-        if (jcp.ver == ver_4vnni || jcp.ver == ver_vnni)
-            vpaddd(zmm, zmm, op);
-        else
-            vaddps(zmm, zmm, op);
-    }
 
     Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
     inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
-    inline void compute_loop_vnni(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma_core(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
@@ -423,10 +397,6 @@ private:
             int input_offset, int kernel_offset, int output_offset,
             bool input_wraparound);
     inline void compute_ic_block_step_4fma(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool input_wraparound);
-    inline void compute_ic_block_step_vnni(int ur_w,
             int pad_l, int pad_r, int ic_block_step,
             int input_offset, int kernel_offset, int output_offset,
             bool input_wraparound);

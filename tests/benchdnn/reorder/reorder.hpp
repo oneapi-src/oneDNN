@@ -68,7 +68,6 @@ extern const char *perf_template; /* performance output template */
 extern const dt_conf_t conf_f32;
 extern const dt_conf_t conf_s8;
 extern const dt_conf_t conf_u8;
-extern const dt_conf_t conf_s16;
 extern const dt_conf_t conf_s32;
 dt_conf_t dt2cfg(mkldnn_data_type_t dt);
 mkldnn_data_type_t cfg2dt(dt_conf_t cfg);

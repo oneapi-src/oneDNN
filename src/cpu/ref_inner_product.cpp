@@ -111,7 +111,6 @@ execute_forward(const exec_ctx_t &ctx) const {
 
 using namespace data_type;
 template struct ref_inner_product_fwd_t<f32>;
-template struct ref_inner_product_fwd_t<s16, s16, s32, s32>;
 template struct ref_inner_product_fwd_t<u8, s8, f32, s32>;
 template struct ref_inner_product_fwd_t<u8, s8, s32, s32>;
 template struct ref_inner_product_fwd_t<u8, s8, s8, s32>;
@@ -190,7 +189,6 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 }
 
 template struct ref_inner_product_bwd_data_t<f32, f32, f32, f32>;
-template struct ref_inner_product_bwd_data_t<s32, s16, s16, s32>;
 
 template <impl::data_type_t data_type>
 void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(

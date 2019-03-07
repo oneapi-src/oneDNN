@@ -84,9 +84,6 @@ typedef struct dt_conf_t {
 extern const _dt_conf_t conf_f32;
 extern const _dt_conf_t conf_f32_full;
 extern const _dt_conf_t conf_f32_wino;
-extern const _dt_conf_t conf_s16s16s32s32;
-extern const _dt_conf_t conf_s32s16s16s32;
-extern const _dt_conf_t conf_s16s32s16s32;
 extern const _dt_conf_t conf_u8s8s32s32;
 extern const _dt_conf_t conf_u8s8s8s32;
 extern const _dt_conf_t conf_u8s8u8s32;

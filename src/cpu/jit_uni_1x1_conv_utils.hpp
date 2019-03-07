@@ -59,7 +59,7 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
     bool rtus_applicable = true
         && utils::pick(ndims - 3,
             (conv_d->strides[0] != 1 && !one_of(conv_d->src_desc.data_type,
-                data_type::s16, data_type::s32)),
+                data_type::s32)),
             (conv_d->strides[0] != 1 || conv_d->strides[1] != 1))
         && dat_tag != format_tag::undef;
     for (int d = 2; d < ndims; ++d) {

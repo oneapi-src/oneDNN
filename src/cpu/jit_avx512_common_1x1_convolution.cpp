@@ -280,8 +280,6 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
 
 
 template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
-template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::s16,
-    data_type::s16, data_type::s32>;
 /* convolution backward wtr data */
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
@@ -417,8 +415,6 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 }
 
 template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
-template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::s16,
-    data_type::s16, data_type::s32>;
 
 /* convolution backward wtr weights */
 

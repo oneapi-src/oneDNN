@@ -639,9 +639,6 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
     if (dst_d.data_type() != data_type::f32)
         return status::unimplemented;
 
-    if (mayiuse(avx512_core_vnni))
-        jcp.ver = ver_vnni;
-
     jcp.ic_block = simdw;
     jcp.oc_block = simdw;
 

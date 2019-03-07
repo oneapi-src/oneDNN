@@ -590,7 +590,6 @@ struct memory: public handle<mkldnn_memory_t> {
         data_undef = mkldnn_data_type_undef,
         f32 = mkldnn_f32,
         s32 = mkldnn_s32,
-        s16 = mkldnn_s16,
         s8 = mkldnn_s8,
         u8 = mkldnn_u8,
     };

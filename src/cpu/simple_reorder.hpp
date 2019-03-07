@@ -384,67 +384,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
-template <SIMPLE_REORDER_TEMPL_DECL>
-struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-    typename utils::enable_if<true
-    && (false
-            || (tag_i == OIhw8i16o2i && tag_o == OIhw8o16i2o)
-            || (tag_i == gOIhw8i16o2i && tag_o == gOIhw8o16i2o))
-    >::type>
-{
-    static bool is_applicable(const memory_desc_wrapper &input_d,
-            const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
-    {
-        return simple_fmt_check(order_keep, tag_i, tag_o, input_d, output_d)
-            && simple_attr_check(attr, false);
-    }
-
-    static status_t execute(const cpu_reorder_pd_t *pd,
-        const data_t<type_i> *input, data_t<type_o> *output) {
-        DECLARE_COMMON_PARAMS();
-
-        static constexpr int ndims = tag_traits<tag_o>::ndims;
-        static constexpr bool w_groups = ndims == 5;
-        constexpr int blksize = 16;
-
-        const auto &dims = input_d.dims();
-
-        const dim_t G = w_groups ? dims[0] : 1;
-        const dim_t NB_OC = dims[w_groups + 0] / blksize;
-        const dim_t NB_IC = dims[w_groups + 1] / blksize;
-        const dim_t H = dims[ndims - 2];
-        const dim_t W = dims[ndims - 1];
-
-        auto idx = [&](const int x0, const int x1)
-        { return ((x1 / 2) * blksize * 2 + 2 * x0 + x1 % 2); };
-
-        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o) -> void {
-            if (alpha == 1.0 && beta == 0.0) {
-                for (int ic = 0; ic < blksize; ++ic)
-                for (int oc = 0; oc < blksize; ++oc) {
-                    o[idx(oc, ic)] = _qz_a1b0<type_i, type_o>()(
-                            i[idx(ic, oc)]);
-                }
-            } else {
-                for (int ic = 0; ic < blksize; ++ic)
-                for (int oc = 0; oc < blksize; ++oc) {
-                    o[idx(oc, ic)] = _qz<type_i, type_o>()(
-                            i[idx(ic, oc)], o[idx(oc, ic)], alpha, beta);
-                }
-            }
-        };
-
-        parallel_nd(G, NB_OC, NB_IC, H, W,
-            [&](dim_t g, dim_t o, dim_t i, dim_t h, dim_t w) {
-            auto ptr_i = &input[input_d.blk_off<!w_groups>(g, o, i, h, w)];
-            auto ptr_o = &output[output_d.blk_off<!w_groups>(g, o, i, h, w)];
-            ker(ptr_i, ptr_o);
-        });
-
-        return success;
-    }
-};
-
 /* reorders with tail support */
 
 template <SIMPLE_REORDER_TEMPL_DECL>

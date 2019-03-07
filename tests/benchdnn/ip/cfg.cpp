@@ -40,14 +40,6 @@ const _dt_conf_t conf_f32 = {
     {mkldnn_f32,},
 };
 
-const _dt_conf_t conf_s16s16s32s32 = {
-    {mkldnn_s16, INT16_MIN, INT16_MAX, -4,  4, 0, 1, .35, 0.},
-    {mkldnn_s16, INT16_MIN, INT16_MAX, -5,  5, 0, 1, .35, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .35, 0.},
-    {mkldnn_s32, INT32_MIN, INT32_MAX, -4,  4, 0, 1, .35, 0.},
-    {mkldnn_s32,},
-};
-
 const _dt_conf_t conf_u8s8f32s32 = {
     {mkldnn_u8,               0,     UINT8_MAX,    0,   8, 0, 1, .35, 0.},
     {mkldnn_s8,        INT8_MIN,      INT8_MAX,   -5,   5, 0, 1, .35, 0.},
@@ -116,7 +108,6 @@ const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_,cfg)
     CASE(f32);
-    CASE(s16s16s32s32);
     CASE(u8s8f32s32);
     CASE(u8s8s32s32);
     CASE(u8s8s8s32);
@@ -133,7 +124,6 @@ const dt_conf_t *str2cfg(const char *str) {
 const char *cfg2str(const dt_conf_t *cfg) {
 #define CASE(_cfg) if (cfg == CONCAT2(conf_,_cfg)) return STRINGIFY(_cfg)
     CASE(f32);
-    CASE(s16s16s32s32);
     CASE(u8s8f32s32);
     CASE(u8s8s32s32);
     CASE(u8s8s8s32);

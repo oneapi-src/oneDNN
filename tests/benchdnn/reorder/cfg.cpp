@@ -34,7 +34,6 @@ const dt_conf_t CONCAT2(conf_,dt) = &CONCAT2(_conf_,dt);
 
 REG(f32, -int_max_exact, 2 * int_max_exact);
 REG(s32, -int_max_exact, 2 * int_max_exact);
-REG(s16,      INT16_MIN,    -2 * INT16_MIN);
 REG( s8,       INT8_MIN,     -2 * INT8_MIN);
 REG( u8,              0,         UINT8_MAX);
 
@@ -44,7 +43,6 @@ dt_conf_t dt2cfg(mkldnn_data_type_t dt) {
 #define CASE(cfg) if (CONCAT2(mkldnn_,cfg) == dt) return CONCAT2(conf_,cfg)
     CASE(f32);
     CASE(s32);
-    CASE(s16);
     CASE(s8);
     CASE(u8);
 #undef CASE
@@ -57,7 +55,6 @@ mkldnn_data_type_t cfg2dt(dt_conf_t cfg) {
     return CONCAT2(mkldnn_,_cfg)
     CASE(f32);
     CASE(s32);
-    CASE(s16);
     CASE(s8);
     CASE(u8);
 #undef CASE

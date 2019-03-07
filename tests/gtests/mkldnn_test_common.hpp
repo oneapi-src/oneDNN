@@ -47,9 +47,6 @@ template <> struct data_traits<uint8_t> {
 template <> struct data_traits<int8_t> {
     static const auto data_type = memory::data_type::s8;
 };
-template <> struct data_traits<int16_t> {
-    static const auto data_type = memory::data_type::s16;
-};
 template <> struct data_traits<int32_t> {
     static const auto data_type = memory::data_type::s32;
 };
@@ -155,7 +152,6 @@ static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
             : data_t{0};
     } else if (data_traits<data_t>::data_type == memory::data_type::s32
-        || data_traits<data_t>::data_type == memory::data_type::s16
         || data_traits<data_t>::data_type == memory::data_type::s8) {
         return data_t(rand() % 21 - 10);
     } else if (data_traits<data_t>::data_type == memory::data_type::u8) {
