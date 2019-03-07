@@ -68,14 +68,13 @@ private:
         auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
-        const round_mode_t rmode = pd()->attr()->round_mode_;
         const size_t nelems = input_d.nelems();
         const float scale = pd()->attr()->rnn_data_qparams_.scale_;
         const float shift = pd()->attr()->rnn_data_qparams_.shift_;
 
         parallel_nd(nelems, [&](size_t i) {
             float in = (float)input[input_d.off_l(i)] * scale + shift;
-            output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in, rmode);
+            output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in);
         });
 
         return status::success;
@@ -182,7 +181,6 @@ private:
                 memory_tracking::names::key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 output + output_d.rnn_packed_desc().offset_compensation);
-        const round_mode_t rmode = pd()->attr()->round_mode_;
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
         const int mask = pd()->attr()->rnn_weights_qparams_.mask_;
 
@@ -208,8 +206,7 @@ private:
                         for (int go = 0; go < G * O; go++) {
                             const float s = scales[(mask == 0) ? 0 : go];
                             int8_t q = qz_b0<in_data_t, out_data_t>()(
-                                    input[ld * I * G * O + i * G * O + go], s,
-                                    rmode);
+                                    input[ld * I * G * O + i * G * O + go], s);
                             quantized[ld * I * G * O + i * G * O + go]
                                     = (int32_t)q;
                             comp_ithr[ld * G * O + go] += (int32_t)q;
@@ -232,7 +229,7 @@ private:
                 PRAGMA_OMP_SIMD()
                 for (int i = 0; i < I; i++) {
                     int8_t q = qz_b0<in_data_t, out_data_t>()(
-                            input[ld * G * O * I + go * I + i], s, rmode);
+                            input[ld * G * O * I + go * I + i], s);
                     compensation += (int32_t)q;
                     quantized[ld * G * O * I + go * I + i] = q;
                 }

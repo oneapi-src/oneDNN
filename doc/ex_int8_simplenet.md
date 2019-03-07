@@ -21,7 +21,7 @@ data into a single instruction, at the cost of reduced but acceptable accuracy.
 To operate with int8 data types from a higher precision format (e.g. 32-bit floating point),
 data must first be _quantized_. The quantization process converts a given input into a
 lower-precision format. The precision and accuracy factors are determined by the
-scale and rounding-mode respectively.
+scaling factors.
 
 ### Scale
 The scale is usually obtained from sampling the dataset of previous executions in
@@ -52,7 +52,8 @@ are calculated as:
 + \f$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil \in [0,255]\f$
 + \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]\f$
 + \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil \in [-2^{31},2^{31}-1]\f$\n
-where the function \f$ \lceil   \rceil \f$ rounds to the selected rounding mode.
+where the function \f$ \lceil   \rceil \f$ rounds to the selected rounding mode
+(typically determened by MXCSR register, the default value is RoundNearestEven).
 
 When the destination value (e.g. from a convolution) is stored
 as a signed 32-bit integer, the result is bound to the same quantization
@@ -120,8 +121,8 @@ MKLDNN primitive behaviour may be extended for additional functionalities
 involving output data transformation. These additional features are
 configured via **primitive attributes**. The primitive attributes
 definition is an opaque structure for passing extra parameters to
-a primitive descriptor. These parameters include Scaling Factor,
-Round Mode and Fused Post-Operations (**PostOps**). All operation primitives
+a primitive descriptor. These parameters include Scaling Factor
+and Fused Post-Operations (**PostOps**). All operation primitives
 support the attributes structure, however, not all configurations are implemented
 and result in *failed primitive creation*.
 
@@ -157,12 +158,6 @@ are defined as follows:
 + 2D dimensional data the order of dimensions is always: (n, c)
 + 4D dimensional data the order is always: (n, c, h, w)
 + 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
-
-The **Round Mode** in attributes specifies the form of rounding
-for the resulting output value. Round mode will be applied whenever
-the output data type is not 32-bit floating point. The two options are:
-+ Nearest even integer value (default and recommended)
-+ Down (or floor) to the previous largest integer value.
 
 Fused **Post-Operations** (PostOps) allow chaining operations during
 the primitive computation. Note that the resulting output value from
@@ -269,9 +264,6 @@ convolution and configure it accordingly.
 ~~~cpp
     primitive_attr conv_attr;
 
-    /* Specify the rounding mode */
-    conv_attr.set_int_output_round_mode(round_mode::round_nearest);
-
     /* Specify the scales array and corresponding mask */
     conv_attr.set_output_scales(conv_mask, conv_scales);
 ~~~
@@ -306,7 +298,6 @@ the memory formats for the convolution.
  primitive.
 ~~~cpp
     primitive_attr src_attr;
-    src_attr.set_int_output_round_mode(round_mode::round_nearest);
     src_attr.set_output_scales(src_mask, src_scales);
 ~~~
 
@@ -344,7 +335,6 @@ computation output data.
                     cpu_engine },
             user_dst.data());
     primitive_attr dst_attr;
-    dst_attr.set_int_output_round_mode(round_mode::round_nearest);
     dst_attr.set_output_scales(dst_mask, dst_scales);
     auto dst_reorder_pd
             = reorder::primitive_desc(conv_dst_memory.get_primitive_desc(),

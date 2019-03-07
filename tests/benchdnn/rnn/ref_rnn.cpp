@@ -212,12 +212,7 @@ void lstm_fwd(const rnn_prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t
         if (p->cfg == conf_f32)
             return h;
         float fp = p->data_scale * h;
-        using R = attr_t::round_mode_t;
-        switch (p->attr.irmode) {
-        case R::DOWN: fp = floorf(fp); break;
-        case R::NEAREST: fp = nearbyintf(fp); break;
-        default: assert(!"unkown round mode");
-        }
+        fp = mxcsr_round(fp);
         if (fp + p->data_shift > p->cfg[input].max)
             fp = p->cfg[input].max - p->data_shift;
         if (fp + p->data_shift < p->cfg[input].min)
@@ -283,12 +278,7 @@ void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
         for (int64_t j = 0; j < dimr; j++) {
             float fp = src(i, j) + shift;
             if (round) {
-                using R = attr_t::round_mode_t;
-                switch (p->attr.irmode) {
-                case R::DOWN: fp = floorf(fp); break;
-                case R::NEAREST: fp = nearbyintf(fp); break;
-                default: assert(!"unkown round mode");
-                }
+                fp = mxcsr_round(fp);
                 if (fp > UINT8_MAX)
                     fp = UINT8_MAX;
                 if (fp < 0)
@@ -305,14 +295,7 @@ void scale(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float scale,
     mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
             float fp = src(i, j) * scale;
-            if (round) {
-                using R = attr_t::round_mode_t;
-                switch (p->attr.irmode) {
-                case R::DOWN: fp = floorf(fp); break;
-                case R::NEAREST: fp = nearbyintf(fp); break;
-                default: assert(!"unkown round mode");
-                }
-            }
+            if (round) fp = mxcsr_round(fp);
             src(i, j) = fp;
         }
     });

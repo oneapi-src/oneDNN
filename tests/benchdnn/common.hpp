@@ -190,6 +190,7 @@ int batch(const char *fname, bench_f bench);
 int flip_coin(ptrdiff_t seed, float probability);
 
 int div_up(const int a, const int b);
+int mxcsr_round(float f);
 
 /* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);

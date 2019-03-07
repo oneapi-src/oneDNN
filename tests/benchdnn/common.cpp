@@ -381,6 +381,13 @@ int div_up(const int a, const int b){
     return (a + b - 1) / b;
 }
 
+#if defined(__x86_64__) || defined(_M_X64)
+#include <immintrin.h>
+int mxcsr_round(float f) { return _mm_cvtss_si32(_mm_load_ss(&f)); }
+#else
+int mxcsr_round(float f) { return (int)nearbyintf(f); }
+#endif
+
 void array_set(char *arr, size_t size) {
     for (size_t i = 0; i < size; ++i)
         arr[i] = 0;

@@ -111,7 +111,6 @@ protected:
         float *weights_scales = attr_->rnn_weights_qparams_.scales_;
         float data_scale = attr_->rnn_data_qparams_.scale_;
         float data_shift = attr_->rnn_data_qparams_.shift_;
-        round_mode_t rmode = attr_->round_mode_;
 
         // Labels declaration
         Label vector_loop_start_label, vector_loop_end_label;
@@ -121,15 +120,9 @@ protected:
         // Register map
         Reg64 loop_cnt(r11);  // loop counter
         Reg64 table_reg(rbx); // table is used for data scale and shifts
-        Reg64 tmp_reg(r12);   // used as temporary to customize mxcsr
         Reg64 weights_scales_reg(r13);
         // We skip vmm0 as it can be used by the injector for masks on sse4.2
         Vmm G0(1), G1(2), G2(3), G3(4), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
-
-        // stack map
-        Address saved_csr_addr = ptr[rsp];
-        Address modified_csr_addr = ptr[rsp + sizeof(int64_t)];
-        size_t stack_size = 2 * sizeof(int64_t);
 
         // constant table map
         Address dscale_off_addr = ptr[table_reg];
@@ -138,22 +131,11 @@ protected:
         Address zmm_perm_mask_addr = ptr[table_reg + 2*vlen + cpu_isa_traits<avx>::vlen];
 
         // quantize from float to u8
-        auto q_d = [&](Vmm f, Vmm tmp_vmm, Reg64 tmp_reg) {
-            sub(rsp, stack_size);
-            stmxcsr(saved_csr_addr); // save the mxcsr
-
-            // set the rounding mode appropriatly
-            mov(tmp_reg, saved_csr_addr);
-            and_(tmp_reg, 0xffff9fff); // clear rc bits (rc = RNE)
-            if (rmode == round_mode::down)
-                or_(tmp_reg, 0x00002000); // set rc=01 if RD
-            mov(modified_csr_addr, tmp_reg);
-            ldmxcsr(modified_csr_addr);
-
+        auto q_d = [&](Vmm f, Vmm tmp_vmm) {
             uni_vpxor(tmp_vmm, tmp_vmm, tmp_vmm);
             uni_vmulps(f, f, dscale_off_addr); // apply scale
             uni_vaddps(f, f, dshift_off_addr); // apply shift
-            uni_vcvtps2dq(f, f); // convert to int32 with mxcsr rounding
+            uni_vcvtps2dq(f, f); // convert to int32
             uni_vpackssdw(f, f, tmp_vmm); // convert from s32 to s16
             uni_vpackuswb(f, f, tmp_vmm); // convert from s16 to u8 with saturation
             // Note that the results are interleaved by 128 bit chunks, so we need to merge them together
@@ -172,9 +154,6 @@ protected:
                 break;
             default: assert(!"Unsupported case");
             };
-
-            ldmxcsr(saved_csr_addr); // restore the original mxcsr
-            add(rsp, stack_size);
         };
 
         auto fast_recip =[&](Vmm s, Vmm tmp, bool packed) {
@@ -274,9 +253,8 @@ protected:
             uni_vmulps(tmp1_vmm, tmp1_vmm, G3);
 
             // if int8, we quantize the resulting state
-            if (src_data_t == data_type::u8) {
-                q_d(tmp1_vmm, tmp2_vmm, tmp_reg);
-            }
+            if (src_data_t == data_type::u8)
+                q_d(tmp1_vmm, tmp2_vmm);
 
             // write back the result
             if(vlen_dst == vlen)
@@ -358,9 +336,8 @@ protected:
             uni_vmulps(tmp1s_vmm, tmp1s_vmm, G3s);
 
             // if int8, we quantize the resulting state
-            if (src_data_t == data_type::u8) {
-                q_d(tmp1_vmm, tmp2_vmm, tmp_reg);
-            }
+            if (src_data_t == data_type::u8)
+                q_d(tmp1_vmm, tmp2_vmm);
 
             // write back the result
             if(vlen_dst == vlen)

@@ -152,7 +152,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
                 vpmovzxbd(zmm_i, vreg_i); // to int32
                 vcvtdq2ps(zmm_i, zmm_i); // to fp32
                 vmulps(zmm_i, zmm_i, zmm_src_alpha); // *alpha
-                vcvtps2dq(zmm_i | T_rn_sae, zmm_i); // to int32
+                vcvtps2dq(zmm_i, zmm_i); // to int32
                 vpmovusdb(vreg_i, zmm_i); // to u8
             }
         }
@@ -436,14 +436,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
                 }
                 if (maybe_relu(1))
                     vmaxps(zmm, vreg_zero, zmm);
-                if (jcp.dst_dt != data_type::f32) {
-                    if (attr_.round_mode_ == round_mode::nearest)
-                        vcvtps2dq(zmm | T_rn_sae, zmm);
-                    else if (attr_.round_mode_ == round_mode::down)
-                        vcvtps2dq(zmm | T_rd_sae, zmm);
-                    else
-                        assert(!"unimplemented");
-                }
+                if (jcp.dst_dt != data_type::f32)
+                    vcvtps2dq(zmm, zmm);
                 switch (jcp.dst_dt) {
                 case data_type::f32:
                 case data_type::s32:

@@ -99,17 +99,6 @@ status_t primitive_attr_t::set_scratchpad_mode(
     return success;
 }
 
-status_t primitive_attr_t::set_round_mode(round_mode_t round_mode) {
-    using namespace mkldnn::impl::round_mode;
-
-    const bool ok = one_of(round_mode, nearest, down);
-    if (!ok)
-        return invalid_arguments;
-
-    round_mode_ = round_mode;
-    return success;
-}
-
 status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
     this->post_ops_ = post_ops;
     return success;
@@ -157,24 +146,6 @@ status_t mkldnn_primitive_attr_set_scratchpad_mode(
         return invalid_arguments;
 
     return attr->set_scratchpad_mode(scratchpad_mode);
-}
-
-status_t mkldnn_primitive_attr_get_int_output_round_mode(
-        const primitive_attr_t *attr, round_mode_t *round_mode) {
-    if (any_null(attr, round_mode))
-        return invalid_arguments;
-
-    *round_mode = attr->round_mode_;
-
-    return success;
-}
-
-status_t mkldnn_primitive_attr_set_int_output_round_mode(
-        primitive_attr_t *attr, round_mode_t round_mode) {
-    if (any_null(attr))
-        return invalid_arguments;
-
-    return attr->set_round_mode(round_mode);
 }
 
 status_t mkldnn_primitive_attr_get_output_scales(const primitive_attr_t *attr,

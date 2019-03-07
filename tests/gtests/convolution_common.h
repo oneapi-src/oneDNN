@@ -88,10 +88,10 @@
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__}, true, code }
 
-#define PARAMS_ATTR(src, weights, bias, dst, round_mode, scale, policy, ...) \
+#define PARAMS_ATTR(src, weights, bias, dst, scale, policy, ...) \
     test_convolution_params_t { ENGINE, ALGORITHM, \
     EXPAND_FORMATS(src, weights, bias, dst), \
-    {mkldnn::round_mode, scale, test_convolution_attr_t::scale_t::policy}, \
+    {scale, test_convolution_attr_t::scale_t::policy}, \
     {__VA_ARGS__} }
 
 #ifdef TEST_PARAM_ATTR

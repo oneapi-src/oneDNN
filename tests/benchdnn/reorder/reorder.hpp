@@ -46,7 +46,6 @@ struct q10n_conf_t {
     dt_conf_t conf_in;
     dt_conf_t conf_out;
     /* TODO: add attrs */
-    attr_t::round_mode_t irmode;
     attr_t::scale_t::policy_t policy;
     float scale;
 };

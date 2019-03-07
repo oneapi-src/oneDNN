@@ -242,19 +242,6 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_scratchpad_mode(
 mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_scratchpad_mode(
         mkldnn_primitive_attr_t attr, mkldnn_scratchpad_mode_t mode);
 
-/** Returns integer output rounding mode @p round_mode for a given @p attr,
- * previously set by mkldnn_primitive_attr_set_int_output_round_mode. */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_get_int_output_round_mode(
-        const_mkldnn_primitive_attr_t attr, mkldnn_round_mode_t *round_mode);
-
-/** Sets output rounding mode @p round_mode for integer operations for a given
- * @p attr.
- *
- * The default value is #mkldnn_round_nearest.
- */
-mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_int_output_round_mode(
-        mkldnn_primitive_attr_t attr, mkldnn_round_mode_t round_mode);
-
 /** Returns @p count, correspondence scale @p mask, and a pointer to a constant
  * floating point array of output @p scales for given @p attr, previously set
  * by mkldnn_primitive_attr_set_output_scales.

@@ -82,14 +82,6 @@ typedef enum {
     mkldnn_u8 = 6,
 } mkldnn_data_type_t;
 
-/** Rounding mode */
-typedef enum {
-    /** Round nearest */
-    mkldnn_round_nearest = 1,
-    /** Round down */
-    mkldnn_round_down = 2,
-} mkldnn_round_mode_t;
-
 /** Memory format kind */
 typedef enum {
     /** Undefined memory format, used for empty memory descriptors. */
@@ -1200,7 +1192,6 @@ typedef enum {
  * @brief An opaque structure for primitive descriptor attributes.
  *
  * Attributes may contain:
- *  - rounding mode for integer based primitives (like convolution, reorders)
  *  - output scales (to scale the result prior to storing it to the memory)
  */
 struct mkldnn_primitive_attr;

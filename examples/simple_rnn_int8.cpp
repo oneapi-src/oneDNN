@@ -319,7 +319,6 @@ void simple_net() {
 
     /* Define RNN attributes that store quantization parameters */
     primitive_attr attr;
-    attr.set_int_output_round_mode(round_mode::round_nearest);
     attr.set_rnn_data_qparams(data_scale, data_shift);
     attr.set_rnn_weights_qparams(weights_scale_mask, weights_scales);
 

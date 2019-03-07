@@ -152,15 +152,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         const float fp0 = ((float*)mem_fp)[i];
 
         float fp = fp0;
-        if (p->cfg[kind].dt != mkldnn_f32) {
-            using R = attr_t::round_mode_t;
-            switch (p->attr.irmode) {
-                case R::DOWN: fp = floorf(fp0); break;
-                case R::NEAREST: fp = nearbyintf(fp0); break;
-                default:
-                    return UNTESTED;
-            }
-        }
+        if (p->cfg[kind].dt != mkldnn_f32)
+            fp = mxcsr_round(fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);

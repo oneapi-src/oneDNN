@@ -327,7 +327,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
-    round_mode_t rmode = pd()->attr()->round_mode_;
 
     const bool quantize = pd()->with_src_iter()
         && pd()->src_md(1)->data_type == data_type::f32
@@ -335,7 +334,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
     auto maybe_q = [&](input_data_t f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
-            return qz_a1b0<float, src_data_t>()(qf, rmode);
+            return qz_a1b0<float, src_data_t>()(qf);
         } else
             return (src_data_t)f;
     };
@@ -487,7 +486,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
-    round_mode_t rmode = pd()->attr()->round_mode_;
 
     const bool quantize = pd()->with_dst_iter()
         && pd()->dst_md(1)->data_type == data_type::u8
@@ -495,7 +493,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
     auto maybe_q = [&](float f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
-            return qz_a1b0<float, output_data_t>()(qf, rmode);
+            return qz_a1b0<float, output_data_t>()(qf);
         } else
             return (output_data_t)f;
     };

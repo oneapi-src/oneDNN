@@ -195,15 +195,6 @@ inline mkldnn_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
     return static_cast<mkldnn_scratchpad_mode_t>(mode);
 }
 
-enum round_mode {
-    round_nearest = mkldnn_round_nearest,
-    round_down = mkldnn_round_down,
-};
-
-inline mkldnn_round_mode_t convert_to_c(round_mode mode) {
-    return static_cast<mkldnn_round_mode_t>(mode);
-}
-
 enum padding_kind {
     zero = mkldnn_padding_zero
 };
@@ -409,19 +400,6 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         error::wrap_c_api(mkldnn_primitive_attr_set_scratchpad_mode(
                     get(), mkldnn::convert_to_c(mode)),
                 "could not set scratchpad mode");
-    }
-
-    round_mode get_int_output_round_mode() const {
-        mkldnn_round_mode_t result;
-        error::wrap_c_api(mkldnn_primitive_attr_get_int_output_round_mode(
-                    get(), &result), "could not get int output round mode");
-        return round_mode(result);
-    }
-
-    void set_int_output_round_mode(round_mode mode) {
-        error::wrap_c_api(mkldnn_primitive_attr_set_int_output_round_mode(
-                    get(), mkldnn::convert_to_c(mode)),
-                "could not set int output round mode");
     }
 
     void get_output_scales(int &mask, std::vector<float> &scales) const

@@ -963,12 +963,9 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         assert(ndims - ndims_ker <= ndims_driver_max);
 
         if (ndims - ndims_ker == 0) {
-            set_rnd_mode(pd()->attr()->round_mode_);
             omp_driver_0d(ndims_ker, in, out, scale);
-            restore_rnd_mode();
         } else {
             parallel(0, [&](const int ithr, const int nthr) {
-                set_rnd_mode(pd()->attr()->round_mode_);
                 switch (ndims - ndims_ker) {
                 case 1: omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale); break;
                 case 2: omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale); break;
@@ -976,7 +973,6 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
                 case 4: omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale); break;
                 default: assert(!"unimplemented");
                 }
-                restore_rnd_mode();
             });
         }
     }

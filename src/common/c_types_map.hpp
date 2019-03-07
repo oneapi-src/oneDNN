@@ -101,12 +101,6 @@ namespace scratchpad_mode {
     const scratchpad_mode_t user = mkldnn_scratchpad_mode_user;
 }
 
-using round_mode_t = mkldnn_round_mode_t;
-namespace round_mode {
-    const round_mode_t nearest = mkldnn_round_nearest;
-    const round_mode_t down = mkldnn_round_down;
-}
-
 using rnn_packed_format_t = mkldnn_rnn_packed_memory_format_t;
 namespace rnn_packed_format {
     const rnn_packed_format_t undef = mkldnn_packed_format_undef;

@@ -291,7 +291,6 @@ void attr_t::post_ops_t::to_str(char *buffer, char **end_b) const {
 
 bool attr_t::is_def() const {
     return true
-        && irmode == round_mode_t::NEAREST
         && oscale.is_def()
         && post_ops.is_def();
 }
@@ -305,14 +304,6 @@ int str2attr(attr_t *attr, const char *str) {
     while (*s != '\0') {
         int rc = FAIL;
         const char *param;
-
-        param = "irmode=";
-        if (!strncasecmp(param, s, strlen(param))) {
-            s += strlen(param);
-            attr->irmode = (attr_t::round_mode_t)str2rmode(s);
-            s += strlen(rmode2str((mkldnn_round_mode_t)attr->irmode));
-            rc = OK;
-        }
 
         param = "oscale=";
         if (!strncasecmp(param, s, strlen(param))) {
@@ -336,8 +327,6 @@ int str2attr(attr_t *attr, const char *str) {
 }
 
 void attr2str(const attr_t *attr, char *buffer) {
-    buffer += sprintf(buffer, "irmode=%s",
-            rmode2str((mkldnn_round_mode_t)attr->irmode));
     buffer += sprintf(buffer, ";oscale=");
     attr->oscale.scale2str(buffer, &buffer);
     buffer += sprintf(buffer, ";post_ops=");
@@ -348,10 +337,6 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
-
-    if (attr.irmode != attr_t::round_mode_t::NEAREST)
-        DNN_SAFE_V(mkldnn_primitive_attr_set_int_output_round_mode(mkldnn_attr,
-                    (mkldnn_round_mode_t)attr.irmode));
 
     if (!attr.oscale.is_def()) {
         using P = attr_t::scale_t::policy_t;

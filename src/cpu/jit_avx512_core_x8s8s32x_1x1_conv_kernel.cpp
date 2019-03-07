@@ -272,14 +272,8 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     vpxord(zmm_zero, zmm_zero, zmm_zero);
                     vmaxps(r, zmm_zero, r);
                 }
-                if (jcp.dst_dt != data_type::f32) {
-                    if (attr_.round_mode_ == round_mode::nearest) {
-                        vcvtps2dq(r | T_rn_sae, r);
-                    } else if (attr_.round_mode_ == round_mode::down) {
-                        vcvtps2dq(r | T_rd_sae, r);
-                    } else
-                        assert(!"unimplemented");
-                }
+                if (jcp.dst_dt != data_type::f32)
+                    vcvtps2dq(r, r);
             }
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);

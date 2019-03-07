@@ -67,11 +67,10 @@ rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
     float *weights_scales = pd()->attr()->rnn_weights_qparams_.scales_;
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
-    round_mode_t rmode = pd()->attr()->round_mode_;
 
     auto q_d = [&](float f) {
         float qf = f * data_scale + data_shift;
-        return qz_a1b0<float, src_data_t>()(qf, rmode);
+        return qz_a1b0<float, src_data_t>()(qf);
     };
 
     auto deq_w = [&](acc_data_t s, int gate, int j) {

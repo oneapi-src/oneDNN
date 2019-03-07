@@ -62,7 +62,6 @@ extern "C" {
 
 const char MKLDNN_API *mkldnn_status2str(mkldnn_status_t v);
 const char MKLDNN_API *mkldnn_dt2str(mkldnn_data_type_t v);
-const char MKLDNN_API *mkldnn_rmode2str(mkldnn_round_mode_t v);
 const char MKLDNN_API *mkldnn_fmt_kind2str(mkldnn_format_kind_t v);
 const char MKLDNN_API *mkldnn_fmt_tag2str(mkldnn_format_tag_t v);
 const char MKLDNN_API *mkldnn_prop_kind2str(mkldnn_prop_kind_t v);

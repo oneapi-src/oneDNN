@@ -65,7 +65,6 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::pp_ker_t(
     , bias_data_type_(data_type::undef)
     , bias_data_type_size_(0)
     , scale_idx_mult_(0)
-    , rmode_(round_mode::nearest)
     , do_bias_(false)
     , do_relu_(false)
     , do_sum_(false)
@@ -76,7 +75,6 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::pp_ker_t(
     dst_os_stride_ = dst_md.blk_off(0, 0, 0, 1);
 
     scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
-    rmode_ = pd->attr()->round_mode_;
 
     auto &post_ops = pd->attr()->post_ops_;
 
@@ -121,7 +119,6 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
 {
     using namespace Xbyak;
     using namespace utils;
-    using namespace round_mode;
 
     // TODO: clean-up
     Reg64 reg_param = abi_param1;
@@ -274,8 +271,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
         }
 
         if (dst_type != data_type::f32) {
-            auto rmode_control = (rmode_ == nearest ? T_rn_sae : T_rd_sae);
-            vcvtps2dq(vreg_dst(idx) | rmode_control, vreg_dst(idx));
+            vcvtps2dq(vreg_dst(idx), vreg_dst(idx));
         }
 
         if (dst_type == data_type::u8)
@@ -526,7 +522,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::operator ()
                     d += sum_scale * dst[dst_off];
                 if (do_relu_ && d < 0)
                     d *= nslope;
-                dst[dst_off] = qz_a1b0<float, dst_data_t>()(d, rmode_);
+                dst[dst_off] = qz_a1b0<float, dst_data_t>()(d);
             }
         }
     }
@@ -674,7 +670,6 @@ execute_backward_data_thr(const int ithr, const int nthr,
     /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
     const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
     const float *scales = pd()->attr()->output_scales_.scales_;
-    const auto rmode = pd()->attr()->round_mode_;
     const size_t work_amount = jcp.ngroups * jcp.mb;
 
     auto col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
@@ -718,7 +713,7 @@ execute_backward_data_thr(const int ithr, const int nthr,
             d *= scales[(g * jcp.ic + ic) * scale_idx_mult];
             const size_t diff_src_off = is * diff_src_os_stride + ic;
             diff_src[diff_src_off] =
-                qz_a1b0<float, diff_src_data_t>()(d, rmode);
+                qz_a1b0<float, diff_src_data_t>()(d);
         });
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
     }

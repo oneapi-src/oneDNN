@@ -56,7 +56,7 @@
 --activation=TANH
 --cfg=u8u8u8u8
 --allow-unimpl=true
---attr=irmode=nearest --scaling=common
+--scaling=common
 --prop=FWD_D --batch=rnn_small
 
 --reset --alg=VANILLA_LSTM
@@ -64,7 +64,7 @@
 --activation=TANH
 --allow-unimpl=true
 --cfg=u8u8u8f32
---attr=irmode=down --scaling=common
+--scaling=common
 --prop=FWD_D --batch=rnn_small
 
 --reset --alg=VANILLA_LSTM
@@ -72,7 +72,7 @@
 --activation=TANH
 --allow-unimpl=true
 --cfg=f32u8f32u8
---attr=irmode=down --scaling=per_oc
+--scaling=per_oc
 --prop=FWD_D --batch=rnn_small
 
 --reset --alg=VANILLA_LSTM
@@ -80,7 +80,7 @@
 --activation=TANH
 --allow-unimpl=true
 --cfg=f32u8f32f32
---attr=irmode=nearest --scaling=per_oc
+--scaling=per_oc
 --prop=FWD_D --batch=rnn_small
 
 # GRU

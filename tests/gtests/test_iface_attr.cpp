@@ -61,15 +61,6 @@ TEST_F(attr_test, TestScratchpadModeEx) {
     }
 }
 
-TEST_F(attr_test, TestIntOutputRoundMode) {
-    mkldnn::primitive_attr attr;
-    for (auto r: {round_nearest, round_down})
-    {
-        attr.set_int_output_round_mode(r);
-        EXPECT_EQ(r, attr.get_int_output_round_mode());
-    }
-}
-
 TEST_F(attr_test, TestIntOutputScales) {
     mkldnn::primitive_attr attr;
 

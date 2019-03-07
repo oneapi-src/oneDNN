@@ -51,9 +51,6 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Ymm yreg(int idx) const { return Ymm(xreg(idx).getIdx()); }
     Vmm vreg(int idx) const { return Vmm(xreg(idx).getIdx()); }
 
-    // Rounding modes for axv2
-    enum:uint8_t { rnd_op_nearest = 0x0 };
-
     // In case of avx2 with data type i8 we need to use
     // maskmovdqu instruction which has its destination hardcoded in rdi.
     // Windows ABI: abi_param1 is rcx - nothing to do else
@@ -609,18 +606,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
             bool masked = jj == ur_c - 1 && c_tail;
             size_t msk = jpp.tail[ll];
             if (!(masked && !msk)) {
-
                 vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
                 vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
-
-                if (isa == avx2) {
-                    uni_vroundps(vreg_dst_f32(jj, ll), vreg_dst_f32(jj, ll), rnd_op_nearest);
-                    vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
-                } else if (isa >= avx512_common) {
-                    // AVX512: use of EVEX-embedded static rounding override
-                    vcvtps2dq(vreg_dst_s32(jj, ll) | T_rn_sae, vreg_dst_f32(jj, ll));
-                }
-
+                vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
                 store_dst(jj, ll, c_tail);
             }
         }

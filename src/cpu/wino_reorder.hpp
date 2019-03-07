@@ -137,7 +137,6 @@ private:
             in_data_t *__restrict wspace) const {
         const memory_desc_wrapper src_d(pd()->src_md());
 
-        round_mode_t rmode = pd()->attr()->round_mode_;
         const int smask = pd()->attr()->output_scales_.mask_;
         const int ndims_mask = math::ilog2q(smask + 1);
         const size_t D_mask = utils::array_product(src_d.dims(), ndims_mask);
@@ -203,7 +202,7 @@ private:
                         : scales[ob * oc_block_ + ioc];
                     _out[(i * w_alpha_ + j) * Z + ioc]
                             = qz_b0<in_data_t, out_data_t>()(
-                                    (in_data_t)t, scale * adj_scale_, rmode);
+                                    (in_data_t)t, scale * adj_scale_);
                 } else {
                     _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
                 }

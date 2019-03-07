@@ -623,14 +623,8 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::store_output(
                 vpxord(zmm_zero, zmm_zero, zmm_zero);
                 vmaxps(zmm, zmm_zero, zmm);
             }
-            if (jcp.dst_dt != data_type::f32) {
-                if (attr_.round_mode_ == round_mode::nearest)
-                    vcvtps2dq(zmm | T_rn_sae, zmm);
-                else if (attr_.round_mode_ == round_mode::down)
-                    vcvtps2dq(zmm | T_rd_sae, zmm);
-                else
-                    assert(!"unimplemented");
-            }
+            if (jcp.dst_dt != data_type::f32)
+                vcvtps2dq(zmm, zmm);
         }
         for (int ur = 0; ur < ur_w; ur++) {
             int aux_dst_off = jcp.typesize_out

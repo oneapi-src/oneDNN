@@ -42,28 +42,6 @@ mkldnn_data_type_t str2dt(const char *str) {
     return mkldnn_f32;
 }
 
-const char *rmode2str(mkldnn_round_mode_t rmode) {
-#define CASE(_rmode) \
-    if (CONCAT2(mkldnn_round_, _rmode) == rmode) return STRINGIFY(_rmode)
-    CASE(nearest);
-    CASE(down);
-#undef CASE
-    assert(!"unknown round mode");
-    return "unknown round mode";
-}
-
-mkldnn_round_mode_t str2rmode(const char *str) {
-#define CASE(_rmd) do { \
-    if (!strncasecmp(STRINGIFY(_rmd), str, strlen(STRINGIFY(_rmd)))) \
-        return CONCAT2(mkldnn_round_, _rmd); \
-} while (0)
-    CASE(nearest);
-    CASE(down);
-#undef CASE
-    assert(!"unknown round_mode");
-    return mkldnn_round_nearest;
-}
-
 const char *tag2str(mkldnn_format_tag_t tag) {
     return mkldnn_fmt_tag2str(tag);
 }

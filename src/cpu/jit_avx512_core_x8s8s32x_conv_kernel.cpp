@@ -236,12 +236,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
                    Embedded rounding is not supported for Xmm.
                    TODO: maybe avoid Zmm if it helps performance.*/
                 Zmm zmm = zmm_out(j, k);
-                if (attr_.round_mode_ == round_mode::nearest)
-                    vcvtps2dq(zmm | T_rn_sae, zmm);
-                else if (attr_.round_mode_ == round_mode::down)
-                    vcvtps2dq(zmm | T_rd_sae, zmm);
-                else
-                    assert(!"unimplemented");
+                vcvtps2dq(zmm, zmm);
             }
         }
 

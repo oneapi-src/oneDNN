@@ -59,11 +59,17 @@ template <> inline void assert_eq<float>(float a, float b) {
     ASSERT_FLOAT_EQ(a, b);
 }
 
-template <typename data_t> inline data_t out_round(float x,
-        mkldnn_round_mode_t rmode = mkldnn_round_nearest)
-{ return (data_t)(rmode == mkldnn_round_down ? floorf(x) : nearbyintf(x)); }
-template <> inline float out_round<float>(float x, mkldnn_round_mode_t rmode)
-{ (void)rmode; return x; }
+#if defined(__x86_64__) || defined(_M_X64)
+#include <immintrin.h>
+inline int mxcsr_round(float f) { return _mm_cvtss_si32(_mm_load_ss(&f)); }
+#else
+inline int mxcsr_round(float f) { return (int)nearbyintf(f); }
+#endif
+
+template <typename data_t>
+data_t out_round(float x) { return (data_t)mxcsr_round(x); }
+template <>
+float out_round<float>(float x) { return x; }
 
 template <typename data_t, typename out_t>
 out_t saturate(const out_t &x) {
@@ -286,7 +292,6 @@ struct test_convolution_attr_t {
 
     void mkldnn_attr_recreate() {
         mkl_attr = mkldnn::primitive_attr();
-        mkl_attr.set_int_output_round_mode(rmode);
         if (oscale.is_def()) {
             const memory::dim count = 1;
             const int mask = 0;
@@ -295,15 +300,12 @@ struct test_convolution_attr_t {
         }
     }
 
-    test_convolution_attr_t(mkldnn::round_mode rm, float s,
-        scale_t::policy_t p = scale_t::policy_t::NONE) :
-            rmode(rm), oscale(s, p), mkl_attr() {}
+    test_convolution_attr_t(float s,
+            scale_t::policy_t p = scale_t::policy_t::NONE)
+        : oscale(s, p), mkl_attr() {}
 
-    test_convolution_attr_t() :
-        rmode(mkldnn::round_mode::round_nearest),
-        oscale(1.0), mkl_attr() {}
+    test_convolution_attr_t(): test_convolution_attr_t(1.f) {}
 
-    mkldnn::round_mode rmode;
     scale_t oscale;
     mkldnn::primitive_attr mkl_attr;
 };

@@ -171,7 +171,6 @@ private:
         data_type_t bias_data_type_;
         size_t bias_data_type_size_;
         size_t scale_idx_mult_;
-        round_mode_t rmode_;
         bool do_bias_;
         bool do_relu_;
         bool do_sum_;

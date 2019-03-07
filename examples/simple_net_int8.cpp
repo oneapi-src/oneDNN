@@ -94,7 +94,6 @@ void simple_net_int8() {
 
     /* define the convolution attributes */
     primitive_attr conv_attr;
-    conv_attr.set_int_output_round_mode(round_mode::round_nearest);
     conv_attr.set_output_scales(conv_mask, conv_scales);
 
     /* AlexNet: execute ReLU as PostOps */
@@ -126,7 +125,6 @@ void simple_net_int8() {
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), cpu_engine);
     {
         primitive_attr src_attr;
-        src_attr.set_int_output_round_mode(round_mode::round_nearest);
         src_attr.set_output_scales(src_mask, src_scales);
         auto src_reorder_pd = reorder::primitive_desc(cpu_engine,
                 user_src_memory.get_desc(), cpu_engine,
@@ -139,7 +137,6 @@ void simple_net_int8() {
             = memory(conv_prim_desc.weights_desc(), cpu_engine);
     {
         primitive_attr weight_attr;
-        weight_attr.set_int_output_round_mode(round_mode::round_nearest);
         weight_attr.set_output_scales(weight_mask, weight_scales);
         auto weight_reorder_pd = reorder::primitive_desc(cpu_engine,
                 user_weights_memory.get_desc(), cpu_engine,
@@ -151,7 +148,6 @@ void simple_net_int8() {
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), cpu_engine);
     {
         primitive_attr bias_attr;
-        bias_attr.set_int_output_round_mode(round_mode::round_nearest);
         bias_attr.set_output_scales(bias_mask, bias_scales);
         auto bias_reorder_pd = reorder::primitive_desc(cpu_engine,
                 user_bias_memory.get_desc(), cpu_engine,
@@ -179,7 +175,6 @@ void simple_net_int8() {
             cpu_engine, user_dst.data());
     {
         primitive_attr dst_attr;
-        dst_attr.set_int_output_round_mode(round_mode::round_nearest);
         dst_attr.set_output_scales(dst_mask, dst_scales);
         auto dst_reorder_pd = reorder::primitive_desc(cpu_engine,
                 conv_dst_memory.get_desc(), cpu_engine,

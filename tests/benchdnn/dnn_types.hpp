@@ -49,11 +49,6 @@ enum {
 const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {
-    enum round_mode_t {
-        NEAREST = (int)mkldnn_round_nearest,
-        DOWN = (int)mkldnn_round_down,
-    };
-
     struct scale_t {
         enum policy_t { NONE = 0, COMMON, PER_OC,
             // reorder section
@@ -105,7 +100,6 @@ struct attr_t {
         entry_t entry[4];
     };
 
-    round_mode_t irmode = NEAREST;
     scale_t oscale;
     post_ops_t post_ops;
 

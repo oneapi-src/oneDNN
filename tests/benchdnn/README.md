@@ -95,12 +95,9 @@ for more details and implicit rules.
 
 The attribute string *attr_str* is defined as follows (line breaks are for readability):
 ```
-    [irmode={nearest,down};]
     [oscale={none,common,per_oc}[:scale];]
     [post_ops='[{relu,sum[:sum_scale]};]...';]
 ```
-
-Here `irmode` defines the rounding mode for integer output (default is nearest).
 
 Next, `oscale` stands for output_scales. The first parameter is the policy that
 is defined below. The second optional parameter is a scale that specifies
@@ -268,7 +265,7 @@ one common output scale set to 0.5 with rounding mode set to down
 ```
     $ ./benchdnn --conv \
         --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref" --allow-unimpl=true \
-        --attr="irmode=down;oscale=common:.5" --batch=inputs/conv_all
+        --attr="oscale=common:.5" --batch=inputs/conv_all
 ```
 
 
@@ -757,9 +754,9 @@ average gigaops (since it corresponds to average time)
 ```
 Here is an example of performance output:
 ```
- perf,4,f32,f32,nchw,nchw,irmode=nearest;oscale=per_oc:0.125;post_ops='',2x64x3x3,1152,4.00244,0.000287824,24.0279,4.79442e-05
+ perf,4,f32,f32,nchw,nchw,oscale=per_oc:0.125;post_ops='',2x64x3x3,1152,4.00244,0.000287824,24.0279,4.79442e-05
 ```
-expanded reorder problem descriptor is `f32,f32,nchw,nchw,irmode=nearest;oscale=per_oc:0.125;post_ops='',2x64x3x3` in the above example.
+expanded reorder problem descriptor is `f32,f32,nchw,nchw,oscale=per_oc:0.125;post_ops='',2x64x3x3` in the above example.
 
 ### Examples (reorder harness)
 

@@ -78,8 +78,7 @@ struct conv_s8s8 {};
         const memory_desc_wrapper &input_d = pd->src_md(); \
         const memory_desc_wrapper &output_d = pd->dst_md(); \
         const float alpha = pd->alpha(); MAYBE_UNUSED(alpha); \
-        const float beta = pd->beta(); MAYBE_UNUSED(beta); \
-        const round_mode_t rmode = pd->attr()->round_mode_; MAYBE_UNUSED(rmode);
+        const float beta = pd->beta(); MAYBE_UNUSED(beta);
 
 /* specific reorders: common template */
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
@@ -160,7 +159,7 @@ typename utils::enable_if<tag_i == any && (false
                 const float s = scales[(D_mask == 1) ? 0 : g * OC + oc];
 
                 o = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                    i, s * adj_scale, rmode);
+                    i, s * adj_scale);
                 cp[g * OC + oc] -= (int32_t)o;
             }
             cp [g * OC + oc] *= 128;
@@ -246,7 +245,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                   + ic * _g_oihw_d.blocking_desc().strides[w_groups + 1];
                 out[index(oc, ic)]
                     = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                            inp[_g_oihw_off], s[oc] * adj_scale, rmode);
+                            inp[_g_oihw_off], s[oc] * adj_scale);
                 c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
             }
             }
@@ -346,7 +345,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (int g = 0; g < g_block; g++) {
                 const auto i_off = g * input_d.blocking_desc().strides[0];
                 out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[i_off], s[g * OC] * adj_scale, rmode);
+                        inp[i_off], s[g * OC] * adj_scale);
                 cp[g * OC] -= 128 * (int32_t)(out[g]);
             }
         };
@@ -424,13 +423,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 for (int ic = 0; ic < blksize; ++ic)
                 for (int oc = 0; oc < blksize; ++oc) {
                     o[idx(oc, ic)] = _qz_a1b0<type_i, type_o>()(
-                            i[idx(ic, oc)], rmode);
+                            i[idx(ic, oc)]);
                 }
             } else {
                 for (int ic = 0; ic < blksize; ++ic)
                 for (int oc = 0; oc < blksize; ++oc) {
                     o[idx(oc, ic)] = _qz<type_i, type_o>()(
-                            i[idx(ic, oc)], o[idx(oc, ic)], alpha, beta, rmode);
+                            i[idx(ic, oc)], o[idx(oc, ic)], alpha, beta);
                 }
             }
         };
@@ -494,7 +493,7 @@ typename utils::enable_if<false
                                                   block_16 - b * blksize_8);
                     for (int c = 0; c < block_8; ++c) {
                         o[o_off + c] = _qz_a1b0<type_i, type_o>()(
-                                i[i_off + c], rmode);
+                                i[i_off + c]);
                     }
                 }
             } else {
@@ -505,7 +504,7 @@ typename utils::enable_if<false
                                                   block_16 - b * blksize_8);
                     for (int c = 0; c < block_8; ++c) {
                         o[o_off + c] = _qz<type_i, type_o>()(i[i_off + c],
-                                o[o_off + c], alpha, beta, rmode);
+                                o[o_off + c], alpha, beta);
                     }
                 }
             }
@@ -582,10 +581,10 @@ typename utils::enable_if<tag_i == any
                         + l * flat_d.blocking_desc().strides[ndims - 1];
                     if (order_keep) {
                         o[l * l_blk_stride + blk] = _qz_a1b0<type_i, type_o>()(
-                                i[flat_off], rmode);
+                                i[flat_off]);
                     } else {
                         o[flat_off] = _qz_a1b0<type_i, type_o>()(
-                                i[l * l_blk_stride + blk], rmode);
+                                i[l * l_blk_stride + blk]);
                     }
                 }
             } else {
@@ -597,11 +596,11 @@ typename utils::enable_if<tag_i == any
                     if (order_keep) {
                         o[l * l_blk_stride + blk] = _qz<type_i, type_o>()(
                                 i[flat_off], o[l * blksize + blk],
-                                alpha, beta, rmode);
+                                alpha, beta);
                     } else {
                         o[flat_off] = _qz<type_i, type_o>()(
                                 i[l * l_blk_stride + blk], o[flat_off],
-                                alpha, beta, rmode);
+                                alpha, beta);
                     }
                 }
             }
@@ -721,10 +720,10 @@ typename utils::enable_if<tag_i == any
                         + h1 * flat_d.blocking_desc().strides[with_g + 1];
                     if (order_keep) {
                         o[blk_off(h0, h1)] = _qz_a1b0<type_i, type_o>()(
-                                i[flat_off], rmode);
+                                i[flat_off]);
                     } else {
                         o[flat_off] = _qz_a1b0<type_i, type_o>()(
-                                i[blk_off(h0, h1)], rmode);
+                                i[blk_off(h0, h1)]);
                     }
                 }
             } else {
@@ -735,10 +734,10 @@ typename utils::enable_if<tag_i == any
                         + h1 * flat_d.blocking_desc().strides[with_g + 1];
                     if (order_keep) {
                         o[blk_off(h0, h1)] = _qz<type_i, type_o>()(i[flat_off],
-                                o[blk_off(h0, h1)], alpha, beta, rmode);
+                                o[blk_off(h0, h1)], alpha, beta);
                     } else {
                         o[flat_off] = _qz<type_i, type_o>()(i[blk_off(h0, h1)],
-                                o[flat_off], alpha, beta, rmode);
+                                o[flat_off], alpha, beta);
                     }
                 }
             }
@@ -815,25 +814,25 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = qz_a1b0<data_t<type_i>, data_t<type_o>>()
-                                (input[e], rmode);
+                                (input[e]);
                 }
             } else if (alpha == 1.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = qz_a1<data_t<type_i>, data_t<type_o>>()
-                                (input[e], output[e], beta, rmode);
+                                (input[e], output[e], beta);
                 }
             } else if (beta == 0.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = qz_b0<data_t<type_i>, data_t<type_o>>()
-                                (input[e], alpha, rmode);
+                                (input[e], alpha);
                 }
             } else {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = qz<data_t<type_i>, data_t<type_o>>()
-                                (input[e], output[e], alpha, beta, rmode);
+                                (input[e], output[e], alpha, beta);
                 }
             }
 
@@ -842,25 +841,25 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = qz_a1b0<data_t<type_i>,
-                            data_t<type_o>>()(input[e], rmode);
+                            data_t<type_o>>()(input[e]);
                     }
                 } else if (alpha == 1.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = qz_a1<data_t<type_i>,
-                            data_t<type_o>>()(input[e], output[e], beta, rmode);
+                            data_t<type_o>>()(input[e], output[e], beta);
                     }
                 } else if (beta == 0.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = qz_b0<data_t<type_i>,
-                            data_t<type_o>>()(input[e], alpha, rmode);
+                            data_t<type_o>>()(input[e], alpha);
                     }
                 } else {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = qz<data_t<type_i>, data_t<type_o>>()
-                                    (input[e], output[e], alpha, beta, rmode);
+                                    (input[e], output[e], alpha, beta);
                    }
                }
             }
@@ -912,7 +911,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     PRAGMA_OMP_SIMD()
                     for (dim_t e = dim1_s; e < dim1_e; ++e) {
                         output[os * n + e] = _qz_a1b0<type_i, type_o>()(
-                                input[is * n + e], rmode);
+                                input[is * n + e]);
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
@@ -932,7 +931,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     for (dim_t e = dim1_s; e < dim1_e; ++e){
                         output[os * n + e] = _qz<type_i, type_o>()(
                                 input[is * n + e], output[os * n + e], alpha,
-                                beta, rmode);
+                                beta);
                     }
                     nd_iterator_jump(start, end, n, N, dim1_s, nelems_no_d0);
                 }
@@ -1018,7 +1017,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const auto &i = input[input_d.off_l(e)];
             auto &o = output[output_d.off_l(e)];
 
-            o = _qz<type_i, type_o>()(i, o, scale, beta, rmode);
+            o = _qz<type_i, type_o>()(i, o, scale, beta);
         });
 
         return success;

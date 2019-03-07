@@ -23,10 +23,6 @@
 #include "mkldnn.h"
 #include "utils.hpp"
 
-#if defined(MKLDNN_X86_64)
-#include "xmmintrin.h"
-#endif
-
 namespace mkldnn {
 namespace impl {
 
@@ -82,29 +78,6 @@ FILE *mkldnn_fopen(const char *filename, const char *mode) {
     return fopen_s(&fp, filename, mode) ? NULL : fp;
 #else
     return fopen(filename, mode);
-#endif
-}
-
-thread_local unsigned int mxcsr_save;
-
-void set_rnd_mode(round_mode_t rnd_mode) {
-#if defined(MKLDNN_X86_64)
-    mxcsr_save = _mm_getcsr();
-    unsigned int mxcsr = mxcsr_save & ~(3u << 13);
-    switch (rnd_mode) {
-    case round_mode::nearest: mxcsr |= (0u << 13); break;
-    case round_mode::down: mxcsr |= (1u << 13); break;
-    default: assert(!"unreachable");
-    }
-    if (mxcsr != mxcsr_save) _mm_setcsr(mxcsr);
-#else
-    UNUSED(rnd_mode);
-#endif
-}
-
-void restore_rnd_mode() {
-#if defined(MKLDNN_X86_64)
-    _mm_setcsr(mxcsr_save);
 #endif
 }
 

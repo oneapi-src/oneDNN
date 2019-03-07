@@ -34,13 +34,11 @@ gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::pp_kernel_t(
         const pd_t *pd, bool dst_is_acc)
     : ker_(nullptr), OC_(pd->OC())
     , bias_data_type_(data_type::undef), bias_data_type_size_(0)
-    , scale_idx_mult_(0), rmode_(round_mode::nearest)
-    , do_bias_(false), do_relu_(false)
+    , scale_idx_mult_(0), do_bias_(false), do_relu_(false)
 {
     using namespace types;
 
     scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
-    rmode_ = pd->attr()->round_mode_;
 
     auto &post_ops = pd->attr()->post_ops_;
     do_relu_ = post_ops.len_ == 1;
@@ -65,7 +63,6 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::generat
 {
     using namespace Xbyak;
     using namespace utils;
-    using namespace round_mode;
 
     // TODO: clean-up
     Reg64 reg_param = abi_param1;
@@ -160,8 +157,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::generat
             vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_zero);
 
         if (dst_type != data_type::f32) {
-            auto rmode_control = (rmode_ == nearest ? T_rn_sae : T_rd_sae);
-            vcvtps2dq(vreg_dst(idx) | rmode_control, vreg_dst(idx));
+            vcvtps2dq(vreg_dst(idx), vreg_dst(idx));
         }
 
         auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
@@ -390,7 +386,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::pp_kernel_t::operato
             d *= scales[oc * scale_idx_mult_];
             if (do_relu_ && d < 0)
                 d *= nslope;
-            dst[i] = qz_a1b0<float, dst_data_t>()(d, rmode_);
+            dst[i] = qz_a1b0<float, dst_data_t>()(d);
             oc = (oc == OC_ - 1) ? 0 : oc + 1;
         }
     }

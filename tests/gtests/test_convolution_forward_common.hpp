@@ -95,14 +95,7 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
                 }
             }
 
-            using D = memory::data_type;
-            if (data_traits<data_t_dst>::data_type != D::f32){
-                using R = mkldnn::round_mode;
-                switch (attr.rmode) {
-                    case R::round_down: a_fp = floorf(a_fp); break;
-                    case R::round_nearest: a_fp = nearbyintf(a_fp); break;
-                }
-            }
+            a_fp = out_round<data_t_dst>(a_fp);
 
             memory::dim oidx = n * padded_oc * c.oh * c.ow
                      + g * padded_oc / c.ng * c.oh * c.ow

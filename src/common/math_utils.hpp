@@ -24,9 +24,22 @@
 #include "nstl.hpp"
 #include "mkldnn_traits.hpp"
 
+#if defined(MKLDNN_X86_64)
+#include "immintrin.h"
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace math {
+
+/** rounds @p f to an integer according to the mxcsr register */
+inline int mxcsr_round(float f) {
+#if defined(MKLDNN_X86_64)
+    return _mm_cvtss_si32(_mm_load_ss(&f));
+#else
+    return (int)nearbyintf(f); // optimism
+#endif
+}
 
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
@@ -66,19 +79,16 @@ template <> inline uint8_t saturate<uint8_t, int8_t>(const int8_t &x) {
 }
 
 template <typename out_t>
-inline typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
-out_round(float v, round_mode_t rmode = round_mode::nearest)
-{ return (out_t)(rmode == round_mode::down ? floorf(v) : nearbyintf(v)); }
+typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
+out_round(float v) { return (out_t)mxcsr_round(v); }
 
 template <typename out_t>
-inline typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
-out_round(double v, round_mode_t rmode = round_mode::nearest)
-{ return (out_t)(rmode == round_mode::down ? floor(v) : nearbyint(v)); }
+typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
+out_round(double v) { return (out_t)mxcsr_round((float)v); }
 
 template <typename out_t>
-inline typename utils::enable_if<!nstl::is_integral<out_t>::value, out_t>::type
-out_round(float v, round_mode_t rmode = round_mode::nearest)
-{ UNUSED(rmode); return v; }
+typename utils::enable_if<!nstl::is_integral<out_t>::value, out_t>::type
+out_round(float v) { return v; }
 
 inline int gcd(int a, int b) {
     a = impl::nstl::abs(a);

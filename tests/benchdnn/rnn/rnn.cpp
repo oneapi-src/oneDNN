@@ -39,10 +39,6 @@ mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const rnn_prb_t *p) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
 
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
-    if (p->attr.irmode != attr_t::round_mode_t::NEAREST)
-        DNN_SAFE_V(mkldnn_primitive_attr_set_int_output_round_mode(
-                mkldnn_attr, (mkldnn_round_mode_t)p->attr.irmode));
-
     if (p->scale_policy == PER_OC) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_weights_qparams(
                 mkldnn_attr, p->dic * p->n_gates(), 0x3, p->wei_oc_scales));

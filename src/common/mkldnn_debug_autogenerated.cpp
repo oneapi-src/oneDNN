@@ -46,13 +46,6 @@ const char *mkldnn_dt2str(mkldnn_data_type_t v) {
     return "unknown dt";
 }
 
-const char *mkldnn_rmode2str(mkldnn_round_mode_t v) {
-    if (v == mkldnn_round_nearest) return "round_nearest";
-    if (v == mkldnn_round_down) return "round_down";
-    assert(!"unknown rmode");
-    return "unknown rmode";
-}
-
 const char *mkldnn_fmt_kind2str(mkldnn_format_kind_t v) {
     if (v == mkldnn_format_kind_undef) return "undef";
     if (v == mkldnn_format_kind_any) return "any";

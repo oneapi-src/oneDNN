@@ -26,10 +26,6 @@ const char *status2str(mkldnn_status_t status);
 const char *dt2str(mkldnn_data_type_t dt);
 mkldnn_data_type_t str2dt(const char *str);
 
-/* round mode */
-const char *rmode2str(mkldnn_round_mode_t rmode);
-mkldnn_round_mode_t str2rmode(const char *str);
-
 /* format */
 const char *tag2str(mkldnn_format_tag_t tag);
 mkldnn_format_tag_t str2tag(const char *str);
