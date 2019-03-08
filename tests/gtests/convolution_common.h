@@ -99,8 +99,3 @@
 #else
 #include "convolution_simple_small.h"
 #endif
-//#include "convolution_alexnet.h"
-//#include "convolution_googlenet_v1.h"
-//#include "convolution_googlenet_v2.h"
-//#include "convolution_resnet.h"
-//#include "convolution_cifar10.h"
