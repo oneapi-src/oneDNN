@@ -43,11 +43,18 @@ enum {
     ROW_OFFSET,
 };
 
+// TODO Is it okay to place this here?
+enum {no_sum = 0, do_sum = 1};
+enum {no_trans = 0, do_trans = 1};
+enum {no_beta0 = 0, do_beta0 = 1};
+enum {no_col_offset = 0, do_col_offset = 1};
+enum {no_row_offset = 0, do_row_offset = 1};
+
 // Alias for any dimension related variable.
 typedef long long int dim_t;
 
 template <typename a_type, typename b_type, typename c_type>
-struct BlasStructure {
+struct gemm_info_t {
 
     // Interface arguments.
     int transa, transb, offsetc;
@@ -88,11 +95,11 @@ struct BlasStructure {
     // Gemv parameters
     int swap;
 
-    BlasStructure(const char *transA, const char *transB, const char *offsetC,
+    gemm_info_t(const char *transA, const char *transB, const char *offsetC,
             const int *m, const int *n, const int *k, const float *alpha,
-            const a_type *a, const int *lda, const a_type *oa,
-            const b_type *b, const int *ldb, const a_type *ob,
-            const float *beta, c_type *c, const int *ldc, const c_type *oc);
+            const a_type *a, const int *lda, const a_type *oa, const b_type *b,
+            const int *ldb, const a_type *ob, const float *beta, c_type *c,
+            const int *ldc, const c_type *oc);
 
     bool hasKernels(void);
 

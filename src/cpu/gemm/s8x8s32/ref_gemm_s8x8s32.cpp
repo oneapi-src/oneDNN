@@ -70,14 +70,16 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
     const int a_cols = AisN ? k : m;
     mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int j, int i) {
         da_setter(i, j,
-            static_cast<double>(ia_accessor(i, j)) + static_cast<double>(ao[0]));
+            static_cast<double>(ia_accessor(i, j))
+            + static_cast<double>(ao[0]));
     });
 
     const int b_rows = BisN ? k : n;
     const int b_cols = BisN ? n : k;
     mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int j, int i) {
         db_setter(i, j,
-            static_cast<double>(ib_accessor(i, j)) + static_cast<double>(bo[0]));
+            static_cast<double>(ib_accessor(i, j))
+            + static_cast<double>(bo[0]));
     });
     double one = 1.0, zero = 0.0;
     ref_gemm<double>(transa, transb, M, N, K, &one, dA, LDA, dB, LDB, &zero,

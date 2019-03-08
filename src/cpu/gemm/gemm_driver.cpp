@@ -21,10 +21,10 @@
 
 #include "gemm_driver.hpp"
 
-#include "blas_structure.hpp"
 #include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
+#include "gemm_info.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
@@ -62,8 +62,8 @@ template <typename c_type>
 static inline void add_results(const dim_t m, const dim_t n,
         const float alpha, const float beta, const c_type *c_partial_sum,
         const dim_t ldcp, c_type *c_data, const dim_t ldc, const c_type *co,
-        const int offsetc)
-{
+        const int offsetc) {
+
     for (dim_t j = 0; j < n; ++j) {
         for (dim_t i = 0; i < m; ++i) {
             c_type ctemp = c_partial_sum[i + j * ldcp];
@@ -110,8 +110,7 @@ static inline void add_results(const dim_t m, const dim_t n,
 
 // TODO Find a better place for those functions.
 template <typename T>
-static inline dim_t ld_padd(const dim_t x)
-{
+static inline dim_t ld_padd(const dim_t x) {
     return ((x + ((2048 / sizeof(T)) - 1)) / (2048 / sizeof(T)))
         * (2048 / sizeof(T)) +  (64 / sizeof(T));
 }
@@ -121,8 +120,8 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
         const float alpha, const a_type *a, const b_type *b, float beta,
         c_type *c, const dim_t ldc, const c_type *a_row_sum,
         const c_type *b_col_sum, const c_type *co, const int offsetc,
-        const BlasStructure<a_type, b_type, c_type> *arg)
-{
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
     // Since m and n are limited by blocking, stack overflow may not happen;
     // it's up to 32kB
 #if !defined(_MSC_VER)
@@ -139,16 +138,16 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
     if (data_traits<a_type>::data_type == data_type::s8) {
         a_type ao = arg->ao;
         a_type bo = arg->bo;
-        c_type co_0 = (offsetc == NO_OFFSET)? 0 : co[0];
+        c_type co_0 = offsetc == NO_OFFSET ? 0 : co[0];
 
-        if ((bo != 0) || (offsetc == COL_OFFSET))
+        if (bo != 0 || offsetc == COL_OFFSET)
             col_req = 1;
-        if ((ao != 0) || (offsetc == ROW_OFFSET))
+        if (ao != 0 || offsetc == ROW_OFFSET)
             row_req = 1;
 
         // It needs one of column or row offsets, but it doesn't need both
-        if (((ao != 0) && (bo != 0)) || ((offsetc == FIX_OFFSET) && (co_0 != 0))) {
-            if ((col_req == 0) && (row_req == 0)) {
+        if ((ao != 0 && bo != 0) || (offsetc == FIX_OFFSET && co_0 != 0)) {
+            if (col_req == 0 && row_req == 0) {
                 if (m <= n) {
                     col_req = 1;
                 } else {
@@ -187,7 +186,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
             }
         }
 
-        if ((offsetc == FIX_OFFSET) && (co_0 != 0)) {
+        if (offsetc == FIX_OFFSET && co_0 != 0) {
             if (col_req) {
                 for (dim_t i = 0; i < m; i++)
                     col_offset[i] += co_0;
@@ -197,7 +196,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
             }
         }
 
-        if ((ao != 0) && (bo != 0)) {
+        if (ao != 0 && bo != 0) {
             if (col_req) {
                 for (dim_t i = 0; i < m; i++)
                     col_offset[i] += (c_type) k * ao * bo;
@@ -220,19 +219,18 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
             c, ldc, col_offset, row_offset);
 }
 
-static inline void *align(void *ptr, size_t alignment)
-{
+static inline void *align(void *ptr, size_t alignment) {
     return (void *) utils::rnd_up((uintptr_t) ptr, alignment);
 }
 
 template <typename scale_t, typename mat_t>
 void scale_matrix(dim_t m, dim_t n, scale_t alpha, mat_t * __restrict p_mat,
-        dim_t ld)
-{
+        dim_t ld) {
     if (data_traits<mat_t>::data_type == data_type::f32) {
         for (dim_t j = 0; j < n; j++) {
             for (dim_t i = 0; i < m; i++) {
-                p_mat[i + j * ld] = (mat_t) ((scale_t) p_mat[i + j * ld] * alpha);
+                p_mat[i + j * ld] = (mat_t)
+                    ((scale_t) p_mat[i + j * ld] * alpha);
             }
         }
     }
@@ -241,14 +239,13 @@ void scale_matrix(dim_t m, dim_t n, scale_t alpha, mat_t * __restrict p_mat,
 template <typename a_type, typename b_type, typename c_type>
 static mkldnn_status_t gemm_kernel_driver(const dim_t m, const dim_t n,
         const dim_t k, const a_type *a, const b_type *b, c_type *c,
-        const c_type *co, const BlasStructure<a_type, b_type, c_type> *arg)
-{
+        const c_type *co, const gemm_info_t<a_type, b_type, c_type> *arg) {
     dim_t lda = arg->lda;
     dim_t ldb = arg->ldb;
     dim_t ldc = arg->ldc;
 
     float alpha = *arg->alpha;
-    float beta  = *arg->beta;
+    float beta = *arg->beta;
 
     if (m <= 0 || n <= 0) {
         return mkldnn_success;
@@ -298,10 +295,10 @@ static mkldnn_status_t gemm_kernel_driver(const dim_t m, const dim_t n,
     // Padding for temporary buffer for C
     dim_t ldc_buf = ld_padd<c_type>(m_padd);
 
-    dim_t strideAm = (arg->transa == 0)? 1 : lda;
-    dim_t strideAn = (arg->transa != 0)? 1 : lda;
-    dim_t strideBm = (arg->transb == 0)? 1 : ldb;
-    dim_t strideBn = (arg->transb != 0)? 1 : ldb;
+    dim_t strideAm = (arg->transa == no_trans)? 1 : lda;
+    dim_t strideAn = (arg->transa != no_trans)? 1 : lda;
+    dim_t strideBm = (arg->transb == no_trans)? 1 : ldb;
+    dim_t strideBn = (arg->transb != no_trans)? 1 : ldb;
 
     size_t a_buf_nelems = m_padd * k_padd;
     size_t b_buf_nelems = k_padd * n_padd;
@@ -458,10 +455,11 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(const dim_t m,
         const dim_t n, const dim_t k, const a_type *bufferA, const b_type *b,
         const float beta, c_type *c, const int offsetc, const c_type *co,
         const c_type *a_row_sum,
-        const BlasStructure<a_type, b_type, c_type> *arg)
-{
-    dim_t ldb   = arg->ldb;
-    dim_t ldc   = arg->ldc;
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    dim_t ldb = arg->ldb;
+    dim_t ldc = arg->ldc;
+
     float alpha = *arg->alpha;
 
     if (m <= 0 || n <= 0) {
@@ -494,7 +492,8 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(const dim_t m,
         mem_size += b_col_sum_nelems * sizeof(*c) + PAGE_4K;
     }
 
-    bool need_c_buffer = isInteger && (alpha != 1.0f || (beta != 1 && beta != 0));
+    bool need_c_buffer = isInteger &&
+        (alpha != 1.0f || (beta != 1 && beta != 0));
 
     if (need_c_buffer) {
         size_t c_buf_nelems = ldc_buf * n_padd;
@@ -586,7 +585,7 @@ static inline int nocopy_checker_avx2(const int nthr, const int transa,
 
     if (m >= nthr * 378 && k >= nthr * 378) return 0;
 
-    if (transb == 0) {
+    if (transb == no_trans) {
         if (m <= MN_NOCOPY_AVX2 && n <= MN_NOCOPY_AVX2) return 1;
         if (n <= nthr * N_NOTRANSB_PER_THR) return 1;
         if (k <= nthr * K_NOTRANSB_PER_THR) return 1;
@@ -633,7 +632,7 @@ static inline int nocopy_checker_avx512(int nthr, const int transa,
 
     if (m >= nthr * 378 && k >= nthr * 378) return 0;
 
-    if (transb == 0) {
+    if (transb == no_trans) {
         if (m <= nthr * MN_NOTRANSB_PER_THR) return 1;
         if (n <= nthr * MN_NOTRANSB_PER_THR) return 1;
         if (k <= nthr * K_NOTRANSB_PER_THR) return 1;
@@ -665,8 +664,8 @@ static inline int nocopy_checker(const int nthr, const int transa,
 #define M2D_MIN 384
 template <typename a_type, typename b_type, typename c_type>
 static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
-        const BlasStructure<a_type, b_type, c_type> *arg)
-{
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
     int nthrs = *p_nthrs;
     int transa = arg->transa;
     int transb = arg->transb;
@@ -735,12 +734,12 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     int condition_1D_copya = 0;
     if (mayiuse(avx512_core)) {
         if (m >= 1000 && (n >= nthrs * N2D_MAX / 4)) {
-            condition_2D_bsrc  = 0;
+            condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
     } else { // AVX2 code path
         if (m >= 1000 && n >= 4000) {
-            condition_2D_bsrc  = 0;
+            condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
     }
@@ -749,7 +748,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     // overhead for integer case.
     if (isInteger && (arg->ao != 0 || arg->bo != 0 || arg->co[0] != 0 ||
                 arg->offsetc != FIX_OFFSET)) {
-        condition_2D_bsrc  = 0;
+        condition_2D_bsrc = 0;
         condition_1D_copya = 1;
     }
 
@@ -795,8 +794,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
 #undef M2D_MIN
 
 static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
-        dim_t *t_offset, dim_t *t_block)
-{
+        dim_t *t_offset, dim_t *t_block) {
+
     dim_t band = n / nthrs;
 
     dim_t tail = n - (nthrs - 1) * band;
@@ -822,8 +821,8 @@ static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
 static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
         const int ithr_j, const int nthrs_m, const int nthrs_n, const dim_t m,
         const dim_t n, dim_t *p_m_disp, dim_t *p_m_band, dim_t *p_n_disp,
-        dim_t *p_n_band)
-{
+        dim_t *p_n_band) {
+
     dim_t m_disp = 0, n_disp = 0;
     dim_t m_band = 0, n_band = 0;
 
@@ -911,10 +910,10 @@ template <typename a_type, typename b_type, typename c_type>
 static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
         dim_t *n, dim_t *k, const a_type **a, const b_type **b, c_type **c,
         const c_type **co, const blas_thread_t *thread_info,
-        const BlasStructure<a_type, b_type, c_type> *arg)
-{
-    dim_t strideAm = (arg->transa == 0)? 1 : arg->lda;
-    dim_t strideBn = (arg->transb != 0)? 1 : arg->ldb;
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    dim_t strideAm = (arg->transa == no_trans)? 1 : arg->lda;
+    dim_t strideBn = (arg->transb != no_trans)? 1 : arg->ldb;
     int offsetc = arg->offsetc;
 
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
@@ -1038,17 +1037,17 @@ template <typename a_type, typename b_type, typename c_type>
 static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
         const dim_t m, const dim_t n, const dim_t k, const a_type *a,
         const b_type *b, c_type *c, const c_type *co,
-        const BlasStructure<a_type, b_type, c_type> *arg, char **p_shared_mem)
-{
+        const gemm_info_t<a_type, b_type, c_type> *arg, char **p_shared_mem) {
+
     const dim_t lda = arg->lda;
     const dim_t ldb = arg->ldb;
     const dim_t ldc = arg->ldc;
-    const dim_t strideAm = (arg->transa == 0)? 1 : lda;
-    const dim_t strideAn = (arg->transa != 0)? 1 : lda;
-    const dim_t strideBm = (arg->transb == 0)? 1 : ldb;
+    const dim_t strideAm = (arg->transa == no_trans)? 1 : lda;
+    const dim_t strideAn = (arg->transa != no_trans)? 1 : lda;
+    const dim_t strideBm = (arg->transb == no_trans)? 1 : ldb;
 
     float alpha = *arg->alpha;
-    float beta  = *arg->beta;
+    float beta = *arg->beta;
 
     bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
 
@@ -1197,8 +1196,8 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 #undef MULTIPLIER
 
 template <typename T>
-static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs)
-{
+static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
+        int *nthrs) {
     const double omp_overhead_small_core = 3.0e+3;
     const double omp_intercept_big_core = 4.0e+3;
     const double omp_slope_big_core = 5.0e+2;
@@ -1272,16 +1271,16 @@ static mkldnn_status_t call_no_copy_sgemm(const int transa, const int transb,
 
     if (mayiuse(avx512_core))
         return jit_avx512_common_gemm_f32(
-                transa == 0 ? "N" : "T",
-                transb == 0 ? "N" : "T",
+                transa == no_trans ? "N" : "T",
+                transb == no_trans ? "N" : "T",
                 &m_s32, &n_s32, &k_s32, alpha,
                 a, &lda_s32,
                 b, &ldb_s32,
                 beta, c, &ldc_s32, bias);
     else
         return jit_avx_gemm_f32(
-                transa == 0 ? "N" : "T",
-                transb == 0 ? "N" : "T",
+                transa == no_trans ? "N" : "T",
+                transb == no_trans ? "N" : "T",
                 &m_s32, &n_s32, &k_s32, alpha,
                 a, &lda_s32,
                 b, &ldb_s32,
@@ -1291,8 +1290,8 @@ static mkldnn_status_t call_no_copy_sgemm(const int transa, const int transb,
 #define CACHE_LINE_SIZE 64
 template <typename a_type, typename b_type, typename c_type>
 static mkldnn_status_t gemm_threading_driver(
-        BlasStructure<a_type, b_type, c_type> *arg)
-{
+        gemm_info_t<a_type, b_type, c_type> *arg) {
+
     if ((arg->m <= 0) || (arg->n <= 0))
         return mkldnn_success;
 
@@ -1392,8 +1391,8 @@ static mkldnn_status_t gemm_threading_driver(
                     if (data_traits<a_type>::data_type == data_type::f32) {
                         if (mayiuse(avx512_core)) {
                             avx512_common_gemm_f32::sgemm_nocopy_driver(
-                                    arg->transa == 0 ? "N" : "T",
-                                    arg->transb == 0 ? "N" : "T",
+                                    arg->transa == no_trans ? "N" : "T",
+                                    arg->transb == no_trans ? "N" : "T",
                                     m, n, k, arg->alpha,
                                     (float *) a, arg->lda,
                                     (float *) b, arg->ldb,
@@ -1401,8 +1400,8 @@ static mkldnn_status_t gemm_threading_driver(
                                     NULL, NULL);
                         } else {
                             avx_gemm_f32::sgemm_nocopy_driver(
-                                    arg->transa == 0 ? "N" : "T",
-                                    arg->transb == 0 ? "N" : "T",
+                                    arg->transa == no_trans ? "N" : "T",
+                                    arg->transb == no_trans ? "N" : "T",
                                     m, n, k, arg->alpha,
                                     (float *) a, arg->lda,
                                     (float *) b, arg->ldb,
@@ -1438,8 +1437,8 @@ mkldnn_status_t gemm_driver(
         const int *m, const int *n, const int *k,
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
         const b_type *b, const int *ldb, const a_type *ob,
-        const float *beta, c_type *c, const int *ldc, const c_type *oc)
-{
+        const float *beta, c_type *c, const int *ldc, const c_type *oc) {
+
     // gemm_driver supports 8-bit integer and for avx512_vnni and avx512_core.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
                 mayiuse(avx512_core)));
@@ -1448,7 +1447,7 @@ mkldnn_status_t gemm_driver(
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
             mayiuse(avx)));
 
-    BlasStructure<a_type, b_type, c_type> args(transA, transB, offsetC, m, n, k,
+    gemm_info_t<a_type, b_type, c_type> args(transA, transB, offsetC, m, n, k,
             alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
 
     // Check if copy algorithm kernels were generated on supported ISAs.
