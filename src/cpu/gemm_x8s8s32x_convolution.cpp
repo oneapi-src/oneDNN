@@ -235,13 +235,13 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::generate()
                 vpmovzxbd(vreg_bias_, bias_addr);
                 break;
             case data_type::s32:
-                vcvtdq2ps(vreg_bias_, bias_addr);
-                break;
             case data_type::f32:
                 vmovups(vreg_bias_, bias_addr);
                 break;
             default: assert(!"unimplemented");
             }
+            if (bias_data_type_ != data_type::f32)
+                vcvtdq2ps(vreg_bias(idx), vreg_bias(idx));
             vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias(idx));
         }
 
