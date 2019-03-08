@@ -97,5 +97,5 @@
 #ifdef TEST_PARAM_ATTR
 #include "convolution_attr.h"
 #else
-#include "convolution_simple_small.h"
+#include "convolution_simple.h"
 #endif
