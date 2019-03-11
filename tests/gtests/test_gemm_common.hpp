@@ -181,6 +181,18 @@ void run_test_gemm(const test_params &p) {}
 
 template <>
 void run_test_gemm<int8_t, uint8_t, int32_t>(const test_params &p) {
+    if (p.expect_to_fail) {
+        int8_t dummy_s8, *A = &dummy_s8, oa = 0, ob = 0;
+        uint8_t dummy_u8, *B = &dummy_u8;
+        int32_t dummy_s32, *C = &dummy_s32, *oc = &dummy_s32;
+        auto status = mkldnn_gemm_s8u8s32(&p.transA, &p.transB,
+                &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
+                &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
+        if (status != mkldnn_success)
+            throw error(status, "mkldnn_s8u8s32 returned error");
+        return;
+    }
+
     size_t sizeA, sizeB, sizeC;
     get_matrix_size(p, sizeA, sizeB, sizeC);
 
@@ -224,6 +236,17 @@ void run_test_gemm<int8_t, uint8_t, int32_t>(const test_params &p) {
 
 template <>
 void run_test_gemm<int8_t, int8_t, int32_t>(const test_params &p) {
+    if (p.expect_to_fail) {
+        int8_t dummy_s8, *A = &dummy_s8, *B = &dummy_s8, oa = 0, ob = 0;
+        int32_t dummy_s32, *C = &dummy_s32, *oc = &dummy_s32;
+        auto status = mkldnn_gemm_s8s8s32(&p.transA, &p.transB,
+                &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
+                &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
+        if (status != mkldnn_success)
+            throw error(status, "mkldnn_s8s8s32 returned error");
+        return;
+    }
+
     size_t sizeA, sizeB, sizeC;
     get_matrix_size(p, sizeA, sizeB, sizeC);
 
@@ -267,6 +290,15 @@ void run_test_gemm<int8_t, int8_t, int32_t>(const test_params &p) {
 
 template <>
 void run_test_gemm<float, float, float>(const test_params &p) {
+    if (p.expect_to_fail) {
+        float dummy_f32, *A = &dummy_f32, *B = &dummy_f32, *C = &dummy_f32;
+        auto status = mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K,
+                &p.alpha, A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
+        if (status != mkldnn_success)
+            throw error(status, "mkldnn_sgemm returned error");
+        return;
+    }
+
     size_t sizeA, sizeB, sizeC;
     get_matrix_size(p, sizeA, sizeB, sizeC);
 
