@@ -278,7 +278,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 }
 
 static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *r) {
+        const dnn_mem_t &dt_mem, res_t *r, const dnn_mem_t *ss = nullptr) {
     const char *skind = data_kind2str(kind);
     const float eps = p->dir & FLAG_FWD
         ? (kind == DATA ? 5e-7 : 0)
@@ -290,14 +290,18 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     const bool rely_on_norm = false
         || (kind == DATA && (p->dir & FLAG_BWD) && (p->flags | GLOB_STATS));
 
-    const int64_t nelems = kind == DATA
-        ? p->mb * p->ic * p->id * p->ih * p->iw
-        : p->ic * (kind == SS ? 2 : 1);
+
+    const int64_t N = kind == DATA ? p->mb : 1;
+    const int64_t C = kind == DATA ? p->ic : p->ic * (kind == SS ? 2 : 1);
+    const int64_t SP = kind == DATA ? p->id * p->ih * p->iw : 1;
+    const int64_t nelems = N * C * SP;
     r->total += rely_on_norm ? 1 : nelems;
 
     diff_norm_t diff_norm;
-
-    for (int64_t i = 0; i < nelems; ++i) {
+    for (int64_t n = 0; n < N; n++) {
+    for (int64_t c = 0; c < C; c++) {
+    for (int64_t sp = 0; sp < SP; ++sp) {
+        int64_t i = (n * C + c) * SP + sp;
         const float fp = ((const float *)fp_mem)[i];
         const float dt = ((const float *)dt_mem)[i];
         diff_norm.update(fp, dt);
@@ -307,7 +311,30 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= eps;
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
+
+        /* When the error is larger than eps, It could be
+         * due to catastrophic cancellation in final result
+         * which is computed as `Y = a * X + b`.
+         * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
+         * Then large error in `a * X` could result in a final
+         * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
+         * which has no meaningful digits left in mantissa.*/
+        if (!ok && (p->dir & FLAG_FWD) && kind == DATA && ss) {
+            const float beta = ((float *)*ss)[p->ic + c];
+            /* Using an empirically derived threshold,
+             * check if cancellation error
+             * in `|Y| = |a*X - (-b)|` is huge.*/
+            bool maybe_cancellation_error = (fabsf(fp - beta) /
+                    (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1)) > 1.0f;
+            if (maybe_cancellation_error) {
+                /* Check for error in `a * X` */
+                float diff_aX = fabsf((fp - beta) - (dt - beta));
+                float rel_diff_aX = diff_aX /
+                    (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta) : 1);
+                ok = rel_diff_aX <= eps;
+            }
+        }
 
         r->errors += !ok;
 
@@ -334,6 +361,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                     (unsigned long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
                     ind_str, fp, dt, diff, rel_diff);
         }
+    }
+    }
     }
 
     diff_norm.done();
@@ -607,7 +636,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
             dnn_mem_t data(data_dt, fp, src_tag);
-            SAFE(compare(p, DATA, data_fp, data, r), WARN);
+            SAFE(compare(p, DATA, data_fp, data, r, &ss_fp), WARN);
             if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF))
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
         }

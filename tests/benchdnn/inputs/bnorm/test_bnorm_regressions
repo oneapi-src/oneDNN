@@ -6,6 +6,10 @@
 --flags=GS --batch=bnorm_regressions
 --flags=S  --batch=bnorm_regressions
 
+# Numerical stability issues
+--flags=S mb2ic128ih2 # catastrophic cancellation results in error > machine_epsilon
+--flags=S mb2ic1024ih2 # catastrophic cancellation results in error > machine_epsilon
+
 --attr=post_ops='relu'
 --flags=GS --batch=bnorm_regressions
 --flags=S  --batch=bnorm_regressions
@@ -26,6 +30,10 @@
 --flags=GS --batch=bnorm_regressions
 --flags=S  --batch=bnorm_regressions
 
+# Numerical stability issues
+--flags=S mb2ic128ih2 # catastrophic cancellation results in error > machine_epsilon
+--flags=S mb2ic1024ih2 # catastrophic cancellation results in error > machine_epsilon
+
 --attr=post_ops='relu'
 --flags=GS --batch=bnorm_regressions
 --flags=S  --batch=bnorm_regressions
@@ -45,6 +53,10 @@
 --flags=SR --batch=bnorm_regressions
 --flags=GS --batch=bnorm_regressions
 --flags=S  --batch=bnorm_regressions
+
+# Numerical stability issues
+--flags=S mb2ic128ih2 # catastrophic cancellation results in error > machine_epsilon
+--flags=S mb2ic1024ih2 # catastrophic cancellation results in error > machine_epsilon
 
 --attr=post_ops='relu'
 --flags=GS --batch=bnorm_regressions
