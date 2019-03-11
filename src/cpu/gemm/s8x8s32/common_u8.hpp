@@ -19,7 +19,7 @@
 
 #include "jit_generator.hpp"
 
-#define GEMM_CODE_SIZE          (4096L * 32)
+#define U8_COPY_KERNEL_CODE_SIZE          (4096L * 4)
 
 #define PADD_BYTESIZE_ONPAGE(x, size) (((x) * (size) + PAGE_4K - 1) / PAGE_4K) * PAGE_4K
 #define NEXT_THR_STRIDE(x, size) (PADD_BYTESIZE_ONPAGE(x, size)) / size

@@ -21,8 +21,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-jit_avx512_core_u8_copy_sum_bn_kern::jit_avx512_core_u8_copy_sum_bn_kern(): jit_generator(nullptr, GEMM_CODE_SIZE)
-{
+jit_avx512_core_u8_copy_sum_bn_kern::jit_avx512_core_u8_copy_sum_bn_kern() :
+    jit_generator(nullptr, U8_COPY_KERNEL_CODE_SIZE) {
 
 #ifndef _WIN32
 #define M	rdi
