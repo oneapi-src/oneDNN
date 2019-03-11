@@ -43,9 +43,9 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
     mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
-        float rcp_denom = (float)(1.0f / (sqrtf(svar + p->eps)));
+        float sqrt_var = sqrtf(svar + p->eps);
 
-        float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+        float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f) / sqrt_var;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
 
         for (int64_t mb = 0; mb < p->mb; ++mb)
@@ -53,7 +53,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         for (int64_t h = 0; h < p->ih; ++h)
         for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
-            float res = gamma * (((float *)src)[off] - smean) * rcp_denom + beta;
+            float res = gamma * (((float *)src)[off] - smean) + beta;
             float &D = ((float *)dst)[off];
             if ((p->flags & FUSE_BN_RELU) && res < 0) res = 0;
             maybe_post_ops(res, D);

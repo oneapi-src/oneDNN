@@ -652,17 +652,20 @@ struct jit_bnorm_t: public jit_generator {
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
             uni_vsqrtps(vsqrtvar, vsqrtvar);
 
-            if (isa == sse42) {
-                movups(vbuf, vone);
-                divps(vbuf, vsqrtvar);
-                movups(vsqrtvar, vbuf);
-            } else {
-                vdivps(vsqrtvar, vone, vsqrtvar);
-            }
-
             if (bdesc_->use_scaleshift()) {
                 uni_vmovups_maybe_tail(vgamma, gamma_ptr());
                 uni_vmovups_maybe_tail(vbeta, beta_ptr());
+            }
+
+            Vmm vscale = bdesc_->use_scaleshift() ? vgamma : vone;
+            Vmm vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
+
+            if (isa == sse42) {
+                movups(vbuf, vscale);
+                divps(vbuf, vsqrtvar);
+                movups(vdiv, vbuf);
+            } else {
+                vdivps(vdiv, vscale, vsqrtvar);
             }
 
             auto compute = [=](bool output_is_aligned) {
@@ -678,9 +681,10 @@ struct jit_bnorm_t: public jit_generator {
                              mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                      + t1_pf_offt]);
                              uni_vsubps(v, v, vmean);
-                             uni_vmulps(v, v, vsqrtvar);
                              if (bdesc_->use_scaleshift()) {
                                  uni_vfmadd213ps(v, vgamma, vbeta);
+                             } else {
+                                uni_vmulps(v, v, vsqrtvar);
                              }
                              if (with_relu_inf_only) {
                                  uni_vmaxps(v, v, vzero);

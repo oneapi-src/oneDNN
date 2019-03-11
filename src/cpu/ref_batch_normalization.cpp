@@ -88,8 +88,6 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward(
         float v_mean = calculate_stats ? 0 : mean[c];
         float v_variance = calculate_stats ? 0 : variance[c];
 
-        float sm = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
-        float sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
         if (calculate_stats) {
             for (dim_t n = 0; n < N; ++n)
             for (dim_t d = 0; d < D; ++d)
@@ -108,15 +106,18 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward(
             v_variance /= W*H*N*D;
         }
 
-        float sqrt_variance = 1.0f / sqrtf(v_variance + eps);
+        float sqrt_variance = sqrtf(v_variance + eps);
+        float sm = (use_scaleshift
+            ? scaleshift[scaleshift_d.off(0, c)]
+            : 1.0f) / sqrt_variance;
+        float sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
 
         for (dim_t n = 0; n < N; ++n)
         for (dim_t d = 0; d < D; ++d)
         for (dim_t h = 0; h < H; ++h)
         for (dim_t w = 0; w < W; ++w) {
-            auto d_off = data_offset(data_d, n, c, d, h, w);
-            float bn_res = sm * ((float)src[d_off] - v_mean) *
-                sqrt_variance + sv;
+            auto d_off = data_offset(data_d,n,c,d,h,w);
+            float bn_res = sm * ((float)src[d_off] - v_mean) + sv;
             if (fuse_bn_relu) {
                 if (bn_res <= 0) {
                     bn_res = 0;

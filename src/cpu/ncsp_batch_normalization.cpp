@@ -191,10 +191,10 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
-                data_t sm = use_scaleshift ? scaleshift[off] : 1;
-                data_t sv = use_scaleshift ? scaleshift[C + off] : 0;
                 data_t sqrt_variance
-                        = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
+                        = static_cast<data_t>(sqrtf(variance[off] + eps));
+                data_t sm = (use_scaleshift ? scaleshift[off] : 1.0f) / sqrt_variance;
+                data_t sv = use_scaleshift ? scaleshift[C + off] : 0;
                 for (dim_t n = N_s; n < N_e; ++n)
 #if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
@@ -202,8 +202,7 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
                         size_t d_off = off * SP + n * C * SP + sp;
                         data_t bn_res
-                                = sm * (src[d_off] - mean[off]) * sqrt_variance
-                                + sv;
+                                = sm * (src[d_off] - mean[off]) + sv;
                         if (fuse_bn_relu) {
                             if (bn_res <= 0) {
                                 bn_res = 0;

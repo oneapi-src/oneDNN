@@ -151,23 +151,22 @@ void nspc_batch_normalization_fwd_t::execute_forward(
 #endif
                 for (dim_t c = 0; c < C; c++) {
                     data_t sqrt_variance = static_cast<data_t>(
-                            1.0f / sqrtf(variance_loc[c] + eps));
-                    data_t sm = use_scaleshift ? scaleshift[c] : 1;
+                            sqrtf(variance_loc[c] + eps));
+                    data_t sm = (use_scaleshift ? scaleshift[c] : 1.0f) / sqrt_variance;
                     data_t sv = use_scaleshift ? scaleshift[C + c] : 0;
-                    data_t bn_res
-                            = sm * (src[(size_t)n * SP * C + sp * C + c]
-                                    - mean_loc[c]) * sqrt_variance + sv;
+                    size_t d_off = (size_t)n * SP * C + sp * C + c;
+                    data_t bn_res = sm * (src[d_off] - mean_loc[c]) + sv;
                     if (fuse_bn_relu) {
                         if (bn_res <= 0) {
                             bn_res = 0;
                             if (is_training)
-                                ws[(size_t)n * SP * C + sp * C + c] = 0;
+                                ws[d_off] = 0;
                         } else {
                             if (is_training)
-                                ws[(size_t)n * SP * C + sp * C + c] = 1;
+                                ws[d_off] = 1;
                         }
                     }
-                    dst[(size_t)n * SP * C + sp * C + c] = maybe_post_op(bn_res);
+                    dst[d_off] = maybe_post_op(bn_res);
                 }
             }
         }
