@@ -46,9 +46,12 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
                 && is_fwd()
                 && src_md()->data_type == data_type
                 && IMPLICATION(use_scaleshift(),
-                        weights_md()->data_type == data_type)
+                        weights_md()->data_type == data_type::f32)
                 && (attr()->has_default_values() || with_relu_post_op());
             if (!ok) return status::unimplemented;
+
+            if (src_md()->data_type == data_type::s8 && !stats_is_src())
+                return status::unimplemented;
 
             if (is_training() && fuse_bn_relu()) init_default_ws(8);
 
@@ -57,6 +60,7 @@ struct ref_batch_normalization_fwd_t: public cpu_primitive_t {
     };
 
     ref_batch_normalization_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
+
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

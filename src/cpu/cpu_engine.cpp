@@ -243,6 +243,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(nspc_batch_normalization_bwd_t),
     INSTANCE(ref_batch_normalization_fwd_t<f32>),
     INSTANCE(ref_batch_normalization_bwd_t<f32>),
+    INSTANCE(ref_batch_normalization_fwd_t<s8>),
     /* inner product */
     INSTANCE(gemm_inner_product_fwd_t<f32>),
     INSTANCE(gemm_inner_product_bwd_data_t<f32>),
