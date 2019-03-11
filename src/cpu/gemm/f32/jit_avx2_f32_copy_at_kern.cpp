@@ -21,8 +21,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-jit_avx2_f32_copy_at_kern::jit_avx2_f32_copy_at_kern(): jit_generator(nullptr, GEMM_CODE_SIZE)
-{
+jit_avx2_f32_copy_at_kern::jit_avx2_f32_copy_at_kern() :
+    jit_generator(nullptr, F32_COPY_KERNEL_CODE_SIZE) {
 
 #ifndef _WIN32
 #define M	rdi

@@ -19,13 +19,7 @@
 
 #include "jit_generator.hpp"
 
-#define GEMM_CODE_SIZE          (4096L * 32)
-
-#ifdef _WIN32
-#define is_windows 1
-#else
-#define is_windows 0
-#endif
+#define F32_COPY_KERNEL_CODE_SIZE          (4096L * 5)
 
 namespace mkldnn {
 namespace impl {

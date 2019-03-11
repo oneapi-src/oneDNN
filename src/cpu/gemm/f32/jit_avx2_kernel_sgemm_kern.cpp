@@ -16,6 +16,12 @@
 
 #include "jit_avx2_kernel_sgemm_kern.hpp"
 
+#ifdef _WIN32
+static const bool is_windows = true;
+#else
+static const bool is_windows = false;
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -429,7 +435,7 @@ void jit_avx2_kernel_sgemm_kern::generate() {
 }
 
 jit_avx2_kernel_sgemm_kern::jit_avx2_kernel_sgemm_kern(bool beta_zero)
-    : jit_generator(nullptr, GEMM_CODE_SIZE) {
+    : jit_generator(nullptr, 65536) {
 
     beta_zero_ = beta_zero;
     generate();
