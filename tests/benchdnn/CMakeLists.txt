@@ -34,8 +34,8 @@ if(BENCHDNN_USE_RDPMC)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    append_if(WIN32 CMAKE_CXX_FLAGS "-Qprec-div")
-    append_if(UNIX  CMAKE_CXX_FLAGS "-prec-div -fp-model precise")
+    append_if(WIN32 CMAKE_CXX_FLAGS "-Qprec-div -Qprec-sqrt")
+    append_if(UNIX  CMAKE_CXX_FLAGS "-prec-div -prec-sqrt -fp-model precise")
 endif()
 
 if(UNIX AND NOT APPLE)
