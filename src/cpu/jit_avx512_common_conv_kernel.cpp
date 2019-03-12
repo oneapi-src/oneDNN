@@ -1481,8 +1481,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
                 && wei_size / inp_size > 24
                 && (not_aligned_max || not_aligned_min)
                 && eligible_case) {
+                // Try to find nthreads > mkldnn_get_max_threads() / 2 such
+                // that oc_chunks is a multiple of nthreads, or nthreads is a
+                // multiple of oc_chunks. Otherwise, keep default value.
+                // TODO: implement a task-based alternative without throttling.
                 jcp.aligned_threads = nthreads;
-                for (int i = nthreads; i > 0; i--) {
+                for (int i = nthreads; i > nthreads / 2; i--) {
                     if (oc_chunks % i == 0 || i % oc_chunks == 0) {
                         jcp.aligned_threads = i;
                         break;
