@@ -74,9 +74,9 @@ void nspc_batch_normalization_fwd_t::execute_forward() const {
     auto ws = reinterpret_cast<uint8_t *>(this->memory(pd()->ws_idx()));
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
-    const int N = pd()->MB();
-    const int C = pd()->C();
-    const int SP = pd()->H() * pd()->W() * pd()->D();
+    const dim_t N = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t SP = pd()->H() * pd()->W() * pd()->D();
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
@@ -85,43 +85,43 @@ void nspc_batch_normalization_fwd_t::execute_forward() const {
 
     assert(mkldnn_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
-        int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
+        dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
-        data_t *mean_loc = tmp_mean + nstl::max(C, 16) * ithr;
-        data_t *variance_loc = tmp_var + nstl::max(C, 16) * ithr;
+        data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
+        data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
 
         if (calculate_stats) {
-            for (int c = 0; c < C; c++)
+            for (dim_t c = 0; c < C; c++)
                 ws_reduce[C * ithr + c] = 0.;
 
-            for (int n = N_s; n < N_e; n++)
-                for (int sp = 0; sp < SP; sp++)
+            for (dim_t n = N_s; n < N_e; n++)
+                for (dim_t sp = 0; sp < SP; sp++)
                     PRAGMA_OMP_SIMD()
-                    for (int c = 0; c < C; c++)
+                    for (dim_t c = 0; c < C; c++)
                         ws_reduce[C * ithr + c] += src[(size_t)n * SP * C
                             + sp * C + c];
 
             mkldnn_thr_barrier();
 
-            for (int c = C_s; c < C_e; c++) {
+            for (dim_t c = C_s; c < C_e; c++) {
                 mean[c] = 0;
-                for (int n = 0; n < nthr; n++)
+                for (dim_t n = 0; n < nthr; n++)
                     mean[c] += ws_reduce[C * n + c];
                 mean[c] /= SP * N;
             }
 
             mkldnn_thr_barrier();
 
-            for (int c = 0; c < C; c++) {
+            for (dim_t c = 0; c < C; c++) {
                 mean_loc[c] = mean[c];
                 ws_reduce[C * ithr + c] = 0.;
             }
 
-            for (int n = N_s; n < N_e; n++)
-                for (int sp = 0; sp < SP; sp++)
+            for (dim_t n = N_s; n < N_e; n++)
+                for (dim_t sp = 0; sp < SP; sp++)
                     PRAGMA_OMP_SIMD()
-                    for (int c = 0; c < C; c++) {
+                    for (dim_t c = 0; c < C; c++) {
                         data_t m = src[(size_t)n * SP * C + sp * C + c]
                             - mean_loc[c];
                         ws_reduce[C * ithr + c] += m * m;
@@ -129,28 +129,28 @@ void nspc_batch_normalization_fwd_t::execute_forward() const {
 
             mkldnn_thr_barrier();
 
-            for (int c = C_s; c < C_e; c++) {
+            for (dim_t c = C_s; c < C_e; c++) {
                 variance[c] = 0;
-                for (int n = 0; n < nthr; n++)
+                for (dim_t n = 0; n < nthr; n++)
                     variance[c] += ws_reduce[C * n + c];
                 variance[c] /= SP * N;
             }
 
             mkldnn_thr_barrier();
 
-            for (int c = 0; c < C; c++)
+            for (dim_t c = 0; c < C; c++)
                 variance_loc[c] = variance[c];
         } else {
             variance_loc = variance;
             mean_loc = mean;
         }
 
-        for (int n = N_s; n < N_e; n++) {
-            for (int sp = 0; sp < SP; sp++) {
+        for (dim_t n = N_s; n < N_e; n++) {
+            for (dim_t sp = 0; sp < SP; sp++) {
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
-                for (int c = 0; c < C; c++) {
+                for (dim_t c = 0; c < C; c++) {
                     data_t sqrt_variance = static_cast<data_t>(
                             1.0f / sqrtf(variance_loc[c] + eps));
                     data_t sm = use_scaleshift ? scaleshift[c] : 1;
@@ -191,9 +191,9 @@ void nspc_batch_normalization_bwd_t::execute_backward() const {
     auto diff_scaleshift = this->memory(1)
         ? reinterpret_cast<data_t *>(this->memory(1)) : tmp_diff_ss;
 
-    const int N = pd()->MB();
-    const int C = pd()->C();
-    const int SP = pd()->D() * pd()->H() * pd()->W();
+    const dim_t N = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t SP = pd()->D() * pd()->H() * pd()->W();
     data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
     auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
 
@@ -204,24 +204,24 @@ void nspc_batch_normalization_bwd_t::execute_backward() const {
 
     assert(mkldnn_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
-        int N_s = 0, N_e = 0, C_s = 0, C_e = 0;
+        dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
 
         data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
         data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
 
-        for (int c = 0; c < C; c++) {
+        for (dim_t c = 0; c < C; c++) {
             ws_reduce[C * ithr + c] = 0.;
             ws_reduce[C * nthr + C * ithr + c] = 0.;
         }
 
-        for (int n = N_s; n < N_e; n++)
-            for (int sp = 0; sp < SP; sp++)
+        for (dim_t n = N_s; n < N_e; n++)
+            for (dim_t sp = 0; sp < SP; sp++)
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
-                for (int c = 0; c < C; c++) {
+                for (dim_t c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t dd;
                     if (fuse_bn_relu)
@@ -234,12 +234,12 @@ void nspc_batch_normalization_bwd_t::execute_backward() const {
 
         mkldnn_thr_barrier();
 
-        for (int c = C_s; c < C_e; c++) {
+        for (dim_t c = C_s; c < C_e; c++) {
             data_t sqrt_variance
                     = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
             diff_gamma[c] = 0;
             diff_beta[c] = 0;
-            for (int n = 0; n < nthr; n++) {
+            for (dim_t n = 0; n < nthr; n++) {
                 diff_gamma[c] += ws_reduce[C * n + c];
                 diff_beta[c] += ws_reduce[C * nthr + C * n + c];
             }
@@ -248,17 +248,17 @@ void nspc_batch_normalization_bwd_t::execute_backward() const {
 
         mkldnn_thr_barrier();
 
-        for (int c = 0; c < C; c++) {
+        for (dim_t c = 0; c < C; c++) {
             diff_gamma_loc[c] = diff_gamma[c];
             diff_beta_loc[c] = diff_beta[c];
         }
 
-        for (int n = N_s; n < N_e; n++) {
-            for (int sp = 0; sp < SP; sp++) {
+        for (dim_t n = N_s; n < N_e; n++) {
+            for (dim_t sp = 0; sp < SP; sp++) {
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
-                for (int c = 0; c < C; c++) {
+                for (dim_t c = 0; c < C; c++) {
                     const size_t d_off = (size_t)n * SP * C + sp * C + c;
                     data_t gamma = use_scaleshift ? scaleshift[c] : 1;
                     data_t sqrt_variance

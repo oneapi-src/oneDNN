@@ -55,9 +55,9 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     const memory_desc_wrapper data_d(pd()->src_pd());
     const memory_desc_wrapper scaleshift_d(pd()->weights_pd());
 
-    const int N = pd()->MB();
-    const int C = pd()->C();
-    int H = 1, W = 1, D = 1;
+    const dim_t N = pd()->MB();
+    const dim_t C = pd()->C();
+    dim_t H = 1, W = 1, D = 1;
     const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
     if (has_spatial) {
         D = pd()->D();
@@ -78,8 +78,8 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
     };
     const bool is_3d = data_d.ndims() == 5;
 
-    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c,
-            int d, int h, int w) {
+    auto data_offset = [&](const memory_desc_wrapper &data_d, dim_t n, dim_t c,
+            dim_t d, dim_t h, dim_t w) {
         if (has_spatial) {
             if (is_3d)
                 return data_d.off(n, c, d, h, w);
@@ -89,24 +89,24 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
             return data_d.off(n, c);
     };
 
-    parallel_nd(C, [&](int c) {
+    parallel_nd(C, [&](dim_t c) {
         float v_mean = calculate_stats ? 0 : mean[c];
         float v_variance = calculate_stats ? 0 : variance[c];
 
         float sm = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
         float sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
         if (calculate_stats) {
-            for (int n = 0; n < N; ++n)
-            for (int d = 0; d < D; ++d)
-            for (int h = 0; h < H; ++h)
-            for (int w = 0; w < W; ++w)
+            for (dim_t n = 0; n < N; ++n)
+            for (dim_t d = 0; d < D; ++d)
+            for (dim_t h = 0; h < H; ++h)
+            for (dim_t w = 0; w < W; ++w)
                 v_mean += src[data_offset(data_d, n, c, d, h, w)];
             v_mean /= W*N*H*D;
 
-            for (int n = 0; n < N; ++n)
-            for (int d = 0; d < D; ++d)
-            for (int h = 0; h < H; ++h)
-            for (int w = 0; w < W; ++w) {
+            for (dim_t n = 0; n < N; ++n)
+            for (dim_t d = 0; d < D; ++d)
+            for (dim_t h = 0; h < H; ++h)
+            for (dim_t w = 0; w < W; ++w) {
                 float m = src[data_offset(data_d, n, c, d, h, w)] - v_mean;
                 v_variance += m*m;
             }
@@ -115,10 +115,10 @@ void ref_batch_normalization_fwd_t<data_type>::execute_forward() const {
 
         float sqrt_variance = 1.0f / sqrtf(v_variance + eps);
 
-        for (int n = 0; n < N; ++n)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        for (dim_t n = 0; n < N; ++n)
+        for (dim_t d = 0; d < D; ++d)
+        for (dim_t h = 0; h < H; ++h)
+        for (dim_t w = 0; w < W; ++w) {
             auto d_off = data_offset(data_d, n, c, d, h, w);
             float bn_res = sm * ((float)src[d_off] - v_mean) *
                 sqrt_variance + sv;
@@ -172,12 +172,12 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
     const memory_desc_wrapper mean_d(pd()->mean_pd());
     const memory_desc_wrapper variance_d(pd()->variance_pd());
 
-    const int C = pd()->C();
+    const dim_t C = pd()->C();
 
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
         if (diff_scaleshift) {
-            for (int c = 0; c < C; ++c) {
+            for (dim_t c = 0; c < C; ++c) {
                 diff_scaleshift[diff_scaleshift_d.off(0, c)] = 0;
                 diff_scaleshift[diff_scaleshift_d.off(1, c)] = 0;
             }
@@ -185,8 +185,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
         return;
     }
 
-    const int N = pd()->MB();
-    int H = 1, W = 1, D = 1;
+    const dim_t N = pd()->MB();
+    dim_t H = 1, W = 1, D = 1;
     const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
     if (has_spatial) {
         D = pd()->D();
@@ -201,8 +201,8 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
 
     const bool is_3d = data_d.ndims() == 5;
 
-    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c,
-            int d, int h, int w) {
+    auto data_offset = [&](const memory_desc_wrapper &data_d, dim_t n, dim_t c,
+            dim_t d, dim_t h, dim_t w) {
         if (has_spatial) {
             if (is_3d)
                 return data_d.off(n, c, d, h, w);
@@ -212,7 +212,7 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
             return data_d.off(n, c);
     };
 
-    parallel_nd(C, [&](int c) {
+    parallel_nd(C, [&](dim_t c) {
         data_t v_mean = mean[mean_d.off(c)];
         data_t v_variance = variance[variance_d.off(c)];
         data_t sqrt_variance = static_cast<data_t>(1.0f / sqrtf(v_variance + eps));
@@ -222,10 +222,10 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
         diff_gamma = 0.0;
         diff_beta = 0.0;
 
-        for (int n = 0; n < N; ++n)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        for (dim_t n = 0; n < N; ++n)
+        for (dim_t d = 0; d < D; ++d)
+        for (dim_t h = 0; h < H; ++h)
+        for (dim_t w = 0; w < W; ++w) {
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             data_t dd = diff_dst[data_offset(diff_data_d, n, c, d, h, w)];
             if (fuse_bn_relu && !ws[s_off])
@@ -241,10 +241,10 @@ void ref_batch_normalization_bwd_t<data_type>::execute_backward() const {
             diff_scaleshift[diff_scaleshift_d.off(1, c)] = diff_beta;
         }
 
-        for (int n = 0; n < N; ++n)
-        for (int d = 0; d < D; ++d)
-        for (int h = 0; h < H; ++h)
-        for (int w = 0; w < W; ++w) {
+        for (dim_t n = 0; n < N; ++n)
+        for (dim_t d = 0; d < D; ++d)
+        for (dim_t h = 0; h < H; ++h)
+        for (dim_t w = 0; w < W; ++w) {
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);
             data_t dd = diff_dst[dd_off];

@@ -1055,7 +1055,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         : bdesc_(bdesc), ker_(bdesc_)
     {
         const int nthrs = mkldnn_get_max_threads();
-        const int C_PADDED = get_c_padded(bdesc_);
+        const dim_t C_PADDED = get_c_padded(bdesc_);
 
         size_t data_size = sizeof(data_t) * bdesc_->MB() * C_PADDED
             * bdesc_->D() * bdesc_->H() * bdesc_->W();
@@ -1068,7 +1068,7 @@ struct uni_bnorm_driver_t: public c_compatible {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {
         int nthrs = mkldnn_get_max_threads();
-        int C_PADDED = get_c_padded(bdesc);
+        dim_t C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
         int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
@@ -1227,7 +1227,7 @@ private:
             || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    static int get_c_padded(const batch_normalization_pd_t *bdesc)
+    static dim_t get_c_padded(const batch_normalization_pd_t *bdesc)
     { return bdesc->src_pd()->desc()->layout_desc.blocking.padding_dims[1]; }
 
     const batch_normalization_pd_t *bdesc_;

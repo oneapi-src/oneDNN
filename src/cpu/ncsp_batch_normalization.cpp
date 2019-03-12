@@ -130,12 +130,12 @@ void ncsp_batch_normalization_fwd_t::execute_forward() const {
             if (calculate_stats) {
                 data_t *mean_blk = mean + C_off;
                 data_t *variance_blk = variance + C_off;
-                for (int c = C_blk_s; c < C_blk_e; c++) {
+                for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = (c + C_off) * SP;
                     data_t sum = 0;
-                    for (int n = N_s; n < N_e; ++n)
+                    for (dim_t n = N_s; n < N_e; ++n)
                         PRAGMA_OMP_SIMD(reduction(+ : sum))
-                        for (int sp = S_s; sp < S_e; ++sp) {
+                        for (dim_t sp = S_s; sp < S_e; ++sp) {
                             sum += src[off + n * C * SP + sp];
                         }
                     ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
