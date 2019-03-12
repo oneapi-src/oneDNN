@@ -17,6 +17,8 @@
 #ifndef MKLDNN_H
 #define MKLDNN_H
 
+#include "mkldnn_config.h"
+
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /* All symbols shall be internal unless marked as MKLDNN_API */

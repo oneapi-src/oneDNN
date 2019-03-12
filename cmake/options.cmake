@@ -125,6 +125,14 @@ option(MKLDNN_ENABLE_JIT_PROFILING
     the kernels as `outside any known module`."
     ON)
 
+# ===================
+# Engine capabilities
+# ===================
+
+set(MKLDNN_CPU_BACKEND "NATIVE" CACHE INTERNAL
+    "specifies the type of backend for CPU engines.
+    Can be NATIVE only (used for internal purposes).")
+
 # =============
 # Miscellaneous
 # =============

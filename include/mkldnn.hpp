@@ -17,6 +17,8 @@
 #ifndef MKLDNN_HPP
 #define MKLDNN_HPP
 
+#include "mkldnn_config.h"
+
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 #include <stdlib.h>
 #include <memory>

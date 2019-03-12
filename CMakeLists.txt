@@ -85,6 +85,12 @@ enable_testing()
 
 include_directories(include)
 
+configure_file(
+    "${PROJECT_SOURCE_DIR}/include/mkldnn_config.h.in"
+    "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"
+)
+include_directories(${PROJECT_BINARY_DIR}/include)
+
 add_subdirectory(src)
 add_subdirectory(examples)
 add_subdirectory(tests)
