@@ -12,32 +12,32 @@ typedef int64_t dims_t[MKLDNN_MAX_NDIMS];
 // enum that helps to specify the memory format
 // (used in auxiliary functions only)
 typedef enum {
-    mkldnn_mf_any,      // special indicator
+    mkldnn_format_tag_any,      // special indicator
 
-    mkldnn_mf_a,
-    mkldnn_mf_ab,
-    mkldnn_mf_ba,
+    mkldnn_a,
+    mkldnn_ab,
+    mkldnn_ba,
     //...
-    mkldnn_mf_abcd,     // corresponds to nchw, oihw
-    mkldnn_mf_acdb,     // corresponds to nhwc, ohwi
+    mkldnn_abcd,     // corresponds to nchw, oihw
+    mkldnn_acdb,     // corresponds to nhwc, ohwi
     // ...
-    mkldnn_mf_aBcd16b,  // corresponds to nChw16c, oIhw16c
+    mkldnn_aBcd16b,  // corresponds to nChw16c, oIhw16c
     // ...
 
     // aliases below
-    mkldnn_mf_nchw = mkldnn_mf_abcd,
-    mkldnn_mf_oihw = mkldnn_mf_abcd,
-    mkldnn_mf_nChw16c = mkldnn_mf_aBcd16b,
+    mkldnn_nchw = mkldnn_abcd,
+    mkldnn_oihw = mkldnn_abcd,
+    mkldnn_nChw16c = mkldnn_aBcd16b,
     // ...
-} mkldnn_mememory_format_t;
+} mkldnn_format_tag_t;
 
 // enum that identifies how data is described in memory descriptor, i.e. at
 // what field to look at in memory_desc_t.format_desc union.
 typedef enum {
-    mkldnn_mfdi_undef,
-    mkldnn_mfdi_any,
-    mkldnn_mfdi_blocked,
-    mkldnn_mfdi_wino,
+    mkldnn_format_kind_undef,
+    mkldnn_format_kind_any,
+    mkldnn_blocked,
+    mkldnn_format_kind_wino,
 } mkldnn_memory_format_kind_t
 
 // new blocking structure that handles double+ blocking
@@ -174,8 +174,8 @@ typedef struct {
 
 typedef enum {
     // ...
-    mkldnn_query_workspace_mpd,  /**< workspace memory primitive desc */
-    mkldnn_query_scratchpad_mpd, /**< scratchpad memory primitive desc */
+    mkldnn_query_workspace_md,  /**< workspace memory primitive desc */
+    mkldnn_query_scratchpad_md, /**< scratchpad memory primitive desc */
 } mkldnn_query_t;
 
 
@@ -192,14 +192,9 @@ mkldnn_memory_desc_init_by_strides(mkldnn_memory_desc_t *md,
 
 // inits memory desc for the given dims and memory format
 // for those who is used to the previous versions
-mkldnn_memory_desc_init_by_format(mkldnn_memory_desc_t *md,
-        int ndims, const dims_t dims, mkldnn_memory_format_t format,
+mkldnn_memory_desc_init_by_tag(mkldnn_memory_desc_t *md,
+        int ndims, const dims_t dims, mkldnn_format_tag_t tag,
         mkldnn_data_type_t data_type);
-
-// creates a memory primitive descriptor based on a memory descriptor
-mkldnn_status_t mkldnn_memory_primitive_desc_create(
-    mkldnn_memory_pd *mpd, const mkldnn_memory_desc_t *md,
-    mkldnn_engine_t engine);
 
 // creates a memory
 // native_handle can:
@@ -208,8 +203,8 @@ mkldnn_status_t mkldnn_memory_primitive_desc_create(
 //  - be MKLDNN_NATIVE_HANDLE_ALLOCATE to ask the library to allocate and
 //    attach memory. In this case the library owns allocated memory.
 //  - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.
-mkldnn_status_t mkldnn_memory_create(mkldnn_memory_t *mem,
-        const_mkldnn_memory_pd_t *mpd, void *native_handle);
+mkldnn_status_t mkldnn_memory_create(mkldnn_memory_t *memory,
+    const mkldnn_memory_dest_t *md, mkldnn_engine_t engine, void *handle);
 
 // attaches a native handle to memory
 // perform_zero_padding is flag that indicates whether the library should

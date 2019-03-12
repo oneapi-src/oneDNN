@@ -4,6 +4,11 @@
 ## CHANGES
 
 - 2018-12-19 Initial version
+- 2018-03-08 [v1.0 Preview Candidate](https://github.com/intel/mkl-dnn/releases/tag/v1.0-pc) is published
+- 2019-03-12 Remove s16 data type, rounding mode;
+             Implicit and explicit scratchpad modes;
+             Dropping memory primitive descriptor;
+             Minor clean ups;
 
 
 ## Introduction
@@ -102,6 +107,15 @@ mkldnn_primitive_desc_create_v2(...);
 mkldnn_reorder_primitive_desc_create_v2(...);
 ```
 
+### 1.2. Remove int16 (s16) support
+
+The experimental `s16` data type is not supported any more.
+
+### 1.3. Disallow setting the rounding mode
+
+Rounding mode that was a part of attributes is dropped. All the computations
+would respect MXCSR register when performing rounding. Unless set explicitly,
+the rounding mode is Round Nearest Even.
 
 ## 2. Improve the robustness
 
@@ -125,10 +139,19 @@ Currently Intel MKL-DNN primitives may allocate temporary **scratchpad**
 memory for storing intermediate computational results. For instance,
 convolution backward by weights typically requires extra space to perform a
 reduction of the `diff_weights` computed by different threads (the work is
-divided across images). Starting with **v1.0**, a new
-`mkldnn_query_scratchpad_mpd` query will return the amount of scratchpad
-memory needed for a primitive, and the user will be responsible for allocating
-and providing the scratchpad memory to a primitive at a runtime.
+divided across images). Starting with **v1.0**, the library supports two modes:
+1. Implicit scratchpad, managed by the library (default);
+2. Explicit scratchpad, provided by a user.
+
+The former mode matches the behavior of Intel MKL-DNN v0.x. It is kept for
+user convenience and cases where memory is not a concern.
+
+In the explicit scratchpad mode, a new `mkldnn_query_scratchpad_md` query will
+return the amount of scratchpad memory needed for a primitive, and the user
+will be responsible for allocating and providing the scratchpad memory to a
+primitive at a runtime. The explicit scratchpad mode should *explicitly* be
+enabled by passing an attribute with `mkldnn_scratchpad_mode_user` to
+primitives.
 
 > **WARNING** Scratchpad memory is not the same as workspace.
 >
@@ -148,27 +171,12 @@ and providing the scratchpad memory to a primitive at a runtime.
 > exactly what happens in most of the frameworks that manage all the memory on
 > their own.
 
-This change should make it possible to make Intel MKL-DNN primitives stateless
-and hence thread safe: the same primitive can be executed in multiple
+Explicit scratchpad should make it possible to make Intel MKL-DNN primitives
+stateless and hence thread safe: the same primitive can be executed in multiple
 independent threads as long as different threads use different scratchpads.
 
-> **NOTE** Feedback requested
->
-> We recognize that requiring the user to always pass scratchpad memory is an
-> intrusive change that may result in increased boilerplate code even for such
-> simple primitives as sum, concatenation, and reorder.
->
-> As an option, Intel MKL-DNN could support the two following cases:
-> - if a user passes a scratchpad memory the primitive would use it;
-> - if a user does not pass a scratchpad memory the primitive would allocate a
->   buffer for the execution time and use it as a scratchpad.
->
-> In the latter case, a runtime allocation might affect performance but would
-> ensure functional correctness.
->
-> It is not clear whether Intel MKL-DNN should support optional scratchpad. The
-> current plan is to not support it. This might be changed according to the
-> feedback received.
+However, if a user chooses implicit scratchpad mode, there is no thread-safety
+guarantees.
 
 
 ## 3. Simplified execution model
@@ -182,22 +190,18 @@ following changes.
 ### 3.1. Memory is not a primitive anymore
 
 In the current API, memory has a type of primitive. With the new API, a memory
-would become a distinct data type. That would bring new data types and
-functions, such as:
+would become a distinct data type. Moreover, memory primitive descriptor would
+become redundant and is dropped. The functions that use memory primitive
+descriptors now take memory descriptor and (optionally) engine, if the latter
+cannot be inferred.
+
+These changes would bring new data types and functions, such as:
 
 ``` c++
 #define MKLDNN_NATIVE_HANDLE_ALLOCATE  ((void *)-1)
 #define MKLDNN_NATIVE_HANDLE_NONE      ((void *)0)
 
-struct mkldnn_memory_pd_t; // memory primitive descriptor type
-typedef const mkldnn_memory_pd_t const_mkldnn_memory_pd; // same, but const
-
 struct mkldnn_memory_t; // memory type, no more equal to mkldnn_primitive_t
-
-// create a memory primitive descriptor based on a memory descriptor
-mkldnn_status_t mkldnn_memory_primitive_desc_create(
-    mkldnn_memory_pd *mpd, const mkldnn_memory_desc_t *md,
-    mkldnn_engine_t engine);
 
 // create a memory
 // native_handle can:
@@ -207,7 +211,8 @@ mkldnn_status_t mkldnn_memory_primitive_desc_create(
 //    attach memory. In this case the library owns allocated memory.
 //  - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.
 mkldnn_status_t mkldnn_memory_create(mkldnn_memory_t *mem,
-    const_mkldnn_memory_pd_t *mpd, void *native_handle);
+    const mkldnn_memory_desc_t *md, mkldnn_engine_t engine,
+    void *native_handle);
 ```
 
 
@@ -464,20 +469,20 @@ format names (for example, `nchw`) that fully describe how data is laid out in
 memory. However, Intel MKL-DNN also has the `blocked` memory format and the
 corresponding `memory_desc_t.layout_desc.blocking_desc` structure, which can
 describe a memory format in a unified fashion by specifying block sizes and
-strides. The original idea was to used format names like `nchw` during memory
+strides. The original idea was to used format tags like `nchw` during memory
 descriptor initialization only, and always use the `blocked` format internally.
 Unfortunately, that was never implemented.
 
 With the new design, Intel MKL-DNN will start distinguishing between the actual
-memory format and convenience memory format names that can be used to describe
+memory format and convenience memory format tags that can be used to describe
 memory format concisely.
 
-Users will still be able to initialize memory descriptors with format names
+Users will still be able to initialize memory descriptors with format tags
 like `nchw`, but the `memory_desc_t.format_kind` will be set to a canonicalized
 kind like `blocked`, and the format name will not be recorded in the memory
 descriptor structure. Initialization with strides will always result in
 `blocked` format. The API will also use different types for memory format
-names and kind to aid correctness.
+tags and kinds to aid correctness.
 
 This change affects all existing code. For more details, refer to the
 [RFC for memory descriptor](rfc_memory_desc.md) document.

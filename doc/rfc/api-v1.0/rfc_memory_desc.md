@@ -101,16 +101,16 @@ However, getting rid of named formats completely doesn't seem feasible:
   format for testing.
 
 Hence the idea is to separate the formats names and format kinds that specify
-which structure is used for physical layout description. Format names would
-still be of type `mkldnn_memory_format_t` while the kind would be of type
-`mkldnn_memory_format_kind_t`. The latter can be only `{undef, any, blocked,
+which structure is used for physical layout description. Format names (aka tags)
+would be of type `mkldnn_format_tag_t` while the kind would be of type
+`mkldnn_format_kind_t`. The latter can be only `{undef, any, blocked,
 wino}`.
 
 Named formats are used only to fill in the blocking structure, keeping the
 `md.format_kind` equal to `mkldnn_blocked`.
 
-Hereafter named formats would be called either *formats* or *named formats* and
-refer to the `mkldnn_memory_format_t` type. The memory format kind that is used
+Hereafter named formats would be called either *format tags* or simply *tags*
+and refer to the `mkldnn_format_tag` type. The memory format kind that is used
 in memory descriptor structure would be called *memory format kind*, or
 *format kind* for short.
 
@@ -136,14 +136,14 @@ typedef enum {
     mkldnn_nchw = mkldnn_abcd,
     mkldnn_nChw16c = mkldnn_aBcd16b,
     // ...
-} mkldnn_memory_format_t;
+} mkldnn_format_tag_t;
 ```
 
 Previously, formats were used to allow the user to create Intel MKL-DNN memory.
 With the new API, users would have two ways to describe their memory layout: the
 generic one that takes the dimensions and strides between them (close to what
 Intel MKL had), and another one that would be really close to the original
-`mkldnn_memory_desc_init`, which takes dimensions and named memory format.
+`mkldnn_memory_desc_init`, which takes dimensions and memory format tag.
 
 ``` c++
 // inits memory desc for the given dims and strides between them
@@ -153,12 +153,12 @@ mkldnn_memory_desc_init_by_strides(mkldnn_memory_desc_t *md,
 
 // inits memory desc for the given dims and memory format
 // for those who is used to the previous versions
-mkldnn_memory_desc_init_by_format(mkldnn_memory_desc_t *md,
-        int ndims, const dims_t dims, mkldnn_memory_format_t format,
-        data_type_t data_type);
+mkldnn_memory_desc_init_by_tag(mkldnn_memory_desc_t *md,
+        int ndims, const dims_t dims, data_type_t data_type,
+        mkldnn_format_tag format);
 ```
 
-See additional discussion of usage of named format after the next section, which
+See additional discussion of usage of format tags after the next section, which
 introduces the new blocking structure.
 
 
@@ -223,7 +223,7 @@ The proposed blocking descriptor restrictions:
   explicitly written anywhere.
 - The (minor) number of innermost blocks must be 12 or less.
 
-### New blocking descriptor and named formats
+### New blocking descriptor and format tags
 
 As already mentioned above, a complete removal of named format seems illogical.
 Intel MKL-DNN developers and users currently use named format in the following
@@ -234,15 +234,15 @@ situations:
 The replacements for `mkldnn_memory_desc_init()` were already mentioned.
 In most of the cases users can use `mkldnn_memory_desc_init_by_strides()` to
 create memory descriptors with plain formats. Alternatively, we allow them to
-directly use `mkldnn_memory_desc_init_by_format()` to define the layout by
-named format, including the blocked one (like `nChw16c`). Ideally users should
+directly use `mkldnn_memory_desc_init_by_tag()` to define the layout by
+format tag, including the blocked one (like `nChw16c`). Ideally users should
 not need to create memory in blocked format, although that may happen sometimes
 (for example, see the Intel MKL-DNN integration in TensorFlow). Sometimes that
 is done by Intel MKL-DNN tests as well (for example, benchdnn), so this
 functionality seems useful.
 
 - Convolution primitives use them to specify the format they want if the user
-  specifies format `any`.
+  specifies format tag `any`.
 
 Currently Intel MKL-DNN has
 ``` c++
@@ -251,16 +251,16 @@ memory_primitive_desc_t::set_format(memory_format_t fmt)
 method that specifies the memory descriptor structure based on the input
 format. The replacement of that code would be:
 ``` c++
-memory_primitive_desc_t::set_by_format(memory_format_t format,
+memory_primitive_desc_t::set_by_tag(memory_format_tag_t tag,
         const dims_t strides = nullptr)
 ```
 which does the same but also supports arbitrary strides for the *major*
 dimensions. It is not clear how useful it is to have the `strides` parameter,
 but for RNN it may be used to set a good leading dimension.
 
-Note that if `strides` are not specified, the `format` is used to define the
+Note that if `strides` are not specified, the `tag` is used to define the
 strides for *major* dimensions (assuming dense data layout). However, if a
-developer provides the `strides`, the `format` is used to fill the innermost
+developer provides the `strides`, the `tag` is used to fill the innermost
 part of the blocking structure only.
 
 - Convolution and other primitives to check whether provided format is supported.
@@ -286,17 +286,17 @@ The suggested replacement for the code above is:
     // returns true if memory desc `md` corresponds to the given named format
     // (optionally) there might be provided strides for *major* dimensions
     // in which case the strides are also checked (value `-1` ignored).
-    bool memory_desc_matches_format(const memory_desc_t *md,
-            memory_format_t format, const dims_t strides = nullptr);
+    bool memory_desc_matches_tag(const memory_desc_t *md,
+            memory_format_tag_t tag, const dims_t strides = nullptr);
 
 
     // example 1: an implementation works strictly with dense format `nChw8c`
-    bool ok = memory_desc_matches_format(&src_md, mkldnn_mft_aBcd8b, nullptr);
+    bool ok = memory_desc_matches_tag(&src_md, mkldnn_nChw8c, nullptr);
 
     // example 2: an implementation works with `nChw8c` where `Chw8c` must be
     //            dense, while `n` might have an arbitrary stride
     const int c = src_md.dims[1], h = src_md.dims[2], w = src_md.dims[3];
-    bool ok = memory_desc_matches_format(&src_md, mkldnn_mft_aBcd8b,
+    bool ok = memory_desc_matches_tag(&src_md, mkldnn_nChw8c,
             {-1, h * w * 8, w * 8, 8});
 ```
 
@@ -310,82 +310,14 @@ with primitive creation).
   reorders from plain to blocked formats with padded area.
 
 There are multiple ways to port this code. One is to try to keep the current
-structure with named formats. The biggest concern for this approach is that
-that would require introducing the same format as we have now. However since
-new named formats don't have the semantics of the memory, the following
-traits would become impossible:
-
-``` c++
-template <> struct format_traits<...> {
-{
-    constexpr data_kind_t data_kind; // data, wei, gwei, rnn
-    constexpr int         ndims_sp;  // # of spatial dimensions
-};
-```
-
-Missing those features might complicate the code in `cpu/simple_reorder.hpp`.
-
-Another approach to implement the reorders is to somehow instantiate them using
-innermost blocking indices. There are 10 different index sequences:
-
-```
-    {0},    // Oihw8o, Oihw16o, ...
-    {1},    // nChw16c, gOihw8o, ...
-
-    {0, 1}, // OIhw16o16i, ...
-    {1, 0}, // OIhw16i16o, ...
-    {1, 2}, // gOIhw16o16i, ...
-    {2, 1}, // gOIhw16i16o, ...
-
-    {1, 0, 1}, // OIhw4i16o4i, ...
-    {0, 1, 0}, // OIhw4o16i4o, ...
-    {2, 1, 2}, // gOIhw4i16o4i, ...
-    {1, 2, 1}, // gOIhw4o16i4o, ...
-```
-
-Then for any given sequence, write the corresponding reorder code:
-
-```
-    // assuming inner_idxs = {0, 1}
-    int Ba = md.blocking_desc.inner_blks[0];
-    int Bb = md.blocking_desc.inner_blks[1];
-
-    int c = dims > 1 ? md.dims[2] : 1;
-    int d = dims > 2 ? md.dims[3] : 1;
-    int e = dims > 3 ? md.dims[4] : 1;
-
-    for (_a = 0 .. a / Ba)
-    for (_b = 0 .. b / Ba)
-    for (_c = 0 .. c)
-    for (_d = 0 .. d)
-    for (_e = 0 .. e)
-    {
-        for (_Ba = 0 .. Ba)
-        for (_Bb = 0 .. Bb)
-            dst[...] = src[...];
-    }
-```
-
-Alas, with this approach the compiler has very little information: even the
-block size is not known at compile time. However we will have fewer functions to
-instantiate (which will reduce the compile time).
-
-The same issue would occur with `memory::set_zero()`.
-
-
-### Pitfalls of the new blocking descriptor
-
-This section will be expanded later with a discussion of the complexity of
-implementations of:
-- `md::l_off(...)` // will be (much) slower than what we have now
-- compiler-optimized reorders // ~10 types of those
-- `memory::set_zero()` // ~10 type of those
+structure with format tags. Exactly this approach was chosen for the
+implementation.
 
 
 ## 4. Compensation
 
 Having compensation as a first-class citizen (along with the blocking
-structure) is essential for moving to a named-format free paradigm. Currently
+structure) is essential for moving to a mamed-format free paradigm. Currently
 we embed the knowledge about the compensation into the format name (for example,
 `hwigo_s8s8`).
 
