@@ -68,11 +68,12 @@ append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 register_exe(api-c api.c "test")
 
 if(UNIX OR MINGW)
+    get_directory_property(include_dirs INCLUDE_DIRECTORIES)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_custom_command(
         OUTPUT ${test_c_symbols}
         COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/.. ${PROJECT_BINARY_DIR}/include ${test_c_symbols}
+        ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols} ${include_dirs}
     )
     register_exe(test_c_symbols-c ${test_c_symbols} "test")
 # elseif(WIN32)
