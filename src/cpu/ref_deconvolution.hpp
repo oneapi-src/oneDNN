@@ -146,6 +146,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                     return success;
                 delete conv_pd_;
             }
+            conv_pd_ = nullptr;
             return unimplemented;
         };
         virtual status_t init() override {
@@ -268,6 +269,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
                     return success;
                 delete conv_pd_;
             }
+            conv_pd_ = nullptr;
             return unimplemented;
         };
 
@@ -364,6 +366,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                     return success;
                 delete conv_pd_;
             }
+            conv_pd_ = nullptr;
             return unimplemented;
         };
 
