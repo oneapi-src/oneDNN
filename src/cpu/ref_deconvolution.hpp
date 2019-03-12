@@ -157,7 +157,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
                 delete conv_pd_;
             }
-
+            conv_pd_ = nullptr;
             return status::unimplemented;
         }
 
