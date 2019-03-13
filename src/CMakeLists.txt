@@ -19,17 +19,9 @@ file(GLOB_RECURSE HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
     )
-file(GLOB_RECURSE SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*.c
-    )
 include_directories(
-    ${PROJECT_BINARY_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu/xbyak
     )
 
 # propagate SRC specific flags
@@ -71,29 +63,12 @@ if(WIN32)
     endif()
 endif()
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    # to make computations more stable and to align the jitted code
-    # with the reference one use precise division and square root
-    # by default
-    file(GLOB FILES_REQUIRED_PREC_SQRT
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*normalization*.cpp)
-    file(GLOB FILES_REQUIRED_PREC_DIV
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/*normalization*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu/ref_rnn.cpp)
-    if(WIN32)
-        set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
-            PROPERTIES COMPILE_FLAGS "/Qprec-sqrt")
-        set_source_files_properties(${FILES_REQUIRED_PREC_DIV}
-            PROPERTIES COMPILE_FLAGS "/Qprec-div")
-    else()
-        set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
-            PROPERTIES COMPILE_FLAGS "-prec-sqrt")
-        set_source_files_properties(${FILES_REQUIRED_PREC_DIV}
-            PROPERTIES COMPILE_FLAGS "-prec-div")
-    endif()
-endif()
+add_subdirectory(common)
+add_subdirectory(cpu)
 
-add_library(${LIB_NAME} ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${SOURCES})
+add_library(${LIB_NAME}
+    ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${${LIB_NAME}_SUB_OBJS})
+
 set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
 set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
