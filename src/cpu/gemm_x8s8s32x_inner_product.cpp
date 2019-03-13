@@ -426,12 +426,15 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef, weights,
             wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof, acc, &M, &off_c);
 
-    const bool force_sequential = MB * OC < 2000;
-    parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-        size_t start, end;
-        balance211((size_t)OC * MB, nthr, ithr, start, end);
-        (*pp_kernel_)(dst, acc, bias, scales, nslope, start, end);
-    });
+    if (!pd()->attr()->has_default_values() || !pd()->dst_is_acc_
+            || pd()->with_bias()) {
+        const bool force_sequential = MB * OC < 2000;
+        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+            size_t start, end;
+            balance211((size_t)OC * MB, nthr, ithr, start, end);
+            (*pp_kernel_)(dst, acc, bias, scales, nslope, start, end);
+        });
+    }
 }
 
 using namespace data_type;
