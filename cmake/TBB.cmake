@@ -44,6 +44,7 @@ elseif(UNIX)
 endif()
 
 set_threading("TBB")
+include_directories(${TBB_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 
 message(STATUS "Intel(R) TBB: ${TBBROOT}")
