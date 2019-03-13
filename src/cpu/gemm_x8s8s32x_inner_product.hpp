@@ -171,6 +171,25 @@ private:
 
     pp_kernel_t *pp_kernel_;
 };
+
+// Explicit instantiations in gemm_x8s8s32x_inner_product.cpp.
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::u8, data_type::f32>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::u8, data_type::s32>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::u8, data_type::s8>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::u8, data_type::u8>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::s8, data_type::f32>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::s8, data_type::s32>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::s8, data_type::s8>;
+extern template struct gemm_x8s8s32x_inner_product_fwd_t<
+    data_type::s8, data_type::u8>;
+
 }
 }
 }

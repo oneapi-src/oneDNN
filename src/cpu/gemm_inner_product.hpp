@@ -79,6 +79,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiation in gemm_inner_product.cpp.
+extern template struct gemm_inner_product_fwd_t<mkldnn::impl::data_type::f32>;
+
 template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_data_pd_t {
@@ -122,6 +125,9 @@ private:
     void execute_backward_data() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiation in gemm_inner_product.cpp.
+extern template struct gemm_inner_product_bwd_data_t<mkldnn::impl::data_type::f32>;
 
 template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
@@ -167,6 +173,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiation in gemm_inner_product.cpp.
+extern template struct gemm_inner_product_bwd_weights_t<mkldnn::impl::data_type::f32>;
+
 }
 }
 }
@@ -174,4 +183,3 @@ private:
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
-

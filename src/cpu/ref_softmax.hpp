@@ -112,6 +112,9 @@ private:
     int outer_size_, channels_, inner_size_;
 };
 
+// Explicit instantiations in ref_softmax.cpp.
+extern template struct ref_softmax_fwd_t<data_type::f32>;
+
 template <impl::data_type_t data_type>
 struct ref_softmax_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_softmax_bwd_pd_t {
@@ -176,6 +179,8 @@ private:
     int outer_size_, channels_, inner_size_;
 };
 
+// Explicit instantiations in ref_softmax.cpp.
+extern template struct ref_softmax_bwd_t<data_type::f32>;
 
 }
 }

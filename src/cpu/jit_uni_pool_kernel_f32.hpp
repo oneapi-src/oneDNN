@@ -184,6 +184,11 @@ private:
     }
 };
 
+// Explicit instantiations in jit_uni_pool_kernel_f32.cpp.
+extern template struct jit_uni_pool_kernel_f32<sse42>;
+extern template struct jit_uni_pool_kernel_f32<avx>;
+extern template struct jit_uni_pool_kernel_f32<avx512_common>;
+
 }
 }
 }

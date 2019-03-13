@@ -62,6 +62,11 @@ private:
     uni_bnorm_driver_t<isa> *bnorm_driver_;
 };
 
+// Explicit instantiations in jit_uni_batch_normalization.cpp.
+extern template struct jit_uni_batch_normalization_fwd_t<sse42>;
+extern template struct jit_uni_batch_normalization_fwd_t<avx2>;
+extern template struct jit_uni_batch_normalization_fwd_t<avx512_common>;
+
 template <cpu_isa_t isa>
 struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_batch_normalization_bwd_pd_t {
@@ -91,6 +96,11 @@ private:
 
     uni_bnorm_driver_t<isa> *bnorm_driver_;
 };
+
+// Explicit instantiations in jit_uni_batch_normalization.cpp.
+extern template struct jit_uni_batch_normalization_bwd_t<sse42>;
+extern template struct jit_uni_batch_normalization_bwd_t<avx2>;
+extern template struct jit_uni_batch_normalization_bwd_t<avx512_common>;
 
 }
 }

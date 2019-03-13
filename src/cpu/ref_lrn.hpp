@@ -81,6 +81,18 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_lrn.cpp.
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw16c>() const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nChw8c>() const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nchw>() const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::nhwc>() const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<memory_format::any>() const;
+
 template <impl::data_type_t data_type>
 struct ref_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
@@ -129,6 +141,18 @@ private:
     template<memory_format_t fmt>void execute_backward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_lrn.cpp.
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw16c>() const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nChw8c>() const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nchw>() const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::nhwc>() const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<memory_format::any>() const;
 
 }
 }

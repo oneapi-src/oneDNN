@@ -65,6 +65,10 @@ private:
     jit_uni_lrn_fwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
+// Explicit instantiations in jit_uni_lrn.cpp.
+extern template struct jit_uni_lrn_fwd_t<sse42>;
+extern template struct jit_uni_lrn_fwd_t<avx2>;
+
 template <cpu_isa_t isa>
 struct jit_uni_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
@@ -96,6 +100,9 @@ private:
 
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
+
+// Explicit instantiations in jit_uni_lrn.cpp.
+extern template struct jit_uni_lrn_bwd_t<avx2>;
 
 }
 }

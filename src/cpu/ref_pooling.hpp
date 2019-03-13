@@ -84,6 +84,13 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_pooling.cpp.
+extern template struct ref_pooling_fwd_t<data_type::f32>;
+extern template struct ref_pooling_fwd_t<data_type::s32>;
+extern template struct ref_pooling_fwd_t<data_type::s16, data_type::s32>;
+extern template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
+extern template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
+
 template <impl::data_type_t data_type, impl::data_type_t acc_type = data_type>
 struct ref_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
@@ -135,6 +142,11 @@ private:
     void execute_backward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_pooling.cpp.
+extern template struct ref_pooling_bwd_t<data_type::f32>;
+extern template struct ref_pooling_bwd_t<data_type::s32>;
+extern template struct ref_pooling_bwd_t<data_type::s16, data_type::s32>;
 
 }
 }

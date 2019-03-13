@@ -165,6 +165,12 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in simple_concat.cpp.
+extern template struct simple_concat_t<data_type::f32>;
+extern template struct simple_concat_t<data_type::u8>;
+extern template struct simple_concat_t<data_type::s8>;
+extern template struct simple_concat_t<data_type::s32>;
+
 }
 }
 }

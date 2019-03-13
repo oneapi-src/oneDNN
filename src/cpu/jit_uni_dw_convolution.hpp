@@ -119,6 +119,11 @@ private:
     jit_uni_dw_conv_fwd_kernel_f32<isa> *kernel_;
 };
 
+// Explicit instantiations in jit_uni_dw_convolution.cpp.
+extern template struct _jit_uni_dw_convolution_fwd_t<avx512_common>;
+extern template struct _jit_uni_dw_convolution_fwd_t<avx2>;
+extern template struct _jit_uni_dw_convolution_fwd_t<sse42>;
+
 using jit_avx512_common_dw_convolution_fwd_t =
     _jit_uni_dw_convolution_fwd_t<avx512_common>;
 using jit_avx2_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<avx2>;
@@ -217,6 +222,11 @@ private:
 
     jit_uni_dw_conv_bwd_data_kernel_f32<isa> *kernel_;
 };
+
+// Explicit instantiations in jit_uni_dw_convolution.cpp.
+extern template struct _jit_uni_dw_convolution_bwd_data_t<avx512_common>;
+extern template struct _jit_uni_dw_convolution_bwd_data_t<avx2>;
+extern template struct _jit_uni_dw_convolution_bwd_data_t<sse42>;
 
 using jit_avx512_common_dw_convolution_bwd_data_t =
     _jit_uni_dw_convolution_bwd_data_t<avx512_common>;
@@ -319,6 +329,11 @@ private:
     jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
 };
+
+// Explicit instantiations in jit_uni_dw_convolution.cpp.
+extern template struct _jit_uni_dw_convolution_bwd_weights_t<avx512_common>;
+extern template struct _jit_uni_dw_convolution_bwd_weights_t<avx2>;
+extern template struct _jit_uni_dw_convolution_bwd_weights_t<sse42>;
 
 using jit_avx512_common_dw_convolution_bwd_weights_t =
     _jit_uni_dw_convolution_bwd_weights_t<avx512_common>;

@@ -93,6 +93,10 @@ private:
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };
 
+// Explicit instantiations in jit_uni_i8i8_pooling.cpp.
+extern template struct jit_uni_i8i8_pooling_fwd_t<avx512_core>;
+extern template struct jit_uni_i8i8_pooling_fwd_t<avx2>;
+
 }
 }
 }

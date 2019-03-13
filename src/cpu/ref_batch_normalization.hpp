@@ -82,6 +82,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_batch_normalization.cpp.
+extern template struct ref_batch_normalization_fwd_t<data_type::f32>;
+
 template <impl::data_type_t data_type>
 struct ref_batch_normalization_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_batch_normalization_bwd_pd_t {
@@ -146,6 +149,9 @@ private:
     void execute_backward() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_batch_normalization.cpp.
+extern template struct ref_batch_normalization_bwd_t<data_type::f32>;
 
 }
 }

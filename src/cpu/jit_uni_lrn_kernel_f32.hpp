@@ -144,6 +144,58 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
     void(*ker)(jit_args_fwd_t *);
 };
 
+// Explicit specializations and instantiations in jit_uni_lrn_fwd_kernel_f32.cpp.
+template<>
+jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
+    const struct nchw8c_across &J, float A, float K, prop_kind_t pk,
+    void *code_ptr, size_t code_size);
+template<>
+jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+    const struct nchw8c_across &J, float A, float K, prop_kind_t pk,
+    void *code_ptr, size_t code_size);
+template<>
+jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
+    const struct nhwc_across &J, float A, float K, prop_kind_t pk,
+    void *code_ptr, size_t code_size);
+template<>
+jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+    const struct nhwc_across &J, float A, float K, prop_kind_t pk,
+    void *code_ptr, size_t code_size);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body(
+    int tail, int HW, prop_kind_t pk, Xbyak::Ymm ymask, Xbyak::Ymm ya,
+    Xbyak::Ymm yb, Xbyak::Ymm yc, Xbyak::Ymm yd, Xbyak::Ymm ye,
+    Xbyak::Ymm ysum);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body(
+    int tail, int HW, prop_kind_t pk, Xbyak::Ymm ymask, Xbyak::Ymm ya,
+    Xbyak::Ymm yb, Xbyak::Ymm yc, Xbyak::Ymm yd, Xbyak::Ymm ye,
+    Xbyak::Ymm ysum);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_tail_sse42(
+    int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_tail_sse42(
+    int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
+    int tail, int HW, prop_kind_t pk, Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
+    Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
+template<>
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse42(
+    int tail, int HW, prop_kind_t pk, Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
+    Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
+template<>
+jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
+    struct nchw_across J, float A, float K, prop_kind_t pk, void* code_ptr,
+    size_t code_size);
+template<>
+jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+    struct nchw_across J, float A, float K, prop_kind_t pk, void* code_ptr,
+    size_t code_size);
+extern template struct jit_uni_lrn_fwd_kernel_f32<sse42>;
+extern template struct jit_uni_lrn_fwd_kernel_f32<avx2>;
+
 template <cpu_isa_t isa>
 struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
     Xbyak::Reg64 src = rax;
@@ -172,6 +224,9 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
     void(*ker)(jit_args_bwd_t *);
 };
+
+// Explicit instantiation in jit_uni_lrn_kernel_f32.cpp.
+extern template struct jit_uni_lrn_bwd_kernel_f32<avx2>;
 
 }
 }

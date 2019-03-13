@@ -75,6 +75,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in simple_sum.cpp.
+extern template struct simple_sum_t<data_type::f32>;
+
 }
 }
 }

@@ -96,6 +96,21 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_convolution.cpp.
+extern template struct ref_convolution_fwd_t<data_type::f32>;
+extern template struct ref_convolution_fwd_t<data_type::s16,data_type::s16,
+    data_type::s32, data_type::s32>;
+
+extern template struct ref_convolution_fwd_t<data_type::u8, data_type::s8,
+    data_type::f32, data_type::s32>;
+extern template struct ref_convolution_fwd_t<data_type::u8, data_type::s8,
+    data_type::s32, data_type::s32>;
+extern template struct ref_convolution_fwd_t<data_type::u8, data_type::s8,
+    data_type::s8, data_type::s32>;
+extern template struct ref_convolution_fwd_t<data_type::u8, data_type::s8,
+    data_type::u8, data_type::s32>;
+
+
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
          impl::data_type_t diff_dst_type,
          impl::data_type_t acc_type = diff_src_type>
@@ -154,6 +169,21 @@ private:
     void execute_backward_data() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_convolution.cpp.
+extern template struct ref_convolution_bwd_data_t<data_type::f32,
+    data_type::f32, data_type::f32, data_type::f32>;
+extern template struct ref_convolution_bwd_data_t<data_type::s32,
+    data_type::s16, data_type::s16, data_type::s32>;
+
+extern template struct ref_convolution_bwd_data_t<data_type::f32, data_type::s8,
+    data_type::u8, data_type::s32>;
+extern template struct ref_convolution_bwd_data_t<data_type::s32, data_type::s8,
+    data_type::u8, data_type::s32>;
+extern template struct ref_convolution_bwd_data_t<data_type::s8, data_type::s8,
+    data_type::u8, data_type::s32>;
+extern template struct ref_convolution_bwd_data_t<data_type::u8, data_type::s8,
+    data_type::u8, data_type::s32>;
 
 template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
          impl::data_type_t diff_dst_type,
@@ -214,6 +244,12 @@ private:
     void execute_backward_weights() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_convolution.cpp.
+extern template struct ref_convolution_bwd_weights_t<data_type::f32,
+    data_type::f32, data_type::f32, data_type::f32>;
+extern template struct ref_convolution_bwd_weights_t<data_type::s16,
+    data_type::s32, data_type::s16, data_type::s32>;
 
 }
 }

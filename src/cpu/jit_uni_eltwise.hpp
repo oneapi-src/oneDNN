@@ -126,6 +126,11 @@ private:
     void bounded_relu_prepare_table();
 };
 
+// Explicit instantiations in jit_uni_eltwise.cpp.
+extern template struct jit_uni_eltwise_injector_f32<avx512_common>;
+extern template struct jit_uni_eltwise_injector_f32<avx2>;
+extern template struct jit_uni_eltwise_injector_f32<sse42>;
+
 struct jit_uni_eltwise_kernel_f32;
 
 template <cpu_isa_t isa>
@@ -161,6 +166,11 @@ private:
     jit_uni_eltwise_kernel_f32 *kernel_;
 };
 
+// Explicit instantiations in jit_uni_eltwise.cpp.
+extern template struct jit_uni_eltwise_fwd_t<sse42>;
+extern template struct jit_uni_eltwise_fwd_t<avx2>;
+extern template struct jit_uni_eltwise_fwd_t<avx512_common>;
+
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
@@ -193,6 +203,11 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_eltwise_kernel_f32 *kernel_;
 };
+
+// Explicit instantiations in jit_uni_eltwise.cpp.
+extern template struct jit_uni_eltwise_bwd_t<sse42>;
+extern template struct jit_uni_eltwise_bwd_t<avx2>;
+extern template struct jit_uni_eltwise_bwd_t<avx512_common>;
 
 }
 }

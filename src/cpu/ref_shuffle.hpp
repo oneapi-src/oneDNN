@@ -96,6 +96,29 @@ private:
     int *rev_transposed_;
 };
 
+// Explicit instantiations in ref_shuffle.cpp.
+extern template void
+ref_shuffle_t<4>::execute_<memory_format::nCdhw16c>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::nChw16c>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::nCdhw8c>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::nChw8c>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::ncdhw>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::nchw>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::ndhwc>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::nhwc>() const;
+extern template void ref_shuffle_t<4>::execute_<memory_format::any>() const;
+
+extern template void
+ref_shuffle_t<1>::execute_<memory_format::nCdhw16c>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::nChw16c>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::nCdhw8c>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::nChw8c>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::ncdhw>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::nchw>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::ndhwc>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::nhwc>() const;
+extern template void ref_shuffle_t<1>::execute_<memory_format::any>() const;
+
 }
 }
 }

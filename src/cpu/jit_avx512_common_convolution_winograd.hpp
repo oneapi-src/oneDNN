@@ -80,6 +80,10 @@ struct _jit_avx512_common_convolution_winograd_t {
         const primitive_attr_t *attr_;
 };
 
+// Explicit instantiations in jit_avx512_common_convolution_winograd.cpp.
+extern template struct _jit_avx512_common_convolution_winograd_t<true>;
+extern template struct _jit_avx512_common_convolution_winograd_t<false>;
+
 struct jit_avx512_common_convolution_winograd_fwd_t
      : _jit_avx512_common_convolution_winograd_t<true>
      , public cpu_primitive_t

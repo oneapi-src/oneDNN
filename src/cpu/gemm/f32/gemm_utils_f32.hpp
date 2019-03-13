@@ -54,6 +54,17 @@ void sum_two_matrices(int m, int n,
         data_t * __restrict p_src, dim_t ld_src,
         data_t * __restrict p_dst, dim_t ld_dst);
 
+// Explicit instantiations in gemm_utils_f32.cpp.
+extern template
+void sum_two_matrices<float>(int m, int n,
+        float * __restrict p_src, dim_t ld_src,
+        float * __restrict p_dst, dim_t ld_dst);
+
+extern template
+void sum_two_matrices<double>(int m, int n,
+        double * __restrict p_src, dim_t ld_src,
+        double * __restrict p_dst, dim_t ld_dst);
+
 void calc_nthr_nocopy_avx512_common(int m,
         int n, int k, int nthrs, int *nthrs_m, int *nthrs_n, int *nthrs_k,
         int *BM, int *BN, int *BK);
