@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_GEMM_S8S8S32_HPP
-#define JIT_AVX512_CORE_GEMM_S8S8S32_HPP
+#ifndef SIMPLE_GEMM_S8S8S32_HPP
+#define SIMPLE_GEMM_S8S8S32_HPP
 
 #include <stdint.h>
 #include "mkldnn_types.h"
@@ -24,7 +24,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-mkldnn_status_t jit_avx512_core_gemm_s8s8s32(
+mkldnn_status_t simple_gemm_s8s8s32(
         const char *transA, const char *transB, const char *offsetC,
         const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
@@ -34,4 +34,4 @@ mkldnn_status_t jit_avx512_core_gemm_s8s8s32(
 }
 }
 
-#endif // JIT_AVX512_CORE_GEMM_S8S8S32_HPP
+#endif // SIMPLE_GEMM_S8S8S32_HPP

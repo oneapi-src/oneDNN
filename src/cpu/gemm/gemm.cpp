@@ -28,7 +28,7 @@
 #include "f32/ref_gemm_f32.hpp"
 
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32.hpp"
-#include "s8x8s32/jit_avx512_core_gemm_s8s8s32.hpp"
+#include "s8x8s32/simple_gemm_s8s8s32.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
 
 #include "os_blas.hpp"
@@ -168,9 +168,8 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         assert(data_traits<b_dt>::data_type == data_type::s8);
         // TODO CBLAS implementation of gemm_s8s8s32 goes here.
         // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
-        if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
-                && *ao == 0 && *bo == 0) {
-            return jit_avx512_core_gemm_s8s8s32(transa, transb, offsetc, M,
+        if (utils::everyone_is(0, *ao, *bo)) {
+            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
                     C, LDC, co);
         } else {
@@ -202,7 +201,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
         if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
                 && *ao == 0 && *bo == 0) {
-            return jit_avx512_core_gemm_s8s8s32(transa, transb, offsetc, M,
+            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
                     C, LDC, co);
         } else {
