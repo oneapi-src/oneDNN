@@ -63,9 +63,8 @@ struct dnn_mem_t {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(
-                         &rpd, rhs.engine_, &rhs.md_, engine_, &md_, attr),
-                WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd,
+                    &rhs.md_, rhs.engine_, &md_, engine_, attr), WARN);
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);

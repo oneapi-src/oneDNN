@@ -54,8 +54,8 @@ static engine_t *get_reorder_engine(
 
 status_t mkldnn_reorder_primitive_desc_create(
         primitive_desc_t **reorder_pd,
-        engine_t *src_engine, const memory_desc_t *src_md,
-        engine_t *dst_engine, const memory_desc_t *dst_md,
+        const memory_desc_t *src_md, engine_t *src_engine,
+        const memory_desc_t *dst_md, engine_t *dst_engine,
         const primitive_attr_t *attr) {
     if (any_null(reorder_pd, src_engine, src_md, dst_engine, dst_md))
         return invalid_arguments;

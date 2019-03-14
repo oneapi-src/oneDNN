@@ -93,7 +93,7 @@ int doit() {
     /* reorder cpu -> gpu */
     mkldnn_primitive_desc_t r1_pd;
     CHECK(mkldnn_reorder_primitive_desc_create(
-            &r1_pd, engine_cpu, &m_cpu_md, engine_gpu, &m_gpu_md, NULL));
+            &r1_pd, &m_cpu_md, engine_cpu, &m_gpu_md, engine_gpu, NULL));
     mkldnn_primitive_t r1;
     CHECK(mkldnn_primitive_create(&r1, r1_pd));
 
@@ -112,7 +112,7 @@ int doit() {
     /* reorder gpu -> cpu */
     mkldnn_primitive_desc_t r2_pd;
     CHECK(mkldnn_reorder_primitive_desc_create(
-            &r2_pd, engine_gpu, &m_gpu_md, engine_cpu, &m_cpu_md, NULL));
+            &r2_pd, &m_gpu_md, engine_gpu, &m_cpu_md, engine_cpu, NULL));
     mkldnn_primitive_t r2;
     CHECK(mkldnn_primitive_create(&r2, r2_pd));
 

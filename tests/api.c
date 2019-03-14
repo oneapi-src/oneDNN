@@ -186,7 +186,7 @@ void test2() {
     /* create a reorder primitive descriptor */
     mkldnn_primitive_desc_t r_pd;
     CHECK(mkldnn_reorder_primitive_desc_create(
-                &r_pd, engine, &c3_dst_md, engine, &out_md, NULL));
+                &r_pd, &c3_dst_md, engine, &out_md, engine, NULL));
 
     /* create a reorder and execute it */
     mkldnn_primitive_t r;

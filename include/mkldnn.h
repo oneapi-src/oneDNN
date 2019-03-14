@@ -611,8 +611,8 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
  */
 mkldnn_status_t MKLDNN_API mkldnn_reorder_primitive_desc_create(
         mkldnn_primitive_desc_t *reorder_primitive_desc,
-        mkldnn_engine_t src_engine, const mkldnn_memory_desc_t *src_md,
-        mkldnn_engine_t dst_engine, const mkldnn_memory_desc_t *dst_md,
+        const mkldnn_memory_desc_t *src_md, mkldnn_engine_t src_engine,
+        const mkldnn_memory_desc_t *dst_md, mkldnn_engine_t dst_engine,
         const_mkldnn_primitive_attr_t attr);
 
 /** @} */

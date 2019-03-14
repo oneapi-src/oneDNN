@@ -121,7 +121,7 @@ TEST_P(memory_map_test_c, Map) {
     // Reorder mem_ref to memory
     mkldnn_primitive_desc_t reorder_pd;
     MKLDNN_CHECK(mkldnn_reorder_primitive_desc_create(
-            &reorder_pd, engine_ref, &mem_d, engine, &mem_d, nullptr));
+            &reorder_pd, &mem_d, engine_ref, &mem_d, engine, nullptr));
 
     mkldnn_primitive_t reorder;
     MKLDNN_CHECK(mkldnn_primitive_create(&reorder, reorder_pd));

@@ -113,11 +113,12 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /** in */
         mkldnn_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
-                    user_mem_engine, user_memory_md, prim_engine,
-                    prim_memory_md, NULL));
+                    user_memory_md, user_mem_engine, prim_memory_md,
+                    prim_engine, NULL));
         } else {
-            CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd, prim_engine,
-                    prim_memory_md, user_mem_engine, user_memory_md, NULL));
+            CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
+                    prim_memory_md, prim_engine, user_memory_md,
+                    user_mem_engine, NULL));
         }
         CHECK(mkldnn_primitive_create(reorder, reorder_pd));
         CHECK(mkldnn_primitive_desc_destroy(reorder_pd));

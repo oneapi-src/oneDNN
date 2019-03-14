@@ -1142,8 +1142,8 @@ struct reorder : public primitive {
                 const primitive_attr &aattr = primitive_attr()) {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
-                        src_engine.get(), &src_md.data,
-                        dst_engine.get(), &dst_md.data, aattr.get()),
+                        &src_md.data, src_engine.get(),
+                        &dst_md.data, dst_engine.get(), aattr.get()),
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
@@ -1154,8 +1154,8 @@ struct reorder : public primitive {
             auto src_md = src.get_desc();
             auto dst_md = dst.get_desc();
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
-                        src.get_engine().get(), &src_md.data,
-                        dst.get_engine().get(), &dst_md.data, aattr.get()),
+                        &src_md.data, src.get_engine().get(),
+                        &dst_md.data, dst.get_engine().get(), aattr.get()),
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
