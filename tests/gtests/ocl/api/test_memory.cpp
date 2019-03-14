@@ -40,7 +40,7 @@ protected:
         MKLDNN_CHECK(mkldnn_memory_desc_init_by_tag(
                 &memory_d, dim, dims, mkldnn_f32, mkldnn_nchw));
         MKLDNN_CHECK(mkldnn_memory_create(
-                &memory, &memory_d, engine, MKLDNN_NATIVE_HANDLE_NONE));
+                &memory, &memory_d, engine, MKLDNN_MEMORY_NONE));
     }
 
     virtual void TearDown() {

@@ -529,18 +529,17 @@ int MKLDNN_API mkldnn_memory_desc_equal(
 size_t MKLDNN_API mkldnn_memory_desc_get_size(
         const mkldnn_memory_desc_t *memory_desc);
 
-/** Creates a memory for given @p memory_desc and @p engine. Also sets handle
- * to @p native_handle.
- * The @p native_handle can:
- * - point to the user allocated memory, i.e. valid handle. In this case the
+/** Creates a memory for given @p memory_desc and @p engine. Also sets @p handle
+ * to one of the following:
+ * - pointer to the user allocated memory, i.e. valid handle. In this case the
  *   library doesn't own allocated memory.
- * - be MKLDNN_NATIVE_HANDLE_ALLOCATE to ask the library to allocate and
+ * - MKLDNN_MEMORY_ALLOCATE to ask the library to allocate and
  *   attach memory. In this case the library owns allocated memory.
- * - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.
+ * - MKLDNN_MEMORY_NONE to create mkldnn_memory w/o attached memory.
  */
 mkldnn_status_t MKLDNN_API mkldnn_memory_create(mkldnn_memory_t *memory,
         const mkldnn_memory_desc_t *memory_desc, mkldnn_engine_t engine,
-        void *native_handle);
+        void *handle);
 
 /** Returns a @p memory_desc associated with @p memory. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_memory_desc(

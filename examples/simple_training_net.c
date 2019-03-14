@@ -126,7 +126,7 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /** in */
 
     if (!mkldnn_memory_desc_equal(user_memory_md, prim_memory_md)) {
         CHECK(mkldnn_memory_create(prim_memory, prim_memory_md, prim_engine,
-                MKLDNN_NATIVE_HANDLE_ALLOCATE));
+                MKLDNN_MEMORY_ALLOCATE));
 
         mkldnn_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
@@ -239,7 +239,7 @@ mkldnn_status_t simple_net() {
     const mkldnn_memory_desc_t *conv_dst_md
             = mkldnn_primitive_desc_query_md(conv_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(&conv_internal_dst_memory, conv_dst_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* create reorder primitives between user data and convolution srcs
      * if required */
@@ -302,7 +302,7 @@ mkldnn_status_t simple_net() {
     const mkldnn_memory_desc_t *relu_dst_md
             = mkldnn_primitive_desc_query_md(relu_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(&relu_dst_memory, relu_dst_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* finally create a relu primitive */
     mkldnn_primitive_t relu;
@@ -345,14 +345,14 @@ mkldnn_status_t simple_net() {
     const mkldnn_memory_desc_t *lrn_dst_md
             = mkldnn_primitive_desc_query_md(lrn_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(&lrn_dst_memory, lrn_dst_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* create workspace only in training and only for forward primitive*/
     /* query lrn_pd for workspace, this memory will be shared with forward lrn*/
     const mkldnn_memory_desc_t *lrn_ws_md = mkldnn_primitive_desc_query_md(
             lrn_pd, mkldnn_query_workspace_md, 0);
     CHECK(mkldnn_memory_create(
-            &lrn_ws_memory, lrn_ws_md, engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            &lrn_ws_memory, lrn_ws_md, engine, MKLDNN_MEMORY_ALLOCATE));
 
     /* finally create a lrn primitive */
     mkldnn_primitive_t lrn;
@@ -406,7 +406,7 @@ mkldnn_status_t simple_net() {
     const mkldnn_memory_desc_t *pool_ws_md = mkldnn_primitive_desc_query_md(
             pool_pd, mkldnn_query_workspace_md, 0);
     CHECK(mkldnn_memory_create(&pool_ws_memory, pool_ws_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* create reorder primitives between pooling dsts and user format dst
      * if required */
@@ -486,7 +486,7 @@ mkldnn_status_t simple_net() {
     /* create memory for pool diff src data */
     mkldnn_memory_t pool_diff_src_memory;
     CHECK(mkldnn_memory_create(&pool_diff_src_memory, pool_diff_src_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* finally create backward pooling primitive */
     mkldnn_primitive_t pool_bwd;
@@ -519,7 +519,7 @@ mkldnn_status_t simple_net() {
             = mkldnn_primitive_desc_query_md(
                     lrn_bwd_pd, mkldnn_query_diff_src_md, 0);
     CHECK(mkldnn_memory_create(&lrn_diff_src_memory, lrn_diff_src_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* finally create backward lrn primitive */
     mkldnn_primitive_t lrn_bwd;
@@ -552,7 +552,7 @@ mkldnn_status_t simple_net() {
             = mkldnn_primitive_desc_query_md(
                     relu_bwd_pd, mkldnn_query_diff_src_md, 0);
     CHECK(mkldnn_memory_create(&relu_diff_src_memory, relu_diff_src_md, engine,
-            MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
 
     /* finally create backward relu primitive */
     mkldnn_primitive_t relu_bwd;

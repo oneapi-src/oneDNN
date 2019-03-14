@@ -214,7 +214,7 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
     memory_desc_t z_md = types::zero_md();
-    unsigned flags = (handle == MKLDNN_NATIVE_HANDLE_ALLOCATE)
+    unsigned flags = (handle == MKLDNN_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
             : memory_flags_t::use_backend_ptr;
     return safe_ptr_assign<memory_t>(

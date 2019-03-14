@@ -228,7 +228,7 @@ private:
             is_data_owner_ = false;
             data_ = NULL;
             DNN_SAFE(mkldnn_memory_create(
-                             &m_, &md_, engine, MKLDNN_NATIVE_HANDLE_ALLOCATE),
+                             &m_, &md_, engine, MKLDNN_MEMORY_ALLOCATE),
                     CRIT);
         }
 

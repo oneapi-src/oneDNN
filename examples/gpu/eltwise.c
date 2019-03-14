@@ -80,9 +80,9 @@ int doit() {
 
     mkldnn_memory_t m_cpu, m_gpu;
     CHECK(mkldnn_memory_create(
-            &m_cpu, &m_cpu_md, engine_cpu, MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            &m_cpu, &m_cpu_md, engine_cpu, MKLDNN_MEMORY_ALLOCATE));
     CHECK(mkldnn_memory_create(
-            &m_gpu, &m_gpu_md, engine_gpu, MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            &m_gpu, &m_gpu_md, engine_gpu, MKLDNN_MEMORY_ALLOCATE));
 
     fill(m_cpu, 4, tz);
     if (find_negative(m_cpu, 4, tz) == 0) {

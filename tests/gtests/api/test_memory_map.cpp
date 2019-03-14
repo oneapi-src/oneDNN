@@ -102,7 +102,7 @@ TEST_P(memory_map_test_c, Map) {
     // Create and fill mem_ref to use as a reference
     mkldnn_memory_t mem_ref;
     MKLDNN_CHECK(mkldnn_memory_create(
-            &mem_ref, &mem_d, engine_ref, MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            &mem_ref, &mem_d, engine_ref, MKLDNN_MEMORY_ALLOCATE));
 
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
@@ -116,7 +116,7 @@ TEST_P(memory_map_test_c, Map) {
     // Create memory for the tested engine
     mkldnn_memory_t mem;
     MKLDNN_CHECK(mkldnn_memory_create(
-            &mem, &mem_d, engine, MKLDNN_NATIVE_HANDLE_ALLOCATE));
+            &mem, &mem_d, engine, MKLDNN_MEMORY_ALLOCATE));
 
     // Reorder mem_ref to memory
     mkldnn_primitive_desc_t reorder_pd;

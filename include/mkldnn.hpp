@@ -1006,7 +1006,7 @@ struct memory: public handle<mkldnn_memory_t> {
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine.
-    /// @param ahandle Native handle.
+    /// @param ahandle handle.
     memory(const desc &md, const engine &aengine, void *ahandle) {
         mkldnn_memory_t result;
         error::wrap_c_api(mkldnn_memory_create(&result, &md.data,
@@ -1019,7 +1019,7 @@ struct memory: public handle<mkldnn_memory_t> {
     /// @param md Memory descriptor.
     /// @param aengine Engine.
     memory(const desc &md, const engine &aengine)
-        : memory(md, aengine, MKLDNN_NATIVE_HANDLE_ALLOCATE) {}
+        : memory(md, aengine, MKLDNN_MEMORY_ALLOCATE) {}
 
     /// Returns the descriptor of the memory.
     desc get_desc() const {

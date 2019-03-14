@@ -810,8 +810,8 @@ typedef struct mkldnn_memory *mkldnn_memory_t;
 /** A constant memory handle. */
 typedef const struct mkldnn_memory *const_mkldnn_memory_t;
 
-#define MKLDNN_NATIVE_HANDLE_NONE (NULL)
-#define MKLDNN_NATIVE_HANDLE_ALLOCATE ((void *)(size_t)-1)
+#define MKLDNN_MEMORY_NONE (NULL)
+#define MKLDNN_MEMORY_ALLOCATE ((void *)(size_t)-1)
 
 /** @} */
 
