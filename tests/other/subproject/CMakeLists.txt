@@ -20,7 +20,7 @@
 # To test run:
 # mkdir -p build && cd build && cmake .. && make -j && ./project_app
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.11)
 
 set(PROJECT_NAME "Project")
 
