@@ -58,8 +58,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     virtual const mkldnn::impl::op_desc_t *op_desc() const { return nullptr; }
 
     enum class arg_usage_t { unused, input, output };
-    virtual arg_usage_t arg_usage(
-            mkldnn::impl::primitive_arg_index_t arg) const {
+    virtual arg_usage_t arg_usage(int arg) const {
         using mkldnn::impl::types::is_zero_md;
         if (arg == MKLDNN_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;

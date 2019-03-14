@@ -541,8 +541,6 @@ using post_ops_t = mkldnn_post_ops;
 using memory_t = mkldnn_memory;
 using primitive_t = mkldnn_primitive;
 
-using primitive_arg_index_t = int;
-
 using stream_flags_t = mkldnn_stream_flags_t;
 namespace stream_flags {
     const stream_flags_t default_order = mkldnn_stream_default_order;

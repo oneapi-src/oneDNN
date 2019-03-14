@@ -93,7 +93,7 @@ struct eltwise_fwd_pd_t: public eltwise_pd_t {
         : eltwise_pd_t(engine, adesc, attr, hint_fwd_pd)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == MKLDNN_ARG_SRC)
             return arg_usage_t::input;
 
@@ -127,7 +127,7 @@ struct eltwise_bwd_pd_t: public eltwise_pd_t {
         , diff_data_md_(desc_.diff_data_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 

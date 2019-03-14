@@ -31,7 +31,7 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
     int n_outputs = 0;
 
     for (int i = 0; i < nargs; ++i) {
-        primitive_arg_index_t arg = c_args[i].arg;
+        int arg = c_args[i].arg;
         auto *mem = c_args[i].memory;
 
         switch (pd->arg_usage(arg)) {
@@ -59,21 +59,21 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
     return success;
 }
 
-memory_t *exec_ctx_t::input(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::input(int arg) const {
     if (args_.count(arg) != 1) return nullptr;
     const auto ma = args_.at(arg);
     assert(ma.is_const);
     return ma.mem;
 }
 
-memory_t *exec_ctx_t::output(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::output(int arg) const {
     if (args_.count(arg) != 1) return nullptr;
     const auto ma = args_.at(arg);
     assert(!ma.is_const);
     return ma.mem;
 }
 
-memory_t *exec_ctx_t::memory(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::memory(int arg) const {
     assert(args_.count(arg) == 1);
     const auto ma = args_.at(arg);
     assert(!ma.is_const);

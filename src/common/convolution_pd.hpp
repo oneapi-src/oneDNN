@@ -193,7 +193,7 @@ struct convolution_fwd_pd_t: public convolution_pd_t {
         , dst_md_(desc_.dst_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_WEIGHTS))
             return arg_usage_t::input;
 
@@ -247,7 +247,7 @@ struct convolution_bwd_data_pd_t: public convolution_pd_t {
         , diff_dst_md_(desc_.diff_dst_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 
@@ -300,7 +300,7 @@ struct convolution_bwd_weights_pd_t: public convolution_pd_t {
         , diff_dst_md_(desc_.diff_dst_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 

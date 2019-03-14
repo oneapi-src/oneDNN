@@ -42,7 +42,7 @@ struct memory_arg_t {
     bool is_const;
 };
 
-using exec_args_t = std::unordered_map<primitive_arg_index_t, memory_arg_t>;
+using exec_args_t = std::unordered_map<int, memory_arg_t>;
 
 status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         const mkldnn_exec_arg_t *c_args, exec_args_t &args);
@@ -60,9 +60,9 @@ struct exec_ctx_t {
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
 
-    memory_t *input(primitive_arg_index_t arg) const;
-    memory_t *output(primitive_arg_index_t arg) const;
-    memory_t *memory(primitive_arg_index_t arg) const;
+    memory_t *input(int arg) const;
+    memory_t *output(int arg) const;
+    memory_t *memory(int arg) const;
 
 private:
     stream_t *stream_;

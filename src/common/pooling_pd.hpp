@@ -137,7 +137,7 @@ struct pooling_fwd_pd_t: public pooling_pd_t {
         , dst_md_(desc_.dst_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == MKLDNN_ARG_SRC)
             return arg_usage_t::input;
 
@@ -190,7 +190,7 @@ struct pooling_bwd_pd_t: public pooling_pd_t {
         , diff_dst_md_(desc_.diff_dst_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == MKLDNN_ARG_DIFF_DST)
             return arg_usage_t::input;
 

@@ -92,7 +92,7 @@ struct softmax_fwd_pd_t: public softmax_pd_t {
         : softmax_pd_t(engine, adesc, attr, hint_fwd_pd)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == MKLDNN_ARG_SRC)
             return arg_usage_t::input;
 
@@ -127,7 +127,7 @@ struct softmax_bwd_pd_t: public softmax_pd_t {
         , diff_data_md_(desc_.diff_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_DST, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 

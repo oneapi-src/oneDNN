@@ -43,7 +43,7 @@ struct gemm_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC_0, MKLDNN_ARG_SRC_1))
             return arg_usage_t::input;
 

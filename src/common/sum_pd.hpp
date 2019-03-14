@@ -44,7 +44,7 @@ struct sum_pd_t: public primitive_desc_t {
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg >= MKLDNN_ARG_MULTIPLE_SRC
                 && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;

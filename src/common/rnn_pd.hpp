@@ -151,7 +151,7 @@ struct rnn_fwd_pd_t: public rnn_pd_t {
         : rnn_pd_t(engine, adesc, attr, hint_fwd_pd)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == MKLDNN_ARG_SRC_LAYER)
             return arg_usage_t::input;
 
@@ -201,7 +201,7 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
     {}
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC_LAYER, MKLDNN_ARG_DST_LAYER,
                     MKLDNN_ARG_DIFF_DST_LAYER))
             return arg_usage_t::input;

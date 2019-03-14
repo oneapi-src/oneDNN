@@ -55,7 +55,7 @@ struct shuffle_pd_t: public primitive_desc_t {
         return status::success;
     }
 
-    virtual arg_usage_t arg_usage(primitive_arg_index_t arg) const override {
+    virtual arg_usage_t arg_usage(int arg) const override {
         if (is_fwd()) {
             if (arg == MKLDNN_ARG_SRC)
                 return arg_usage_t::input;
