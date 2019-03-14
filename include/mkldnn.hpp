@@ -1139,7 +1139,7 @@ struct reorder : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
                 const engine &dst_engine, const memory::desc &dst_md,
-                const primitive_attr &aattr) {
+                const primitive_attr &aattr = primitive_attr()) {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
                         src_engine.get(), &src_md.data,
@@ -1148,35 +1148,14 @@ struct reorder : public primitive {
             reset(result);
         }
 
-        primitive_desc(const engine &src_engine, const memory::desc &src_md,
-                const engine &dst_engine, const memory::desc &dst_md) {
-            mkldnn_primitive_desc_t result;
-            error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
-                        src_engine.get(), &src_md.data,
-                        dst_engine.get(), &dst_md.data, nullptr),
-                    "could not create a reorder primitive descriptor");
-            reset(result);
-        }
-
         primitive_desc(const memory &src, const memory &dst,
-                const primitive_attr &aattr) {
+                const primitive_attr &aattr = primitive_attr()) {
             mkldnn_primitive_desc_t result;
             auto src_md = src.get_desc();
             auto dst_md = dst.get_desc();
             error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
                         src.get_engine().get(), &src_md.data,
                         dst.get_engine().get(), &dst_md.data, aattr.get()),
-                    "could not create a reorder primitive descriptor");
-            reset(result);
-        }
-
-        primitive_desc(const memory &src, const memory &dst) {
-            mkldnn_primitive_desc_t result;
-            auto src_md = src.get_desc();
-            auto dst_md = dst.get_desc();
-            error::wrap_c_api(mkldnn_reorder_primitive_desc_create(&result,
-                        src.get_engine().get(), &src_md.data,
-                        dst.get_engine().get(), &dst_md.data, nullptr),
                     "could not create a reorder primitive descriptor");
             reset(result);
         }
@@ -1232,26 +1211,30 @@ struct concat : public primitive {
         }
 
         primitive_desc(const memory::desc &dst, int concat_dimension,
-                const std::vector<memory::desc> &srcs, const engine &aengine) {
+                const std::vector<memory::desc> &srcs, const engine &aengine,
+                const primitive_attr &aattr = primitive_attr()) {
             auto c_api_srcs = cpp_to_c(srcs);
 
             mkldnn_primitive_desc_t result;
-            error::wrap_c_api(mkldnn_concat_primitive_desc_create(
-                    &result, &dst.data, (int)c_api_srcs.size(),
-                    concat_dimension, &c_api_srcs[0], nullptr, aengine.get()),
-                "could not create a concat primitive descriptor");
+            error::wrap_c_api(
+                    mkldnn_concat_primitive_desc_create(&result, &dst.data,
+                            (int)c_api_srcs.size(), concat_dimension,
+                            &c_api_srcs[0], aattr.get(), aengine.get()),
+                    "could not create a concat primitive descriptor");
             reset(result);
         }
 
         primitive_desc(int concat_dimension,
-                const std::vector<memory::desc> &srcs, const engine &aengine) {
+                const std::vector<memory::desc> &srcs, const engine &aengine,
+                const primitive_attr &aattr = primitive_attr()) {
             auto c_api_srcs = cpp_to_c(srcs);
 
             mkldnn_primitive_desc_t result;
-            error::wrap_c_api(mkldnn_concat_primitive_desc_create(
-                    &result, nullptr, (int)c_api_srcs.size(),
-                    concat_dimension, &c_api_srcs[0], nullptr, aengine.get()),
-                "could not create a concat primitive descriptor");
+            error::wrap_c_api(
+                    mkldnn_concat_primitive_desc_create(&result, nullptr,
+                            (int)c_api_srcs.size(), concat_dimension,
+                            &c_api_srcs[0], aattr.get(), aengine.get()),
+                    "could not create a concat primitive descriptor");
             reset(result);
         }
 
@@ -1298,7 +1281,8 @@ struct sum : public primitive {
 
         primitive_desc(const memory::desc &dst,
                 const std::vector<float> &scales,
-                const std::vector<memory::desc> &srcs, const engine &aengine) {
+                const std::vector<memory::desc> &srcs, const engine &aengine,
+                const primitive_attr &aattr = primitive_attr()) {
             error::wrap_c_api(scales.size() == srcs.size()
                     ? mkldnn_success : mkldnn_invalid_arguments,
                 "number of scales not equal to number of srcs");
@@ -1308,13 +1292,14 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(
                     &result, &dst.data, (int)c_api_srcs.size(),
-                    &scales[0], &c_api_srcs[0], nullptr, aengine.get()),
+                    &scales[0], &c_api_srcs[0], aattr.get(), aengine.get()),
                 "could not create a sum primitive descriptor");
             reset(result);
         }
 
         primitive_desc(const std::vector<float> &scales,
-                const std::vector<memory::desc> &srcs, const engine &aengine) {
+                const std::vector<memory::desc> &srcs, const engine &aengine,
+                const primitive_attr &aattr = primitive_attr()) {
             error::wrap_c_api(scales.size() == srcs.size()
                     ? mkldnn_success : mkldnn_invalid_arguments,
                 "number of scales not equal to number of srcs");
@@ -1323,7 +1308,7 @@ struct sum : public primitive {
             mkldnn_primitive_desc_t result;
             error::wrap_c_api(mkldnn_sum_primitive_desc_create(&result,
                         nullptr, (int)c_api_srcs.size(), &scales[0],
-                        &c_api_srcs[0], nullptr, aengine.get()),
+                        &c_api_srcs[0], aattr.get(), aengine.get()),
                     "could not create a sum primitive descriptor");
             reset(result);
         }
@@ -2704,8 +2689,9 @@ struct shuffle_forward : public primitive {
     };
 
     struct primitive_desc : public mkldnn::primitive_desc {
-        primitive_desc(const desc &desc, const engine &e)
-            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+        primitive_desc(const desc &desc, const engine &e,
+                const primitive_attr &aattr = primitive_attr())
+            : mkldnn::primitive_desc(&desc.data, &aattr, e, nullptr) {}
 
         REG_QUERY_MD(src, src, 0);
         REG_QUERY_MD(dst, dst, 0);
@@ -2727,8 +2713,10 @@ struct shuffle_backward : public primitive {
 
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
-                const shuffle_forward::primitive_desc &hint_fwd_pd)
-            : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
+                const shuffle_forward::primitive_desc &hint_fwd_pd,
+                const primitive_attr &aattr = primitive_attr())
+            : mkldnn::primitive_desc(
+                      &desc.data, &aattr, e, hint_fwd_pd.get()) {}
 
         REG_QUERY_MD(diff_src, diff_src, 0);
         REG_QUERY_MD(diff_dst, diff_dst, 0);
