@@ -17,6 +17,7 @@
 #ifndef JIT_AVX_GEMM_F32_HPP
 #define JIT_AVX_GEMM_F32_HPP
 
+#include "gemm_utils_f32.hpp"
 #include "mkldnn_types.h"
 
 namespace mkldnn {
@@ -29,6 +30,13 @@ mkldnn_status_t jit_avx_gemm_f32(
         const int *lda, const float *B, const int *ldb, const float *beta,
         float *C, const int *ldc, const float *bias = nullptr);
 
+namespace avx_gemm_f32 {
+
+void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
+        int k, const float *alpha, const float *a, gemm_utils::dim_t lda,
+        const float *b, gemm_utils::dim_t ldb, const float *beta, float *c,
+        gemm_utils::dim_t ldc, const float *bias, float *ws);
+}
 
 }
 }
