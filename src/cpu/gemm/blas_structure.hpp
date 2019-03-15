@@ -33,6 +33,7 @@ enum {
 enum {
     COPY_NONE,
     COPY_A,
+    NO_COPY,
 };
 
 enum {

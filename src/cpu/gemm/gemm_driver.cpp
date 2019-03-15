@@ -22,6 +22,7 @@
 #include "gemm_driver.hpp"
 
 #include "blas_structure.hpp"
+#include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "jit_generator.hpp"
@@ -36,7 +37,7 @@ namespace impl {
 namespace cpu {
 
 typedef struct {
-    int nthrs_m, nthrs_n;
+    int nthrs_m, nthrs_n, nthrs_k;
     int partition;
     int copy_type;
 } blas_thread_t;
@@ -565,39 +566,189 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(const dim_t m,
 
 }
 
-#define N2D_MAX_AVX512 384
-#define M2D_MIN_AVX512 384
-#define VECLEN         16
-#define NCONS          1
+static inline int nocopy_checker_avx2(const int nthr, const int transa,
+        const int transb, const dim_t m, const dim_t n, const dim_t k,
+        const dim_t lda, const dim_t ldb, const dim_t ldc) {
+    static const dim_t BM_NOCOPY_AVX2 = 64;
+    static const dim_t MN_NOCOPY_AVX2 = 128;
+    static const dim_t N_TRANSB_PER_THR = 1;
+    static const dim_t K_TRANSB_PER_THR = 1;
+    static const dim_t N_NOTRANSB_PER_THR = 16;
+    static const dim_t K_NOTRANSB_PER_THR = 2;
+    static const double FORCE_NOCOPY_THRESH = 0.0038;
+
+    // Crude threshold to nocopy kernels if copy overhead is significant.
+    if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH) {
+        return 1;
+    }
+
+    if (m <= 378 && n <= 378 && k >= nthr * 378) return 0;
+
+    if (m >= nthr * 378 && k >= nthr * 378) return 0;
+
+    if (transb == 0) {
+        if (m <= MN_NOCOPY_AVX2 && n <= MN_NOCOPY_AVX2) return 1;
+        if (n <= nthr * N_NOTRANSB_PER_THR) return 1;
+        if (k <= nthr * K_NOTRANSB_PER_THR) return 1;
+        if (m <= BM_NOCOPY_AVX2 && n >= nthr * N_NOTRANSB_PER_THR) return 1;
+    } else {
+        if (m <= MN_NOCOPY_AVX2 && n <= MN_NOCOPY_AVX2) return 1;
+        if (n <= nthr * N_TRANSB_PER_THR) return 1;
+        if (k <= nthr * K_TRANSB_PER_THR) return 1;
+    }
+
+    return 0;
+}
+
+static inline int nocopy_checker_avx512(int nthr, const int transa,
+        const int transb, const dim_t m, const dim_t n, const dim_t k,
+        const dim_t lda, const dim_t ldb, const dim_t ldc) {
+    // Constants definition
+    static const dim_t BAD_LD_MULT = 256;
+    static const dim_t M_TRANSB_PER_THR = 28;
+    static const dim_t N_TRANSB_PER_THR = 28;
+    static const dim_t K_TRANSB_PER_THR = 1;
+    static const dim_t MN_NOTRANSB_PER_THR = 28;
+    static const dim_t K_NOTRANSB_PER_THR = 1;
+    static const double FORCE_NOCOPY_THRESH = 0.00196;
+
+    // Crude threshold to nocopy kernels if copy overhead is significant.
+    if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH) {
+        return 1;
+    }
+
+    // Do not use no copy kernels on "bad" leading dimensions, which are
+    // multiples of 256 if M or N is too small, then skip this leading
+    // dimension check (no-copy is still helpful there).
+    // For LSTM use cases, seems that for N=16 no-copy is still beneficial
+    // with bad leading dimension when K is not too large and A non
+    // transpose and M != 4096
+    if (m >= 32 &&
+        (n > 16 || (n == 16 && (k >= 6400 || transa == 0 || m == 4096))) &&
+        (lda % BAD_LD_MULT == 0 || ldb % BAD_LD_MULT == 0
+         || ldc % BAD_LD_MULT == 0))
+        return 0;
+
+    if (m <= 378 && n <= 378 && k >= nthr * 378) return 0;
+
+    if (m >= nthr * 378 && k >= nthr * 378) return 0;
+
+    if (transb == 0) {
+        if (m <= nthr * MN_NOTRANSB_PER_THR) return 1;
+        if (n <= nthr * MN_NOTRANSB_PER_THR) return 1;
+        if (k <= nthr * K_NOTRANSB_PER_THR) return 1;
+    } else {
+        if (m <= nthr * M_TRANSB_PER_THR && m >= n) return 1;
+        if (n <= nthr * N_TRANSB_PER_THR) return 1;
+        if (k <= nthr * K_TRANSB_PER_THR) return 1;
+    }
+    return 0;
+}
+
+static inline int nocopy_checker(const int nthr, const int transa,
+        const int transb, const dim_t m, const dim_t n, const dim_t k,
+        const dim_t lda, const dim_t ldb, const dim_t ldc) {
+
+    if (mayiuse(avx512_core)) {
+        return nocopy_checker_avx512(nthr, transa, transb, m, n, k, lda, ldb,
+                ldc);
+    } else if (mayiuse(avx2)) {
+        return nocopy_checker_avx2(nthr, transa, transb, m, n, k, lda, ldb,
+                ldc);
+    } else {
+        return 1;
+    }
+}
+
+
+#define N2D_MAX 384
+#define M2D_MIN 384
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_thread_opts_avx512(int *p_nthrs,
-        blas_thread_t *thread_info,
+static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         const BlasStructure<a_type, b_type, c_type> *arg)
 {
     int nthrs = *p_nthrs;
+    int transa = arg->transa;
+    int transb = arg->transb;
     dim_t m = arg->m;
     dim_t n = arg->n;
+    dim_t k = arg->k;
+    dim_t lda = arg->lda;
+    dim_t ldb = arg->ldb;
+    dim_t ldc = arg->ldc;
 
     thread_info->nthrs_m = 0;
     thread_info->nthrs_n = 0;
+    thread_info->nthrs_k = 0;
     thread_info->copy_type = COPY_NONE; // By default don't do parallel copy.
-
-    int condition_2D_bsrc = -1;
-    if ((256 * m > nthrs * n) && (nthrs * m < 256 * n)) {
-        condition_2D_bsrc = 1;
-    } else {
-        condition_2D_bsrc = 0;
-    }
-
-    int condition_1D_copya = 0;
-    if ((m >= 1000) && (n >= nthrs * N2D_MAX_AVX512 / 4)) {
-        condition_2D_bsrc  = 0;
-        condition_1D_copya = 1;
-    }
 
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
 
-    // If offset is non-zero, we need to keep 1D_copya to reduce update overhead
+    if (!isInteger &&
+            nocopy_checker(nthrs, transa, transb, m, n, k, lda, ldb, ldc)) {
+        thread_info->copy_type = NO_COPY;
+        int nthrs_m = 0;
+        int nthrs_n = 0;
+        int nthrs_k = 0;
+        int BM = 0;
+        int BN = 0;
+        int BK = 0;
+
+        if (mayiuse(avx512_core)) {
+            gemm_utils::calc_nthr_nocopy_avx512_common(
+                    (int) m, (int) n, (int) k, nthrs,
+                    &nthrs_m, &nthrs_n, &nthrs_k, &BM, &BN, &BK);
+        } else {
+            gemm_utils::calc_nthr_nocopy_avx(
+                    (int) m, (int) n, (int) k, nthrs,
+                    &nthrs_m, &nthrs_n, &nthrs_k, &BM, &BN, &BK);
+        }
+
+        // Block information is being ignored. We will create patitioning
+        // later.
+
+        thread_info->nthrs_m = nthrs_m;
+        thread_info->nthrs_n = nthrs_n;
+        thread_info->nthrs_k = nthrs_k;
+
+        // Reset the total number of threads that will be used.
+        *p_nthrs = nthrs_m * nthrs_n * nthrs_k;
+    }
+
+    // TODO Check if we can use dynamic scheduling for sgemm.
+
+    // TODO Check if we should use 3D blocking.
+
+    int condition_2D_bsrc = -1;
+    if (isInteger) {
+        condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
+    } else {
+        // If m is large and n is small then do 1D partitioning for AVX2.
+        if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
+            condition_2D_bsrc = 0;
+        } else {
+            condition_2D_bsrc = ((n > nthrs * N2D_MAX) ||
+                    (n <= nthrs * N2D_MAX / 2)) && (m >= 2 * M2D_MIN);
+        }
+    }
+
+    // TODO Check if we shoud use k-partitioning.
+
+    int condition_1D_copya = 0;
+    if (mayiuse(avx512_core)) {
+        if (m >= 1000 && (n >= nthrs * N2D_MAX / 4)) {
+            condition_2D_bsrc  = 0;
+            condition_1D_copya = 1;
+        }
+    } else { // AVX2 code path
+        if (m >= 1000 && n >= 4000) {
+            condition_2D_bsrc  = 0;
+            condition_1D_copya = 1;
+        }
+    }
+
+    // If offset is non-zero, we need to keep 1D_copya to reduce update
+    // overhead for integer case.
     if (isInteger && (arg->ao != 0 || arg->bo != 0 || arg->co[0] != 0 ||
                 arg->offsetc != FIX_OFFSET)) {
         condition_2D_bsrc  = 0;
@@ -609,9 +760,8 @@ static inline void set_thread_opts_avx512(int *p_nthrs,
         int nthrs_n = nthrs;
 
         while ((nthrs_n % 2 == 0) &&
-                (n / nthrs > N2D_MAX_AVX512 ||
-                 n / nthrs_n <= N2D_MAX_AVX512 / 2) &&
-                (m / nthrs_m >= 2 * M2D_MIN_AVX512) &&
+                (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
+                (m / nthrs_m >= 2 * M2D_MIN) &&
                 (nthrs_m < 4)) {
             nthrs_m *= 2;
             nthrs_n /= 2;
@@ -629,17 +779,22 @@ static inline void set_thread_opts_avx512(int *p_nthrs,
         thread_info->copy_type = COPY_A;
         thread_info->partition = PARTITION_1D_COL;
     } else {
-        if ((m > n) && (m / nthrs >= VECLEN || n < NCONS * nthrs)) {
+        int veclen = 0;
+        if (mayiuse(avx512_core)) {
+            veclen = cpu_isa_traits<avx512_core>::vlen / (int) sizeof(c_type);
+        } else {
+            veclen = cpu_isa_traits<avx2>::vlen / (int) sizeof(c_type);
+        }
+
+        if (m > n && (m >= nthrs * veclen || n < nthrs)) {
             thread_info->partition = PARTITION_1D_ROW;
         } else {
             thread_info->partition = PARTITION_1D_COL;
         }
     }
 }
-#undef N2D_MAX_AVX512
-#undef M2D_MIN_AVX512
-#undef VECLEN
-#undef NCONS
+#undef N2D_MAX
+#undef M2D_MIN
 
 static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
         dim_t *t_offset, dim_t *t_block)
@@ -1043,14 +1198,27 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 }
 #undef MULTIPLIER
 
-static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
-        double fp_per_cycle, int *nthrs)
+template <typename T>
+static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs)
 {
-    double omp_overhead_small_core = 3.0e+3;
-    double omp_intercept_big_core = 4.0e+3;
-    double omp_slope_big_core = 5.0e+2;
+    const double omp_overhead_small_core = 3.0e+3;
+    const double omp_intercept_big_core = 4.0e+3;
+    const double omp_slope_big_core = 5.0e+2;
 
-    double gemm_cycles = 8.0 * m * n * k / fp_per_cycle;
+    int veclen = 0;
+    if (mayiuse(avx512_core)) {
+        veclen = cpu_isa_traits<avx512_core>::vlen / (int) sizeof(T);
+    } else {
+        veclen = cpu_isa_traits<avx2>::vlen / (int) sizeof(T);
+    }
+    const double fp_per_cycle = 2.0 * 2.0 * veclen;
+
+    double gemm_cycles = m * n * k / fp_per_cycle;
+    if (data_traits<T>::data_type == data_type::f32) {
+        gemm_cycles *= 2.0;
+    } else {
+        gemm_cycles *= 8.0;
+    }
 
     int i = *nthrs;
 
@@ -1150,12 +1318,31 @@ static mkldnn_status_t gemm_threading_driver(
     }
 
     int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
-    get_omp_thread_count(arg->m, arg->n, arg->k, 64.0, &nthr);
+
+    // Check if thread is beneficial.
+    if (mayiuse(avx2) && !mayiuse(avx512_core)) {
+        if (arg->m > 10 * arg->n && arg->n < nthr) {
+            const int veclen = cpu_isa_traits<avx2>::vlen / (int)sizeof(c_type);
+            if (arg->m / nthr < veclen * 3) {
+                nthr = (int) nstl::max(arg->m / veclen / 3, 1LL);
+            }
+        }
+    }
+    get_omp_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr);
 
     if (nthr == 1) {
         return gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
                 arg->c, arg->co, arg);
     }
+
+    if ((data_traits<a_type>::data_type == data_type::f32) &&
+            nocopy_checker(nthr, arg->transa, arg->transb, arg->m, arg->n,
+                arg->k, arg->lda, arg->ldb, arg->ldc))
+        return call_no_copy_sgemm(arg->transa, arg->transb,
+                arg->m, arg->n, arg->k, arg->alpha,
+                (float *) arg->a, arg->lda,
+                (float *) arg->b, arg->ldb,
+                arg->beta, (float *) arg->c, arg->ldc, NULL);
 
     mkldnn_status_t *results = (mkldnn_status_t *) malloc(
             sizeof(*results) * nthr * CACHE_LINE_SIZE, PAGE_4K);
@@ -1177,7 +1364,7 @@ static mkldnn_status_t gemm_threading_driver(
                 arg->b, arg->c, arg->co, arg);
         } else {
             blas_thread_t thread_info;
-            set_thread_opts_avx512(&nthrs, &thread_info, arg);
+            set_thread_opts(&nthrs, &thread_info, arg);
 
             const a_type *a = NULL;
             const b_type *b = NULL;
@@ -1202,6 +1389,32 @@ static mkldnn_status_t gemm_threading_driver(
                     results[ithr * CACHE_LINE_SIZE] =
                         gemm_kernel_driver(m, n, k, a, b, c, co, arg);
                     break;
+
+                case NO_COPY:
+                    if (data_traits<a_type>::data_type == data_type::f32) {
+                        if (mayiuse(avx512_core)) {
+                            avx512_common_gemm_f32::sgemm_nocopy_driver(
+                                    arg->transa == 0 ? "N" : "T",
+                                    arg->transb == 0 ? "N" : "T",
+                                    (int) m, (int) n, (int) k, arg->alpha,
+                                    (float *) a, arg->lda,
+                                    (float *) b, arg->ldb,
+                                    arg->beta, (float *) c, arg->ldc,
+                                    NULL, NULL);
+                        } else {
+                            avx_gemm_f32::sgemm_nocopy_driver(
+                                    arg->transa == 0 ? "N" : "T",
+                                    arg->transb == 0 ? "N" : "T",
+                                    (int) m, (int) n, (int) k, arg->alpha,
+                                    (float *) a, arg->lda,
+                                    (float *) b, arg->ldb,
+                                    arg->beta, (float *)c, arg->ldc,
+                                    NULL, NULL);
+                        }
+                        results[ithr * CACHE_LINE_SIZE] = mkldnn_success;
+                    }
+                    break;
+
                 }
             }
         }
