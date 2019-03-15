@@ -20,6 +20,7 @@
 
 #include "c_types_map.hpp"
 #include "../cpu/cpu_engine.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -41,6 +42,7 @@ static inline engine_factory_t *get_engine_factory(engine_kind_t kind) {
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::utils;
 
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
     engine_factory_t *ef = get_engine_factory(kind);
@@ -63,6 +65,16 @@ status_t mkldnn_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
     if (engine == nullptr)
         return invalid_arguments;
     *kind = engine->kind();
+    return success;
+}
+
+status_t mkldnn_engine_get_backend_kind(
+        engine_t *engine, backend_kind_t *backend_kind) {
+    bool args_ok = !any_null(engine, backend_kind);
+    if (!args_ok)
+        return invalid_arguments;
+
+    *backend_kind = engine->backend_kind();
     return success;
 }
 

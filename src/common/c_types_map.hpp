@@ -370,6 +370,11 @@ namespace engine_kind {
     const engine_kind_t cpu = mkldnn_cpu;
 }
 
+using backend_kind_t = mkldnn_backend_kind_t;
+namespace backend_kind {
+    const backend_kind_t native = mkldnn_backend_native;
+}
+
 using primitive_kind_t = mkldnn_primitive_kind_t;
 namespace primitive_kind {
     const primitive_kind_t undefined = mkldnn_undefined_primitive;

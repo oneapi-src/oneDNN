@@ -30,13 +30,16 @@
  *   - Provide engine specific primitive_desc_t creators
  */
 struct mkldnn_engine: public mkldnn::impl::c_compatible {
-    mkldnn_engine(mkldnn::impl::engine_kind_t kind)
-        : kind_(kind)
-    {}
+    mkldnn_engine(mkldnn::impl::engine_kind_t kind,
+            mkldnn::impl::backend_kind_t backend_kind)
+        : kind_(kind), backend_kind_(backend_kind) {}
     virtual ~mkldnn_engine() {}
 
     /** get kind of the current engine */
-    virtual mkldnn::impl::engine_kind_t kind() const { return kind_; }
+    mkldnn::impl::engine_kind_t kind() const { return kind_; }
+
+    /** get the backend kind of the current engine */
+    mkldnn::impl::backend_kind_t backend_kind() const { return backend_kind_; }
 
     /** create memory storage */
     virtual mkldnn::impl::status_t create_memory_storage(
@@ -102,6 +105,7 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
 
 protected:
     mkldnn::impl::engine_kind_t kind_;
+    mkldnn::impl::backend_kind_t backend_kind_;
 };
 
 namespace mkldnn {
@@ -110,6 +114,7 @@ namespace impl {
 struct engine_factory_t: public c_compatible {
     virtual size_t count() const = 0;
     virtual engine_kind_t kind() const = 0;
+    virtual backend_kind_t backend_kind() const = 0;
     virtual status_t engine_create(engine_t **engine, size_t index) const = 0;
 };
 

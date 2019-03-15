@@ -1659,6 +1659,10 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_create(mkldnn_engine_t *engine,
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
         mkldnn_engine_kind_t *kind);
 
+/** Returns the backend kind of an @p engine. */
+mkldnn_status_t MKLDNN_API mkldnn_engine_get_backend_kind(
+        mkldnn_engine_t engine, mkldnn_backend_kind_t *backend_kind);
+
 /** Destroys an @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 
