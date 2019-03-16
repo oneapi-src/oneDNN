@@ -22,26 +22,33 @@
 struct dnn_mem_t {
     dnn_mem_t(): active_(false) {}
 
-    dnn_mem_t(const mkldnn_memory_desc_t &md, void *data = NULL)
-        : active_(initialize(md, data) == OK) {}
+    dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_engine_t engine)
+        : active_(initialize(md, engine) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, void *data = NULL)
-        : active_(initialize(ndims, dims, dt, tag, data) == OK) {}
+            mkldnn_format_tag_t tag, mkldnn_engine_t engine)
+        : active_(initialize(ndims, dims, dt, tag, engine) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            const mkldnn_dims_t strides, void *data = NULL)
-        : active_(initialize(ndims, dims, dt, strides, data) == OK) {}
+            const mkldnn_dims_t strides, mkldnn_engine_t engine)
+        : active_(initialize(ndims, dims, dt, strides, engine) == OK) {}
 
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
-            void *data = NULL)
-        : active_(initialize(md, dt, tag, data) == OK) {}
+            mkldnn_engine_t engine = engine_ref)
+        : active_(initialize(md, dt, tag, engine) == OK) {}
+
+    dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
+            mkldnn_engine_t engine = engine_ref)
+        : active_(initialize(md, dt, mkldnn_format_tag_undef, engine) == OK) {}
 
     dnn_mem_t(const dnn_mem_t &rhs, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
-            void *data = NULL): dnn_mem_t(rhs.md_, dt, tag, data)
-    { if (active_) reorder(rhs); }
+            mkldnn_engine_t engine = engine_ref)
+        : dnn_mem_t(rhs.md_, dt, tag, engine) {
+        if (active_)
+            reorder(rhs);
+    }
 
     /* FIXME: ugly RT assert... need better mkldnn memory handling */
     dnn_mem_t &operator=(const dnn_mem_t &rhs)
@@ -56,8 +63,9 @@ struct dnn_mem_t {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd,
-                    engine, &rhs.md_, engine, &md_, attr), WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(
+                         &rpd, rhs.engine_, &rhs.md_, engine_, &md_, attr),
+                WARN);
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
@@ -67,7 +75,13 @@ struct dnn_mem_t {
             {MKLDNN_ARG_FROM, rhs.m_},
             {MKLDNN_ARG_TO, m_},
         };
-        DNN_SAFE(mkldnn_primitive_execute(r, stream, 2, args), WARN);
+
+        mkldnn_engine_t reorder_engine
+                = (rhs.engine_kind_ != mkldnn_cpu) ? rhs.engine_ : engine_;
+        mkldnn_stream_t reorder_stream
+                = (reorder_engine == engine_ref) ? stream_ref : stream_tgt;
+
+        DNN_SAFE(execute_and_wait(r, reorder_stream, 2, args), WARN);
         DNN_SAFE(mkldnn_primitive_destroy(r), CRIT);
 
         return OK;
@@ -99,26 +113,37 @@ struct dnn_mem_t {
     size_t sizeof_dt() const { return ::sizeof_dt(dt()); }
 
     template <typename T>
-    explicit operator T*() const { return static_cast<T*>(data_); }
+    explicit operator T *() const {
+        if (engine_ == engine_ref) {
+            // Assume that the reference engine supports direct memory access
+            // without map/unmap
+            return static_cast<T *>(data_);
+        }
+
+        assert(is_mapped_ && "direct access only for mapped memory");
+        return static_cast<T *>(mapped_ptr_);
+    }
 
     float get_elem(int64_t idx) const {
+        void *data = (void *)*this;
         float elem = 0.0;
         switch (dt()) {
-            case mkldnn_s8: elem = static_cast<int8_t *>(data_)[idx]; break;
-            case mkldnn_u8: elem = static_cast<uint8_t *>(data_)[idx]; break;
-            case mkldnn_s32: elem = static_cast<int32_t *>(data_)[idx]; break;
-            case mkldnn_f32: elem = static_cast<float *>(data_)[idx]; break;
+            case mkldnn_s8: elem = static_cast<int8_t *>(data)[idx]; break;
+            case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
+            case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
+            case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
             default: assert(!"bad data type");
         }
         return elem;
     }
 
     void set_elem(int64_t idx, float value) {
+        void *data = (void *)*this;
         switch (dt()) {
-            case mkldnn_s8: ((int8_t *)data_)[idx] = value; break;
-            case mkldnn_u8: ((uint8_t *)data_)[idx] = value; break;
-            case mkldnn_s32: ((int32_t *)data_)[idx] = value; break;
-            case mkldnn_f32: ((float *)data_)[idx] = value; break;
+            case mkldnn_s8: ((int8_t *)data)[idx] = value; break;
+            case mkldnn_u8: ((uint8_t *)data)[idx] = value; break;
+            case mkldnn_s32: ((int32_t *)data)[idx] = value; break;
+            case mkldnn_f32: ((float *)data)[idx] = value; break;
             default: assert(!"bad data type");
         }
     }
@@ -144,16 +169,39 @@ struct dnn_mem_t {
         return offset;
     }
 
+    void map() {
+        assert(!is_mapped_ && "memory is already mapped");
+
+        DNN_SAFE_V(mkldnn_memory_map_data(m_, &mapped_ptr_));
+        is_mapped_ = true;
+    }
+
+    void unmap() {
+        assert(is_mapped_ && "memory is not mapped");
+
+        DNN_SAFE_V(mkldnn_memory_unmap_data(m_, mapped_ptr_));
+        is_mapped_ = false;
+        mapped_ptr_ = NULL;
+    }
+
     /* fields */
 
     mkldnn_memory_desc_t md_;
     mkldnn_memory_t m_;
+
+private:
     void *data_;
     bool is_data_owner_, active_;
 
-private:
+    mkldnn_engine_kind_t engine_kind_;
+    mkldnn_backend_kind_t backend_kind_;
+    mkldnn_engine_t engine_;
+
+    bool is_mapped_;
+    void *mapped_ptr_;
+
     int initialize(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, void *data) {
+            mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
         if (tag == mkldnn_format_tag_undef) {
             md_ = md;
             md_.data_type = dt;
@@ -161,40 +209,51 @@ private:
             DNN_SAFE(mkldnn_memory_desc_init_by_tag(
                         &md_, md.ndims, md.dims, dt, tag), CRIT);
         }
-        DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, NULL), CRIT);
-        is_data_owner_ = data == NULL;
-        if (data == NULL) {
+        engine_ = engine;
+        DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
+        DNN_SAFE_V(mkldnn_engine_get_backend_kind(engine_, &backend_kind_));
+
+        if (backend_kind_ == mkldnn_backend_native) {
+            // Allocate memory for native backend directly
+            is_data_owner_ = true;
             const size_t alignment = 1024 * 1024 * 2;
             size_t sz = mkldnn_memory_desc_get_size(&md_);
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
-                    WARN);
+                    CRIT);
+            DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
         } else {
-            data_ = data;
+            is_data_owner_ = false;
+            data_ = NULL;
+            DNN_SAFE(mkldnn_memory_create(
+                             &m_, &md_, engine, MKLDNN_NATIVE_HANDLE_ALLOCATE),
+                    CRIT);
         }
-        DNN_SAFE(mkldnn_memory_set_data_handle(m_, data_), CRIT);
+
+        is_mapped_ = false;
+        mapped_ptr_ = NULL;
 
         return OK;
     }
 
-    int initialize(const mkldnn_memory_desc_t &md, void *data) {
-        return initialize(md, md.data_type, mkldnn_format_tag_undef, data);
+    int initialize(const mkldnn_memory_desc_t &md, mkldnn_engine_t engine) {
+        return initialize(md, md.data_type, mkldnn_format_tag_undef, engine);
     }
 
     int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-                    mkldnn_format_tag_t tag, void* data) {
+            mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
-        SAFE(initialize(xmd, data), CRIT);
+        SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }
 
     int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            const mkldnn_dims_t strides, void *data) {
+            const mkldnn_dims_t strides, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
         DNN_SAFE(mkldnn_memory_desc_init_by_strides(
                     &xmd, ndims, dims, dt, strides), CRIT);
-        SAFE(initialize(xmd, data), CRIT);
+        SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }
 

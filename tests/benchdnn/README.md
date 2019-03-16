@@ -21,9 +21,11 @@ harness for testing [itself](/tests/benchdnn/README.md#usage-self-harness).
 
 Usage:
 ```
-    $ ./benchdnn: [--HARNESS] [--mode=MODE] [--max-ms-per-prb=MAX-MS-PER-PRB] [-vN|--verbose=N] HARNESS-OPTS
+    $ ./benchdnn: [--engine=ENGINE_KIND] [--HARNESS] [--mode=MODE] [--max-ms-per-prb=MAX-MS-PER-PRB] [-vN|--verbose=N] HARNESS-OPTS
 ```
 where:
+
+ - `ENGINE_KIND` -- specifies the engine kind to use for benchmark. Can be `cpu` [default].
 
  - `HARNESS` is either `conv` [default], `ip`, `shuffle`, `reorder`, `bnorm`, `rnn`, or `self`
 

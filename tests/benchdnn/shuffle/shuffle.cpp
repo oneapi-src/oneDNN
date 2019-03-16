@@ -104,11 +104,12 @@ static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
         mkldnn_shuffle_desc_t sd_fwd;
         DNN_SAFE(mkldnn_shuffle_forward_desc_init(&sd_fwd,
                     mkldnn_forward_training, &data_d, p->a, p->g), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &sd_fwd, NULL,
-                    engine, NULL), WARN);
+        DNN_SAFE(mkldnn_primitive_desc_create(
+                         &hint_fwd_pd, &sd_fwd, NULL, engine_tgt, NULL),
+                WARN);
     }
-    init_status = mkldnn_primitive_desc_create(&spd, &sd, NULL, engine,
-            hint_fwd_pd);
+    init_status = mkldnn_primitive_desc_create(
+            &spd, &sd, NULL, engine_tgt, hint_fwd_pd);
     mkldnn_primitive_desc_destroy(hint_fwd_pd);
 
     if (init_status == mkldnn_unimplemented)
@@ -144,8 +145,10 @@ int doit(const prb_t *p, res_t *r) {
     const int ndims = (int)p->dims.size();
     const auto src_tag = get_default_tag(ndims);
 
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag), src_dt(src_dt_d);
-    dnn_mem_t dst_fp(src_dt_d, fp, src_tag), dst_dt(src_dt_d);
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref),
+            src_dt(src_dt_d, engine_tgt);
+    dnn_mem_t dst_fp(src_dt_d, fp, src_tag, engine_ref),
+            dst_dt(src_dt_d, engine_tgt);
 
     SAFE(fill_memory(p, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
@@ -156,11 +159,11 @@ int doit(const prb_t *p, res_t *r) {
     args.set(i_arg, src_dt.m_);
     args.set(o_arg, dst_dt.m_);
 
-    DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
-        dnn_mem_t data(dst_dt, fp, src_tag);
+        dnn_mem_t data(dst_dt, fp, src_tag, engine_ref);
         SAFE(compare(p, dst_fp, data, r), WARN);
     }
 
@@ -168,7 +171,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            DNN_SAFE(mkldnn_primitive_execute(s, stream, args.size(), args), WARN);
+            DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)

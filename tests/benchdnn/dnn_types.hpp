@@ -117,4 +117,6 @@ inline mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, const float *scales)
 { return create_mkldnn_attr(attr, scale_cnt, -1, scales); }
 
+mkldnn_engine_kind_t str2engine_kind(const char *str);
+
 #endif

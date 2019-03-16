@@ -19,5 +19,17 @@
 
 #include "mkldnn_common.hpp"
 
-mkldnn_engine_t engine;
-mkldnn_stream_t stream;
+// Engine kind used to run MKL-DNN primitives for testing
+mkldnn_engine_kind_t engine_tgt_kind = mkldnn_cpu;
+
+// Engine used for reference benchdnn computations
+mkldnn_engine_t engine_ref;
+
+// Engine used to run MKL-DNN primitives for testing
+mkldnn_engine_t engine_tgt;
+
+// Stream for reference engine
+mkldnn_stream_t stream_ref;
+
+// Stream for target engine
+mkldnn_stream_t stream_tgt;

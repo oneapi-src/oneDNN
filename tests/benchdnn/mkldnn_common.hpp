@@ -73,18 +73,35 @@ inline size_t sizeof_dt(mkldnn_data_type_t dt) {
 }
 
 /* simplification */
-extern mkldnn_engine_t engine;
-extern mkldnn_stream_t stream;
+extern mkldnn_engine_kind_t engine_tgt_kind;
+
+extern mkldnn_engine_t engine_ref;
+extern mkldnn_engine_t engine_tgt;
+
+extern mkldnn_stream_t stream_ref;
+extern mkldnn_stream_t stream_tgt;
 
 inline int init() {
-    DNN_SAFE(mkldnn_engine_create(&engine, mkldnn_cpu, 0), CRIT);
-    DNN_SAFE(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags), CRIT);
+    DNN_SAFE(mkldnn_engine_create_with_backend(
+                     &engine_ref, mkldnn_cpu, mkldnn_backend_native, 0),
+            CRIT);
+    DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
+
+    DNN_SAFE(mkldnn_stream_create(
+                     &stream_ref, engine_ref, mkldnn_stream_default_flags),
+            CRIT);
+    DNN_SAFE(mkldnn_stream_create(
+                     &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
+            CRIT);
     return OK;
 }
 
 inline int finalize() {
-    DNN_SAFE(mkldnn_stream_destroy(stream), CRIT);
-    DNN_SAFE(mkldnn_engine_destroy(engine), CRIT);
+    DNN_SAFE(mkldnn_stream_destroy(stream_ref), CRIT);
+    DNN_SAFE(mkldnn_stream_destroy(stream_tgt), CRIT);
+
+    DNN_SAFE(mkldnn_engine_destroy(engine_ref), CRIT);
+    DNN_SAFE(mkldnn_engine_destroy(engine_tgt), CRIT);
     return OK;
 }
 
@@ -108,5 +125,14 @@ struct args_t {
 private:
     std::vector<mkldnn_exec_arg_t> args_;
 };
+
+inline mkldnn_status_t execute_and_wait(mkldnn_primitive_t prim,
+        mkldnn_stream_t stream, int nargs, const mkldnn_exec_arg_t *args) {
+    mkldnn_status_t status
+            = mkldnn_primitive_execute(prim, stream, nargs, args);
+    if (status != mkldnn_success)
+        return status;
+    return mkldnn_stream_wait(stream);
+}
 
 #endif

@@ -251,11 +251,16 @@ int check_reorder(const prb_t *p, res_t *res) {
     const int64_t *dims = &r.dims[0];
 
     /* Step 1: create memory */
-    dnn_mem_t mem_dt_in_fmt_ref(ndims, dims, p->conf_in->dt, nullptr);
-    dnn_mem_t mem_dt_in_fmt_in(ndims, dims, p->conf_in->dt, r.tag_in);
-    dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out);
-    dnn_mem_t mem_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, nullptr);
-    dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, nullptr);
+    dnn_mem_t mem_dt_in_fmt_ref(
+            ndims, dims, p->conf_in->dt, nullptr, engine_ref);
+    dnn_mem_t mem_dt_in_fmt_in(
+            ndims, dims, p->conf_in->dt, r.tag_in, engine_tgt);
+    dnn_mem_t mem_dt_out_fmt_out(
+            ndims, dims, p->conf_out->dt, r.tag_out, engine_tgt);
+    dnn_mem_t mem_dt_out_fmt_ref(
+            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+    dnn_mem_t mem_test_dt_out_fmt_ref(
+            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
 
     /* Step 2: fill scales */
     int64_t count = 0;
@@ -274,7 +279,7 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
-            &check_rpd, engine, &mem_dt_in_fmt_in.md_, engine,
+            &check_rpd, engine_tgt, &mem_dt_in_fmt_in.md_, engine_tgt,
             &mem_dt_out_fmt_out.md_, mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
         res->state = UNIMPLEMENTED;
@@ -301,9 +306,10 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 6: performance measurement */
     if (bench_mode & PERF) {
         mkldnn_primitive_desc_t perf_r_pd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd, engine,
-                    &mem_dt_in_fmt_in.md_, engine, &mem_dt_out_fmt_out.md_,
-                    mkldnn_attr), WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd, engine_tgt,
+                         &mem_dt_in_fmt_in.md_, engine_tgt,
+                         &mem_dt_out_fmt_out.md_, mkldnn_attr),
+                WARN);
 
         mkldnn_primitive_t perf_r;
         DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd), WARN);
@@ -316,7 +322,8 @@ int check_reorder(const prb_t *p, res_t *res) {
         auto &t = res->timer;
         t.reset();
         while (true) {
-            DNN_SAFE(mkldnn_primitive_execute(perf_r, stream, args.size(), args), WARN);
+            DNN_SAFE(execute_and_wait(perf_r, stream_tgt, args.size(), args),
+                    WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)

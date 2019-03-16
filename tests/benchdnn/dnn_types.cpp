@@ -333,6 +333,15 @@ void attr2str(const attr_t *attr, char *buffer) {
     attr->post_ops.to_str(buffer, &buffer);
 }
 
+mkldnn_engine_kind_t str2engine_kind(const char *str) {
+    const char *param = "cpu";
+    if (!strncasecmp(param, str, strlen(param)))
+        return mkldnn_cpu;
+
+    assert(!"not expected");
+    return mkldnn_cpu;
+}
+
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;

@@ -84,8 +84,8 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
 
     mkldnn_status_t init_status = mkldnn_success;
-    init_status = mkldnn_primitive_desc_create(&ippd, &ipd, mkldnn_attr,
-            engine, NULL);
+    init_status = mkldnn_primitive_desc_create(
+            &ippd, &ipd, mkldnn_attr, engine_tgt, NULL);
 
     mkldnn_primitive_attr_destroy(mkldnn_attr);
 
@@ -182,7 +182,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32,
-            is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw);
+            is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw,
+            engine_ref);
 
     const auto &c = p->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
@@ -206,7 +207,8 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
 int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32,
-            is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw);
+            is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw,
+            engine_ref);
 
     const auto &c = p->cfg[WEI];
     const int range = c.f_max - c.f_min + 1;
@@ -228,7 +230,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 }
 
 int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
-    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, mkldnn_x);
+    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, mkldnn_x, engine_ref);
 
     const auto &c = p->cfg[BIA];
     const int range = c.f_max - c.f_min + 1;
@@ -249,7 +251,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 }
 
 int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
-    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, mkldnn_nc);
+    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, mkldnn_nc, engine_ref);
 
     const auto &c = p->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
@@ -287,19 +289,24 @@ int doit(const prb_t *p, res_t *r) {
     auto &dst_dt_d = p->dir & FLAG_BWD ? ipd.diff_dst_desc: ipd.dst_desc;
 
     const auto fp = mkldnn_f32;
-    dnn_mem_t src_dt(src_dt_d, p->cfg[SRC].dt);
-    dnn_mem_t wei_dt(wei_dt_d, p->cfg[WEI].dt);
-    dnn_mem_t dst_dt(dst_dt_d, p->cfg[DST].dt);
+    dnn_mem_t src_dt(
+            src_dt_d, p->cfg[SRC].dt, mkldnn_format_tag_undef, engine_tgt);
+    dnn_mem_t wei_dt(
+            wei_dt_d, p->cfg[WEI].dt, mkldnn_format_tag_undef, engine_tgt);
+    dnn_mem_t dst_dt(
+            dst_dt_d, p->cfg[DST].dt, mkldnn_format_tag_undef, engine_tgt);
     dnn_mem_t bia_dt = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt) : dnn_mem_t();
+            ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
+            : dnn_mem_t();
 
     auto src_tag = is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw;
     auto wei_tag = is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw;
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag);
-    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag);
-    dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc);
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
+    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
+    dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc, engine_ref);
     dnn_mem_t bia_fp = p->dir & FLAG_BIA
-        ? dnn_mem_t(bia_dt_d, fp, mkldnn_x) : dnn_mem_t();
+            ? dnn_mem_t(bia_dt_d, fp, mkldnn_x, engine_ref)
+            : dnn_mem_t();
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
@@ -315,12 +322,10 @@ int doit(const prb_t *p, res_t *r) {
         if (p->dir & FLAG_BIA)
             args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
         args.set(MKLDNN_ARG_DST, dst_dt.m_);
-
-        DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
-
+        DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, mkldnn_nc);
+            dnn_mem_t dst(dst_dt, fp, mkldnn_nc, engine_ref);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }
     } else if (p->dir == BWD_D) {
@@ -328,11 +333,11 @@ int doit(const prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
         args.set(MKLDNN_ARG_DIFF_SRC, src_dt.m_);
 
-        DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
-            dnn_mem_t src(src_dt, fp, src_tag);
+            dnn_mem_t src(src_dt, fp, src_tag, engine_ref);
             SAFE(compare_dat(p, SRC, src, src_fp, r), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
@@ -342,14 +347,14 @@ int doit(const prb_t *p, res_t *r) {
         if (p->dir & FLAG_BIA)
             args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
 
-        DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t wei(wei_dt, fp, wei_tag);
+            dnn_mem_t wei(wei_dt, fp, wei_tag, engine_ref);
             if (compare_dat(p, WEI, wei, wei_fp, r) != OK) return FAIL;
             if (p->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, mkldnn_x);
+                dnn_mem_t bia(bia_dt, fp, mkldnn_x, engine_ref);
                 SAFE(compare_dat(p, BIA, bia, bia_fp, r), WARN);
             }
         }
@@ -359,7 +364,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            DNN_SAFE(mkldnn_primitive_execute(ip, stream, args.size(), args), WARN);
+            DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)

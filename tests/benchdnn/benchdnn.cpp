@@ -64,6 +64,8 @@ int main(int argc, char **argv) {
             verbose = atoi(argv[0] + 2);
         else if (!strncmp("--verbose=", argv[0], 10))
             verbose = atoi(argv[0] + 10);
+        else if (!strncmp("--engine=", argv[0], 9))
+            engine_tgt_kind = str2engine_kind(argv[0] + 9);
         else break;
 
         --argc;

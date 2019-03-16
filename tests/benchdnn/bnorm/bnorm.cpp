@@ -439,8 +439,6 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
     const int64_t nelems = data_dt.nelems(true);
-    const float *d = (const float *)data_dt;
-    const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
      * for the ref implementation) or as bits (e.g. for the jitted one); in
@@ -451,6 +449,8 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* more internal knowledge: data_dt and ws_dt are expected to have exactly
      * the same data layout, and data_dt padded regions are expected to be
      * zero, and the respective ws_dt elements should be set accordingly */
+    const float *d = (const float *)data_dt;
+    const uint8_t *ws = (const uint8_t *)ws_dt;
     for (int64_t i = 0; i < nelems; i += 8) {
         for (int64_t j = 0; j < MIN2(8, nelems - i); ++j) {
             const bool want = *d > 0;
@@ -512,10 +512,10 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
                     mkldnn_forward_training, &data_d, p->eps, flags), WARN);
         DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &bd_fwd, NULL,
-                    engine, NULL), WARN);
+                    engine_tgt, NULL), WARN);
     }
-    mkldnn_status_t init_status = mkldnn_primitive_desc_create(&bpd, &bd,
-            mkldnn_attr, engine, hint_fwd_pd);
+    mkldnn_status_t init_status = mkldnn_primitive_desc_create(
+            &bpd, &bd, mkldnn_attr, engine_tgt, hint_fwd_pd);
 
     mkldnn_primitive_desc_destroy(hint_fwd_pd);
     mkldnn_primitive_attr_destroy(mkldnn_attr);
@@ -552,13 +552,19 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
     dnn_mem_t data(is_bnorm_3d(p) ? 5 : 4,
-        is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->tag);
+            is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->tag,
+            engine_tgt);
     SAFE(data.reorder(mask_fp), WARN);
 
-    dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x);
-    dnn_mem_t var(1, &p->ic, mkldnn_f32, mkldnn_x);
+    dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x, engine_tgt);
+    dnn_mem_t var(1, &p->ic, mkldnn_f32, mkldnn_x, engine_tgt);
+
+    mean.map();
+    var.map();
     for (int64_t c = 0; c < p->ic; ++c) ((float *)mean)[c] = 0.5;
     for (int64_t c = 0; c < p->ic; ++c) ((float *)var)[c] = 1;
+    mean.unmap();
+    var.unmap();
 
     mkldnn_batch_normalization_desc_t bd;
     auto flags = (mkldnn_batch_normalization_flag_t)
@@ -567,7 +573,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
                 mkldnn_forward_training, &data.md_, 0, flags), WARN);
 
     mkldnn_primitive_desc_t bpd;
-    DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine, NULL),
+    DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine_tgt, NULL),
             WARN);
 
     mkldnn_primitive_t b{};
@@ -580,7 +586,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     args.set(MKLDNN_ARG_VARIANCE, var.m_);
     args.set(MKLDNN_ARG_DST, data.m_);
     args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
-    DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 
     return OK;
@@ -605,28 +611,28 @@ int doit(const prb_t *p, res_t *r) {
     const mkldnn_dims_t dims2d = {2, p->ic};
     const auto src_tag = is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
 
-    dnn_mem_t data_fp(data_dt_d, fp, src_tag),
-              data_dt(data_dt_d);
-    dnn_mem_t d_data_fp(data_dt_d, fp, src_tag),
-              d_data_dt(data_dt_d);
+    dnn_mem_t data_fp(data_dt_d, fp, src_tag, engine_ref),
+            data_dt(data_dt_d, engine_tgt);
+    dnn_mem_t d_data_fp(data_dt_d, fp, src_tag, engine_ref),
+            d_data_dt(data_dt_d, engine_tgt);
 
-    dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x),
-              mean_dt(mean_fp.md_);
-    dnn_mem_t var_fp(1, dims1d, fp, mkldnn_x),
-              var_dt(var_fp.md_);
+    dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x, engine_ref),
+            mean_dt(mean_fp.md_, engine_tgt);
+    dnn_mem_t var_fp(1, dims1d, fp, mkldnn_x, engine_ref),
+            var_dt(var_fp.md_, engine_tgt);
 
-    dnn_mem_t ss_fp(2, dims2d, fp, mkldnn_nc),
-              ss_dt(ss_fp.md_);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc),
-              d_ss_dt(d_ss_fp.md_);
+    dnn_mem_t ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
+            ss_dt(ss_fp.md_, engine_tgt);
+    dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
+            d_ss_dt(d_ss_fp.md_, engine_tgt);
 
-    dnn_mem_t ws_fp(data_fp.md_);
+    dnn_mem_t ws_fp(data_fp.md_, engine_ref);
     dnn_mem_t *p_ws_dt = NULL;
     if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md = mkldnn_primitive_desc_query_md(bpd,
                 mkldnn_query_workspace_md, 0);
         SAFE(ws_md != NULL ? OK : FAIL, WARN);
-        p_ws_dt = new dnn_mem_t(*ws_md);
+        p_ws_dt = new dnn_mem_t(*ws_md, engine_tgt);
     } else {
         p_ws_dt = new dnn_mem_t();
     }
@@ -663,18 +669,28 @@ int doit(const prb_t *p, res_t *r) {
         if (p->flags & FUSE_BN_RELU)
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
-        DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, data_fp, mean_fp, var_fp, ss_fp, data_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
+                mean_dt.map();
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
+                mean_dt.unmap();
+
+                var_dt.map();
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
+                var_dt.unmap();
             }
-            dnn_mem_t data(data_dt, fp, src_tag);
+            dnn_mem_t data(data_dt, fp, src_tag, engine_ref);
             SAFE(compare(p, DATA, data_fp, data, r, &ss_fp), WARN);
-            if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF))
+            if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
+                data_dt.map();
+                ws_dt.map();
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
+                data_dt.unmap();
+                ws_dt.unmap();
+            }
         }
     } else {
         if (prepare_bwd(p, data_fp, d_data_fp, mean_fp, var_fp, ss_fp, ws_fp)
@@ -705,15 +721,18 @@ int doit(const prb_t *p, res_t *r) {
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
         }
 
-        DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, data_fp, mean_fp, var_fp, d_data_fp, ss_fp,
                     ws_fp, d_data_fp, d_ss_fp);
-            if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI))
+            if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
+                d_ss_dt.map();
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
+                d_ss_dt.unmap();
+            }
             dnn_mem_t d_data(d_data_dt, fp,
-            is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw);
+                    is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw, engine_ref);
             SAFE(compare(p, DATA, d_data_fp, d_data, r), WARN);
         }
     }
@@ -722,7 +741,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            DNN_SAFE(mkldnn_primitive_execute(b, stream, args.size(), args), WARN);
+            DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
             t.stamp();
             const bool stop = false
                 || (fix_times_per_prb && t.times() >= fix_times_per_prb)
