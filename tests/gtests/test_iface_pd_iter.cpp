@@ -28,7 +28,8 @@ class pd_iter_test: public ::testing::Test {
 protected:
     mkldnn_engine_t engine;
     virtual void SetUp() {
-        EXPECT_EQ(mkldnn_engine_create(&engine, mkldnn_cpu, 0), ok);
+        auto engine_kind = static_cast<mkldnn_engine_kind_t>(get_test_engine_kind());
+        EXPECT_EQ(mkldnn_engine_create(&engine, engine_kind, 0), ok);
     }
     virtual void TearDown() {
         mkldnn_engine_destroy(engine);
@@ -65,7 +66,7 @@ TEST_F(pd_iter_test, TestReLUImpls) {
 }
 
 TEST(pd_next_impl, TestEltwiseImpl) {
-    auto eng = engine(engine::kind::cpu, 0);
+    auto eng = engine(get_test_engine_kind(), 0);
     memory::desc md({8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::nChw8c);
 
     eltwise_forward::desc ed(prop_kind::forward_training,

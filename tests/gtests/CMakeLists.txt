@@ -81,6 +81,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(TEST_FILE_WE ${TEST_FILE} NAME_WE)
     set(CURR_APP_NAME ${TEST_FILE_WE})
     register_exe(${CURR_APP_NAME} "${MAIN_SRC_GTEST};${TEST_FILE}" "test" "mkldnn_gtest")
+    target_compile_definitions(${CURR_APP_NAME} PUBLIC -DMKLDNN_TEST_WITH_ENGINE_PARAM)
 endforeach()
 
 add_subdirectory(api)

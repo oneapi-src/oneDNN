@@ -24,6 +24,7 @@
 #include <cmath>
 #include <sstream>
 #include <stdint.h>
+#include <type_traits>
 
 #include "gtest/gtest.h"
 
@@ -44,6 +45,8 @@
     } while (0)
 
 using memory = mkldnn::memory;
+
+mkldnn::engine::kind get_test_engine_kind();
 
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
@@ -95,11 +98,46 @@ template <typename data_t> struct acc_t { typedef data_t type; };
 template<> struct acc_t<int8_t> { typedef int type; };
 template<> struct acc_t<uint8_t> { typedef int type; };
 
+// Smart pointer for map/unmap operations with unique_ptr semantics
+template <typename T>
+struct mapped_ptr_t {
+    using nonconst_type = typename std::remove_cv<T>::type;
+
+    mapped_ptr_t(std::nullptr_t) : mem_(nullptr), ptr_(nullptr) {}
+    mapped_ptr_t(const memory *mem) : mem_(mem) {
+        ptr_ = mem->map_data<nonconst_type>();
+    }
+    mapped_ptr_t(mapped_ptr_t &&other) : mem_(other.mem_), ptr_(other.ptr_) {
+        other.mem_ = nullptr;
+        other.ptr_ = nullptr;
+    }
+
+    mapped_ptr_t(const mapped_ptr_t &) = delete;
+    mapped_ptr_t &operator=(const mapped_ptr_t &) = delete;
+
+    ~mapped_ptr_t() {
+        if (mem_ && ptr_)
+            mem_->unmap_data(ptr_);
+    };
+
+    operator T *() { return ptr_; }
+    operator const T *() const { return ptr_; }
+
+private:
+    const memory *mem_;
+    nonconst_type *ptr_;
+};
+
+template <typename T>
+mapped_ptr_t<T> map_memory(const memory &mem) {
+    return mapped_ptr_t<T>(&mem);
+}
+
 // check_zero_tail - check on zero or set to zero padded memory
 template <typename data_t>
-void check_zero_tail(int set_zero_flag, memory &src) {
+void check_zero_tail(int set_zero_flag, const memory &src) {
 
-    data_t *src_data = (data_t *)src.get_data_handle();
+    auto src_data = map_memory<data_t>(src);
 
     const memory::desc src_d = src.get_desc();
     const int ndims = src_d.data.ndims;
@@ -179,6 +217,14 @@ static void fill_data(const memory::dim size, data_t *data, data_t mean,
 }
 
 template <typename data_t>
+static void fill_data(const memory::dim size, const memory &mem, data_t mean,
+        data_t deviation, double sparsity = 1.)
+{
+    auto data_ptr = map_memory<data_t>(mem);
+    fill_data<data_t>(size, data_ptr, mean, deviation, sparsity);
+}
+
+template <typename data_t>
 static void fill_data(const memory::dim size, data_t *data,
         double sparsity = 1., bool init_negs = false)
 {
@@ -191,9 +237,16 @@ static void fill_data(const memory::dim size, data_t *data,
 }
 
 template <typename data_t>
-static void compare_data(memory& ref, memory& dst,
-        data_t threshold = (data_t)1e-4)
+static void fill_data(const memory::dim size, const memory &mem,
+        double sparsity = 1., bool init_negs = false)
 {
+    auto data_ptr = map_memory<data_t>(mem);
+    fill_data<data_t>(size, data_ptr, sparsity, init_negs);
+}
+
+template <typename data_t>
+static void compare_data(
+        const memory &ref, const memory &dst, data_t threshold = (data_t)1e-4) {
     using data_type = memory::data_type;
 
     ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
@@ -220,8 +273,8 @@ static void compare_data(memory& ref, memory& dst,
         num *= dims[d];
     }
 
-    data_t *ref_data = (data_t *)ref.get_data_handle();
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+    auto ref_data = map_memory<data_t>(ref);
+    auto dst_data = map_memory<data_t>(dst);
 
     mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
@@ -323,7 +376,6 @@ struct test_convolution_formats_t {
 };
 
 struct test_convolution_params_t {
-    const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
@@ -334,7 +386,6 @@ struct test_convolution_params_t {
 
 struct test_convolution_eltwise_params_t {
     const mkldnn::algorithm alg;
-    const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
     const float eltwise_alpha;
     const float eltwise_beta;
@@ -400,17 +451,28 @@ class test_memory {
 public:
     test_memory(const memory::desc &d, const mkldnn::engine &e) {
         size_ = d.get_size();
-        data_.reset(test_malloc(size_), test_free);
-        mem_.reset(new memory(d, e, data_.get()));
+        if (e.get_backend_kind() == mkldnn::backend_kind::native) {
+            data_.reset(test_malloc(size_), test_free);
+            mem_.reset(new memory(d, e, data_.get()));
+        } else {
+            mem_.reset(new memory(d, e));
+        }
     }
     size_t get_size() const { return size_; }
-    memory &get() { return *mem_; }
+    const memory &get() const { return *mem_; }
+
+    operator bool() const { return (bool)mem_; }
 
 private:
     std::shared_ptr<memory> mem_;
     std::shared_ptr<char> data_;
     size_t size_;
 };
+
+template <typename T>
+mapped_ptr_t<T> map_memory(const test_memory &mem) {
+    return mapped_ptr_t<T>(&mem.get());
+}
 
 inline std::string to_string(mkldnn_engine_kind_t engine_kind) {
     std::stringstream ss;

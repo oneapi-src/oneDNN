@@ -119,7 +119,6 @@ T logistic_bwd(T dd, T s) {
 
 template <typename data_t>
 struct eltwise_test_params {
-    engine::kind engine_kind;
     algorithm alg_kind;
     memory::format_tag data_format;
     memory::format_tag diff_format;
@@ -141,8 +140,8 @@ template <typename data_t>
 void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
         const memory::desc &md, const memory &src, const memory &dst)
 {
-    data_t *src_data = (data_t *)src.get_data_handle();
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+    auto src_data = map_memory<data_t>(src);
+    auto dst_data = map_memory<data_t>(dst);
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
@@ -171,8 +170,8 @@ template <typename data_t>
 void compare_eltwise_fwd(const eltwise_test_params<data_t> &p,
         const memory::desc &md, const memory &dst, const memory &ref_dst)
 {
-    data_t *ref_dst_data = (data_t *)ref_dst.get_data_handle();
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+    auto ref_dst_data = map_memory<data_t>(ref_dst);
+    auto dst_data = map_memory<data_t>(dst);
 
     ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
@@ -193,9 +192,9 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
         const memory::desc &md, const memory &src, const memory &diff_dst,
         const memory &diff_src)
 {
-    data_t *src_data = (data_t *)src.get_data_handle();
-    data_t *diff_dst_data = (data_t *)diff_dst.get_data_handle();
-    data_t *diff_src_data = (data_t *)diff_src.get_data_handle();
+    auto src_data = map_memory<data_t>(src);
+    auto diff_dst_data = map_memory<data_t>(diff_dst);
+    auto diff_src_data = map_memory<data_t>(diff_src);
 
     const memory::desc data_d = src.get_desc();
     const memory::desc diff_data_d = diff_src.get_desc();
@@ -259,8 +258,7 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<eltwise_test_params<data_t>>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        eng.reset(new engine(p.engine_kind, 0));
+        eng.reset(new engine(get_test_engine_kind(), 0));
         strm.reset(new stream(*eng));
 
         data_type = data_traits<data_t>::data_type;
@@ -282,7 +280,7 @@ protected:
         data_t data_median = data_t(0);
         data_t data_deviation
                 = p.alg_kind == eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(*data_desc), (data_t *)src->get_data_handle(),
+        fill_data<data_t>(n_elems(*data_desc), *src,
                 data_median, data_deviation);
         check_zero_tail<data_t>(1, *src);
 
@@ -309,7 +307,7 @@ protected:
         data_t data_deviation
                 = p.alg_kind == eltwise_elu ? data_t(1) : data_t(200);
         fill_data<data_t>(n_elems(*diff_data_desc),
-                (data_t *)diff_dst->get_data_handle(), data_median,
+                *diff_dst, data_median,
                 data_deviation);
         check_zero_tail<data_t>(1, *diff_dst);
 
@@ -340,10 +338,8 @@ TEST_P(eltwise_test_float, TestsEltwise)
 #define EXPAND_FORMATS(data) memory::format_tag::data
 #define EXPAND_DIMS(...) { __VA_ARGS__ }
 
-#define ENGINE engine::kind::cpu
-
 #define PARAMS(alg, data, diff_data, alpha, beta, ...) \
-    eltwise_test_params_float { ENGINE, algorithm::alg, \
+    eltwise_test_params_float { algorithm::alg, \
     EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
     alpha, beta, EXPAND_DIMS(__VA_ARGS__) }
 
@@ -361,10 +357,10 @@ TEST_P(eltwise_test_float, TestsEltwise)
     EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
-#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
 
-INST_TEST_CASE(SimpleZeroDim,
+CPU_INST_TEST_CASE(SimpleZeroDim,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 0, 4, 4, 4),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 0, 4, 2, 2, 2),
@@ -372,10 +368,10 @@ INST_TEST_CASE(SimpleZeroDim,
 );
 
 #define CASE_EF(alg, d0, d1, d2, d3) \
-        eltwise_test_params_float { ENGINE, algorithm::eltwise_##alg, \
+        eltwise_test_params_float { algorithm::eltwise_##alg, \
         EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), 0.f, 0.f, {d0, d1, d2, d3}, \
         true, mkldnn_invalid_arguments }
-INST_TEST_CASE(SimpleExpectedFails,
+CPU_INST_TEST_CASE(SimpleExpectedFails,
     CASE_EF(relu, -1, 2, 4, 4),
     CASE_EF(sqrt, -1, 2, 4, 4),
     CASE_EF(logistic, -1, 2, 4, 4),
@@ -384,7 +380,7 @@ INST_TEST_CASE(SimpleExpectedFails,
     CASE_EF(logistic, 1, -2, 4, 4)
 );
 
-INST_TEST_CASE(Simple_3D,
+CPU_INST_TEST_CASE(Simple_3D,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 8, 4, 4, 4),
     PARAMS_ALL_ALG(nCdhw8c, ncdhw, 0.1f, 0.f, 2, 16, 4, 4, 4),
     PARAMS_ALL_ALG(ncdhw, ncdhw, 0.1f, 0.f, 2, 16, 8, 8, 8),
@@ -393,14 +389,14 @@ INST_TEST_CASE(Simple_3D,
     PARAMS_ALL_ALG(ncdhw, ndhwc, 0.1f, 0.f, 10, 10, 10, 10, 10)
 );
 
-INST_TEST_CASE(Simple_blocked_3d_padded,
+CPU_INST_TEST_CASE(Simple_blocked_3d_padded,
     PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 15, 2, 2, 2),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 27, 2, 2, 2),
     PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 2, 2, 2),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 7, 7, 7)
 );
 
-INST_TEST_CASE(Simple_blocked_padded,
+CPU_INST_TEST_CASE(Simple_blocked_padded,
     PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 15, 2, 2),
     PARAMS_ALL_ALG_SDPART(nChw16c, nChw16c, 0.1f, 0.2f, 4, 27, 2, 2),
     PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 23, 2, 2),
@@ -411,14 +407,14 @@ INST_TEST_CASE(Simple_blocked_padded,
     PARAMS_ALL_ALG_SDPART(nChw8c, nChw8c, 0.1f, 0.2f, 4, 17, 7, 7)
 );
 
-INST_TEST_CASE(Simple_NCDHW,
+CPU_INST_TEST_CASE(Simple_NCDHW,
     PARAMS_ALL_ALG(ncdhw, ncdhw, 0.f, 0.f, 2, 32, 28, 28, 28),
     PARAMS_ALL_ALG(ncdhw, ncdhw, 1.f, 0.f, 2, 64, 13, 13, 13),
     PARAMS_ALL_ALG(ncdhw, ncdhw, 1.f, 1.f, 1, 64, 27, 27, 27),
     PARAMS_ALL_ALG(ncdhw, ncdhw, 0.f, 1.f, 1, 128, 11, 11, 11)
 );
 
-INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
+CPU_INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 16, 8, 8),
@@ -430,7 +426,7 @@ INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 3, 5, 7, 11)
 );
 
-INST_TEST_CASE(Simple_NCHW,
+CPU_INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
@@ -442,11 +438,11 @@ INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
 );
 
-INST_TEST_CASE(Simple_NCHW_SDPART,
+CPU_INST_TEST_CASE(Simple_NCHW_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16)
 );
 
-INST_TEST_CASE(Simple,
+CPU_INST_TEST_CASE(Simple,
     PARAMS_ALL_ALG(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
@@ -455,7 +451,7 @@ INST_TEST_CASE(Simple,
     PARAMS_ALL_ALG(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
 );
 
-INST_TEST_CASE(Simple_SDPART,
+CPU_INST_TEST_CASE(Simple_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nChw8c, 0.1f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG_SDPART(nChw8c, nchw, 0.1f, 0.f, 2, 16, 4, 4),
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
@@ -464,7 +460,7 @@ INST_TEST_CASE(Simple_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
 );
 
-INST_TEST_CASE(AlexNet_NCHW,
+CPU_INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13),
@@ -473,7 +469,7 @@ INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
 );
 
-INST_TEST_CASE(Simple_X,
+CPU_INST_TEST_CASE(Simple_X,
     PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55)
 );
 

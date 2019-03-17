@@ -35,10 +35,10 @@ TEST_P(convolution_test, TestConvolutionEltwise)
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)
 
-#define INST_TEST_CASE_(str, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE_(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, convolution_test, ::testing::Values(__VA_ARGS__))
 
-#define INST_TEST_CASE(str, ...) INST_TEST_CASE_( \
+#define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(CONCAT_WITH_UNDERSCORE(Convolution, \
         str), eltwise),  __VA_ARGS__)
 
@@ -60,38 +60,38 @@ TEST_P(convolution_test, TestConvolutionEltwise)
 #define ELTWISE_BETA 1.5f
 
 #define PARAMS_CONV(alg, src, weights, bias, dst, ...) \
-    test_convolution_eltwise_params_t {alg,  mkldnn::engine::kind::cpu, \
+    test_convolution_eltwise_params_t {alg, \
         mkldnn::convolution_direct, ELTWISE_ALPHA, ELTWISE_BETA, \
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__} }
 
-    INST_TEST_CASE(SimpleSmall,
+    CPU_INST_TEST_CASE(SimpleSmall,
         PARAMS(nchw, oihw, x, nchw, 2, 1, 32, 13, 13, 48, 11, 11, 3, 3, 0, 0, 1, 1),
         PARAMS(nchw, oihw, x, nchw, 2, 1, 16, 13, 13, 48, 13, 13, 1, 1, 0, 0, 1, 1),
         PARAMS(nchw, goihw, x, nchw, 2, 64, 64, 16, 16, 64, 16, 16, 3, 3, 0, 0, 1, 1),
         PARAMS(nchw, goihw, x, nchw, 2, 32, 32, 9, 9, 32, 9, 9, 1, 1, 0, 0, 1, 1)
     );
 
-    INST_TEST_CASE(SimpleSmall_Blocked,
+    CPU_INST_TEST_CASE(SimpleSmall_Blocked,
         PARAMS(nChw8c, Goihw8g, x, nChw8c, 1, 48, 48, 20, 20, 48, 20, 20, 3, 3, 1, 1, 1, 1),
         PARAMS(nChw8c, OIhw8i8o, x, nChw8c, 1, 1, 48, 20, 20, 48, 20, 20, 1, 1, 0, 0, 1, 1),
         PARAMS(nChw8c, OIhw8i8o, x, nChw8c, 1, 1, 48, 20, 20, 48, 20, 20, 3, 3, 0, 0, 1, 1)
     );
 
-    INST_TEST_CASE(SimpleSmall_Blocked_Tail,
+    CPU_INST_TEST_CASE(SimpleSmall_Blocked_Tail,
         PARAMS(nChw8c, Goihw8g, x, nChw8c, 1, 47, 47, 20, 20, 47, 20, 20, 3, 3, 1, 1, 1, 1),
         PARAMS(nChw8c, OIhw8i8o, x, nChw8c, 1, 1, 47, 20, 20, 47, 20, 20, 1, 1, 0, 0, 1, 1),
         PARAMS(nChw8c, OIhw8i8o, x, nChw8c, 1, 1, 47, 20, 20, 47, 20, 20, 3, 3, 0, 0, 1, 1)
     );
 
-    INST_TEST_CASE(SimpleSmall_Blocked16,
+    CPU_INST_TEST_CASE(SimpleSmall_Blocked16,
         PARAMS(nChw16c, Goihw16g, x, nChw16c, 1, 48, 48, 20, 20, 48, 20, 20, 3, 3, 1, 1, 1, 1),
         PARAMS(nChw16c, OIhw16i16o, x, nChw16c, 1, 1, 48, 20, 20, 48, 20, 20, 1, 1, 0, 0, 1, 1),
         PARAMS(nChw16c, OIhw16i16o, x, nChw16c, 1, 1, 48, 20, 20, 48, 20, 20, 3, 3, 0, 0, 1, 1),
         PARAMS(nChw16c, OIhw16i16o, x, nChw16c, 2, 1, 32, 32, 32, 32, 32, 32, 3, 3, 0, 0, 1, 1)
     );
 
-    INST_TEST_CASE(SimpleSmall_Blocked16_Tail,
+    CPU_INST_TEST_CASE(SimpleSmall_Blocked16_Tail,
         PARAMS(nChw16c, Goihw16g, x, nChw16c, 1, 47, 47, 20, 20, 47, 20, 20, 3, 3, 1, 1, 1, 1),
         PARAMS(nChw16c, OIhw16i16o, x, nChw16c, 1, 1, 47, 20, 20, 47, 20, 20, 1, 1, 0, 0, 1, 1),
         PARAMS(nChw16c, OIhw16i16o, x, nChw16c, 1, 1, 47, 20, 20, 47, 20, 20, 3, 3, 0, 0, 1, 1),

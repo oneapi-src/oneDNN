@@ -41,11 +41,11 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
         const memory &dst)
 {
     const bool w_bias = bias_d.data.ndims != 0;
-    data_t_src *src_data = (data_t_src *)src.get_data_handle();
-    data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
+    auto src_data = map_memory<data_t_src>(src);
+    auto weights_data = map_memory<data_t_wei>(weights);
 
-    data_t_dst *bias_data = w_bias ? (data_t_dst *)bias.get_data_handle() : nullptr;
-    data_t_dst *dst_data = (data_t_dst *)dst.get_data_handle();
+    auto bias_data = w_bias ? map_memory<data_t_dst>(bias) : nullptr;
+    auto dst_data = map_memory<data_t_dst>(dst);
 
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
@@ -118,9 +118,8 @@ protected:
 
     void Test() {
         auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
 
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;
@@ -153,18 +152,16 @@ protected:
         auto c_bias = test_memory(c_bias_desc, eng);
         auto c_dst = test_memory(c_dst_desc, eng);
 
-        std::vector<data_t_dst> ref_dst_data(c_dst.get_size());
-
         // Only true for dense format
         fill_data<data_t_dst>(c_dst.get_size() / sizeof(data_t_dst),
-                (data_t_dst *)c_dst.get().get_data_handle());
+                c_dst.get());
         fill_data<data_t_src>(c_src.get_size() / sizeof(data_t_src),
-                (data_t_src *)c_src.get().get_data_handle());
+                c_src.get());
         fill_data<data_t_wei>(c_weights.get_size() / sizeof(data_t_wei),
-                (data_t_wei *)c_weights.get().get_data_handle());
+                c_weights.get());
         if (with_bias) {
             fill_data<data_t_dst>(c_bias.get_size() / sizeof(data_t_dst),
-                    (data_t_dst *)c_bias.get().get_data_handle());
+                    c_bias.get());
         }
         check_zero_tail<data_t_src>(1, c_src.get());
         check_zero_tail<data_t_wei>(1, c_weights.get());
@@ -194,7 +191,7 @@ protected:
                 {MKLDNN_ARG_BIAS, c_bias.get()},
                 {MKLDNN_ARG_DST, c_dst.get()}});
 
-        auto ref_memory = memory(c_dst_desc, eng, &ref_dst_data[0]);
+        auto ref_memory = memory(c_dst_desc, eng);
         compute_ref_conv_fwd<data_t_src,data_t_wei,data_t_acc,data_t_dst>(
                 cd, attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                 c_src.get(), c_weights.get(), c_bias.get(), ref_memory);

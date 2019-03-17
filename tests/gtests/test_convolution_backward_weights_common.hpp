@@ -28,10 +28,8 @@ template <typename data_t_src, typename data_t_diff_dst,
 void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
         const memory &diff_dst, const memory &diff_bias)
 {
-    data_t_diff_bias *diff_bias_data
-        = (data_t_diff_bias *)diff_bias.get_data_handle();
-    data_t_diff_dst *diff_dst_data
-        = (data_t_diff_dst *)diff_dst.get_data_handle();
+    auto diff_bias_data = map_memory<data_t_diff_bias>(diff_bias);
+    auto diff_dst_data = map_memory<data_t_diff_dst>(diff_dst);
 
     const memory::desc bias_d = diff_bias.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
@@ -63,11 +61,9 @@ template <typename data_t_src, typename data_t_diff_dst,
 void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
         const memory &src, const memory &diff_dst, const memory &diff_weights)
 {
-    data_t_src *src_data = (data_t_src *)src.get_data_handle();
-    data_t_diff_weights *diff_weights_data
-        = (data_t_diff_weights *)diff_weights.get_data_handle();
-    data_t_diff_dst *diff_dst_data
-        = (data_t_diff_dst *)diff_dst.get_data_handle();
+    auto src_data = map_memory<data_t_src>(src);
+    auto diff_weights_data = map_memory<data_t_diff_weights>(diff_weights);
+    auto diff_dst_data = map_memory<data_t_diff_dst>(diff_dst);
 
     const memory::desc src_d = src.get_desc();
     const memory::desc weights_d = diff_weights.get_desc();
@@ -129,9 +125,8 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;
         memory::data_type data_type_diff_dst
@@ -169,12 +164,12 @@ protected:
         auto dst_primitive_desc_f = test_memory(c_dst_desc_f, eng);
         fill_data<data_t_diff_dst>(
             c_diff_dst.get_size() / sizeof(data_t_diff_dst),
-            (data_t_diff_dst *)c_diff_dst.get().get_data_handle());
+            c_diff_dst.get());
         fill_data<data_t_src>(c_src.get_size() / sizeof(data_t_src),
-            (data_t_src *)c_src.get().get_data_handle());
+            c_src.get());
         fill_data<data_t_diff_weights>(
             c_diff_weights.get_size() / sizeof(data_t_diff_weights),
-            (data_t_diff_weights *)c_diff_weights.get().get_data_handle());
+            c_diff_weights.get());
 
         check_zero_tail<data_t_diff_dst>(1, c_diff_dst.get());
         check_zero_tail<data_t_src>(1, c_src.get());

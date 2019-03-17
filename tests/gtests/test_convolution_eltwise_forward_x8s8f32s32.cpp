@@ -34,10 +34,10 @@ using convolution_test_s8s8s32f32 =
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)
 
-#define INST_TEST_CASE_(str, test, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE_(str, test, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, test, ::testing::Values(__VA_ARGS__))
 
-#define INST_TEST_CASE(str, test, ...) INST_TEST_CASE_( \
+#define CPU_INST_TEST_CASE(str, test, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(CONCAT_WITH_UNDERSCORE(Convolution, \
         str), eltwise), test,  __VA_ARGS__)
 
@@ -59,19 +59,19 @@ using convolution_test_s8s8s32f32 =
 #define ELTWISE_BETA 0.f
 
 #define PARAMS_CONV(alg, src, weights, bias, dst, ...) \
-    test_convolution_eltwise_params_t {alg,  mkldnn::engine::kind::cpu, \
+    test_convolution_eltwise_params_t {alg, \
         mkldnn::convolution_direct, ELTWISE_ALPHA, ELTWISE_BETA, \
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__} }
 
-#define INST_TEST_CASE_P(test) \
+#define CPU_INST_TEST_CASE_P(test) \
 TEST_P(test, TestConvolutionEltwise) {} \
-INST_TEST_CASE(SimpleSmall_Blocked16, test, \
+CPU_INST_TEST_CASE(SimpleSmall_Blocked16, test, \
 PARAMS(nhwc, OIhw4i16o4i, x, nhwc, 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1), \
 PARAMS(nhwc, Goihw16g, x, nhwc, 2, 32, 32, 13, 13, 32, 13, 13, 1, 1, 0, 0, 1, 1), \
 PARAMS(nhwc, OIhw4i16o4i, x, nhwc, 2, 1, 32, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 1) \
 );
 
-INST_TEST_CASE_P(convolution_test_s8s8s32f32);
-INST_TEST_CASE_P(convolution_test_u8s8s32f32);
+CPU_INST_TEST_CASE_P(convolution_test_s8s8s32f32);
+CPU_INST_TEST_CASE_P(convolution_test_u8s8s32f32);
 }

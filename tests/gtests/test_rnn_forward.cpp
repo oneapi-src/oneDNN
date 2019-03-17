@@ -47,7 +47,6 @@ struct test_rnn_formats_t {
 };
 
 struct test_rnn_params_t {
-    const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
     mkldnn::algorithm activation;
     mkldnn::rnn_direction direction;
@@ -70,8 +69,7 @@ protected:
 
     void Test() {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         //@todo check algorithm is one of the supported by RNN
         //ASSERT_EQ(p.aalgorithm, algorithm::vanilla_lstm);
@@ -166,7 +164,7 @@ protected:
         auto dst_iter_tgt = memory(dst_iter_md_tgt, eng);
 
         auto init_tensor = [&](memory a, memory b) {
-            auto a_ptr = static_cast<float *>(a.get_data_handle());
+            auto a_ptr = map_memory<float>(a);
             auto desc = a.get_desc();
             auto a_dims = desc.data.dims;
             auto a_ndims = desc.data.ndims;
@@ -223,23 +221,23 @@ protected:
     using cfg_f32 = test_rnn_params_t;
 
 TEST_P(rnn_forward_test_f32, TestsRnn) { }
-INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
+CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
         ::testing::Values(
-            cfg_f32{eng::cpu, alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)},
-            cfg_f32{eng::cpu, alg::vanilla_lstm, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{alg::vanilla_lstm, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)},
             /* Check for invalid parameters: unsupported unrolling */
-            cfg_f32{eng::cpu, alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 200, 100, 100, 100), true, mkldnn_invalid_arguments},
-            cfg_f32{eng::cpu, alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 100, 200, 100, 100), true, mkldnn_invalid_arguments},
             /* Check for invalid parameters: inconsistent dimensions */
-            cfg_f32{eng::cpu, alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 100, 100, 50, 100), true, mkldnn_invalid_arguments}
             )

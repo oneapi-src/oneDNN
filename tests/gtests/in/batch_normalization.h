@@ -23,11 +23,11 @@
     { memory::format_tag::data, memory::format_tag::diff }
 
 #define PARAMS(data, diff, mb, c, h, w, eps, ef, st) \
-    test_bnorm_params_t { ENGINE, EXPAND_FORMATS(data, diff), \
+    test_bnorm_params_t { EXPAND_FORMATS(data, diff), \
         EXPAND_SIZES_2D(mb, c, h, w), eps, 4, ef, st }
 
 #define PARAMS_3D(data, diff, mb, c, d, h, w, eps, ef, st) \
-    test_bnorm_params_t { ENGINE, EXPAND_FORMATS(data, diff), \
+    test_bnorm_params_t { EXPAND_FORMATS(data, diff), \
         EXPAND_SIZES_3D(mb, c, d, h, w), eps, 5, ef, st }
 
 #define PARAMS_N_3D(...) EXPAND_ARGS(PARAMS_3D(ncdhw, ncdhw, __VA_ARGS__, false, mkldnn_success))
@@ -40,33 +40,33 @@
 #define PARAMS_B16(...) EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__, false, mkldnn_success))
 #define PARAMS_EF(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
 
-INST_TEST_CASE(SimpleZeroDim,
+CPU_INST_TEST_CASE(SimpleZeroDim,
     PARAMS_N(0, 27, 9, 10, EPS),
     PARAMS_N(1, 0, 10, 9, EPS),
     PARAMS_N(4, 20, 0, 12, EPS)
 );
 
-INST_TEST_CASE(SimpleExpectedFails,
+CPU_INST_TEST_CASE(SimpleExpectedFails,
     PARAMS_EF(-1, 27, 9, 10, EPS, true, mkldnn_invalid_arguments),
     PARAMS_EF(1, -12, 10, 9, EPS, true, mkldnn_invalid_arguments),
     PARAMS_EF(4, 20, -12, 12, EPS, true, mkldnn_invalid_arguments)
 );
 
-INST_TEST_CASE(Simple_nChw16c_padded,
+CPU_INST_TEST_CASE(Simple_nChw16c_padded,
     PARAMS_B16(1, 27, 9, 10, EPS),
     PARAMS_B16(1, 12, 10, 9, EPS),
     PARAMS_B16(4, 20, 12, 12, EPS),
     PARAMS_B16(4, 9, 16, 16, EPS)
 );
 
-INST_TEST_CASE(Simple_nCdhw16c_padded,
+CPU_INST_TEST_CASE(Simple_nCdhw16c_padded,
     PARAMS_B16_3D(2, 12, 16, 8, 20, EPS),
     PARAMS_B16_3D(2, 9, 16, 8, 20, EPS),
     PARAMS_B16_3D(2, 23, 10, 8, 4, EPS),
     PARAMS_B16_3D(2, 27, 10, 8, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_nChw8c_padded,
+CPU_INST_TEST_CASE(Simple_nChw8c_padded,
     PARAMS_B8(1, 27, 9, 10, EPS),
     PARAMS_B8(1, 12, 10, 9, EPS),
     PARAMS_B8(4, 20, 12, 12, EPS),
@@ -74,7 +74,7 @@ INST_TEST_CASE(Simple_nChw8c_padded,
 );
 
 
-INST_TEST_CASE(Simple_nCdhw16c,
+CPU_INST_TEST_CASE(Simple_nCdhw16c,
     PARAMS_B16_3D(2, 32, 4, 4, 4, EPS),
     PARAMS_B16_3D(2, 32, 4, 4, 4, EPS),
     PARAMS_B16_3D(2, 32, 8, 8, 8, EPS),
@@ -85,7 +85,7 @@ INST_TEST_CASE(Simple_nCdhw16c,
     PARAMS_B16_3D(2, 32, 10, 8, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_nCdhw8c,
+CPU_INST_TEST_CASE(Simple_nCdhw8c,
     PARAMS_B8_3D(2, 32, 4, 4, 4, EPS),
     PARAMS_B8_3D(2, 32, 4, 4, 4, EPS),
     PARAMS_B8_3D(2, 32, 8, 8, 8, EPS),
@@ -96,35 +96,35 @@ INST_TEST_CASE(Simple_nCdhw8c,
     PARAMS_B8_3D(2, 32, 10, 8, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_NC,
+CPU_INST_TEST_CASE(Simple_NC,
     PARAMS_NC(2, 8, 1, 1, EPS),
     PARAMS_NC(2, 10, 1, 1, EPS),
     PARAMS_NC(2, 8, 1, 1, EPS),
     PARAMS_NC(2, 10, 1, 1, EPS)
 );
 
-INST_TEST_CASE(Simple_NCDHW,
+CPU_INST_TEST_CASE(Simple_NCDHW,
     PARAMS_N_3D(2, 8, 1, 1, 1, EPS),
     PARAMS_N_3D(2, 10, 1, 1, 1, EPS),
     PARAMS_N_3D(2, 8, 4, 4, 4, EPS),
     PARAMS_N_3D(2, 10, 4, 4, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_NCHW,
+CPU_INST_TEST_CASE(Simple_NCHW,
     PARAMS_N(2, 8, 1, 1, EPS),
     PARAMS_N(2, 10, 1, 1, EPS),
     PARAMS_N(2, 8, 4, 4, EPS),
     PARAMS_N(2, 10, 4, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_NHWC,
+CPU_INST_TEST_CASE(Simple_NHWC,
     PARAMS_NHWC(2, 8, 1, 1, EPS),
     PARAMS_NHWC(2, 10, 1, 1, EPS),
     PARAMS_NHWC(2, 8, 4, 4, EPS),
     PARAMS_NHWC(2, 10, 4, 4, EPS)
 );
 
-INST_TEST_CASE(Simple_Blocked,
+CPU_INST_TEST_CASE(Simple_Blocked,
     PARAMS_B8(2, 8, 1, 1, EPS),
     PARAMS_B8(2, 8, 4, 4, EPS),
     PARAMS_B8(2, 8, 6, 6, EPS),
@@ -146,7 +146,7 @@ INST_TEST_CASE(Simple_Blocked,
     PARAMS_B16(2, 16, 10, 8, EPS)
 );
 
-INST_TEST_CASE(GoogleNet_NCHW,
+CPU_INST_TEST_CASE(GoogleNet_NCHW,
     PARAMS_N(2, 64, 112, 112, EPS),
     PARAMS_N(2, 64, 56, 56, EPS),
     PARAMS_N(2, 192, 56, 56, EPS),
@@ -185,7 +185,7 @@ INST_TEST_CASE(GoogleNet_NCHW,
     PARAMS_N(2, 384, 7, 7, EPS)
 );
 
-INST_TEST_CASE(GoogleNet_Blocked_8,
+CPU_INST_TEST_CASE(GoogleNet_Blocked_8,
     PARAMS_B8(2, 64, 112, 112, EPS),
     PARAMS_B8(2, 64, 56, 56, EPS),
     PARAMS_B8(2, 192, 56, 56, EPS),
@@ -223,7 +223,7 @@ INST_TEST_CASE(GoogleNet_Blocked_8,
     PARAMS_B8(2, 384, 7, 7, EPS)
 );
 
-INST_TEST_CASE(GoogleNet_Blocked_16,
+CPU_INST_TEST_CASE(GoogleNet_Blocked_16,
     PARAMS_B16(2, 64, 112, 112, EPS),
     PARAMS_B16(2, 64, 56, 56, EPS),
     PARAMS_B16(2, 192, 56, 56, EPS),

@@ -22,7 +22,6 @@
     { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
     mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
-#define ENGINE mkldnn::engine::kind::cpu
 #define ALGORITHM mkldnn::convolution_direct
 
 #ifdef DIRECTION_FORWARD
@@ -73,23 +72,23 @@
 #define CONCAT_WITH_UNDERSCORE_(a,b) a ## _ ## b
 #define CONCAT_WITH_UNDERSCORE(a,b) CONCAT_WITH_UNDERSCORE_(a,b)
 
-#define INST_TEST_CASE_(str, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE_(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, convolution_test, ::testing::Values(__VA_ARGS__))
-#define INST_TEST_CASE(str, ...) INST_TEST_CASE_( \
+#define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(TEST_CASE_NAME_PREFIX, str), __VA_ARGS__)
 
 #define PARAMS(src, weights, bias, dst, ...) \
-    test_convolution_params_t { ENGINE, ALGORITHM, \
+    test_convolution_params_t { ALGORITHM, \
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__} }
 
 #define PARAMS_EXPECT_FAIL(src, weights, bias, dst, code, ...) \
-    test_convolution_params_t { ENGINE, ALGORITHM, \
+    test_convolution_params_t { ALGORITHM, \
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__}, true, code }
 
 #define PARAMS_ATTR(src, weights, bias, dst, scale, policy, ...) \
-    test_convolution_params_t { ENGINE, ALGORITHM, \
+    test_convolution_params_t { ALGORITHM, \
     EXPAND_FORMATS(src, weights, bias, dst), \
     {scale, test_convolution_attr_t::scale_t::policy}, \
     {__VA_ARGS__} }

@@ -26,7 +26,6 @@ using tag = memory::format_tag;
 enum class data_fmt_t { flat, blocked_cX };
 
 struct conv_any_fmt_test_params {
-    const engine::kind engine_kind;
     prop_kind aprop_kind;
     algorithm aalgorithm;
     data_fmt_t expected_src_fmt;
@@ -47,10 +46,9 @@ protected:
 
         auto p = ::testing::TestWithParam<conv_any_fmt_test_params>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -100,13 +98,13 @@ using conv_any_fmt_test_float = convolution_any_fmt_test<float>;
 
 TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 
-#define CPARAMS engine::kind::cpu, prop_kind::forward, algorithm::convolution_direct
+#define CPARAMS prop_kind::forward, algorithm::convolution_direct
 
 #define FLT data_fmt_t::flat
 #define BLK data_fmt_t::blocked_cX
 
 using tf32 = conv_any_fmt_test_params;
-INSTANTIATE_TEST_SUITE_P(
+CPU_INSTANTIATE_TEST_SUITE_P(
     TestConvolutionAlexnetAnyFmtForwardxlocked, conv_any_fmt_test_float,
     ::testing::Values(
         tf32{CPARAMS, FLT, BLK, {2, 1,   3, 227, 227,  96, 55, 55, 11, 11, 0, 0, 4, 4 } },

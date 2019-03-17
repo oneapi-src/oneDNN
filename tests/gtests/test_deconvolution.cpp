@@ -22,7 +22,6 @@
 namespace mkldnn {
 using fmt = memory::format_tag;
 struct deconvolution_test_params {
-    const mkldnn::engine::kind engine_kind;
     mkldnn::algorithm aalgorithm;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
@@ -32,9 +31,9 @@ struct deconvolution_test_params {
 };
 template <typename data_t>
 void compute_bias_fwd(const test_convolution_sizes_t &c,
-    mkldnn::memory& dst, mkldnn::memory& bias) {
-    data_t *bias_data = (data_t *)bias.get_data_handle();
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+        const mkldnn::memory &dst, const mkldnn::memory &bias) {
+    auto bias_data = map_memory<data_t>(bias);
+    auto dst_data = map_memory<data_t>(dst);
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
@@ -55,9 +54,9 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
 
 template <typename data_t>
 void compute_bias_bwd(const test_convolution_sizes_t &c,
-    mkldnn::memory& dst, mkldnn::memory& bias) {
-    data_t *bias_data = (data_t *)bias.get_data_handle();
-    data_t *dst_data = (data_t *)dst.get_data_handle();
+        const mkldnn::memory &dst, const mkldnn::memory &bias) {
+    auto bias_data = map_memory<data_t>(bias);
+    auto dst_data = map_memory<data_t>(dst);
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
@@ -83,12 +82,12 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
 
 template <typename data_t>
 void transpose_wei(const test_convolution_sizes_t &c,
-    mkldnn::memory& weights, mkldnn::memory& weights_tr) {
+        const mkldnn::memory &weights, const mkldnn::memory &weights_tr) {
 
-    data_t *weights_data = (data_t *)weights.get_data_handle();
+    auto weights_data = map_memory<data_t>(weights);
     const memory::desc weights_d = weights.get_desc();
     const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    data_t *weights_tr_data = (data_t *)weights_tr.get_data_handle();
+    auto weights_tr_data = map_memory<data_t>(weights_tr);
     const memory::desc weights_tr_d = weights_tr.get_desc();
     const mkldnn::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.data);
 
@@ -140,8 +139,7 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        eng.reset(new engine(p.engine_kind, 0));
+        eng.reset(new engine(get_test_engine_kind(), 0));
         strm.reset(new stream(*eng));
 
         ASSERT_EQ(p.aalgorithm, algorithm::deconvolution_direct);
@@ -203,13 +201,13 @@ protected:
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
-            (data_t *)src->get().get_data_handle());
+            src->get());
 
         fill_data<data_t>(weights->get_size() / sizeof(data_t),
-                (data_t *)weights->get().get_data_handle());
+                weights->get());
         if (with_bias) {
             fill_data<data_t>(bias->get_size() / sizeof(data_t),
-                    (data_t *)bias->get().get_data_handle());
+                    bias->get());
         }
 
         auto weights_tr = memory(*con_weights_desc, *eng);
@@ -269,10 +267,10 @@ protected:
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(weights->get_size() / sizeof(data_t),
-            (data_t *)weights->get().get_data_handle());
+            weights->get());
 
         fill_data<data_t>(dst->get_size() / sizeof(data_t),
-                (data_t *)dst->get().get_data_handle());
+                dst->get());
 
         auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
@@ -325,10 +323,10 @@ protected:
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
-            (data_t *)src->get().get_data_handle());
+            src->get());
 
         fill_data<data_t>(dst->get_size() / sizeof(data_t),
-                (data_t *)dst->get().get_data_handle());
+                dst->get());
 
         auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_training,
                 algorithm::deconvolution_direct, *dec_src_desc,
@@ -401,22 +399,21 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
     { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
     mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
-#define ENGINE engine::kind::cpu
 #define ALGORITHM mkldnn::deconvolution_direct
 
 #define PARAMS(src, weights, bias, dst, ...) \
-        deconvolution_test_params { ENGINE, ALGORITHM, \
+        deconvolution_test_params { ALGORITHM, \
             EXPAND_FORMATS(src, weights, bias, dst), {}, \
                 {__VA_ARGS__} }
 
-#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, deconvolution_test_float, ::testing::Values(__VA_ARGS__))
 
 #define FMT_BIAS x
 #define FMT_DATA_BLOCKED nChw8c
 #define FMT_WEIGHTS_BLOCKED Ohwi8o
 
-INST_TEST_CASE(SimpleSmall_NCHW,
+CPU_INST_TEST_CASE(SimpleSmall_NCHW,
     PARAMS(nchw, oihw, x, nchw,
         2, 1, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
     PARAMS(nchw, oihw, x, nchw,
@@ -434,7 +431,7 @@ INST_TEST_CASE(SimpleSmall_NCHW,
 
 );
 
-INST_TEST_CASE(SimpleSmall_Blocked,
+CPU_INST_TEST_CASE(SimpleSmall_Blocked,
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 32, 12, 12, 32, 13, 13, 3, 3, 0, 0, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,

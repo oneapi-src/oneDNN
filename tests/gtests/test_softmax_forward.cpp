@@ -24,7 +24,7 @@ namespace mkldnn {
 template <typename data_t>
 void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
 {
-    data_t *dst_ptr = (data_t *)dst.get_data_handle();
+    auto dst_ptr = map_memory<data_t>(dst);
 
     const memory::desc dst_pd = dst.get_desc();
     const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
@@ -129,7 +129,6 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
 template <typename data_t>
 struct softmax_test_params {
     prop_kind aprop_kind;
-    engine::kind engine_kind;
     memory::format_tag memory_format;
     memory::dims dims;
     int axis;
@@ -148,11 +147,10 @@ protected:
     }
 
     void Test() {
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                     || p.aprop_kind == prop_kind::forward_scoring
                     || p.aprop_kind == prop_kind::forward_inference);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
 
         memory::data_type prec = data_traits<data_t>::data_type;
@@ -170,7 +168,7 @@ protected:
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(mem_desc.get_size() / sizeof(data_t),
-                    (data_t *)src.get_data_handle(), mean, var);
+                    src, mean, var);
             check_zero_tail<data_t>(1, src);
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
@@ -189,42 +187,42 @@ using softmax_forward_test_float = softmax_test<float>;
 using softmax_fwd_test_params_float = softmax_test_params<float>;
 
 TEST_P(softmax_forward_test_float, TestsSoftmax) { }
-INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
+CPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
         ::testing::Values(
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, -2, 128, 256}, 0,
+            memory::format_tag::nchw, {2, -2, 128, 256}, 0,
             true, mkldnn_invalid_arguments},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 2, 128, 256}, 5,
+            memory::format_tag::nchw, {2, 2, 128, 256}, 5,
             true, mkldnn_invalid_arguments},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 0, 5, 5}, 0},
+            memory::format_tag::nchw, {2, 0, 5, 5}, 0},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 0, 5, 5}, 1},
+            memory::format_tag::nchw, {2, 0, 5, 5}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 19, 128, 256}, 0},
+            memory::format_tag::nchw, {2, 19, 128, 256}, 0},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 19, 128, 256}, 1},
+            memory::format_tag::nchw, {2, 19, 128, 256}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 19, 128, 256}, 2},
+            memory::format_tag::nchw, {2, 19, 128, 256}, 2},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {1, 8, 1024, 16}, 2},
+            memory::format_tag::nchw, {1, 8, 1024, 16}, 2},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {2, 19, 128, 256}, 3},
+            memory::format_tag::nchw, {2, 19, 128, 256}, 3},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nc, {2, 1000}, 0},
+            memory::format_tag::nc, {2, 1000}, 0},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nc, {2, 1000}, 1},
+            memory::format_tag::nc, {2, 1000}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nc, {1, 256}, 1},
+            memory::format_tag::nc, {1, 256}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nc, {1, 13}, 1},
+            memory::format_tag::nc, {1, 13}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nchw, {64, 1011, 1, 1}, 1},
+            memory::format_tag::nchw, {64, 1011, 1, 1}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nhwc, {64, 1011, 1, 1}, 1},
+            memory::format_tag::nhwc, {64, 1011, 1, 1}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nChw8c, {64, 1011, 1, 1}, 1},
+            memory::format_tag::nChw8c, {64, 1011, 1, 1}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
-            engine::kind::cpu, memory::format_tag::nChw8c, {2, 1000, 32, 1}, 2}));
+            memory::format_tag::nChw8c, {2, 1000, 32, 1}, 2}));
 }

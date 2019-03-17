@@ -45,15 +45,15 @@ protected:
         memory_test_params p
             = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        auto e = engine(engine::kind::cpu, 0);
+        auto e = engine(get_test_engine_kind(), 0);
 
         mkldnn::memory mem0({p.dims, memory::data_type::f32, p.fmt_tag}, e);
-        data_t *mem0_ptr = (data_t *)mem0.get_data_handle();
+        auto mem0_ptr = map_memory<data_t>(mem0);
         memory::dim phys_size = mem0.get_desc().get_size() / sizeof(data_t);
         fill_data<data_t>(phys_size, mem0_ptr);
 
         std::vector<data_t> mem1_vec(phys_size);
-        mem1_vec.assign(mem0_ptr, mem0_ptr + phys_size);
+        mem1_vec.assign((data_t *)mem0_ptr, (data_t *)mem0_ptr + phys_size);
 
         mkldnn::memory mem1({p.dims, memory::data_type::f32, p.fmt_tag}, e,
                 &mem1_vec[0]);
@@ -69,7 +69,7 @@ protected:
 using fmt = memory::format_tag;
 
 TEST_P(memory_test, TestsMemory) { }
-INSTANTIATE_TEST_SUITE_P(TestMemory, memory_test,
+CPU_INSTANTIATE_TEST_SUITE_P(TestMemory, memory_test,
         ::testing::Values(
             memory_test_params{{2, 0, 1, 1}, fmt::nChw16c},
             memory_test_params{{2, 15, 3, 2}, fmt::nChw16c},

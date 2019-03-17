@@ -29,9 +29,9 @@ template <typename data_t_diff_dst, typename data_t_wei,
 void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
         const memory &diff_src, const memory &weights, const memory &diff_dst)
 {
-    data_t_diff_dst *diff_dst_data = (data_t_diff_dst *)diff_dst.get_data_handle();
-    data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
-    data_t_diff_src *diff_src_data = (data_t_diff_src *)diff_src.get_data_handle();
+    auto diff_dst_data = map_memory<data_t_diff_dst>(diff_dst);
+    auto weights_data = map_memory<data_t_wei>(weights);
+    auto diff_src_data = map_memory<data_t_diff_src>(diff_src);
 
     const memory::desc diff_src_d = diff_src.get_desc();
     const memory::desc weights_d = weights.get_desc();
@@ -97,9 +97,8 @@ protected:
 
     void Test() {
         auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
-        auto eng =  engine(p.engine_kind, 0);
+        auto eng =  engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         auto data_type_diff_src = data_traits<data_t_diff_src>::data_type;
         auto data_type_diff_dst = data_traits<data_t_diff_dst>::data_type;
@@ -132,13 +131,13 @@ protected:
 
         // Only true for dense format
         fill_data<data_t_wei>(c_weights.get_size() / sizeof(data_t_wei),
-                (data_t_wei *)c_weights.get().get_data_handle());
+                c_weights.get());
         fill_data<data_t_diff_dst>(
                 c_diff_dst.get_size() / sizeof(data_t_diff_dst),
-                (data_t_diff_dst *)c_diff_dst.get().get_data_handle());
+                c_diff_dst.get());
         fill_data<data_t_diff_src>(
                 c_diff_src.get_size() / sizeof(data_t_diff_src),
-                (data_t_diff_src *)c_diff_src.get().get_data_handle());
+                c_diff_src.get());
         check_zero_tail<data_t_diff_dst>(1, c_diff_dst.get());
         check_zero_tail<data_t_wei>(1, c_weights.get());
         check_zero_tail<data_t_diff_src>(1, c_diff_src.get());

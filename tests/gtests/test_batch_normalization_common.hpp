@@ -21,8 +21,7 @@
 
 #include "mkldnn.hpp"
 
-#define ENGINE engine::kind::cpu
-#define INST_TEST_CASE(str, ...) INSTANTIATE_TEST_SUITE_P( \
+#define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, bnorm_test, ::testing::Values(__VA_ARGS__));
 
 namespace mkldnn {
@@ -37,7 +36,6 @@ struct test_bnorm_format_tags_t {
 };
 
 struct test_bnorm_params_t {
-    mkldnn::engine::kind engine_kind;
     test_bnorm_format_tags_t tags;
     test_bnorm_sizes_t sizes;
     float epsilon;
@@ -46,10 +44,10 @@ struct test_bnorm_params_t {
     mkldnn_status_t expected_status;
 };
 
-template <typename T> void fill(memory &m) {
+template <typename T>
+void fill(const memory &m) {
     auto numElements = m.get_desc().get_size() / sizeof(T);
-    T *dataPtr = reinterpret_cast<T *>(m.get_data_handle());
-    fill_data<T>(numElements, dataPtr);
+    fill_data<T>(numElements, m);
 }
 
 template <typename data_t>
@@ -82,8 +80,7 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
-        eng.reset(new engine(p.engine_kind, 0));
+        eng.reset(new engine(get_test_engine_kind(), 0));
         strm.reset(new stream(*eng));
 
         memory::data_type data_type = data_traits<data_t>::data_type;
@@ -266,14 +263,16 @@ protected:
         const bool calculate_stats = !(flags & use_global_stats);
         const bool is_training = pk == prop_kind::forward_training;
 
-        const data_t *src_data = (const data_t *)src.get_data_handle();
-        const data_t *dst_data = (const data_t *)dst.get_data_handle();
-        const float *weights_data = use_weights ?
-                (const float *)weights.get_data_handle() : nullptr;
-        const float *mean_data = (!calculate_stats || is_training) ?
-                (const float *)mean.get_data_handle() : nullptr;
-        const float *variance_data = (!calculate_stats || is_training) ?
-                (const float *)variance.get_data_handle() : nullptr;
+        auto src_data = map_memory<const data_t>(src);
+        auto dst_data = map_memory<const data_t>(dst);
+        auto weights_data
+                = use_weights ? map_memory<const float>(weights) : nullptr;
+        auto mean_data = (!calculate_stats || is_training)
+                ? map_memory<const float>(mean)
+                : nullptr;
+        auto variance_data = (!calculate_stats || is_training)
+                ? map_memory<const float>(variance)
+                : nullptr;
 
         const memory::desc src_d = src.get_desc();
         const memory::desc dst_d = dst.get_desc();
@@ -376,17 +375,16 @@ protected:
         const bool use_weights = flags & use_scale_shift;
         const bool calculate_diff_stats = !(flags & use_global_stats);
 
-        const float *src_data = (const float *)src.get_data_handle();
-        const float *weights_data = use_weights ?
-            (const float *)weights.get_data_handle() : nullptr;
-        const float *diff_dst_data =
-            (const float *)diff_dst.get_data_handle();
-        const float *mean_data = (const float *)mean.get_data_handle();
-        const float *variance_data =
-            (const float *)variance.get_data_handle();
-        const float *diff_src_data = (float *)diff_src.get_data_handle();
-        const float *diff_weights_data = (pk == prop_kind::backward) ?
-            (float *)diff_weights.get_data_handle() : nullptr;
+        auto src_data = map_memory<const float>(src);
+        auto weights_data
+                = use_weights ? map_memory<const float>(weights) : nullptr;
+        auto diff_dst_data = map_memory<const float>(diff_dst);
+        auto mean_data = map_memory<const float>(mean);
+        auto variance_data = map_memory<const float>(variance);
+        const auto diff_src_data = map_memory<float>(diff_src);
+        const auto diff_weights_data = (pk == prop_kind::backward)
+                ? map_memory<float>(diff_weights)
+                : nullptr;
 
         const memory::desc src_d = src.get_desc();
         const memory::desc diff_dst_d = diff_dst.get_desc();

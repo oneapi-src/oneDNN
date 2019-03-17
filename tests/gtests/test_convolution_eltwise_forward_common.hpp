@@ -30,11 +30,10 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
         const memory &dst, bool w_bias, algorithm elt_alg,
         float elt_alpha, float elt_beta)
 {
-    data_t_src *src_data = (data_t_src *)src.get_data_handle();
-    data_t_wei *weights_data = (data_t_wei *)weights.get_data_handle();
-    data_t_dst *bias_data
-            = (data_t_dst *)(w_bias ? bias.get_data_handle() : nullptr);
-    data_t_dst *dst_data = (data_t_dst *)dst.get_data_handle();
+    auto src_data = map_memory<data_t_src>(src);
+    auto weights_data = map_memory<data_t_wei>(weights);
+    auto bias_data = w_bias ? map_memory<data_t_dst>(bias) : nullptr;
+    auto dst_data = map_memory<data_t_dst>(dst);
 
     const memory::desc src_d = src.get_desc();
     const memory::desc weights_d = weights.get_desc();
@@ -107,9 +106,8 @@ protected:
                 = ::testing::TestWithParam<
                 test_convolution_eltwise_params_t>::GetParam();
 
-        ASSERT_TRUE(p.engine_kind == engine::kind::cpu);
         ASSERT_EQ(p.aalgorithm, convolution_direct);
-        auto eng = engine(p.engine_kind, 0);
+        auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         float eltwise_alpha = p.eltwise_alpha;
         float eltwise_beta = p.eltwise_beta;
@@ -137,13 +135,13 @@ protected:
         auto dst_ref = memory(c_dst_desc, eng);
 
         fill_data<data_t_src>(c_src.get_desc().get_size()
-                / sizeof(data_t_src), (data_t_src *)c_src.get_data_handle(),
+                / sizeof(data_t_src), c_src,
                 data_t_src(0), data_t_src(1));
         check_zero_tail<data_t_src>(1, c_src);
 
         fill_data<data_t_wei>(
                 c_weights.get_desc().get_size()
-                / sizeof(data_t_wei),(data_t_wei *)c_weights.get_data_handle(),
+                / sizeof(data_t_wei),c_weights,
                 data_t_wei(0), data_t_wei(1));
         check_zero_tail<data_t_wei>(1, c_weights);
 
@@ -155,7 +153,7 @@ protected:
         if (with_bias) {
             fill_data<data_t_dst>(
                     c_bias.get_desc().get_size() / sizeof(data_t_dst),
-                    (data_t_dst *)c_bias.get_data_handle(), 1., true);
+                    c_bias, 1., true);
         }
 
         memory::dims padR = { cd.padh, cd.padw };
