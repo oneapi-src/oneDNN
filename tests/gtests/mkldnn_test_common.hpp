@@ -31,6 +31,7 @@
 #endif
 
 #include "mkldnn.hpp"
+#include "mkldnn_test_macros.hpp"
 
 #include "src/common/mkldnn_thread.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
@@ -66,7 +67,7 @@ inline int mxcsr_round(float f) { return (int)nearbyintf(f); }
 template <typename data_t>
 data_t out_round(float x) { return (data_t)mxcsr_round(x); }
 template <>
-float out_round<float>(float x) { return x; }
+inline float out_round<float>(float x) { return x; }
 
 template <typename data_t, typename out_t>
 out_t saturate(const out_t &x) {
@@ -236,7 +237,8 @@ inline const char *query_impl_info(const_mkldnn_primitive_desc_t pd) {
     return str;
 };
 
-mkldnn_status_t get_conv_impl_status(const_mkldnn_primitive_desc_t pd, const char *match_str){
+inline mkldnn_status_t get_conv_impl_status(
+        const_mkldnn_primitive_desc_t pd, const char *match_str) {
     const char* conv_str = query_impl_info(pd);
 
     if( strstr(conv_str, match_str) != NULL)
@@ -364,7 +366,7 @@ template<typename F> bool catch_expected_failures(const F &f,
 }
 
 #define TEST_MALLOC_OFFSET 8
-char *test_malloc(size_t size) {
+static char *test_malloc(size_t size) {
     void *ptr;
     const size_t align = 64;
     const size_t padded_size = TEST_MALLOC_OFFSET + size;
@@ -377,7 +379,7 @@ char *test_malloc(size_t size) {
     return rc == 0 ? (char*)ptr + TEST_MALLOC_OFFSET: 0;
 }
 
-void test_free(char *ptr) {
+static void test_free(char *ptr) {
     char *base_ptr = ptr - TEST_MALLOC_OFFSET;
 #ifdef _WIN32
     _aligned_free(base_ptr);
