@@ -49,6 +49,11 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
             mkldnn::impl::memory_storage_t **storage, void *handle)
             = 0;
 
+    /** create stream */
+    virtual mkldnn::impl::status_t create_stream(
+            mkldnn::impl::stream_t **stream, unsigned flags)
+            = 0;
+
     /** implementation section (typedefs) */
 
     // TODO: remove engine?

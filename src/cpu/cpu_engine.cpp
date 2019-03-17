@@ -21,6 +21,7 @@
 
 #include "cpu_engine.hpp"
 #include "cpu_memory_storage.hpp"
+#include "cpu_stream.hpp"
 #include "memory.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
@@ -79,6 +80,10 @@ status_t cpu_engine_t::create_memory_storage(
         memory_storage_t **storage, void *handle) {
     return safe_ptr_assign<memory_storage_t>(
             *storage, new cpu_memory_storage_t(this, handle));
+}
+
+status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
+    return safe_ptr_assign<stream_t>(*stream, new cpu_stream_t(this, flags));
 }
 
 using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;

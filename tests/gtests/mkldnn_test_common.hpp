@@ -22,6 +22,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cmath>
+#include <sstream>
 #include <stdint.h>
 
 #include "gtest/gtest.h"
@@ -35,6 +36,12 @@
 
 #include "src/common/mkldnn_thread.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
+
+#define MKLDNN_CHECK(f)               \
+    do {                              \
+        mkldnn_status_t s = (f);      \
+        EXPECT_EQ(s, mkldnn_success); \
+    } while (0)
 
 using memory = mkldnn::memory;
 
@@ -404,5 +411,15 @@ private:
     std::shared_ptr<char> data_;
     size_t size_;
 };
+
+inline std::string to_string(mkldnn_engine_kind_t engine_kind) {
+    std::stringstream ss;
+    if (engine_kind == mkldnn_cpu)
+        ss << "cpu";
+    else
+        ss << "unknown";
+
+    return ss.str();
+}
 
 #endif

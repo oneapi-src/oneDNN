@@ -34,6 +34,9 @@ struct mkldnn_stream: public mkldnn::impl::c_compatible {
     /** returns stream's kind */
     unsigned flags() const { return flags_; }
 
+    /** blocks until all submitted primitives to the stream are completed */
+    virtual mkldnn::impl::status_t wait() = 0;
+
 protected:
     mkldnn::impl::engine_t *engine_;
     unsigned flags_;

@@ -17,7 +17,7 @@
 add_subdirectory (gtest)
 
 set(APP_NAME "gtest")
-set(MAIN_SRC_GTEST main.cpp)
+set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/gtest
@@ -74,5 +74,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     set(CURR_APP_NAME ${TEST_FILE_WE})
     register_exe(${CURR_APP_NAME} "${MAIN_SRC_GTEST};${TEST_FILE}" "test" "mkldnn_gtest")
 endforeach()
+
+add_subdirectory(api)
 
 # vim: et ts=4 sw=4

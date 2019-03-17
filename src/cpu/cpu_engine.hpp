@@ -39,6 +39,8 @@ public:
     virtual status_t create_memory_storage(
             memory_storage_t **storage, void *handle) override;
 
+    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
+
     virtual const concat_primitive_desc_create_f*
         get_concat_implementation_list() const override;
     virtual const reorder_primitive_desc_create_f*

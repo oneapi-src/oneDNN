@@ -1675,6 +1675,9 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
         mkldnn_engine_t engine, unsigned flags);
 
+/** Waits for all primitives in the execution @p stream to finish. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream);
+
 /** Destroys an execution @p stream. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_destroy(mkldnn_stream_t stream);
 

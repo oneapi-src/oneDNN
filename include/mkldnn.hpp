@@ -56,6 +56,8 @@ template <typename T> class handle_traits {};
 ///    object deletes the handle (this model is similar to @p std::weak_ptr).
 template <typename T, typename traits=handle_traits<T>> class handle {
 private:
+    static mkldnn_status_t dummy_destructor(T){ return mkldnn_success; }
+
     std::shared_ptr<typename std::remove_pointer<T>::type> _data;
     handle(const handle &&) = delete;
     handle &operator=(const handle &&other) = delete;
@@ -79,8 +81,7 @@ public:
     /// @param t The new value of the C handle.
     /// @param weak A flag to specify whether the wrapper should be weak.
     void reset(T t, bool weak = false) {
-        auto dummy_destructor = [](T) { return decltype(traits::destructor(0))(0); };
-        _data.reset(t, weak ? dummy_destructor : traits::destructor);
+        _data.reset(t, weak ? &dummy_destructor : traits::destructor);
     }
 
     /// Returns the value of the underlying C handle.
@@ -585,6 +586,13 @@ struct stream: public handle<mkldnn_stream_t> {
         error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(), flags),
                 "could not create a stream");
         reset(astream);
+    }
+
+    /// Waits for all primitives in the stream to finish.
+    stream &wait() {
+        error::wrap_c_api(mkldnn_stream_wait(get()),
+               "could not wait a stream");
+        return *this;
     }
 };
 

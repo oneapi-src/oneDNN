@@ -24,6 +24,7 @@
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
+using namespace mkldnn::impl::utils;
 
 /* API */
 
@@ -35,7 +36,15 @@ status_t mkldnn_stream_create(stream_t **stream, engine_t *engine,
     if (!args_ok)
         return invalid_arguments;
 
-    return safe_ptr_assign<stream_t>(*stream, new stream_t(engine, flags));
+    return engine->create_stream(stream, flags);
+}
+
+status_t mkldnn_stream_wait(stream_t *stream) {
+    bool args_ok = !any_null(stream);
+    if (!args_ok)
+        return invalid_arguments;
+
+    return stream->wait();
 }
 
 status_t mkldnn_stream_destroy(stream_t *stream) {
