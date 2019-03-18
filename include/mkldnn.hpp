@@ -933,6 +933,32 @@ struct memory: public handle<mkldnn_memory_t> {
                 "could not set native handle");
     }
 
+    /// Maps the data of the memory.
+    ///
+    /// Mapping allows to read/write directly from/to the memory contents for
+    /// backends that do not support direct accessing.
+    ///
+    /// Mapping is an exclusive operation - a memory object cannot be used in
+    /// other operations until this memory object is unmapped.
+    /// @tparam T Type of the pointer to be mapped.
+    template <typename T = void>
+    T *map_data() const {
+        void *mapped_ptr;
+        error::wrap_c_api(mkldnn_memory_map_data(get(), &mapped_ptr),
+                "could not map the data");
+        return static_cast<T *>(mapped_ptr);
+    }
+
+    /// Unmaps the previously mapped data for the memory.
+    ///
+    /// Any changes of the mapped data are synchronized back to the memory
+    /// after the call is complete. The mapped pointer must be
+    /// obtained through a map_data() call.
+    void unmap_data(void *mapped_ptr) const {
+        error::wrap_c_api(mkldnn_memory_unmap_data(get(), mapped_ptr),
+                "could not unmap the data");
+    }
+
     // Must go away or be private:
     static mkldnn_data_type_t convert_to_c(data_type adata_type) {
         return static_cast<mkldnn_data_type_t>(adata_type);

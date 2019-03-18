@@ -249,6 +249,23 @@ status_t mkldnn_memory_set_data_handle(memory_t *memory, void *handle) {
     return memory->set_data_handle(handle);
 }
 
+status_t mkldnn_memory_map_data(const memory_t *memory, void **mapped_ptr) {
+    bool args_ok = !any_null(memory, mapped_ptr);
+    if (!args_ok)
+        return invalid_arguments;
+
+    return memory->memory_storage()->map_data(mapped_ptr);
+}
+
+status_t mkldnn_memory_unmap_data(
+        const memory_t *memory, void *mapped_ptr) {
+    bool args_ok = !any_null(memory);
+    if (!args_ok)
+        return invalid_arguments;
+
+    return memory->memory_storage()->unmap_data(mapped_ptr);
+}
+
 status_t mkldnn_memory_destroy(memory_t *memory) {
     delete memory;
     return success;

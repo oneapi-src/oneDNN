@@ -546,6 +546,26 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_memory_desc(
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
         const_mkldnn_memory_t memory, mkldnn_engine_t *engine);
 
+/** For a @p memory, maps the data of the memory to @p mapped_ptr.
+ *
+ * Mapping allows to read/write directly from/to the memory contents for
+ * backends that do not support direct accessing.
+ *
+ * Mapping is an exclusive operation - a memory object cannot be used in other
+ * operations until this memory object is unmapped.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_memory_map_data(
+        const_mkldnn_memory_t memory, void **mapped_ptr);
+
+/** For a @p memory, unmaps a mapped pointer to the data of the memory.
+ *
+ * Any changes of the mapped data are synchronized back to the memory after the
+ * call is complete. The mapped pointer must be obtained through a
+ * mkldnn_memory_map_data call.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_memory_unmap_data(
+        const_mkldnn_memory_t memory, void *mapped_ptr);
+
 /** For a @p memory, returns the data @p handle.
  *
  * For the CPU engine, the data handle is a pointer to the actual data. */
