@@ -495,7 +495,7 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, is_bnorm_3d(p) ? 5 : 4,
         is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->tag), WARN);
 
-    auto flags = (mkldnn_batch_normalization_flag_t)p->flags;
+    auto flags = (mkldnn_batch_normalization_flags_t)p->flags;
     if (p->dir & FLAG_FWD) {
         auto prop = p->dir & FLAG_INF
             ? mkldnn_forward_inference : mkldnn_forward_training;
@@ -572,7 +572,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     var.unmap();
 
     mkldnn_batch_normalization_desc_t bd;
-    auto flags = (mkldnn_batch_normalization_flag_t)
+    auto flags = (mkldnn_batch_normalization_flags_t)
         (mkldnn_use_global_stats | mkldnn_fuse_bn_relu);
     DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd,
                 mkldnn_forward_training, &data.md_, 0, flags), WARN);

@@ -262,15 +262,15 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<mkldnn_alg_kind_t>(aalgorithm);
 }
 
-enum batch_normalization_flag {
+enum batch_normalization_flags {
     use_global_stats = mkldnn_use_global_stats,
     use_scale_shift = mkldnn_use_scaleshift,
     fuse_bn_relu = mkldnn_fuse_bn_relu
 };
 
-inline mkldnn_batch_normalization_flag_t convert_to_c(
-        batch_normalization_flag aflag) {
-    return static_cast<mkldnn_batch_normalization_flag_t>(aflag);
+inline mkldnn_batch_normalization_flags_t convert_to_c(
+        batch_normalization_flags aflag) {
+    return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
 }
 
 enum rnn_direction {

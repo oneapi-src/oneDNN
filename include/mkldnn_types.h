@@ -635,7 +635,7 @@ typedef enum {
      *    perform backward pass)
      */
     mkldnn_fuse_bn_relu = 0x4U,
-} mkldnn_batch_normalization_flag_t;
+} mkldnn_batch_normalization_flags_t;
 
 /** @} */
 
