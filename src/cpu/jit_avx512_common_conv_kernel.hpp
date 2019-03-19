@@ -139,7 +139,7 @@ private:
     inline void compute_loop_4fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_4fma_1st(int ur_w, int pad_l, int pad_r);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
-
+    inline void compute_loop_fma_sparse();
     void generate();
 
     inline void vpXdpwssd(Xbyak::Zmm zmm1, Xbyak::Zmm zmm2,
@@ -302,7 +302,7 @@ private:
     inline void compute_loop_4fma(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_vnni(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop_fma(int ur_w, int l_overflow, int r_overflow);
-    inline void compute_loop_fma_sparse(int ur_w, int l_overflow, int r_overflow);
+    inline void compute_loop_fma_sparse();
     inline void compute_loop_fma_core(int ur_w, int l_overflow, int r_overflow);
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
@@ -355,7 +355,7 @@ private:
     enum {typesize = sizeof(float)};
     static const int max_ur_w;
 
-    reg64_t param = abi_param1;
+    /*reg64_t param = abi_param1;
     reg64_t reg_input = rax;
     reg64_t reg_kernel = rdx;
     reg64_t reg_output = rsi;
@@ -375,39 +375,91 @@ private:
     reg64_t reg_output_d = rbx;
     reg64_t aux_reg_input = r12;
     reg64_t aux_reg_kernel = r13;
-    reg64_t reg_bias = rbx;
+    reg64_t reg_bias = rbx;*/
+
+    
+
+    reg64_t param = abi_param1;
+    reg64_t reg_inp = r8;
+    reg64_t reg_ker = r9;
+    reg64_t reg_out = r10;
+
+    reg64_t reg_inp_prf = r11;
+    reg64_t reg_ker_prf = r12;
+    reg64_t reg_out_prf = r13;
+
+    reg64_t aux_reg_inp = r14;
+    reg64_t aux_reg_ker = r15;
+
+    reg64_t aux_reg_inp_prf = rsi;
+    reg64_t aux_reg_ker_prf = rdx;
+
+    reg64_t reg_channel = rsi;
+    reg64_t reg_bias = rdx;
+
+    reg64_t aux_reg_ker_d = r9;
+    reg64_t aux_reg_inp_d = rbx;
+    reg64_t aux_reg_inp_d_prf = r13;
+    reg64_t aux_reg_ker_d_prf = abi_not_param1;
+    reg64_t reg_ki = r10;
+
+    reg64_t reg_kj = rax;
+    reg64_t reg_relu_ns = rax;
+    reg64_t reg_oi = rbx;
+    reg64_t reg_kh = abi_not_param1;
+
+    reg64_t reg_tmp = rbp;
+
+    reg64_t reg_ic_loop = rdx;
+    reg64_t reg_inp_loop = rsi;
+
+    reg64_t reg_init_flag = r13;
+    reg64_t reg_bias_ptr = param;
+
+    reg64_t aux_reg_ic = r12;
+    reg64_t reg_binp = rax;
+    reg64_t reg_bout = r11;
+    reg64_t aux1_reg_inp = rbx;
+    reg64_t aux_reg_out = abi_not_param1;
+
+    reg64_t reg_long_offt = r11;
+    reg64_t reg_out_long_offt = r14;
+
+
+
 
     inline void bias_kernel();
-    inline void maybe_zero_kernel();
-    inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
-            int max_ur_w);
-    inline void od_step_comeback_pointers();
-    inline void oh_step_comeback_pointers();
-    inline void compute_oh_step_unroll_ow(int ic_block_step, int max_ur_w);
-    inline void compute_ic_block_step(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool input_wraparound = false);
-    inline void compute_ic_block_step_fma(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool input_wraparound);
-    inline void compute_ic_block_step_4fma(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool input_wraparound);
-    inline void compute_ic_block_step_vnni(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool input_wraparound);
-    inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
-    inline void compute_oh_step_disp();
-    inline void compute_oh_loop_common();
+    //inline void maybe_zero_kernel();
+    //inline void compute_oh_step_unroll_ow_icblock(int ic_block_step,
+    //        int max_ur_w);
+    //inline void od_step_comeback_pointers();
+    //inline void oh_step_comeback_pointers();
+    //inline void compute_oh_step_unroll_ow(int ic_block_step, int max_ur_w);
+    //inline void compute_ic_block_step(int ur_w,
+    //        int pad_l, int pad_r, int ic_block_step,
+    //        int input_offset, int kernel_offset, int output_offset,
+    //        bool input_wraparound = false);
+    //inline void compute_ic_block_step_fma(int ur_w,
+    //        int pad_l, int pad_r, int ic_block_step,
+    //        int input_offset, int kernel_offset, int output_offset,
+    //        bool input_wraparound);
+    //inline void compute_ic_block_step_4fma(int ur_w,
+    //        int pad_l, int pad_r, int ic_block_step,
+    //        int input_offset, int kernel_offset, int output_offset,
+    //        bool input_wraparound);
+    //inline void compute_ic_block_step_vnni(int ur_w,
+    //        int pad_l, int pad_r, int ic_block_step,
+    //        int input_offset, int kernel_offset, int output_offset,
+    //        bool input_wraparound);
+    //inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
+    //inline void compute_oh_step_disp();
+    //inline void compute_oh_loop_common();
 
-    inline bool compute_full_spat_loop();
-    inline bool flat_4ops_compute();
+    //inline bool compute_full_spat_loop();
+    //inline bool flat_4ops_compute();
 
-    inline void compute_loop();
+    //inline void compute_loop();
+    inline void compute_loop_fma_sparse();
 
     void generate();
 };

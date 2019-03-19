@@ -87,8 +87,52 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         kernel_ = new jit_avx512_common_conv_fwd_kernel(conf_.jcp_,
                     *conf_.attr());
 
+        const auto &j = conf_.jcp_;
+
+        int nthr = mkldnn_get_max_threads();
+
+        params_ = new param_t[nthr];
+
+        int step = j.dilate_w == 0 ? j.oc_buffs : 1;
+        int oc_iters = j.nb_oc / step;
+
+        int work_amount = j.ngroups * j.oh * j.nb_mb * j.mb_block * oc_iters;
+
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            int start, end;
+            balance211(work_amount, nthr, ithr, start, end);
+
+            param_t &p = params_[ithr];
+            int g{0}, mbb{0}, oh{0}, ocb{0}, mb_s{0};
+            
+            nd_iterator_init(start, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                    ocb, oc_iters, mb_s, j.mb_block);
+
+            p.g[1] = p.g[0] = g;
+            p.mbb[1] = p.mbb[0] = mbb;
+            p.oh[1] = p.oh[0] = oh;
+            p.ocb[1] = p.ocb[0] = ocb;
+            p.mb[1] = p.mb[0] = mb_s;
+
+            while (start < end) {
+
+                p.g[1] = g;
+                p.mbb[1] = mbb;
+                p.oh[1] = oh;
+                p.ocb[1] = ocb;
+
+                int work_rem = end - start;
+
+                p.mb[1] = mb_s + work_rem > j.mb_block ? j.mb_block : mb_s + work_rem;
+
+                nd_iterator_jump(start, end, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                        ocb, oc_iters, mb_s, j.mb_block);
+            }
+
+
+        });
+
         if (conf_.want_padded_bias()) {
-            const auto &j = conf_.jcp_;
             assert(j.ngroups == 1);
             padded_bias_ = (dst_data_t *)malloc(sizeof(dst_data_t) * j.oc, 64);
             for (int oc = j.oc_without_padding; oc < j.oc; ++oc)
@@ -97,6 +141,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     }
     ~_jit_avx512_common_convolution_fwd_t() {
         delete kernel_;
+        delete params_;
         free(padded_bias_);
     };
 
@@ -112,10 +157,22 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     }
 
 private:
+
+    typedef struct {
+
+        int g[2];
+        int mbb[2];
+        int oh[2];
+        int ocb[2];
+        int mb[2];
+
+    } param_t;
+
     void execute_forward();
     void execute_forward_3d();
     pd_t conf_;
     jit_avx512_common_conv_fwd_kernel *kernel_;
+    param_t *params_;
     dst_data_t *padded_bias_;
 };
 
@@ -206,11 +263,55 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
         : cpu_primitive_t(&conf_, inputs, outputs), conf_(*pd)
     {
         kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_, false);
-        //clear_kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(conf_.jcp_, true);
+
+        const auto &j = conf_.jcp_;
+
+        int nthr = mkldnn_get_max_threads();
+
+        params_ = new param_t[nthr];
+
+        int ic_iters = j.nb_ic / j.ic_buffs;
+
+        int work_amount = j.ngroups * j.ih * j.nb_mb * j.mb_block * ic_iters;
+
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            int start, end;
+            balance211(work_amount, nthr, ithr, start, end);
+
+            param_t &p = params_[ithr];
+            int g{0}, mbb{0}, ih{0}, icb{0}, mb_s{0};
+            
+            nd_iterator_init(start, g, j.ngroups, mbb, j.nb_mb, ih, j.ih,
+                    icb, ic_iters, mb_s, j.mb_block);
+
+            p.g[1] = p.g[0] = g;
+            p.mbb[1] = p.mbb[0] = mbb;
+            p.ih[1] = p.ih[0] = ih;
+            p.icb[1] = p.icb[0] = icb;
+            p.mb[1] = p.mb[0] = mb_s;
+
+            while (start < end) {
+
+                p.g[1] = g;
+                p.mbb[1] = mbb;
+                p.ih[1] = ih;
+                p.icb[1] = icb;
+
+                int work_rem = end - start;
+
+                p.mb[1] = mb_s + work_rem > j.mb_block ? j.mb_block : mb_s + work_rem;
+
+                nd_iterator_jump(start, end, g, j.ngroups, mbb, j.nb_mb, ih, j.ih,
+                        icb, ic_iters, mb_s, j.mb_block);
+            }
+
+
+        });
+
     }
     ~jit_avx512_common_convolution_bwd_data_t() {
         delete kernel_;
-        //delete clear_kernel_;
+        delete params_;
     };
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -230,11 +331,22 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
     }
 
 private:
+
+    typedef struct {
+
+        int g[2];
+        int mbb[2];
+        int ih[2];
+        int icb[2];
+        int mb[2];
+
+    } param_t;
+
     void execute_backward_data();
     void execute_backward_data_3d();
     pd_t conf_;
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
-    //jit_avx512_common_conv_bwd_data_kernel_f32 *clear_kernel_;
+    param_t *params_;
 };
 
 template <impl::data_type_t src_type,
@@ -308,6 +420,7 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
     ~jit_avx512_common_convolution_bwd_weights_t() {
 
         delete kernel_;
+        delete params_;
         if (trans_kernel_)
             delete trans_kernel_;
         if (acc_ker_)
@@ -342,6 +455,16 @@ private:
     void reduce_diff_weights_3d(const thread_info_t *);
     void compute_diff_bias(const thread_info_t *);
     void compute_diff_bias_3d(const thread_info_t *);
+
+    typedef struct {
+
+        int g[2];
+        int ocb[2];
+        int icb[2];
+
+    } param_t;
+
+    param_t *params_;
 
     pd_t conf_;
 

@@ -23,6 +23,10 @@
 #include "utils.hpp"
 
 #include "cpu_memory.hpp"
+#include <iostream>
+
+using std::cout;
+using std::endl;
 
 namespace mkldnn {
 namespace impl {
@@ -63,6 +67,9 @@ typename utils::enable_if<false
 || fmt == gOhwi16o || fmt == gOidhw16o || fmt == gOdhwi16o || fmt == gOdhwi8o
 >::type typed_zero_pad_weights(const memory_desc_wrapper &m_d,
         typename prec_traits<dt>::type *data) {
+
+    cout << "utils::enable_if" << endl;
+
     static constexpr int w_groups = false
         || fmt == gOhwi8o || fmt == gOihw16o || fmt == gOhwi16o
         || fmt == gOidhw16o || fmt == gOdhwi16o || fmt == gOdhwi8o;

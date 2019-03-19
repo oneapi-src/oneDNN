@@ -668,6 +668,50 @@ struct memory: public primitive  {
         ldgoi_p = mkldnn_ldgoi_p,
         ldgo = mkldnn_ldgo,
         wino_fmt = mkldnn_wino_fmt,
+
+        // added by Andy Gong
+        OhIw16o16i = mkldnn_OhIw16o16i,
+        IhOw16i16o = mkldnn_IhOw16i16o,
+
+        OhIw16o128i = mkldnn_OhIw16o128i,
+        IhOw16i128o = mkldnn_IhOw16i128o,
+
+        Chnw16c = mkldnn_Chnw16c,
+        hCnw16c = mkldnn_hCnw16c,
+        hnCw16c = mkldnn_hnCw16c,
+        hCnw128c = mkldnn_hCnw128c,
+        hnCw128c = mkldnn_hnCw128c,
+
+        NhC8nw16c = mkldnn_NhC8nw16c,
+        NhC16nw16c = mkldnn_NhC16nw16c,
+        NhC32nw16c = mkldnn_NhC32nw16c,
+        NhC64nw16c = mkldnn_NhC64nw16c,
+
+        NhC8nw128c = mkldnn_NhC8nw128c,
+        NhC16nw128c = mkldnn_NhC16nw128c,
+        NhC32nw128c = mkldnn_NhC32nw128c,
+        NhC64nw128c = mkldnn_NhC64nw128c,
+
+        hOIw16o16i = mkldnn_hOIw16o16i,
+        hIOw16i16o = mkldnn_hIOw16i16o,
+
+        hOIw16o128i = mkldnn_hOIw16o128i,
+        hIOw16i128o = mkldnn_hIOw16i128o,
+
+        NhCw16n16c = mkldnn_NhCw16n16c,
+        NhCw16c16n = mkldnn_NhCw16c16n,
+        
+        NhC16cw16n = mkldnn_NhC16cw16n,
+
+        NhC16nw32c = mkldnn_NhC16nw32c,
+        NhC16nw64c = mkldnn_NhC16nw64c,
+
+        hIOw32i16o = mkldnn_hIOw32i16o,
+        hIOw64i16o = mkldnn_hIOw64i16o,
+
+
+        //hIO64iw64o = mkldnn_hIO64iw64o,
+
         format_last = mkldnn_format_last,
     };
 

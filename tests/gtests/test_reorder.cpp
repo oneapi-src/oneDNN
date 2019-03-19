@@ -121,6 +121,7 @@ using reorder_simple_test_weights_f32_f32_IOhw16o16i = reorder_simple_test<f32_f
 using reorder_simple_test_s32_s32 = reorder_simple_test<s32_s32>;
 using reorder_simple_test_s16_s16 = reorder_simple_test<s16_s16>;
 using reorder_simple_test_s8_s8 = reorder_simple_test<s8_s8>;
+using custom_test_f32_f32 = reorder_simple_test<f32_f32>;
 
 using eng = engine::kind;
 using fmt = memory::format;
@@ -381,6 +382,15 @@ INSTANTIATE_TEST_CASE_P(TestReorder, reorder_simple_test_s8_s8,
             cfg_s8{eng::cpu, fmt::OIhw4i16o4i, fmt::oihw, {64, 64, 3, 3}},
             cfg_s8{eng::cpu, fmt::goihw, fmt::gOIhw4i16o4i, {2, 64, 64, 3, 3}},
             cfg_s8{eng::cpu, fmt::gOIhw4i16o4i, fmt::goihw, {2, 64, 64, 3, 3}}
+            )
+        );
+
+
+TEST_P(custom_test_f32_f32, TestsReorder) { }
+INSTANTIATE_TEST_CASE_P(TestReorder, custom_test_f32_f32,
+        ::testing::Values(
+            cfg_f32{eng::cpu, fmt::OhIw16o16i, fmt::IhOw16i16o, {512, 512, 3, 3}},
+            cfg_f32{eng::cpu, fmt::hCnw128c, fmt::hCnw16c, {32, 32, 14, 14}}
             )
         );
 }

@@ -181,6 +181,47 @@ namespace memory_format {
     const memory_format_t ldgoi_p = mkldnn_ldgoi_p;
     const memory_format_t ldgo = mkldnn_ldgo;
     const memory_format_t wino_fmt = mkldnn_wino_fmt;
+    
+    // added by Andy Gong
+    const memory_format_t OhIw16o16i = mkldnn_OhIw16o16i;
+    const memory_format_t IhOw16i16o = mkldnn_IhOw16i16o;
+
+    const memory_format_t OhIw16o128i = mkldnn_OhIw16o128i;
+    const memory_format_t IhOw16i128o = mkldnn_IhOw16i128o;
+
+    const memory_format_t Chnw16c = mkldnn_Chnw16c;
+    const memory_format_t hCnw16c = mkldnn_hCnw16c;
+    const memory_format_t hnCw16c = mkldnn_hnCw16c;
+    const memory_format_t hCnw128c = mkldnn_hCnw128c;
+    const memory_format_t hnCw128c = mkldnn_hnCw128c;
+
+    const memory_format_t NhC8nw16c = mkldnn_NhC8nw16c;
+    const memory_format_t NhC16nw16c = mkldnn_NhC16nw16c;
+    const memory_format_t NhC32nw16c = mkldnn_NhC32nw16c;
+    const memory_format_t NhC64nw16c = mkldnn_NhC64nw16c;
+
+    const memory_format_t NhC8nw128c = mkldnn_NhC8nw128c;
+    const memory_format_t NhC16nw128c = mkldnn_NhC16nw128c;
+    const memory_format_t NhC32nw128c = mkldnn_NhC32nw128c;
+    const memory_format_t NhC64nw128c = mkldnn_NhC64nw128c;
+
+    const memory_format_t hOIw16o16i = mkldnn_hOIw16o16i;
+    const memory_format_t hIOw16i16o = mkldnn_hIOw16i16o;
+
+    const memory_format_t hOIw16o128i = mkldnn_hOIw16o128i;
+    const memory_format_t hIOw16i128o = mkldnn_hIOw16i128o;
+
+    const memory_format_t NhCw16n16c = mkldnn_NhCw16n16c;
+    const memory_format_t NhCw16c16n = mkldnn_NhCw16c16n;
+
+    const memory_format_t NhC16cw16n = mkldnn_NhC16cw16n;
+
+    const memory_format_t NhC16nw32c = mkldnn_NhC16nw32c;
+    const memory_format_t NhC16nw64c = mkldnn_NhC16nw64c;
+
+    const memory_format_t hIOw32i16o = mkldnn_hIOw32i16o;
+    const memory_format_t hIOw64i16o = mkldnn_hIOw64i16o;
+
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;

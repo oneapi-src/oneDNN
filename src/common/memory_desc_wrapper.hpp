@@ -261,7 +261,7 @@ struct memory_desc_wrapper: public c_compatible {
     /* static functions section */
     /* TODO: replace with non-static, once _md becomes non-const ref */
 
-    static status_t compute_blocking(memory_desc_t &memory_desc);
+    static status_t compute_blocking(memory_desc_t &memory_desc, int w = 0);
 
 private:
     /* TODO: put logical_offset in utils */

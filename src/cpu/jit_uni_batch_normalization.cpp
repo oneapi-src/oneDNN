@@ -846,14 +846,14 @@ struct jit_bnorm_t: public jit_generator {
                                 else
                                     assert(false);
                             }
-                            if (!bdesc_->omit_stats()) {
+                            /*if (!bdesc_->omit_stats()) {
                                 uni_vsubps(v, v, vdiff_beta);
                                 uni_vmovups(t, vmmword[reg_src + reg_soff
                                         + offt]);
                                 uni_vsubps(t, vmean, t, t1);
                                 uni_vmulps(t, t, vdiff_gamma);
                                 uni_vaddps(v, v, t);
-                            }
+                            }*/
                             uni_vmulps(v, v, vsqrtvar);
                             if (bdesc_->use_scaleshift()) {
                                 uni_vmulps(v, v, vgamma);

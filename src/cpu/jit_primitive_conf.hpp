@@ -45,7 +45,7 @@ struct jit_conv_conf_t {
     conv_loop_order_t loop_order;
 
     int ndims;
-    int mb;
+    int mb, mb_block, nb_mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
     int id, ih, iw, od, oh, ow;
     int f_pad, l_pad, t_pad;
@@ -67,6 +67,9 @@ struct jit_conv_conf_t {
     int nb_oc_L2;
     int ur_h, ur_w;
     int ur_w_tail;
+    int ur_sparse;
+    int ic_buffs;
+    int oc_buffs;
     bool is_1stconv;
     /* fma avx512_core */
     conv_kernel_kind_t kernel_kind;

@@ -136,6 +136,47 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_format_last) return "format_last";
     if (v == mkldnn_oIhw8i) return "oIhw8i";
     if (v == mkldnn_oIhw16i) return "oIhw16i";
+
+    // added by Andy Gong
+    if (v == mkldnn_OhIw16o16i) return "OhIw16o16i";
+    if (v == mkldnn_IhOw16i16o) return "IhOw16i16o";
+
+    if (v == mkldnn_OhIw16o128i) return "OhIw16o128i";
+    if (v == mkldnn_IhOw16i128o) return "IhOw16i128o";
+
+    if (v == mkldnn_Chnw16c) return "Chnw16c";
+    if (v == mkldnn_hCnw16c) return "hCnw16c";
+    if (v == mkldnn_hnCw16c) return "hnCw16c";
+    if (v == mkldnn_hCnw128c) return "hCnw128c";
+    if (v == mkldnn_hnCw128c) return "hnCw128c";
+
+    if (v == mkldnn_NhC8nw16c) return "NhC8nw16c";
+    if (v == mkldnn_NhC16nw16c) return "NhC16nw16c";
+    if (v == mkldnn_NhC32nw16c) return "NhC32nw16c";
+    if (v == mkldnn_NhC64nw16c) return "NhC64nw16c";
+
+    if (v == mkldnn_NhC8nw128c) return "NhC8nw128c";
+    if (v == mkldnn_NhC16nw128c) return "NhC16nw128c";
+    if (v == mkldnn_NhC32nw128c) return "NhC32nw128c";
+    if (v == mkldnn_NhC64nw128c) return "NhC64nw128c";
+
+    if (v == mkldnn_hOIw16o16i) return "hOIw16o16i";
+    if (v == mkldnn_hIOw16i16o) return "hIOw16i16o";
+
+    if (v == mkldnn_hOIw16o128i) return "hOIw16o128i";
+    if (v == mkldnn_hIOw16i128o) return "hIOw16i128o";
+
+    if (v == mkldnn_NhCw16n16c) return "NhCw16n16c";
+    if (v == mkldnn_NhCw16c16n) return "NhCw16c16n";
+
+    if (v == mkldnn_NhC16cw16n) return "NhC16cw16n";
+
+    if (v == mkldnn_NhC16nw32c) return "NhC16nw32c";
+    if (v == mkldnn_NhC16nw64c) return "NhC16nw64c";
+
+    if (v == mkldnn_hIOw32i16o) return "hIOw32i16o";
+    if (v == mkldnn_hIOw64i16o) return "hIOw64i16o";
+
     assert(!"unknown fmt");
     return "unknown fmt";
 }

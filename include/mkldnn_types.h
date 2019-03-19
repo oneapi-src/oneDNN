@@ -351,6 +351,48 @@ typedef enum {
     mkldnn_ldgo,
     /** General tensor format for integer 8bit winograd convolution. */
     mkldnn_wino_fmt,
+
+    // added by Andy Gong
+    mkldnn_OhIw16o16i,
+    mkldnn_IhOw16i16o,
+
+    mkldnn_OhIw16o128i,
+    mkldnn_IhOw16i128o,
+
+    mkldnn_Chnw16c,
+    mkldnn_hCnw16c,
+    mkldnn_hnCw16c,
+    mkldnn_hCnw128c,
+    mkldnn_hnCw128c,
+
+    mkldnn_NhC8nw16c,
+    mkldnn_NhC16nw16c,
+    mkldnn_NhC32nw16c,
+    mkldnn_NhC64nw16c,
+
+    mkldnn_NhC8nw128c,
+    mkldnn_NhC16nw128c,
+    mkldnn_NhC32nw128c,
+    mkldnn_NhC64nw128c,
+
+    mkldnn_hOIw16o16i,
+    mkldnn_hIOw16i16o,
+
+    mkldnn_hOIw16o128i,
+    mkldnn_hIOw16i128o,
+
+    mkldnn_NhCw16n16c,
+    mkldnn_NhCw16c16n,
+
+    mkldnn_NhC16cw16n,
+
+    mkldnn_NhC16nw32c,
+    mkldnn_NhC16nw64c,
+
+    mkldnn_hIOw32i16o,
+    mkldnn_hIOw64i16o,
+
+
     /** Just a sentinel, not real memory format. Must be changed after new
      * format is added. */
     mkldnn_format_last,

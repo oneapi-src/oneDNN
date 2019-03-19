@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "mkldnn.h"
 
@@ -83,7 +84,8 @@ status_t mkldnn_memory_desc_init(memory_desc_t *memory_desc, int ndims,
     } else if (format == any) {
         // nop
     } else if (types::format_normalize(format) == blocked) {
-        status = memory_desc_wrapper::compute_blocking(md);
+        int w = ndims > 3 ? dims[3] : 0;
+        status = memory_desc_wrapper::compute_blocking(md, w);
     } else {
         assert(!"unreachable");
         status = invalid_arguments;

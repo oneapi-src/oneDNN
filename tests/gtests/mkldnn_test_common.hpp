@@ -236,6 +236,44 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::IOhw16o16i:
     case f::Ohwi8o:
     case f::Ohwi16o:
+
+    //added by Andy Gong
+    case f::IhOw16i16o:
+    case f::OhIw16o16i:
+    case f::hIOw16i16o:
+    case f::hOIw16o16i:
+    
+    case f::IhOw16i128o:
+    case f::OhIw16o128i:
+    case f::hIOw16i128o:
+    case f::hOIw16o128i:
+
+    case f::Chnw16c:
+    case f::hCnw16c:
+    case f::hnCw16c:
+    case f::hCnw128c:
+    case f::hnCw128c:
+
+    case f::NhC8nw16c:
+    case f::NhC16nw16c:
+    case f::NhC32nw16c:
+    case f::NhC64nw16c:
+
+    case f::NhC8nw128c:
+    case f::NhC16nw128c:
+    case f::NhC32nw128c:
+    case f::NhC64nw128c:
+
+    case f::NhCw16n16c:
+    case f::NhCw16c16n:
+
+    case f::NhC16cw16n:
+
+    case f::NhC16nw32c:
+    case f::NhC16nw64c:
+
+    case f::hIOw32i16o:
+    case f::hIOw64i16o:
         ndims = 4; break;
     case f::ncdhw:
     case f::ndhwc:

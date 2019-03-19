@@ -159,7 +159,50 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             ldsnc,
             ldigo,
             ldgoi,
-            ldgo);
+            ldgo,
+
+            // added by Andy Gong
+            OhIw16o16i,
+            IhOw16i16o,
+
+            OhIw16o128i,
+            IhOw16i128o,
+
+            Chnw16c,
+            hCnw16c,
+            hnCw16c,
+            hCnw128c,
+            hnCw128c,
+
+            NhC8nw16c,
+            NhC16nw16c,
+            NhC32nw16c,
+            NhC64nw16c,
+
+            NhC8nw128c,
+            NhC16nw128c,
+            NhC32nw128c,
+            NhC64nw128c,
+
+            hOIw16o16i,
+            hIOw16i16o,
+
+            hOIw16o128i,
+            hIOw16i128o,
+
+            NhCw16n16c,
+            NhCw16c16n,
+
+            NhC16cw16n,
+
+            NhC16nw32c,
+            NhC16nw64c,
+
+            hIOw32i16o,
+            hIOw64i16o
+
+
+            );
     return is_blocked ? blocked : fmt;
 }
 
