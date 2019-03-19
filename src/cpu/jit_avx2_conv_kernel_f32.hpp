@@ -20,7 +20,7 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"

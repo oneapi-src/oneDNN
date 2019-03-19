@@ -17,7 +17,7 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 
 #include "jit_sse42_conv_kernel_f32.hpp"
 

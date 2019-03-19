@@ -19,7 +19,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 
 #include <math.h>
 

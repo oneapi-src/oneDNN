@@ -18,7 +18,7 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 
 #include "jit_uni_dw_conv_kernel_f32.hpp"
 

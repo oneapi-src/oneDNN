@@ -59,27 +59,21 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
     return success;
 }
 
-const void *exec_ctx_t::input(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::input(primitive_arg_index_t arg) const {
     if (args_.count(arg) != 1) return nullptr;
     const auto ma = args_.at(arg);
     assert(ma.is_const);
-    void *ptr;
-    status_t status = ma.mem->get_data_handle(&ptr);
-    assert(status == status::success); MAYBE_UNUSED(status);
-    return ptr;
+    return ma.mem;
 }
 
-void *exec_ctx_t::output(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::output(primitive_arg_index_t arg) const {
     if (args_.count(arg) != 1) return nullptr;
     const auto ma = args_.at(arg);
     assert(!ma.is_const);
-    void *ptr;
-    status_t status = ma.mem->get_data_handle(&ptr);
-    assert(status == status::success); MAYBE_UNUSED(status);
-    return ptr;
+    return ma.mem;
 }
 
-const memory_t *exec_ctx_t::memory(primitive_arg_index_t arg) const {
+memory_t *exec_ctx_t::memory(primitive_arg_index_t arg) const {
     assert(args_.count(arg) == 1);
     const auto ma = args_.at(arg);
     assert(!ma.is_const);

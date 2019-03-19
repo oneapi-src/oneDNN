@@ -18,43 +18,61 @@
 #define MEMORY_HPP
 
 #include <assert.h>
+#include <memory>
 
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "memory_desc_wrapper.hpp"
+#include "memory_storage.hpp"
 #include "nstl.hpp"
 
 struct mkldnn_memory: public mkldnn::impl::c_compatible {
     mkldnn_memory(mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::memory_desc_t *md)
-        : engine_(engine), md_(*md) {}
+            const mkldnn::impl::memory_desc_t *md, void *handle);
     virtual ~mkldnn_memory() {}
 
     /** returns memory's engine */
     mkldnn::impl::engine_t *engine() const { return engine_; }
     /** returns memory's description */
     const mkldnn::impl::memory_desc_t *md() const { return &md_; }
-
+    /** returns the underlying memory storage */
+    mkldnn::impl::memory_storage_t *memory_storage() const {
+        return memory_storage_.get();
+    }
     /** returns data handle */
-    virtual mkldnn::impl::status_t get_data_handle(void **handle) const = 0;
+    mkldnn::impl::status_t get_data_handle(void **handle) const {
+        return memory_storage()->get_data_handle(handle);
+    }
 
     /** sets data handle */
-    virtual mkldnn::impl::status_t set_data_handle(void *handle) = 0;
+    mkldnn::impl::status_t set_data_handle(void *handle) {
+        using namespace mkldnn::impl;
+
+        status_t status = memory_storage()->set_data_handle(handle);
+        if (status != status::success)
+            return status;
+        return zero_pad();
+    }
 
     /** zeros padding */
-    virtual mkldnn::impl::status_t zero_pad() const
-    { return mkldnn::impl::status::success; }
+    mkldnn::impl::status_t zero_pad() const;
 
 protected:
     mkldnn::impl::engine_t *engine_;
     const mkldnn::impl::memory_desc_t md_;
 
 private:
+    template <mkldnn::impl::data_type_t>
+    mkldnn::impl::status_t typed_zero_pad() const;
+
     mkldnn_memory() = delete;
     mkldnn_memory(const mkldnn_memory &) = delete;
     mkldnn_memory(mkldnn_memory &&) = delete;
     mkldnn_memory &operator=(const mkldnn_memory &) = delete;
     mkldnn_memory &operator=(mkldnn_memory &&) = delete;
+
+    std::unique_ptr<mkldnn::impl::memory_storage_t> memory_storage_;
 };
 
 #endif

@@ -23,6 +23,7 @@
 
 #include "c_types_map.hpp"
 #include "memory.hpp"
+#include "memory_storage.hpp"
 #include "primitive_desc.hpp"
 
 namespace mkldnn {
@@ -51,11 +52,9 @@ struct exec_ctx_t {
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
 
-    /* tentative solution... TODO: replace with functions return memory_t */
-    const void *input(primitive_arg_index_t arg) const;
-    void *output(primitive_arg_index_t arg) const;
-
-    const memory_t *memory(primitive_arg_index_t arg) const;
+    memory_t *input(primitive_arg_index_t arg) const;
+    memory_t *output(primitive_arg_index_t arg) const;
+    memory_t *memory(primitive_arg_index_t arg) const;
 
 private:
     stream_t *stream_;

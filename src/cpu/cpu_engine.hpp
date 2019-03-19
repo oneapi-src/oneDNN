@@ -34,8 +34,10 @@ public:
 
     /* implementation part */
 
-    virtual status_t memory_create(memory_t **memory,
-            const memory_desc_t *md, void *handle) override;
+    virtual status_t create_memory_storage(
+            memory_storage_t **storage, size_t size) override;
+    virtual status_t create_memory_storage(
+            memory_storage_t **storage, void *handle) override;
 
     virtual const concat_primitive_desc_create_f*
         get_concat_implementation_list() const override;

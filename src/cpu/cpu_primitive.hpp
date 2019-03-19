@@ -24,14 +24,24 @@
 #include "primitive.hpp"
 #include "scratchpad.hpp"
 
-#define CTX_IN_MEM(type, arg) static_cast<type>(ctx.input(arg))
-#define CTX_OUT_MEM(type, arg) static_cast<type>(ctx.output(arg))
+#include <type_traits>
+
+#define ARG_TYPE(t) \
+    typename std::remove_cv<typename std::remove_pointer<t>::type>::type
+
+#define CTX_IN_MEM(type, arg)                                         \
+    static_cast<const ARG_TYPE(type) *>(ctx.input(arg)                \
+                    ? ctx.input(arg)->memory_storage()->data_handle() \
+                    : nullptr)
+
+#define CTX_OUT_MEM(type, arg)                                         \
+    static_cast<ARG_TYPE(type) *>(ctx.output(arg)                      \
+                    ? ctx.output(arg)->memory_storage()->data_handle() \
+                    : nullptr)
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
-
-struct cpu_memory_t;
 
 struct cpu_primitive_t: public primitive_t {
     cpu_primitive_t(const primitive_desc_t *pd,

@@ -38,11 +38,13 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     /** get kind of the current engine */
     virtual mkldnn::impl::engine_kind_t kind() const { return kind_; }
 
-    /** allocate memory */
-    virtual mkldnn::impl::status_t memory_create(
-            mkldnn::impl::memory_t **memory,
-            const mkldnn::impl::memory_desc_t *md,
-            void *handle) = 0;
+    /** create memory storage */
+    virtual mkldnn::impl::status_t create_memory_storage(
+            mkldnn::impl::memory_storage_t **storage, size_t size)
+            = 0;
+    virtual mkldnn::impl::status_t create_memory_storage(
+            mkldnn::impl::memory_storage_t **storage, void *handle)
+            = 0;
 
     /** implementation section (typedefs) */
 

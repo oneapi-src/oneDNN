@@ -22,7 +22,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 
 #include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"

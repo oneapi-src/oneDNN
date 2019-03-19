@@ -19,7 +19,7 @@
 #include "cpu_engine.hpp"
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu/jit_uni_reorder.hpp"

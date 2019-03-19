@@ -24,7 +24,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 #include "cpu_barrier.hpp"
 
 #include "jit_uni_1x1_conv_utils.hpp"

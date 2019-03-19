@@ -19,7 +19,7 @@
 
 #include "c_types_map.hpp"
 #include "cpu_primitive.hpp"
-#include "cpu_memory.hpp"
+#include "memory.hpp"
 #include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
