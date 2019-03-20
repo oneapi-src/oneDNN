@@ -118,9 +118,8 @@ namespace impl {
 
 struct engine_factory_t: public c_compatible {
     virtual size_t count() const = 0;
-    virtual engine_kind_t kind() const = 0;
-    virtual backend_kind_t backend_kind() const = 0;
     virtual status_t engine_create(engine_t **engine, size_t index) const = 0;
+    virtual ~engine_factory_t() = default;
 };
 
 }

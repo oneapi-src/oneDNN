@@ -1655,6 +1655,11 @@ size_t MKLDNN_API mkldnn_engine_get_count(mkldnn_engine_kind_t kind);
 mkldnn_status_t MKLDNN_API mkldnn_engine_create(mkldnn_engine_t *engine,
         mkldnn_engine_kind_t kind, size_t index);
 
+/** Creates an @p engine of particular @p kind, @p backend_kind and @p index. */
+mkldnn_status_t MKLDNN_API mkldnn_engine_create_with_backend(
+        mkldnn_engine_t *engine, mkldnn_engine_kind_t kind,
+        mkldnn_backend_kind_t backend_kind, size_t index);
+
 /** Returns the kind of an @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
         mkldnn_engine_kind_t *kind);

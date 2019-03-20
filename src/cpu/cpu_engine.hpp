@@ -54,10 +54,6 @@ public:
 class cpu_engine_factory_t: public engine_factory_t {
 public:
     virtual size_t count() const override { return 1; }
-    virtual engine_kind_t kind() const override { return engine_kind::cpu; }
-    virtual backend_kind_t backend_kind() const override {
-        return backend_kind::native;
-    }
     virtual status_t engine_create(engine_t **engine,
             size_t index) const override {
         assert(index == 0);
@@ -65,8 +61,6 @@ public:
         return status::success;
     };
 };
-
-extern cpu_engine_factory_t engine_factory;
 
 }
 }

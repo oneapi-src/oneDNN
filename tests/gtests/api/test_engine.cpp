@@ -44,6 +44,22 @@ TEST_P(engine_test_c, GetBackend) {
     MKLDNN_CHECK(mkldnn_engine_destroy(engine));
 }
 
+TEST_P(engine_test_c, CreateWithBackend) {
+    mkldnn_engine_kind_t engine_kind = GetParam();
+    SKIP_IF(mkldnn_engine_get_count(engine_kind) == 0,
+            "Engine kind is not supported.");
+
+    mkldnn_engine_t engine;
+    MKLDNN_CHECK(mkldnn_engine_create_with_backend(
+            &engine, engine_kind, mkldnn_backend_native, 0));
+
+    mkldnn_backend_kind_t backend_kind;
+    MKLDNN_CHECK(mkldnn_engine_get_backend_kind(engine, &backend_kind));
+    EXPECT_EQ(backend_kind, mkldnn_backend_native);
+
+    MKLDNN_CHECK(mkldnn_engine_destroy(engine));
+}
+
 TEST_P(engine_test_cpp, GetBackend) {
     engine::kind engine_kind = static_cast<engine::kind>(GetParam());
     SKIP_IF(engine::get_count(engine_kind) == 0,

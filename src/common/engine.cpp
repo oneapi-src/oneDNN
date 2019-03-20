@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <memory>
+
 #include "mkldnn.h"
 #include "engine.hpp"
 #include "nstl.hpp"
@@ -25,16 +27,16 @@
 namespace mkldnn {
 namespace impl {
 
-engine_factory_t *engine_factories[] = {
-    &cpu::engine_factory,
-    nullptr,
-};
-
-static inline engine_factory_t *get_engine_factory(engine_kind_t kind) {
-    for (engine_factory_t **ef = engine_factories; *ef; ef++)
-        if ((*ef)->kind() == kind)
-            return *ef;
+static inline std::unique_ptr<engine_factory_t> get_engine_factory(
+        engine_kind_t kind, backend_kind_t backend_kind) {
+    if (kind == engine_kind::cpu && backend_kind == backend_kind::native) {
+        return std::unique_ptr<engine_factory_t>(new cpu::cpu_engine_factory_t());
+    }
     return nullptr;
+}
+
+static inline backend_kind_t get_default_backend(engine_kind_t kind) {
+    return backend_kind::native;
 }
 
 }
@@ -45,7 +47,7 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
 
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
-    engine_factory_t *ef = get_engine_factory(kind);
+    auto ef = get_engine_factory(kind, get_default_backend(kind));
     return ef != nullptr ? ef->count() : 0;
 }
 
@@ -54,7 +56,19 @@ status_t mkldnn_engine_create(engine_t **engine,
     if (engine == nullptr)
         return invalid_arguments;
 
-    engine_factory_t *ef = get_engine_factory(kind);
+    auto ef = get_engine_factory(kind, get_default_backend(kind));
+    if (ef == nullptr || index >= ef->count())
+        return invalid_arguments;
+
+    return ef->engine_create(engine, index);
+}
+
+status_t mkldnn_engine_create_with_backend(engine_t **engine,
+        engine_kind_t kind, backend_kind_t backend_kind, size_t index) {
+    if (engine == nullptr)
+        return invalid_arguments;
+
+    auto ef = get_engine_factory(kind, backend_kind);
     if (ef == nullptr || index >= ef->count())
         return invalid_arguments;
 

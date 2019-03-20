@@ -290,8 +290,6 @@ const pd_create_f* cpu_engine_t::get_implementation_list() const {
     return cpu_impl_list;
 }
 
-cpu_engine_factory_t engine_factory;
-
 }
 }
 }
