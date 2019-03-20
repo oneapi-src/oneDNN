@@ -30,6 +30,7 @@
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
 #include "jit_uni_lstm_cell_postgemm.hpp"
+#include "jit_uni_rnn_cell_postgemm.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -218,6 +219,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             }
             break;
         case alg_kind::vanilla_rnn: // @todo switch on cell kind
+	    // non jitted path
             cell_func = &class_name::cell_execution;
             elemwise_func = &class_name::rnn_elemwise;
             switch (pd()->activation_kind()) {
@@ -231,6 +233,23 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 activation_func = &activation<alg_kind::eltwise_logistic, aprop>;
                 break;
             default: break;
+            }
+	    // jitted path
+	    if (pd()->desc()->prop_kind == prop_kind::forward_inference) {
+                if (mayiuse(avx512_core))
+                    rnn_postgemm_ =
+                        new jit_uni_rnn_cell_postgemm_fwd<avx512_core, src_type>(
+                            pd()->rnn_, pd());
+                else if (mayiuse(avx2))
+                    rnn_postgemm_ =
+                        new jit_uni_rnn_cell_postgemm_fwd<avx2, src_type>(
+                            pd()->rnn_, pd());
+                else if (mayiuse(sse42))
+                    rnn_postgemm_ =
+                        new jit_uni_rnn_cell_postgemm_fwd<sse42, src_type>(
+                            pd()->rnn_, pd());
+                assert(rnn_postgemm_ != nullptr);
+                rnn_postgemm_->init();
             }
             break;
         case alg_kind::vanilla_gru:
