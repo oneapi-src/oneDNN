@@ -320,17 +320,12 @@ protected:
             }
 
             // write back the result
-            if(vlen_dst == vlen)
-                uni_vmovups(ptr[addr_states_t_l_reg], tmp1s_vmm);
-            else
-                // we write only 1/4 of the register
-                switch(vlen_dst){
-                case 16: uni_vmovups(ptr[addr_states_t_l_reg], Xmm(tmp1s_vmm.getIdx())); break;
-                case 8: uni_vmovsd(ptr[addr_states_t_l_reg], Xmm(tmp1s_vmm.getIdx())); break;
-                case 4: uni_vmovss(ptr[addr_states_t_l_reg], Xmm(tmp1s_vmm.getIdx())); break;
-                default:
-                    assert(!"Unsuported vector length for quantization");
-                }
+	    switch(hstate_dt_size){
+	    case 4: uni_vmovss(ptr[addr_states_t_l_reg], tmp1s_vmm); break;
+            case 1: pextrb(ptr[addr_states_t_l_reg], tmp1s_vmm, 0x0); break;
+	    default:
+                assert(!"Unsuported vector length for quantization");
+	    }
 
             // increment address pointers
             add(addr_ws_gates_reg, gate_dt_size);
