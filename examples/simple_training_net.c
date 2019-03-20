@@ -725,6 +725,8 @@ mkldnn_status_t simple_net() {
         // conv_bias_memory,
         //      net_diff_weights, net_diff_bias);
     }
+    CHECK(mkldnn_stream_wait(stream));
+
     mkldnn_stream_destroy(stream);
 
     /* clean up nets */

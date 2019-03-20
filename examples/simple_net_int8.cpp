@@ -123,38 +123,32 @@ void simple_net_int8() {
     /* Next: create memory for the convolution's input data
      * and use reorder to quantize the values into int8 */
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), cpu_engine);
-    {
-        primitive_attr src_attr;
-        src_attr.set_output_scales(src_mask, src_scales);
-        auto src_reorder_pd = reorder::primitive_desc(cpu_engine,
-                user_src_memory.get_desc(), cpu_engine,
-                conv_src_memory.get_desc(), src_attr);
-        auto src_reorder = reorder(src_reorder_pd);
-        src_reorder.execute(s, user_src_memory, conv_src_memory);
-    }
+    primitive_attr src_attr;
+    src_attr.set_output_scales(src_mask, src_scales);
+    auto src_reorder_pd = reorder::primitive_desc(cpu_engine,
+            user_src_memory.get_desc(), cpu_engine,
+            conv_src_memory.get_desc(), src_attr);
+    auto src_reorder = reorder(src_reorder_pd);
+    src_reorder.execute(s, user_src_memory, conv_src_memory);
 
     auto conv_weights_memory
             = memory(conv_prim_desc.weights_desc(), cpu_engine);
-    {
-        primitive_attr weight_attr;
-        weight_attr.set_output_scales(weight_mask, weight_scales);
-        auto weight_reorder_pd = reorder::primitive_desc(cpu_engine,
-                user_weights_memory.get_desc(), cpu_engine,
-                conv_weights_memory.get_desc(), weight_attr);
-        auto weight_reorder = reorder(weight_reorder_pd);
-        weight_reorder.execute(s, user_weights_memory, conv_weights_memory);
-    }
+    primitive_attr weight_attr;
+    weight_attr.set_output_scales(weight_mask, weight_scales);
+    auto weight_reorder_pd = reorder::primitive_desc(cpu_engine,
+            user_weights_memory.get_desc(), cpu_engine,
+            conv_weights_memory.get_desc(), weight_attr);
+    auto weight_reorder = reorder(weight_reorder_pd);
+    weight_reorder.execute(s, user_weights_memory, conv_weights_memory);
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), cpu_engine);
-    {
-        primitive_attr bias_attr;
-        bias_attr.set_output_scales(bias_mask, bias_scales);
-        auto bias_reorder_pd = reorder::primitive_desc(cpu_engine,
-                user_bias_memory.get_desc(), cpu_engine,
-                conv_bias_memory.get_desc(), bias_attr);
-        auto bias_reorder = reorder(bias_reorder_pd);
-        bias_reorder.execute(s, user_bias_memory, conv_bias_memory);
-    }
+    primitive_attr bias_attr;
+    bias_attr.set_output_scales(bias_mask, bias_scales);
+    auto bias_reorder_pd = reorder::primitive_desc(cpu_engine,
+            user_bias_memory.get_desc(), cpu_engine,
+            conv_bias_memory.get_desc(), bias_attr);
+    auto bias_reorder = reorder(bias_reorder_pd);
+    bias_reorder.execute(s, user_bias_memory, conv_bias_memory);
 
     auto conv_dst_memory = memory(conv_prim_desc.dst_desc(), cpu_engine);
 
@@ -173,15 +167,15 @@ void simple_net_int8() {
     /* Create a memory for user data output */
     auto user_dst_memory = memory({ { conv_dst_tz }, dt::f32, tag::nchw },
             cpu_engine, user_dst.data());
-    {
-        primitive_attr dst_attr;
-        dst_attr.set_output_scales(dst_mask, dst_scales);
-        auto dst_reorder_pd = reorder::primitive_desc(cpu_engine,
-                conv_dst_memory.get_desc(), cpu_engine,
-                user_dst_memory.get_desc(), dst_attr);
-        auto dst_reorder = reorder(dst_reorder_pd);
-        dst_reorder.execute(s, conv_dst_memory, user_dst_memory);
-    }
+    primitive_attr dst_attr;
+    dst_attr.set_output_scales(dst_mask, dst_scales);
+    auto dst_reorder_pd = reorder::primitive_desc(cpu_engine,
+            conv_dst_memory.get_desc(), cpu_engine,
+            user_dst_memory.get_desc(), dst_attr);
+    auto dst_reorder = reorder(dst_reorder_pd);
+    dst_reorder.execute(s, conv_dst_memory, user_dst_memory);
+
+    s.wait();
 }
 
 int main(int argc, char **argv) {

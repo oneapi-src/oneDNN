@@ -411,6 +411,8 @@ void simple_net() {
 
         --n_iter;
     }
+
+    s.wait();
 }
 
 int main(int argc, char **argv) {

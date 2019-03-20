@@ -407,6 +407,8 @@ mkldnn_status_t simple_net() {
                 net[i], stream, net_args[i].nargs, net_args[i].args));
     }
 
+    CHECK(mkldnn_stream_wait(stream));
+
     /* clean-up */
     for (uint32_t i = 0; i < n; ++i)
         free_arg_node(&net_args[i]);

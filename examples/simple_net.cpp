@@ -720,6 +720,8 @@ void simple_net(int times = 100) {
         for (size_t i = 0; i < net.size(); ++i)
             net.at(i).execute(s, net_args.at(i));
     }
+
+    s.wait();
 }
 
 int main(int argc, char **argv) {

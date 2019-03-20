@@ -641,6 +641,8 @@ void simple_net() {
     //
     // User updates weights and bias using diffs
     //
+
+    s.wait();
 }
 
 int main(int argc, char **argv) {

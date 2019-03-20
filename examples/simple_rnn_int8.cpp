@@ -696,6 +696,7 @@ void simple_net() {
     };
 
     execute();
+    s.wait();
 }
 
 int main(int argc, char **argv) {
