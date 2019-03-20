@@ -322,6 +322,12 @@ private:
     const int _dims[Tdims];
 };
 
+template <typename derived_type, typename base_type>
+inline derived_type downcast(base_type *base) {
+    assert(dynamic_cast<derived_type>(base) == base);
+    return static_cast<derived_type>(base);
+}
+
 }
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
