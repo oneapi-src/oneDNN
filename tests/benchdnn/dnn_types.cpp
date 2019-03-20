@@ -338,6 +338,10 @@ mkldnn_engine_kind_t str2engine_kind(const char *str) {
     if (!strncasecmp(param, str, strlen(param)))
         return mkldnn_cpu;
 
+    param = "gpu";
+    if (!strncasecmp(param, str, strlen(param)))
+        return mkldnn_gpu;
+
     assert(!"not expected");
     return mkldnn_cpu;
 }

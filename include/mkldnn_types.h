@@ -1118,6 +1118,8 @@ typedef enum {
     mkldnn_any_engine,
     /** CPU engine. */
     mkldnn_cpu,
+    /** GPU engine. */
+    mkldnn_gpu,
 } mkldnn_engine_kind_t;
 
 /** @struct mkldnn_engine
@@ -1135,6 +1137,8 @@ typedef const struct mkldnn_engine *const_mkldnn_engine_t;
 typedef enum {
     /** Native backend. */
     mkldnn_backend_native,
+    /** OpenCL backend. */
+    mkldnn_backend_ocl,
 } mkldnn_backend_kind_t;
 
 /** @} */

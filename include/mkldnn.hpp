@@ -326,6 +326,8 @@ inline mkldnn_query_t convert_to_c(query aquery) {
 enum class backend_kind {
     /// Native backend
     native = mkldnn_backend_native,
+    /// OpenCL backend
+    ocl = mkldnn_backend_ocl,
 };
 
 inline mkldnn_backend_kind_t convert_to_c(backend_kind akind) {
@@ -493,6 +495,8 @@ struct engine: public handle<mkldnn_engine_t> {
         any = mkldnn_any_engine,
         /// CPU engine
         cpu = mkldnn_cpu,
+        /// GPU engine
+        gpu = mkldnn_gpu,
     };
 
     /// Returns the number of engines of a certain kind.

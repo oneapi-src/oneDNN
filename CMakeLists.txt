@@ -86,6 +86,13 @@ include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 
+if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+    message(STATUS "GPU support is enabled (OpenCL)")
+    include("cmake/OpenCL.cmake")
+else()
+    message(STATUS "GPU support is disabled")
+endif()
+
 enable_testing()
 
 include_directories(include)

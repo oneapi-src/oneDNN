@@ -75,6 +75,9 @@ static mkldnn::engine::kind to_engine_kind(const std::string &str) {
     if (str.empty() || str == "cpu")
         return mkldnn::engine::kind::cpu;
 
+    if (str == "gpu")
+        return mkldnn::engine::kind::gpu;
+
     assert(!"not expected");
     return mkldnn::engine::kind::cpu;
 }
@@ -93,10 +96,13 @@ void test_init(int argc, char *argv[]) {
     test_engine_kind = to_engine_kind(engine_str);
 
 #ifdef MKLDNN_TEST_WITH_ENGINE_PARAM
+    std::string filter_str = ::testing::GTEST_FLAG(filter);
     if (test_engine_kind == mkldnn::engine::kind::cpu) {
-        std::string filter_str = ::testing::GTEST_FLAG(filter);
         // Exclude non-CPU tests
-        ::testing::GTEST_FLAG(filter) = filter_str + ":-*_NONCPU*";
+        ::testing::GTEST_FLAG(filter) = filter_str + ":-*_GPU*";
+    } else if (test_engine_kind == mkldnn::engine::kind::gpu) {
+        // Exclude non-GPU tests
+        ::testing::GTEST_FLAG(filter) = filter_str + ":-*_CPU*";
     }
 #endif
 }

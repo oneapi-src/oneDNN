@@ -368,11 +368,13 @@ using engine_kind_t = mkldnn_engine_kind_t;
 namespace engine_kind {
     const engine_kind_t any_engine = mkldnn_any_engine;
     const engine_kind_t cpu = mkldnn_cpu;
+    const engine_kind_t gpu = mkldnn_gpu;
 }
 
 using backend_kind_t = mkldnn_backend_kind_t;
 namespace backend_kind {
     const backend_kind_t native = mkldnn_backend_native;
+    const backend_kind_t ocl = mkldnn_backend_ocl;
 }
 
 using primitive_kind_t = mkldnn_primitive_kind_t;

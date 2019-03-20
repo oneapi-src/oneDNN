@@ -23,15 +23,31 @@
 /* Native backend (CPU only). */
 #define MKLDNN_BACKEND_NATIVE 1
 
+/* OpenCL backend. */
+#define MKLDNN_BACKEND_OPENCL 2
+
 /* MKL-DNN CPU engine backend. */
 #cmakedefine MKLDNN_CPU_BACKEND MKLDNN_BACKEND_${MKLDNN_CPU_BACKEND}
 
-#if defined(MKLDNN_CPU_BACKEND)
+/* MKL-DNN GPU engine backend. */
+#cmakedefine MKLDNN_GPU_BACKEND MKLDNN_BACKEND_${MKLDNN_GPU_BACKEND}
+
+#if defined(MKLDNN_CPU_BACKEND) && defined(MKLDNN_GPU_BACKEND)
 #    if MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_NATIVE
-#        error Unexpected MKLDNN_CPU_BACKEND
+#        error "Unexpected MKLDNN_CPU_BACKEND"
+#    endif
+#    if (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_NONE) \
+             && (MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_OPENCL)
+#        error "Unexpected MKLDNN_GPU_BACKEND"
 #    endif
 #else
-#    error MKLDNN_CPU_BACKEND must be defined
+#    error "MKLDNN_CPU_BACKEND and MKLDNN_GPU_BACKEND must be defined"
+#endif
+
+#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
+#    define MKLDNN_WITH_OPENCL 1
+#else
+#    define MKLDNN_WITH_OPENCL 0
 #endif
 
 #endif

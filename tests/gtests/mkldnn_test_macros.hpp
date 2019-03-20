@@ -37,10 +37,16 @@
 #define CPU_TEST_F(test_fixture, test_name) \
     TEST_F_(test_fixture, TEST_CONCAT(test_name, _CPU))
 
+#define GPU_TEST_F(test_fixture, test_name) \
+    TEST_F_(test_fixture, TEST_CONCAT(test_name, _GPU))
+
 #define TEST_P_(test_fixture, test_name) TEST_P(test_fixture, test_name)
 
 #define CPU_TEST_P(test_fixture, test_name) \
     TEST_P_(test_fixture, TEST_CONCAT(test_name, _CPU))
+
+#define GPU_TEST_P(test_fixture, test_name) \
+    TEST_P_(test_fixture, TEST_CONCAT(test_name, _GPU))
 
 #define INSTANTIATE_TEST_SUITE_P_(prefix, test_case_name, generator) \
     INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator)
@@ -48,5 +54,12 @@
 #define CPU_INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator) \
     INSTANTIATE_TEST_SUITE_P_(                                          \
             TEST_CONCAT(prefix, _CPU), test_case_name, generator)
+
+#define GPU_INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator) \
+    INSTANTIATE_TEST_SUITE_P_(                                          \
+            TEST_CONCAT(prefix, _GPU), test_case_name, generator)
+
+#define GPU_INSTANTIATE_TEST_SUITE_P_(prefix, test_case_name, generator) \
+    GPU_INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator)
 
 #endif
