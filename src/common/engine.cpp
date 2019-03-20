@@ -21,8 +21,13 @@
 #include "nstl.hpp"
 
 #include "c_types_map.hpp"
-#include "../cpu/cpu_engine.hpp"
 #include "utils.hpp"
+
+#include "cpu/cpu_engine.hpp"
+
+#if MKLDNN_WITH_OPENCL
+#include "ocl/ocl_engine.hpp"
+#endif
 
 namespace mkldnn {
 namespace impl {
@@ -32,10 +37,20 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
     if (kind == engine_kind::cpu && backend_kind == backend_kind::native) {
         return std::unique_ptr<engine_factory_t>(new cpu::cpu_engine_factory_t());
     }
+#if MKLDNN_WITH_OPENCL
+    if (kind == engine_kind::gpu && backend_kind == backend_kind::ocl) {
+        return std::unique_ptr<engine_factory_t>(
+                new ocl::ocl_engine_factory_t());
+    }
+#endif
     return nullptr;
 }
 
 static inline backend_kind_t get_default_backend(engine_kind_t kind) {
+#if MKLDNN_WITH_OPENCL
+    if (kind == engine_kind::gpu)
+        return backend_kind::ocl;
+#endif
     return backend_kind::native;
 }
 
