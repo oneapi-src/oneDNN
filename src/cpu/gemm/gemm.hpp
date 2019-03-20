@@ -37,6 +37,21 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const b_dt *B, const int *ldb, const int8_t *bo, const float *beta,
         int32_t *c, const int *ldc, const int32_t *co);
 
+// Explicit instantiations in gemm.cpp.
+extern template
+mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const int8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co);
+
+extern template
+mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co);
+
 #ifdef USE_CBLAS
 #define GEMM_IMPL_STR "gemm:blas"
 #else

@@ -153,6 +153,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in nhwc_pooling.cpp.
+extern template struct nhwc_pooling_fwd_t<data_type::f32>;
+
 template <impl::data_type_t data_type>
 struct nhwc_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
@@ -200,6 +203,9 @@ private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in nhwc_pooling.cpp.
+extern template struct nhwc_pooling_bwd_t<data_type::f32>;
 
 }// namespace cpu
 }// namespace impl

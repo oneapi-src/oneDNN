@@ -320,6 +320,102 @@ private:
 using ref_rnn_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
 using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
 using ref_rnn_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
+
+// Explicit specializations and instantiations in cell_common.cpp.
+template <>
+rnn_cell_execution_sig((ref_rnn_bwd_f32_t::cell_execution));
+extern template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+extern template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+
+// Explicit specializations in cell_gru.cpp.
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+
+// Explicit specializations in cell_gru_lbr.cpp.
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+template <>
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+
+// Explicit specializations in cell_lstm.cpp.
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
+template <>
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+
+// Explicit specializations in cell_rnn.cpp.
+template <>
+float activation<alg_kind::eltwise_relu, prop_kind::forward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+float activation<alg_kind::eltwise_relu, prop_kind::backward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+float activation<alg_kind::eltwise_tanh, prop_kind::forward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+float activation<alg_kind::eltwise_tanh, prop_kind::backward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+float activation<alg_kind::eltwise_logistic, prop_kind::forward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
+    float dd, float s, float alpha, float cliping);
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
+template <>
+rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
+template <>
+rnn_elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
+
+// Explicit specializations and instantiations in ref_rnn.cpp.
+template <>
+rnn_gemm_sig((ref_rnn_fwd_u8s8_t::gemm));
+template <>
+rnn_gemm_sig((ref_rnn_fwd_u8s8_t::packed_gemm));
+template <>
+void ref_rnn_bwd_f32_t::copy_init_layer(
+    const rnn_utils::rnn_conf_t &rnn,
+    src_data_t *ws_states_, float *ws_diff_states_, const src_data_t *xt_,
+    const float *diff_dst_layer_) const;
+template <>
+template <typename input_data_t>
+void ref_rnn_bwd_f32_t::copy_init_iter(
+    const rnn_utils::rnn_conf_t &rnn,
+    src_data_t *ws_states_, float *ws_c_states_, float *ws_diff_states_,
+    const input_data_t *firstit_states_,
+    const float *diff_dst_iter_) const;
+template <>
+template <typename dst_data_t>
+void ref_rnn_bwd_f32_t::copy_res_layer(
+    const rnn_utils::rnn_conf_t &rnn, dst_data_t *dst_layer_, float *diff_src_layer_,
+    const src_data_t *ws_states_, const float *ws_diff_states_) const;
+template <>
+template <typename output_data_t>
+void ref_rnn_bwd_f32_t::copy_res_iter(
+    const rnn_utils::rnn_conf_t &rnn, output_data_t *dst_iter_, float *diff_src_iter_,
+    const src_data_t *ws_states_, float *ws_c_states_,
+    const float *ws_diff_states_) const;
+
+extern template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
+extern template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
+extern template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
+
 }
 }
 }

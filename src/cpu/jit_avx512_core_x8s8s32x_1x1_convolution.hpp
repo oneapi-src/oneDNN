@@ -152,6 +152,24 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
     rtus_driver_t<avx512_common> *rtus_driver_;
 };
 
+// Explicit instantiations in jit_avx512_core_x8s8s32x_1x1_convolution.cpp.
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::u8, data_type::u8>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::s8, data_type::u8>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::u8, data_type::s8>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::s8, data_type::s8>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::u8, data_type::s32>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::s8, data_type::s32>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::u8, data_type::f32>;
+extern template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+    data_type::s8, data_type::f32>;
+
 }
 }
 }

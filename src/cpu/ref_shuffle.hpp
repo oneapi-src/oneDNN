@@ -102,6 +102,45 @@ private:
     int *rev_transposed_;
 };
 
+// Explicit instantiations in ref_shuffle.cpp.
+extern template void
+ref_shuffle_t<4>::execute_<format_tag::nCdhw16c>(const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::nChw16c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::nCdhw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::nChw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::ncdhw>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::nchw>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::ndhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::nhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<4>::execute_<format_tag::any>(
+    const exec_ctx_t &ctx) const;
+
+extern template void
+ref_shuffle_t<1>::execute_<format_tag::nCdhw16c>(const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::nChw16c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::nCdhw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::nChw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::ncdhw>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::nchw>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::ndhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::nhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void ref_shuffle_t<1>::execute_<format_tag::any>(
+    const exec_ctx_t &ctx) const;
+
 }
 }
 }

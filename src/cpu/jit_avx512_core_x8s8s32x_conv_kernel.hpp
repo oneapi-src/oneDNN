@@ -173,6 +173,19 @@ private:
     const Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store = false);
 };
 
+// Explicit specializations and instantiations in
+// jit_avx512_core_x8s8s32x_conv_kernel.cpp.
+template<>
+const Xbyak::Zmm _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>::
+    vmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store);
+template <>
+void _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>::compute_ker_dw(
+    int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag,
+    bool h_padded);
+extern template struct  _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>;
+extern template struct  _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>;
+extern template struct  _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>;
+
 struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(jit_conv_conf_t ajcp,

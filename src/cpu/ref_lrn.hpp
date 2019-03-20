@@ -76,6 +76,23 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_lrn.cpp.
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw16c>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nchw>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::any>(
+    const exec_ctx_t &ctx) const;
+
 template <impl::data_type_t data_type>
 struct ref_lrn_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_lrn_bwd_pd_t {
@@ -126,6 +143,23 @@ private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_lrn.cpp.
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw16c>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw8c>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nchw>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nhwc>(
+    const exec_ctx_t &ctx) const;
+extern template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::any>(
+    const exec_ctx_t &ctx) const;
 
 }
 }

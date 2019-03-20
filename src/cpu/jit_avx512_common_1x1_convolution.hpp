@@ -131,6 +131,9 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public cpu_primitive_t {
     rtus_driver_t<avx512_common> *rtus_driver_;
 };
 
+// Explicit instantiations in jit_avx512_common_1x1_convolution.cpp.
+extern template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
+
 using jit_avx512_common_1x1_convolution_fwd_f32_t
         = jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
 
@@ -227,6 +230,10 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public cpu_primitive_t {
     jit_avx512_common_1x1_conv_kernel *kernel_;
     rtus_driver_t<avx512_common> *rtus_driver_;
 };
+
+// Explicit instantiations in jit_avx512_common_1x1_convolution.cpp.
+extern template struct jit_avx512_common_1x1_convolution_bwd_data_t<
+    data_type::f32>;
 
 using jit_avx512_common_1x1_convolution_bwd_data_f32_t
         = jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;

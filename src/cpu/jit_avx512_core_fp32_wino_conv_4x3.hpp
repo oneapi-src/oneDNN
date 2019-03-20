@@ -112,6 +112,10 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_t {
         const primitive_attr_t *attr_;
 };
 
+// Explicit instantiations in jit_avx512_core_fp32_wino_conv_4x3.cpp.
+extern template struct _jit_avx512_core_fp32_wino_conv_4x3_t<true>;
+extern template struct _jit_avx512_core_fp32_wino_conv_4x3_t<false>;
+
 struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
      : _jit_avx512_core_fp32_wino_conv_4x3_t<true>
      , public cpu_primitive_t

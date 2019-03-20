@@ -76,6 +76,17 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_inner_product.cpp.
+extern template struct ref_inner_product_fwd_t<data_type::f32>;
+extern template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
+    data_type::f32, data_type::s32>;
+extern template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
+    data_type::s32, data_type::s32>;
+extern template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
+    data_type::s8, data_type::s32>;
+extern template struct ref_inner_product_fwd_t<data_type::u8, data_type::s8,
+    data_type::u8, data_type::s32>;
+
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
          impl::data_type_t diff_dst_type,
          impl::data_type_t acc_type = diff_src_type>
@@ -115,6 +126,10 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_inner_product.cpp.
+extern template struct ref_inner_product_bwd_data_t<data_type::f32,
+    data_type::f32, data_type::f32, data_type::f32>;
+
 template <impl::data_type_t data_type>
 struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
     struct pd_t: public cpu_inner_product_bwd_weights_pd_t {
@@ -149,6 +164,9 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_inner_product.cpp.
+extern template struct ref_inner_product_bwd_weights_t<data_type::f32>;
 
 }
 }

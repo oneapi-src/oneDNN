@@ -119,6 +119,16 @@ private:
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t *dst_trans_;
 };
 
+// Explicit instantiations in jit_avx512_core_u8s8s32x_wino_convolution.cpp.
+extern template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+    data_type::s8>;
+extern template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+    data_type::u8>;
+extern template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+    data_type::s32>;
+extern template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+    data_type::f32>;
+
 }
 }
 }

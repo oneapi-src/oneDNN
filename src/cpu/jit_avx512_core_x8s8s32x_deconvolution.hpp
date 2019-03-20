@@ -228,6 +228,24 @@ private:
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 
+// Explicit instantiations in jit_avx512_core_x8s8s32x_deconvolution.cpp.
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::u8, data_type::u8>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::u8, data_type::s8>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::u8, data_type::f32>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::u8, data_type::s32>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::s8, data_type::u8>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::s8, data_type::s8>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::s8, data_type::f32>;
+extern template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<
+    data_type::s8, data_type::s32>;
+
 }
 }
 }

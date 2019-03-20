@@ -59,6 +59,15 @@ public:
 
 };
 
+// Explicit instantiations in jit_avx512_core_kernel_gemv_s8u8s32_kern.cpp.
+extern template jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t
+jit_avx512_core_gemv_s8u8s32_kern::generate<
+    jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t>(int);
+
+extern template jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t
+jit_avx512_core_gemv_s8u8s32_kern::generate<
+    jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>(int);
+
 }
 }
 }

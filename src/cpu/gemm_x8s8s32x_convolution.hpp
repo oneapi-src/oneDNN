@@ -190,6 +190,25 @@ private:
 
 };
 
+// Explicit instantiations in gemm_x8s8s32x_convolution.cpp.
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::u8, data_type::f32>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::u8, data_type::s32>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::u8, data_type::s8>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::u8, data_type::u8>;
+
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::s8, data_type::f32>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::s8, data_type::s32>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::s8, data_type::s8>;
+extern template struct _gemm_x8s8s32x_convolution_fwd_t<
+    data_type::s8, data_type::u8>;
+
 template <data_type_t dst_type>
 struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_bwd_data_pd_t{
@@ -258,6 +277,12 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in gemm_x8s8s32x_convolution.cpp.
+extern template struct _gemm_u8s8s32x_convolution_bwd_data_t<data_type::f32>;
+extern template struct _gemm_u8s8s32x_convolution_bwd_data_t<data_type::s32>;
+extern template struct _gemm_u8s8s32x_convolution_bwd_data_t<data_type::s8>;
+extern template struct _gemm_u8s8s32x_convolution_bwd_data_t<data_type::u8>;
 
 }
 }
