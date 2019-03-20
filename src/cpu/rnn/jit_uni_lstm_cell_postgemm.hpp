@@ -34,8 +34,8 @@ struct jit_uni_lstm_cell_postgemm_fwd: public jit_uni_rnn_postgemm
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
 
-    jit_uni_lstm_cell_postgemm_fwd(const rnn_utils::rnn_conf_t &rnn, const primitive_attr_t *attr)
-    : jit_uni_rnn_postgemm(rnn, attr){}
+    jit_uni_lstm_cell_postgemm_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
+    : jit_uni_rnn_postgemm(rnn, pd){}
 
     void init() override {
         // we use rax for both constant tables as they use the same table
@@ -64,10 +64,11 @@ protected:
     void generate() {
         using namespace Xbyak;
 
-        int mask = attr_->rnn_weights_qparams_.mask_;
-        float *weights_scales = attr_->rnn_weights_qparams_.scales_;
-        float data_scale = attr_->rnn_data_qparams_.scale_;
-        float data_shift = attr_->rnn_data_qparams_.shift_;
+        const primitive_attr_t *attr = pd_->attr();
+        int mask = attr->rnn_weights_qparams_.mask_;
+        float *weights_scales = attr->rnn_weights_qparams_.scales_;
+        float data_scale = attr->rnn_data_qparams_.scale_;
+        float data_shift = attr->rnn_data_qparams_.shift_;
 
         // Labels declaration
         Label vector_loop_start_label, vector_loop_end_label;

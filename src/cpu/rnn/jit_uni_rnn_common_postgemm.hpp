@@ -35,7 +35,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     typedef void (*kernel_t)(void *gates_, const void *bias, void *states_t_l_,
                      void *c_states_t_l_, void *c_states_tm1_l_);
 
-    jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const primitive_attr_t *attr): rnn_(rnn), attr_(attr){}
+    jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd): rnn_(rnn), pd_(pd){}
 
     virtual void init() = 0;
 
@@ -62,7 +62,7 @@ template <typename src_data_t, typename acc_data_t>
 protected:
     kernel_t kernel_;
     const rnn_utils::rnn_conf_t &rnn_;
-    const primitive_attr_t *attr_;
+    const rnn_pd_t *pd_;
 };
 
 

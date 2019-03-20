@@ -197,15 +197,15 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<avx512_core, src_type>(
-                            pd()->rnn_, pd()->attr());
+                            pd()->rnn_, pd());
                 else if (mayiuse(avx2))
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<avx2, src_type>(
-                            pd()->rnn_, pd()->attr());
+                            pd()->rnn_, pd());
                 else if (mayiuse(sse42))
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<sse42, src_type>(
-                            pd()->rnn_, pd()->attr());
+                            pd()->rnn_, pd());
                 assert(rnn_postgemm_ != nullptr);
                 rnn_postgemm_->init();
             }
