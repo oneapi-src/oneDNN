@@ -198,6 +198,10 @@ private:
     void reduce_nolock(int ithr, data_t *dst);
 };
 
+// Explicit instantiations in cpu_reducer.cpp.
+extern template struct cpu_reducer_t<data_type::f32>;
+extern template struct cpu_reducer_t<data_type::s32>;
+
 template <impl::data_type_t data_type>
 struct cpu_reducer_2d_t {
     typedef typename prec_traits<data_type>::type data_t;
@@ -254,6 +258,10 @@ private:
     void reduce_nolock(int ithr, data_t *dst);
 };
 
+// Explicit instantiations in cpu_reducer.cpp.
+extern template struct cpu_reducer_2d_t<data_type::f32>;
+extern template struct cpu_reducer_2d_t<data_type::s32>;
+
 /** simple 1d accumulator: y[:] += x[:] */
 template <impl::data_type_t data_type>
 struct cpu_accumulator_1d_t {
@@ -265,6 +273,10 @@ struct cpu_accumulator_1d_t {
 
     reducer_2d_driver_t<data_type> *drv_;
 };
+
+// Explicit instantiations in cpu_reducer.cpp.
+extern template struct cpu_accumulator_1d_t<data_type::f32>;
+extern template struct cpu_accumulator_1d_t<data_type::s32>;
 
 }
 }

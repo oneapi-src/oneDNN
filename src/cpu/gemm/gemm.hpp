@@ -36,6 +36,18 @@ void ref_gemm(const char *transa, const char *transb, const int *M,
         const int *N, const int *K, const data_t *alpha, const data_t *A,
         const int *lda, const data_t *B, const int *ldb, const data_t *beta,
         data_t *C, const int *ldc, const data_t *bias);
+
+// Explicit instantiations in ref_gemm.cpp.
+extern template
+void ref_gemm<float>(const char *transa_, const char *transb_,
+        const int *M_, const int *N_, const int *K_, const float *alpha_,
+        const float *A, const int *lda_, const float *B, const int *ldb_,
+        const float *beta_, float *C, const int *ldc_, const float *bias);
+extern template
+void ref_gemm<double>(const char *transa_, const char *transb_,
+        const int *M_, const int *N_, const int *K_, const double *alpha_,
+        const double *A, const int *lda_, const double *B, const int *ldb_,
+        const double *beta_, double *C, const int *ldc_, const double *bias);
 #ifdef USE_CBLAS
 #define GEMM_IMPL_STR "gemm:blas"
 #else

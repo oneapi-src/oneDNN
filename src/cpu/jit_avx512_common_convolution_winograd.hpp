@@ -203,6 +203,20 @@ struct _jit_avx512_common_convolution_winograd_t {
         const primitive_attr_t *attr_;
 };
 
+// Explicit instantiations in jit_avx512_common_convolution_winograd.cpp.
+extern template void
+_jit_avx512_common_convolution_winograd_t<true>::_execute_data_W_S_G_D(
+        float *, float *, float *, float *);
+extern template void
+_jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_S_G_D(
+        float *, float *, float *, float *);
+extern template void
+_jit_avx512_common_convolution_winograd_t<true>::_execute_data_W_SGD(
+        float *, float *, float *, float *);
+extern template void
+_jit_avx512_common_convolution_winograd_t<false>::_execute_data_W_SGD(
+        float *, float *, float *, float *);
+
 template <bool with_relu>
 struct _jit_avx512_common_convolution_winograd_fwd_t
      : _jit_avx512_common_convolution_winograd_t<true>

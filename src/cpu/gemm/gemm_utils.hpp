@@ -51,6 +51,14 @@ template <typename data_type>
 void sum_two_matrices(
         int m, int n, data_type *p_src, int ld_src, data_type *p_dst, int ld_dst);
 
+// Explicit instantiations are provided in gemm_utils.cpp.
+extern template
+void sum_two_matrices<float>(
+        int m, int n, float *p_src, int ld_src, float *p_dst, int ld_dst);
+extern template
+void sum_two_matrices<double>(
+        int m, int n, double *p_src, int ld_src, double *p_dst, int ld_dst);
+
 void calc_nthr_nocopy_avx512_common(int m,
         int n, int k, int nthrs, int *nthrs_m, int *nthrs_n, int *nthrs_k,
         int *BM, int *BN, int *BK);

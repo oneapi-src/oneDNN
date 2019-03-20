@@ -300,6 +300,12 @@ private:
 
     void generate();
 };
+
+// Explicit instantiations in jit_uni_dw_conv_kernel_f32.cpp.
+extern template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
+extern template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
+extern template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse42>;
+
 }
 }
 }

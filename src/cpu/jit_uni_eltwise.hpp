@@ -29,6 +29,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+// Explicit instantiations are in jit_uni_eltwise.cpp.
+extern template struct jit_uni_eltwise_injector_f32<avx512_common>;
+extern template struct jit_uni_eltwise_injector_f32<avx2>;
+extern template struct jit_uni_eltwise_injector_f32<sse42>;
+
 struct jit_uni_eltwise_kernel_f32;
 
 template <cpu_isa_t isa>
