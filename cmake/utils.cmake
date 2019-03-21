@@ -108,7 +108,7 @@ endmacro()
 function(target_link_libraries_build target list)
     # Foreach is required for compatibility with 2.8.11 ways
     foreach(lib ${list})
-        target_link_libraries(${target}
+        target_link_libraries(${target} LINK_PUBLIC
             "$<BUILD_INTERFACE:${lib}>")
     endforeach(lib)
 endfunction()
