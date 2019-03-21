@@ -193,7 +193,7 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             NhCw16n16c,
             NhCw16c16n,
 
-            NhC16cw16n,
+            Nhcw16n,
 
             NhC16nw32c,
             NhC16nw64c,

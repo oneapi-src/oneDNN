@@ -384,7 +384,7 @@ typedef enum {
     mkldnn_NhCw16n16c,
     mkldnn_NhCw16c16n,
 
-    mkldnn_NhC16cw16n,
+    mkldnn_Nhcw16n,
 
     mkldnn_NhC16nw32c,
     mkldnn_NhC16nw64c,

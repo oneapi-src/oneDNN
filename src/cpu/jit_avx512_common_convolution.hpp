@@ -460,7 +460,7 @@ private:
 
         int g[2];
         int ocb[2];
-        int icb[2];
+        int ic[2];
 
     } param_t;
 

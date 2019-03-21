@@ -1146,7 +1146,8 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
     int step = j.oc_buffs;
     int oc_iters = j.nb_oc / step;
 
-    int work_amount = j.ngroups * j.nb_ic * oc_iters;
+    //int work_amount = j.ngroups * j.ic * oc_iters;
+    int work_amount = j.ngroups * j.ic;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int start, end;
@@ -1156,24 +1157,28 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
 
         int g{0}, ocb{0}, ic_s{0};
 
-        nd_iterator_init(start, g, j.ngroups, ocb, oc_iters, ic_s, j.nb_ic);
+        //nd_iterator_init(start, g, j.ngroups, ocb, oc_iters, ic_s, j.ic);
+        nd_iterator_init(start, g, j.ngroups, ic_s, j.ic);
 
 
         p.g[1] = p.g[0] = g;
-        p.ocb[1] = p.ocb[0] = ocb;
-        p.icb[1] = p.icb[0] = ic_s;
+        //p.ocb[1] = p.ocb[0] = ocb;
+        p.ocb[1] = oc_iters - 1;
+        p.ocb[0] = ocb;
+        p.ic[1] = p.ic[0] = ic_s;
 
         while (start < end) {
 
             p.g[1] = g;
-            p.ocb[1] = ocb;
+            //p.ocb[1] = ocb;
 
             int work_rem = end - start;
 
-            p.icb[1] = ic_s + work_rem > j.nb_ic ? j.nb_ic : ic_s + work_rem;
+            p.ic[1] = ic_s + work_rem > j.ic ? j.ic : ic_s + work_rem;
 
-            nd_iterator_jump(start, end, g, j.ngroups, ocb,
-                    oc_iters, ic_s, j.nb_ic);
+            //nd_iterator_jump(start, end, g, j.ngroups, ocb,
+            //        oc_iters, ic_s, j.ic);
+            nd_iterator_jump(start, end, g, j.ngroups, ic_s, j.ic);
         }
 
         /*int g{0}, icb{0}, ocb_s{0};
@@ -1980,19 +1985,30 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         size_t diff_wht_oc_stride = wht_blk_off(diff_weights_d, 0, 1);
         
         param_t &p = params_[ithr];
+        int flags[jcp.kh];
 
         int dilate_h = jcp.dilate_h + 1;
 
         for (int g = p.g[0]; g <= p.g[1]; ++g) {
 
-            int ocb_s = g == p.g[0] ? p.ocb[0] : 0;
-            int ocb_e = g == p.g[1] ? p.ocb[1] + 1 : oc_iters;
+            //int ocb_s = g == p.g[0] ? p.ocb[0] : 0;
+            //int ocb_e = g == p.g[1] ? p.ocb[1] + 1 : oc_iters;
             
-            for (int ocb = ocb_s; ocb < ocb_e; ++ocb) {
+            //for (int ocb = ocb_s; ocb < ocb_e; ++ocb) {
+            for (int ocb = 0; ocb < oc_iters; ++ocb) {
 
-                int ic_s = (g == p.g[0] && ocb == p.ocb[0]) ? p.icb[0] : 0;
-                int ic_e = (g == p.g[1] && ocb == p.ocb[1]) ? p.icb[1] : jcp.nb_ic;
+                //mkldnn_thr_barrier();
 
+                //int ic_s = (g == p.g[0] && ocb == p.ocb[0]) ? p.ic[0] : 0;
+                //int ic_e = (g == p.g[1] && ocb == p.ocb[1]) ? p.ic[1] : jcp.ic;
+
+                int ic_s = (g == p.g[0]) ? p.ic[0] : 0;
+                int ic_e = (g == p.g[1]) ? p.ic[1] : jcp.ic;
+
+                for (int i = 0; i < jcp.kh; ++i) {
+                    flags[i] = 0;
+                }
+                
                 for (int mbb = 0; mbb < jcp.nb_mb; ++mbb) {
 
                     for (int oh = 0; oh < jcp.oh; ++oh) {
@@ -2005,40 +2021,38 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                         int kh_padding = nstl::max(0,
                             jcp.kh - i_t_overflow - i_b_overflow);
 
-                        int kh_iters = kh_padding == 0 ? 1 : kh_padding;
+                        for (int ki = 0; ki < kh_padding; ++ki) {
+                            
+                            int kh = i_t_overflow + ki;
 
-                        for (int ki = 0; ki < kh_iters; ++ki) {
+                            for (int ic = ic_s; ic < ic_e; ++ic) {
 
-                            for (int icb = ic_s; icb < ic_e; ++icb) {
-
-                                auto src_w = src + src_d.blk_off(mbb, g * jcp.nb_ic + icb,
-                                        ih + (i_t_overflow + ki) * dilate_h);
+                                auto src_w = src + src_d.blk_off(mbb, g * jcp.ic + ic,
+                                        ih + kh * dilate_h);
                                 auto diff_dst_w = diff_dst + diff_dst_d.blk_off(mbb,
-                                        g * jcp.nb_oc + ocb * step, oh);
+                                        g * oc_iters + ocb, oh);
 
-                                size_t wei_offset = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * (mbb * jcp.oh + oh);
                                 auto diff_wht_w = diff_weights
-                                        + wht_blk_off(diff_weights_d, g, ocb * step, icb, i_t_overflow + ki);
-                                        //+ wei_offset;
+                                        + wht_blk_off(diff_weights_d, g, ocb * step, ic / jcp.ic_block, kh)
+                                        + (ic % jcp.ic_block) * jcp.oc_block;
 
-                                for (int icc = 0; icc < jcp.ic_block; ++icc) {
+                                jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                                        src_w,
+                                        diff_dst_w,
+                                        diff_wht_w,
+                                        0, flags[kh], kh_padding);
 
-                                    jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                                            src_w + icc * jcp.mb_block * jcp.iw,
-                                            diff_dst_w,
-                                            diff_wht_w + icc * jcp.oc_block,
-                                            0, oh == 0 ? mbb : 1, kh_padding);
+                                //int ic = icb * jcp.ic_block + icc;
+                                //ker(g, ocb, ic, i_t_overflow + ki, ih + (i_t_overflow + ki) * dilate_h, oh, mbb, mbs);
 
-                                    //int ic = icb * jcp.ic_block + icc;
-                                    //ker(g, ocb, ic, i_t_overflow + ki, ih + (i_t_overflow + ki) * dilate_h, oh, mbb, mbs);
+                                //ker3((float *) src_w + icc * jcp.mb_block * jcp.iw,
+                                //        (float *) diff_dst_w,
+                                //        (float *) diff_wht_w + icc * jcp.oc_block,
+                                //        flags[kh], kh_padding);
 
-                                    //ker3((float *) src_w + icc * jcp.mb_block * jcp.iw,
-                                    //        (float *) diff_dst_w,
-                                    //        (float *) diff_wht_w + icc * jcp.oc_block,
-                                    //        oh == 0 ? mbb : 1, kh_padding);
-
-                                }
                             }
+
+                            flags[kh] = 1;
                         }
                     }
                 }

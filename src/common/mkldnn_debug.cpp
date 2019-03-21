@@ -169,7 +169,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_NhCw16n16c) return "NhCw16n16c";
     if (v == mkldnn_NhCw16c16n) return "NhCw16c16n";
 
-    if (v == mkldnn_NhC16cw16n) return "NhC16cw16n";
+    if (v == mkldnn_Nhcw16n) return "Nhcw16n";
 
     if (v == mkldnn_NhC16nw32c) return "NhC16nw32c";
     if (v == mkldnn_NhC16nw64c) return "NhC16nw64c";

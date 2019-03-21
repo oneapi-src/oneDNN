@@ -214,7 +214,7 @@ namespace memory_format {
     const memory_format_t NhCw16n16c = mkldnn_NhCw16n16c;
     const memory_format_t NhCw16c16n = mkldnn_NhCw16c16n;
 
-    const memory_format_t NhC16cw16n = mkldnn_NhC16cw16n;
+    const memory_format_t Nhcw16n = mkldnn_Nhcw16n;
 
     const memory_format_t NhC16nw32c = mkldnn_NhC16nw32c;
     const memory_format_t NhC16nw64c = mkldnn_NhC16nw64c;

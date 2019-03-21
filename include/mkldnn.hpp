@@ -701,7 +701,7 @@ struct memory: public primitive  {
         NhCw16n16c = mkldnn_NhCw16n16c,
         NhCw16c16n = mkldnn_NhCw16c16n,
         
-        NhC16cw16n = mkldnn_NhC16cw16n,
+        Nhcw16n = mkldnn_Nhcw16n,
 
         NhC16nw32c = mkldnn_NhC16nw32c,
         NhC16nw64c = mkldnn_NhC16nw64c,

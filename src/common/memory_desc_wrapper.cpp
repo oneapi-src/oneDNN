@@ -347,12 +347,10 @@ status_t fill_NhCw16c16n(memory_desc_t &md) {
     return fill_contiguous_blocked(md, block_dims, perm);
 }
 
-status_t fill_NhC16cw16n(memory_desc_t &md, int w) {
+status_t fill_Nhcw16n(memory_desc_t &md) {
     if (md.ndims != 4) return invalid_arguments;
-
-    assert(w != 0);
-
-    const dims_t block_dims = {16, 16, 1, w};
+    
+    const dims_t block_dims = {16, 1, 1, 1};
     const int perm[] = {
         0, 2, 1, 3,
         6, 5, 7, 4};
@@ -1107,7 +1105,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc, int w
     case NhCw16n16c: return fill_NhCw16n16c(memory_desc);
     case NhCw16c16n: return fill_NhCw16c16n(memory_desc);
 
-    case NhC16cw16n: return fill_NhC16cw16n(memory_desc, w);
+    case Nhcw16n: return fill_Nhcw16n(memory_desc);
 
     case NhC16nw32c: return fill_NhC16nw32c(memory_desc, w);
     case NhC16nw64c: return fill_NhC16nw64c(memory_desc, w);
