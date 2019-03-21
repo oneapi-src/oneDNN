@@ -20,7 +20,9 @@
 int main() {
     printf("mkldnn_version: %d.%d.%d\n",
             MKLDNN_VERSION_MAJOR, MKLDNN_VERSION_MINOR, MKLDNN_VERSION_PATCH);
-    printf("mkldnn_memory_desc_init = %p, sizeof(mkldnn_memory_desc_t) = %d\n",
-            mkldnn_memory_desc_init, (int)sizeof(mkldnn_memory_desc_t));
+    printf("mkldnn_memory_desc_init_by_tag = %p, "
+            "sizeof(mkldnn_memory_desc_t) = %d\n",
+            mkldnn_memory_desc_init_by_tag,
+            (int)sizeof(mkldnn_memory_desc_t));
     return 0;
 }

@@ -114,13 +114,14 @@ typedef enum {
  *
  * int ndims = 5; // 5D tensor
  * mkldnn_dims_t dims = {batch, channels, depth, height, width};
- *
  * mkldnn_memory_desc_t data_in_ncdhw;
- * mkldnn_memory_desc_init(&data_in_ncdhw, 5, dims, mlkdnn_ncdhw);
+ * mkldnn_memory_desc_init_by_tag(
+ *      &data_in_ncdhw, 5, dims, mkldnn_f32, mkldnn_ncdhw);
  *
  * // note that in both cases dims passed are the same
  * mkldnn_memory_desc_t data_in_ndhwc;
- * mkldnn_memory_desc_init(&data_in_ndhwc, 5, dims, mlkdnn_ndhwc);
+ * mkldnn_memory_desc_init_by_tag(
+ *      &data_in_ndhwc, 5, dims, mkldnn_f32, mkldnn_ndhwc);
  * ~~~
  *
  * The following notation applies to memory format names:
