@@ -583,6 +583,9 @@ struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
     enum: unsigned {
+        default_order = mkldnn_stream_default_order,
+        in_order = mkldnn_stream_default_order,
+        out_of_order = mkldnn_stream_out_of_order,
         default_flags = mkldnn_stream_default_flags,
     };
 

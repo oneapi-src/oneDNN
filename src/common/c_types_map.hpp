@@ -509,6 +509,9 @@ using primitive_arg_index_t = int;
 
 using stream_flags_t = mkldnn_stream_flags_t;
 namespace stream_flags {
+    const stream_flags_t default_order = mkldnn_stream_default_order;
+    const stream_flags_t in_order = mkldnn_stream_in_order;
+    const stream_flags_t out_of_order = mkldnn_stream_out_of_order;
     const stream_flags_t default_flags = mkldnn_stream_default_flags;
 }
 using stream_t = mkldnn_stream;

@@ -1401,8 +1401,15 @@ typedef enum {
 
 /** @brief Stream flags. */
 typedef enum {
-    /** A default stream configuration. */
-    mkldnn_stream_default_flags = 0x0U,
+    /** Default order execution.
+     * Either in-order or out-of-order depending on the backend. */
+    mkldnn_stream_default_order = 0x1U,
+    /** In-order execution. */
+    mkldnn_stream_in_order = 0x2U,
+    /** Out-of-order execution. */
+    mkldnn_stream_out_of_order = 0x4U,
+    /** Default stream configuration. */
+    mkldnn_stream_default_flags = mkldnn_stream_default_order,
 } mkldnn_stream_flags_t;
 
 /** @struct mkldnn_stream
