@@ -55,6 +55,11 @@
 
 #include "mkldnn_types.h"
 #include "mkldnn_version.h"
+
+#if MKLDNN_WITH_OPENCL
+#   include <CL/cl.h>
+#endif
+
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
 #ifdef __cplusplus
@@ -575,6 +580,16 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
 /** For a @p memory, sets the data @p handle. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_set_data_handle(
         mkldnn_memory_t memory, void *handle);
+
+#if MKLDNN_WITH_OPENCL
+/** For a @p memory returns the OpenCL memory object associated with it. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_get_ocl_mem_object(
+        const_mkldnn_memory_t memory, cl_mem *mem_object);
+
+/** For a @p memory sets the OpenCL memory object associated with it. */
+mkldnn_status_t MKLDNN_API mkldnn_memory_set_ocl_mem_object(
+        mkldnn_memory_t memory, cl_mem mem_object);
+#endif
 
 /** Deletes a @p memory. */
 mkldnn_status_t MKLDNN_API mkldnn_memory_destroy(mkldnn_memory_t memory);
@@ -1655,6 +1670,13 @@ size_t MKLDNN_API mkldnn_engine_get_count(mkldnn_engine_kind_t kind);
 mkldnn_status_t MKLDNN_API mkldnn_engine_create(mkldnn_engine_t *engine,
         mkldnn_engine_kind_t kind, size_t index);
 
+#if MKLDNN_WITH_OPENCL
+/** Creates an @p engine of particular @p kind associated with a given OpenCL
+ * @p device and @p context objects. */
+mkldnn_status_t MKLDNN_API mkldnn_engine_create_ocl(mkldnn_engine_t *engine,
+        mkldnn_engine_kind_t kind, cl_device_id device, cl_context context);
+#endif
+
 /** Creates an @p engine of particular @p kind, @p backend_kind and @p index. */
 mkldnn_status_t MKLDNN_API mkldnn_engine_create_with_backend(
         mkldnn_engine_t *engine, mkldnn_engine_kind_t kind,
@@ -1668,6 +1690,16 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_backend_kind(
         mkldnn_engine_t engine, mkldnn_backend_kind_t *backend_kind);
 
+#if MKLDNN_WITH_OPENCL
+/** Returns an OpenCL @p context associated with an @p engine. */
+mkldnn_status_t MKLDNN_API mkldnn_engine_get_ocl_context(
+        mkldnn_engine_t engine, cl_context *context);
+
+/** Returns an OpenCL @p device associated with an @p engine. */
+mkldnn_status_t MKLDNN_API mkldnn_engine_get_ocl_device(
+        mkldnn_engine_t engine, cl_device_id *device);
+#endif
+
 /** Destroys an @p engine. */
 mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 
@@ -1679,6 +1711,18 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 /** Creates an execution @p stream for @p engine and with @p flags. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
         mkldnn_engine_t engine, unsigned flags);
+
+#if MKLDNN_WITH_OPENCL
+/** Creates an execution @p stream for a given @p engine associated with
+ * an OpenCL command @p queue. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_create_ocl(mkldnn_stream_t *stream,
+        mkldnn_engine_t engine, cl_command_queue queue);
+
+/** Returns the OpenCL command @p queue associated with an execution
+ * @p stream. */
+mkldnn_status_t MKLDNN_API mkldnn_stream_get_ocl_command_queue(
+        mkldnn_stream_t stream, cl_command_queue *queue);
+#endif
 
 /** Waits for all primitives in the execution @p stream to finish. */
 mkldnn_status_t MKLDNN_API mkldnn_stream_wait(mkldnn_stream_t stream);

@@ -28,6 +28,11 @@
 #include <iterator>
 
 #include "mkldnn.h"
+
+#if MKLDNN_WITH_OPENCL
+#include <CL/cl.h>
+#endif
+
 #endif
 
 namespace mkldnn {
@@ -522,6 +527,16 @@ struct engine: public handle<mkldnn_engine_t> {
         reset(aengine);
     }
 
+#if MKLDNN_WITH_OPENCL
+    engine(kind akind, cl_device_id device, cl_context context) {
+        mkldnn_engine_t aengine;
+        error::wrap_c_api(mkldnn_engine_create_ocl(&aengine,
+                                  convert_to_c(akind), device, context),
+                "could not create an engine");
+        reset(aengine);
+    }
+#endif
+
     explicit engine(const mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
@@ -547,6 +562,23 @@ struct engine: public handle<mkldnn_engine_t> {
                 "could not get the backend kind of the engine");
         return static_cast<backend_kind>(abackend_kind);
     }
+
+#if MKLDNN_WITH_OPENCL
+    cl_context get_ocl_context() const {
+        cl_context context = nullptr;
+        error::wrap_c_api(mkldnn_engine_get_ocl_context(get(), &context),
+                "could not get a context handle");
+        return context;
+    }
+
+    cl_device_id get_ocl_device() const {
+        cl_device_id device = nullptr;
+        error::wrap_c_api(mkldnn_engine_get_ocl_device(get(), &device),
+                "could not get a device handle");
+        return device;
+    }
+#endif
+
 
     template <class primitive_desc>
     static engine query(const primitive_desc &pd) {
@@ -597,6 +629,23 @@ struct stream: public handle<mkldnn_stream_t> {
                 "could not create a stream");
         reset(astream);
     }
+
+#if MKLDNN_WITH_OPENCL
+    stream(const engine &eng, cl_command_queue queue) {
+        mkldnn_stream_t astream;
+        error::wrap_c_api(mkldnn_stream_create_ocl(&astream, eng.get(), queue),
+                "could not create a stream");
+        reset(astream);
+    }
+
+    cl_command_queue get_ocl_command_queue() const {
+        cl_command_queue queue = nullptr;
+        error::wrap_c_api(mkldnn_stream_get_ocl_command_queue(get(), &queue),
+                "could not get OpenCL command queue");
+        return queue;
+    }
+#endif
+
 
     /// Waits for all primitives in the stream to finish.
     stream &wait() {
@@ -1000,6 +1049,20 @@ struct memory: public handle<mkldnn_memory_t> {
         error::wrap_c_api(mkldnn_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap the data");
     }
+
+#if MKLDNN_WITH_OPENCL
+    cl_mem get_ocl_mem_object() const {
+        cl_mem mem_object;
+        error::wrap_c_api(mkldnn_memory_get_ocl_mem_object(get(), &mem_object),
+                "could not get OpenCL memory object");
+        return mem_object;
+    }
+
+    void set_ocl_mem_object(cl_mem mem_object) {
+        error::wrap_c_api(mkldnn_memory_set_ocl_mem_object(get(), mem_object),
+                "could not set OpenCL memory object");
+    }
+#endif
 
     // Must go away or be private:
     static mkldnn_data_type_t convert_to_c(data_type adata_type) {
