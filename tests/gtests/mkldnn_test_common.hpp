@@ -35,6 +35,10 @@
 #include "mkldnn.hpp"
 #include "mkldnn_test_macros.hpp"
 
+#if MKLDNN_WITH_OPENCL
+#include "mkldnn_test_common_ocl.hpp"
+#endif
+
 #include "src/common/mkldnn_thread.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
 

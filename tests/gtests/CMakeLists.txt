@@ -86,4 +86,8 @@ endforeach()
 
 add_subdirectory(api)
 
+if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+    add_subdirectory(ocl)
+endif()
+
 # vim: et ts=4 sw=4
