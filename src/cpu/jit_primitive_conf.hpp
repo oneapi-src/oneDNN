@@ -31,6 +31,8 @@ enum conv_loop_order_t {loop_cgn, loop_gnc, loop_ngc, loop_gncw, loop_cwgn,
                             loop_ngcw, loop_nhwcg, loop_nwcg};
 enum conv_1x1_loop_order_t {loop_rbl, loop_rlb, loop_lbr, loop_lrb, loop_blr,
                             loop_brl};
+enum conv_gemm_loop_order_t { gemm_loop_rlb, gemm_loop_lrb };
+
 enum conv_kernel_kind_t {embd_bcast, expl_bcast};
 enum conv_harness_t {harness_2d_reduction, harness_3d_reduction,
                      harness_mb_reduction};
@@ -416,7 +418,10 @@ struct jit_gemm_conv_conf_t {
     bool signed_input;
     int oh_block;
     int ow_block;
+    int os_block;
     bool outer_threading;
+    conv_gemm_loop_order_t loop_order;
+    int nthr_oc;
 };
 
 struct jit_1x1_conv_call_s {

@@ -125,8 +125,7 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
         grp = ithr / grp_size_big;
         grp_ithr = ithr % grp_size_big;
         grp_nthr = grp_size_big;
-    }
-    else { // ithr in last groups
+    } else { // ithr in last groups
         grp = n_grp_big + ithr_bound_distance / grp_size_small;
         grp_ithr = ithr_bound_distance % grp_size_small;
         grp_nthr = grp_size_small;
