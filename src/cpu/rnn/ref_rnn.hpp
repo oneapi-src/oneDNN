@@ -30,8 +30,10 @@
 #include "cpu_rnn_pd.hpp"
 #include "../cpu_primitive.hpp"
 #include "rnn_utils.hpp"
-#include "jit_uni_lstm_cell_postgemm.hpp"
 #include "jit_uni_rnn_cell_postgemm.hpp"
+#include "jit_uni_lstm_cell_postgemm.hpp"
+#include "jit_uni_gru_lbr_cell_postgemm.hpp"
+
 
 namespace mkldnn {
 namespace impl {
@@ -251,6 +253,23 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         case alg_kind::gru_linear_before_reset:
             cell_func = &class_name::cell_execution_gru_lbr;
             elemwise_func = &class_name::gru_lbr_elemwise;
+	    // jitted path
+	    if (pd()->desc()->prop_kind == prop_kind::forward_inference) {
+                if (mayiuse(avx512_core))
+                    rnn_postgemm_ =
+                        new jit_uni_gru_lbr_cell_postgemm_fwd<avx512_core, src_type>(
+                            pd()->rnn_, pd());
+                else if (mayiuse(avx2))
+                    rnn_postgemm_ =
+                        new jit_uni_gru_lbr_cell_postgemm_fwd<avx2, src_type>(
+                            pd()->rnn_, pd());
+                else if (mayiuse(sse42))
+                    rnn_postgemm_ =
+                        new jit_uni_gru_lbr_cell_postgemm_fwd<sse42, src_type>(
+                            pd()->rnn_, pd());
+                assert(rnn_postgemm_ != nullptr);
+                rnn_postgemm_->init();
+            }
             break;
         default: break;
         }
