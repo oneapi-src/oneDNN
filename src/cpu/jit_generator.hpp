@@ -461,6 +461,15 @@ public:
                     const Xbyak::Operand &op2 = Xbyak::Operand()) {
         vaddps(x, op1, op2);
     }
+    void uni_vaddss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        assert(x.getIdx() == op1.getIdx());
+        addss(x, op2);
+    }
+    void uni_vaddss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        vaddss(x, op1, op2);
+    }
 
     void uni_vpsignd(const Xbyak::Xmm& x1, const Xbyak::Xmm& x2,
                      const Xbyak::Operand& op) {
@@ -470,6 +479,16 @@ public:
     void uni_vpsignd(const Xbyak::Ymm& x1, const Xbyak::Ymm& x2,
                      const Xbyak::Operand& op) {
         vpsignd(x1, x2, op);
+    }
+
+    void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        assert(x.getIdx() == op1.getIdx());
+        subps(x, op2);
+    }
+    void uni_vsubss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        vsubss(x, Xbyak::Xmm(op1.getIdx()), Xbyak::Xmm(op2.getIdx()));
     }
 
     void uni_vsubps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
@@ -506,6 +525,20 @@ public:
         vmulps(x, op1, op2);
     }
 
+    void uni_vmulss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Operand &op2 = Xbyak::Operand()) {
+        assert(x.getIdx() == op1.getIdx());
+        mulss(x, op2);
+    }
+    void uni_vmulss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Address &op2) {
+        vmulss(x, Xbyak::Xmm(op1.getIdx()), op2);
+    }
+    void uni_vmulss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
+                    const Xbyak::Ymm &op2) {
+        vmulss(x, Xbyak::Xmm(op1.getIdx()), Xbyak::Xmm(op2.getIdx()));
+    }
+
     void uni_vfmadd213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                          const Xbyak::Operand &op) {
         mulps(x1, x2);
@@ -516,6 +549,16 @@ public:
         vfmadd213ps(x1, x2, op);
     }
 
+    void uni_vfmadd213ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                         const Xbyak::Operand &op) {
+        mulss(x1, x2);
+        addss(x1, op);
+    }
+    void uni_vfmadd213ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                         const Xbyak::Operand &op) {
+        vfmadd213ss(x1, x2, op);
+    }
+
     void uni_vfmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
                          const Xbyak::Operand &op) {
         mulps(x2, op);
@@ -524,6 +567,15 @@ public:
     void uni_vfmadd231ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
                          const Xbyak::Operand &op) {
         vfmadd231ps(x1, x2, op);
+    }
+    void uni_vfmadd231ss(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                         const Xbyak::Operand &op) {
+        mulss(x2, op);
+        addss(x1, x2);
+    }
+    void uni_vfmadd231ss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                         const Xbyak::Operand &op) {
+        vfmadd231ss(Xbyak::Xmm(x1.getIdx()), Xbyak::Xmm(x2.getIdx()), op);
     }
 
     void uni_vfnmadd231ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
