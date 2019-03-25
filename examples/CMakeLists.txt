@@ -39,6 +39,10 @@ register_exe(simple-rnn-cpp simple_rnn.cpp "test")
 register_exe(simple-rnn-int8-cpp simple_rnn_int8.cpp "test")
 register_exe(simple-rnn-training-cpp simple_rnn_training.cpp "test")
 
+if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+    add_subdirectory(gpu)
+endif()
+
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     file(GLOB example_sources "*.cpp" "*.c")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
