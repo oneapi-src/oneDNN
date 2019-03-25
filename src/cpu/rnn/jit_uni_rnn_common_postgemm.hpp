@@ -44,8 +44,10 @@ template <typename src_data_t, typename acc_data_t>
         rnn_utils::ws_gates_aoc<acc_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::bias_aoc_t bias(rnn, bias_);
         rnn_utils::ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
+        rnn_utils::ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
         rnn_utils::ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
         rnn_utils::ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
+        rnn_utils::ws_gates_aoc<acc_data_t> ws_gemm(rnn, ws_cell_);
 
         // Todo: add parallelization on dic for the batch 1 case
         // Assumption: the kernel runs a loop on dic elements
@@ -58,6 +60,10 @@ template <typename src_data_t, typename acc_data_t>
                 case alg_kind::vanilla_lstm:
                     param4_ = &c_states_tm1_l(i, 0);
                     param5_ = &c_states_t_l(i, 0);
+                    break;
+                case alg_kind::gru_linear_before_reset:
+                    param4_ = &states_tm1_l(i, 0);
+                    param5_ = &ws_gemm(i, 0, 0);
                     break;
                 default:
                     param4_ = nullptr;
