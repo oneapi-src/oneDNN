@@ -158,6 +158,8 @@ protected:
     virtual status_t create_primitive(primitive_t **p) const override { \
         double ms = get_msec(); \
         auto ret = safe_ptr_assign<primitive_t>(*p, new (__VA_ARGS__)(this)); \
+        status_t status = (*p)->init(); \
+        if (status != status::success) return status; \
         ms = get_msec() - ms; \
         if (mkldnn_verbose()->level >= 2) { \
             printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \

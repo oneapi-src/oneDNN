@@ -49,6 +49,8 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
         : pd_(pd->clone()) {}
     virtual ~mkldnn_primitive() { delete pd_; }
 
+    virtual mkldnn::impl::status_t init() { return mkldnn::impl::status::success; }
+
     /** returns primitive's engine */
     mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
     /** returns primitive's inputs */
