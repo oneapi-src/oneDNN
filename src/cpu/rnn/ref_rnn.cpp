@@ -696,7 +696,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_() const {
     float *ws_c_states = (float *)(base_ptr + ws_c_states_offset_);
     float *ws_diff_states = (float *)(base_ptr + ws_diff_states_offset_);
     float *ws_grid = (float *)(base_ptr + ws_grid_comp_offset_);
-    float *ws_cell = (float *)(base_ptr + ws_cell_comp_offset_);
+    acc_data_t *ws_cell = (acc_data_t *)(base_ptr + ws_cell_comp_offset_);
 
     auto diff_src_layer = rnn.is_fwd ?
             nullptr :
