@@ -200,6 +200,7 @@ typedef enum {
     mkldnn_ABc8b8a,
     mkldnn_Abcd16a,
     mkldnn_ABcd16a16b,
+    mkldnn_ABcd32a32b,
     mkldnn_aBcd16b,
     mkldnn_ABcd16b16a,
     mkldnn_aBCd16b16c,
@@ -234,11 +235,16 @@ typedef enum {
     mkldnn_aBCde4c4b,
     mkldnn_Abcde8a,
     mkldnn_ABcde8a8b,
+    mkldnn_BAcde16b16a,
     mkldnn_aBcde8b,
     mkldnn_ABcde8b16a2b,
     mkldnn_aBCde8b16c2b,
     mkldnn_ABcde8b8a,
     mkldnn_aBCde8b8c,
+    mkldnn_ABcd4a8b8a4b,
+    mkldnn_ABcd2a8b8a2b,
+    mkldnn_aBCde4b8c8b4c,
+    mkldnn_aBCde2b8c8b2c,
     mkldnn_aBCde8c16b2c,
     mkldnn_aBCde8c8b,
     mkldnn_aBcdef16b,
@@ -253,17 +259,22 @@ typedef enum {
     mkldnn_aBdc4b,
     mkldnn_aBdc8b,
     mkldnn_aBdec16b,
+    mkldnn_aBdec32b,
     mkldnn_aBdec4b,
     mkldnn_aBdec8b,
     mkldnn_aBdefc16b,
+    mkldnn_aCBdef16c16b,
     mkldnn_aBdefc4b,
     mkldnn_aBdefc8b,
+    mkldnn_Abcdef16a,
     mkldnn_Acb16a,
     mkldnn_Acb4a,
     mkldnn_Acb8a,
     mkldnn_aCBd16b16c,
     mkldnn_aCBde16b16c,
+    mkldnn_aCBde16c16b,
     mkldnn_Acdb16a,
+    mkldnn_Acdb32a,
     mkldnn_Acdb4a,
     mkldnn_Acdb8a,
     mkldnn_Acdeb16a,
@@ -271,6 +282,7 @@ typedef enum {
     mkldnn_Acdeb8a,
     mkldnn_BAc16a16b,
     mkldnn_BAcd16a16b,
+    mkldnn_BAcd16b16a,
 
     /** Just a sentinel, not real memory format tag. Must be changed after new
      * format tag is added. */
@@ -346,6 +358,9 @@ typedef enum {
     mkldnn_nCw16c = mkldnn_aBc16b,
     mkldnn_nCw4c = mkldnn_aBc4b,
     mkldnn_nCw8c = mkldnn_aBc8b,
+    mkldnn_NCdhw16n16c = mkldnn_ABcde16a16b,
+    mkldnn_NChw16n16c = mkldnn_ABcd16a16b,
+    mkldnn_NChw32n32c = mkldnn_ABcd32a32b,
 
     /* weights, 3D */
     mkldnn_IOw16o16i = mkldnn_BAc16a16b,
@@ -364,8 +379,10 @@ typedef enum {
     mkldnn_Owi8o = mkldnn_Acb8a,
 
     /* weights, 4D */
+    mkldnn_IOhw16i16o = mkldnn_BAcd16b16a,
     mkldnn_IOhw16o16i = mkldnn_BAcd16a16b,
     mkldnn_Ohwi16o = mkldnn_Acdb16a,
+    mkldnn_Ohwi32o = mkldnn_Acdb32a,
     mkldnn_Ohwi4o = mkldnn_Acdb4a,
     mkldnn_Ohwi8o = mkldnn_Acdb8a,
     mkldnn_OIhw16i16o = mkldnn_ABcd16b16a,
@@ -391,6 +408,7 @@ typedef enum {
     mkldnn_OIdhw8i16o2i = mkldnn_ABcde8b16a2b,
     mkldnn_OIdhw8i8o = mkldnn_ABcde8b8a,
     mkldnn_OIdhw8o8i = mkldnn_ABcde8a8b,
+    mkldnn_IOdhw16i16o = mkldnn_BAcde16b16a,
 
     /* weights w/ groups, 3D */
     mkldnn_Goiw16g = mkldnn_Abcd16a,
@@ -410,8 +428,10 @@ typedef enum {
     mkldnn_gOwi8o = mkldnn_aBdc8b,
 
     /* weights w/ groups, 4D */
+    mkldnn_gIOhw16i16o = mkldnn_aCBde16c16b,
     mkldnn_gIOhw16o16i = mkldnn_aCBde16b16c,
     mkldnn_gOhwi16o = mkldnn_aBdec16b,
+    mkldnn_gOhwi32o = mkldnn_aBdec32b,
     mkldnn_gOhwi4o = mkldnn_aBdec4b,
     mkldnn_gOhwi8o = mkldnn_aBdec8b,
     mkldnn_Goihw16g = mkldnn_Abcde16a,
@@ -429,7 +449,13 @@ typedef enum {
     mkldnn_gOIhw8o16i2o = mkldnn_aBCde8b16c2b,
     mkldnn_gOIhw8o8i = mkldnn_aBCde8b8c,
 
+    mkldnn_OIhw4o8i8o4i = mkldnn_ABcd4a8b8a4b,
+    mkldnn_OIhw2o8i8o2i = mkldnn_ABcd2a8b8a2b,
+    mkldnn_gOIhw4o8i8o4i = mkldnn_aBCde4b8c8b4c,
+    mkldnn_gOIhw2o8i8o2i = mkldnn_aBCde2b8c8b2c,
+
     /* weights w/ groups, 6D */
+    mkldnn_gIOdhw16i16o = mkldnn_aCBdef16c16b,
     mkldnn_gOdhwi16o = mkldnn_aBdefc16b,
     mkldnn_gOdhwi4o = mkldnn_aBdefc4b,
     mkldnn_gOdhwi8o = mkldnn_aBdefc8b,
@@ -441,6 +467,7 @@ typedef enum {
     mkldnn_gOIdhw8i16o2i = mkldnn_aBCdef8c16b2c,
     mkldnn_gOIdhw8i8o = mkldnn_aBCdef8c8b,
     mkldnn_gOIdhw8o8i = mkldnn_aBCdef8b8c,
+    mkldnn_Goidhw16g = mkldnn_Abcdef16a,
 } mkldnn_format_tag_t;
 
 /** Kinds of padding. Define how to interpret the data in padding regions. */
