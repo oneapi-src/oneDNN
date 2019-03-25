@@ -99,7 +99,7 @@ protected:
 
     memory_desc_t ws_md_;
 
-    void init_default_ws(size_t bits_per_element) {
+    virtual void init_default_ws(size_t bits_per_element) {
         const auto data_mdw = memory_desc_wrapper(data_md_);
 
         const dim_t data_nelems = data_mdw.nelems(true);
