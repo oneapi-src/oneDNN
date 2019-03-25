@@ -26,6 +26,14 @@
 #include "memory_storage.hpp"
 #include "primitive_desc.hpp"
 
+#define CTX_IN_STORAGE(arg)                               \
+    (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
+                    : memory_storage_t::empty_storage())
+
+#define CTX_OUT_STORAGE(arg)                                \
+    (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
+                     : memory_storage_t::empty_storage())
+
 namespace mkldnn {
 namespace impl {
 
