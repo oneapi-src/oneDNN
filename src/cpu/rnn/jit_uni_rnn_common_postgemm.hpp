@@ -32,8 +32,8 @@ namespace cpu {
 
 struct jit_uni_rnn_postgemm : public jit_generator {
 
-    typedef void (*kernel_t)(void *gates_, const void *bias, void *states_t_l_,
-                     void *c_states_t_l_, void *c_states_tm1_l_);
+    typedef void (*kernel_t)(void *param1_, const void *param2_, void *param3_,
+            void *param4_, void *param5_);
 
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd): rnn_(rnn), pd_(pd){}
 
@@ -50,12 +50,21 @@ template <typename src_data_t, typename acc_data_t>
         // Todo: add parallelization on dic for the batch 1 case
         // Assumption: the kernel runs a loop on dic elements
         parallel_nd(rnn.mb, [&](int i) {
-                auto b_ = &bias(0, 0);
-                auto g_ = &ws_gates(i, 0, 0);
-                auto s_tl_ = &states_t_l(i, 0);
-                auto c_tl_ = &c_states_t_l(i, 0);
-                auto c_tm1l_ = &c_states_tm1_l(i, 0);
-                kernel_(g_, b_, s_tl_, c_tm1l_, c_tl_);
+                void *param1_ = &ws_gates(i, 0, 0);  // RNN, LSTM, GRU
+                const void *param2_ = &bias(0, 0);  // RNN, LSTM, GRU
+                void *param3_ = &states_t_l(i, 0);  // RNN, LSTM, GRU
+                void *param4_, *param5_;
+                switch(pd_->cell_kind()){
+                case alg_kind::vanilla_lstm:
+                    param4_ = &c_states_tm1_l(i, 0);
+                    param5_ = &c_states_t_l(i, 0);
+                    break;
+                default:
+                    param4_ = nullptr;
+                    param5_ = nullptr;
+                    break;
+                }
+                kernel_(param1_, param2_, param3_, param4_, param5_);
             });
     }
 
