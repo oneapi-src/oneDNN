@@ -148,7 +148,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
      * Currently, with no obvious reason, max_k is set to 4 for
      * reasonably small problems and to 8 for big problems.
      *
-     * Here d_gamma' = d_gamma / sqrt(var + eps).
+     * Here d_gamma' = d_gamma / sqrt(var + bn_epsilon).
      * We might hope that division by L would be exact in that case,
      * but that might happen iff L is less than 2^exact_bits, hence
      * restriction [r1]. */
@@ -184,9 +184,9 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c] = c % 2;
 
-        /* var + eps \in {1/4, 1, 4} */
+        /* var + bn_epsilon \in {1/4, 1, 4} */
         const float ve_denom = 4.f / (1 << 2 * (c % 3));
-        ((float *)var)[c] = ve_denom - p->eps;
+        ((float *)var)[c] = ve_denom - p->bn_epsilon;
 
         const int64_t dd_p2 = (c * 127 % param_dd_p2);
         const float factor_dd = 1.f / (1 << dd_p2);
@@ -459,13 +459,13 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         auto prop = p->dir & FLAG_INF
             ? mkldnn_forward_inference : mkldnn_forward_training;
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd, prop,
-                    &data_d, p->eps, flags), WARN);
+                    &data_d, p->bn_epsilon, flags), WARN);
 
     } else {
         auto prop = p->dir & FLAG_WEI
             ? mkldnn_backward : mkldnn_backward_data;
         DNN_SAFE(mkldnn_batch_normalization_backward_desc_init(&bd, prop,
-                    &data_d, &data_d, p->eps, flags), WARN);
+                    &data_d, &data_d, p->bn_epsilon, flags), WARN);
     }
 
     auto mkldnn_attr = create_mkldnn_attr(p->attr, 1, NULL);
@@ -474,7 +474,8 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     if (p->dir & FLAG_BWD) {
         mkldnn_batch_normalization_desc_t bd_fwd;
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
-                    mkldnn_forward_training, &data_d, p->eps, flags), WARN);
+                    mkldnn_forward_training, &data_d, p->bn_epsilon, flags),
+                    WARN);
         DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &bd_fwd, NULL,
                     engine, NULL), WARN);
     }
