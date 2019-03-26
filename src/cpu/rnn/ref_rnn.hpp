@@ -321,7 +321,10 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 ws_bias_offset_, scratchpad_size, workspace_size);
     }
 
-    ~_ref_rnn_common_t() {}
+    ~_ref_rnn_common_t() {
+        delete rnn_postgemm_;
+        delete rnn_postgemm_bis_;
+    }
 
     // typedef typename prec_traits::type data_t;
 
