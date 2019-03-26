@@ -53,6 +53,7 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
             rnn.states_ws_ld, 1.0, ws_gates_, rnn.gates_ws_ld);
 
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
+    if (rnn_postgemm_ == nullptr) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
@@ -61,6 +62,12 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 1, j);
         }
     });
+    } else {
+        rnn_postgemm_->execute<src_data_t, acc_data_t>(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+            states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
+            ws_cell_);
+    }
 
     // 4. gemm Wh[2],h~t
     (this->*gemm_iter_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0, w_iter_[1],
@@ -68,6 +75,7 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
             &(ws_gates(0, 2, 0)), rnn.gates_ws_ld);
 
     // 5. activation h~t + calculate ht
+    if (rnn_postgemm_bis_ == nullptr) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
@@ -76,6 +84,13 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
                     + (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
         }
     });
+    } else {
+        rnn_postgemm_bis_->execute<src_data_t, acc_data_t>(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+            states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
+            ws_cell_);
+    }
+
 }
 
 template <>

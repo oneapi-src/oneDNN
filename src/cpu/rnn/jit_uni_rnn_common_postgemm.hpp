@@ -65,6 +65,10 @@ template <typename src_data_t, typename acc_data_t>
                     param4_ = &states_tm1_l(i, 0);
                     param5_ = &ws_gemm(i, 0, 0);
                     break;
+                case alg_kind::vanilla_gru:
+                    param4_ = &states_tm1_l(i, 0);
+                    param5_ = nullptr;
+                    break;
                 default:
                     param4_ = nullptr;
                     param5_ = nullptr;
