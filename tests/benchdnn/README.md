@@ -275,9 +275,9 @@ one common output scale set to 0.5 with rounding mode set to down
 
 where *harness-knobs* are:
 
+ - `--cfg={f32, s8, ...}` configuration (see below [batch normalization configuration](/tests/benchdnn/README.md#batch-normalization-configurations-also-known-as-precision-specification)), default `f32`
  - `--mb=N` override minibatch that is specified in batch normalization description, default `0` (use mb specified in bnorm-desc)
  - `--dir={FWD_D (forward data /training), FWD_I (forward data /inference), BWD_D (backward data), BWD_DW (backward data + weights)}` direction, default `FWD_D`
- - `--dt={f32, s32, ...}` base data type, default `f32`
  - `--tag={nchw, nChw16c, ...}` data layout, default `nchw`
  - `--flags=[|G|S|R]` batch normalization flags, default `none` (G -- global stats, S -- use scale shift, R -- fuse with ReLU)
  - `--attr="attr_str"` attributes (see in the convolution section above), default `""` (no attributes set)
@@ -287,6 +287,7 @@ where *harness-knobs* are:
  - `--reset` reset all the parameters set before to default one
  - `-vN|--verbose=N` verbose level, default `0`
  - `--batch=file` use options from the given file (see in subdirectory)
+ - `--alg={ALG_0, ALG_1, ALG_AUTO}` specifies which algorithm to use to fill inputs, default ALG_AUTO.
 
 and *bnorm-desc* is a batch normalization description. The canonical form is:
 ```
@@ -300,6 +301,22 @@ some implicit rules:
  - if iw is omitted set iw to ih (and vice versa)
 
  - if eps is omitted set eps to 1./16
+
+### Batch normalization configurations (also known as precision specification)
+
+`--cfg` option specifies what batch normalization would be used in terms of data type.
+Also it defines all the magic with data filling inside. For the integer type,
+saturation is implicitly implied.
+
+Finally configuration defines the threshold for computation errors.
+
+The table below shows cases supported by Intel MKL-DNN and corresponding
+configurations for **benchdnn**:
+
+|data type | mean type | var type | ss type | cfg | notes
+|:---      |:---       |:---      |:---     |:--- |:---
+| f32      | f32       | f32      | f32     | f32 | inference optimized for sse4.2+, training avx2+
+| s8       | f32       | f32      | f32     | s8  | inference optimized for avx512_core+, no training
 
 ### Performance measurements (batch normalization harness)
 
@@ -358,6 +375,13 @@ Run the same as previous but also measure performance:
     $ ./benchdnn --bnorm --mode=CORRnPERF \
          --batch=inputs/bnorm/bnorm_resnet_50
 ```
+
+Run the set of bnorms from inputs/bnorm/bnorm_resnet_50 file with default minibatch with s8 input data type:
+```
+    $ ./benchdnn --bnorm --cfg=s8 --tag=nhwc --flags=G --dir=FWD_I \
+         --batch=inputs/bnorm/bnorm_resnet_50
+```
+
 
 
 ## Usage (rnn harness)

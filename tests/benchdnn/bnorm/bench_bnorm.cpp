@@ -34,7 +34,7 @@ namespace bnorm {
 alg_t alg = ALG_AUTO;
 int64_t mb = 0;
 dir_t dir = FWD_D;
-mkldnn_data_type_t dt = mkldnn_f32;
+const dt_conf_t *cfg = conf_f32;
 mkldnn_format_tag_t tag = mkldnn_nchw;
 flags_t flags = (flags_t)0;
 attr_t attr;
@@ -47,7 +47,7 @@ void reset_parameters() {
     alg = ALG_AUTO;
     mb = 0;
     dir = FWD_B;
-    dt = mkldnn_f32;
+    cfg = conf_f32;
     tag = mkldnn_nchw;
     flags = (flags_t)0;
     attr = attr_t();
@@ -57,7 +57,7 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    const prb_t p(*c, mb, dir, dt, tag, flags, attr, alg);
+    const prb_t p(*c, dir, cfg, alg, attr, tag, flags, mb);
     char pstr[max_prb_len];
     prb2str(&p, pstr);
 
@@ -87,8 +87,8 @@ int bench(int argc, char **argv, bool main_bench) {
             mb = atoi(argv[arg] + 5);
         else if (!strncmp("--dir=", argv[arg], 6))
             dir = str2dir(argv[arg] + 6);
-        else if (!strncmp("--dt=", argv[arg], 5))
-            dt = str2dt(argv[arg] + 5);
+        else if (!strncmp("--cfg=", argv[arg], 6))
+            cfg = str2cfg(argv[arg] + 6);
         else if (!strncmp("--tag=", argv[arg], 6))
             tag = str2tag(argv[arg] + 6);
         else if (!strncmp("--flags=", argv[arg], 8))
