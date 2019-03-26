@@ -1,3 +1,5 @@
+# f32
+--reset --cfg=f32
 --skip-impl=ref
 
 --tag=nChw8c # sse4.2 and avx2
@@ -59,3 +61,19 @@
 
 --dir=BWD_D
 --flags=   --batch=bnorm_3d
+
+# i8
+--reset --cfg=s8
+--skip-impl=ref
+
+--tag=nhwc
+--dir=FWD_I
+--flags=G  --batch=bnorm_topo
+--flags=GS --batch=bnorm_topo
+--flags=GR --batch=bnorm_topo
+
+--tag=ndhwc
+--dir=FWD_I
+--flags=G  --batch=bnorm_3d
+--flags=GS --batch=bnorm_3d
+--flags=GR --batch=bnorm_3d
