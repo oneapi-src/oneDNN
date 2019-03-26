@@ -31,7 +31,7 @@
 namespace bnorm {
 
 /* global driver parameters */
-check_alg_t check_alg = ALG_AUTO;
+alg_t alg = ALG_AUTO;
 int64_t mb = 0;
 dir_t dir = FWD_D;
 mkldnn_data_type_t dt = mkldnn_f32;
@@ -44,7 +44,7 @@ bool allow_unimpl = false;
 const char *perf_template = "perf,%n,%z,%F,%q,%f,%D,%-t,%0t";
 
 void reset_parameters() {
-    check_alg = ALG_AUTO;
+    alg = ALG_AUTO;
     mb = 0;
     dir = FWD_B;
     dt = mkldnn_f32;
@@ -57,7 +57,7 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    const prb_t p(*c, mb, dir, dt, tag, flags, attr, check_alg);
+    const prb_t p(*c, mb, dir, dt, tag, flags, attr, alg);
     char pstr[max_prb_len];
     prb2str(&p, pstr);
 
@@ -81,8 +81,8 @@ int bench(int argc, char **argv, bool main_bench) {
     for (int arg = 0; arg < argc; ++arg) {
         if (!strncmp("--batch=", argv[arg], 8))
             SAFE(batch(argv[arg] + 8, bench), CRIT);
-        else if (!strncmp("--check-alg=", argv[arg], 12))
-            check_alg = str2check_alg(argv[arg] + 12);
+        else if (!strncmp("--alg=", argv[arg], 6))
+            alg = str2alg(argv[arg] + 6);
         else if (!strncmp("--mb=", argv[arg], 5))
             mb = atoi(argv[arg] + 5);
         else if (!strncmp("--dir=", argv[arg], 6))

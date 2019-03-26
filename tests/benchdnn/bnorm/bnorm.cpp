@@ -58,7 +58,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     const int64_t min_flex_bits = 3;
     const int64_t want_flex_bits = 6;
 
-    check_alg_t alg = p->check_alg;
+    alg_t alg = p->alg;
     if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
         alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
 
@@ -75,8 +75,8 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         ? 1.f * (1 << (exact_bits - 2 * flex_bits)) / L : 1.f;
     assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
 
-    print(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
-            check_alg2str(alg), density, flex_bits);
+    print(6, "alg: %s, density = %g, flex_bits = " IFMT "\n",
+            alg2str(alg), density, flex_bits);
 
     mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c] =
