@@ -31,16 +31,11 @@ namespace ocl {
 class ocl_memory_storage_t : public memory_storage_t
 {
 public:
-    ocl_memory_storage_t(engine_t *engine, size_t size = 0);
+    ocl_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle);
     ocl_memory_storage_t(ocl_memory_storage_t &&other)
         : memory_storage_t(other.engine()), mem_object_(other.mem_object_) {
         other.mem_object_ = nullptr;
-    }
-
-    ocl_memory_storage_t(engine_t *engine, cl_mem mem_object)
-        : memory_storage_t(engine), mem_object_(mem_object) {
-        if (mem_object_)
-            OCL_CHECK_V(clRetainMemObject(mem_object_));
     }
 
     ocl_memory_storage_t(const ocl_memory_storage_t &) = delete;

@@ -26,17 +26,25 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-ocl_memory_storage_t::ocl_memory_storage_t(engine_t *engine, size_t size)
+ocl_memory_storage_t::ocl_memory_storage_t(
+        engine_t *engine, unsigned flags, size_t size, void *handle)
     : memory_storage_t(engine) {
-    if (size > 0) {
-        auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
-        cl_context ctx = ocl_engine->context();
-
-        // XXX: Error code is ignored, memory object is set to NULL
-        // in case of an error. The memory object should be checked
-        // before accessing the memory.
+    // Do not allocate memory if one of these is true:
+    // 1) size is 0
+    // 2) handle is nullptr and 'alloc' flag is not set
+    if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0)) {
+        mem_object_ = nullptr;
+        return;
+    }
+    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
+    cl_int err;
+    if (flags & memory_flags_t::alloc) {
         mem_object_ = clCreateBuffer(
-                ctx, CL_MEM_READ_WRITE, size, nullptr, nullptr);
+                ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
+        OCL_CHECK_V(err);
+    } else if (flags & memory_flags_t::use_backend_ptr) {
+        mem_object_ = static_cast<cl_mem>(handle);
+        OCL_CHECK_V(clRetainMemObject(mem_object_));
     }
 }
 

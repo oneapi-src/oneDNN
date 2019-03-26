@@ -28,21 +28,21 @@ namespace cpu {
 class cpu_memory_storage_t : public memory_storage_t
 {
 public:
-    cpu_memory_storage_t(engine_t *engine, size_t size)
+    cpu_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle)
         : memory_storage_t(engine) {
-        if (size > 0) {
-            data_ = malloc(size, 64);
-            is_owned_ = true;
-        } else {
+        if (size == 0 || (!handle && (flags & memory_flags_t::alloc) == 0)) {
             data_ = nullptr;
             is_owned_ = false;
+            return;
         }
-    }
-
-    cpu_memory_storage_t(engine_t *engine, void *handle = nullptr)
-        : memory_storage_t(engine) {
-        data_ = handle;
-        is_owned_ = false;
+        if (flags & memory_flags_t::alloc) {
+            data_ = malloc(size, 64);
+            is_owned_ = true;
+        } else if (flags & memory_flags_t::use_backend_ptr) {
+            data_ = handle;
+            is_owned_ = false;
+        }
     }
 
     virtual ~cpu_memory_storage_t() override {

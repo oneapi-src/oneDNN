@@ -55,10 +55,8 @@ public:
 
     status_t init();
 
-    virtual status_t create_memory_storage(
-            memory_storage_t **storage, size_t size) override;
-    virtual status_t create_memory_storage(
-            memory_storage_t **storage, void *handle) override;
+    virtual status_t create_memory_storage(memory_storage_t **storage,
+            unsigned flags, size_t size, void *handle) override;
 
     virtual status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl_command_queue queue);

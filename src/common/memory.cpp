@@ -55,16 +55,14 @@ bool memory_desc_sanity_check(const memory_desc_t *md) {
 }
 
 mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
-        const mkldnn::impl::memory_desc_t *md, void *handle)
+        const mkldnn::impl::memory_desc_t *md, unsigned flags, void *handle)
     : engine_(engine), md_(*md) {
+    const size_t size = memory_desc_wrapper(md_).size();
+
     memory_storage_t *memory_storage_ptr;
-    status_t status;
-    if (handle == MKLDNN_NATIVE_HANDLE_ALLOCATE) {
-        const size_t size = memory_desc_wrapper(md_).size();
-        status = engine->create_memory_storage(&memory_storage_ptr, size);
-    } else {
-        status = engine->create_memory_storage(&memory_storage_ptr, handle);
-    }
+    status_t status = engine->create_memory_storage(
+            &memory_storage_ptr, flags, size, handle);
+
     assert(status == status::success);
     MAYBE_UNUSED(status);
 
@@ -216,8 +214,11 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
     memory_desc_t z_md = types::zero_md();
+    unsigned flags = (handle == MKLDNN_NATIVE_HANDLE_ALLOCATE)
+            ? memory_flags_t::alloc
+            : memory_flags_t::use_backend_ptr;
     return safe_ptr_assign<memory_t>(
-            *memory, new memory_t(engine, md ? md : &z_md, handle));
+            *memory, new memory_t(engine, md ? md : &z_md, flags, handle));
 }
 
 status_t mkldnn_memory_get_memory_desc(const memory_t *memory,

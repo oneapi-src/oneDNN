@@ -27,9 +27,16 @@
 #include "memory_storage.hpp"
 #include "nstl.hpp"
 
-struct mkldnn_memory: public mkldnn::impl::c_compatible {
+namespace mkldnn {
+namespace impl {
+enum memory_flags_t { alloc = 0x1, use_backend_ptr = 0x2 };
+} // namespace impl
+} // namespace mkldnn
+
+struct mkldnn_memory : public mkldnn::impl::c_compatible {
     mkldnn_memory(mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::memory_desc_t *md, void *handle);
+            const mkldnn::impl::memory_desc_t *md, unsigned flags,
+            void *handle);
     virtual ~mkldnn_memory() {}
 
     /** returns memory's engine */

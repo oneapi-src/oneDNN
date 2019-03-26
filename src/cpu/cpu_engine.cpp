@@ -71,15 +71,9 @@ namespace impl {
 namespace cpu {
 
 status_t cpu_engine_t::create_memory_storage(
-        memory_storage_t **storage, size_t size) {
+        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
     return safe_ptr_assign<memory_storage_t>(
-            *storage, new cpu_memory_storage_t(this, size));
-}
-
-status_t cpu_engine_t::create_memory_storage(
-        memory_storage_t **storage, void *handle) {
-    return safe_ptr_assign<memory_storage_t>(
-            *storage, new cpu_memory_storage_t(this, handle));
+            *storage, new cpu_memory_storage_t(this, flags, size, handle));
 }
 
 status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
