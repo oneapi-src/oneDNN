@@ -192,7 +192,8 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         switch (pd()->cell_kind()) {
         case alg_kind::vanilla_lstm:
             cell_func = &class_name::cell_execution;
-            if (aprop == prop_kind::forward) {
+	    elemwise_func = &class_name::lstm_elemwise;
+            if (pd()->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<avx512_core, src_type>(
@@ -208,7 +209,6 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                 assert(rnn_postgemm_ != nullptr);
                 rnn_postgemm_->init();
             }
-            elemwise_func = &class_name::lstm_elemwise;
             break;
         case alg_kind::vanilla_rnn: // @todo switch on cell kind
             cell_func = &class_name::cell_execution;
