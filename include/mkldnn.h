@@ -1478,7 +1478,7 @@ int MKLDNN_API mkldnn_rnn_cell_get_states_count(
  *      // create & configure rnn op_desc
  *      mkldnn_rnn_desc_t rnn_d;
  *      mkldnn_primitive_desc_t rnn_pd;
- *      mkldnn_primitive_desc_create_v2(&rnn_pd, &rnn_d, attr, NULL);
+ *      mkldnn_primitive_desc_create(&rnn_pd, &rnn_d, attr, engine, NULL);
  * @endcode
  * @note
  *      Quantization scale and shift are common for src_layer, src_iter,
@@ -1515,7 +1515,7 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_data_qparams(
  *      // create & configure rnn op_desc
  *      mkldnn_rnn_desc_t rnn_d;
  *      mkldnn_primitive_desc_t rnn_pd;
- *      mkldnn_primitive_desc_create_v2(&rnn_pd, &rnn_d, attr, NULL);
+ *      mkldnn_primitive_desc_create(&rnn_pd, &rnn_d, attr, engine, NULL);
  * @endcode
  * @note
  *      The dimension order is always native and does not depend on the actual

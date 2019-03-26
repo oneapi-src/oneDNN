@@ -148,7 +148,7 @@ option(BENCHDNN_USE_RDPMC
 
 set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
     "instructs build system to use a Clang sanitizer. Possible values:
-    Address: enables MemorySanitizer
+    Address: enables AddressSanitizer
     Memory: enables MemorySanitizer
     MemoryWithOrigin: enables MemorySanitizer with origin tracking
     Undefined: enables UndefinedBehaviourSanitizer
