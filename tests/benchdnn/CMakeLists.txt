@@ -63,7 +63,7 @@ register_benchdnn_test(test_benchdnn_conv "benchdnn -v1 --conv --batch=inputs/te
 register_benchdnn_test(test_benchdnn_deconv "benchdnn -v1 --deconv --batch=inputs/deconv/test_deconv_all")
 register_benchdnn_test(test_benchdnn_rnn "benchdnn -v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder "benchdnn --reorder --batch=inputs/reorder/test_default")
-register_benchdnn_test(test_benchdnn_bnorm "benchdnn --bnorm  --batch=inputs/bnorm/test_bnorm_topo")
+register_benchdnn_test(test_benchdnn_bnorm "benchdnn --bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_ip "benchdnn --ip --batch=inputs/ip/test_ip_all")
 register_benchdnn_test(test_benchdnn_regression
     "benchdnn --conv --batch=inputs/test_conv_regression"

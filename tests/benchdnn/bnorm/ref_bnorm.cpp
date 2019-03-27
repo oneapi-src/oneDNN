@@ -58,6 +58,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
             if ((p->flags & FUSE_BN_RELU) && res < 0) res = 0;
             maybe_post_ops(res, D);
             D = res;
+            if (p->dt == mkldnn_s8)
+                D = saturate_and_round(res);
         }
     });
 }
