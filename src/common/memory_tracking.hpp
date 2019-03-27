@@ -169,6 +169,7 @@ enum {
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
     key_conv_dst_bf16_convert_wsp,
+    key_iprod_dst_bf16_convert_wsp,
     key_iprod_int_dat_in_acc_dt,
     key_reducer_space,
     key_reducer_space_bctx,

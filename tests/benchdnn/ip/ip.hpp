@@ -47,6 +47,10 @@ extern const _dt_conf_t conf_s32s16s16s32;
 extern const _dt_conf_t conf_u8s8s32s32;
 extern const _dt_conf_t conf_u8s8s8s32;
 extern const _dt_conf_t conf_u8s8u8s32;
+extern const _dt_conf_t conf_bf16bf16f32;
+extern const _dt_conf_t conf_bf16bf16bf16;
+extern const _dt_conf_t conf_f32bf16bf16;
+extern const _dt_conf_t conf_bf16f32bf16;
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int mb, dir_t dir, const dt_conf_t *cfg,

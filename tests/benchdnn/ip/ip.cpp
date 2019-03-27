@@ -138,7 +138,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         float fp0 = ((float *)mem_fp)[i];
 
         float fp = fp0;
-        if (p->cfg[kind].dt != mkldnn_f32) {
+        if (p->cfg[kind].dt != mkldnn_f32 && p->cfg[kind].dt != mkldnn_bf16) {
             using R = attr_t::round_mode_t;
             switch (p->attr.irmode) {
                 case R::DOWN: fp = floorf(fp0); break;
