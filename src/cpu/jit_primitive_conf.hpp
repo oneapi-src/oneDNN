@@ -397,6 +397,8 @@ struct jit_1x1_conv_conf_t {
     data_type_t dst_dt;
     bool signed_input;
     float wei_adj_scale;
+
+    bool is_cpx;
 };
 
 struct jit_gemm_conv_conf_t {
