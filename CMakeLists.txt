@@ -90,5 +90,9 @@ add_subdirectory(src)
 add_subdirectory(examples)
 add_subdirectory(tests)
 
-# Cannot use CMAKE_INSTALL_DOCDIR since it uses PROJECT_NAME and not LIB_NAME
-install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
+if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+    install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_PREFIX})
+else()
+    # Cannot use CMAKE_INSTALL_DOCDIR since it uses PROJECT_NAME and not LIB_NAME
+    install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
+endif()
