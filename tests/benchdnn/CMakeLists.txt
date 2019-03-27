@@ -113,6 +113,8 @@ register_benchdnn_test(test_benchdnn_bnorm
     cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_ip
     cpu "--ip --batch=inputs/ip/test_ip_all")
+register_benchdnn_test(test_benchdnn_ip_bf16
+    cpu "--ip --batch=inputs/ip/test_ip_bfloat16")
 register_benchdnn_test(test_benchdnn_shuffle
     cpu "--shuffle --batch=inputs/shuffle/test_shuffle_all")
 register_benchdnn_test(test_benchdnn_softmax
