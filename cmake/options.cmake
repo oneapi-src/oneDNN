@@ -47,6 +47,13 @@ option(MKLDNN_BUILD_EXAMPLES "builds examples"  ON)
 option(MKLDNN_BUILD_TESTS "builds tests" ON)
 option(MKLDNN_WERROR "treat warnings as errors" ON)
 
+set(MKLDNN_INSTALL_MODE "DEFAULT" CACHE STRING
+    "specifies installation mode; supports DEFAULT or BUNDLE.
+
+    When BUNDLE option is set MKL-DNN will be installed as a bundle
+    which contains examples and benchdnn.
+    The BUNDLE option requires MKLDNN_USE_MKL be set to FULL:STATIC.")
+
 set(MKLDNN_THREADING "OMP" CACHE STRING
     "specifies threading type; supports OMP (default), OMP:COMP, OMP:INTEL, or TBB.
 

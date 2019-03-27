@@ -72,3 +72,9 @@ register_benchdnn_test(test_benchdnn_regression
 register_benchdnn_test(test_benchdnn_regression_large
     "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
+
+if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+    install(TARGETS benchdnn RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATADIR}/benchdnn)
+    install(DIRECTORY inputs DESTINATION ${CMAKE_INSTALL_DATADIR}/benchdnn)
+endif()
