@@ -17,6 +17,20 @@
 --fmt=oihw,hwio 2x64x3x3
 
 #
+# f32 <-> bf16
+#
+--reset
+--idt=f32
+--odt=bf16
+--allow-unimpl=true
+--fmt=nchw,nChw16c 2x64x3x3
+--fmt=nchw,nChw16c 2x65x3x3 # blocked with tail
+--fmt=goihw,gOIhw16i16o 2x64x64x7x7
+--fmt=goihw,gOIhw16i16o 2x33x33x7x7 # blocked with tail
+--fmt=goihw,gIOhw8o16i2o 2x64x64x7x7
+--fmt=goihw,gIOhw8o16i2o 2x33x33x7x7 # blocked with tail
+
+#
 # f32 <-> s16
 #
 --reset

@@ -37,6 +37,7 @@ mkldnn_data_type_t str2dt(const char *str) {
     CASE(s16);
     CASE(s32);
     CASE(f32);
+    CASE(bf16);
 #undef CASE
     assert(!"unknown data type");
     return mkldnn_f32;
@@ -105,10 +106,12 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(OIhw8i8o);
     CASE(OIhw16i16o);
     CASE(OIhw8i16o2i);
+    CASE(IOhw8i16o2i);
     CASE(OIdhw8i16o2i);
     CASE(OIhw4i16o4i);
     CASE(OIhw4i16o4i_s8s8);
     CASE(OIhw8o16i2o);
+    CASE(IOhw8o16i2o);
     CASE(OIhw8o8i);
     CASE(OIhw16o16i);
     CASE(IOhw16o16i);
@@ -133,10 +136,12 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(gOIhw8i8o);
     CASE(gOIhw16i16o);
     CASE(gOIhw8i16o2i);
+    CASE(gIOhw8i16o2i);
     CASE(gOIdhw8i16o2i);
     CASE(gOIhw4i16o4i);
     CASE(gOIhw4i16o4i_s8s8);
     CASE(gOIhw8o16i2o);
+    CASE(gIOhw8o16i2o);
     CASE(gOIhw8o8i);
     CASE(gOIhw16o16i);
     CASE(gIOhw16o16i);
