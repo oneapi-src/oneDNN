@@ -64,6 +64,7 @@
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "cpu/jit_avx512_core_fp32_wino_conv_2x3.hpp"
+#include "cpu/jit_uni_batch_normalization_s8.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -259,6 +260,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_lrn_fwd_t<f32>),
     INSTANCE(ref_lrn_bwd_t<f32>),
     /* batch normalization */
+    INSTANCE(jit_uni_batch_normalization_s8_fwd_t<avx512_core>),
+    INSTANCE(jit_uni_batch_normalization_s8_fwd_t<avx2>),
     INSTANCE(jit_uni_batch_normalization_fwd_t<avx512_common>),
     INSTANCE(jit_uni_batch_normalization_bwd_t<avx512_common>),
     INSTANCE(jit_uni_batch_normalization_fwd_t<avx2>),
