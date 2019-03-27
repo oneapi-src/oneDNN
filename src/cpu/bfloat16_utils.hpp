@@ -101,6 +101,12 @@ inline void add_floats_and_cvt_to_bfloat16(mkldnn_bfloat16_t *out,
     add_cvt_ps_to_bf16_.jit_ker(&p_);
 }
 
+inline bool is_float_representable_in_bfloat16(float x) {
+    f32_bf16_t cvt = {0};
+    cvt.vfloat = x;
+    return cvt.vbfloat[0] == 0;
+}
+
 }
 }
 }
