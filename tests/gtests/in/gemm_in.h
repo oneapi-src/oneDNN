@@ -1,5 +1,5 @@
-#if defined(FP32)
-CPU_INST_TEST_CASE(TestGEMM,
+#if defined(FP16) || defined(FP32)
+INST_TEST_CASE(TestGEMM,
     test_params{'n', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, true, mkldnn_invalid_arguments},
     test_params{'t', 'n', 3, 2, 2, 1.0, 0.0, 1, 5, 8, {}, true, mkldnn_invalid_arguments},
     test_params{'n', 't', 3, 2, 1, 1.0, 0.0, 3, 1, 8, {}, true, mkldnn_invalid_arguments},
@@ -14,6 +14,9 @@ CPU_INST_TEST_CASE(TestGEMM,
     test_params{'t', 'n', 2, 100, 100, 1.0, 2.0, 100, 100, 100, {}, false},
     test_params{'t', 't', 2, 100, 100, 1.0, 2.0, 100, 100, 100, {}, false},
     test_params{'n', 'n', 2, 2, 10000, 1.0, 2.0, 2, 10000, 2, {}, false},
+
+    make_test_params_with_offset({1, 2, 3}, 'n', 'n', 100, 100, 2, 1.0f, 2.0f, 100, 100, 100),
+    make_test_params_with_offset({30, 20, 10}, 'n', 't', 100, 2, 100, 1.0f, 2.0f, 100, 100, 100),
 
     test_params{'n', 'n', 2000, 2000, 2000, 1.0, 0.0, 2000, 2000, 2000, {}, false},
     test_params{'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000, {}, false},

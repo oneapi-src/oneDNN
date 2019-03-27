@@ -43,12 +43,16 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
         const auto dst_dims = dst_d.data.dims;
         const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
+        std::vector<mapped_ptr_t<const data_t>> mapped_srcs;
+        for (auto &src: srcs)
+            mapped_srcs.emplace_back(map_memory<const data_t>(src));
+
         mkldnn::impl::parallel_nd(
             dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
             [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
             acc_t src_sum = 0.0;
             for (size_t num = 0; num < srcs.size(); num++) {
-                auto src_data = map_memory<const data_t>(srcs[num]);
+                auto &src_data = mapped_srcs[num];
                 const auto &src_d = srcs[num].get_desc();
                 const auto src_dims = src_d.data.dims;
                 const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
@@ -84,6 +88,8 @@ protected:
     virtual void SetUp() {
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
+        SKIP_IF(get_test_engine_kind() && p.is_output_omitted,
+                "GPU does not support omitted output.");
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
     }
@@ -127,13 +133,15 @@ protected:
         }
         ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_desc(), eng)));
 
-        auto dst_data = map_memory<data_t>(*dst);
-        const size_t sz =
-            dst->get_desc().get_size() / sizeof(data_t);
-        // overwriting dst to prevent false positives for test cases.
-        mkldnn::impl::parallel_nd((ptrdiff_t)sz,
-            [&](ptrdiff_t i) { dst_data[i] = -32; }
-        );
+        {
+            auto dst_data = map_memory<data_t>(*dst);
+            const size_t sz =
+                dst->get_desc().get_size() / sizeof(data_t);
+            // overwriting dst to prevent false positives for test cases.
+            mkldnn::impl::parallel_nd((ptrdiff_t)sz,
+                [&](ptrdiff_t i) { dst_data[i] = -32; }
+            );
+        }
 
         sum c(*sum_pd);
         std::unordered_map<int, memory> args = {
@@ -142,6 +150,7 @@ protected:
             args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
         c.execute(strm, args);
+        strm.wait();
 
         check_data(srcs, p.scale, *dst);
     }
@@ -153,62 +162,77 @@ protected:
         {memory::format_tag::ifmt0, memory::format_tag::ifmt1}, memory::format_tag::ofmt, \
         memory::dims dims_, {1.0f, 1.0f}, 0, ef, st}
 
+static auto simple_test_cases = [](bool omit_output) { return ::testing::Values(
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {0, 7, 4, 4}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {1, 0, 4, 4}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {1, 8, 0, 4}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {-1, 8, 4, 4}, {1.0f, 1.0f}, omit_output, true, mkldnn_invalid_arguments},
+ 
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {1, 1024, 38, 50}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw,
+    {2, 8, 2, 2}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c,
+    {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c,
+    {2, 16, 2, 2}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw,
+    {2, 8, 2, 2}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c,
+    {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c,
+    {2, 16, 2, 2}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {5, 8, 3, 3}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw,
+    {32, 32, 13, 14}, {2.0f, 3.0f}, omit_output},
+    sum_test_params{
+    {memory::format_tag::nChw16c, memory::format_tag::nChw8c},
+    memory::format_tag::nChw16c,
+    {2, 16, 3, 3}, {2.0f, 3.0f}, omit_output});
+};
+
 #define CPU_INST_TEST_CASE(test, omit_output) \
-TEST_P(test, TestsSum) {} \
-CPU_INSTANTIATE_TEST_SUITE_P(TestSum, test, ::testing::Values( \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {0, 7, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {1, 0, 4, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {1, 8, 0, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {-1, 8, 4, 4}, {1.0f, 1.0f}, omit_output, true, mkldnn_invalid_arguments}, \
-    \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {1, 1024, 38, 50}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw, \
-    {2, 8, 2, 2}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c, \
-    {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c, \
-    {2, 16, 2, 2}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nchw, \
-    {2, 8, 2, 2}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nChw8c,\
-    {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nchw}, memory::format_tag::nChw8c, \
-    {2, 16, 2, 2}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nChw8c, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {5, 8, 3, 3}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
-    {32, 32, 13, 14}, {2.0f, 3.0f}, omit_output}, \
-    sum_test_params{\
-    {memory::format_tag::nChw16c, memory::format_tag::nChw8c}, \
-    memory::format_tag::nChw16c, \
-    {2, 16, 3, 3}, {2.0f, 3.0f}, omit_output} \
-)); \
+CPU_TEST_P(test, TestsSum) {} \
+CPU_INSTANTIATE_TEST_SUITE_P(TestSum, test, simple_test_cases(omit_output)); \
 \
 CPU_INSTANTIATE_TEST_SUITE_P(TestSumEF, test, ::testing::Values( \
+    sum_test_params{\
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
+    {1, 8, 4 ,4}, {1.0f}, 0, true, mkldnn_invalid_arguments}, \
+    sum_test_params{\
+    {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
+    {2, 8, 4 ,4}, {0.1f}, 0, true, mkldnn_invalid_arguments} \
+));
+
+#define GPU_INST_TEST_CASE(test, omit_output) \
+GPU_TEST_P(test, TestsSum) {} \
+GPU_INSTANTIATE_TEST_SUITE_P(TestSum, test, simple_test_cases(omit_output)); \
+\
+GPU_INSTANTIATE_TEST_SUITE_P(TestSumEF, test, ::testing::Values( \
     sum_test_params{\
     {memory::format_tag::nchw, memory::format_tag::nChw8c}, memory::format_tag::nchw, \
     {1, 8, 4 ,4}, {1.0f}, 0, true, mkldnn_invalid_arguments}, \
@@ -229,7 +253,7 @@ using sum_test_s32 = sum_test<int32_t,float>;
 
 using sum_cc_f32 = sum_test<float,float>;
 TEST_P(sum_cc_f32, TestSumCornerCases) {}
-CPU_INSTANTIATE_TEST_SUITE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
     CASE_CC(nchw, nChw8c, nchw, ({0, 7, 4, 4}), false, mkldnn_success),
     CASE_CC(nchw, nChw8c, nchw, ({1, 0, 4, 4}), false, mkldnn_success),
     CASE_CC(nchw, nChw8c, nchw, ({1, 8, 0, 4}), false, mkldnn_success),
@@ -247,5 +271,9 @@ CPU_INST_TEST_CASE(sum_test_u8, 0)
 CPU_INST_TEST_CASE(sum_test_s8, 0)
 CPU_INST_TEST_CASE(sum_test_s32, 0)
 
+GPU_INST_TEST_CASE(sum_test_float_omit_output, 1)
+GPU_INST_TEST_CASE(sum_test_float, 0)
+
 #undef CPU_INST_TEST_CASE
+#undef GPU_INST_TEST_CASE
 }

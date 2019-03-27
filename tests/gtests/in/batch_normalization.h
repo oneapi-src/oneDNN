@@ -261,4 +261,13 @@ CPU_INST_TEST_CASE(GoogleNet_Blocked_16,
     PARAMS_B16(2, 384, 7, 7, EPS)
 );
 
-
+GPU_INST_TEST_CASE(Simple,
+    PARAMS(nchw, nchw, 32, 32, 1, 1, EPS, false, mkldnn_success),
+    PARAMS(nchw, nchw, 32, 32, 4, 5, EPS, false, mkldnn_success),
+    PARAMS(NChw16n16c, NChw16n16c, 32, 32, 1, 1, EPS, false, mkldnn_success),
+    PARAMS(NChw16n16c, NChw16n16c, 32, 32, 4, 5, EPS, false, mkldnn_success),
+    PARAMS(nChw16c, nChw16c, 32, 32, 1, 1, EPS, false, mkldnn_success),
+    PARAMS(nChw16c, nChw16c, 32, 32, 4, 5, EPS, false, mkldnn_success),
+    PARAMS(nChw16c, nChw16c, 25, 32, 1, 1, EPS, false, mkldnn_success),
+    PARAMS(nChw16c, nChw16c, 25, 32, 4, 5, EPS, false, mkldnn_success)
+);

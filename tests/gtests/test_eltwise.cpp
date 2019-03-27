@@ -54,7 +54,7 @@ T square_bwd(T dd, T s) {
 
 template <typename T>
 T abs_fwd(T s) {
-    return s > 0 ? s : -s;;
+    return s > 0 ? s : T(-s);
 }
 
 template <typename T>
@@ -86,8 +86,8 @@ T linear_bwd(T dd, T s, A alpha, A beta) {
 
 template <typename T, typename A>
 T bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : 0;
-    return s > alpha ? alpha : s;
+    s = s > 0 ? s : T(0);
+    return s > alpha ? T(alpha) : s;
 }
 
 template <typename T, typename A>
@@ -97,7 +97,7 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
 
 template <typename T>
 T soft_relu_fwd(T s) {
-    return s < (T)logf(FLT_MAX) ? log1pf(::expf(s)) : s;
+    return s < (T)logf(FLT_MAX) ? T(log1pf(::expf(s))) : s;
 }
 
 template <typename T>
@@ -117,12 +117,11 @@ T logistic_bwd(T dd, T s) {
     return dd * v * (1 - v);
 }
 
-template <typename data_t>
 struct eltwise_test_params {
     algorithm alg_kind;
     memory::format_tag data_format;
     memory::format_tag diff_format;
-    data_t alpha, beta;
+    float alpha, beta;
     memory::dims dims;
     bool expect_to_fail;
     mkldnn_status_t expected_status;
@@ -137,13 +136,11 @@ memory::dim n_elems(const memory::desc &md) {
 }
 
 template <typename data_t>
-void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
+void check_eltwise_fwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &src, const memory &dst)
 {
     auto src_data = map_memory<data_t>(src);
     auto dst_data = map_memory<data_t>(dst);
-
-    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -167,28 +164,25 @@ void check_eltwise_fwd(const eltwise_test_params<data_t> &p,
 }
 
 template <typename data_t>
-void compare_eltwise_fwd(const eltwise_test_params<data_t> &p,
+void compare_eltwise_fwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &dst, const memory &ref_dst)
 {
     auto ref_dst_data = map_memory<data_t>(ref_dst);
     auto dst_data = map_memory<data_t>(dst);
 
-    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
+    float eps = (data_traits<data_t>::data_type == memory::f16)
+            ? 5e-2
+            : (p.alg_kind == eltwise_soft_relu) ? 2e-6 : 1e-6;
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
-        if (p.alg_kind == eltwise_soft_relu){
-            EXPECT_NEAR(dst_data[i], ref_dst_data[i], 2.e-6);
-        }
-        else{
-            EXPECT_NEAR(dst_data[i], ref_dst_data[i], 1.e-6);
-        }
+        ASSERT_NEAR(dst_data[i], ref_dst_data[i], eps);
     }
 }
 
 
 template <typename data_t>
-void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
+void check_eltwise_bwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &src, const memory &diff_dst,
         const memory &diff_src)
 {
@@ -201,7 +195,7 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
     const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
     const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    ASSERT_EQ(md.data.data_type, memory::data_type::f32); // TODO: type assert
+    float eps = (data_traits<data_t>::data_type == memory::f16) ? 5e-2 : 1e-6;
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -227,12 +221,12 @@ void check_eltwise_bwd(const eltwise_test_params<data_t> &p,
         case eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
-        EXPECT_NEAR(diff_src_data[diff_data_mdw.off_l(i)], ref_ds, 1.e-6);
+        EXPECT_NEAR(diff_src_data[diff_data_mdw.off_l(i)], ref_ds, eps);
     }
 }
 
 template <typename data_t>
-class eltwise_test : public ::testing::TestWithParam<eltwise_test_params<data_t>> {
+class eltwise_test : public ::testing::TestWithParam<eltwise_test_params> {
 private:
     std::shared_ptr<memory> src;
     std::shared_ptr<memory> diff_src;
@@ -243,26 +237,27 @@ private:
     std::shared_ptr<memory::desc> data_desc;
     std::shared_ptr<memory::desc> diff_data_desc;
     std::shared_ptr<eltwise_forward::primitive_desc> eltwise_prim_desc;
-    eltwise_test_params<data_t> p;
+    eltwise_test_params p;
     std::shared_ptr<engine> eng;
     std::shared_ptr<stream> strm;
     memory::data_type data_type;
 
 protected:
     virtual void SetUp() {
+        SKIP_IF(data_type == memory::f16 && get_test_engine_kind() == engine::cpu,
+                "CPU does not support f16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
     }
 
     void Test() {
-        p = ::testing::TestWithParam<eltwise_test_params<data_t>>::GetParam();
+        p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
 
         eng.reset(new engine(get_test_engine_kind(), 0));
         strm.reset(new stream(*eng));
 
         data_type = data_traits<data_t>::data_type;
-        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         Forward();
         Backward();
@@ -288,15 +283,15 @@ protected:
                 p.alg_kind, *data_desc, p.alpha, p.beta);
         eltwise_prim_desc.reset(
                 new eltwise_forward::primitive_desc(eltwise_desc, *eng));
-
         eltwise_forward(*eltwise_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, *src},
                 {MKLDNN_ARG_DST, *dst}});
+        strm->wait();
 
         check_zero_tail<data_t>(0, *dst);
-        check_eltwise_fwd(p, *data_desc, *src, *ref_dst);
+        check_eltwise_fwd<data_t>(p, *data_desc, *src, *ref_dst);
         check_zero_tail<data_t>(1, *ref_dst);
-        compare_eltwise_fwd(p, *data_desc, *dst, *ref_dst);
+        compare_eltwise_fwd<data_t>(p, *data_desc, *dst, *ref_dst);
     }
 
     void Backward() {
@@ -320,26 +315,30 @@ protected:
                 {MKLDNN_ARG_SRC, *src},
                 {MKLDNN_ARG_DIFF_DST, *diff_dst},
                 {MKLDNN_ARG_DIFF_SRC, *diff_src}});
+        strm->wait();
 
         check_zero_tail<data_t>(0, *diff_src);
-        check_eltwise_bwd(p, *data_desc, *src, *diff_dst, *diff_src);
+        check_eltwise_bwd<data_t>(p, *data_desc, *src, *diff_dst, *diff_src);
     }
 };
 
+using eltwise_test_half = eltwise_test<float16_t>;
 using eltwise_test_float = eltwise_test<float>;
-using eltwise_test_params_float = eltwise_test_params<float>;
+
+TEST_P(eltwise_test_half, TestsEltwise)
+{
+}
 
 TEST_P(eltwise_test_float, TestsEltwise)
 {
 }
-
 #define EXPAND(args) args
 
 #define EXPAND_FORMATS(data) memory::format_tag::data
 #define EXPAND_DIMS(...) { __VA_ARGS__ }
 
 #define PARAMS(alg, data, diff_data, alpha, beta, ...) \
-    eltwise_test_params_float { algorithm::alg, \
+    eltwise_test_params{ algorithm::alg, \
     EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
     alpha, beta, EXPAND_DIMS(__VA_ARGS__) }
 
@@ -360,6 +359,12 @@ TEST_P(eltwise_test_float, TestsEltwise)
 #define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
 
+#define INST_TEST_CASE(str, ...) \
+    GPU_INSTANTIATE_TEST_SUITE_P_( \
+        TEST_CONCAT(str, _f16), eltwise_test_half, ::testing::Values(__VA_ARGS__)); \
+    INSTANTIATE_TEST_SUITE_P_( \
+        TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__))
+
 CPU_INST_TEST_CASE(SimpleZeroDim,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 0, 4, 4, 4),
@@ -368,7 +373,7 @@ CPU_INST_TEST_CASE(SimpleZeroDim,
 );
 
 #define CASE_EF(alg, d0, d1, d2, d3) \
-        eltwise_test_params_float { algorithm::eltwise_##alg, \
+        eltwise_test_params{ algorithm::eltwise_##alg, \
         EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), 0.f, 0.f, {d0, d1, d2, d3}, \
         true, mkldnn_invalid_arguments }
 CPU_INST_TEST_CASE(SimpleExpectedFails,
@@ -426,7 +431,7 @@ CPU_INST_TEST_CASE(SimpleZeroNegativeSlope_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 3, 5, 7, 11)
 );
 
-CPU_INST_TEST_CASE(Simple_NCHW,
+INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 8, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 4, 4),
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 2, 16, 8, 8),
@@ -460,7 +465,7 @@ CPU_INST_TEST_CASE(Simple_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nhwc, 0.1f, 0.f, 10, 10, 10, 10)
 );
 
-CPU_INST_TEST_CASE(AlexNet_NCHW,
+INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 96, 55, 55),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 256, 27, 27),
     PARAMS_ALL_ALG(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13),

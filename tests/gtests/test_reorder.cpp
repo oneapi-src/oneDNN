@@ -271,4 +271,21 @@ CPU_INSTANTIATE_TEST_SUITE_P(Simple, reorder_simple_test_s8_s8,
             cfg_s8{fmt::gOIhw4i16o4i, fmt::goihw, {2, 64, 64, 3, 3}}
             )
         );
+
+GPU_INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
+        ::testing::Values(
+            cfg_f32{fmt::oihw, fmt::IOhw16i16o, {32, 48, 2, 3}},
+            cfg_f32{fmt::oihw, fmt::OIhw16o16i, {32, 32, 1, 1}},
+            cfg_f32{fmt::hwigo, fmt::gIOhw16i16o, {2, 64, 32, 1, 3}},
+            cfg_f32{fmt::goihw, fmt::gOIhw16o16i, {2, 32, 64, 2, 3}},
+            cfg_f32{fmt::OIhw16o16i, fmt::IOhw16i16o, {32, 48, 2, 3}},
+            cfg_f32{fmt::gOIhw16o16i, fmt::gIOhw16i16o, {2, 64, 32, 3, 2}},
+            cfg_f32{fmt::oidhw, fmt::OIdhw16i16o, {64, 32, 3, 9, 5}},
+            cfg_f32{fmt::goidhw, fmt::gOIdhw16i16o, {2, 32, 64, 4, 1, 7}},
+            cfg_f32{fmt::nchw, fmt::nhwc, {32, 48, 5, 4}},
+            cfg_f32{fmt::nchw, fmt::NChw16n16c, {64, 32, 5, 6}},
+            cfg_f32{fmt::nChw16c, fmt::NChw16n16c, {32, 48, 6, 9}}
+            )
+        );
+
 }

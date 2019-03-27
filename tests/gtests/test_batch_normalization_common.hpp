@@ -24,6 +24,9 @@
 #define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, bnorm_test, ::testing::Values(__VA_ARGS__));
 
+#define GPU_INST_TEST_CASE(str, ...) GPU_INSTANTIATE_TEST_SUITE_P( \
+        str, bnorm_test, ::testing::Values(__VA_ARGS__));
+
 namespace mkldnn {
 
 struct test_bnorm_sizes_t {
@@ -231,6 +234,7 @@ protected:
         }
 
         batch_normalization_forward(*bnorm_fwd_pd).execute(*strm, args);
+        strm->wait();
     }
 
     void execBnormBwd(bool useScaleShift, prop_kind pk) {
@@ -249,6 +253,7 @@ protected:
         }
 
         batch_normalization_backward(*bnorm_bwd_pd).execute(*strm, args);
+        strm->wait();
     }
 
     void check_bnorm_fwd(const test_bnorm_params_t &p, const memory &src,

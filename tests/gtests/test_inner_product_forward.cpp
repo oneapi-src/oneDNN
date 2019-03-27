@@ -159,6 +159,7 @@ protected:
                 {MKLDNN_ARG_WEIGHTS, *ip_weights},
                 {MKLDNN_ARG_BIAS, *ip_bias},
                 {MKLDNN_ARG_DST, *ip_dst}});
+        strm.wait();
 
         compute_ref_inner_product_fwd<data_t>(ipd, *ip_src, *ip_weights,
                 *ip_bias, *dst_ref);
@@ -180,7 +181,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward,
@@ -295,7 +296,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::format_tag_undef, memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 16, 48, 3, 3, 3 ) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForward, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward,

@@ -172,6 +172,7 @@ protected:
             check_zero_tail<data_t>(1, src);
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+            strm.wait();
             check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
             check_zero_tail<data_t>(0, dst);
         };
@@ -187,7 +188,7 @@ using softmax_forward_test_float = softmax_test<float>;
 using softmax_fwd_test_params_float = softmax_test_params<float>;
 
 TEST_P(softmax_forward_test_float, TestsSoftmax) { }
-CPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
         ::testing::Values(
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
             memory::format_tag::nchw, {2, -2, 128, 256}, 0,

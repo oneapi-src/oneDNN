@@ -40,6 +40,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_memory.cpp
                               test_sum.cpp
                               test_reorder.cpp
+                              test_cross_engine_reorder.cpp
                               test_concat.cpp
                               test_softmax_forward.cpp
                               test_softmax_backward.cpp
@@ -63,6 +64,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_convolution_backward_data_f32.cpp
                               test_convolution_backward_weights_f32.cpp
                               test_deconvolution.cpp
+                              test_gemm_f16.cpp
                               test_gemm_f32.cpp
                               test_gemm_s8u8s32.cpp
                               test_gemm_s8s8s32.cpp
@@ -85,10 +87,22 @@ if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
 endif()
 
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
-    get_filename_component(TEST_FILE_WE ${TEST_FILE} NAME_WE)
-    set(CURR_APP_NAME ${TEST_FILE_WE})
-    register_exe(${CURR_APP_NAME} "${MAIN_SRC_GTEST};${TEST_FILE}" "test" "mkldnn_gtest")
-    target_compile_definitions(${CURR_APP_NAME} PUBLIC -DMKLDNN_TEST_WITH_ENGINE_PARAM)
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+
+    add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
+    target_link_libraries(${exe} ${LIB_NAME} mkldnn_gtest ${EXTRA_SHARED_LIBS})
+    target_compile_definitions(${exe} PUBLIC -DMKLDNN_TEST_WITH_ENGINE_PARAM)
+
+    if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+        add_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
+        maybe_configure_windows_test(${exe}_cpu TEST)
+
+        add_test(${exe}_gpu ${exe} COMMAND ${exe} --engine=gpu)
+        maybe_configure_windows_test(${exe}_gpu TEST)
+    else()
+        add_test(${exe} ${exe})
+        maybe_configure_windows_test(${exe} TEST)
+    endif()
 endforeach()
 
 add_subdirectory(api)
