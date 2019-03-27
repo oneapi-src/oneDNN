@@ -75,3 +75,6 @@
 --dir=FWD_I
 --flags=G   --batch=bnorm_3d
 --flags=GSR --batch=bnorm_3d
+
+# bfloat16
+--reset --batch=test_bnorm_bfloat16

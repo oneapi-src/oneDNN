@@ -91,7 +91,8 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
 
     const int flex_bits = alg == ALG_0
-        ? want_flex_bits : ((exact_bits - logL) / 2 - 1);
+        ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
+        : MIN2(p->dt == mkldnn_bf16 ? 7 : exact_bits, (exact_bits - logL) / 2 - 1);
 
     if (flex_bits < min_flex_bits)
         return FAIL;
@@ -294,11 +295,16 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             if (p->flags & FUSE_BN_RELU)
                 ((float *)mask)[l0] = ((float *)mask)[l1] = 1;
 
-            float f1 = ((target_db - db) + (target_dg - dg)) /2;
-            float f0 = ((target_db - db) - (target_dg - dg)) /2;
+            float f1 = ((target_db - db) + (target_dg - dg)) / 2;
+            float f0 = ((target_db - db) - (target_dg - dg)) / 2;
 
             ((float *)d_dst)[l1] = f1 + m;
             ((float *)d_dst)[l0] = f0 + m;
+
+            if (p->dt == mkldnn_bf16) { // truncate to bf16
+                ((uint16_t *)(&((float *)d_dst)[l1]))[0] = 0;
+                ((uint16_t *)(&((float *)d_dst)[l0]))[0] = 0;
+            }
         }
 
         if (p->flags & USE_SCALESHIFT) {
@@ -316,9 +322,13 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r, const dnn_mem_t *ss = nullptr) {
     const char *skind = data_kind2str(kind);
-    const float eps = p->dir & FLAG_FWD
-        ? (kind == DATA ? 5e-7 : 0)
-        : (kind == DATA ? 2e-7 : 0);
+    const float eps = kind != DATA
+        ? 0
+        : p->dt == mkldnn_bf16
+            ? 1.e-2
+            : p->dir & FLAG_FWD
+                ? 5e-7
+                : 2e-7;
 
     /* With all the stability tricks bwd_d is still pretty unstable.
      * So let's rely on relative error in L1, L2, and L_inf norms.
@@ -437,7 +447,6 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
     const size_t nelems = data_dt.nelems(true);
-    const float *d = (const float *)data_dt;
     const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
@@ -451,7 +460,8 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
      * zero, and the respective ws_dt elements should be set accordingly */
     for (size_t i = 0; i < nelems; i += 8) {
         for (size_t j = 0; j < MIN2(8, nelems - i); ++j) {
-            const bool want = *d > 0;
+            const float data = data_dt.get_elem(i + j);
+            const bool want = data > 0.f;
             const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1<<j));
 
             const bool ok = bit_set == want;
@@ -462,10 +472,9 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
                 || (verbose >= 50 && i < 30);
             if (dump) {
                 print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
-                        (unsigned long)(i + j), want, bit_set, *d, *d);
+                        (unsigned long)(i + j), want, bit_set, data, data);
             }
 
-            ++d;
             if (ws_type == ws_byte) ++ws;
         }
         if (ws_type == ws_bit) ++ws;
@@ -509,8 +518,13 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         mkldnn_batch_normalization_desc_t bd_fwd;
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
                     mkldnn_forward_training, &data_d, p->eps, flags), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create_v2(&hint_fwd_pd, &bd_fwd, NULL,
-                    engine, NULL), WARN);
+        mkldnn_status_t init_status = mkldnn_primitive_desc_create_v2(
+                &hint_fwd_pd, &bd_fwd, NULL, engine, NULL);
+        // if fwd pass is unimplemented, bwd pass is useless
+        if (init_status == mkldnn_unimplemented)
+            return r->state = UNIMPLEMENTED, OK;
+        else
+            SAFE(init_status, WARN);
     }
     mkldnn_status_t init_status = mkldnn_primitive_desc_create_v2(&bpd, &bd,
             mkldnn_attr, engine, hint_fwd_pd);

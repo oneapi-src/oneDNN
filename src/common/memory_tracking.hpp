@@ -149,6 +149,7 @@ enum {
     key_bnorm_tmp_diff_ss,
     key_bnorm_tmp_stats,
     key_bnorm_reduction,
+    key_bnorm_bf16cvt,
     key_concat_iptrs,
     key_concat_istrides,
     key_concat_nelems,
