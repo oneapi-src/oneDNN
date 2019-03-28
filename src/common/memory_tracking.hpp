@@ -155,6 +155,7 @@ enum {
     key_concat_optrs,
     key_conv_adjusted_scales,
     key_conv_bia_reduction,
+    key_conv_bias_bf16_convert_wsp,
     key_conv_gemm_col,
     key_conv_gemm_imtr,
     key_conv_int_dat_in_acc_dt,
