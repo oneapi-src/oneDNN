@@ -60,6 +60,7 @@ endfunction()
 
 register_benchdnn_test(test_conv "benchdnn -v1 --conv --batch=inputs/test_conv_all")
 register_benchdnn_test(test_benchdnn_conv "benchdnn -v1 --conv --batch=inputs/test_conv_all")
+register_benchdnn_test(test_benchdnn_conv_bf16 "benchdnn -v1 --conv --batch=inputs/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_deconv "benchdnn -v1 --deconv --batch=inputs/deconv/test_deconv_all")
 register_benchdnn_test(test_benchdnn_rnn "benchdnn -v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder "benchdnn --reorder --batch=inputs/reorder/test_default")

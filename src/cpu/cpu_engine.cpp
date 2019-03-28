@@ -31,6 +31,7 @@
 #include "cpu/jit_avx512_core_fp32_wino_conv_4x3.hpp"
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
 #include "cpu/jit_avx512_core_x8s8s32x_convolution.hpp"
+#include "cpu/jit_avx512_core_bf16_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_sse42_1x1_convolution.hpp"
@@ -140,6 +141,11 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_fwd_t<f32>),
     INSTANCE(ref_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_convolution_bwd_weights_t<f32, f32, f32, f32>),
+    /* conv (bfloat16) */
+    INSTANCE(jit_avx512_core_bf16_convolution_fwd_t<f32>),
+    INSTANCE(jit_avx512_core_bf16_convolution_fwd_t<bf16>),
+    INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t<f32>),
+    INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t<bf16>),
     /* conv (int) */
     INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<f32>),
     INSTANCE(jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<s32>),

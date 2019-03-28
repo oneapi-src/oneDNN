@@ -130,6 +130,8 @@ struct jit_conv_conf_t {
     // s8s8 convolution
     bool signed_input;
     float wei_adj_scale;
+
+    bool is_cpx;
 };
 
 struct jit_conv_conf_2x3_wino_t {
