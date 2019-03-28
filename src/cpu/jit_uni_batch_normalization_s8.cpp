@@ -71,29 +71,32 @@ struct jit_bnorm_t: public jit_generator {
     Reg64 reg_src = r12;
     Reg64 reg_dst = r13;
     Reg64 reg_var = r14;
+    Reg64 reg_coff_s8 = r15;
+    Reg64 reg_coff_f32 = rax;
 
     // channel tail processing
-    Opmask ktail_mask_s8 = Opmask(1);
-    Opmask ktail_mask_f32 = Opmask(2);
+    Opmask ktail_mask = Opmask(1); // f32 mask for channel math
 
-    Vmm vtail_mask_f32 = Vmm(27);
-    Vmm vtail_mask_s8 = Vmm(28);
-    Vmm vzero = Vmm(29);
-    Vmm vone = Vmm(30);
-    Vmm veps = Vmm(31);
+    Vmm vtail_mask = Vmm(isa == avx512_core ? 27 : 11);
+    Vmm vbody_mask = Vmm(isa == avx512_core ? 28 : 12);
+    Vmm vzero = Vmm(isa == avx512_core ? 29 : 13);
+    Vmm vone = Vmm(isa == avx512_core ? 30 : 14);
+    Vmm veps = Vmm(isa == avx512_core ? 31 : 15);
 
     bool with_relu_;
     size_t simd_w_;
+    size_t c_in_xmm_;
     size_t unroll_regs_;
     size_t chan_data_offt_;
-    size_t num_c_blocks_;
+    size_t num_c16_blocks_;
     size_t c_tail_;
 
     void compute_predefined_variables() {
         chan_data_offt_ = bdesc_->C() * sizeof(float);
-        num_c_blocks_ = bdesc_->C() / simd_w_;
-        c_tail_ = bdesc_->C() % simd_w_;
-        unroll_regs_ = 4;
+        c_in_xmm_ = 16;
+        num_c16_blocks_ = bdesc_->C() / c_in_xmm_;
+        c_tail_ = bdesc_->C() % c_in_xmm_;
+        unroll_regs_ = isa == avx512_core ? 4 : 2;
         with_relu_ = (bdesc_->with_relu_post_op() || bdesc_->fuse_bn_relu())
             && bdesc_->is_fwd();
     }
@@ -117,210 +120,190 @@ struct jit_bnorm_t: public jit_generator {
     void prepare_tail_mask_avx512() {
         if (!c_tail_) return;
 
-        size_t tail_4byte_chunks = c_tail_ / sizeof(float);
-        const int mask_s8 = (1 << tail_4byte_chunks) - 1;
         const int mask_f32 = (1 << c_tail_) - 1;
 
         Reg32 regw_tmp = reg_tmp.cvt32();
-        mov(regw_tmp, mask_s8);
-        kmovw(ktail_mask_s8, regw_tmp);
-
         mov(regw_tmp, mask_f32);
-        kmovw(ktail_mask_f32, regw_tmp);
+        kmovw(ktail_mask, regw_tmp);
     }
 
     void prepare_tail_mask_avx2() {
+        static const uint32_t mask_half_ymm[8] = {0xffffffff, 0xffffffff,
+                0xffffffff, 0xffffffff, 0, 0, 0, 0};
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask_half_ymm[0]));
+        vmovups(vbody_mask, ptr[reg_tmp]);
+
         if (!c_tail_) return;
 
         static const uint32_t mask_f32[16] = {0xffffffff, 0xffffffff,
                 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
                 0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
 
-        static const uint32_t mask_s8[16] = {0xffffffff, 0xffffffff, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-        mov(reg_tmp, reinterpret_cast<size_t>(&mask_f32[8 - c_tail_]));
-        vmovups(vtail_mask_f32, ptr[reg_tmp]);
-
         mov(reg_tmp, reinterpret_cast<size_t>(
-                    &mask_s8[2 - c_tail_ / sizeof(float)]));
-        vmovups(vtail_mask_s8, ptr[reg_tmp]);
+                    &mask_f32[8 - c_tail_ % simd_w_]));
+        vmovups(vtail_mask, ptr[reg_tmp]);
     }
 
-    template <typename T>
     void uni_vmovups_tail_avx2(const Operand &dst, const Operand &src) {
-        if (sizeof(T) == sizeof(float)) {
-            if (dst.isMEM())
-                vmaskmovps(dst.getAddress(), vtail_mask_f32, Vmm(src.getIdx()));
-            else
-                vmaskmovps(Vmm(dst.getIdx()), vtail_mask_f32, src.getAddress());
-        } else if (sizeof(T) == sizeof(data_t)) {
-            if (dst.isMEM())
-                vmaskmovps(dst.getAddress(), vtail_mask_s8, Xmm(src.getIdx()));
-            else
-                vmaskmovps(Xmm(dst.getIdx()), vtail_mask_s8, src.getAddress());
-        } else
-            assert(!"unsupported data type");
+        if (dst.isMEM())
+            vmaskmovps(dst.getAddress(), vtail_mask, Vmm(src.getIdx()));
+        else
+            vmaskmovps(Vmm(dst.getIdx()), vtail_mask, src.getAddress());
     }
 
-    template <typename T>
     void uni_vmovups_tail_avx512(const Operand &dst, const Operand &src) {
-        if (sizeof(T) == sizeof(float)) {
-            if (dst.isMEM())
-                vmovups(dst.getAddress() | ktail_mask_f32, Vmm(src.getIdx()));
-            else
-                vmovups(Vmm(dst.getIdx()) | ktail_mask_f32 | T_z, src.getAddress());
-        } else if (sizeof(T) == sizeof(data_t)) {
-            if (dst.isMEM()) {
-                vmovups(dst.getAddress() | ktail_mask_s8, Xmm(src.getIdx()));
-            }
-            else {
-                vmovups(Xmm(dst.getIdx()) | ktail_mask_s8 | T_z, src.getAddress());
-            }
-        } else
-            assert(!"unsupported data type");
+        if (dst.isMEM())
+            vmovups(dst.getAddress() | ktail_mask, Vmm(src.getIdx()));
+        else
+            vmovups(Vmm(dst.getIdx()) | ktail_mask | T_z, src.getAddress());
     }
 
-    template <typename T>
     void uni_vmovups_tail(const Operand &dst, const Operand &src) {
         if (isa == avx512_core)
-            uni_vmovups_tail_avx512<T>(dst, src);
+            uni_vmovups_tail_avx512(dst, src);
         else if (isa == avx2)
-            uni_vmovups_tail_avx2<T>(dst, src);
+            uni_vmovups_tail_avx2(dst, src);
     }
 
     Address mean_ptr(size_t offt = 0) {
-        return vmmword[reg_mean + offt];
+        return vmmword[reg_mean + reg_coff_f32 + offt];
     }
 
     Address var_ptr(size_t offt = 0) {
-        return vmmword[reg_var + offt];
+        return vmmword[reg_var + reg_coff_f32 + offt];
     }
 
     Address scale_ptr(size_t offt = 0) {
-        return vmmword[reg_scale_shift + offt + 0 * chan_data_offt_];
+        return vmmword[reg_scale_shift + reg_coff_f32 + offt
+            + 0 * chan_data_offt_];
     }
 
     Address shift_ptr(size_t offt = 0) {
-        return vmmword[reg_scale_shift + offt + 1 * chan_data_offt_];
+        return vmmword[reg_scale_shift + reg_coff_f32 + offt
+            + 1 * chan_data_offt_];
     }
 
     Address src_ptr(size_t offt = 0) {
-        return vmmword[reg_src + reg_soff + offt];
+        return vmmword[reg_src + reg_coff_s8 + offt];
     }
 
     Address dst_ptr(size_t offt = 0) {
-        return vmmword[reg_dst + reg_soff + offt];
+        return vmmword[reg_dst + reg_coff_s8 + offt];
     }
 
     template <typename body_t, typename tail_t>
-    void channel_loop(size_t C16_blocks, size_t c_tail, size_t unroll_regs,
-            body_t body, tail_t tail) {
-        size_t num_loops = C16_blocks / unroll_regs;
-        size_t loop_tail = C16_blocks - num_loops * unroll_regs;
+    void channel_loop(body_t body, tail_t tail) {
+        size_t num_loops = num_c16_blocks_ / unroll_regs_;
+        size_t loop_tail = num_c16_blocks_ - num_loops * unroll_regs_;
 
-        for (size_t n_l = 0; n_l < num_loops; n_l++) {
-            for (size_t i_block = 0; i_block < unroll_regs; i_block++) {
-                body(i_block, n_l * unroll_regs + i_block);
+        mov(reg_coff_s8, reg_soff);
+        xor_(reg_coff_f32, reg_coff_f32);
+        if (num_loops) {
+            xor_(reg_tmp, reg_tmp);
+            add(reg_tmp, c_in_xmm_ * unroll_regs_);
+
+            Label c_loop;
+            L(c_loop); {
+
+                body(unroll_regs_);
+
+                add(reg_coff_s8, c_in_xmm_ * unroll_regs_);
+                add(reg_coff_f32, sizeof(float) * c_in_xmm_ * unroll_regs_);
+                add(reg_tmp, c_in_xmm_ * unroll_regs_);
+                cmp(reg_tmp, reg_coff_max);
+                jle(c_loop);
             }
         }
 
-        if (loop_tail) {
-            for (size_t i_block = 0; i_block < loop_tail; i_block++) {
-                body(i_block, num_loops * unroll_regs + i_block);
-            }
-        }
+        if (loop_tail)
+            body(loop_tail);
 
-        // Unroll c_tail with i_block = 4 as loop_tail has 3 iterations at most
-        if (c_tail)
-            tail(3, C16_blocks);
+        if (c_tail_) {
+            add(reg_coff_s8, c_in_xmm_ * loop_tail);
+            add(reg_coff_f32, sizeof(float) * c_in_xmm_ * loop_tail);
+
+            tail();
+        }
     }
 
-    void forward() {
+    // fills vscale and vshift with values so that algorithm performs
+    // vdst = vscale * vsrc + vbeta next;
+    void compute_vscaleshift(const Vmm &vscale, const Vmm &vshift,
+            const Vmm &vmean, const Vmm &vsqrtvar, size_t offt,
+            bool need_tail = false) {
+        if (need_tail) {
+            uni_vmovups_tail(vmean, mean_ptr(offt));
+            uni_vmovups_tail(vsqrtvar, var_ptr(offt));
+        } else {
+            uni_vmovups(vmean, mean_ptr(offt));
+            uni_vmovups(vsqrtvar, var_ptr(offt));
+        }
+        uni_vaddps(vsqrtvar, vsqrtvar, veps);
+        uni_vsqrtps(vsqrtvar, vsqrtvar);
+
+        if (bdesc_->use_scaleshift()) {
+            if (need_tail) {
+                uni_vmovups_tail(vscale, scale_ptr(offt));
+                uni_vmovups_tail(vshift, shift_ptr(offt));
+            } else {
+                uni_vmovups(vscale, scale_ptr(offt));
+                uni_vmovups(vshift, shift_ptr(offt));
+            }
+            vdivps(vscale, vscale, vsqrtvar);
+            uni_vfnmadd231ps(vshift, vmean, vscale);
+        } else {
+            vdivps(vscale, vone, vsqrtvar);
+            uni_vmulps(vmean, vmean, vscale);
+            uni_vsubps(vshift, vzero, vmean);
+        }
+    };
+
+    void forward_avx512() {
         xor_(reg_soff, reg_soff);
         Label mb_sp_loop;
         L(mb_sp_loop); {
 
-            // fills vscale and vshift with values so that algorithm performs
-            // vdst = vscale * vsrc + vbeta next;
-            auto compute_vscaleshift = [=](const Vmm &vscale, const Vmm &vshift,
-                    size_t base_reg, size_t c_block, bool need_tail = false) {
-                size_t coff_f32 = c_block * simd_w_ * sizeof(float);
+            channel_loop([=](size_t unroll) {
+                        // Works with 16c times @unroll blocks simultaneously.
+                        // Each block up converts 16c, performs math and down
+                        // converts.
+                        for (size_t i = 0; i < unroll; i++) {
+                            Vmm v = Vmm(i + 0*unroll);
+                            Vmm vscale = Vmm(i + 1*unroll);
+                            Vmm vshift = Vmm(i + 2*unroll);
+                            Vmm vmean = Vmm(i + 3*unroll);
+                            Vmm vsqrtvar = Vmm(i + 4*unroll);
 
-                // register numeration should be aligned with body and tail
-                Vmm vsqrtvar = Vmm(base_reg + 3*unroll_regs_);
-                Vmm vmean = Vmm(base_reg + 4*unroll_regs_);
+                            compute_vscaleshift(vscale, vshift, vmean, vsqrtvar,
+                                i * c_in_xmm_ * sizeof(float));
 
-                if (need_tail) {
-                    uni_vmovups_tail<float>(vmean, mean_ptr(coff_f32));
-                    uni_vmovups_tail<float>(vsqrtvar, var_ptr(coff_f32));
-                } else {
-                    uni_vmovups(vmean, mean_ptr(coff_f32));
-                    uni_vmovups(vsqrtvar, var_ptr(coff_f32));
-                }
-                uni_vaddps(vsqrtvar, vsqrtvar, veps);
-                uni_vsqrtps(vsqrtvar, vsqrtvar);
+                            vpmovsxbd(v, src_ptr(i * c_in_xmm_));
+                            vcvtdq2ps(v, v);
 
-                if (bdesc_->use_scaleshift()) {
-                    if (need_tail) {
-                        uni_vmovups_tail<float>(vscale, scale_ptr(coff_f32));
-                        uni_vmovups_tail<float>(vshift, shift_ptr(coff_f32));
-                    } else {
-                        uni_vmovups(vscale, scale_ptr(coff_f32));
-                        uni_vmovups(vshift, shift_ptr(coff_f32));
-                    }
-                    vdivps(vscale, vscale, vsqrtvar);
-                    uni_vfnmadd231ps(vshift, vmean, vscale);
-                } else {
-                    vdivps(vscale, vone, vsqrtvar);
-                    uni_vmulps(vmean, vmean, vscale);
-                    uni_vsubps(vshift, vzero, vmean);
-                }
-            };
+                            uni_vfmadd213ps(v, vscale, vshift);
+                            if (with_relu_)
+                                uni_vmaxps(v, v, vzero);
 
-            channel_loop(num_c_blocks_, c_tail_, unroll_regs_,
-                    [=](size_t base_reg, size_t c_block) {
-                        size_t coff_s8 = c_block * simd_w_ * sizeof(data_t);
-
-                        Vmm v = Vmm(base_reg + 0*unroll_regs_);
-                        Vmm vscale = Vmm(base_reg + 1*unroll_regs_);
-                        Vmm vshift = Vmm(base_reg + 2*unroll_regs_);
-
-                        compute_vscaleshift(vscale, vshift, base_reg, c_block);
-
-                        // up convert
-                        // TODO: try to load 64 bytes and create 4 zmms from 'em
-                        vpmovsxbd(v, src_ptr(coff_s8));
-                        vcvtdq2ps(v, v);
-
-                        uni_vfmadd213ps(v, vscale, vshift);
-                        if (with_relu_)
-                            uni_vmaxps(v, v, vzero);
-
-                        // down convert
-                        vcvtps2dq(v, v);
-                        vpmovsdb(dst_ptr(coff_s8), v);
-                    },
-                    [=](size_t base_reg, size_t c_block) {
-                        size_t coff_s8 = c_block * simd_w_ * sizeof(data_t);
-                        size_t tail_1byte_left = c_tail_ % sizeof(float);
-
-                        Xmm x = Xmm(base_reg + 0*unroll_regs_);
-                        Vmm v = Vmm(base_reg + 0*unroll_regs_);
-                        Vmm vscale = Vmm(base_reg + 1*unroll_regs_);
-                        Vmm vshift = Vmm(base_reg + 2*unroll_regs_);
-
-                        // load 4-byte chunks, then 1-byte chunks
-                        uni_vmovups_tail<data_t>(x, src_ptr(coff_s8));
-                        for (size_t tl = 0; tl < tail_1byte_left; tl++) {
-                            size_t byte_off = c_tail_ - tail_1byte_left + tl;
-                            vpinsrb(x, x, src_ptr(coff_s8 + byte_off), byte_off);
+                            vcvtps2dq(v, v);
+                            vpmovsdb(dst_ptr(i * c_in_xmm_), v);
                         }
+                    },
+                    [=]() {
+                        // There is no way to get performance as one has to
+                        // work with bytes via xmm. vzeroupper kills the perf.
+                        Xmm x = Xmm(0);
+                        Vmm v = Vmm(0);
+                        Vmm vscale = Vmm(1);
+                        Vmm vshift = Vmm(2);
+                        Vmm vmean = Vmm(3);
+                        Vmm vsqrtvar = Vmm(4);
 
-                        compute_vscaleshift(vscale, vshift, base_reg, c_block,
+                        for (size_t tl = 0; tl < c_tail_; tl++)
+                            vpinsrb(x, x, src_ptr(tl), tl);
+
+                        compute_vscaleshift(vscale, vshift, vmean, vsqrtvar, 0,
                                 true);
 
-                        // up convert
                         vpmovsxbd(v, x);
                         vcvtdq2ps(v, v);
 
@@ -328,15 +311,124 @@ struct jit_bnorm_t: public jit_generator {
                         if (with_relu_)
                             uni_vmaxps(v, v, vzero);
 
-                        // down convert
                         vcvtps2dq(v, v);
                         vpmovsdb(x, v);
 
-                        // store 4-byte chunks, then 1-byte chunks
-                        uni_vmovups_tail<data_t>(dst_ptr(coff_s8), x);
-                        for (size_t tl = 0; tl < tail_1byte_left; tl++) {
-                            size_t byte_off = c_tail_ - tail_1byte_left + tl;
-                            vpextrb(dst_ptr(coff_s8 + byte_off), x, byte_off);
+                        for (size_t tl = 0; tl < c_tail_; tl++)
+                            vpextrb(dst_ptr(tl), x, tl);
+                    });
+
+            add(reg_soff, reg_coff_max);
+            cmp(reg_soff, reg_soff_max);
+            jl(mb_sp_loop);
+        }
+    }
+
+    void forward_avx2() {
+        xor_(reg_soff, reg_soff);
+        Label mb_sp_loop;
+        L(mb_sp_loop); {
+
+            channel_loop([=](size_t unroll) {
+                        // Load 32 channels (two C16_blocks) in ymm, then
+                        // split the work in half, each half splits in two
+                        // regs with 8 channels per. When down converting,
+                        // put the result in a temp register for the 1st
+                        // iteration, combine the result at 2nd iteration
+                        // and store ymm with 32 channels.
+                        // If 16 channels, do just one half and store the
+                        // result with mask.
+                        Vmm v0 = Vmm(0);
+                        Vmm v1 = Vmm(1);
+                        Vmm vscale0 = Vmm(2);
+                        Vmm vshift0 = Vmm(3);
+                        Vmm vmean0 = Vmm(4);
+                        Vmm vsqrtvar0 = Vmm(5);
+                        Vmm vscale1 = Vmm(6);
+                        Vmm vshift1 = Vmm(7);
+                        Vmm vmean1 = Vmm(8);
+                        Vmm vsqrtvar1 = Vmm(9);
+                        Vmm tmp = Vmm(10);
+
+                        for (size_t i = 0; i < unroll; i++) {
+                            compute_vscaleshift(vscale0, vshift0, vmean0,
+                                    vsqrtvar0, i * c_in_xmm_ * sizeof(float));
+                            compute_vscaleshift(vscale1, vshift1, vmean1,
+                                    vsqrtvar1, i * c_in_xmm_ * sizeof(float)
+                                    + simd_w_ * sizeof(float));
+
+                            vpmovsxbd(v0, src_ptr(i*c_in_xmm_));
+                            vpmovsxbd(v1, src_ptr(i*c_in_xmm_ + simd_w_));
+                            vcvtdq2ps(v0, v0);
+                            vcvtdq2ps(v1, v1);
+
+                            uni_vfmadd213ps(v0, vscale0, vshift0);
+                            uni_vfmadd213ps(v1, vscale1, vshift1);
+                            if (with_relu_) {
+                                uni_vmaxps(v0, v0, vzero);
+                                uni_vmaxps(v1, v1, vzero);
+                            }
+
+                            vcvtps2dq(v0, v0); // BA
+                            vcvtps2dq(v1, v1); // DC
+                            vpackssdw(v0, v0, v1); // BA + DC -> DBCA
+                            vpermq(v0, v0, 0xD8); // DBCA -> DCBA
+                            vperm2i128(v1, v0, v0, 0x1); // DCBA -> BADC
+                            vpacksswb(v0, v0, v1); // DCBA + BADC -> badcDCBA
+                            if (i == 0 && unroll != 1)
+                                uni_vmovups(tmp, v0);
+                            else if (i == 1) {
+                                // badcDCBA + fehgHGFE -> HGFEDCBA
+                                vperm2i128(v0, v0, tmp, 0x2);
+                            }
+                        }
+
+                        if (unroll == 1)
+                            vmaskmovps(dst_ptr(), vbody_mask, v0);
+                        else
+                            uni_vmovups(dst_ptr(), v0);
+                    },
+                    [=]() {
+                        // handle first 8 channels. If tail is bigger,
+                        // handle second part separately. There is no way
+                        // to get performance as one has to work with bytes
+                        // via xmm. vzeroupper kills all the perf.
+                        Xmm x0 = Xmm(0);
+                        Vmm v0 = Vmm(0);
+                        Vmm vscale0 = Vmm(1);
+                        Vmm vshift0 = Vmm(2);
+                        Vmm vmean0 = Vmm(3);
+                        Vmm vsqrtvar0 = Vmm(4);
+
+                        size_t tail = nstl::min(c_tail_, simd_w_);
+                        size_t num_iters = c_tail_ > simd_w_ ? 2 : 1;
+
+                        for (size_t i = 0; i < num_iters; i++) {
+                            if (i > 0)
+                                tail = c_tail_ - simd_w_;
+
+                            for (size_t tl = 0; tl < tail; tl++)
+                                vpinsrb(x0, x0, src_ptr(8*i + tl), tl);
+
+                            if (tail == simd_w_)
+                                compute_vscaleshift(vscale0, vshift0, vmean0,
+                                        vsqrtvar0, 32*i);
+                            else
+                                compute_vscaleshift(vscale0, vshift0, vmean0,
+                                        vsqrtvar0, 32*i, true);
+
+                            vpmovsxbd(v0, x0);
+                            vcvtdq2ps(v0, v0);
+                            uni_vfmadd213ps(v0, vscale0, vshift0);
+                            if (with_relu_)
+                                uni_vmaxps(v0, v0, vzero);
+                            vcvtps2dq(v0, v0);
+                            vpackssdw(v0, v0, vzero);
+                            vpermq(v0, v0, 0xD8);
+                            vpacksswb(v0, v0, vzero);
+
+                            for (size_t tl = 0; tl < tail; tl++)
+                                vpextrb(dst_ptr(8*i + tl), x0, tl);
                         }
                     });
 
@@ -353,14 +445,16 @@ struct jit_bnorm_t: public jit_generator {
 
         preamble();
         compute_predefined_variables();
-
-        if (isa == avx512_core)
-            prepare_tail_mask_avx512();
-        else if (isa == avx2)
-            prepare_tail_mask_avx2();
-
         load_common_params();
-        forward();
+
+        if (isa == avx512_core) {
+            prepare_tail_mask_avx512();
+            forward_avx512();
+        } else if (isa == avx2) {
+            prepare_tail_mask_avx2();
+            forward_avx2();
+        }
+
         postamble();
 
         ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
@@ -477,7 +571,7 @@ jit_uni_batch_normalization_s8_fwd_t<isa>::
 
 /* struct instantiation */
 template struct jit_uni_batch_normalization_s8_fwd_t<avx512_core>;
-/* TODO: add avx2 version */
+template struct jit_uni_batch_normalization_s8_fwd_t<avx2>;
 
 }
 }
