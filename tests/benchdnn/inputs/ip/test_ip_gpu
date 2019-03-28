@@ -1,0 +1,9 @@
+# f32
+--reset --cfg=f32
+--dir=FWD_B --batch=ip_all
+--dir=BWD_D --batch=ip_all
+--dir=BWD_WB --batch=ip_all
+
+# relu
+--reset --dir=FWD_B --mb=2 --attr=post_ops='relu'
+--batch=ip_all

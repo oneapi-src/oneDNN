@@ -54,36 +54,64 @@ if(WIN32 OR MINGW)
 endif()
 
 # register benchdnn test case
-function(register_benchdnn_test name cmd)
-    string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
-    string(REPLACE " " ";" ARGV2 "$<TARGET_FILE:benchdnn> ${ARGV2}")
+function(register_benchdnn_test name engine cmd)
+    set(benchdnn_target ${name}_${engine})
+    string(REPLACE " " ";" cmd
+        "$<TARGET_FILE:benchdnn> --engine=${engine} ${cmd}")
+    string(REPLACE " " ";" ARGV2
+        "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV2}")
     if(WIN32 OR MINGW)
         set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
         set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
     endif()
-    add_custom_target(${name}
+    add_custom_target(${benchdnn_target}
         COMMAND ${cmd}
         COMMAND ${ARGV2} # if any
         DEPENDS benchdnn
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
-    maybe_configure_windows_test(${name} TARGET)
+    set_target_properties(${benchdnn_target} PROPERTIES
+        EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+    # Create non-suffixed target for compatibility
+    if (engine STREQUAL "cpu")
+        add_custom_target(${name} DEPENDS ${benchdnn_target})
+    endif()
 endfunction()
 
-register_benchdnn_test(test_conv "-v1 --conv --batch=inputs/test_conv_all")
-register_benchdnn_test(test_benchdnn_conv "-v1 --conv --batch=inputs/test_conv_all")
-register_benchdnn_test(test_benchdnn_deconv "-v1 --deconv --batch=inputs/deconv/test_deconv_all")
-register_benchdnn_test(test_benchdnn_rnn "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
-register_benchdnn_test(test_benchdnn_reorder "--reorder --batch=inputs/reorder/test_default")
-register_benchdnn_test(test_benchdnn_bnorm "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
-register_benchdnn_test(test_benchdnn_ip "--ip --batch=inputs/ip/test_ip_all")
+register_benchdnn_test(test_conv
+    cpu "-v1 --conv --batch=inputs/test_conv_all")
+register_benchdnn_test(test_benchdnn_conv
+    cpu "-v1 --conv --batch=inputs/test_conv_all")
+register_benchdnn_test(test_benchdnn_deconv
+    cpu "-v1 --deconv --batch=inputs/deconv/test_deconv_all")
+register_benchdnn_test(test_benchdnn_rnn
+    cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
+register_benchdnn_test(test_benchdnn_reorder
+    cpu "--reorder --batch=inputs/reorder/test_default")
+register_benchdnn_test(test_benchdnn_bnorm
+    cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
+register_benchdnn_test(test_benchdnn_ip
+    cpu "--ip --batch=inputs/ip/test_ip_all")
 register_benchdnn_test(test_benchdnn_regression
+    cpu
     "--conv --batch=inputs/test_conv_regression"
     "--bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
 register_benchdnn_test(test_benchdnn_regression_large
+    cpu
     "--bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
+
+if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+    register_benchdnn_test(test_benchdnn_conv
+        gpu "-v1 --conv --batch=inputs/test_conv_gpu")
+    register_benchdnn_test(test_benchdnn_bnorm
+        gpu "--bnorm --batch=inputs/bnorm/test_bnorm_gpu")
+    register_benchdnn_test(test_benchdnn_ip
+        gpu "--ip --batch=inputs/ip/test_ip_gpu")
+endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     install(TARGETS benchdnn RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

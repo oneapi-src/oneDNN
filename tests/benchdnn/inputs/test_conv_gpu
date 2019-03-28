@@ -1,0 +1,17 @@
+# f32
+--reset --cfg=f32
+--mb=2
+--dir=FWD_B --batch=conv_gpu
+--dir=BWD_D --batch=conv_gpu
+--dir=BWD_WB --batch=conv_gpu
+--mb=16
+--dir=FWD_B --batch=conv_gpu
+--dir=BWD_D --batch=conv_gpu
+--dir=BWD_WB --batch=conv_gpu
+
+# f16
+--reset --cfg=f16
+--mb=2
+--dir=FWD_B --batch=conv_gpu
+--mb=16
+--dir=FWD_B --batch=conv_gpu

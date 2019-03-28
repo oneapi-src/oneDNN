@@ -62,6 +62,7 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(chwn);
     CASE(nChw8c);
     CASE(nChw16c);
+    CASE(NChw16n16c);
     CASE(oi);
     CASE(io);
     CASE(oiw);

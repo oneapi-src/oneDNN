@@ -1,0 +1,39 @@
+--reset --dt=f32
+--dir=FWD_D
+--flags=SR --batch=bnorm_topo
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--attr=post_ops='relu'
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+--attr=
+
+--dir=BWD_DW
+--flags=SR --batch=bnorm_topo
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_D
+--flags=   --batch=bnorm_topo
+
+--mb=48
+--tag=NChw16n16c
+
+--dir=FWD_D
+--flags=SR --batch=bnorm_topo
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--attr=post_ops='relu'
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+--attr=
+
+--dir=BWD_DW
+--flags=SR --batch=bnorm_topo
+--flags=GS --batch=bnorm_topo
+--flags=S  --batch=bnorm_topo
+
+--dir=BWD_D
+--flags=   --batch=bnorm_topo
