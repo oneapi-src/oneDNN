@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -130,6 +131,8 @@ struct jit_conv_conf_t {
     // s8s8 convolution
     bool signed_input;
     float wei_adj_scale;
+
+    cpu_isa_t isa;
 };
 
 struct jit_conv_conf_2x3_wino_t {

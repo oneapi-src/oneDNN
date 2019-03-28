@@ -132,6 +132,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_BAcde16b16a) return "BAcde16b16a";
     if (v == mkldnn_aBcde8b) return "aBcde8b";
     if (v == mkldnn_ABcde8b16a2b) return "ABcde8b16a2b";
+    if (v == mkldnn_ABcde8a16b2a) return "ABcde8a16b2a";
     if (v == mkldnn_aBCde8b16c2b) return "aBCde8b16c2b";
     if (v == mkldnn_ABcde8b8a) return "ABcde8b8a";
     if (v == mkldnn_aBCde8b8c) return "aBCde8b8c";
@@ -148,6 +149,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_aBCdef4c4b) return "aBCdef4c4b";
     if (v == mkldnn_aBCdef8b8c) return "aBCdef8b8c";
     if (v == mkldnn_aBCdef8c16b2c) return "aBCdef8c16b2c";
+    if (v == mkldnn_aBCdef8b16c2b) return "aBCdef8b16c2b";
     if (v == mkldnn_aBCdef8c8b) return "aBCdef8c8b";
     if (v == mkldnn_aBdc16b) return "aBdc16b";
     if (v == mkldnn_aBdc4b) return "aBdc4b";

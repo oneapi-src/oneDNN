@@ -115,6 +115,10 @@ struct convolution_pd_t: public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
+    bool is_bwd_d() const {
+        return desc_.prop_kind == prop_kind::backward_data;
+    }
+
     bool has_zero_dim_memory() const {
         const auto s_d = memory_desc_wrapper(*_src_md());
         const auto d_d = memory_desc_wrapper(*_dst_md());
