@@ -45,10 +45,22 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
+if(WIN32 OR MINGW)
+    string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
+        "${PROJECT_BINARY_DIR}/run_with_env.bat"
+    )
+endif()
+
 # register benchdnn test case
 function(register_benchdnn_test name cmd)
-    string(REPLACE " " ";" cmd ${cmd})
-    string(REPLACE " " ";" ARGV2 "${ARGV2}")
+    string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
+    string(REPLACE " " ";" ARGV2 "$<TARGET_FILE:benchdnn> ${ARGV2}")
+    if(WIN32 OR MINGW)
+        set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+        set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+    endif()
     add_custom_target(${name}
         COMMAND ${cmd}
         COMMAND ${ARGV2} # if any
@@ -58,19 +70,19 @@ function(register_benchdnn_test name cmd)
     maybe_configure_windows_test(${name} TARGET)
 endfunction()
 
-register_benchdnn_test(test_conv "benchdnn -v1 --conv --batch=inputs/test_conv_all")
-register_benchdnn_test(test_benchdnn_conv "benchdnn -v1 --conv --batch=inputs/test_conv_all")
-register_benchdnn_test(test_benchdnn_deconv "benchdnn -v1 --deconv --batch=inputs/deconv/test_deconv_all")
-register_benchdnn_test(test_benchdnn_rnn "benchdnn -v1 --rnn --batch=inputs/rnn/test_rnn_small")
-register_benchdnn_test(test_benchdnn_reorder "benchdnn --reorder --batch=inputs/reorder/test_default")
-register_benchdnn_test(test_benchdnn_bnorm "benchdnn --bnorm  --batch=inputs/bnorm/test_bnorm_all")
-register_benchdnn_test(test_benchdnn_ip "benchdnn --ip --batch=inputs/ip/test_ip_all")
+register_benchdnn_test(test_conv "-v1 --conv --batch=inputs/test_conv_all")
+register_benchdnn_test(test_benchdnn_conv "-v1 --conv --batch=inputs/test_conv_all")
+register_benchdnn_test(test_benchdnn_deconv "-v1 --deconv --batch=inputs/deconv/test_deconv_all")
+register_benchdnn_test(test_benchdnn_rnn "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
+register_benchdnn_test(test_benchdnn_reorder "--reorder --batch=inputs/reorder/test_default")
+register_benchdnn_test(test_benchdnn_bnorm "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
+register_benchdnn_test(test_benchdnn_ip "--ip --batch=inputs/ip/test_ip_all")
 register_benchdnn_test(test_benchdnn_regression
-    "benchdnn --conv --batch=inputs/test_conv_regression"
-    "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
+    "--conv --batch=inputs/test_conv_regression"
+    "--bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
 register_benchdnn_test(test_benchdnn_regression_large
-    "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
+    "--bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
