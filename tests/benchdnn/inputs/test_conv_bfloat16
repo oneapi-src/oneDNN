@@ -13,6 +13,10 @@
 --cfg=f32bf16bf16  --batch=conv_resnet_50
 --cfg=bf16bf16bf16 --batch=conv_all
 
+--dir=BWD_WB
+--cfg=bf16f32bf16  --batch=conv_all
+--cfg=bf16bf16bf16 --batch=conv_resnet_50
+
 --dir=FWD_B
 --attr=post_ops='sum' --batch=conv_resnet_50
 --attr=post_ops='relu' --batch=conv_resnet_50
