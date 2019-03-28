@@ -80,10 +80,10 @@ void gemm_convolution_fwd_t::execute_forward() const {
             const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
             if (jcp.im2col_sz) {
                 if (jcp.id == 1)
-                    jit_gemm_convolution_utils::im2col(
+                    jit_gemm_convolution_utils::im2col<float>(
                             jcp, _src, _col, oh, h_step, ow, w_step);
                 else
-                    jit_gemm_convolution_utils::im2col_3d(jcp, _src, _col, od);
+                    jit_gemm_convolution_utils::im2col_3d<float>(jcp, _src, _col, od);
             }
 
             const data_t one = 1.0;
@@ -254,10 +254,10 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
 
                     if (jcp.im2col_sz) {
                         if (jcp.id == 1)
-                            jit_gemm_convolution_utils::im2col(
+                            jit_gemm_convolution_utils::im2col<float>(
                                     jcp, _src, _col, 0, jcp.oh, 0, jcp.ow);
                         else
-                            jit_gemm_convolution_utils::im2col_3d(jcp, _src,
+                            jit_gemm_convolution_utils::im2col_3d<float>(jcp, _src,
                                 _col, od);
                     }
 
