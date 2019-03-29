@@ -96,10 +96,14 @@ private:
     reg64_t aux_reg_inp = r12;
     reg64_t aux_reg_ker = r13;
 
+    reg64_t aux_reg_ker_d = r14;
+    reg64_t aux_reg_inp_d = r15;
+
     reg64_t reg_icb = rax;
     reg64_t reg_bias = rbx;
 
     reg64_t reg_kj = abi_not_param1;
+    reg64_t reg_ki = reg_out;
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
