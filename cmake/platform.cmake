@@ -68,8 +68,7 @@ elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
-    append(CMAKE_C_FLAGS "-std=c99")
-    append(CMAKE_CXX_FLAGS "-std=c++11 -fvisibility-inlines-hidden")
+    append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
     # compiler specific settings
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
