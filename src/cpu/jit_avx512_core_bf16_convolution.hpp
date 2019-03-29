@@ -86,7 +86,7 @@ struct _jit_avx512_core_bf16_convolution_fwd_t : public cpu_primitive_t {
             return status::success;
         }
 
-        inline int ndims() { return this->desc()->src_desc.ndims; }
+        inline int ndims() const { return this->desc()->src_desc.ndims; }
 
         jit_conv_conf_t jcp_;
 
@@ -114,13 +114,24 @@ struct _jit_avx512_core_bf16_convolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     virtual void execute(event_t *e) const {
-        execute_forward();
+        if (pd()->ndims() == 3)
+            execute_forward_1d();
+        else if (pd()->ndims() == 4)
+            execute_forward_2d();
+        else if (pd()->ndims() == 5)
+            execute_forward_3d();
+        else
+            assert(false);
+
+        /*TODO: zero pad dst */
         e->set_state(event_t::ready);
     }
 
 private:
-    void execute_forward() const;
     void prepare_padded_bias(const char *&bias) const;
+    void execute_forward_1d() const;
+    void execute_forward_2d() const;
+    void execute_forward_3d() const;
     jit_avx512_core_bf16_fwd_kernel *kernel_;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };

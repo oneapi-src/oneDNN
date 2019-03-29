@@ -59,7 +59,7 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     }
 }
 inline bool is_1D_conv(const jit_conv_conf_t &jcp) {
-    return (jcp.ih == 1 && jcp.kh == 1);
+    return (jcp.id == 1 && jcp.ih == 1 && jcp.kd == 1 && jcp.kh == 1);
 }
 inline bool is_ow_threading_available(const jit_conv_conf_t &jcp) {
     return (is_1D_conv(jcp) && one_of(jcp.ndims, 3, 4)
@@ -191,15 +191,42 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
 
     prepare_output(ur_w);
 
+    Label skip_compute_loop;
+    if (jcp.ndims == 5) {
+        mov(reg_kj, ptr[param1 + GET_OFF(kd_padding)]);
+        if ((jcp.dilate_d >= jcp.id)
+                || (jcp.kd - 1) * (jcp.dilate_d + 1)
+                < nstl::max(jcp.f_pad, jcp.back_pad)) {
+            cmp(reg_kj, 0);
+            je(skip_compute_loop, T_NEAR);
+        }
+    }
+    mov(reg_kj, reg_kh);
+    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+        cmp(reg_kj, 0);
+        je(skip_compute_loop, T_NEAR);
+    }
+
     // IC loop
     Label icb_label;
     mov(reg_icb, jcp.nb_ic);
     L(icb_label);
 
-    mov(aux_reg_inp, reg_inp);
-    mov(aux_reg_ker, reg_ker);
+    Label skip_kh_loop;
 
-    Label skip_kh_loop, skip_kd_loop;
+    if (jcp.ndims == 5) {
+        push(reg_out);
+        mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
+        mov(aux_reg_ker_d, reg_ker);
+        mov(aux_reg_inp_d, reg_inp);
+
+        L(kd_label);
+        mov(aux_reg_inp, aux_reg_inp_d);
+        mov(aux_reg_ker, aux_reg_ker_d);
+    } else {
+        mov(aux_reg_inp, reg_inp);
+        mov(aux_reg_ker, reg_ker);
+    }
 
     mov(reg_kj, reg_kh);
     if ((jcp.dilate_h >= jcp.ih)
@@ -254,11 +281,24 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
         jg(kh_label, T_NEAR);
     }
 
+    if (jcp.ndims == 5) {
+        add(aux_reg_inp_d,
+                jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * jcp.iw * jcp.ic_block);
+        add(aux_reg_ker_d, jcp.typesize_in * jcp.kw * jcp.kh * jcp.oc_block
+                * jcp.ic_block);
+
+        dec(reg_ki);
+        cmp(reg_ki, 0);
+        jg(kd_label, T_NEAR);
+
+        pop(reg_out);
+    }
+
     L(skip_kh_loop);
 
     // End of IC Loop
-    size_t inp_step = (size_t)jcp.ih * jcp.iw * jcp.ic_block;
-    size_t ker_step = (size_t)jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
+    size_t inp_step = (size_t)jcp.id * jcp.ih * jcp.iw * jcp.ic_block;
+    size_t ker_step = (size_t)jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
     add(reg_inp, jcp.typesize_in * inp_step);
     add(reg_ker, jcp.typesize_in * ker_step);
 
@@ -269,6 +309,7 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
     sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
     sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
 
+    L(skip_compute_loop);
     store_output(ur_w);
 }
 
@@ -536,9 +577,6 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
             - (jcp.ih + jcp.t_pad - 1);
     jcp.back_pad = (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
-
-    if (ndims != 4)
-        return status::unimplemented;
 
     const int regs = jcp.bf16_ISA() ? 31 /* expl_bcast case */ : 26;
 
