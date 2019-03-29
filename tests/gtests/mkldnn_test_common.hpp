@@ -406,10 +406,14 @@ template<typename F> bool catch_expected_failures(const F &f,
         // not match.
         if (!(expect_to_fail) || e.status != (expected_status)) {
             // Ignore unimplemented
-            if ( ignore_unimplemented && (e.status == mkldnn_unimplemented))
+            if (ignore_unimplemented && (e.status == mkldnn_unimplemented)) {
+                // Print unimplemented but do not treat as error
+                std::cout << "[  UNIMPL  ] "
+                          << "Implementation not found" << std::endl;
                 return true;
-            else
+            } else {
                 throw e;
+            }
         }
         // Return normally if the failure is expected
         if (expect_to_fail)
