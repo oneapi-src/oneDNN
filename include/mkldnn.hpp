@@ -165,6 +165,9 @@ struct error: public std::exception {
     error(mkldnn_status_t astatus, const char *amessage)
         : status(astatus), message(amessage) {}
 
+    /// Returns the explanatory string.
+    const char *what() const noexcept override { return message; }
+
     /// A convenience function for wrapping calls to the C API. Checks the
     /// return status and throws an #error in case of failure.
     ///
