@@ -758,26 +758,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
         assert(!"unimplemented");
 };
 
-/* Fix for MSVS warning C4661 */
-template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
-template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
-template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
-template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
-template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
-template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
-template<> rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
-template<> rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
-template<> rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
-template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
-template<> rnn_elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
-
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;

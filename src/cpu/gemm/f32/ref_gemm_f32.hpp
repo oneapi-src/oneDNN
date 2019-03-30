@@ -29,6 +29,16 @@ mkldnn_status_t ref_gemm(const char *transa, const char *transb, const int *M,
         const int *lda, const data_t *B, const int *ldb, const data_t *beta,
         data_t *C, const int *ldc, const data_t *bias);
 
+// Explicit instantiations in ref_gemm_f32.cpp.
+extern template mkldnn_status_t ref_gemm<float>(const char *transa, const char *transb, const int *M,
+        const int *N, const int *K, const float *alpha, const float *A,
+        const int *lda, const float *B, const int *ldb, const float *beta,
+        float *C, const int *ldc, const float *bias);
+extern template mkldnn_status_t ref_gemm<double>(const char *transa, const char *transb, const int *M,
+        const int *N, const int *K, const double *alpha, const double *A,
+        const int *lda, const double *B, const int *ldb, const double *beta,
+        double *C, const int *ldc, const double *bias);
+
 }
 }
 }

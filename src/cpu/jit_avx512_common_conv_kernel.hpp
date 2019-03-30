@@ -223,6 +223,17 @@ struct jit_avx512_common_conv_fwd_kernel {
     _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
 };
 
+// Explicit specializations and instantiations in
+// jit_avx512_common_conv_kernel.cpp.
+template<>
+void _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>::compute_loop_4fma_1st(
+    int ur_w, int pad_l, int pad_r);
+template<>
+void _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>::compute_loop_4fma(
+    int ur_w, int pad_l, int pad_r);
+extern template struct  _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>;
+extern template struct  _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm>;
+
 struct jit_avx512_common_conv_bwd_data_kernel_f32: public jit_generator {
 
     jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)

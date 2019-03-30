@@ -105,6 +105,12 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+// Explicit instantiations in ref_eltwise.cpp.
+extern template struct ref_eltwise_fwd_t<data_type::f32>;
+extern template struct ref_eltwise_fwd_t<data_type::s32>;
+extern template struct ref_eltwise_fwd_t<data_type::s8>;
+extern template struct ref_eltwise_fwd_t<data_type::u8>;
+
 template <impl::data_type_t data_type>
 struct ref_eltwise_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_eltwise_bwd_pd_t {
@@ -158,6 +164,10 @@ private:
     void execute_backward_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
+
+// Explicit instantiations in ref_eltwise.cpp.
+extern template struct ref_eltwise_bwd_t<data_type::f32>;
+extern template struct ref_eltwise_bwd_t<data_type::s32>;
 
 }
 }

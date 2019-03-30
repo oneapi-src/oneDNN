@@ -257,6 +257,14 @@ private:
     primitive_t *conv_p_;
 };
 
+// Explicit instantiations in ref_deconvolution.cpp.
+extern template void
+ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<8>(
+    const data_t *diff_dst, data_t *diff_bias) const;
+extern template void
+ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc<16>(
+    const data_t *diff_dst, data_t *diff_bias) const;
+
 struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
     struct pd_t: public cpu_deconvolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
@@ -492,6 +500,14 @@ private:
 
     primitive_t *conv_p_;
 };
+
+// Explicit instantiations in ref_deconvolution.cpp.
+extern template void
+ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<8>(
+    const data_t *diff_dst, data_t *diff_bias) const;
+extern template void
+ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc<16>(
+    const data_t *diff_dst, data_t *diff_bias) const;
 
 }
 }

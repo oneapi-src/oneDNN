@@ -101,6 +101,11 @@ private:
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };
 
+// Explicit instantiations in jit_uni_pooling.cpp.
+extern template struct jit_uni_pooling_fwd_t<sse42>;
+extern template struct jit_uni_pooling_fwd_t<avx>;
+extern template struct jit_uni_pooling_fwd_t<avx512_common>;
+
 template <cpu_isa_t isa>
 struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
@@ -172,6 +177,11 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_pool_kernel_f32<isa> *kernel_;
 };
+
+// Explicit instantiations in jit_uni_pooling.cpp.
+extern template struct jit_uni_pooling_bwd_t<sse42>;
+extern template struct jit_uni_pooling_bwd_t<avx>;
+extern template struct jit_uni_pooling_bwd_t<avx512_common>;
 
 }
 }
