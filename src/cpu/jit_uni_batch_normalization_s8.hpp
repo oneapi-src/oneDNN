@@ -31,7 +31,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-namespace { template <cpu_isa_t isa> struct uni_bnorm_driver_t; }
+namespace bndrv_s8 { template <cpu_isa_t isa> struct uni_bnorm_driver_t; }
 
 template <cpu_isa_t isa>
 struct jit_uni_batch_normalization_s8_fwd_t: public cpu_primitive_t {
@@ -59,8 +59,11 @@ struct jit_uni_batch_normalization_s8_fwd_t: public cpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    uni_bnorm_driver_t<isa> *bnorm_driver_;
+    bndrv_s8::uni_bnorm_driver_t<isa> *bnorm_driver_;
 };
+
+// Explicit instantiations in jit_uni_batch_normalization_s8.cpp
+extern template struct jit_uni_batch_normalization_s8_fwd_t<avx512_core>;
 
 }
 }

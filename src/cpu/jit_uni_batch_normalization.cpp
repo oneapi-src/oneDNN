@@ -1053,6 +1053,9 @@ struct jit_bnorm_t: public jit_generator {
     }
 };
 
+}
+
+namespace bndrv {
 template <cpu_isa_t isa>
 struct uni_bnorm_driver_t: public c_compatible {
     uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
@@ -1276,7 +1279,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         return status::unimplemented;
 
     auto scratchpad = scratchpad_registry().registrar();
-    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+    bndrv::uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
 
     return status::success;
 }
@@ -1284,7 +1287,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *apd): cpu_primitive_t(apd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
+{ bnorm_driver_ = new bndrv::uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
@@ -1355,7 +1358,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
     /* TODO: extra checks required */
 
     auto scratchpad = scratchpad_registry().registrar();
-    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+    bndrv::uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
 
     return status::success;
 }
@@ -1363,7 +1366,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *apd): cpu_primitive_t(apd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
+{ bnorm_driver_ = new bndrv::uni_bnorm_driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
