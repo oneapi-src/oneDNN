@@ -46,7 +46,7 @@ const char *flags2str(flags_t flags);
 
 struct desc_t {
     int64_t mb, ic, id, ih, iw;
-    float bn_epsilon;
+    float eps;
     const char *name;
 };
 const size_t max_desc_len = 196;

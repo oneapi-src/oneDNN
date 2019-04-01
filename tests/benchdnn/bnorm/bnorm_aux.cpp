@@ -70,7 +70,7 @@ int str2desc(desc_t *desc, const char *str) {
      * note: symbol `_` is ignored
      *
      * implicit rules:
-     *  bn_epsilon = 1./16
+     *  eps = 1./16
      *  S = "wip"
      *  if iw is unset iw <-- ih
      *  if ih is unset ih <-- iw
@@ -78,7 +78,7 @@ int str2desc(desc_t *desc, const char *str) {
 
     desc_t d{0};
     d.mb = 2;
-    d.bn_epsilon = 1.f / 16;
+    d.eps = 1.f / 16;
     d.name = "\"wip\"";
 
     const char *s = str;
@@ -102,7 +102,7 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(id, mstrtol);
         CASE_N(ih, mstrtol);
         CASE_N(iw, mstrtol);
-        CASE_N(bn_epsilon, strtof);
+        CASE_N(eps, strtof);
         if (*s == 'n') { d.name = s + 1; break; }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
@@ -132,8 +132,7 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
     if (d->id > 1) DPRINT("id" IFMT "", d->id);
     DPRINT("ih" IFMT "", d->ih);
     if (canonical || d->iw != d->ih || d->id > 1) DPRINT("iw" IFMT "", d->iw);
-    if (canonical || d->bn_epsilon != 1.f/16)
-        DPRINT("bn_epsilon%g", d->bn_epsilon);
+    if (canonical || d->eps != 1.f/16) DPRINT("eps%g", d->eps);
     DPRINT("n%s", d->name);
 
 #   undef DPRINT

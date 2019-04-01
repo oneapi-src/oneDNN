@@ -42,7 +42,7 @@ See modifiers at the same place.
 | %f            | data format tag (layout)
 | %@t           | time in ms
 
-The definition of expanded problem descriptor is: `mb,ic,ih,iw,bn_epsilon`.
+The definition of expanded problem descriptor is: `mb,ic,ih,iw,eps`.
 #endif
 
 void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
@@ -95,7 +95,7 @@ void perf_report(const prb_t *p, const res_t *r, const char *pstr) {
             DPRINT("%s", pstr);
         else if (c == 'D')
             DPRINT("" IFMT "," IFMT "," IFMT "," IFMT "," IFMT ",%g",
-                    p->mb, p->ic, p->id, p->ih, p->iw, p->bn_epsilon);
+                    p->mb, p->ic, p->id, p->ih, p->iw, p->eps);
         else if (c == 'n')
             DPRINT("%s", p->name);
         else if (c == 'z')

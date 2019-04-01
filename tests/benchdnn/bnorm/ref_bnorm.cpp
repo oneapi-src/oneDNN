@@ -43,7 +43,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
     mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
-        float sqrt_var = sqrtf(svar + p->bn_epsilon);
+        float sqrt_var = sqrtf(svar + p->eps);
 
         float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f) / sqrt_var;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
@@ -71,7 +71,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
-        float rcp_denom = 1.f / sqrtf(svar + p->bn_epsilon);
+        float rcp_denom = 1.f / sqrtf(svar + p->eps);
 
         float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
 
