@@ -32,7 +32,35 @@
 
 namespace bnorm {
 
-static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
+static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
+        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
+    mkldnn::impl::parallel_nd(p->ic, p->mb, p->id, p->ih, p->iw,
+            [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
+        int64_t l_base = mb * p->id * p->ih * p->iw + c * 239 * 2;
+        float *s = (float *)src + data_off(p, mb, c, 0, 0, 0);
+
+        const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
+        const int64_t l = l_base + sp;
+        s[sp] = (l % 256) - 128;
+        if (p->dt == mkldnn_s8)
+            s[sp] = saturate_and_round(s[sp]);
+
+        ((float *)mean)[c] = 4 * ((c % 5) - 2);
+        ((float *)var)[c] = ((c % 7) << 1);
+
+        if (p->flags & USE_SCALESHIFT) {
+            ((float *)ss)[c] = 8 * (1 << (c % 7));
+            ((float *)ss)[p->ic + c] = ((c % 3) - 1) * ((float *)ss)[c];
+        } else {
+            ((float *)ss)[c] = 1;
+            ((float *)ss)[p->ic + c] = 0;
+        }
+    });
+
+    return OK;
+}
+
+static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, dnn_mem_t &ss) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
@@ -123,6 +151,14 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     });
 
     return OK;
+}
+
+static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
+        dnn_mem_t &var, dnn_mem_t &ss) {
+    if (p->flags & GLOB_STATS)
+        return prepare_fwd_with_stats(p, src, mean, var, ss);
+    else
+        return prepare_fwd_no_stats(p, src, mean, var, ss);
 }
 
 /** @brief L = 2^k * P, P % 2 != 0 */
