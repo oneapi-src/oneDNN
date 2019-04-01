@@ -55,8 +55,6 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     assert(logL <= 0 || (1<<(logL-1)) < L);
     assert(L <= (1<<logL));
 
-    /* TODO: create structures for each algorithm based on cfg with filling
-     * pecularities. */
     const int64_t min_flex_bits = 3;
     const int64_t want_flex_bits = 6;
 
@@ -110,13 +108,6 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
                     s[sp] = m;
                 }
                 v += (s[sp] - m) * (s[sp] - m);
-                /* TODO: rounding input data is enough for correctness pass,
-                 * due to specific input data for activations and stats,
-                 * though it's very fragile and requires also reference output
-                 * to be computed as integer data. Subject to change with
-                 * benchdnn extension/modification. */
-                if (p->cfg[DATA].dt == mkldnn_s8)
-                    s[sp] = saturate_and_round(s[sp]);
             }
         }
 
@@ -289,9 +280,9 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r, const dnn_mem_t *ss = nullptr) {
     const char *skind = data_kind2str(kind);
-    const float eps_coeff = (kind == DATA && p->cfg[DATA].dt == mkldnn_f32)
-        ? (p->dir & FLAG_FWD ? 2.5 : 1.) : 1.;
-    const float eps = p->cfg[kind].eps * eps_coeff;
+    const float eps = p->dir & FLAG_FWD
+        ? (kind == DATA ? 5e-7 : 0)
+        : (kind == DATA ? 2e-7 : 0);
 
     /* With all the stability tricks bwd_d is still pretty unstable.
      * So let's rely on relative error in L1, L2, and L_inf norms.
@@ -311,20 +302,16 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     for (int64_t c = 0; c < C; c++) {
     for (int64_t sp = 0; sp < SP; ++sp) {
         int64_t i = (n * C + c) * SP + sp;
-        const float fp = fp_mem.get_elem(i);
-        const float dt = dt_mem.get_elem(i);
+        const float fp = ((const float *)fp_mem)[i];
+        const float dt = ((const float *)dt_mem)[i];
         diff_norm.update(fp, dt);
 
         if (rely_on_norm)
             continue;
 
-        bool ok = false;
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        if (p->cfg[kind].dt == mkldnn_f32)
-            ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
-        else if (p->cfg[kind].dt == mkldnn_s8)
-            ok = diff <= eps;
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
 
         /* When the error is larger than eps, It could be
          * due to catastrophic cancellation in final result
@@ -465,7 +452,7 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
     mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, is_bnorm_3d(p) ? 5 : 4,
-        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->cfg[DATA].dt, p->tag), WARN);
+        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->tag), WARN);
 
     auto flags = (mkldnn_batch_normalization_flag_t)p->flags;
     if (p->dir & FLAG_FWD) {

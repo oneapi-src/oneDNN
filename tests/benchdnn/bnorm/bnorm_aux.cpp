@@ -141,14 +141,14 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char desc_buf[max_desc_len];
     char dir_str[32] = {0};
-    char cfg_str[16] = {0};
+    char dt_str[16] = {0};
     char tag_str[32] = {0};
     char flags_str[16] = {0};
     char attr_buf[max_attr_len];
     char alg_str[24] = {0};
     desc2str(p, desc_buf, canonical);
     snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
+    snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
     snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
     snprintf(flags_str, sizeof(flags_str), "--flags=%s ", flags2str(p->flags));
     bool is_attr_def = p->attr.is_def();
@@ -164,7 +164,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
     snprintf(buffer, max_prb_len, "%s%s%s%s%s%s%s",
             p->alg == ALG_AUTO ? "" : alg_str,
             p->dir == FWD_B ? "" : dir_str,
-            p->cfg == conf_f32 ? "" : cfg_str,
+            p->dt == mkldnn_f32 ? "" : dt_str,
             is_bnorm_3d(p)
                 ? p->tag == mkldnn_ncdhw ? "" : tag_str
                 : p->tag == mkldnn_nchw ? "" : tag_str,

@@ -29,11 +29,7 @@
 
 namespace bnorm {
 
-enum alg_t {
-    ALG_0,
-    ALG_1,
-    ALG_AUTO
-};
+enum alg_t { ALG_0, ALG_1, ALG_AUTO };
 alg_t str2alg(const char *str);
 const char* alg2str(alg_t alg);
 
@@ -53,38 +49,22 @@ const size_t max_desc_len = 196;
 int str2desc(desc_t *desc, const char *str);
 void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 
-typedef struct dt_conf_t {
-    mkldnn_data_type_t dt;
-    double min, max; /* representative */
-    int f_min, f_max; /* fill range */
-    int f_base; /* fill base, use 0 */
-    int f_step; /* fill step, use 1 */
-    double f_sparsity; /* amount of non-zeros, default 0.25 */
-    double eps; /* acceptable error */
-} _dt_conf_t[DAT_TOTAL];
-
-extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_s8;
-
-const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
-
 struct prb_t: public desc_t {
-    prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg, alg_t alg,
-            const attr_t &attr, mkldnn_format_tag_t tag, flags_t flags,
-            int64_t mb = 0)
-        : desc_t(desc), dir(dir), cfg(cfg), alg(alg), attr(attr), tag(tag)
-        , flags(flags) {
-        if (mb) this->mb = mb;
-    }
+    prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
+            mkldnn_format_tag_t tag, flags_t flags, const attr_t &attr,
+            alg_t alg)
+        : desc_t(desc), alg(alg), dir(dir), dt(dt), tag(tag)
+        , flags(flags), attr(attr)
+    { if (mb) this->mb = mb; }
     ~prb_t() {}
 
-    dir_t dir;
-    const dt_conf_t *cfg;
     alg_t alg;
-    attr_t attr;
+
+    dir_t dir;
+    mkldnn_data_type_t dt;
     mkldnn_format_tag_t tag;
     flags_t flags;
+    attr_t attr;
 };
 const size_t max_prb_len = max_attr_len + max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
@@ -113,15 +93,6 @@ inline void inv_data_off(const prb_t *p, size_t off,
 inline bool is_bnorm_3d(const prb_t *p)
 {
     return (p->id > 1) ? 1 : 0;
-}
-
-inline float saturate(float value, float min, float max) {
-    return MAX2(min, MIN2(max, value));
-}
-
-/* hardcoded for s8 intentionally, subject to be generalized */
-inline float saturate_and_round(float value) {
-    return saturate(mxcsr_round(value), INT8_MIN, INT8_MAX);
 }
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
