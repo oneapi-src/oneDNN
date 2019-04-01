@@ -45,6 +45,11 @@ struct ref_eltwise_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                                alg_kind::eltwise_linear,
                                alg_kind::eltwise_bounded_relu,
+                               alg_kind::eltwise_abs,
+                               alg_kind::eltwise_tanh,
+                               alg_kind::eltwise_elu,
+                               alg_kind::eltwise_square,
+                               alg_kind::eltwise_sqrt,
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic)
                     && utils::one_of(desc()->data_desc.data_type,
@@ -70,6 +75,11 @@ struct ref_eltwise_fwd_t : public primitive_t {
         jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
         jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
         jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+        jit.define_int("TANH", alg_kind::eltwise_tanh);
+        jit.define_int("ELU", alg_kind::eltwise_elu);
+        jit.define_int("SQUARE", alg_kind::eltwise_square);
+        jit.define_int("SQRT", alg_kind::eltwise_sqrt);
+        jit.define_int("ABS", alg_kind::eltwise_abs);
         jit.define_int("ALG_KIND", pd()->desc()->alg_kind);
 
         status_t status = jit.build(engine());
@@ -114,6 +124,11 @@ struct ref_eltwise_bwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                                alg_kind::eltwise_linear,
                                alg_kind::eltwise_bounded_relu,
+                               alg_kind::eltwise_abs,
+                               alg_kind::eltwise_tanh,
+                               alg_kind::eltwise_elu,
+                               alg_kind::eltwise_square,
+                               alg_kind::eltwise_sqrt,
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic)
                     && utils::one_of(desc()->data_desc.data_type,
@@ -138,6 +153,11 @@ struct ref_eltwise_bwd_t : public primitive_t {
         jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
         jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
         jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+        jit.define_int("ELU", alg_kind::eltwise_elu);
+        jit.define_int("SQUARE", alg_kind::eltwise_square);
+        jit.define_int("SQRT", alg_kind::eltwise_sqrt);
+        jit.define_int("ABS", alg_kind::eltwise_abs);
+        jit.define_int("TANH", alg_kind::eltwise_tanh);
         jit.define_int("ALG_KIND", pd()->desc()->alg_kind);
 
         status_t status = jit.build(engine());

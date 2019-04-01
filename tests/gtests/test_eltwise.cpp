@@ -170,9 +170,22 @@ void compare_eltwise_fwd(const eltwise_test_params &p,
     auto ref_dst_data = map_memory<data_t>(ref_dst);
     auto dst_data = map_memory<data_t>(dst);
 
-    float eps = (data_traits<data_t>::data_type == memory::data_type::f16)
-            ? 5e-2
-            : (p.alg_kind == algorithm::eltwise_soft_relu) ? 2e-6 : 1e-6;
+    auto eps = 0.0f;
+    switch (data_traits<data_t>::data_type) {
+    case memory::data_type::f16:
+        if (p.alg_kind == algorithm::eltwise_soft_relu
+                || p.alg_kind == algorithm::eltwise_relu)
+            eps = 8.e-2;
+        else
+            eps = 6.e-2;
+        break;
+    default:
+        if (p.alg_kind == algorithm::eltwise_soft_relu
+                || p.alg_kind == algorithm::eltwise_linear)
+            eps = 4.e-6;
+        else
+            eps = 2.e-6;
+    }
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -268,7 +281,10 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
+                = p.alg_kind == algorithm::eltwise_elu
+                ? data_t(1.0)
+                : p.alg_kind == algorithm::eltwise_square
+                    ? data_t(6.0) : data_t(200);
         fill_data<data_t>(n_elems(*data_desc), src, data_median, data_deviation);
         check_zero_tail<data_t>(1, src);
 
@@ -292,10 +308,11 @@ protected:
         memory diff_dst(diff_data_desc, eng);
 
         data_t data_median = data_t(0);
-        data_t data_deviation
-                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(diff_data_desc),
-                diff_dst, data_median,
+        data_t data_deviation = p.alg_kind == algorithm::eltwise_elu
+                ? data_t(1.0)
+                : p.alg_kind == algorithm::eltwise_square
+                    ? data_t(6.0) : data_t(200);
+        fill_data<data_t>(n_elems(diff_data_desc), diff_dst, data_median,
                 data_deviation);
         check_zero_tail<data_t>(1, diff_dst);
 
@@ -436,7 +453,7 @@ INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
 );
 
-CPU_INST_TEST_CASE(Simple_NCHW_SDPART,
+INST_TEST_CASE(Simple_NCHW_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16)
 );
 

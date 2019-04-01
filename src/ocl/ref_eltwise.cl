@@ -53,6 +53,42 @@ DATA_T logistic_bwd(DATA_T dd, DATA_T s) {
     return dd * v * (1 - v);
 }
 
+DATA_T square_fwd(DATA_T s){
+    return s*s;
+}
+DATA_T square_bwd(DATA_T dd, DATA_T s){
+    return dd * 2*s;
+}
+
+DATA_T sqrt_fwd(DATA_T s){
+    return s > 0 ? (sqrt(s)) : 0;
+}
+DATA_T sqrt_bwd(DATA_T dd, DATA_T s){
+    return s > 0 ?  dd / (2 * sqrt(s)) : 0;
+}
+
+DATA_T abs_fwd(DATA_T s){
+    return s > 0 ? s : -s;
+}
+DATA_T abs_bwd(DATA_T dd, DATA_T s){
+    return s > 0 ? dd : s < 0 ? -dd : 0;
+}
+
+DATA_T tanh_fwd(DATA_T s){
+    return tanh(s);
+}
+DATA_T tanh_bwd(DATA_T dd, DATA_T s){
+    DATA_T e = tanh_fwd(s);
+    return dd * (1 - e) * (1 + e);
+}
+
+DATA_T elu_fwd(DATA_T s, DATA_T alpha){
+    return s > 0 ? s :  alpha * expm1(s);
+}
+DATA_T elu_bwd(DATA_T dd, DATA_T s, DATA_T alpha){
+    return  dd * (s > 0 ? 1 : alpha * exp(s));
+}
+
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
     const int i = get_global_id(0);
@@ -66,6 +102,11 @@ __kernel void ref_eltwise_fwd(
     case BOUNDED_RELU: dst[i] = bounded_relu_fwd(src[i], alpha_); break;
     case SOFT_RELU: dst[i] = soft_relu_fwd(src[i]); break;
     case LOGISTIC: dst[i] = logistic_fwd(src[i]); break;
+    case TANH: dst[i] = tanh_fwd(src[i]); break;
+    case ELU: dst[i] = elu_fwd(src[i], alpha_); break;
+    case SQUARE: dst[i] = square_fwd(src[i]); break;
+    case SQRT: dst[i] = sqrt_fwd(src[i]); break;
+    case ABS: dst[i] = abs_fwd(src[i]); break;
     default: return;
     }
 }
@@ -84,6 +125,11 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         break;
     case SOFT_RELU: diff_src[i] = soft_relu_bwd(diff_dst[i], src[i]); break;
     case LOGISTIC: diff_src[i] = logistic_bwd(diff_dst[i], src[i]); break;
+    case TANH: diff_src[i] = tanh_bwd(diff_dst[i], src[i]); break;
+    case ELU: diff_src[i] = elu_bwd(diff_dst[i], src[i], alpha_); break;
+    case SQUARE: diff_src[i] = square_bwd(diff_dst[i], src[i]); break;
+    case SQRT: diff_src[i] = sqrt_bwd(diff_dst[i], src[i]); break;
+    case ABS: diff_src[i] = abs_bwd(diff_dst[i], src[i]); break;
     default: return;
     }
 }
