@@ -20,13 +20,13 @@
 
 namespace bnorm {
 
-alg_t str2alg(const char *str) {
+check_alg_t str2check_alg(const char *str) {
     if (!strcasecmp("alg_0", str)) return ALG_0;
     if (!strcasecmp("alg_1", str)) return ALG_1;
     return ALG_AUTO;
 }
 
-const char* alg2str(alg_t alg) {
+const char* check_alg2str(check_alg_t alg) {
     switch (alg) {
     case ALG_0: return "alg_0";
     case ALG_1: return "alg_1";
@@ -145,7 +145,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char tag_str[32] = {0};
     char flags_str[16] = {0};
     char attr_buf[max_attr_len];
-    char alg_str[24] = {0};
+    char check_str[24] = {0};
     desc2str(p, desc_buf, canonical);
     snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
     snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
@@ -159,10 +159,10 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
         len = (int)strnlen(attr_buf, max_attr_len);
         snprintf(attr_buf + len, max_attr_len - len, "\" ");
     }
-    snprintf(alg_str, sizeof(alg_str), "--alg=%s ",
-            alg2str(p->alg));
+    snprintf(check_str, sizeof(check_str), "--check-alg=%s ",
+            check_alg2str(p->check_alg));
     snprintf(buffer, max_prb_len, "%s%s%s%s%s%s%s",
-            p->alg == ALG_AUTO ? "" : alg_str,
+            p->check_alg == ALG_AUTO ? "" : check_str,
             p->dir == FWD_B ? "" : dir_str,
             p->dt == mkldnn_f32 ? "" : dt_str,
             is_bnorm_3d(p)

@@ -29,9 +29,9 @@
 
 namespace bnorm {
 
-enum alg_t { ALG_0, ALG_1, ALG_AUTO };
-alg_t str2alg(const char *str);
-const char* alg2str(alg_t alg);
+enum check_alg_t { ALG_0, ALG_1, ALG_AUTO };
+check_alg_t str2check_alg(const char *str);
+const char* check_alg2str(check_alg_t alg);
 
 using flags_t = unsigned;
 const flags_t GLOB_STATS = mkldnn_use_global_stats;
@@ -52,13 +52,13 @@ void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, flags_t flags, const attr_t &attr,
-            alg_t alg)
-        : desc_t(desc), alg(alg), dir(dir), dt(dt), tag(tag)
+            check_alg_t check_alg)
+        : desc_t(desc), check_alg(check_alg), dir(dir), dt(dt), tag(tag)
         , flags(flags), attr(attr)
     { if (mb) this->mb = mb; }
     ~prb_t() {}
 
-    alg_t alg;
+    check_alg_t check_alg;
 
     dir_t dir;
     mkldnn_data_type_t dt;
