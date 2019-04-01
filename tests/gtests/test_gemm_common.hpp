@@ -41,6 +41,9 @@ struct test_igemm_params {
     bool zero_oa;
     bool zero_ob;
     bool zero_oc;
+
+    int8_t oa() const { return (int8_t)(zero_oa ? 0 : 4); }
+    int8_t ob() const { return (int8_t)(zero_ob ? 0 : 3); }
 };
 
 struct test_params {
@@ -143,8 +146,9 @@ enum class layout_t { ROW_MAJOR, COL_MAJOR };
  * - B layout = B_is_transposed ? COL_MAJOR : ROW_MAJOR
  */
 template <typename data_t>
-void prepare_matrix(data_t *M, layout_t layout, int64_t R, int64_t C,
-        int64_t LD, const mapper_t &mapper) {
+void prepare_matrix(const test_memory &M_mem, layout_t layout, int64_t R,
+        int64_t C, int64_t LD, const mapper_t &mapper) {
+    auto M = map_memory<data_t>(M_mem);
     const data_t mean = (data_t)(std::is_same<data_t, float>::value ? 1.f : 4);
     const data_t var = (data_t)(std::is_same<data_t, float>::value ? 2e-1f : 3);
 
@@ -184,8 +188,9 @@ void prepare_matrix(data_t *M, layout_t layout, int64_t R, int64_t C,
 
 /** Extends columns of the matrix M according to the mapper_c */
 template <typename data_t>
-void extend_matrix_cols(data_t *M, int64_t R, int64_t C, int64_t LD,
-        const mapper_t &mapper_c) {
+void extend_matrix_cols(const test_memory &M_mem, int64_t R, int64_t C,
+        int64_t LD, const mapper_t &mapper_c) {
+    auto M = map_memory<data_t>(M_mem);
     ASSERT_EQ(C, mapper_c.dim());
     const int64_t C_test = mapper_c.dim_test();
     if (C_test == C) return;
@@ -200,8 +205,9 @@ void extend_matrix_cols(data_t *M, int64_t R, int64_t C, int64_t LD,
 
 /** Extends rows of the matrix M according to the mapper_r */
 template <typename data_t>
-void extend_matrix_rows(data_t *M, int64_t R, int64_t C, int64_t LD,
-        const mapper_t &mapper_r) {
+void extend_matrix_rows(const test_memory &M_mem, int64_t R, int64_t C,
+        int64_t LD, const mapper_t &mapper_r) {
+    auto M = map_memory<data_t>(M_mem);
     ASSERT_EQ(R, mapper_r.dim());
     const int64_t R_test = mapper_r.dim_test();
     if (R_test == R) return;
@@ -215,76 +221,99 @@ void extend_matrix_rows(data_t *M, int64_t R, int64_t C, int64_t LD,
 
 /** Extends matrix M according to the mapper_r and mapper_c */
 template <typename data_t>
-void extend_matrix(data_t *M, int64_t R, int64_t C, int64_t LD,
+void extend_matrix(const test_memory &M_mem, int64_t R, int64_t C, int64_t LD,
         const mapper_t &mapper_r, const mapper_t &mapper_c) {
     ASSERT_EQ(R, mapper_r.dim());
     ASSERT_EQ(C, mapper_c.dim());
-    extend_matrix_rows(M, R, C, LD, mapper_r);
-    extend_matrix_cols(M, R, C, LD, mapper_c);
+    extend_matrix_rows<data_t>(M_mem, R, C, LD, mapper_r);
+    extend_matrix_cols<data_t>(M_mem, R, C, LD, mapper_c);
 }
 
-template <typename data_t>
-void ref_gemm(const char *transa, const char *transb, int64_t m, int64_t n, int64_t k,
-        const data_t alpha, const data_t *a, int64_t lda, const data_t *b,
-        int64_t ldb, data_t beta, data_t *c, int64_t ldc) {
+template <typename a_dt, typename b_dt, typename c_dt>
+struct ref_gemm {
+    static void call(const test_params &p, int64_t M, int64_t N,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem, const test_memory &) {
+        auto a = map_memory<a_dt>(a_mem);
+        auto b = map_memory<b_dt>(b_mem);
+        auto c = map_memory<c_dt>(c_mem);
 
-    const bool tr_a = transa && (*transa == 'T' || *transa == 't');
-    const bool tr_b = transb && (*transb == 'T' || *transb == 't');
+        const bool tr_a = p.transA && (p.transA == 'T' || p.transA == 't');
+        const bool tr_b = p.transB && (p.transB == 'T' || p.transB == 't');
 
-    auto pa = [=] (int64_t i, int64_t j) { return a[j*lda + i]; };
-    auto pb = [=] (int64_t i, int64_t j) { return b[j*ldb + i]; };
-    auto pc = [=] (int64_t i, int64_t j) { return c[j*ldc + i]; };
+        auto pa = [&](int64_t i, int64_t j) { return a[j * p.lda + i]; };
+        auto pb = [&](int64_t i, int64_t j) { return b[j * p.ldb + i]; };
+        auto pc = [&](int64_t i, int64_t j) { return c[j * p.ldc + i]; };
 
-    mkldnn::impl::parallel_nd(m, n, [&](int64_t im, int64_t in) {
-        data_t c_elem = (beta == 0.) ? 0. : pc(im, in) * beta;
+        mkldnn::impl::parallel_nd(M, N, [&](int64_t im, int64_t in) {
+            c_dt c_elem = (p.beta == 0.) ? 0. : pc(im, in) * p.beta;
 
-        for (int64_t ik = 0; ik < k; ik++) {
-            const data_t a_elem = tr_a ? pa(ik, im) : pa(im, ik);
-            const data_t b_elem = tr_b ? pb(in, ik) : pb(ik, in);
-            c_elem += alpha * a_elem * b_elem;
-        }
-        c[in*ldc + im] = c_elem;
-    });
-}
+            for (int64_t ik = 0; ik < p.K; ik++) {
+                const a_dt a_elem = tr_a ? pa(ik, im) : pa(im, ik);
+                const b_dt b_elem = tr_b ? pb(in, ik) : pb(ik, in);
+                c_elem += p.alpha * a_elem * b_elem;
+            }
+            c[in * p.ldc + im] = c_elem;
+        });
+    }
+};
 
 template <typename b_dt>
-void ref_gemm_s8x8s32(const char *transa, const char *transb,
-        const char *offsetc, int64_t M, int64_t N, int64_t K, const float alpha,
-        int8_t *A, int64_t lda, const int8_t *oa, b_dt *B, int64_t ldb,
-        const int8_t *ob, const float beta, int32_t *C, int64_t ldc,
-        const int32_t *oc) {
-    const bool tr_a = transa && (*transa == 'T' || *transa == 't');
-    const bool tr_b = transb && (*transb == 'T' || *transb == 't');
-    bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
-    bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
+struct ref_gemm<int8_t, b_dt, int32_t> {
+    static void call(const test_params &p, int64_t M, int64_t N,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem, const test_memory &oc_mem) {
+        auto A = map_memory<int8_t>(a_mem);
+        auto B = map_memory<b_dt>(b_mem);
+        auto C = map_memory<int32_t>(c_mem);
+        auto oc = map_memory<int32_t>(oc_mem);
 
-    auto pa = [=] (int64_t i, int64_t j) { return (double)A[j*lda + i]; };
-    auto pb = [=] (int64_t i, int64_t j) { return (double)B[j*ldb + i]; };
-    auto pc = [=] (int64_t i, int64_t j) { return (double)C[j*ldc + i]; };
+        const bool tr_a = p.transA && (p.transA == 'T' || p.transA == 't');
+        const bool tr_b = p.transB && (p.transB == 'T' || p.transB == 't');
+        bool OCisR = (p.igemm_params.offsetc == 'R'
+                || p.igemm_params.offsetc == 'r');
+        bool OCisC = (p.igemm_params.offsetc == 'C'
+                || p.igemm_params.offsetc == 'c');
 
-    mkldnn::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
-        double c_elem = 0;
-        for (int64_t k = 0; k < K; k++) {
-            const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) + *oa;
-            const double b_elem = (tr_b ? pb(n, k) : pb(k, n)) + *ob;
-            c_elem += a_elem * b_elem;
-        }
+        auto pa = [&](int64_t i, int64_t j) {
+            return (double)A[j * p.lda + i];
+        };
+        auto pb = [&](int64_t i, int64_t j) {
+            return (double)B[j * p.ldb + i];
+        };
+        auto pc = [&](int64_t i, int64_t j) {
+            return (double)C[j * p.ldc + i];
+        };
 
-        double coffset = OCisR ? oc[n] : OCisC ? oc[m] : oc[0];
-        double val
-            = (beta == 0.f ? 0. : beta * pc(m, n)) + alpha * c_elem + coffset;
-        C[n*ldc + m]
-            = static_cast<int32_t>(nearbyint(saturate<int32_t, double>(val)));
-    });
-}
+        int8_t oa = p.igemm_params.oa();
+        int8_t ob = p.igemm_params.ob();
+
+        mkldnn::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
+            double c_elem = 0;
+            for (int64_t k = 0; k < p.K; k++) {
+                const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) + oa;
+                const double b_elem = (tr_b ? pb(n, k) : pb(k, n)) + ob;
+                c_elem += a_elem * b_elem;
+            }
+
+            double coffset = OCisR ? oc[n] : OCisC ? oc[m] : oc[0];
+            double val = (p.beta == 0.f ? 0. : p.beta * pc(m, n))
+                    + p.alpha * c_elem + coffset;
+            C[n * p.ldc + m] = static_cast<int32_t>(
+                    nearbyint(saturate<int32_t, double>(val)));
+        });
+    }
+};
 
 template <typename b_dt, typename c_dt>
-void compare(int64_t m, int64_t n, const c_dt *c, const c_dt *c_ref, int64_t ldc,
-        float alpha = 1.0f, float beta = 0.0f, int64_t k = 1) {
+void compare(const test_params &p, const test_memory &c_mem,
+        const test_memory &c_ref_mem) {
     using data_type = memory::data_type;
-    mkldnn::impl::parallel_nd(n, ldc, [&](int64_t i, int64_t j) {
-        c_dt ref = c_ref[i*ldc + j];
-        c_dt got = c[i*ldc + j];
+    auto c = map_memory<c_dt>(c_mem);
+    auto c_ref = map_memory<c_dt>(c_ref_mem);
+    mkldnn::impl::parallel_nd(p.N, p.ldc, [&](int64_t i, int64_t j) {
+        c_dt ref = c_ref[i * p.ldc + j];
+        c_dt got = c[i * p.ldc + j];
         c_dt diff = got - ref;
 
         if (data_traits<b_dt>::data_type == data_type::f32) {
@@ -292,14 +321,14 @@ void compare(int64_t m, int64_t n, const c_dt *c, const c_dt *c_ref, int64_t ldc
             EXPECT_NEAR(e, 0.0, 1e-4) << "Row: " << j << " Col: " << i;
         } else {
             // igemm
-            if (alpha == 1.0f) {
+            if (p.alpha == 1.0f) {
                 EXPECT_NEAR(diff, 0, 1) << "Row: " << j << " Col: " << i;
             } else {
                 if (data_traits<b_dt>::data_type == data_type::u8) {
-                    c_dt eps = k / 700 + 1;
+                    c_dt eps = p.K / 700 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 } else if (data_traits<b_dt>::data_type == data_type::s8) {
-                    c_dt eps = k / 350 + 1;
+                    c_dt eps = p.K / 350 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 }
             }
@@ -317,191 +346,149 @@ inline void get_matrix_size(const test_params &p, size_t &sizeA,
 }
 
 template <typename T>
-inline T* get_matrix_buffer(size_t n) {
-    return (T*)test_malloc(n * sizeof(T));
+inline test_memory get_matrix_memory(memory::dim n, engine &eng) {
+    auto d = create_md({ n }, data_traits<T>::data_type, memory::format_tag::x);
+    return test_memory(d, eng);
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
-void fill_matrices(const test_params &p,
-        const mapper_t &mapper_m, const mapper_t &mapper_n,
-        a_dt *A, b_dt *B, c_dt *C, c_dt *C_ref,
-        int8_t *oa = nullptr, int8_t *ob = nullptr, c_dt *oc = nullptr) {
-    prepare_matrix(A, p.tr_a() ? layout_t::ROW_MAJOR : layout_t::COL_MAJOR,
-            p.M, p.K, p.lda, mapper_m);
-    prepare_matrix(B, p.tr_b() ? layout_t::COL_MAJOR : layout_t::ROW_MAJOR,
-            p.N, p.K, p.ldb, mapper_n);
+void fill_matrices(const test_params &p, const mapper_t &mapper_m,
+        const mapper_t &mapper_n, const test_memory &a_mem,
+        const test_memory &b_mem, const test_memory &c_mem,
+        const test_memory &c_ref_mem, const test_memory &oc_mem) {
+    prepare_matrix<a_dt>(a_mem,
+            p.tr_a() ? layout_t::ROW_MAJOR : layout_t::COL_MAJOR, p.M, p.K,
+            p.lda, mapper_m);
+    prepare_matrix<b_dt>(b_mem,
+            p.tr_b() ? layout_t::COL_MAJOR : layout_t::ROW_MAJOR, p.N, p.K,
+            p.ldb, mapper_n);
 
-    fill_data(p.sizeC(), C);
-    extend_matrix(C, p.M, p.N, p.ldc, mapper_m, mapper_n);
-    mkldnn::impl::parallel_nd(p.sizeC(), [&](int64_t i) { C_ref[i] = C[i]; });
+    fill_data<c_dt>(p.sizeC(), c_mem.get());
+    extend_matrix<c_dt>(c_mem, p.M, p.N, p.ldc, mapper_m, mapper_n);
+    {
+        auto C = map_memory<c_dt>(c_mem);
+        auto C_ref = map_memory<c_dt>(c_ref_mem);
+        mkldnn::impl::parallel_nd(
+                p.sizeC(), [&](int64_t i) { C_ref[i] = C[i]; });
+    }
 
-    if (oa == nullptr && ob == nullptr && oc == nullptr)
+    if (oc_mem.get_size() == 0)
         return;
 
-    *oa = (int8_t)(p.igemm_params.zero_oa ? 0 : 4);
-    *ob = (int8_t)(p.igemm_params.zero_ob ? 0 : 3);
-
     if (p.igemm_params.zero_oc) {
+        auto oc = map_memory<c_dt>(oc_mem);
         for (int64_t i = 0; i < p.size_oc(); i++) oc[i] = 0;
     } else {
-        fill_data<c_dt>(p.size_oc(), oc, (c_dt)1, (c_dt)0);
+        fill_data<c_dt>(p.size_oc(), oc_mem.get(), (c_dt)1, (c_dt)0);
         if (p.oc_is_R()) {
-            extend_matrix_cols(oc, 1, p.N, 1, mapper_n);
+            extend_matrix_cols<c_dt>(oc_mem, 1, p.N, 1, mapper_n);
         } else if (p.oc_is_C()) {
-            extend_matrix_rows(oc, p.M, 1, p.M, mapper_m);
+            extend_matrix_rows<c_dt>(oc_mem, p.M, 1, p.M, mapper_m);
         }
     }
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
-void run_test_gemm(const test_params &p) {}
+struct mkldnn_gemm {
+    static mkldnn_status_t call(test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem) {
+        throw error(mkldnn_runtime_error, "unknown gemm");
+    }
+};
 
 template <>
-void run_test_gemm<int8_t, uint8_t, int32_t>(const test_params &p) {
-    if (p.expect_to_fail) {
-        int8_t dummy_s8, *A = &dummy_s8, oa = 0, ob = 0;
-        uint8_t dummy_u8, *B = &dummy_u8;
-        int32_t dummy_s32, *C = &dummy_s32, *oc = &dummy_s32;
-        auto status = mkldnn_gemm_s8u8s32(&p.transA, &p.transB,
-                &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
-                &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
-        if (status != mkldnn_success)
-            throw error(status, "mkldnn_s8u8s32 returned error");
-        return;
+struct mkldnn_gemm<float, float, float> {
+    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &) {
+        auto A = map_memory<float>(a_mem);
+        auto B = map_memory<float>(b_mem);
+        auto C = map_memory<float>(c_mem);
+        return mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K, &p.alpha, A,
+                &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
     }
-
-    size_t sizeA, sizeB, sizeC;
-    get_matrix_size(p, sizeA, sizeB, sizeC);
-
-    int8_t  *A = get_matrix_buffer<int8_t>(sizeA);
-    uint8_t *B = get_matrix_buffer<uint8_t>(sizeB);
-    int32_t *C = get_matrix_buffer<int32_t>(sizeC);
-    int32_t *C_ref = get_matrix_buffer<int32_t>(sizeC);
-    int8_t oa, ob;
-    int32_t *oc = get_matrix_buffer<int32_t>(p.size_oc());
-
-    mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
-    const int64_t M_test = mapper_m.dim_test();
-    const int64_t N_test = mapper_n.dim_test();
-
-    fill_matrices(p, mapper_m, mapper_n, A, B, C, C_ref, &oa, &ob, oc);
-
-    auto status = mkldnn_gemm_s8u8s32(&p.transA, &p.transB,
-            &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
-            &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
-
-    if (status == mkldnn_success) {
-        ref_gemm_s8x8s32<uint8_t>(&p.transA, &p.transB, &p.igemm_params.offsetc,
-                M_test, N_test, p.K, p.alpha, A, p.lda, &oa, B, p.ldb, &ob,
-                p.beta, C_ref, p.ldc, oc);
-        extend_matrix(C_ref, p.M, p.N, p.ldc, mapper_m, mapper_n);
-        compare<uint8_t, int32_t>(p.M, p.N, C, C_ref, p.ldc, p.alpha, p.beta, p.K);
-    }
-
-    test_free((char *)A);
-    test_free((char *)B);
-    test_free((char *)C);
-    test_free((char *)C_ref);
-    test_free((char *)oc);
-
-    if (status != mkldnn_success)
-        throw error(status, "mkldnn_gemm_s8u8s32 returned error");
-}
+};
 
 template <>
-void run_test_gemm<int8_t, int8_t, int32_t>(const test_params &p) {
-    if (p.expect_to_fail) {
-        int8_t dummy_s8, *A = &dummy_s8, *B = &dummy_s8, oa = 0, ob = 0;
-        int32_t dummy_s32, *C = &dummy_s32, *oc = &dummy_s32;
-        auto status = mkldnn_gemm_s8s8s32(&p.transA, &p.transB,
-                &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
-                &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
-        if (status != mkldnn_success)
-            throw error(status, "mkldnn_s8s8s32 returned error");
-        return;
+struct mkldnn_gemm<int8_t, int8_t, int32_t> {
+    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &oc_mem) {
+
+        auto A = map_memory<int8_t>(a_mem);
+        auto B = map_memory<int8_t>(b_mem);
+        auto C = map_memory<int32_t>(c_mem);
+        auto oc = map_memory<int32_t>(oc_mem);
+        int8_t oa = p.igemm_params.oa();
+        int8_t ob = p.igemm_params.ob();
+        return mkldnn_gemm_s8s8s32(&p.transA, &p.transB,
+                &p.igemm_params.offsetc, &p.M, &p.N, &p.K, &p.alpha, A, &p.lda,
+                &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
     }
-
-    size_t sizeA, sizeB, sizeC;
-    get_matrix_size(p, sizeA, sizeB, sizeC);
-
-    int8_t  *A = get_matrix_buffer<int8_t>(sizeA);
-    int8_t  *B = get_matrix_buffer<int8_t>(sizeB);
-    int32_t *C = get_matrix_buffer<int32_t>(sizeC);
-    int32_t *C_ref = get_matrix_buffer<int32_t>(sizeC);
-    int8_t oa, ob;
-    int32_t* oc = get_matrix_buffer<int32_t>(p.size_oc());
-
-    mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
-    const int64_t M_test = mapper_m.dim_test();
-    const int64_t N_test = mapper_n.dim_test();
-
-    fill_matrices(p, mapper_m, mapper_n, A, B, C, C_ref, &oa, &ob, oc);
-
-    auto status = mkldnn_gemm_s8s8s32(&p.transA, &p.transB,
-            &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
-            &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
-
-    if (status == mkldnn_success) {
-        ref_gemm_s8x8s32<int8_t>(&p.transA, &p.transB, &p.igemm_params.offsetc,
-                M_test, N_test, p.K, p.alpha, A, p.lda, &oa, B, p.ldb, &ob,
-                p.beta, C_ref, p.ldc, oc);
-        extend_matrix(C_ref, p.M, p.N, p.ldc, mapper_m, mapper_n);
-        compare<int8_t, int32_t>(p.M, p.N, C, C_ref, p.ldc, p.alpha, p.beta, p.K);
-    }
-
-    test_free((char *)A);
-    test_free((char *)B);
-    test_free((char *)C);
-    test_free((char *)C_ref);
-    test_free((char *)oc);
-
-    if (status != mkldnn_success)
-        throw error(status, "mkldnn_gemm_s8s8s32 returned error");
-}
+};
 
 template <>
-void run_test_gemm<float, float, float>(const test_params &p) {
-    if (p.expect_to_fail) {
-        float dummy_f32, *A = &dummy_f32, *B = &dummy_f32, *C = &dummy_f32;
-        auto status = mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K,
-                &p.alpha, A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
+struct mkldnn_gemm<int8_t, uint8_t, int32_t> {
+    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &oc_mem) {
+
+        auto A = map_memory<int8_t>(a_mem);
+        auto B = map_memory<uint8_t>(b_mem);
+        auto C = map_memory<int32_t>(c_mem);
+        auto oc = map_memory<int32_t>(oc_mem);
+        int8_t oa = p.igemm_params.oa();
+        int8_t ob = p.igemm_params.ob();
+        return mkldnn_gemm_s8u8s32(&p.transA, &p.transB,
+                &p.igemm_params.offsetc, &p.M, &p.N, &p.K, &p.alpha, A, &p.lda,
+                &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
+    }
+};
+
+template <typename a_dt, typename b_dt, typename c_dt>
+struct run_test_gemm {
+    static void call(const test_params &p) {
+        if (p.expect_to_fail) {
+            engine eng(get_test_engine_kind(), 0);
+            test_memory zero_mem({}, eng);
+            auto status = mkldnn_gemm<a_dt, b_dt, c_dt>::call(
+                    p, zero_mem, zero_mem, zero_mem, zero_mem);
+            if (status != mkldnn_success)
+                throw error(status, "mkldnn gemm returned error");
+            return;
+        }
+
+        size_t sizeA, sizeB, sizeC;
+        get_matrix_size(p, sizeA, sizeB, sizeC);
+
+        engine eng(get_test_engine_kind(), 0);
+        test_memory a_mem = get_matrix_memory<a_dt>(sizeA, eng);
+        test_memory b_mem = get_matrix_memory<b_dt>(sizeB, eng);
+        test_memory c_mem = get_matrix_memory<c_dt>(sizeC, eng);
+        test_memory c_ref_mem = get_matrix_memory<c_dt>(sizeC, eng);
+        test_memory oc_mem = get_matrix_memory<c_dt>(p.size_oc(), eng);
+
+        mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
+        const int64_t M_test = mapper_m.dim_test();
+        const int64_t N_test = mapper_n.dim_test();
+
+        fill_matrices<a_dt, b_dt, c_dt>(
+                p, mapper_m, mapper_n, a_mem, b_mem, c_mem, c_ref_mem, oc_mem);
+
+        auto status = mkldnn_gemm<a_dt, b_dt, c_dt>::call(
+                p, a_mem, b_mem, c_mem, oc_mem);
+
+        if (status == mkldnn_success) {
+            ref_gemm<a_dt, b_dt, c_dt>::call(
+                    p, M_test, N_test, a_mem, b_mem, c_ref_mem, oc_mem);
+            extend_matrix<c_dt>(c_ref_mem, p.M, p.N, p.ldc, mapper_m, mapper_n);
+            compare<b_dt, c_dt>(p, c_mem, c_ref_mem);
+        }
+
         if (status != mkldnn_success)
-            throw error(status, "mkldnn_sgemm returned error");
-        return;
+            throw error(status, "mkldnn gemm returned error");
     }
-
-    size_t sizeA, sizeB, sizeC;
-    get_matrix_size(p, sizeA, sizeB, sizeC);
-
-    float *A = get_matrix_buffer<float>(sizeA);
-    float *B = get_matrix_buffer<float>(sizeB);
-    float *C = get_matrix_buffer<float>(sizeC);
-    float *C_ref = get_matrix_buffer<float>(sizeC);
-
-    mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
-    const int64_t M_test = mapper_m.dim_test();
-    const int64_t N_test = mapper_n.dim_test();
-
-    fill_matrices(p, mapper_m, mapper_n, A, B, C, C_ref);
-
-    auto status = mkldnn_sgemm(&p.transA, &p.transB, &p.M, &p.N, &p.K, &p.alpha,
-        A, &p.lda, B, &p.ldb, &p.beta, C, &p.ldc);
-
-    if (status == mkldnn_success) {
-        ref_gemm(&p.transA, &p.transB, M_test, N_test, p.K,
-                p.alpha, A, p.lda, B, p.ldb, p.beta, C_ref, p.ldc);
-        extend_matrix(C_ref, p.M, p.N, p.ldc, mapper_m, mapper_n);
-        compare<float, float>(p.M, p.N, C, C_ref, p.ldc);
-    }
-
-    test_free((char *)A);
-    test_free((char *)B);
-    test_free((char *)C);
-    test_free((char *)C_ref);
-
-    if (status != mkldnn_success)
-        throw error(status, "mkldnn_sgemm returned error");
-}
+};
 
 template <typename a_dt, typename b_dt, typename c_dt>
 class gemm_test_common: public ::testing::TestWithParam<test_params> {
@@ -513,7 +500,7 @@ protected:
     }
     void Test() {
         const auto &p = ::testing::TestWithParam<test_params>::GetParam();
-        run_test_gemm<a_dt, b_dt, c_dt>(p);
+        run_test_gemm<a_dt, b_dt, c_dt>::call(p);
     }
 };
 }
