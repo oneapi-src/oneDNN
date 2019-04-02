@@ -18,7 +18,8 @@
 #define OCL_REF_ELTWISE_HPP
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "ocl/jit_ref_eltwise_common_kernel.hpp"
+#include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_eltwise_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -54,7 +55,6 @@ struct ref_eltwise_fwd_t : public primitive_t {
                                alg_kind::eltwise_logistic)
                     && utils::one_of(desc()->data_desc.data_type,
                                data_type::f32, data_type::f16)
-                    && memory_desc_wrapper(desc()->data_desc).is_dense()
                     && attr()->has_default_values()
                     && IMPLICATION(
                                desc()->data_desc.data_type == data_type::f16,
@@ -62,27 +62,24 @@ struct ref_eltwise_fwd_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            return status::success;
+            return jit_ref_eltwise_common_kernel::init_conf(jel_,
+                    data_md_, jit_off_, desc()->alg_kind, true);
         }
+
+        jit_eltwise_conf_t jel_;
+        jit_offsets jit_off_;
     };
 
     virtual status_t init() override {
         auto jit = ocl_jit_t(ref_eltwise_kernel);
 
-        jit.set_data_type(pd()->desc()->data_desc.data_type);
-        jit.define_int("RELU", alg_kind::eltwise_relu);
-        jit.define_int("LINEAR", alg_kind::eltwise_linear);
-        jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-        jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-        jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-        jit.define_int("TANH", alg_kind::eltwise_tanh);
-        jit.define_int("ELU", alg_kind::eltwise_elu);
-        jit.define_int("SQUARE", alg_kind::eltwise_square);
-        jit.define_int("SQRT", alg_kind::eltwise_sqrt);
-        jit.define_int("ABS", alg_kind::eltwise_abs);
-        jit.define_int("ALG_KIND", pd()->desc()->alg_kind);
+        status_t status = jit_ref_eltwise_common_kernel::init_const_def(
+                jit, pd()->jel_, pd()->jit_off_);
 
-        status_t status = jit.build(engine());
+        if (status != status::success)
+            return status;
+
+        status = jit.build(engine());
         if (status != status::success)
             return status;
 
@@ -131,36 +128,30 @@ struct ref_eltwise_bwd_t : public primitive_t {
                                alg_kind::eltwise_sqrt,
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic)
-                    && utils::one_of(desc()->data_desc.data_type,
-                               data_type::f32, data_type::f16)
-                    && data_mdw.is_dense() && data_mdw == diff_data_mdw
+                    && desc()->data_desc.data_type == data_type::f32
+                    && data_mdw == diff_data_mdw
                     && attr()->has_default_values();
             if (!ok)
                 return status::unimplemented;
 
-            return status::success;
+            return jit_ref_eltwise_common_kernel::init_conf(jel_,
+                    data_md_, jit_off_, desc()->alg_kind, false);
         }
 
+        jit_eltwise_conf_t jel_;
+        jit_offsets jit_off_;
         bool use_dense_;
     };
 
     status_t init() override {
         auto jit = ocl_jit_t(ref_eltwise_kernel);
 
-        jit.set_data_type(pd()->desc()->data_desc.data_type);
-        jit.define_int("RELU", alg_kind::eltwise_relu);
-        jit.define_int("LINEAR", alg_kind::eltwise_linear);
-        jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-        jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-        jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-        jit.define_int("ELU", alg_kind::eltwise_elu);
-        jit.define_int("SQUARE", alg_kind::eltwise_square);
-        jit.define_int("SQRT", alg_kind::eltwise_sqrt);
-        jit.define_int("ABS", alg_kind::eltwise_abs);
-        jit.define_int("TANH", alg_kind::eltwise_tanh);
-        jit.define_int("ALG_KIND", pd()->desc()->alg_kind);
+        status_t status = jit_ref_eltwise_common_kernel::init_const_def(
+                jit, pd()->jel_, pd()->jit_off_);
+        if (status != status::success)
+            return status;
 
-        status_t status = jit.build(engine());
+        status = jit.build(engine());
         if (status != status::success)
             return status;
 

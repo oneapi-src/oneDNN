@@ -133,11 +133,12 @@ struct ref_lrn_fwd_t : public primitive_t {
         jit.define_int("GWS_IC", 1);
         jit.define_int("GWS_HW", 0);
 
-        int src_off[3][6], dst_off[3][6];
-        set_offsets(src_d, src_off);
-        set_offsets(dst_d, dst_off);
-        def_offsets(src_off, jit, "SRC", ndims);
-        def_offsets(dst_off, jit, "DST", ndims);
+
+        jit_offsets jit_off;
+        set_offsets(src_d, jit_off.src_off);
+        set_offsets(dst_d, jit_off.dst_off);
+        def_offsets(jit_off.src_off, jit, "SRC", ndims);
+        def_offsets(jit_off.dst_off, jit, "DST", ndims);
 
         status = jit.build(engine());
         if (status != status::success)

@@ -31,10 +31,10 @@ namespace ocl {
 #define MAX_NDIMS 6
 
 struct jit_offsets {
-    int src_off[3][MAX_NDIMS];
-    int wht_off[3][MAX_NDIMS];
-    int dst_off[3][MAX_NDIMS];
-    int bias_off[3][MAX_NDIMS];
+    int src_off[4][MAX_NDIMS];
+    int wht_off[4][MAX_NDIMS];
+    int dst_off[4][MAX_NDIMS];
+    int bias_off[4][MAX_NDIMS];
 };
 
 struct jit_rnn_offsets {
@@ -212,6 +212,14 @@ struct jit_reorder_conf_t {
     int sub_group_size;
 };
 
+/* eltwise */
+struct jit_eltwise_conf_t {
+    int ndims;
+    data_type_t data_type;
+    alg_kind_t alg;
+    bool is_forward;
+};
+
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,
         const memory_desc_t &dst_md, const primitive_attr_t &attr) {
@@ -338,6 +346,7 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
+    const dims_t &dims = md.dims();
 
     for (int d = 0; d < md.ndims(); ++d) {
         const int block = block_dims[d];
@@ -345,10 +354,11 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
         offs[0][d] = block;
         offs[1][d] = strides_compat[0][d];
         offs[2][d] = strides_compat[1][d];
+        offs[3][d] = dims[d];
     }
 }
 
-inline void def_offsets(const int offs[3][MAX_NDIMS], ocl_jit_t &jit,
+inline void def_offsets(const int offs[4][MAX_NDIMS], ocl_jit_t &jit,
         const char *str, const int ndims) {
 
     for (int d = 0; d < ndims; d++) {
@@ -361,6 +371,23 @@ inline void def_offsets(const int offs[3][MAX_NDIMS], ocl_jit_t &jit,
 
         snprintf(tempstr, 32, " %s_SB%d", str, d);
         jit.define_int(tempstr, offs[2][d]);
+
+        snprintf(tempstr, 32, " %s_D%d", str, d);
+        jit.define_int(tempstr, offs[3][d]);
+    }
+    for (int d = ndims; d < 6; ++d) {
+        char tempstr[32];
+        snprintf(tempstr, 32, " %s_B%d", str, d);
+        jit.define_int(tempstr, 1);
+
+        snprintf(tempstr, 32, " %s_S%d", str, d);
+        jit.define_int(tempstr, 0);
+
+        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        jit.define_int(tempstr, 0);
+
+        snprintf(tempstr, 32, " %s_D%d", str, d);
+        jit.define_int(tempstr, 0);
     }
 }
 
