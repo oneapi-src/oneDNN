@@ -22,7 +22,7 @@
 #include <string.h>
 #include <vector>
 
-#include "z_magic.hpp"
+#include "common/z_magic.hpp"
 
 namespace mkldnn {
 namespace impl {

@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl_utils.hpp"
-
-#include "cl_engine.hpp"
-
 #include <CL/cl_ext.h>
+
+#include "ocl/cl_engine.hpp"
+
+#include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {

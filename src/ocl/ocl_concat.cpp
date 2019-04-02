@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "ocl/ocl_concat_pd.hpp"
 #include "ocl/ocl_engine.hpp"
+#include "ocl/ref_concat.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -25,7 +27,7 @@ using cpd_create_f = mkldnn::impl::engine_t::concat_primitive_desc_create_f;
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
 static const cpd_create_f ocl_concat_impl_list[] = {
-    //INSTANCE(ref_concat_t),
+    INSTANCE(ref_concat_t),
     nullptr,
 };
 #undef INSTANCE

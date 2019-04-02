@@ -17,12 +17,12 @@
 #ifndef OCL_MEMORY_STORAGE_HPP
 #define OCL_MEMORY_STORAGE_HPP
 
+#include <CL/cl.h>
+
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 #include "ocl/ocl_utils.hpp"
-
-#include <CL/cl.h>
 
 namespace mkldnn {
 namespace impl {

@@ -14,21 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "ocl/ocl_engine.hpp"
+#include "ocl/ocl_cross_engine_reorder_pd.hpp"
+#include "ocl/ocl_reorder_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using rpd_create_f = mkldnn::impl::engine_t::reorder_primitive_desc_create_f;
+using rpd_create_f = engine_t::reorder_primitive_desc_create_f;
 
 namespace {
 
 using namespace mkldnn::impl::data_type;
 
-static const rpd_create_f ocl_ce_reorder_impl_list[] = { nullptr };
+static const rpd_create_f ocl_ce_reorder_impl_list[] = {
+    ocl_cross_engine_reorder_t::pd_t::create,
+    nullptr
+};
 } // namespace
 
 const rpd_create_f *ocl_engine_t::get_reorder_implementation_list() const {

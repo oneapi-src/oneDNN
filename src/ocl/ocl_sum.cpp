@@ -14,21 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-
 #include "ocl/ocl_engine.hpp"
+#include "ocl/ocl_sum_pd.hpp"
+#include "ocl/simple_sum.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using spd_create_f = mkldnn::impl::engine_t::sum_primitive_desc_create_f;
+using spd_create_f = engine_t::sum_primitive_desc_create_f;
 
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
 static const spd_create_f ocl_sum_impl_list[] = {
-    //INSTANCE(simple_sum_t<data_type::f32>),
+    INSTANCE(simple_sum_t<data_type::f32>),
     nullptr,
 };
 #undef INSTANCE

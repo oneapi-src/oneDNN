@@ -47,6 +47,7 @@ void init_info(concat_pd_t *s, char *buffer);
 void init_info(convolution_pd_t *s, char *buffer);
 void init_info(deconvolution_pd_t *s, char *buffer);
 void init_info(eltwise_pd_t *s, char *buffer);
+void init_info(gemm_pd_t *s, char *buffer);
 void init_info(inner_product_pd_t *s, char *buffer);
 void init_info(lrn_pd_t *s, char *buffer);
 void init_info(pooling_pd_t *s, char *buffer);

@@ -1839,6 +1839,47 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
         const float *beta,
         int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
 
+#if MKLDNN_WITH_OPENCL
+/**
+ * SGEMM interface for OpenCL (float data type).
+ *
+ * SGEMM performs matrix-matrix multiplication operation
+ * C := alpha*op( A )*op( B ) + beta*C,
+ * where  op( X ) is one of
+ * op( X ) = X or op( X ) = X**T,
+ * alpha and beta are scalars, and A, B and C are matrices, with op( A )
+ * an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
+ *
+ * @p offset_a, @p offset_b and @p offset_a specify the offsets for the
+ * first element for the corresponding OpenCL buffers. Counted in elements.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_ocl_sgemm(cl_command_queue queue,
+        mkldnn_transpose_t transa, mkldnn_transpose_t transb, mkldnn_dim_t m,
+        mkldnn_dim_t n, mkldnn_dim_t k, cl_float alpha, cl_mem a,
+        mkldnn_dim_t offset_a, mkldnn_dim_t lda, cl_mem b,
+        mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta, cl_mem c,
+        mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+
+/**
+ * HGEMM interface for OpenCL (half data type).
+ *
+ * HGEMM performs matrix-matrix multiplication operation
+ * C := alpha*op( A )*op( B ) + beta*C,
+ * where  op( X ) is one of
+ * op( X ) = X or op( X ) = X**T,
+ * alpha and beta are scalars, and A, B and C are matrices, with op( A )
+ * an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
+ *
+ * @p offset_a, @p offset_b and @p offset_a specify the offsets for the
+ * first element for the corresponding OpenCL buffers. Counted in elements.
+ */
+mkldnn_status_t MKLDNN_API mkldnn_ocl_hgemm(cl_command_queue queue,
+        mkldnn_transpose_t transa, mkldnn_transpose_t transb, mkldnn_dim_t m,
+        mkldnn_dim_t n, mkldnn_dim_t k, cl_float alpha, cl_mem a,
+        mkldnn_dim_t offset_a, mkldnn_dim_t lda, cl_mem b,
+        mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta, cl_mem c,
+        mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+#endif
 /** @} */
 
 /** @} */

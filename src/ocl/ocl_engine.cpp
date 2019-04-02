@@ -14,17 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ocl_engine.hpp"
+#include <CL/cl.h>
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
-
+#include "ocl/jit_gen9_common_convolution.hpp"
+#include "ocl/jit_gen9_gemm.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
+#include "ocl/ref_batch_normalization.hpp"
+#include "ocl/ref_eltwise.hpp"
+#include "ocl/ref_inner_product.hpp"
+#include "ocl/ref_lrn.hpp"
+#include "ocl/ref_pooling.hpp"
+#include "ocl/ref_softmax.hpp"
 
-#include <CL/cl.h>
+#include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -80,6 +87,37 @@ using namespace mkldnn::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f ocl_impl_list[] = {
+    /*eltwise*/
+    INSTANCE(ref_eltwise_fwd_t),
+    INSTANCE(ref_eltwise_bwd_t),
+    /*conv*/
+    INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
+    INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),
+    INSTANCE(jit_gen9_common_convolution_fwd_t<f32>),
+    INSTANCE(jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>),
+    INSTANCE(jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>),
+    /*bnorm*/
+    INSTANCE(ref_batch_normalization_fwd_t<f32>),
+    INSTANCE(ref_batch_normalization_bwd_t<f32>),
+    /*pool*/
+    INSTANCE(ref_pooling_fwd_t<s8, s32>),
+    INSTANCE(ref_pooling_fwd_t<f16>),
+    INSTANCE(ref_pooling_fwd_t<f32>),
+    INSTANCE(ref_pooling_bwd_t<f32>),
+    /* lrn */
+    // TODO add tests for f16
+    //INSTANCE(ref_lrn_fwd_t<f16>),
+    INSTANCE(ref_lrn_fwd_t<f32>),
+    /*inner_product*/
+    INSTANCE(ref_inner_product_fwd_t<f16>),
+    INSTANCE(ref_inner_product_fwd_t<f32>),
+    INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),
+    INSTANCE(ref_inner_product_bwd_weights_t<f32>),
+    /*softmax*/
+    INSTANCE(ref_softmax_fwd_t),
+    /* gemm */
+    INSTANCE(jit_gen9_gemm_t<f16>),
+    INSTANCE(jit_gen9_gemm_t<f32>),
     nullptr,
 };
 

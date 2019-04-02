@@ -38,6 +38,7 @@
 #include "inner_product_pd.hpp"
 #include "sum_pd.hpp"
 #include "lrn_pd.hpp"
+#include "gemm_pd.hpp"
 
 /* MKL-DNN CPU ISA info */
 #define ISA_ANY "No instruction set specific optimizations"
@@ -344,6 +345,21 @@ template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
             aux_str, prb_str);
 }
 
+template <typename pd_t> static void init_info_gemm(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    DPRINT(prb_str, MKLDNN_VERBOSE_PRB_LEN, dat_written,
+            "m" DFMT "n" DFMT "k" DFMT "a_dt:%sb_dt:%sc_dt:%salpha%fbeta%f",
+             s->desc()->m, s->desc()->n, s->desc()->k,
+             mkldnn_dt2str(s->desc()->a_type),
+             mkldnn_dt2str(s->desc()->b_type),
+             mkldnn_dt2str(s->desc()->c_type),
+             s->desc()->alpha, s->desc()->beta);
+
+    verbose_templ(buffer, s->kind(), s->name(), prop_kind::undef, dat_str,
+            aux_str, prb_str);
+}
+
 template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
@@ -605,6 +621,7 @@ template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
 DEFINE_STUB(bnorm);
 DEFINE_STUB(conv);
 DEFINE_STUB(eltwise);
+DEFINE_STUB(gemm);
 DEFINE_STUB(iprod);
 DEFINE_STUB(lrn);
 DEFINE_STUB(mem);
@@ -627,6 +644,8 @@ void init_info(deconvolution_pd_t *s, char *b)
 { init_info_conv(s, b); }
 void init_info(eltwise_pd_t *s, char *b)
 { init_info_eltwise(s, b); }
+void init_info(gemm_pd_t *s, char *b)
+{ init_info_gemm(s, b); }
 void init_info(inner_product_pd_t *s, char *b)
 { init_info_iprod(s, b); }
 void init_info(lrn_pd_t *s, char *b)

@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 #include "primitive.hpp"
+#include "primitive_exec_types.hpp"
 #include "scratchpad.hpp"
 
 #include <type_traits>
@@ -29,15 +30,11 @@
 #define ARG_TYPE(t) \
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
 
-#define CTX_IN_MEM(type, arg)                                         \
-    static_cast<const ARG_TYPE(type) *>(ctx.input(arg)                \
-                    ? ctx.input(arg)->memory_storage()->data_handle() \
-                    : nullptr)
+#define CTX_IN_MEM(type, arg) \
+    static_cast<const ARG_TYPE(type) *>(CTX_IN_STORAGE(arg).data_handle())
 
-#define CTX_OUT_MEM(type, arg)                                         \
-    static_cast<ARG_TYPE(type) *>(ctx.output(arg)                      \
-                    ? ctx.output(arg)->memory_storage()->data_handle() \
-                    : nullptr)
+#define CTX_OUT_MEM(type, arg) \
+    static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
 
 namespace mkldnn {
 namespace impl {

@@ -104,9 +104,9 @@ protected:
 
     memory_desc_t ws_md_;
 
-    void init_default_ws() {
+    void init_default_ws(data_type_t dt = data_type::undef) {
         ws_md_ = is_fwd() ? *dst_md() : *diff_dst_md();
-        ws_md_.data_type = indices_data_type();
+        ws_md_.data_type = (dt != data_type::undef) ? dt : indices_data_type();
     }
 
     data_type_t indices_data_type() const {

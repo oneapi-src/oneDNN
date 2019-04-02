@@ -18,7 +18,6 @@
 #define OCL_UTILS_HPP
 
 #include <CL/cl.h>
-
 #include <cinttypes>
 #include <initializer_list>
 #include <memory>
@@ -27,9 +26,9 @@
 #include <utility>
 #include <vector>
 
-#include "c_types_map.hpp"
-#include "engine.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/engine.hpp"
+#include "common/utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -455,6 +454,8 @@ struct ocl_jit_t {
 
         options_.reserve(256);
         options_.push_back('\0');
+
+        set_default_options();
     }
 
     ~ocl_jit_t() {
@@ -542,6 +543,11 @@ struct ocl_jit_t {
     }
 
 private:
+    void set_default_options() {
+        // By default fp32 division and sqrt is not IEEE-compliant
+        add_option("-cl-fp32-correctly-rounded-divide-sqrt");
+    }
+
     std::vector<char> code_;
     std::vector<char> options_;
     cl_program program_;

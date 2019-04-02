@@ -31,7 +31,7 @@ foreach(cl_file ${CL_SOURCES})
         COMMAND ${CMAKE_COMMAND}
             -DCL_FILE="${cl_file}"
             -DCPP_FILE="${cpp_file}"
-            -DCL_INC_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+            -DCL_INC_DIR="${PROJECT_SOURCE_DIR}/src"
             -P ${PROJECT_SOURCE_DIR}/cmake/gen_ocl_source.cmake
         DEPENDS ${cl_file}
     )

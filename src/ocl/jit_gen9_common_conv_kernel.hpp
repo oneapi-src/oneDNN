@@ -1,0 +1,951 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#ifndef JIT_GEN9_COMMON_CONV_KERNEL_HPP
+#define JIT_GEN9_COMMON_CONV_KERNEL_HPP
+
+#include "common/c_types_map.hpp"
+#include "ocl/jit_primitive_conf.hpp"
+
+namespace mkldnn {
+namespace impl {
+namespace ocl {
+
+using namespace mkldnn::impl::format_tag;
+
+struct jit_gen9_common_conv_fwd_kernel {
+
+    jit_gen9_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp){};
+
+    ~jit_gen9_common_conv_fwd_kernel(){};
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, const memory_desc_t &src_md,
+            const memory_desc_t &weights_md, const memory_desc_t &dst_md,
+            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+
+        const memory_desc_wrapper src_mdw(&src_md);
+        const memory_desc_wrapper weights_mdw(&weights_md);
+        const memory_desc_wrapper dst_mdw(&dst_md);
+        const memory_desc_wrapper bias_mdw(&bias_md);
+
+        set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
+
+        const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
+
+        const bool is_1stconv = jcp.ic == 3;
+        const bool is_16ic = jcp.ic % 16 == 0;
+        const bool is_16oc = jcp.oc % 16 == 0;
+        const bool use_16mb_unroll = !(jcp.mb == 1 || jcp.mb % 16 != 0)
+                && !is_1stconv
+                && ((is_16ic && is_16oc) || is_dw_16g)
+                && IMPLICATION(src_mdw.data_type() == data_type::f16,
+                           jcp.mb % 32 == 0)
+                && IMPLICATION(src_mdw.data_type() == data_type::f16
+                                   && jcp.is_depthwise,
+                           jcp.ngroups % 32 == 0);
+
+        const bool is_32oc = true
+                && IMPLICATION(src_mdw.data_type() == data_type::f16,
+                           jcp.oc % 32 == 0);
+
+        jcp.mb_block = 1;
+        jcp.oc_block = 1;
+        jcp.ic_block = 1;
+        jcp.od_block = 1;
+        jcp.oh_block = 1;
+        jcp.ow_block = 1;
+        jcp.ver = ver_ref;
+        if (use_16mb_unroll)
+            jcp.ver = ver_16mb16c;
+        else if ((is_16oc && is_16ic) || is_dw_16g)
+            jcp.ver = ver_8ow16c;
+        else if (is_1stconv && is_16oc && is_32oc)
+            jcp.ver = ver_1stconv;
+        else
+            jcp.ver = ver_ref;
+
+        status_t status = status::success;
+        jcp.ocb = 1;
+        jcp.src_data_type = src_mdw.data_type();
+
+        switch (jcp.ver) {
+        case ver_16mb16c:
+            jcp.mb_block = 16;
+            if (src_mdw.data_type() == mkldnn_f32
+                    || src_mdw.data_type() == mkldnn_f16) {
+                if (src_mdw.data_type() == mkldnn_f16 && jcp.mb % 32 != 0) {
+                    jcp.mb_block = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
+                            ? 16
+                            : 1;
+                    jcp.oc_block = 16;
+                    jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
+                    jcp.ow_block = 8;
+                    jcp.oh_block = 1;
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ngroups * jcp.oc;
+                    jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                            * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                    jcp.gws_d[2] = jcp.mb;
+                } else {
+                    jcp.oc_block = 16;
+                    jcp.ic_block = 16;
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.oc * jcp.ngroups;
+                    jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
+                    jcp.gws_d[2] = (src_mdw.data_type() == mkldnn_f16
+                                           && !jcp.is_depthwise)
+                            ? jcp.mb / (jcp.mb_block * 2)
+                            : jcp.mb / (jcp.mb_block * 1);
+                }
+            } else {
+                jcp.oc_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
+                                       mkldnn_u8)
+                        ? 32
+                        : 16;
+                jcp.ic_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
+                                       mkldnn_u8)
+                        ? 32
+                        : 16;
+                jcp.mb_block = 32;
+                jcp.sub_group_size = 8;
+
+                if (jcp.kw == 1) {
+                    jcp.slm_ic = 2;
+                } else {
+                    jcp.slm_ic = 1;
+                }
+
+                if (jcp.oc == 64) {
+                    jcp.lws_d[0] = 2 * 8;
+                    jcp.lws_d[1] = 8;
+                } else if (jcp.oc % 128 == 0) {
+                    jcp.lws_d[0] = 4 * 8;
+                    jcp.lws_d[1] = 4;
+                } else {
+                    jcp.lws_d[0] = utils::max_div(jcp.oc, 4) * 8;
+                    jcp.lws_d[1] = utils::max_div(jcp.ow, 4);
+                }
+
+                jcp.lws_d[2] = 1;
+                jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
+                jcp.gws_d[1] = jcp.oh * utils::rnd_up(jcp.ow, jcp.lws_d[1]);
+                jcp.gws_d[2] = jcp.mb / (jcp.mb_block * 1);
+            }
+
+            jcp.wht_slm_size = jcp.slm_ic * jcp.ic_block * (jcp.lws_d[0] / 8)
+                    * jcp.oc_block * jcp.kw;
+            if (jcp.kw == 1)
+                jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
+                        * (jcp.lws_d[1] + jcp.kw - 1) * jcp.mb_block;
+            else
+                jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
+                        * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
+                        * jcp.mb_block;
+
+#ifdef DEBUG_PRINT
+            printf("LWS = %ld\n", jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
+            fflush(0);
+            printf("USE SLM %ld KB\n",
+                    utils::div_up(jcp.wht_slm_size + jcp.src_slm_size, 1024));
+            fflush(0);
+            printf("LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n", jcp.lws_d[0],
+                    jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0], jcp.gws_d[1],
+                    jcp.gws_d[2]);
+#endif
+
+            break;
+        case ver_1stconv:
+            if (src_mdw.data_type() == mkldnn_f16) {
+                jcp.mb_block = jcp.mb % 16 == 0 ? 16 : 1;
+                jcp.oc_block = 16;
+                jcp.ic_block = 16;
+                jcp.ow_block = 8;
+                jcp.oh_block = 1;
+                jcp.sub_group_size = 16;
+                jcp.lws_d[0] = 16;
+                jcp.lws_d[1] = 1;
+                jcp.lws_d[2] = 1;
+                jcp.gws_d[0] = (jcp.oc / 2) * jcp.ngroups;
+                jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                        * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                jcp.gws_d[2] = jcp.mb % 2 == 0 ? jcp.mb / 2
+                                               : jcp.mb; // unroll mb by 2
+                break;
+            } else if (utils::one_of(
+                               src_mdw.data_type(), mkldnn_s8, mkldnn_u8)) {
+                jcp.mb_block = 32;
+                jcp.oc_block = 32;
+                jcp.ic_block = 32;
+                jcp.slm_ic = 1;
+                jcp.sub_group_size = 8;
+                jcp.lws_d[0] = 2 * 8;
+                jcp.lws_d[1] = utils::max_div(jcp.ow, 16);
+                jcp.lws_d[2] = 1;
+                jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
+                jcp.gws_d[1] = jcp.oh * jcp.ow;
+                jcp.gws_d[2] = jcp.mb / jcp.mb_block;
+                jcp.wht_slm_size = jcp.ic_block * (jcp.lws_d[0] / 8)
+                        * jcp.oc_block * jcp.kw;
+                jcp.src_slm_size = jcp.ic_block
+                        * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
+                        * jcp.mb_block;
+#ifdef DEBUG_PRINT
+                printf("1st: LWS = %ld\n",
+                        jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
+                fflush(0);
+                printf("1st: USE SLM %ld KB\n",
+                        utils::div_up(
+                                jcp.wht_slm_size + jcp.src_slm_size, 1024));
+                fflush(0);
+                printf("1st: LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n",
+                        jcp.lws_d[0], jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0],
+                        jcp.gws_d[1], jcp.gws_d[2]);
+                printf("SRC_SP_GROUP=%ld\n",
+                        jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
+#endif
+                break;
+            }
+        case ver_8ow16c:
+            switch (src_mdw.data_type()) {
+            case data_type::f32:
+                jcp.mb_block
+                        = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0) ? 16 : 1;
+                jcp.oc_block = 16;
+                jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
+                if (jcp.is_depthwise) {
+                    jcp.ow_block = utils::max_div(jcp.ow, 8);
+                } else {
+                    jcp.ow_block = (jcp.ver == ver_1stconv)
+                            ? 8
+                            : nstl::max(8, utils::max_div(jcp.ow, 16));
+                }
+                jcp.oh_block = 1;
+                jcp.sub_group_size = 16;
+                jcp.lws_d[0] = 16;
+                jcp.lws_d[1] = 1;
+                jcp.lws_d[2] = 1;
+                if (jcp.is_depthwise) {
+                    jcp.ocb = jcp.ngroups;
+                } else {
+                    jcp.ocb = 128;
+                    while (jcp.ocb > 16) {
+                        if (jcp.oc % jcp.ocb == 0)
+                            break;
+                        else
+                            jcp.ocb /= 2;
+                    }
+                }
+                jcp.gws_d[0] = jcp.ocb;
+                jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                        * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                if (jcp.is_depthwise) {
+                    jcp.gws_d[2] = jcp.mb * (jcp.ngroups / jcp.ocb);
+                } else {
+                    jcp.gws_d[2] = jcp.mb * (jcp.oc / jcp.ocb) * jcp.ngroups;
+                }
+                break;
+            case data_type::f16:
+                jcp.mb_block
+                        = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0) ? 16 : 1;
+                jcp.oc_block = 16;
+                jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
+                if (jcp.is_depthwise) {
+                    jcp.ow_block = utils::max_div(jcp.ow, 8);
+                } else {
+                    jcp.ow_block = (jcp.ver == ver_1stconv)
+                            ? 8
+                            : nstl::max(8, utils::max_div(jcp.ow, 16));
+                }
+                jcp.oh_block = 1;
+                jcp.sub_group_size = 16;
+                jcp.lws_d[0] = 16;
+                jcp.lws_d[1] = 1;
+                jcp.lws_d[2] = 1;
+                jcp.ocb = 128;
+                if (jcp.is_depthwise) {
+                    jcp.ocb = jcp.ngroups;
+                } else {
+                    while (jcp.ocb > 16) {
+                        if (jcp.oc % jcp.ocb == 0)
+                            break;
+                        else
+                            jcp.ocb /= 2;
+                    }
+                }
+                jcp.gws_d[0] = jcp.ocb;
+                jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                        * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                if (jcp.is_depthwise) {
+                    jcp.gws_d[2] = jcp.mb * (jcp.ngroups / jcp.ocb);
+                } else {
+                    jcp.gws_d[2] = jcp.mb * (jcp.oc / jcp.ocb) * jcp.ngroups;
+                }
+                break;
+            default: return status::unimplemented;
+            }
+            break;
+        case ver_ref:
+            jcp.mb_block = 1;
+            jcp.oc_block = 1;
+            jcp.ic_block = 1;
+            jcp.oh_block = 1;
+            jcp.ow_block = 1;
+            jcp.sub_group_size = 1;
+            jcp.lws_d[0] = 1;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            jcp.gws_d[0] = jcp.ow * jcp.oh * jcp.od;
+            jcp.gws_d[1] = jcp.oc * jcp.ngroups;
+            jcp.gws_d[2] = jcp.mb;
+            break;
+        default: status = status::unimplemented;
+        }
+        jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
+
+        format_tag_t src_tag, dst_tag, wei_tag;
+
+        switch (jcp.ver) {
+        case ver_ref:
+            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
+                                       : (jcp.with_groups) ? goihw : oihw;
+            break;
+        case ver_1stconv:
+            if (utils::one_of(src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
+                src_tag = (jcp.ndims == 5) ? ncdhw : chwn;
+                dst_tag = jcp.mb % 16 == 0
+                        ? (jcp.ndims == 5) ? ncdhw : NChw32n32c
+                        : (jcp.ndims == 5) ? ncdhw : nChw16c;
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? goidhw : oidhw
+                        : (jcp.with_groups) ? gOhwi32o : Ohwi32o;
+            } else {
+                src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+                dst_tag = jcp.mb % 16 == 0
+                        ? (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c
+                        : (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gOdhwi16o : Odhwi16o
+                        : (jcp.with_groups) ? gOhwi16o : Ohwi16o;
+            }
+            break;
+        case ver_16mb16c:
+            if (utils::one_of(src_mdw.data_type(), mkldnn_f16)) {
+                if (jcp.mb % 32 == 0) {
+                    src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+                    dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+                    if (jcp.is_depthwise) {
+                        wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+                    } else {
+                        wei_tag = (jcp.ndims == 5)
+                                ? (jcp.with_groups) ? gOIdhw8i16o2i
+                                                    : OIdhw8i16o2i
+                                : (jcp.with_groups) ? gOIhw8i16o2i
+                                                    : OIhw8i16o2i;
+                    }
+                } else {
+                    src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+                    dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+                    wei_tag = (jcp.ndims == 5)
+                            ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
+                            : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
+                }
+            } else if (utils::one_of(
+                               src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
+                src_tag = (jcp.ndims == 5) ? ncdhw : NChw32n32c;
+                dst_tag = (jcp.ndims == 5) ? ncdhw : NChw32n32c;
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gOidhw16o : Oidhw16o
+                        : (jcp.with_groups) ? gOIhw4o8i8o4i : OIhw4o8i8o4i;
+            } else {
+                src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+                dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+                if (jcp.is_depthwise) {
+                    wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+                } else {
+                    wei_tag = (jcp.ndims == 5)
+                            ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
+                            : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
+                }
+            }
+            break;
+        case ver_8ow16c:
+            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            if (jcp.is_depthwise) {
+                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+            } else {
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gOIdhw16i16o : OIdhw16i16o
+                        : (jcp.with_groups) ? gOIhw16i16o : OIhw16i16o;
+            }
+            break;
+        default: status = status::unimplemented;
+        }
+        if (status != status::success)
+            return status;
+
+        jcp.src_tag = src_tag;
+        jcp.wei_tag = wei_tag;
+        jcp.dst_tag = dst_tag;
+
+        jcp.is_nchw = utils::one_of(src_tag, nchw, ncdhw);
+        jcp.is_nhwc = utils::one_of(src_tag, nhwc, ndhwc);
+
+        return status;
+    };
+
+    static status_t init_const_def(ocl_jit_t &jit, const jit_conv_conf_t &jcp) {
+        jit.define_int("IS_DW", jcp.is_depthwise);
+        jit.define_int("FWD_DATA", 1);
+        jit.define_int("G", jcp.ngroups);
+        jit.define_int("MB", jcp.mb);
+        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("ID", jcp.id);
+        jit.define_int("IH", jcp.ih);
+        jit.define_int("IW", jcp.iw);
+        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OD", jcp.od);
+        jit.define_int("OH", jcp.oh);
+        jit.define_int("OW", jcp.ow);
+        jit.define_int("KD", jcp.kd);
+        jit.define_int("KH", jcp.kh);
+        jit.define_int("KW", jcp.kw);
+        jit.define_int("SD", jcp.stride_d);
+        jit.define_int("SH", jcp.stride_h);
+        jit.define_int("SW", jcp.stride_w);
+        jit.define_int("PD", jcp.f_pad);
+        jit.define_int("PH", jcp.t_pad);
+        jit.define_int("PW", jcp.l_pad);
+        jit.define_int("DD", jcp.dilate_d);
+        jit.define_int("DH", jcp.dilate_h);
+        jit.define_int("DW", jcp.dilate_w);
+        jit.define_int("OW_PADDED", utils::rnd_up(jcp.ow, 4));
+        jit.define_int("OC_PADDED", jcp.oc);
+        jit.define_int("OCB", jcp.ocb);
+        jit.define_int("MB_BLOCK", jcp.mb_block);
+        jit.define_int("OH_BLOCK", jcp.oh_block);
+        jit.define_int("OW_BLOCK", jcp.ow_block);
+        jit.define_int("OW_LAST", utils::rnd_dn(jcp.ow, jcp.ow_block));
+        jit.define_int("OWB", utils::div_up(jcp.ow, jcp.ow_block));
+        jit.define_int("OHB", utils::div_up(jcp.oh, jcp.oh_block));
+        jit.define_int("WITH_BIAS", jcp.with_bias);
+        jit.define_int("WITH_RELU", jcp.with_relu);
+        jit.define_int("WITH_SUM", jcp.with_sum);
+        jit.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
+        jit.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
+        jit.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
+        jit.define_int("OC_BLOCK", jcp.oc_block);
+        jit.define_int("IC_BLOCK", jcp.ic_block);
+        jit.define_int("OC_GROUP", jcp.lws_d[0] / 8);
+        jit.define_int("MB_GROUP", 1);
+        jit.define_int("SP_GROUP", jcp.lws_d[1]);
+        if (jcp.kw == 1)
+            jit.define_int("SRC_SP_GROUP", jcp.lws_d[1] + jcp.kw - 1);
+        else
+            jit.define_int(
+                    "SRC_SP_GROUP", jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
+        jit.define_int("SLM_IC", jcp.slm_ic);
+
+        const int use_fast_path = 1 && jcp.scale_idx_mult == 0
+                && jcp.ngroups == 1 && !jcp.with_bias;
+        jit.define_int("USE_FAST_PATH", use_fast_path);
+        jit.define_int("SCALE_IDX_MULT", jcp.scale_idx_mult);
+        jit.define_int("RMODE", jcp.rmode);
+
+        jit.set_data_type(jcp.src_data_type);
+
+        switch (jcp.ver) {
+        case ver_ref: jit.define_int("VER_REF", 1); break;
+        case ver_16mb16c: jit.define_int("VER_16MB16C", 1); break;
+        case ver_1stconv:
+        case ver_8ow16c: jit.define_int("VER_8OW16C", 1); break;
+        default: break;
+        }
+
+        jit.define_int("LWS_0", jcp.lws_d[0]);
+        jit.define_int("LWS_1", jcp.lws_d[1]);
+        jit.define_int("LWS_2", jcp.lws_d[2]);
+
+        if (jcp.is_nchw)
+            jit.define_int("NCHW", 1);
+        else if (jcp.is_nhwc)
+            jit.define_int("NHWC", 1);
+
+        jit.add_option("-Dcl_intel_subgroup_matrix_multiply_accumulate");
+        jit.add_option("-Dcl_intel_subgroups_char");
+#ifdef DEBUG_PRINT
+        printf("OPT:\n%s\n", jit.get_options());
+#endif
+        return status::success;
+    }
+
+    jit_conv_conf_t jcp;
+};
+
+struct jit_gen9_common_conv_bwd_data_kernel {
+
+    jit_gen9_common_conv_bwd_data_kernel(jit_conv_conf_t ajcp) : jcp(ajcp){};
+
+    ~jit_gen9_common_conv_bwd_data_kernel(){};
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
+            const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
+            const primitive_attr_t &attr) {
+
+        const memory_desc_wrapper src_mdw(&diff_src_md);
+        const memory_desc_wrapper weights_mdw(&weights_md);
+        const memory_desc_wrapper dst_mdw(&diff_dst_md);
+
+        set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
+
+        const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
+
+        const bool is_1stconv = jcp.ic == 3;
+        const bool is_16ic = jcp.ic % 16 == 0;
+        const bool is_16oc = jcp.oc % 16 == 0;
+        const bool use_16mb_unroll = true
+                && !(jcp.mb == 1 || jcp.mb % 16 != 0)
+                && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g);
+
+        jcp.mb_block = 1;
+        jcp.oc_block = 1;
+        jcp.ic_block = 1;
+        jcp.od_block = 1;
+        jcp.oh_block = 1;
+        jcp.ow_block = 1;
+        jcp.ver = ver_ref;
+        if (use_16mb_unroll)
+            jcp.ver = ver_16mb16c;
+        if (jcp.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g))
+            jcp.ver = ver_8ow16c;
+        if (is_1stconv && is_16oc)
+            jcp.ver = ver_1stconv;
+
+        status_t status = status::success;
+
+        switch (jcp.ver) {
+        case ver_16mb16c:
+            jcp.mb_block = 16;
+            jcp.oc_block = 16;
+            jcp.ic_block = 16;
+            jcp.od_block = 1;
+            jcp.ih_block = 1;
+            jcp.iw_block = 1;
+            jcp.sub_group_size = 16;
+            jcp.lws_d[0] = 16;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            jcp.gws_d[0] = jcp.ic * jcp.ngroups;
+            jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
+            jcp.gws_d[2] = jcp.mb / 16;
+            break;
+        case ver_8ow16c:
+            jcp.mb_block = 1;
+            jcp.oc_block = 16;
+            jcp.ic_block = 16;
+            jcp.od_block = 1;
+            jcp.ih_block = 1;
+            jcp.iw_block = 1;
+            jcp.sub_group_size = 16;
+            jcp.lws_d[0] = 16;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            jcp.gws_d[0] = jcp.ic * jcp.ngroups;
+            jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
+            jcp.gws_d[2] = utils::div_up(jcp.mb, 16);
+            break;
+        case ver_1stconv:
+        case ver_ref:
+            jcp.mb_block = 1;
+            jcp.oc_block = 1;
+            jcp.ic_block = 1;
+            jcp.od_block = 1;
+            jcp.ih_block = 1;
+            jcp.iw_block = 1;
+            jcp.sub_group_size = 1;
+            jcp.lws_d[0] = 1;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            jcp.gws_d[0] = jcp.iw / jcp.iw_block;
+            jcp.gws_d[1] = (jcp.ih / jcp.ih_block) * jcp.id;
+            jcp.gws_d[2] = utils::rnd_up(jcp.ic, jcp.sub_group_size) * jcp.mb
+                    * jcp.ngroups;
+            break;
+        default: status = status::unimplemented;
+        }
+        jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
+
+        format_tag_t src_tag, dst_tag, wei_tag;
+
+        switch (jcp.ver) {
+        case ver_1stconv:
+        case ver_ref:
+            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
+                                       : (jcp.with_groups) ? goihw : oihw;
+            break;
+        case ver_16mb16c:
+            src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+            dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+            if (jcp.is_depthwise) {
+                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+            } else {
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gOIdhw16o16i : OIdhw16o16i
+                        : (jcp.with_groups) ? gOIhw16o16i : OIhw16o16i;
+            }
+            break;
+        case ver_8ow16c:
+            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            if (jcp.is_depthwise) {
+                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+            } else {
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gOIdhw16o16i : OIdhw16o16i
+                        : (jcp.with_groups) ? gOIhw16o16i : OIhw16o16i;
+            }
+            break;
+        default: status = status::unimplemented;
+        }
+        if (status != status::success)
+            return status;
+
+        jcp.src_tag = src_tag;
+        jcp.wei_tag = wei_tag;
+        jcp.dst_tag = dst_tag;
+
+        jcp.is_nchw = utils::one_of(src_tag, nchw, ncdhw);
+        jcp.is_nhwc = utils::one_of(src_tag, nhwc, ndhwc);
+
+        return status::success;
+    };
+
+    static status_t init_const_def(ocl_jit_t &jit, const jit_conv_conf_t &jcp) {
+        jit.define_int("IS_DW", jcp.is_depthwise);
+        jit.define_int("BWD_DATA", 1);
+        jit.define_int("G", jcp.ngroups);
+        jit.define_int("MB", jcp.mb);
+        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("ID", jcp.id);
+        jit.define_int("IH", jcp.ih);
+        jit.define_int("IW", jcp.iw);
+        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OD", jcp.od);
+        jit.define_int("OH", jcp.oh);
+        jit.define_int("OW", jcp.ow);
+        jit.define_int("KD", jcp.kd);
+        jit.define_int("KH", jcp.kh);
+        jit.define_int("KW", jcp.kw);
+        jit.define_int("SD", jcp.stride_d);
+        jit.define_int("SH", jcp.stride_h);
+        jit.define_int("SW", jcp.stride_w);
+        jit.define_int("PD", jcp.f_pad);
+        jit.define_int("PH", jcp.t_pad);
+        jit.define_int("PW", jcp.l_pad);
+        jit.define_int("DD", jcp.dilate_d);
+        jit.define_int("DH", jcp.dilate_h);
+        jit.define_int("DW", jcp.dilate_w);
+        jit.define_int("OC_PADDED", jcp.oc);
+        jit.define_int("MB_BLOCK", jcp.mb_block);
+        jit.define_int("MB_LAST", utils::rnd_dn(jcp.mb, 16));
+        jit.define_int("IH_BLOCK", jcp.ih_block);
+        jit.define_int("IW_BLOCK", jcp.iw_block);
+        jit.define_int("IW_LAST", utils::rnd_dn(jcp.iw, jcp.iw_block));
+        jit.define_int("WITH_BIAS", jcp.with_bias);
+        jit.define_int("WITH_RELU", jcp.with_relu);
+        jit.define_int("WITH_SUM", jcp.with_sum);
+        jit.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
+        jit.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
+        jit.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
+        jit.define_int("OC_BLOCK", jcp.oc_block);
+        jit.define_int("IC_BLOCK", jcp.ic_block);
+
+        jit.define_int("LWS_0", jcp.lws_d[0]);
+        jit.define_int("LWS_1", jcp.lws_d[1]);
+        jit.define_int("LWS_2", jcp.lws_d[2]);
+
+        switch (jcp.ver) {
+        case ver_1stconv:
+        case ver_ref: jit.define_int("VER_REF", 1); break;
+        case ver_16mb16c: jit.define_int("VER_16MB16C", 1); break;
+        case ver_8ow16c: jit.define_int("VER_8OW16C", 1); break;
+        default: break;
+        }
+
+        return status::success;
+    }
+
+    jit_conv_conf_t jcp;
+};
+
+struct jit_gen9_common_conv_bwd_weights_kernel {
+
+    jit_gen9_common_conv_bwd_weights_kernel(jit_conv_conf_t ajcp) : jcp(ajcp){};
+
+    ~jit_gen9_common_conv_bwd_weights_kernel(){};
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd, const memory_desc_t &src_md,
+            const memory_desc_t &diff_weights_md,
+            const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
+            const primitive_attr_t &attr) {
+
+        const memory_desc_wrapper src_mdw(&src_md);
+        const memory_desc_wrapper weights_mdw(&diff_weights_md);
+        const memory_desc_wrapper dst_mdw(&diff_dst_md);
+        const memory_desc_wrapper bias_mdw(&diff_bias_md);
+
+        set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
+
+        const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
+
+        const bool is_1stconv = jcp.ic == 3;
+        const bool is_16ic = jcp.ic % 16 == 0;
+        const bool is_16oc = jcp.oc % 16 == 0;
+        const bool use_16mb_unroll = true && !(jcp.mb == 1 || jcp.mb % 16 != 0)
+                && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g);
+
+        jcp.mb_block = 1;
+        jcp.oc_block = 1;
+        jcp.ic_block = 1;
+        jcp.od_block = 1;
+        jcp.oh_block = 1;
+        jcp.ow_block = 1;
+        jcp.oh_chunk = 1;
+        jcp.mb_chunk = 1;
+        jcp.ver = ver_ref;
+        if (use_16mb_unroll)
+            jcp.ver = ver_16mb16c;
+        if (jcp.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g)
+                && (jcp.iw >= jcp.stride_w * 8))
+            jcp.ver = ver_8ow16c;
+        if (is_1stconv && is_16oc)
+            jcp.ver = ver_1stconv;
+
+        status_t status = status::success;
+
+        switch (jcp.ver) {
+        case ver_1stconv:
+        case ver_8ow16c:
+            jcp.mb_block = 1;
+            jcp.oc_block = 16;
+            jcp.ic_block = jcp.ver == ver_8ow16c ? 16 : 1;
+            jcp.ow_block = 8;
+
+            if (jcp.kd * jcp.kh * jcp.kw
+                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
+                    >= 1024) {
+                jcp.oh_chunk = 1;
+                jcp.mb_chunk = nstl::min(jcp.mb, utils::max_div(jcp.mb, 4));
+            } else {
+                jcp.mb_chunk = jcp.mb;
+                jcp.oh_chunk = 1;
+            }
+            jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
+            jcp.oh_block
+                    = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
+            jcp.sub_group_size = 16;
+            jcp.lws_d[0] = 16;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            if (jcp.is_depthwise) {
+                jcp.gws_d[0] = jcp.ngroups;
+            } else {
+                jcp.gws_d[0] = jcp.ver == ver_8ow16c
+                        ? jcp.oc * (jcp.ic / 16) * jcp.ngroups
+                        : jcp.oc * jcp.ngroups;
+            }
+            jcp.gws_d[1] = jcp.kh * jcp.kw * jcp.kd;
+            jcp.gws_d[2] = jcp.nchunk;
+            break;
+        case ver_16mb16c:
+            jcp.mb_block = 16;
+            jcp.oc_block = 16;
+            jcp.ic_block = 16;
+            jcp.ow_block = 1;
+
+            if (jcp.kd * jcp.kh * jcp.kw
+                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
+                    >= 1024) {
+                jcp.oh_chunk = 1;
+                jcp.mb_chunk = nstl::min(jcp.mb / 16, 2);
+            } else if (jcp.kd * jcp.kh * jcp.kw
+                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
+                    >= 256) {
+                jcp.oh_chunk = nstl::min(jcp.od * jcp.oh * jcp.ow, 4);
+                jcp.mb_chunk = jcp.mb / 16;
+            } else {
+                jcp.mb_chunk = jcp.mb / 16;
+                jcp.oh_chunk = nstl::min(jcp.od * jcp.oh * jcp.ow, 32);
+            }
+            jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
+            jcp.oh_block
+                    = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
+            jcp.sub_group_size = 16;
+            jcp.lws_d[0] = 16;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            if (jcp.is_depthwise) {
+                jcp.gws_d[0] = jcp.ngroups;
+            } else {
+                jcp.gws_d[0] = jcp.oc * (jcp.ic / 16) * jcp.ngroups;
+            }
+            jcp.gws_d[1] = jcp.kh * jcp.kw * jcp.kd;
+            jcp.gws_d[2] = jcp.nchunk;
+            break;
+        case ver_ref:
+            jcp.sub_group_size = 1;
+            jcp.lws_d[0] = 1;
+            jcp.lws_d[1] = 1;
+            jcp.lws_d[2] = 1;
+            jcp.gws_d[0] = jcp.kw;
+            jcp.gws_d[1] = jcp.kh * jcp.kd;
+            jcp.gws_d[2] = jcp.ic * jcp.oc * jcp.ngroups;
+            break;
+        default: status = status::unimplemented;
+        }
+
+        jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
+
+        format_tag_t src_tag, dst_tag, wei_tag;
+
+        switch (jcp.ver) {
+        case ver_ref:
+            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
+                                       : (jcp.with_groups) ? goihw : oihw;
+            break;
+        case ver_1stconv:
+            assert(!jcp.is_depthwise);
+            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            wei_tag = (jcp.ndims == 5)
+                    ? (jcp.with_groups) ? gOdhwi16o : Odhwi16o
+                    : (jcp.with_groups) ? gOhwi16o : Ohwi16o;
+            break;
+        case ver_16mb16c:
+            src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+            dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
+            if (jcp.is_depthwise) {
+                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+            } else {
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
+                        : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
+            }
+            break;
+        case ver_8ow16c:
+            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
+            if (jcp.is_depthwise) {
+                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
+            } else {
+                wei_tag = (jcp.ndims == 5)
+                        ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
+                        : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
+            }
+            break;
+        default: status = status::unimplemented;
+        }
+
+        if (status != status::success)
+            return status;
+
+        jcp.src_tag = src_tag;
+        jcp.wei_tag = wei_tag;
+        jcp.dst_tag = dst_tag;
+
+        return status::success;
+    };
+
+    static status_t init_const_def(ocl_jit_t &jit, const jit_conv_conf_t &jcp) {
+        jit.define_int("IS_DW", jcp.is_depthwise);
+        jit.define_int("BWD_WEIGHTS", 1);
+        jit.define_int("G", jcp.ngroups);
+        jit.define_int("MB", jcp.mb);
+        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("ID", jcp.id);
+        jit.define_int("IH", jcp.ih);
+        jit.define_int("IW", jcp.iw);
+        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OD", jcp.od);
+        jit.define_int("OH", jcp.oh);
+        jit.define_int("OW", jcp.ow);
+        jit.define_int("KD", jcp.kd);
+        jit.define_int("KH", jcp.kh);
+        jit.define_int("KW", jcp.kw);
+        jit.define_int("SD", jcp.stride_d);
+        jit.define_int("SH", jcp.stride_h);
+        jit.define_int("SW", jcp.stride_w);
+        jit.define_int("PD", jcp.f_pad);
+        jit.define_int("PH", jcp.t_pad);
+        jit.define_int("PW", jcp.l_pad);
+        jit.define_int("DD", jcp.dilate_d);
+        jit.define_int("DH", jcp.dilate_h);
+        jit.define_int("DW", jcp.dilate_w);
+        jit.define_int("OC_PADDED", jcp.oc);
+        jit.define_int("OH_BLOCK", jcp.oh_block);
+        jit.define_int("WITH_BIAS", jcp.with_bias);
+        jit.define_int("WITH_RELU", jcp.with_relu);
+        jit.define_int("WITH_SUM", jcp.with_sum);
+        jit.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
+        jit.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
+        jit.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
+        jit.define_int("MB_BLOCK", jcp.mb_block);
+        jit.define_int("OC_BLOCK", jcp.oc_block);
+        jit.define_int("IC_BLOCK", jcp.ic_block);
+        jit.define_int("NCHUNK", jcp.nchunk);
+        jit.define_int("OH_CHUNK", jcp.oh_chunk);
+        jit.define_int("MB_CHUNK", jcp.mb_chunk);
+        jit.define_int("OW_BLOCK", jcp.ow_block);
+        jit.define_int("OW_LAST", utils::rnd_dn(jcp.ow, jcp.ow_block));
+
+        jit.define_int("LWS_0", jcp.lws_d[0]);
+        jit.define_int("LWS_1", jcp.lws_d[1]);
+        jit.define_int("LWS_2", jcp.lws_d[2]);
+
+        switch (jcp.ver) {
+        case ver_ref: jit.define_int("VER_REF", 1); break;
+        case ver_16mb16c: jit.define_int("VER_16MB16C", 1); break;
+        case ver_1stconv:
+        case ver_8ow16c: jit.define_int("VER_8OW16C", 1); break;
+        default: break;
+        }
+
+        return status::success;
+    }
+
+    jit_conv_conf_t jcp;
+};
+
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
+
+#endif

@@ -19,7 +19,6 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-
 #include "ocl/cl_stream.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_utils.hpp"

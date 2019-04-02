@@ -17,10 +17,10 @@
 #ifndef CL_STREAM_HPP
 #define CL_STREAM_HPP
 
+#include <memory>
+
 #include "common/stream.hpp"
 #include "ocl/cl_executor.hpp"
-
-#include <memory>
 
 namespace mkldnn {
 namespace impl {

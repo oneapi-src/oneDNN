@@ -17,6 +17,7 @@
 #ifndef TYPE_MAPPING_HPP
 #define TYPE_MAPPING_HPP
 
+#include "gemm_types.hpp"
 #include "mkldnn_types.h"
 
 namespace mkldnn {
@@ -421,6 +422,7 @@ namespace primitive_kind {
     const primitive_kind_t batch_normalization = mkldnn_batch_normalization;
     const primitive_kind_t inner_product = mkldnn_inner_product;
     const primitive_kind_t rnn = mkldnn_rnn;
+    const primitive_kind_t gemm = mkldnn_gemm;
 }
 
 using query_t = mkldnn_query_t;
@@ -452,6 +454,7 @@ namespace query {
     const query_t batch_normalization_d = mkldnn_query_batch_normalization_d;
     const query_t inner_product_d = mkldnn_query_inner_product_d;
     const query_t rnn_d = mkldnn_query_rnn_d;
+    const query_t gemm_d = mkldnn_query_gemm_d;
 
     const query_t some_md = mkldnn_query_some_md;
     const query_t src_md = mkldnn_query_src_md;
@@ -484,6 +487,9 @@ using rnn_direction_t = mkldnn_rnn_direction_t;
 using rnn_cell_desc_t = mkldnn_rnn_cell_desc_t;
 using rnn_desc_t = mkldnn_rnn_desc_t;
 
+/* Internal type, declared in gemm_types.hpp */
+using gemm_desc_t = mkldnn_gemm_desc_t;
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = mkldnn_op_desc_t;
 using const_c_op_desc_t = const_mkldnn_op_desc_t;
@@ -501,6 +507,7 @@ struct op_desc_t {
         batch_normalization_desc_t batch_normalization;
         inner_product_desc_t inner_product;
         rnn_desc_t rnn;
+        gemm_desc_t gemm;
     };
 
     op_desc_t(const primitive_kind_t &_): kind(_) {}
@@ -521,6 +528,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t, batch_normalization);
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
     DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
+    DECL_CTOR_AND_CONVERTERS(gemm_desc_t, gemm);
 
 #   undef DECL_CTOR_AND_CONVERTERS
 };
@@ -544,6 +552,12 @@ namespace stream_flags {
 }
 using stream_t = mkldnn_stream;
 
+using transpose_t = mkldnn_transpose_t;
+namespace transpose {
+    const transpose_t notrans = mkldnn_notrans;
+    const transpose_t trans = mkldnn_trans;
+}
+
 /* forward declaration of the internal primitive_desc types */
 struct batch_normalization_bwd_pd_t;
 struct batch_normalization_fwd_pd_t;
@@ -560,6 +574,7 @@ struct deconvolution_pd_t;
 struct eltwise_bwd_pd_t;
 struct eltwise_fwd_pd_t;
 struct eltwise_pd_t;
+struct gemm_pd_t;
 struct inner_product_bwd_data_pd_t;
 struct inner_product_bwd_weights_pd_t;
 struct inner_product_fwd_pd_t;

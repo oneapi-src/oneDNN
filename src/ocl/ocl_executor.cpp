@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ocl_executor.hpp"
+#include <CL/cl.h>
 
 #include "common/utils.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-#include <CL/cl.h>
+#include "ocl/ocl_executor.hpp"
 
 namespace mkldnn {
 namespace impl {

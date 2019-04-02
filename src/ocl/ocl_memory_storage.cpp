@@ -14,13 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ocl_memory_storage.hpp"
+#include <CL/cl.h>
 
-//#include "common/memory_storage_map_manager.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_stream.hpp"
 
-#include <CL/cl.h>
+#include "ocl/ocl_memory_storage.hpp"
 
 namespace mkldnn {
 namespace impl {

@@ -533,6 +533,8 @@ typedef enum {
     mkldnn_inner_product,
     /** A rnn primitive. */
     mkldnn_rnn,
+    /** A matrix multiplication primitive. */
+    mkldnn_gemm,
 } mkldnn_primitive_kind_t;
 
 /** Kinds of algorithms. */
@@ -1136,6 +1138,14 @@ typedef struct {
     mkldnn_memory_desc_t diff_dst_iter_desc;
 } mkldnn_rnn_desc_t;
 
+/** Transposition settings for GEMM operation */
+typedef enum {
+    /** Do not transpose matrix. */
+    mkldnn_notrans,
+    /** Transpose matrix. */
+    mkldnn_trans,
+} mkldnn_transpose_t;
+
 /** @} */
 
 /** @addtogroup c_api_engine_types Engine
@@ -1410,6 +1420,7 @@ typedef enum {
     mkldnn_query_batch_normalization_d, /**< batch normalization descriptor */
     mkldnn_query_inner_product_d, /**< inner product descriptor */
     mkldnn_query_rnn_d, /**< rnn descriptor */
+    mkldnn_query_gemm_d, /**< GEMM descriptor */
 
     /* memory descriptor section */
     mkldnn_query_some_md = 128, /**< stub */
