@@ -37,6 +37,10 @@ struct jit_uni_gru_cell_postgemm_1_fwd: public jit_uni_rnn_postgemm
     jit_uni_gru_cell_postgemm_1_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
     : jit_uni_rnn_postgemm(rnn, pd){}
 
+    ~jit_uni_gru_cell_postgemm_1_fwd(){
+        delete sigmoid_injector_;
+    }
+
     void init() override {
         // we use rax for both constant tables as they use the same table
         sigmoid_injector_ = new injector_t(this,
