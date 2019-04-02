@@ -56,7 +56,7 @@ protected:
         mem1_vec.assign((data_t *)mem0_ptr, (data_t *)mem0_ptr + phys_size);
 
         mkldnn::memory mem1({p.dims, memory::data_type::f32, p.fmt_tag}, e,
-                &mem1_vec[0]);
+                mem1_vec.data());
 
         check_zero_tail<data_t>(0, mem1);
         check_zero_tail<data_t>(1, mem0);
