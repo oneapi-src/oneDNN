@@ -229,10 +229,8 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_mdw.dims()[0] : 1;
     jcp.mb = src_mdw.dims()[0];
-    jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
-    jcp.oc_without_padding = jcp.oc;
-    jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
-    jcp.ic_without_padding = jcp.ic;
+    jcp.oc_without_padding = dst_mdw.dims()[1] / jcp.ngroups;
+    jcp.ic_without_padding = src_mdw.dims()[1] / jcp.ngroups;
     jcp.id = (ndims == 5) ? src_mdw.dims()[2] : 1;
     jcp.ih = src_mdw.dims()[ndims - 2];
     jcp.iw = src_mdw.dims()[ndims - 1];
@@ -242,6 +240,26 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.kd = (ndims == 5) ? weights_mdw.dims()[with_groups + 2] : 1;
     jcp.kh = weights_mdw.dims()[with_groups + ndims - 2];
     jcp.kw = weights_mdw.dims()[with_groups + ndims - 1];
+
+    jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
+    jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
+
+    const bool is_1stconv = jcp.ic_without_padding == 3;
+    const bool is_depthwise = with_groups && (jcp.ic_without_padding == 1)
+            && (jcp.oc_without_padding == 1);
+    jcp.is_depthwise = is_depthwise;
+
+    if (is_1stconv || with_groups) {
+        jcp.ic = jcp.ic_without_padding;
+        jcp.oc = jcp.oc_without_padding;
+    } else {
+        jcp.ic = utils::rnd_up(jcp.ic_without_padding, 16);
+        jcp.oc = utils::rnd_up(jcp.oc_without_padding, 16);
+    }
+
+    if (is_depthwise)
+        jcp.ngroups = utils::rnd_up(jcp.ngroups, 16);
+
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
     jcp.t_pad = cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
@@ -251,8 +269,6 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
-
-    jcp.is_depthwise = with_groups && (jcp.ic == 1) && (jcp.oc == 1);
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
