@@ -42,23 +42,27 @@ struct jit_ref_inner_product_fwd_kernel {
         jip.ndims = ndims;
         jip.has_spatial = utils::one_of(jip.ndims, 4, 5);
 
-        jip.mb = src_d.dims()[0];
-        jip.ic = src_d.dims()[1];
+        const auto &src_dims = src_d.padded_dims();
+
+        jip.mb = src_dims[0];
+        jip.ic = src_dims[1];
         if (jip.has_spatial) {
-            jip.id = (ndims == 5) ? src_d.dims()[2] : 1;
-            jip.ih = src_d.dims()[ndims - 2];
-            jip.iw = src_d.dims()[ndims - 1];
+            jip.id = (ndims == 5) ? src_dims[2] : 1;
+            jip.ih = src_dims[ndims - 2];
+            jip.iw = src_dims[ndims - 1];
         } else {
             jip.id = 1;
             jip.ih = 1;
             jip.iw = 1;
         }
-        jip.ic_total = utils::array_product(&src_d.dims()[1], jip.ndims - 1);
+        jip.ic_total = utils::array_product(&src_dims[1], jip.ndims - 1);
 
-        jip.oc = dst_d.dims()[1];
-        jip.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-        jip.oh = dst_d.dims()[ndims - 2];
-        jip.ow = dst_d.dims()[ndims - 1];
+        const auto &dst_dims = dst_d.padded_dims();
+
+        jip.oc = dst_dims[1];
+        jip.od = (ndims == 5) ? dst_dims[2] : 1;
+        jip.oh = dst_dims[ndims - 2];
+        jip.ow = dst_dims[ndims - 1];
 
         jip.kd = (ndims == 5) ? weights_d.dims()[2] : 1;
         jip.kh = weights_d.dims()[ndims - 2];

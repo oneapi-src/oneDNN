@@ -505,7 +505,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
             true, mkldnn_invalid_arguments}
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw16c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             algorithm::pooling_max, memory::format_tag::nChw16c,
@@ -530,7 +530,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::nChw16c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw8c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             algorithm::pooling_max, memory::format_tag::nChw8c,

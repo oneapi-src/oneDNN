@@ -325,7 +325,7 @@ TEST_P(lrn_test_float, TestsLRN)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestLRNBackwardZeroDim, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw16c_padded, lrn_test_float,
         ::testing::Values(
             lrn_test_params_float{ prop_kind::forward_training,
             algorithm::lrn_across_channels, memory::format_tag::nchw,
@@ -354,7 +354,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestLRNBackwardEF, lrn_test_float,
             true, mkldnn_invalid_arguments }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw16c_padded, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw8c_padded, lrn_test_float,
         ::testing::Values(
             lrn_test_params_float{ prop_kind::forward_training,
             algorithm::lrn_across_channels, memory::format_tag::nChw16c,

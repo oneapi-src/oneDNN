@@ -270,6 +270,26 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
+GPU_INSTANTIATE_TEST_SUITE_P(
+        TestInnerProductBackwardWeights_padded, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{
+                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
+
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias, inner_product_test_float,
         ::testing::Values(
