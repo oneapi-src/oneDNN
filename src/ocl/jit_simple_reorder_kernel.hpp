@@ -39,8 +39,9 @@ struct jit_simple_reorder_kernel {
 
         status_t status = status::success;
 
-        const auto &dims = input_md.dims();
+        const auto &dims = output_md.padded_dims();
         jrp.do_reorder = input_md != output_md;
+        jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.is_alpha_beta = (pd->alpha() != 1.0 || pd->beta() != 0.0);
         jrp.ndims = input_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
@@ -103,6 +104,9 @@ struct jit_simple_reorder_kernel {
             break;
         default: status = status::unimplemented; break;
         }
+
+        if (jrp.has_padding)
+            return status;
 
         const bool type_f32 = input_md.data_type() == mkldnn_f32
                 && output_md.data_type() == mkldnn_f32;
@@ -201,6 +205,7 @@ struct jit_simple_reorder_kernel {
         }
 
         const bool opt_reorder = true
+                && !jrp.has_padding
                 && (((input_type == mkldnn_f32 && output_type == mkldnn_f32)
                             && (input_md.matches_tag(nChw16c)
                                        || output_md.matches_tag(nChw16c)
@@ -269,6 +274,31 @@ struct jit_simple_reorder_kernel {
 
         set_offsets(jit, input_md, "SRC");
         set_offsets(jit, output_md, "DST");
+
+        const auto &in_dims = input_md.dims();
+        const auto &out_dims = output_md.padded_dims();
+
+        jit.define_int("PAD_FILL_ZERO", jrp.has_padding);
+
+        if (jrp.has_padding) {
+            char tempstr[32];
+            for (int d = 0; d < input_md.ndims(); ++d) {
+                snprintf(tempstr, 32, " SRC_DIM%d", d);
+                jit.define_int(tempstr, in_dims[d]);
+            }
+            for (int d = input_md.ndims(); d < 6; ++d) {
+                snprintf(tempstr, 32, " SRC_DIM%d", d);
+                jit.define_int(tempstr, 0);
+            }
+            for (int d = 0; d < output_md.ndims(); ++d) {
+                snprintf(tempstr, 32, " DST_DIM%d", d);
+                jit.define_int(tempstr, out_dims[d]);
+            }
+            for (int d = output_md.ndims(); d < 6; ++d) {
+                snprintf(tempstr, 32, " DST_DIM%d", d);
+                jit.define_int(tempstr, 0);
+            }
+        }
 
         return status::success;
     }

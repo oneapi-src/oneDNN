@@ -204,7 +204,7 @@ struct jit_simple_sum_conf_t {
 
 /* simple reorder */
 struct jit_reorder_conf_t {
-    bool do_reorder, is_alpha_beta, with_group;
+    bool do_reorder, is_alpha_beta, with_group, has_padding;
     int ndims, par_dims, ker_dims, last_dims;
     size_t nelems;
     size_t gws_d[3], lws_d[3];
