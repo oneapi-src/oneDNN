@@ -186,17 +186,17 @@ inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
 template <typename T, typename U>
 inline typename remove_reference<T>::type div_up(const T a, const U b) {
     assert(b);
-    return (a + b - 1) / b;
+    return static_cast<typename remove_reference<T>::type>((a + b - 1) / b);
 }
 
 template <typename T, typename U>
 inline typename remove_reference<T>::type rnd_up(const T a, const U b) {
-    return div_up(a, b) * b;
+    return static_cast<typename remove_reference<T>::type>(div_up(a, b) * b);
 }
 
 template <typename T, typename U>
 inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
-    return (a / b) * b;
+    return static_cast<typename remove_reference<T>::type>((a / b) * b);
 }
 
 template <typename T, typename U>
