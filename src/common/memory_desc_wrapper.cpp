@@ -80,6 +80,48 @@ status_t fill_blocked(memory_desc_t &md,
     return status::success;
 }
 
+void memory_desc_wrapper::compute_strides_compat(dims_t *strides_compat) const {
+    const blocking_desc_t &blk = md_->format_desc.blocking;
+
+    dims_t blocks;
+    compute_blocks(blocks);
+
+    int perm_idx = 0;
+    int inner_perm[MKLDNN_MAX_NDIMS] = {};
+    bool seen[MKLDNN_MAX_NDIMS] = {};
+
+    for (int i = 0; i < blk.inner_nblks; i++) {
+        int blk_idx = blk.inner_idxs[i];
+        if (seen[blk_idx])
+            continue;
+
+        seen[blk_idx] = true;
+        inner_perm[perm_idx] = blk_idx;
+        perm_idx++;
+    }
+
+    for (int i = 0; i < ndims(); i++)
+        if (!seen[i]) {
+            inner_perm[perm_idx] = i;
+            perm_idx++;
+        }
+
+    dims_t inner_strides;
+    inner_strides[inner_perm[ndims() - 1]] = 1;
+    for (int d = 1; d < ndims(); ++d) {
+        const int prev_idx = inner_perm[ndims() - d];
+        const int curr_idx = inner_perm[ndims() - 1 - d];
+
+        inner_strides[curr_idx] = blocks[curr_idx] == 0
+                ? 1
+                : inner_strides[prev_idx]
+                        * nstl::max((dim_t)1, blocks[prev_idx]);
+    }
+
+    utils::array_copy(strides_compat[0], blk.strides, ndims());
+    utils::array_copy(strides_compat[1], inner_strides, ndims());
+}
+
 status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc,
         format_tag_t tag)
 {

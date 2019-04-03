@@ -186,6 +186,13 @@ struct memory_desc_wrapper: public c_compatible {
             blocks[bd.inner_idxs[iblk]] *= bd.inner_blks[iblk];
     }
 
+    // XXX: for backward compatibility with v0.x
+    // strides_compat[0]: stride between the first elements of adjacent blocks
+    // strides_compat[1]: strides between elements in the same block
+    //
+    // For 2+ level blocking all inner blocks are treated as a single block.
+    void compute_strides_compat(dims_t *strides_compat) const;
+
     /* comparison section */
 
     bool operator==(const memory_desc_wrapper &rhs) const
