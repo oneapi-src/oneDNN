@@ -199,6 +199,17 @@ inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
     return (a / b) * b;
 }
 
+template <typename T, typename U>
+inline typename remove_reference<T>::type max_div(const T a, const U b) {
+    U div = b;
+    while (div > 1) {
+        if (a % div == 0)
+            return div;
+        div--;
+    }
+    return static_cast<typename remove_reference<T>::type>(div);
+}
+
 template <typename T> T *align_ptr(T *ptr, uintptr_t alignment)
 { return (T *)(((uintptr_t)ptr + alignment - 1) & ~(alignment - 1)); }
 
