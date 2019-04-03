@@ -89,7 +89,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
         const auto &j = conf_.jcp_;
 
-        int nthr = mkldnn_get_max_threads();
+        int nthr = mkldnn_get_max_threads() / 2;
 
         params_ = new param_t[nthr];
 
@@ -266,7 +266,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
         const auto &j = conf_.jcp_;
 
-        int nthr = mkldnn_get_max_threads();
+        int nthr = mkldnn_get_max_threads() / 2;
 
         params_ = new param_t[nthr];
 
@@ -426,6 +426,10 @@ struct jit_avx512_common_convolution_bwd_weights_t: public cpu_primitive_t {
         if (acc_ker_)
             delete acc_ker_;
         delete reducer_bias_;
+
+        //free(src_workspace_);
+        free(dst_workspace_);
+
         free(padded_bias_);
 
         free(tr_src_);
@@ -478,6 +482,9 @@ private:
     src_data_t *tr_src_;
     diff_dst_data_t *tr_diff_dst_;
     diff_weights_data_t *ws_reduction_;
+
+    src_data_t *src_workspace_;
+    diff_dst_data_t *dst_workspace_;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
     simple_barrier::ctx_t *tr_src_bctx_, *tr_diff_dst_bctx_, reduction_bctx_;

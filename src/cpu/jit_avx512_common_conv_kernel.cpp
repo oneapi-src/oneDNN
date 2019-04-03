@@ -2136,7 +2136,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
         }
     }
 
-    //jcp.oc_buffs = 4;
+    // higher than 8 will cause subpar memory performance
+    if (jcp.oc_buffs > 8) jcp.oc_buffs = 8;
 
     jcp.ur_sparse = jcp.oc_buffs * jcp.kw;
     jcp.nb_mb = jcp.mb / jcp.mb_block;
@@ -4874,6 +4875,10 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         }
     }
 
+
+    // higher than 8 will cause subpar memory performance
+    if (jcp.ic_buffs > 8) jcp.ic_buffs = 8;
+
     jcp.ur_sparse = jcp.ic_buffs * jcp.kw;
     jcp.nb_mb = jcp.mb / jcp.mb_block;
 
@@ -5094,7 +5099,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
     Reg64 reg_long_offt = reg_kj;
     Reg64 reg_mul_src = rdx;
 
-    int disp = oc_block * oc_buffs * ow * typesize;
+    int disp = oc_block * oc_buffs * typesize;
 
     auto comp_unrolled = [&](int ii, int cur_oc_buffs) {
 
@@ -5186,7 +5191,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
 
                         size_t aux_dst_offset = (size_t)typesize
                                 * (oc_buff * oc_block
-                                + oi * oc_block * cur_oc_buffs);
+                                + oi * oc_block * cur_oc_buffs * mb_block);
                     
                         vfmadd231ps(zmm, zmm_o,
                                 EVEX_compress_addr_safe(aux_reg_out, aux_dst_offset,
@@ -5203,51 +5208,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
 
         L(ic_loop_end_label);
 
-    };
-
-    auto comp_unrolled_dense = [&](int ii, int cur_oc_buffs, int &itr) {
-
-        for (int mb = 0; mb < vsize; ++mb) {
-
-            auto zmm_inp = Xbyak::Zmm(itr % 2 + 30);
-            auto zmm_pipelined = Xbyak::Zmm((itr + 1) % 2 + 30);
-
-            itr++;
-
-            int inp_offset;
-            if (mb < vsize - 1) {
-                inp_offset = typesize * (ii * ic_block + (mb + 1));
-            } else {
-                inp_offset = typesize * ((ii + 1) * ic_block);
-            }
-
-            vbroadcastss(zmm_pipelined, EVEX_compress_addr_safe(reg_inp, inp_offset, reg_long_offt));
-            prefetcht1(EVEX_compress_addr_safe(reg_inp_prf, inp_offset, reg_long_offt));
-
-            for (int oc_buff = 0; oc_buff < cur_oc_buffs; oc_buff++) {
-                for (int ki = kw - 1; ki > -1; ki--) {
-
-                    int n = ii - ki * dilate_w + l_pad;
-
-                    if (n >= 0 && n / stride_w < ow && n % stride_w == 0) {
-
-                        int oi = n / stride_w;
-
-                        int reg_idx = get_reg_idx(ki, oc_buff);
-
-                        Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                        size_t out_offset = (size_t)typesize
-                                * (oc_buff * oc_block * ow * mb_block
-                                + oi * oc_block * mb_block + mb * oc_block);
-                    
-                        vfmadd231ps(zmm, zmm_inp,
-                                EVEX_compress_addr_safe(reg_out, out_offset,
-                                    reg_long_offt));
-                    }
-                }
-            }
-        }
     };
 
     auto outer_loop = [&](int cur_oc_buffs) {
@@ -5277,25 +5237,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
 
         for (int ii = 0; ii < iw; ii++) {
             comp_unrolled(ii, cur_oc_buffs);
-        }
-    };
-
-    auto outer_loop_dense = [&](int cur_oc_buffs) {
-
-        int itr = 0;
-        vbroadcastss(zmm30, ptr[reg_inp]);
-        prefetcht1(ptr[reg_inp]);
-
-        for (int oc_buff = 0; oc_buff < oc_buffs; oc_buff++) {
-            for (int ki = 0; ki < kw; ki++) {
-                int idx = get_reg_idx(ki, oc_buff);
-                auto zmm = Xbyak::Zmm(idx);
-                vpxord(zmm, zmm, zmm);
-            }
-        }
-
-        for (int ii = 0; ii < iw; ii++) {
-            comp_unrolled_dense(ii, cur_oc_buffs, itr);
         }
     };
 
@@ -5454,7 +5395,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
 
     auto src_format = (ndims == 5) ? nCdhw16c : Nhcw16n;
-    auto dst_format = (ndims == 5) ? nCdhw16c : NhC16nw128c;
+    auto dst_format = (ndims == 5) ? nCdhw16c : NhCw16n128c;
     auto wei_format = (ndims == 5)
         ? (with_groups) ? hIOw16i16o : hIOw16i16o
         : (with_groups) ? hIOw16i16o : hIOw16i16o;
@@ -5476,7 +5417,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         CHECK(diff_dst_pd.set_format(dst_format));
 
     switch (src_d.format()) {
-        case Nhcw16n: jcp.mb_block = 16; if (diff_dst_d.format() != NhC16nw128c) return status::unimplemented; break;
+        case Nhcw16n: jcp.mb_block = 16; if (diff_dst_d.format() != NhCw16n128c) return status::unimplemented; break;
         default: return status::unimplemented; break;
     }
 

@@ -392,6 +392,7 @@ typedef enum {
     mkldnn_hIOw32i16o,
     mkldnn_hIOw64i16o,
 
+    mkldnn_NhCw16n128c,
 
     /** Just a sentinel, not real memory format. Must be changed after new
      * format is added. */

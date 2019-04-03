@@ -222,6 +222,8 @@ namespace memory_format {
     const memory_format_t hIOw32i16o = mkldnn_hIOw32i16o;
     const memory_format_t hIOw64i16o = mkldnn_hIOw64i16o;
 
+    const memory_format_t NhCw16n128c = mkldnn_NhCw16n128c;
+
 }
 
 using padding_kind_t = mkldnn_padding_kind_t;
