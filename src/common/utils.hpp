@@ -328,7 +328,8 @@ int32_t fetch_and_add(int32_t *dst, int32_t val);
 inline void yield_thread() {}
 
 // Reads an environment variable 'name' and stores its string value in the
-// 'buffer' of 'buffer_size' bytes on success.
+// 'buffer' of 'buffer_size' bytes (including the terminating zero) on
+// success.
 //
 // - Returns the length of the environment variable string value (excluding
 // the terminating 0) if it is set and its contents (including the terminating

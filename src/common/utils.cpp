@@ -54,7 +54,8 @@ int getenv(const char *name, char *buffer, int buffer_size) {
             term_zero_idx = int_value_length;
             result = int_value_length;
 #ifndef _WIN32
-            strncpy(buffer, value, value_length);
+            if (value)
+                strncpy(buffer, value, buffer_size - 1);
 #endif
         }
     }
