@@ -19,6 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
+#include "ocl/gemm_inner_product.hpp"
 #include "ocl/jit_gen9_common_convolution.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
 #include "ocl/ocl_memory_storage.hpp"
@@ -109,6 +110,10 @@ static const pd_create_f ocl_impl_list[] = {
     //INSTANCE(ref_lrn_fwd_t<f16>),
     INSTANCE(ref_lrn_fwd_t<f32>),
     /*inner_product*/
+    INSTANCE(gemm_inner_product_fwd_t<f16>),
+    INSTANCE(gemm_inner_product_fwd_t<f32>),
+    INSTANCE(gemm_inner_product_bwd_data_t<f32>),
+    INSTANCE(gemm_inner_product_bwd_weights_t<f32>),
     INSTANCE(ref_inner_product_fwd_t<f16>),
     INSTANCE(ref_inner_product_fwd_t<f32>),
     INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),

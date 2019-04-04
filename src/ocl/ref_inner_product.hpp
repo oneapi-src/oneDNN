@@ -73,7 +73,7 @@ struct ref_inner_product_fwd_t : public primitive_t {
                     && attr()->post_ops_.len_ <= 1
                     && IMPLICATION(attr()->post_ops_.len_ == 1,
                                attr()->post_ops_.entry_[0].is_relu(true, false))
-                    && dense_gemm_consitency_check(
+                    && dense_consitency_check(
                                src_md(), weights_md(), dst_md())
                     && IMPLICATION(src_type == data_type::f16,
                                cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
