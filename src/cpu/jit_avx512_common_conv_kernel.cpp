@@ -5145,7 +5145,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
         tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
         inc(lzcnt_reg.cvt32());
 
-        mulx(reg_kj, reg_ker_prf, lzcnt_reg);
+        //mulx(reg_kj, reg_ker_prf, lzcnt_reg);
         shrx(mask_reg.cvt32(), mask_reg.cvt32(), lzcnt_reg.cvt32());
 
         mov(aux_reg_out, reg_out);
@@ -5159,15 +5159,16 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
             int aux_src_offset = typesize * (ii * mb_block - 1);
             vbroadcastss(zmm_o, ptr[aux_reg_inp + aux_src_offset]);
 
-            //shl(lzcnt_reg.cvt32(), 6);
-            add(aux_reg_out, reg_ker_prf);
+            shl(lzcnt_reg.cvt32(), 9);
+            add(aux_reg_out, lzcnt_reg);
+            //add(aux_reg_out, reg_ker_prf);
 
             tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32()); // pipelined
             inc(lzcnt_reg.cvt32());
 
             dec(ic_itr_reg);
 
-            mulx(reg_kj, reg_ker_prf, lzcnt_reg);
+            //mulx(reg_kj, reg_ker_prf, lzcnt_reg);
             shrx(mask_reg.cvt32(), mask_reg.cvt32(), lzcnt_reg.cvt32()); // does not change flags
 
             cout << "op:";
@@ -5217,7 +5218,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
         vcmpps(k7, zmm_zero, ptr[reg_inp], 4);
         prefetcht1(ptr[reg_inp_prf]);
 
-        mov(reg_mul_src, disp);
+        //mov(reg_mul_src, disp);
         sub(reg_out, disp);
 
         for (int oc_buff = 0; oc_buff < oc_buffs; oc_buff++) {

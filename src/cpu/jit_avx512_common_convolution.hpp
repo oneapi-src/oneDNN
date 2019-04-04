@@ -89,7 +89,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
         const auto &j = conf_.jcp_;
 
-        int nthr = mkldnn_get_max_threads() / 2;
+        int nthr = mkldnn_get_max_threads();
 
         params_ = new param_t[nthr];
 
@@ -141,7 +141,7 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     }
     ~_jit_avx512_common_convolution_fwd_t() {
         delete kernel_;
-        delete params_;
+        delete [] params_;
         free(padded_bias_);
     };
 
@@ -266,7 +266,7 @@ struct jit_avx512_common_convolution_bwd_data_t: public cpu_primitive_t {
 
         const auto &j = conf_.jcp_;
 
-        int nthr = mkldnn_get_max_threads() / 2;
+        int nthr = mkldnn_get_max_threads();
 
         params_ = new param_t[nthr];
 

@@ -274,16 +274,12 @@ void _jit_avx512_common_convolution_fwd_t
 
     cout << jcp.mb << " " << jcp.nb_mb << " " << jcp.mb_block << endl;*/
 
-    int nthr = mkldnn_get_max_threads() / 2;
+    int nthr = mkldnn_get_max_threads();
 
     int step = jcp.dilate_w == 0 ? jcp.oc_buffs : 1;
     int oc_iters = jcp.nb_oc / step;
 
-    omp_set_num_threads(nthr);
-    #pragma omp parallel
-    {
-
-        int ithr = omp_get_thread_num();
+    parallel(nthr, [&](const int ithr, const int nthr) {
 
         auto par_conv = jit_conv_call_s();
         size_t src_h_stride = src_d.blk_off(0, 0, 1);
@@ -381,7 +377,7 @@ void _jit_avx512_common_convolution_fwd_t
 
         jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
                 src, dst, weights, bias, 0, 0);
-    }
+    });
 }
 
 #endif
@@ -670,13 +666,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     int ic_iters = jcp.nb_ic / jcp.ic_buffs;
 
-    int nthr = mkldnn_get_max_threads() / 2;
+    int nthr = mkldnn_get_max_threads();
 
-    omp_set_num_threads(nthr);
-    #pragma omp parallel
-    {
-
-        int ithr = omp_get_thread_num();
+    parallel(nthr, [&](const int ithr, const int nthr) {
 
         /*stringstream ss;
         ss << "t" << ithr << " work_amount:" << work_amount << " start:"
@@ -794,7 +786,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         jit_conv_ker_pipeline(kernel_->jit_ker,
                 par_conv, diff_src, diff_dst, weights, 0, 0, 1);
 
-    }
+    });
 }
 
 #endif
@@ -1052,15 +1044,15 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
         simple_barrier::ctx_init(&reduction_bctx_);
     }
 
-    int nthr = mkldnn_get_max_threads() / 2;
+    int nthr = mkldnn_get_max_threads();
 
     params_ = new param_t[nthr];
 
     int step = j.oc_buffs;
     int oc_iters = j.nb_oc / step;
 
-    int work_amount = j.ngroups * j.ic * oc_iters;
-    //int work_amount = j.ngroups * j.ic;
+    //int work_amount = j.ngroups * j.ic * oc_iters;
+    int work_amount = j.ngroups * j.ic;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int start, end;
@@ -1070,28 +1062,28 @@ jit_avx512_common_convolution_bwd_weights_t(const pd_t *pd,
 
         int g{0}, ocb{0}, ic_s{0};
 
-        nd_iterator_init(start, g, j.ngroups, ocb, oc_iters, ic_s, j.ic);
-        //nd_iterator_init(start, g, j.ngroups, ic_s, j.ic);
+        //nd_iterator_init(start, g, j.ngroups, ocb, oc_iters, ic_s, j.ic);
+        nd_iterator_init(start, g, j.ngroups, ic_s, j.ic);
 
 
         p.g[1] = p.g[0] = g;
-        p.ocb[1] = p.ocb[0] = ocb;
-        //p.ocb[1] = oc_iters - 1;
-        //p.ocb[0] = ocb;
+        //p.ocb[1] = p.ocb[0] = ocb;
+        p.ocb[1] = oc_iters - 1;
+        p.ocb[0] = ocb;
         p.ic[1] = p.ic[0] = ic_s;
 
         while (start < end) {
 
             p.g[1] = g;
-            p.ocb[1] = ocb;
+            //p.ocb[1] = ocb;
 
             int work_rem = end - start;
 
             p.ic[1] = ic_s + work_rem > j.ic ? j.ic : ic_s + work_rem;
 
-            nd_iterator_jump(start, end, g, j.ngroups, ocb,
-                    oc_iters, ic_s, j.ic);
-            //nd_iterator_jump(start, end, g, j.ngroups, ic_s, j.ic);
+            //nd_iterator_jump(start, end, g, j.ngroups, ocb,
+            //        oc_iters, ic_s, j.ic);
+            nd_iterator_jump(start, end, g, j.ngroups, ic_s, j.ic);
         }
 
         /*int g{0}, icb{0}, ocb_s{0};
@@ -1881,16 +1873,13 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     });*/
 
-    int nthr = mkldnn_get_max_threads() / 2;
+    int nthr = mkldnn_get_max_threads();
 
     int step = jcp.oc_buffs;
     int oc_iters = jcp.nb_oc / step;
 
-    omp_set_num_threads(nthr);
-    #pragma omp parallel
-    {
+    parallel(nthr, [&](const int ithr, const int nthr) {
 
-        int ithr = omp_get_thread_num();
         auto par_conv = jit_conv_call_s();
 
         size_t src_h_stride = src_d.blk_off(0, 0, 1);
@@ -1910,19 +1899,19 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
         for (int g = p.g[0]; g <= p.g[1]; ++g) {
 
-            //int ic_s = (g == p.g[0]) ? p.ic[0] : 0;
-            //int ic_e = (g == p.g[1]) ? p.ic[1] : jcp.ic;
+            int ic_s = (g == p.g[0]) ? p.ic[0] : 0;
+            int ic_e = (g == p.g[1]) ? p.ic[1] : jcp.ic;
 
-            int ocb_s = g == p.g[0] ? p.ocb[0] : 0;
-            int ocb_e = g == p.g[1] ? p.ocb[1] + 1 : oc_iters;
+            //int ocb_s = g == p.g[0] ? p.ocb[0] : 0;
+            //int ocb_e = g == p.g[1] ? p.ocb[1] + 1 : oc_iters;
             
-            for (int ocb = ocb_s; ocb < ocb_e; ++ocb) {
-            //for (int ocb = 0; ocb < oc_iters; ++ocb) {
+            //for (int ocb = ocb_s; ocb < ocb_e; ++ocb) {
+            for (int ocb = 0; ocb < oc_iters; ++ocb) {
 
                 //mkldnn_thr_barrier();
 
-                int ic_s = (g == p.g[0] && ocb == p.ocb[0]) ? p.ic[0] : 0;
-                int ic_e = (g == p.g[1] && ocb == p.ocb[1]) ? p.ic[1] : jcp.ic;
+                //int ic_s = (g == p.g[0] && ocb == p.ocb[0]) ? p.ic[0] : 0;
+                //int ic_e = (g == p.g[1] && ocb == p.ocb[1]) ? p.ic[1] : jcp.ic;
 
                 for (int i = 0; i < jcp.kh; ++i) {
                     flags[i] = 0;
@@ -1997,7 +1986,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                 src, diff_dst, diff_weights, 0, 0, 0);
 
 
-    }
+    });
 
     /*parallel_nd(jcp.ngroups, jcp.oc, jcp.ic, jcp.kh, jcp.kw,
             [&](int g, int oc, int ic, int kh, int kw) {
