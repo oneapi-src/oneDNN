@@ -22,7 +22,7 @@
 #include "mkldnn_thread.hpp"
 
 #include "../simple_q10n.hpp"
-#include "ref_rnn.hpp"
+#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,7 +33,7 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 
 template <>
-rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -57,16 +57,16 @@ rnn_elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise) {
 }
 
 template <>
-rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
     ws_gates_aoc_s32_t ws_gates_s32(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_u8_t states_t_l(rnn, states_t_l_);
     ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
     ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
 
-    float *weights_scales = pd()->attr()->rnn_weights_qparams_.scales_;
-    float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
-    float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
+    float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+    float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
+    float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
     auto q_d = [&](float f) {
         float qf = f * data_scale + data_shift;
@@ -74,7 +74,7 @@ rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
     };
 
     auto deq_w = [&](acc_data_t s, int gate, int j) {
-        return pd()->attr()->rnn_weights_qparams_.mask_ == 0 ?
+        return pd_->attr()->rnn_weights_qparams_.mask_ == 0 ?
                 saturate<float>(s) * (1.f / (weights_scales[0] * data_scale)) :
                 saturate<float>(s) * (1.f / (weights_scales[gate * rnn.dic + j]
                                                    * data_scale));
@@ -99,7 +99,7 @@ rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
 }
 
 template <>
-rnn_elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);

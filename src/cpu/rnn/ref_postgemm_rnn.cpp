@@ -21,7 +21,7 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 
-#include "ref_rnn.hpp"
+#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -68,7 +68,7 @@ float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
 }
 
 template <>
-rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -84,12 +84,12 @@ rnn_elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise) {
 }
 
 template <>
-rnn_elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::rnn_postgemm) {
     assert(!"VANILLA RNN int8 is not supported");
 }
 
 template <>
-rnn_elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise) {
+rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);

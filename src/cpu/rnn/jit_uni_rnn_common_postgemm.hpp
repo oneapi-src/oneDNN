@@ -40,7 +40,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     virtual void init() = 0;
 
 template <typename src_data_t, typename acc_data_t>
-    rnn_elemwise_sig(execute) {
+    rnn_postgemm_sig(execute) {
         rnn_utils::ws_gates_aoc<acc_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::bias_aoc_t bias(rnn, bias_);
         rnn_utils::ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
