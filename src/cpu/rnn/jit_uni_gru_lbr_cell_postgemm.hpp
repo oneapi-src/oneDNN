@@ -86,21 +86,17 @@ protected:
         preamble();
 
         // extract addresses passed as parameter
-#ifdef _WIN32
         auto addr_ws_gates_reg = abi_param1;
         auto addr_bias_reg = abi_param2;
         auto addr_states_t_l_reg = abi_param3;
         auto addr_states_tm1_l_reg = abi_param4;
+#ifdef _WIN32
         auto addr_ws_gemm_reg = r10;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
         mov(addr_ws_gemm_reg, ptr[rsp + get_size_of_abi_save_regs() + 40]);
 #else
-        auto addr_ws_gates_reg = abi_param1;
-        auto addr_bias_reg = abi_param2;
-        auto addr_states_t_l_reg = abi_param3;
-        auto addr_states_tm1_l_reg = abi_param4;
         auto addr_ws_gemm_reg = abi_param5;
 #endif
 
