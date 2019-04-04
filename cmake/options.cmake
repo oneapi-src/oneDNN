@@ -45,6 +45,7 @@ set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether Intel(R) MKL-DNN library should be SHARED or STATIC")
 option(MKLDNN_BUILD_EXAMPLES "builds examples"  ON)
 option(MKLDNN_BUILD_TESTS "builds tests" ON)
+option(MKLDNN_WERROR "treat warnings as errors" ON)
 
 set(MKLDNN_THREADING "OMP" CACHE STRING
     "specifies threading type; supports OMP (default), OMP:COMP, OMP:INTEL, or TBB.
@@ -153,8 +154,3 @@ set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
     MemoryWithOrigin: enables MemorySanitizer with origin tracking
     Undefined: enables UndefinedBehaviourSanitizer
     This feature is experimental and is only available on Linux.")
-
-option(MKLDNN_PRODUCT_BUILD_MODE
-    "Enables/disables product build mode. For example,
-    setting MKLDNN_PRODUCT_BUILD_MODE=OFF makes warnings non-fatal"
-    ON)
