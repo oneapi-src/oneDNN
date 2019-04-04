@@ -22,7 +22,7 @@
 #include "cpu_rnn_pd.hpp"
 
 
-#define rnn_elemwise_sig(f)                                               \
+#define rnn_postgemm_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,   \
             src_data_t *states_t_l_, float *c_states_t_l_,            \
             src_data_t *states_tm1_l_, float *c_states_tm1_l_,        \
