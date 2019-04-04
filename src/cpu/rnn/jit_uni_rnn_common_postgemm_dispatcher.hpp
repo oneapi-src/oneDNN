@@ -110,24 +110,24 @@ struct rnn_postgemm_dispatcher {
 	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core)) {
                     rnn_postgemm_ =
-                        new jit_uni_gru_cell_postgemm_1_fwd<avx512_core, src_type>(
+                        new jit_uni_gru_cell_postgemm_part1_fwd<avx512_core, src_type>(
                             rnn, pd);
                     rnn_postgemm_part2_ =
-                        new jit_uni_gru_cell_postgemm_2_fwd<avx512_core, src_type>(
+                        new jit_uni_gru_cell_postgemm_part2_fwd<avx512_core, src_type>(
                             rnn, pd);
                 } else if (mayiuse(avx2)) {
                     rnn_postgemm_ =
-                        new jit_uni_gru_cell_postgemm_1_fwd<avx2, src_type>(
+                        new jit_uni_gru_cell_postgemm_part1_fwd<avx2, src_type>(
                             rnn, pd);
                     rnn_postgemm_part2_ =
-                        new jit_uni_gru_cell_postgemm_2_fwd<avx2, src_type>(
+                        new jit_uni_gru_cell_postgemm_part2_fwd<avx2, src_type>(
                             rnn, pd);
                 } else if (mayiuse(sse42)) {
                     rnn_postgemm_ =
-                        new jit_uni_gru_cell_postgemm_1_fwd<sse42, src_type>(
+                        new jit_uni_gru_cell_postgemm_part1_fwd<sse42, src_type>(
                             rnn, pd);
                     rnn_postgemm_part2_ =
-                        new jit_uni_gru_cell_postgemm_2_fwd<sse42, src_type>(
+                        new jit_uni_gru_cell_postgemm_part2_fwd<sse42, src_type>(
                             rnn, pd);
                 }
             }

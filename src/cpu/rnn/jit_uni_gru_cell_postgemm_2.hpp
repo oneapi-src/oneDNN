@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GRU_CELL_POSTGEMM_2
-#define CPU_JIT_GRU_CELL_POSTGEMM_2
+#ifndef CPU_JIT_GRU_CELL_POSTGEMM_PART2
+#define CPU_JIT_GRU_CELL_POSTGEMM_PART2
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -24,9 +24,9 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t>
-struct jit_uni_gru_cell_postgemm_2_fwd: public jit_uni_rnn_postgemm
+struct jit_uni_gru_cell_postgemm_part2_fwd: public jit_uni_rnn_postgemm
 {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_2_fwd)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_part2_fwd)
 
     typedef typename utils::conditional<src_data_t == data_type::u8, int32_t,
             float>::type acc_data_t;
@@ -34,10 +34,10 @@ struct jit_uni_gru_cell_postgemm_2_fwd: public jit_uni_rnn_postgemm
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
 
-    jit_uni_gru_cell_postgemm_2_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
+    jit_uni_gru_cell_postgemm_part2_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
     : jit_uni_rnn_postgemm(rnn, pd){}
 
-    ~jit_uni_gru_cell_postgemm_2_fwd(){
+    ~jit_uni_gru_cell_postgemm_part2_fwd(){
         delete tanh_injector_;
     }
 
@@ -97,7 +97,7 @@ protected:
 
         L(vector_loop_start_label);
         {
-            // Compute gate 2
+            // Compute gate 2: G2 = tanh(G2 + b2)
             uni_vmovups(G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
             uni_vaddps(G2, G2, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             tanh_injector_->compute_vector(G2.getIdx());
@@ -133,7 +133,7 @@ protected:
             Xmm G0s(G0.getIdx()), G2s(G2.getIdx());
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
-            // Compute gate 2
+            // Compute gate 2: G2 = tanh(G2 + b2)
             uni_vmovss(G2s, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
             uni_vaddss(G2s, G2s, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             tanh_injector_->compute_vector(G2s.getIdx());
@@ -172,9 +172,9 @@ protected:
 
 };
 
-template struct jit_uni_gru_cell_postgemm_2_fwd<sse42, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_2_fwd<avx2, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_2_fwd<avx512_core, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part2_fwd<sse42, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part2_fwd<avx2, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part2_fwd<avx512_core, data_type::f32>;
 
 }
 }
