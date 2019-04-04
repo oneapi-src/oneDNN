@@ -78,6 +78,7 @@ template struct ref_pooling_fwd_t<data_type::f32>;
 template struct ref_pooling_bwd_t<data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::f16>;
 template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
+template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

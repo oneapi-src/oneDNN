@@ -169,7 +169,7 @@ __kernel void ref_pooling_fwd_kernel(
                 ws[dst_off] = 0;
 #        endif
 #        if POOLING_MAX == 1
-                DATA_T d = -DATA_MAX;
+                DATA_T d = DATA_MIN;
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh) {
                         for (int kw = 0; kw < KW; ++kw) {

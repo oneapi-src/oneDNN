@@ -329,7 +329,7 @@ TEST_P(pooling_test_u8, TestsPooling)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::nhwc,
@@ -348,7 +348,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding,
