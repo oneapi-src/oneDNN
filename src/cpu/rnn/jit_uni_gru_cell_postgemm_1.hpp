@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GRU_CELL_POSTGEMM_1
-#define CPU_JIT_GRU_CELL_POSTGEMM_1
+#ifndef CPU_JIT_GRU_CELL_POSTGEMM_PART1
+#define CPU_JIT_GRU_CELL_POSTGEMM_PART1
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -24,9 +24,9 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t>
-struct jit_uni_gru_cell_postgemm_1_fwd: public jit_uni_rnn_postgemm
+struct jit_uni_gru_cell_postgemm_part1_fwd: public jit_uni_rnn_postgemm
 {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_1_fwd)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_part1_fwd)
 
     typedef typename utils::conditional<src_data_t == data_type::u8, int32_t,
             float>::type acc_data_t;
@@ -34,10 +34,10 @@ struct jit_uni_gru_cell_postgemm_1_fwd: public jit_uni_rnn_postgemm
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
 
-    jit_uni_gru_cell_postgemm_1_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
+    jit_uni_gru_cell_postgemm_part1_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
     : jit_uni_rnn_postgemm(rnn, pd){}
 
-    ~jit_uni_gru_cell_postgemm_1_fwd(){
+    ~jit_uni_gru_cell_postgemm_part1_fwd(){
         delete sigmoid_injector_;
     }
 
@@ -96,14 +96,14 @@ protected:
 
         L(vector_loop_start_label);
         {
-            // Compute gate 0
+            // Compute gate 0: G0 = sigmoid(G0 + b0)
             uni_vmovups(G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
             uni_vaddps(G0, G0, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
             sigmoid_injector_->compute_vector(G0.getIdx());
-            // we store it for use in postgemm_2
+            // we store it for use in postgemm_part2
             uni_vmovups(ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size], G0);
 
-            // Compute gate 1
+            // Compute gate 1:  G1 = sigmoid(G1 + b1)
             uni_vmovups(G1, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
             uni_vaddps(G1, G1, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
             sigmoid_injector_->compute_vector(G1.getIdx());
@@ -134,14 +134,14 @@ protected:
             // remaping registers to Xmms
             Xmm G0s(G0.getIdx()), G1s(G1.getIdx());
 
-            // Compute gate 0
+            // Compute gate 0:  G0 = sigmoid(G0 + b0)
             uni_vmovss(G0s, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
             uni_vaddss(G0s, G0s, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
             sigmoid_injector_->compute_vector(G0s.getIdx());
-            // we store it for use in postgemm_2
+            // we store it for use in postgemm_part2
             uni_vmovss(ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size], G0s);
 
-            // Compute gate 1
+            // Compute gate 1: G1 = sigmoid(G1 + b1)
             uni_vmovss(G1s, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
             uni_vaddss(G1s, G1s, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
             sigmoid_injector_->compute_vector(G1s.getIdx());
@@ -172,9 +172,9 @@ protected:
 
 };
 
-template struct jit_uni_gru_cell_postgemm_1_fwd<sse42, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_1_fwd<avx2, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_1_fwd<avx512_core, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part1_fwd<sse42, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part1_fwd<avx2, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part1_fwd<avx512_core, data_type::f32>;
 
 }
 }
