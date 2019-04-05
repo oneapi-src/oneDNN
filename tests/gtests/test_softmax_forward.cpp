@@ -51,7 +51,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim c = 0; c < C; ++c) {
-                    result += dst_ptr[dst_mdw.off_l(n * C + c, true)];
+                    result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*C);
             }
@@ -61,7 +61,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim n = 0; n < MB; ++n) {
-                    result += dst_ptr[dst_mdw.off_l(n * C + c, true)];
+                    result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*MB);
             }
@@ -72,9 +72,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
         if (H*W == 0) return;
 
         auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w)
-        {
-            return ((size_t)n * W * H * C + (size_t)c * W * H + (size_t)h * W + w);
-        };
+        { return dst_mdw.off_l(n * W * H * C + c * W * H + h * W + w); };
 
         if (axis == 0) {
             for (memory::dim c = 0; c < C; ++c)
@@ -84,7 +82,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim n = 0; n < MB; ++n) {
-                    result += dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)];
+                    result += dst_ptr[off(n, c, h, w)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*MB);
             }
@@ -96,7 +94,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim c = 0; c < C; ++c) {
-                    result += dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)];
+                    result += dst_ptr[off(n, c, h, w)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*C);
             }
@@ -108,7 +106,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim h = 0; h < H; ++h) {
-                    result += dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)];
+                    result += dst_ptr[off(n, c, h, w)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*H);
             }
@@ -120,7 +118,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 result = 0.0f;
 
                 for (memory::dim w = 0; w < W; ++w) {
-                    result += dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)];
+                    result += dst_ptr[off(n, c, h, w)];
                 }
                 EXPECT_NEAR(result, 1.0, eps*W);
             }
@@ -173,9 +171,11 @@ protected:
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(mem_desc.get_size() / sizeof(data_t),
                     (data_t *)src.get_data_handle(), mean, var);
+            check_zero_tail<data_t>(1, src);
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
             check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
+            check_zero_tail<data_t>(0, dst);
         };
 
         test_with_given_fill(-50, 50);

@@ -38,14 +38,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     ASSERT_EQ(diff_dst_mdw.data_type(),
             memory::data_type::f32); // TODO: type assert
 
-    // Allocate buffer for reference BW result
     auto ndims = diff_dst_pd.data.ndims;
-    memory::dim total_dim_size = 1;
-    for (memory::dim i=0; i<ndims; ++i) {
-      total_dim_size *= diff_dst_pd.data.dims[i];
-    }
-    std::unique_ptr<data_t[]> diff_src_ref_ptr(new float[total_dim_size]);
-
     const float eps = 1e-7; //TODO: What should be the threshold?
 
     memory::dim OU = 1;
@@ -58,23 +51,19 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
         const memory::dim idx_start = ou * C * IN + in;
 
         float sbr = 0.0;
-        for (memory::dim c=0; c < C ; ++c) {
-            auto off_d = dst_mdw.off_l(idx_start + c * IN, true);
-            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN, true);
+        for (memory::dim c = 0; c < C; ++c) {
+            auto off_d = dst_mdw.off_l(idx_start + c * IN);
+            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN);
             sbr += dst_ptr[off_d] * diff_dst_ptr[off_dd];
         }
 
-        for (memory::dim c=0; c < C ; ++c) {
-            auto off_d = dst_mdw.off_l(idx_start + c * IN, true);
-            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN, true);
-            diff_src_ref_ptr[off_dd] =
-                dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
+        for (memory::dim c = 0; c < C; ++c) {
+            auto off_d = dst_mdw.off_l(idx_start + c * IN);
+            auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN);
+            data_t diff_src_ref = dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
+            EXPECT_NEAR(diff_src_ptr[off_dd], diff_src_ref, eps);
         }
     });
-
-    // Actual check
-    for (memory::dim i=0; i < OU*C*IN; ++i)
-        EXPECT_NEAR(diff_src_ptr[i], diff_src_ref_ptr[i], eps);
 }
 
 template <typename data_t>
@@ -141,11 +130,13 @@ protected:
             // Fill the softmax forward input
             fill_data<data_t>(data_mem_desc.get_size(),
                     (data_t *)src.get_data_handle(), mean, var);
+            check_zero_tail<data_t>(1, src);
 
             // Fill the softmax backward diffs
             // eg. data diff that comes from upper primitive/layer
             fill_data<data_t>(diff_mem_desc.get_size(),
                     (data_t *)diff_dst.get_data_handle(), data_t(0), data_t(1));
+            check_zero_tail<data_t>(1, diff_dst);
 
             softmax.execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
             softmax_bwd.execute(strm, {
@@ -154,6 +145,7 @@ protected:
                     {MKLDNN_ARG_DIFF_SRC, diff_src}});
 
             check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
+            check_zero_tail<data_t>(0, diff_src);
         };
 
         test_with_given_fill(-200, 1);
