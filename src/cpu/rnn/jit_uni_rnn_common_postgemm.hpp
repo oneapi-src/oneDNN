@@ -18,13 +18,16 @@
 #define CPU_JIT_RNN_POSTGEMM
 
 
-#include "rnn_utils.hpp"
-#include "../jit_generator.hpp"
-#include "../jit_uni_eltwise.hpp"
+#include "mkldnn_thread.hpp"
+
 #include "c_types_map.hpp"
 #include "utils.hpp"
 
-#include "mkldnn_thread.hpp"
+#include "../jit_generator.hpp"
+#include "../jit_uni_eltwise.hpp"
+
+#include "rnn_pd.hpp"
+#include "rnn_utils.hpp"
 
 namespace mkldnn {
 namespace impl {

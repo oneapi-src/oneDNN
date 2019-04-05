@@ -280,14 +280,6 @@ protected:
 
 };
 
-template struct jit_uni_rnn_cell_postgemm_fwd<sse42, data_type::f32>;
-template struct jit_uni_rnn_cell_postgemm_fwd<avx2, data_type::f32>;
-template struct jit_uni_rnn_cell_postgemm_fwd<avx512_core, data_type::f32>;
-
-template struct jit_uni_rnn_cell_postgemm_fwd<sse42, data_type::u8>;
-template struct jit_uni_rnn_cell_postgemm_fwd<avx2, data_type::u8>;
-template struct jit_uni_rnn_cell_postgemm_fwd<avx512_core, data_type::u8>;
-
 }
 }
 }

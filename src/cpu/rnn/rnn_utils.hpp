@@ -17,10 +17,9 @@
 #ifndef RNN_UTILS_HPP
 #define RNN_UTILS_HPP
 
-#include "mkldnn.h"
-
-#include "cpu_rnn_pd.hpp"
-
+#include "c_types_map.hpp"
+#include "memory_desc_wrapper.hpp"
+#include "utils.hpp"
 
 #define rnn_postgemm_sig(f)                                               \
     void f(const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,   \

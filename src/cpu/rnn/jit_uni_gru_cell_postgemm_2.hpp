@@ -172,10 +172,6 @@ protected:
 
 };
 
-template struct jit_uni_gru_cell_postgemm_part2_fwd<sse42, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_part2_fwd<avx2, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_part2_fwd<avx512_core, data_type::f32>;
-
 }
 }
 }

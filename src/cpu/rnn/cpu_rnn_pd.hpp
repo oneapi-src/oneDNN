@@ -19,9 +19,10 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
-#include "rnn_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
 namespace mkldnn {
