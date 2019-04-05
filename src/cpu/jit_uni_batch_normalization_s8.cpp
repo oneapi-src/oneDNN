@@ -368,11 +368,15 @@ struct jit_bnorm_t: public jit_generator {
     }
 };
 
+}
+
+namespace bnorm_s8_impl {
+
 template <cpu_isa_t isa>
-struct uni_bnorm_driver_t: public c_compatible {
-    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
+struct driver_t: public c_compatible {
+    driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_) {}
-    ~uni_bnorm_driver_t() {}
+    ~driver_t() {}
 
     void exec(int ithr, int nthr, const data_t *src, data_t *dst,
             const float *scale_shift, const float *mean, const float *var) {
@@ -441,7 +445,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_s8_fwd_t<isa>::jit_uni_batch_normalization_s8_fwd_t(
         const pd_t *apd): cpu_primitive_t(apd) {
-    bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd());
+    bnorm_driver_ = new bnorm_s8_impl::driver_t<isa>(pd());
 }
 
 template <cpu_isa_t isa>

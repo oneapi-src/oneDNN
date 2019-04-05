@@ -1053,9 +1053,13 @@ struct jit_bnorm_t: public jit_generator {
     }
 };
 
+}
+
+namespace bnorm_impl {
+
 template <cpu_isa_t isa>
-struct uni_bnorm_driver_t: public c_compatible {
-    uni_bnorm_driver_t(const batch_normalization_pd_t *bdesc)
+struct driver_t: public c_compatible {
+    driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_)
     {
         const int nthrs = mkldnn_get_max_threads();
@@ -1067,7 +1071,7 @@ struct uni_bnorm_driver_t: public c_compatible {
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
 
-    ~uni_bnorm_driver_t() {}
+    ~driver_t() {}
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {
@@ -1276,7 +1280,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         return status::unimplemented;
 
     auto scratchpad = scratchpad_registry().registrar();
-    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this);
 
     return status::success;
 }
@@ -1284,7 +1288,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *apd): cpu_primitive_t(apd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
+{ bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
@@ -1355,7 +1359,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
     /* TODO: extra checks required */
 
     auto scratchpad = scratchpad_registry().registrar();
-    uni_bnorm_driver_t<isa>::init_scratchpad(scratchpad, this);
+    bnorm_impl::driver_t<isa>::init_scratchpad(scratchpad, this);
 
     return status::success;
 }
@@ -1363,7 +1367,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *apd): cpu_primitive_t(apd)
-{ bnorm_driver_ = new uni_bnorm_driver_t<isa>(pd()); }
+{ bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd()); }
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
