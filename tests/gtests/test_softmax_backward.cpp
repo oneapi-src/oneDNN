@@ -169,6 +169,8 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxBackward, softmax_backward_test_float,
             softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 3},
             softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {16, 300}, 0},
             softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {16, 30000}, 1},
-            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {2, 1000}, 1}
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nc, memory::format_tag::nc, {2, 1000}, 1},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nChw8c, memory::format_tag::nChw8c, {64, 1011, 1, 1}, 1},
+            softmax_bwd_test_params_float{ engine::kind::cpu, memory::format_tag::nChw8c, memory::format_tag::nChw8c, {2, 1011, 32, 1}, 2}
 ));
 }

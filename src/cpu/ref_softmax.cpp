@@ -39,9 +39,14 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
+    const int axis = pd()->desc()->softmax_axis;
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const size_t ou_stride = axis > 0
+        ? data_d.blocking_desc().strides[axis - 1] : 1u;
+
     parallel_nd(outer_size_, [&](int ou) {
-        const data_t *src_data = src + ou * channels_;
-        data_t *dst_data = dst + ou * channels_;
+        const data_t *src_data = src + ou * ou_stride;
+        data_t *dst_data = dst + ou * ou_stride;
         data_t scalar = 0;
 
         _max(channels_, src_data, &scalar);
@@ -200,7 +205,7 @@ void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) const {
 template struct ref_softmax_fwd_t<data_type::f32>;
 
 
-// NC/NCHW softmax for along final axe (1 for NC, 3 for NCHW)
+// softmax along last physical dimension
 template <impl::data_type_t data_type>
 void ref_softmax_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
@@ -208,19 +213,24 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
+    const int axis = pd()->desc()->softmax_axis;
+    const memory_desc_wrapper diff_d(pd()->diff_dst_md());
+    const size_t ou_stride = axis > 0
+        ? diff_d.blocking_desc().strides[axis - 1] : 1u;
+
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = 0;
-        size_t off = channels_*ou;
-        for (int c = 0; c < channels_; c++) {
+        size_t off = ou * ou_stride;
+        for (int c = 0; c < channels_; ++c) {
             size_t loff = off + c;
             data_t ldata = dst[loff];
-            sbr += diff_dst[loff]*ldata;
+            sbr += diff_dst[loff] * ldata;
             diff_src[loff] = ldata;
         }
 
-        for(int c=0; c < channels_ ; ++c) {
-          size_t loff = off + c;
-          diff_src[loff] *= (diff_dst[loff] - sbr);
+        for(int c = 0; c < channels_; ++c) {
+            size_t loff = off + c;
+            diff_src[loff] *= (diff_dst[loff] - sbr);
         }
     });
 }
