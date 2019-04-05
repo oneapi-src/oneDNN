@@ -166,7 +166,7 @@ __kernel void ref_pooling_fwd_kernel(
             for (int ow = 0; ow < OW; ++ow) {
                 const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
 #        if POOLING_MAX == 1 && IS_TRAINING == 1
-                ws[dst_off] = 0;
+                ws[dst_off] = -1;
 #        endif
 #        if POOLING_MAX == 1
                 DATA_T d = DATA_MIN;
@@ -184,8 +184,10 @@ __kernel void ref_pooling_fwd_kernel(
                             if (iw < 0 || iw >= IW)
                                 continue;
 
+                            if (ws[dst_off] < 0)
+                                ws[dst_off] = kd * KH * KW + kh * KW + kw;
                             int src_off = SRC_OFF(mb, oc, id, ih, iw);
-                            float s = src[src_off];
+                            DATA_T s = src[src_off];
                             if (s > d) {
                                 d = s;
 #            if POOLING_MAX == 1 && IS_TRAINING == 1
