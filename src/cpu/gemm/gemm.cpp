@@ -93,14 +93,14 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *alpha,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc,
-        const float *bias, const bool force_jit_gemm) {
+        const float *bias, const bool force_jit_nocopy_gemm) {
     mkldnn_status_t status = check_gemm_input(transa, transb, M, N, K,
             lda, ldb, ldc, alpha, beta, bias != nullptr);
     if (status != mkldnn_success)
         return status;
 
 #ifdef USE_CBLAS
-    if (!force_jit_gemm) {
+    if (!force_jit_nocopy_gemm) {
         bool trA = *transa == 't' || *transa == 'T';
         bool trB = *transb == 't' || *transb == 'T';
         CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
@@ -128,7 +128,8 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         float *dummy_bo = NULL;
 
         return gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
-                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias);
+                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
+                force_jit_nocopy_gemm);
     } else {
         return ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
@@ -195,7 +196,7 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         case avx512_core_vnni:
             return gemm_driver(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
-                    C, LDC, co);
+                    C, LDC, co, false);
         default:
             return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);

@@ -1295,11 +1295,7 @@ static mkldnn_status_t gemm_threading_driver(
     if ((arg->m <= 0) || (arg->n <= 0))
         return mkldnn_success;
 
-    bool hasBiasForSgemm = (data_traits<a_type>::data_type == data_type::f32 &&
-            arg->co && arg->offsetc == COL_OFFSET);
-
-    // Use no-copy if there is bias or under avx ISA.
-    if (hasBiasForSgemm || (mayiuse(avx) && !mayiuse(avx2))) {
+    if (arg->force_nocopy) {
         return call_no_copy_sgemm(arg->transa, arg->transb,
                 arg->m, arg->n, arg->k, arg->alpha,
                 (float *) arg->a, arg->lda,
@@ -1437,7 +1433,8 @@ mkldnn_status_t gemm_driver(
         const int *m, const int *n, const int *k,
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
         const b_type *b, const int *ldb, const a_type *ob,
-        const float *beta, c_type *c, const int *ldc, const c_type *oc) {
+        const float *beta, c_type *c, const int *ldc, const c_type *oc,
+        const bool force_nocopy) {
 
     // gemm_driver supports 8-bit integer and for avx512_vnni and avx512_core.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
@@ -1448,7 +1445,7 @@ mkldnn_status_t gemm_driver(
             mayiuse(avx)));
 
     gemm_info_t<a_type, b_type, c_type> args(transA, transB, offsetC, m, n, k,
-            alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc);
+            alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc, force_nocopy);
 
     // Check if copy algorithm kernels were generated on supported ISAs.
     assert(args.hasKernels());
@@ -1462,7 +1459,8 @@ mkldnn_status_t gemm_driver<int8_t, uint8_t, int32_t>(
         const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
         const uint8_t *b, const int *ldb, const int8_t *ob,
-        const float *beta, int32_t *c, const int *ldc, const int32_t *oc);
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
+        const bool force_nocopy);
 
 template // Instantiate sgemm
 mkldnn_status_t gemm_driver<float, float, float>(
@@ -1470,7 +1468,8 @@ mkldnn_status_t gemm_driver<float, float, float>(
         const int *m, const int *n, const int *k,
         const float *alpha, const float *a, const int *lda, const float *oa,
         const float *b, const int *ldb, const float *ob,
-        const float *beta, float *c, const int *ldc, const float *oc);
+        const float *beta, float *c, const int *ldc, const float *oc,
+        const bool force_nocopy);
 
 }
 }

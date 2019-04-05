@@ -38,7 +38,8 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         const char *transB, const char *offsetC, const int *m, const int *n,
         const int *k, const float *alpha, const a_type *a, const int *lda,
         const a_type *oa, const b_type *b, const int *ldb, const a_type *ob,
-        const float *beta, c_type *c, const int *ldc, const c_type *oc) {
+        const float *beta, c_type *c, const int *ldc, const c_type *oc,
+        const bool force_nocopy) {
 
     char transa = *transA;
     char transb = *transB;
@@ -85,7 +86,16 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         this->co = oc;
     }
 
-    this->jit_init();
+    bool is_sgemm = data_traits<a_type>::data_type == data_type::f32;
+    bool has_bias = (is_sgemm && this->co && this->offsetc == COL_OFFSET);
+
+    // Use nocopy for sgemm if requested, if there is bias or if under avx ISA.
+    this->force_nocopy = is_sgemm &&
+        (force_nocopy || has_bias || (mayiuse(avx) && !mayiuse(avx2)));
+
+    if (!this->force_nocopy) {
+        this->jit_init();
+    }
 }
 
 template<typename a_type, typename b_type, typename c_type>
@@ -330,7 +340,7 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
         break;
 
     case data_type::f32:
-        if (mayiuse(avx2)) {
+        if (mayiuse(avx2) && !this->force_nocopy) {
             for (int isBeta0 : {no_beta0, do_beta0})
                 if (!this->kernel[isBeta0][no_col_offset][no_row_offset])
                     return false;
