@@ -392,6 +392,68 @@ INSTANTIATE_TEST_SUITE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
+GPU_INSTANTIATE_TEST_SUITE_P(
+        TestPoolingForward_gpu_3D, pooling_test_s8, ::testing::Values(
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_max, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_avg_include_padding, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_max, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_include_padding, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_max, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_include_padding, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
+            ));
+
+GPU_INSTANTIATE_TEST_SUITE_P(
+        TestPoolingForward_gpu_3D, pooling_test_u8, ::testing::Values(
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_max, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_training,
+            algorithm::pooling_avg_include_padding, memory::format_tag::ncdhw,
+            memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_max, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_include_padding, memory::format_tag::NCdhw16n16c,
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_max, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            pool_test_params{ prop_kind::forward_inference,
+            algorithm::pooling_avg_include_padding, memory::format_tag::nCdhw16c,
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
+            ));
+
 TEST_P(pooling_test_s32, TestsPooling)
 {
 }
