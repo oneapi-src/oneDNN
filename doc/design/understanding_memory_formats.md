@@ -235,7 +235,7 @@ turn out that those layouts are sub-optimal from performance perspective.
 In order to achieve better vectorization and cache re-usage Intel MKL-DNN
 introduces blocked layout that splits one or several dimensions into the
 blocks of fixed size. The most popular Intel MKL-DNN data format is
-**nChw16c** on AVX512+ systems and **nChw8c** on SSE4.2+ systems. As one
+**nChw16c** on AVX512+ systems and **nChw8c** on SSE4.1+ systems. As one
 might guess from the name the only dimension that is blocked is channels and
 the block size is either 16 in the former case or 8 in the later case.
 

@@ -131,7 +131,7 @@ configurations for **benchdnn**:
 
 |src type | wei type | dst type | acc type | cfg          | notes
 |:---     |:---      |:---      |:---      |:---          |:---
-| f32     | f32      | f32      | f32      | f32          | inference optimized for sse4.2+, training avx2+
+| f32     | f32      | f32      | f32      | f32          | inference optimized for sse4.1+, training avx2+
 | u8      | s8       | f32      | s32      | u8s8f32s32   | optimized for processors with support of avx512vl, forward pass only (aka FWD_D, FWD_B)
 | u8      | s8       | s32      | s32      | u8s8s32s32   | same notes as for u8s8f32s32
 | u8      | s8       | s8       | s32      | u8s8s8s32    | same notes as for u8s8f32s32

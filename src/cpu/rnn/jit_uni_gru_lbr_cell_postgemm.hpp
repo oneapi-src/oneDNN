@@ -76,7 +76,7 @@ protected:
         Reg64 loop_cnt(r11);  // loop counter
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
-        // We skip vmm0 as it can be used by the injector for masks on sse4.2
+        // We skip vmm0 as it can be used by the injector for masks on sse4.1
         Vmm G0(1), G1(2), G2(3), tmp1_vmm(5);
 
         // constant table map

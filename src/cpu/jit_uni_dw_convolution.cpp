@@ -143,7 +143,7 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward(
 
 template struct _jit_uni_dw_convolution_fwd_t<avx512_common>;
 template struct _jit_uni_dw_convolution_fwd_t<avx2>;
-template struct _jit_uni_dw_convolution_fwd_t<sse42>;
+template struct _jit_uni_dw_convolution_fwd_t<sse41>;
 
 template <cpu_isa_t isa>
 void _jit_uni_dw_convolution_bwd_data_t<isa>::execute_backward_data(
@@ -244,7 +244,7 @@ void _jit_uni_dw_convolution_bwd_data_t<isa>::execute_backward_data(
 
 template struct _jit_uni_dw_convolution_bwd_data_t<avx512_common>;
 template struct _jit_uni_dw_convolution_bwd_data_t<avx2>;
-template struct _jit_uni_dw_convolution_bwd_data_t<sse42>;
+template struct _jit_uni_dw_convolution_bwd_data_t<sse41>;
 
 template <cpu_isa_t isa>
 _jit_uni_dw_convolution_bwd_weights_t<isa>::
@@ -420,7 +420,7 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa>::execute_backward_weights(
 
 template struct _jit_uni_dw_convolution_bwd_weights_t<avx512_common>;
 template struct _jit_uni_dw_convolution_bwd_weights_t<avx2>;
-template struct _jit_uni_dw_convolution_bwd_weights_t<sse42>;
+template struct _jit_uni_dw_convolution_bwd_weights_t<sse41>;
 
 }
 }

@@ -60,9 +60,9 @@ struct rnn_postgemm_dispatcher {
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<avx2, src_type>(
                             rnn, pd);
-                else if (mayiuse(sse42))
+                else if (mayiuse(sse41))
                     rnn_postgemm_ =
-                        new jit_uni_lstm_cell_postgemm_fwd<sse42, src_type>(
+                        new jit_uni_lstm_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
             }
             if (rnn_postgemm_)
@@ -81,9 +81,9 @@ struct rnn_postgemm_dispatcher {
                     rnn_postgemm_ =
                         new jit_uni_rnn_cell_postgemm_fwd<avx2, src_type>(
                             rnn, pd);
-                else if (mayiuse(sse42))
+                else if (mayiuse(sse41))
                     rnn_postgemm_ =
-                        new jit_uni_rnn_cell_postgemm_fwd<sse42, src_type>(
+                        new jit_uni_rnn_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
             }
             if (rnn_postgemm_)
@@ -122,12 +122,12 @@ struct rnn_postgemm_dispatcher {
                     rnn_postgemm_part2_ =
                         new jit_uni_gru_cell_postgemm_part2_fwd<avx2, src_type>(
                             rnn, pd);
-                } else if (mayiuse(sse42)) {
+                } else if (mayiuse(sse41)) {
                     rnn_postgemm_ =
-                        new jit_uni_gru_cell_postgemm_part1_fwd<sse42, src_type>(
+                        new jit_uni_gru_cell_postgemm_part1_fwd<sse41, src_type>(
                             rnn, pd);
                     rnn_postgemm_part2_ =
-                        new jit_uni_gru_cell_postgemm_part2_fwd<sse42, src_type>(
+                        new jit_uni_gru_cell_postgemm_part2_fwd<sse41, src_type>(
                             rnn, pd);
                 }
             }
@@ -151,9 +151,9 @@ struct rnn_postgemm_dispatcher {
                     rnn_postgemm_ =
                         new jit_uni_gru_lbr_cell_postgemm_fwd<avx2, src_type>(
                             rnn, pd);
-                else if (mayiuse(sse42))
+                else if (mayiuse(sse41))
                     rnn_postgemm_ =
-                        new jit_uni_gru_lbr_cell_postgemm_fwd<sse42, src_type>(
+                        new jit_uni_gru_lbr_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
                 assert(rnn_postgemm_ != nullptr);
                 rnn_postgemm_->init();

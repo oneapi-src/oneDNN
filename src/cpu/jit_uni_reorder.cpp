@@ -114,7 +114,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
             && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
             && simple_impl_desc_init(p, nullptr)
-            && mayiuse(sse42)
+            && mayiuse(sse41)
             && IMPLICATION(!utils::everyone_is(f32, p.itype, p.otype),
                     mayiuse(avx));
         if (!ok) return false;
@@ -604,7 +604,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
         const bool optimized = false
             || process_direct_copy<avx>(d.len_unroll)
-            || process_direct_copy<sse42>(d.len_unroll)
+            || process_direct_copy<sse41>(d.len_unroll)
             || process_unroll_tr8x8(d.len_unroll);
         if (!optimized)
             process_unroll_generic(d.len_unroll);

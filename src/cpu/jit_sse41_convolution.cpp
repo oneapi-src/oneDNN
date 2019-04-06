@@ -17,7 +17,7 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "jit_sse42_convolution.hpp"
+#include "jit_sse41_convolution.hpp"
 #include "mkldnn_thread.hpp"
 
 namespace mkldnn {
@@ -41,7 +41,7 @@ using namespace mkldnn::impl::utils;
         ? wht_blk_off_(f, g, oc, ic, kw) \
         : wht_blk_off_(f, g, oc, ic, kh, kw)
 
-void jit_sse42_convolution_fwd_t::execute_forward(
+void jit_sse41_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);

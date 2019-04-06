@@ -93,8 +93,8 @@ request will be merged to the repository.
 ## System Requirements
 Intel MKL-DNN supports Intel 64 architecture and compatible architectures.
 The library is optimized for the systems based on
-* Intel Atom(R) processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
+* Intel(R) Core(TM) and Intel Atom(R) processors with Intel(R) SSE4.1 or newer instruction set support
+* Intel Atom(R) processor with Intel SSE4.2 support
 * Intel(R) Xeon(R) processor E5 v3 family (formerly Haswell)
 * Intel Xeon processor E5 v4 family (formerly Broadwell)
 * Intel Xeon Platinum processor family (formerly Skylake)

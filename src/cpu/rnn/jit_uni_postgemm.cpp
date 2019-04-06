@@ -26,28 +26,28 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template struct jit_uni_gru_cell_postgemm_part1_fwd<sse42, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part1_fwd<sse41, data_type::f32>;
 template struct jit_uni_gru_cell_postgemm_part1_fwd<avx2, data_type::f32>;
 template struct jit_uni_gru_cell_postgemm_part1_fwd<avx512_core, data_type::f32>;
-template struct jit_uni_gru_cell_postgemm_part2_fwd<sse42, data_type::f32>;
+template struct jit_uni_gru_cell_postgemm_part2_fwd<sse41, data_type::f32>;
 template struct jit_uni_gru_cell_postgemm_part2_fwd<avx2, data_type::f32>;
 template struct jit_uni_gru_cell_postgemm_part2_fwd<avx512_core, data_type::f32>;
 
-template struct jit_uni_gru_lbr_cell_postgemm_fwd<sse42, data_type::f32>;
+template struct jit_uni_gru_lbr_cell_postgemm_fwd<sse41, data_type::f32>;
 template struct jit_uni_gru_lbr_cell_postgemm_fwd<avx2, data_type::f32>;
 template struct jit_uni_gru_lbr_cell_postgemm_fwd<avx512_core, data_type::f32>;
 
-template struct jit_uni_lstm_cell_postgemm_fwd<sse42, data_type::f32>;
+template struct jit_uni_lstm_cell_postgemm_fwd<sse41, data_type::f32>;
 template struct jit_uni_lstm_cell_postgemm_fwd<avx2, data_type::f32>;
 template struct jit_uni_lstm_cell_postgemm_fwd<avx512_core, data_type::f32>;
-template struct jit_uni_lstm_cell_postgemm_fwd<sse42, data_type::u8>;
+template struct jit_uni_lstm_cell_postgemm_fwd<sse41, data_type::u8>;
 template struct jit_uni_lstm_cell_postgemm_fwd<avx2, data_type::u8>;
 template struct jit_uni_lstm_cell_postgemm_fwd<avx512_core, data_type::u8>;
 
-template struct jit_uni_rnn_cell_postgemm_fwd<sse42, data_type::f32>;
+template struct jit_uni_rnn_cell_postgemm_fwd<sse41, data_type::f32>;
 template struct jit_uni_rnn_cell_postgemm_fwd<avx2, data_type::f32>;
 template struct jit_uni_rnn_cell_postgemm_fwd<avx512_core, data_type::f32>;
-template struct jit_uni_rnn_cell_postgemm_fwd<sse42, data_type::u8>;
+template struct jit_uni_rnn_cell_postgemm_fwd<sse41, data_type::u8>;
 template struct jit_uni_rnn_cell_postgemm_fwd<avx2, data_type::u8>;
 template struct jit_uni_rnn_cell_postgemm_fwd<avx512_core, data_type::u8>;
 

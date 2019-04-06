@@ -66,12 +66,12 @@ struct jit_bnorm_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
 
     /* cpu specific part */
-    using Vmm = typename utils::conditional3<isa == sse42, Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xmm,
                                              isa == avx2, Ymm, Zmm>::type;
-    const AddressFrame &vmmword = (isa == sse42) ? xword :
+    const AddressFrame &vmmword = (isa == sse41) ? xword :
                                   (isa == avx2) ? yword : zword;
 
-    const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
+    const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *bdesc_;
     bool is_spatial_thr_;
@@ -490,7 +490,7 @@ struct jit_bnorm_t: public jit_generator {
                         size_t offt = i * vlen;
                         uni_vmovups(vtmp0,
                             vmmword[reg_src + reg_soff + offt]);
-                        if (isa == sse42) {
+                        if (isa == sse41) {
                             movups(vtmp1, vmean);
                             subps(vtmp1, vtmp0);
                         } else {
@@ -522,7 +522,7 @@ struct jit_bnorm_t: public jit_generator {
         Label zero_rbuf;
         L(zero_rbuf); {
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
-            add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+            add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
             cmp(reg_coff, reg_coff_max);
             jne(zero_rbuf);
         }
@@ -534,12 +534,12 @@ struct jit_bnorm_t: public jit_generator {
         L(mean_spatial); {
             xor_(reg_coff, reg_coff);
 
-            if (isa == sse42)
+            if (isa == sse41)
                 mov(reg_tmp_off, reg_soff);
 
             mean_channels();
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_src, vlen / 2);
                 mov(reg_coff, vlen / 2);
@@ -578,7 +578,7 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vdivps(Vmm(1), Vmm(1), vchan_size);
                 uni_vmovups_maybe_tail(mean_ptr(), Vmm(1));
 
-                add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+                add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
 
                 cmp(reg_coff, reg_coff_max);
                 jne(mean_reduction_channels);
@@ -592,12 +592,12 @@ struct jit_bnorm_t: public jit_generator {
         L(var_spatial); {
             xor_(reg_coff, reg_coff);
 
-            if (isa == sse42)
+            if (isa == sse41)
                 mov(reg_tmp_off, reg_soff);
 
             var_channels();
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_src, vlen / 2);
                 mov(reg_coff, vlen / 2);
@@ -634,7 +634,7 @@ struct jit_bnorm_t: public jit_generator {
                 }
                 uni_vdivps(Vmm(1), Vmm(1), vchan_size);
                 uni_vmovups_maybe_tail(var_ptr(), Vmm(1));
-                add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+                add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
 
                 cmp(reg_coff, reg_coff_max);
                 jne(var_reduction_channels);
@@ -660,7 +660,7 @@ struct jit_bnorm_t: public jit_generator {
             Vmm vscale = bdesc_->use_scaleshift() ? vgamma : vone;
             Vmm vdiv = bdesc_->use_scaleshift() ? vgamma : vsqrtvar;
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 movups(vbuf, vscale);
                 divps(vbuf, vsqrtvar);
                 movups(vdiv, vbuf);
@@ -730,12 +730,12 @@ struct jit_bnorm_t: public jit_generator {
         Label dst_spatial;
         L(dst_spatial); {
             xor_(reg_coff, reg_coff);
-            if (isa == sse42)
+            if (isa == sse41)
                 mov(reg_tmp_off, reg_soff);
 
             forward_channels();
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_src, vlen / 2);
                 add(reg_dst, vlen / 2);
@@ -787,7 +787,7 @@ struct jit_bnorm_t: public jit_generator {
                                 assert(false);
                         }
                         uni_vsubps(t3, vmean, t1, t3);
-                        if (isa == sse42) {
+                        if (isa == sse41) {
                             mulps(t3, t2);
                             subps(o0, t3);
                         } else {
@@ -910,7 +910,7 @@ struct jit_bnorm_t: public jit_generator {
         L(zero_rbuf); {
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
             uni_vmovups(vmmword[reg_rbuf2 + reg_coff], Vmm(0));
-            add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+            add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
             cmp(reg_coff, reg_coff_max);
             jne(zero_rbuf);
         }
@@ -925,11 +925,11 @@ struct jit_bnorm_t: public jit_generator {
         xor_(reg_soff, reg_soff);
         L(sh_spatial); {
             xor_(reg_coff, reg_coff);
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_tmp_off, reg_soff);
             }
             backward_sh_channels();
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_diff_dst, vlen / 2);
                 add(reg_src, vlen / 2);
@@ -974,7 +974,7 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vmulps(Vmm(0), Vmm(0), vsqrtvar);
                 uni_vmovups_maybe_tail(diff_gamma_ptr(), Vmm(0));
                 uni_vmovups_maybe_tail(diff_beta_ptr(), Vmm(1));
-                add(reg_coff, isa == sse42 ? vlen / 2 : vlen);
+                add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
                 cmp(reg_coff, reg_coff_max);
                 jne(sh_reduction_channels);
             }
@@ -992,11 +992,11 @@ struct jit_bnorm_t: public jit_generator {
         Label diff_spatial;
         L(diff_spatial); {
             xor_(reg_coff, reg_coff);
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_tmp_off, reg_soff);
             }
             backward_diff_channels();
-            if (isa == sse42) {
+            if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
                 add(reg_diff_dst, vlen / 2);
                 add(reg_diff_src, vlen / 2);
@@ -1014,10 +1014,10 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
-        static_assert(isa == sse42 || isa == avx2 || isa == avx512_common
+        static_assert(isa == sse41 || isa == avx2 || isa == avx512_common
                 || isa == avx512_mic, "unsupported isa");
 
-        const int simd_w = isa == sse42 ? 8 :
+        const int simd_w = isa == sse41 ? 8 :
             cpu_isa_traits<isa>::vlen / sizeof(data_t);
         is_spatial_thr_ =
             bnorm_utils::is_spatial_thr(bdesc_, simd_w, sizeof(data_t));
@@ -1109,7 +1109,7 @@ struct driver_t: public c_compatible {
         dim_t W = bdesc_->W();
         dim_t SP = D * H * W;
         dim_t img_size = C_PADDED * D * H * W;
-        const int vlen = isa == sse42 ? 32 : cpu_isa_traits<isa>::vlen;
+        const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
 
         typename jit_bnorm_t<isa>::call_params_t p;
 
@@ -1219,7 +1219,7 @@ struct driver_t: public c_compatible {
 
 private:
     enum {
-        simd_w = isa == sse42 ? 8 : cpu_isa_traits<isa>::vlen / sizeof(data_t)
+        simd_w = isa == sse41 ? 8 : cpu_isa_traits<isa>::vlen / sizeof(data_t)
     };
 
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
@@ -1327,8 +1327,8 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t()
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
     auto desired_fmt_tag = (ndims() == 4)
-        ? one_of(isa, sse42, avx2) ? nChw8c : nChw16c
-        : one_of(isa, sse42, avx2) ? nCdhw8c : nCdhw16c;
+        ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
+        : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;
 
     bool ok = true
         && mayiuse(isa)
@@ -1399,8 +1399,8 @@ jit_uni_batch_normalization_bwd_t<isa>::~jit_uni_batch_normalization_bwd_t()
 { delete bnorm_driver_; }
 
 /* struct instantiation */
-template struct jit_uni_batch_normalization_fwd_t<sse42>;
-template struct jit_uni_batch_normalization_bwd_t<sse42>;
+template struct jit_uni_batch_normalization_fwd_t<sse41>;
+template struct jit_uni_batch_normalization_bwd_t<sse41>;
 template struct jit_uni_batch_normalization_fwd_t<avx2>;
 template struct jit_uni_batch_normalization_bwd_t<avx2>;
 template struct jit_uni_batch_normalization_fwd_t<avx512_common>;

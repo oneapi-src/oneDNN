@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "memory.hpp"
 
-#include "jit_sse42_1x1_conv_kernel_f32.hpp"
+#include "jit_sse41_1x1_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
@@ -34,7 +34,7 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 
-void jit_sse42_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk)
+void jit_sse41_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk)
 {
     mov(aux1_reg_bcast_data, reg_bcast_data);
     mov(aux_reg_output_data, reg_output_data);
@@ -77,7 +77,7 @@ void jit_sse42_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk)
     }
 }
 
-void jit_sse42_1x1_conv_kernel_f32::generate_reduce_loop(
+void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         int load_loop_blk, int ur)
 {
     auto reg_load = [=](int i, int n) {
@@ -270,7 +270,7 @@ void jit_sse42_1x1_conv_kernel_f32::generate_reduce_loop(
     store();
 } // reduce_loop()
 
-void jit_sse42_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk)
+void jit_sse41_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk)
 {
     if (!jcp.with_bias || jcp.prop_kind != backward_weights)
         return;
@@ -336,7 +336,7 @@ void jit_sse42_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk)
     L(diff_bias_loop_out);
 }
 
-void jit_sse42_1x1_conv_kernel_f32::generate()
+void jit_sse41_1x1_conv_kernel_f32::generate()
 {
     preamble();
 
@@ -434,7 +434,7 @@ void jit_sse42_1x1_conv_kernel_f32::generate()
         eltwise_injector_->prepare_table();
 }
 
-bool jit_sse42_1x1_conv_kernel_f32::post_ops_ok(
+bool jit_sse41_1x1_conv_kernel_f32::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
@@ -451,12 +451,12 @@ bool jit_sse42_1x1_conv_kernel_f32::post_ops_ok(
     return false;
 }
 
-status_t jit_sse42_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
+status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr)
 {
-    if (!mayiuse(sse42))
+    if (!mayiuse(sse41))
         return status::unimplemented;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the

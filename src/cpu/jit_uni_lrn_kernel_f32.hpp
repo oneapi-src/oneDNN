@@ -122,7 +122,7 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
         int hoff, int Hoff, int woff, int Woff, int stride,
         Xbyak::Ymm ysum, Xbyak::Ymm ydst, Xbyak::Ymm ytmp, Xbyak::Ymm ysum2,
         prop_kind_t pk);
-    void within_body_sse42(
+    void within_body_sse41(
         int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
 
 
@@ -134,11 +134,11 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
         Xbyak::Ymm yd,
         Xbyak::Ymm ye,
         Xbyak::Ymm ysum);
-    void nchw_body_sse42(int tail, int HW, prop_kind_t pk,
+    void nchw_body_sse41(int tail, int HW, prop_kind_t pk,
         Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
         Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
         Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
-    void nchw_tail_sse42(int tail, Xbyak::Reg64 reg_dst,
+    void nchw_tail_sse41(int tail, Xbyak::Reg64 reg_dst,
         Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi);
 
     void operator()(jit_args_fwd_t *arg) { ker(arg); }

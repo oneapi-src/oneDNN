@@ -534,7 +534,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         ? cpu_isa_traits<avx512_common>::vlen
         : mayiuse(avx)
             ? cpu_isa_traits<avx>::vlen
-            : mayiuse(sse42) ? cpu_isa_traits<sse42>::vlen : 4;
+            : mayiuse(sse41) ? cpu_isa_traits<sse41>::vlen : 4;
     const int simd_w = vlen / (is_int8_conv ? 1 : 4);
 
     const bool is_bwd_d = jcp.prop_kind == backward_data;

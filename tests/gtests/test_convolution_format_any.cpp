@@ -39,9 +39,9 @@ class convolution_any_fmt_test
 protected:
     virtual void SetUp() {
         // Skip this test if the library cannot select blocked format a priori.
-        // Currently blocking is supported only for sse42 and later CPUs.
+        // Currently blocking is supported only for sse41 and later CPUs.
         bool implementation_supports_blocking
-            = impl::cpu::mayiuse(impl::cpu::sse42);
+            = impl::cpu::mayiuse(impl::cpu::sse41);
         if (!implementation_supports_blocking) return;
 
         auto p = ::testing::TestWithParam<conv_any_fmt_test_params>::GetParam();

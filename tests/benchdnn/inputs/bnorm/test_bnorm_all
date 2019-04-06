@@ -2,7 +2,7 @@
 --reset --dt=f32
 --skip-impl=ref
 
---tag=nChw8c # sse4.2 and avx2
+--tag=nChw8c # sse4.1 and avx2
 
 --dir=FWD_D
 --flags=SR --batch=bnorm_topo

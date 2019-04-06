@@ -19,7 +19,7 @@
 #include "type_helpers.hpp"
 #include "memory.hpp"
 
-#include "jit_sse42_conv_kernel_f32.hpp"
+#include "jit_sse41_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
@@ -33,7 +33,7 @@ using namespace mkldnn::impl::utils;
 
 using namespace Xbyak;
 
-void jit_sse42_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
+void jit_sse41_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
         int pad_l, int pad_r, int oc_blocks)
 {
     int iw = jcp.iw;
@@ -80,7 +80,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_unroll_kw(int ur_w,
     }
 }
 
-void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
+void jit_sse41_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
         int pad_l, int pad_r, int oc_blocks)
 {
     Label kw_loop;
@@ -134,7 +134,7 @@ void jit_sse42_conv_fwd_kernel_f32::oh_step_nopad(int ur_w,
     }
 }
 
-void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
+void jit_sse41_conv_fwd_kernel_f32::width_blk_step(int ur_w,
         int pad_l, int pad_r, int oc_blocks)
 {
     int iw = jcp.iw;
@@ -257,7 +257,7 @@ void jit_sse42_conv_fwd_kernel_f32::width_blk_step(int ur_w,
     sub(reg_bias,   sizeof(float) * 8);
 }
 
-inline void jit_sse42_conv_fwd_kernel_f32::solve_common(int oc_blocks)
+inline void jit_sse41_conv_fwd_kernel_f32::solve_common(int oc_blocks)
 {
     int ur_w = jcp.ur_w;
     int ur_w_tail = jcp.ur_w_tail;
@@ -312,7 +312,7 @@ inline void jit_sse42_conv_fwd_kernel_f32::solve_common(int oc_blocks)
         width_blk_step(ur_w_tail, 0, r_pad, oc_blocks); // "tail"
 }
 
-void jit_sse42_conv_fwd_kernel_f32::generate()
+void jit_sse41_conv_fwd_kernel_f32::generate()
 {
     this->preamble();
 
@@ -349,7 +349,7 @@ void jit_sse42_conv_fwd_kernel_f32::generate()
         eltwise_injector_->prepare_table();
 }
 
-bool jit_sse42_conv_fwd_kernel_f32::post_ops_ok(
+bool jit_sse41_conv_fwd_kernel_f32::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
@@ -366,12 +366,12 @@ bool jit_sse42_conv_fwd_kernel_f32::post_ops_ok(
     return false;
 }
 
-status_t jit_sse42_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
+status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr)
 {
-    if (!mayiuse(sse42)) return status::unimplemented;
+    if (!mayiuse(sse41)) return status::unimplemented;
 
     jcp.prop_kind = cd.prop_kind;
 

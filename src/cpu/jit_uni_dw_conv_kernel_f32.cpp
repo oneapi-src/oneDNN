@@ -37,7 +37,7 @@ using namespace Xbyak;
 
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(int ur_ch_blocks, int ur_w) {
-    int repeats = isa == sse42 ? 2 : 1;
+    int repeats = isa == sse41 ? 2 : 1;
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int ow = 0; ow < ur_w; ow++) {
@@ -84,7 +84,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter(
 
         Label kw_label;
         L(kw_label); {
-            int repeats = isa == sse42 ? 2 : 1;
+            int repeats = isa == sse41 ? 2 : 1;
             for (int i = 0; i < repeats; i++) {
                 for (int ch = 0; ch < ur_ch_blocks; ch++) {
                     int ker_off = ch*jcp.kh*jcp.kw*ch_blk + i*4;
@@ -139,7 +139,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     mov(iter_kh, reg_kh);
     Label kh_label;
     L(kh_label); {
-        int repeats = isa == sse42 ? 2 : 1;
+        int repeats = isa == sse41 ? 2 : 1;
         for (int i = 0; i < repeats; i++) {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
                 for (int kw = 0; kw < jcp.kw; kw++) {
@@ -180,7 +180,7 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_activation(
         int ur_ch_blocks, int ur_w) {
     if (this->jcp.with_eltwise) {
-        int repeats = isa == sse42 ? 2 : 1;
+        int repeats = isa == sse41 ? 2 : 1;
         eltwise_injector_->compute_vector_range(4, repeats * ur_w * ur_ch_blocks + 4);
     }
 }
@@ -190,7 +190,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
         int ur_ch_blocks, int ur_w) {
     int ch_blk = jcp.ch_block;
 
-    int repeats = isa == sse42 ? 2 : 1;
+    int repeats = isa == sse41 ? 2 : 1;
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int ow = 0; ow < ur_w; ow++) {
@@ -415,12 +415,12 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::init_scratchpad(
 
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_fwd_kernel_f32<sse42>;
+template struct jit_uni_dw_conv_fwd_kernel_f32<sse41>;
 
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::load_ddst(
         int ur_ch_blocks, int ur_str_w) {
-    int repeats = isa == sse42 ? 2 : 1;
+    int repeats = isa == sse41 ? 2 : 1;
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int w = 0; w < ur_str_w; w++) {
@@ -461,7 +461,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
         mov(iter_kw, reg_kw);
         Label kw_label;
         L(kw_label); {
-            int repeats = isa == sse42 ? 2 : 1;
+            int repeats = isa == sse41 ? 2 : 1;
             for (int i = 0; i < repeats; i++) {
                 for (int ch = 0; ch < ur_ch_blocks; ch++) {
                     int ker_off = ch*kh*kw*ch_blk + i*4;
@@ -510,7 +510,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
     int ih = jcp.ih;
     int stride_w = jcp.stride_w;
 
-    int repeats = isa == sse42 ? 2 : 1;
+    int repeats = isa == sse41 ? 2 : 1;
     for (int i = 0; i < repeats; i++) {
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int w = 0; w < ur_str_w; w++) {
@@ -705,7 +705,7 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
 
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse42>;
+template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse41>;
 
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_filter() {
@@ -799,8 +799,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 Vmm vmm_input = get_input_reg(
                         ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
                 Vmm vmm_acc = get_acc_reg(i_kw * reg_repeats + r);
-                Vmm vmm_aux = isa == sse42 ? get_aux_reg() : vmm_input;
-                if (isa == sse42)
+                Vmm vmm_aux = isa == sse41 ? get_aux_reg() : vmm_input;
+                if (isa == sse41)
                     uni_vmovups(vmm_aux, vmm_input);
                 uni_vfmadd231ps(vmm_acc, vmm_aux, vmm_output);
             }
@@ -816,8 +816,8 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
         for (int i = 0; i < unroll_w; ++i) {
             Vmm vmm_bias = get_bias_reg(r);
             int off_output = (i * reg_repeats + r) * simd_w;
-            if (isa == sse42) {
-                /* Need to support unaligned address loads for SSE42*/
+            if (isa == sse41) {
+                /* Need to support unaligned address loads for SSE41 */
                 Vmm vmm_output = get_output_reg(1 + r);
                 uni_vmovups(vmm_output,
                         ptr[reg_tmp_output + off_output * sizeof(float)]);
@@ -1295,7 +1295,7 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::balance(jit_conv_conf_t &jcp,
 
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse42>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse41>;
 
 }
 }

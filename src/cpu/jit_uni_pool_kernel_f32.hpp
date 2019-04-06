@@ -49,13 +49,13 @@ struct jit_uni_pool_kernel_f32: public jit_generator {
     static status_t init_conf(jit_pool_conf_t &jbp, const pooling_pd_t *ppd);
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xmm, isa == avx,
+    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx,
                                              Ymm, Zmm>::type;
     Xmm xreg(int idx) { return Xmm((isa == avx512_common ? 31 : 15) - idx); }
     Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
     Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
-    const AddressFrame &vmmword = (isa == sse42) ? xword :
+    const AddressFrame &vmmword = (isa == sse41) ? xword :
                                   (isa == avx) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
@@ -73,7 +73,7 @@ private:
     Opmask k_store_mask = Opmask(7);
 
     // Here be some (tame) dragons. This kernel does not follow the regular
-    // OS-agnostic ABI pattern because when isa is sse42 it uses maskmovdqu
+    // OS-agnostic ABI pattern because when isa is sse41 it uses maskmovdqu
     // instruction which has its destination hardcoded in rdi. Therefore:
     // - all registers are hardcoded
     // - on Windows rdi and rcx are swapped to mimic the Unix x86_64 ABI

@@ -294,7 +294,7 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
     return args_ok_across ? success : unimplemented;
 }
 
-template struct jit_uni_lrn_fwd_t<sse42>;
+template struct jit_uni_lrn_fwd_t<sse41>;
 template struct jit_uni_lrn_fwd_t<avx2>;
 template struct jit_uni_lrn_bwd_t<avx2>;
 

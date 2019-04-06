@@ -100,7 +100,7 @@ private:
 using jit_avx512_common_dw_convolution_fwd_t =
     _jit_uni_dw_convolution_fwd_t<avx512_common>;
 using jit_avx2_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<avx2>;
-using jit_sse42_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<sse42>;
+using jit_sse41_dw_convolution_fwd_t = _jit_uni_dw_convolution_fwd_t<sse41>;
 
 template <cpu_isa_t isa>
 struct _jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
@@ -175,8 +175,8 @@ using jit_avx512_common_dw_convolution_bwd_data_t =
     _jit_uni_dw_convolution_bwd_data_t<avx512_common>;
 using jit_avx2_dw_convolution_bwd_data_t =
     _jit_uni_dw_convolution_bwd_data_t<avx2>;
-using jit_sse42_dw_convolution_bwd_data_t =
-    _jit_uni_dw_convolution_bwd_data_t<sse42>;
+using jit_sse41_dw_convolution_bwd_data_t =
+    _jit_uni_dw_convolution_bwd_data_t<sse41>;
 
 template <cpu_isa_t isa>
 struct _jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
@@ -256,8 +256,8 @@ using jit_avx512_common_dw_convolution_bwd_weights_t =
     _jit_uni_dw_convolution_bwd_weights_t<avx512_common>;
 using jit_avx2_dw_convolution_bwd_weights_t =
     _jit_uni_dw_convolution_bwd_weights_t<avx2>;
-using jit_sse42_dw_convolution_bwd_weights_t =
-    _jit_uni_dw_convolution_bwd_weights_t<sse42>;
+using jit_sse41_dw_convolution_bwd_weights_t =
+    _jit_uni_dw_convolution_bwd_weights_t<sse41>;
 
 }
 }

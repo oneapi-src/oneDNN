@@ -40,7 +40,7 @@ namespace cpu {
 
 typedef enum {
     isa_any,
-    sse42,
+    sse41,
     avx,
     avx2,
     avx512_common,
@@ -52,7 +52,7 @@ typedef enum {
 
 template <cpu_isa_t> struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 
-template <> struct cpu_isa_traits<sse42> {
+template <> struct cpu_isa_traits<sse41> {
     typedef Xbyak::Xmm Vmm;
     static constexpr int vlen_shift = 4;
     static constexpr int vlen = 16;
@@ -89,8 +89,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     using namespace Xbyak::util;
 
     switch (cpu_isa) {
-    case sse42:
-        return cpu.has(Cpu::tSSE42);
+    case sse41:
+        return cpu.has(Cpu::tSSE41);
     case avx:
         return cpu.has(Cpu::tAVX);
     case avx2:
@@ -131,7 +131,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
 /* whatever is required to generate string literals... */
 #include "z_magic.hpp"
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
-    (isa == sse42 ? prefix STRINGIFY(sse42) : \
+    (isa == sse41 ? prefix STRINGIFY(sse41) : \
     (isa == avx ? prefix STRINGIFY(avx) : \
     (isa == avx2 ? prefix STRINGIFY(avx2) : \
     (isa == avx512_common ? prefix STRINGIFY(avx512_common) : \

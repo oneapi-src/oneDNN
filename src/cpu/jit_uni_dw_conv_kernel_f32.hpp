@@ -61,10 +61,10 @@ struct jit_uni_dw_conv_fwd_kernel_f32: public jit_generator {
     void (*jit_ker)(jit_conv_call_s *);
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
         isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
-    const Xbyak::AddressFrame &vmmword = (isa == sse42)
+    const Xbyak::AddressFrame &vmmword = (isa == sse41)
         ? xword : (isa == avx2) ? yword : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
@@ -123,7 +123,7 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32: public jit_generator {
     void (*jit_ker)(jit_conv_call_s *);
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
         isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
 
@@ -179,14 +179,14 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
     void (*jit_ker)(jit_dw_conv_call_s *);
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xbyak::Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
-    const int reg_repeats = (isa == sse42) ? 2 : 1;
+    const int reg_repeats = (isa == sse41) ? 2 : 1;
 
     const Xbyak::AddressFrame &vmmword
-            = (isa == sse42) ? xword : (isa == avx2) ? yword : zword;
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
     /* XXX: offset between input and accummulators is 3, therefore, assume 'kw'
      * is no larger than 3*/

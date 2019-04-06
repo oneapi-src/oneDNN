@@ -82,7 +82,7 @@ protected:
         Reg64 tmp_reg(r12);   // used as temporary to customize mxcsr
         Reg64 weights_scales_reg(r13);
 	// Here we do no unrolling, loop overhead should not be that dramatic
-	// We skip vmm0 as it can be used by the injector for masks on sse4.2
+	// We skip vmm0 as it can be used by the injector for masks on sse4.1
 	Vmm G(1), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
 
         // constant table map

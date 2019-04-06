@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_SSE42_CONV_KERNEL_F32_HPP
-#define JIT_SSE42_CONV_KERNEL_F32_HPP
+#ifndef JIT_SSE41_CONV_KERNEL_F32_HPP
+#define JIT_SSE41_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
 #include "memory.hpp"
@@ -27,20 +27,20 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_sse42_conv_fwd_kernel_f32: public jit_generator {
-    jit_sse42_conv_fwd_kernel_f32(jit_conv_conf_t ajcp,
+struct jit_sse41_conv_fwd_kernel_f32: public jit_generator {
+    jit_sse41_conv_fwd_kernel_f32(jit_conv_conf_t ajcp,
             const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
     {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse42>(this,
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(this,
                     jcp.eltwise);
 
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
-    ~jit_sse42_conv_fwd_kernel_f32() {
+    ~jit_sse41_conv_fwd_kernel_f32() {
         delete eltwise_injector_;
     }
 
@@ -52,7 +52,7 @@ struct jit_sse42_conv_fwd_kernel_f32: public jit_generator {
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse42_conv_fwd_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_conv_fwd_kernel_f32)
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_conv_call_s *);
@@ -75,7 +75,7 @@ private:
     reg64_t imm_addr64 = reg_oc_blocks;
     Xbyak::Reg32 reg_ci_flag = r13d;
 
-    jit_uni_eltwise_injector_f32<sse42> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<sse41> *eltwise_injector_;
 
     inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
             int oc_blocks);

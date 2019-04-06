@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_SSE42_CONVOLUTION_HPP
-#define CPU_JIT_SSE42_CONVOLUTION_HPP
+#ifndef CPU_JIT_SSE41_CONVOLUTION_HPP
+#define CPU_JIT_SSE41_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
 #include "utils.hpp"
@@ -24,13 +24,13 @@
 #include "cpu_primitive.hpp"
 
 #include "jit_primitive_conf.hpp"
-#include "jit_sse42_conv_kernel_f32.hpp"
+#include "jit_sse41_conv_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
+struct jit_sse41_convolution_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine,
                 const convolution_desc_t *adesc,
@@ -40,8 +40,8 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", sse42, ""),
-                jit_sse42_convolution_fwd_t);
+                JIT_IMPL_NAME_HELPER("jit:", sse41, ""),
+                jit_sse41_convolution_fwd_t);
 
         status_t init() {
             bool ok = true
@@ -53,7 +53,7 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
                 && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            return jit_sse42_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
+            return jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
                     *src_md(), *weights_md(), *dst_md(), *attr());
         }
 
@@ -79,9 +79,9 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
         }
     };
 
-    jit_sse42_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
-    { kernel_ = new jit_sse42_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
-    ~jit_sse42_convolution_fwd_t() { delete kernel_; };
+    jit_sse41_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
+    { kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
+    ~jit_sse41_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -93,7 +93,7 @@ struct jit_sse42_convolution_fwd_t: public cpu_primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    jit_sse42_conv_fwd_kernel_f32 *kernel_;
+    jit_sse41_conv_fwd_kernel_f32 *kernel_;
 };
 
 }

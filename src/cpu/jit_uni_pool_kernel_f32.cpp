@@ -257,7 +257,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                     continue;
                 int input_offset = sizeof(float)*aux_input_offset;
                 uni_vmovups(vreg(ur_w+jj), ptr[aux_reg_input + input_offset]);
-                if (isa == sse42) {
+                if (isa == sse41) {
                     movups(vmm_mask, vreg(jj));
                     cmpps(vmm_mask, vreg(ur_w+jj), _cmp_lt_os);
                     blendvps(vreg(jj), vreg(ur_w+jj));
@@ -323,7 +323,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
 
             auto x = xreg(2 * ur_w + jj);
             if (jpp.ind_dt == data_type::u8) {
-                if (isa == sse42) {
+                if (isa == sse41) {
                     for (int i = 0; i < 4; ++i)
                         pextrb(ptr[reg_index + step_index + i], x, 4*i);
                 } else if (isa == avx) {
@@ -374,7 +374,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
         const size_t step_index
             = jj * c_block * types::data_type_size(jpp.ind_dt);
         if (jpp.ind_dt == data_type::u8) {
-            if (isa == sse42) {
+            if (isa == sse41) {
                 movd(xreg(ur_w+jj), ptr[reg_index + step_index]);
                 pmovzxbd(vreg(ur_w+jj), xreg(ur_w+jj));
             } else if (isa == avx) {
@@ -399,7 +399,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     if (jpp.simple_alg && jpp.ndims == 5) {
         push(reg_input);
         push(reg_output);
-        if (isa == sse42) {
+        if (isa == sse41) {
             // Save rdi since it is used in maskmovdqu
             assert(dst_ptr == rdi);
             push(dst_ptr);
@@ -426,7 +426,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                     continue;
                 int input_offset = sizeof(float)*aux_input_offset;
                 uni_vmovups(vreg(2*ur_w+jj), ptr[aux_reg_input + input_offset]);
-                if (isa == sse42) {
+                if (isa == sse41) {
                     mov(dst_ptr, aux_reg_input);
                     add(dst_ptr, input_offset);
 
@@ -479,7 +479,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
         dec(ki);
         cmp(ki, 0);
         jg(kd_label, T_NEAR);
-        if (isa == sse42) {
+        if (isa == sse41) {
             // Save rdi since it is used in maskmovdqu
             assert(dst_ptr == rdi);
             pop(dst_ptr);
@@ -600,7 +600,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
             step(ur_w, l_pad, 0);
         }
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             if (n_oi < 0 && r_pad1 > 0) {
                 step_high_half(ur_w, l_pad, r_pad1);
             } else  {
@@ -608,7 +608,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
             }
         }
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             add(reg_input, sizeof(float)*(ur_w*stride_w-l_pad)*c_block - vlen);
             add(reg_output, sizeof(float)*ur_w*c_block - vlen);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
@@ -629,11 +629,11 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
         L(ow_loop); {
             step(ur_w, 0, 0);
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 step_high_half(ur_w, 0, 0);
             }
 
-            if (isa == sse42) {
+            if (isa == sse41) {
                 add(reg_input, sizeof(float)*ur_w*stride_w*c_block - vlen);
                 add(reg_output, sizeof(float)*ur_w*c_block - vlen);
                 if (jpp.alg == pooling_max &&
@@ -658,11 +658,11 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     if (r_pad1 > 0 && n_oi >= 0) {
         step(ur_w, 0, r_pad1);
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             step_high_half(ur_w, 0, r_pad1);
         }
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             add(reg_input, sizeof(float)*ur_w*stride_w*c_block - vlen);
             add(reg_output, sizeof(float)*ur_w*c_block - vlen);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
@@ -680,7 +680,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     if (ur_w_tail != 0) {
         step(ur_w_tail, 0, r_pad);
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             step_high_half(ur_w_tail, 0, r_pad);
         }
     }
@@ -688,7 +688,7 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     this->postamble();
 }
 
-template struct jit_uni_pool_kernel_f32<sse42>;
+template struct jit_uni_pool_kernel_f32<sse41>;
 template struct jit_uni_pool_kernel_f32<avx>; // implements both <avx> and <avx2>
 template struct jit_uni_pool_kernel_f32<avx512_common>;
 

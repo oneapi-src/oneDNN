@@ -41,7 +41,7 @@
 
 /* MKL-DNN CPU ISA info */
 #define ISA_ANY "No instruction set specific optimizations"
-#define SSE42 "Intel(R) Streaming SIMD Extensions 4.2 (Intel(R) SSE4.2)"
+#define SSE41 "Intel(R) Streaming SIMD Extensions 4.1 (Intel(R) SSE4.1)"
 #define AVX "Intel(R) Advanced Vector Extensions (Intel(R) AVX)"
 #define AVX2 "Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)"
 #define AVX512_COMMON "Intel(R) Advanced Vector Extensions 512 (Intel(R) " \
@@ -109,7 +109,7 @@ const char *get_isa_info() {
     if (mayiuse(avx512_common))    return AVX512_COMMON;
     if (mayiuse(avx2))             return AVX2;
     if (mayiuse(avx))              return AVX;
-    if (mayiuse(sse42))            return SSE42;
+    if (mayiuse(sse41))            return SSE41;
     return ISA_ANY;
 }
 

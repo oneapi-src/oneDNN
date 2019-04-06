@@ -68,7 +68,7 @@ void jit_uni_lrn_fwd_kernel_f32<isa>::within_body(
 }
 
 template<cpu_isa_t isa>
-void jit_uni_lrn_fwd_kernel_f32<isa>::within_body_sse42(
+void jit_uni_lrn_fwd_kernel_f32<isa>::within_body_sse41(
     int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk)
 {
     Xbyak::Xmm xtmp_lo = xmm12;
@@ -192,7 +192,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
                 within_body(-i, S2, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
             }
             else {
-                within_body_sse42(-i, S2, -j, S2, J.W, pk);
+                within_body_sse41(-i, S2, -j, S2, J.W, pk);
             }
         }
         mov(w, J.W - J.size + 1);
@@ -200,7 +200,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
         if (isa == avx2) {
             within_body(-i, S2, -s2, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
         } else {
-            within_body_sse42(-i, S2, -s2, S2, J.W, pk);
+            within_body_sse41(-i, S2, -s2, S2, J.W, pk);
         }
         dec(w);
         cmp(w, 0);
@@ -210,7 +210,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
                 within_body(-i, S2, -s2, J.W - 1 - j, J.W,
                     ysum, ydst, ytmp, ysum2, pk);
             } else {
-                within_body_sse42(-i, S2, -s2, J.W - 1 - j, J.W, pk);
+                within_body_sse41(-i, S2, -s2, J.W - 1 - j, J.W, pk);
             }
         }
     }
@@ -222,7 +222,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
         if (isa == avx2) {
             within_body(-s2, S2, -j, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
         } else {
-            within_body_sse42(-s2, S2, -j, S2, J.W, pk);
+            within_body_sse41(-s2, S2, -j, S2, J.W, pk);
         }
     }
     mov(w, J.W - J.size + 1);
@@ -231,7 +231,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
     if (isa == avx2) {
         within_body(-s2, S2, -s2, S2, J.W, ysum, ydst, ytmp, ysum2, pk);
     } else {
-        within_body_sse42(-s2, S2, -s2, S2, J.W, pk);
+        within_body_sse41(-s2, S2, -s2, S2, J.W, pk);
     }
     dec(w);
     cmp(w, 0);
@@ -241,7 +241,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
             within_body(-s2, S2, -s2, J.W - 1 - j, J.W,
                 ysum, ydst, ytmp, ysum2, pk);
         } else {
-            within_body_sse42(-s2, S2, -s2, J.W - 1 - j, J.W, pk);
+            within_body_sse41(-s2, S2, -s2, J.W - 1 - j, J.W, pk);
         }
     }
     dec(h);
@@ -255,7 +255,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
                 within_body(-s2, J.H - 1 - i, -j, S2, J.W,
                     ysum, ydst, ytmp, ysum2, pk);
             } else {
-                within_body_sse42(-s2, J.H - 1 - i, -j, S2, J.W, pk);
+                within_body_sse41(-s2, J.H - 1 - i, -j, S2, J.W, pk);
             }
         }
 
@@ -266,7 +266,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
             within_body(-s2, J.H - 1 - i, -s2, S2, J.W,
                 ysum, ydst, ytmp, ysum2, pk);
         } else {
-            within_body_sse42(-s2, J.H - 1 - i, -s2, S2, J.W, pk);
+            within_body_sse41(-s2, J.H - 1 - i, -s2, S2, J.W, pk);
         }
         dec(w);
         cmp(w, 0);
@@ -277,7 +277,7 @@ jit_uni_lrn_fwd_kernel_f32<isa>::jit_uni_lrn_fwd_kernel_f32(
                 within_body(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W,
                     ysum, ydst, ytmp, ysum2, pk);
             } else {
-                within_body_sse42(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W, pk);
+                within_body_sse41(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W, pk);
             }
         }
     }
@@ -390,7 +390,7 @@ jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
 }
 
 template<>
-jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     const struct nchw8c_across &J,
     float A,
     float K,
@@ -658,7 +658,7 @@ jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
 }
 
 template<>
-jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     const struct nhwc_across &J,
     float A,
     float K,
@@ -889,7 +889,7 @@ jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
 }
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body(
+void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_body(
     int tail, int HW, prop_kind_t pk,
     Xbyak::Ymm ymask,
     Xbyak::Ymm ya,
@@ -946,12 +946,12 @@ void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body(
 }
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_tail_sse42(
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_tail_sse41(
     int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
 {}
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_tail_sse42(
+void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_tail_sse41(
     int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
 {
     Xbyak::Xmm xmm_tmp = xmm10;
@@ -973,7 +973,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_tail_sse42(
 }
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
+void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_body_sse41(
     int tail, int HW, prop_kind_t pk,
     Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
     Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
@@ -1016,7 +1016,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     if (pk != prop_kind::forward_inference)
     {
         if (tail != 0) {
-            nchw_tail_sse42(tail, scratch, xbase_lo, xbase_hi);
+            nchw_tail_sse41(tail, scratch, xbase_lo, xbase_hi);
         }
         else {
             movups(ptr[scratch], xbase_lo);
@@ -1039,7 +1039,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
     movaps(xdst_hi, xtmp_hi);
 
     if (tail != 0) {
-        nchw_tail_sse42(tail, dst, xdst_lo, xdst_hi);
+        nchw_tail_sse41(tail, dst, xdst_lo, xdst_hi);
     }
     else {
         movups(ptr[dst], xdst_lo);
@@ -1079,7 +1079,7 @@ void jit_uni_lrn_fwd_kernel_f32<sse42>::nchw_body_sse42(
 }
 
 template<>
-void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse42(
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse41(
     int tail, int HW, prop_kind_t pk,
     Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
     Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
@@ -1180,7 +1180,7 @@ jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
 }
 
 template<>
-jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
+jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     struct nchw_across J,
     float A,
     float K,
@@ -1305,7 +1305,7 @@ jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
         movups(xe_hi, ptr[src + J.HW * 8 + 4 * sizeof(float)]);
     }
 
-    nchw_body_sse42(J.tail, J.HW, pk, xmask_lo, xmask_hi,
+    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
         xe_lo, xe_hi,
         xsum_lo, xsum_hi);
 
@@ -1320,7 +1320,7 @@ jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
     xorps(xe_lo, xe_lo);
     xorps(xe_hi, xe_hi);
 
-    nchw_body_sse42(J.tail, J.HW, pk, xmask_lo, xmask_hi,
+    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
         xe_lo, xe_hi,
         xsum_lo, xsum_hi);
     add(src, J.HW * 4);
@@ -1328,7 +1328,7 @@ jit_uni_lrn_fwd_kernel_f32<sse42>::jit_uni_lrn_fwd_kernel_f32(
     if (pk != prop_kind::forward_inference)
         add(scratch, J.HW * 4);
 
-    nchw_body_sse42(J.tail, J.HW, pk, xmask_lo, xmask_hi,
+    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
         xe_lo, xe_hi,
         xsum_lo, xsum_hi);
 
@@ -1476,7 +1476,7 @@ jit_uni_lrn_bwd_kernel_f32<isa>::jit_uni_lrn_bwd_kernel_f32(
         this->getCode()));
 }
 
-template struct jit_uni_lrn_fwd_kernel_f32<sse42>;
+template struct jit_uni_lrn_fwd_kernel_f32<sse41>;
 template struct jit_uni_lrn_fwd_kernel_f32<avx2>;
 template struct jit_uni_lrn_bwd_kernel_f32<avx2>;
 

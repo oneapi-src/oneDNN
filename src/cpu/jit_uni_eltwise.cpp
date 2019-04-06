@@ -36,8 +36,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(size_t start_idx,
     vecs_to_preserve = (size_t)aux_vecs_count(alg_);
     start_idx_tail = start_idx;
 
-    // For sse42 mask register has to be Xmm(0)
-    if (isa == sse42 && vecs_to_preserve > 0) {
+    // For sse41 mask register has to be Xmm(0)
+    if (isa == sse41 && vecs_to_preserve > 0) {
         size_t idx = 0;
         assert(idx < start_idx);
         preserved_vec_idxs[preserved_vecs_count++] = idx;
@@ -185,7 +185,7 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(const Vmm &vmm_src)
     const int alpha_off = 0, zero_off = 1;
 
     h->uni_vmovups(vmm_aux1, vmm_src);
-    if (isa == sse42) {
+    if (isa == sse41) {
         h->movups(vmm_mask, vmm_src);
         h->mulps(vmm_src, table_val(alpha_off));
         h->cmpps(vmm_mask, table_val(zero_off), _cmp_nle_us);
@@ -221,7 +221,7 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha_off));
 
     // combine with mask
-    if (isa == sse42) {
+    if (isa == sse41) {
         h->pxor(vmm_mask, vmm_mask);
         h->cmpps(vmm_mask,  vmm_aux2, _cmp_le_os);
         h->blendvps(vmm_src, vmm_aux2);
@@ -524,7 +524,7 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
         const Vmm &vmm_src) {
     // we store the original sign and make x negative
-    // IMPORTANT: we assume vmm_aux0 to be xmm0, as for sse4.2 path it is required
+    // IMPORTANT: we assume vmm_aux0 to be xmm0, as for sse4.1 path it is required
     // IMPORTANT: we use vmm_aux2 for the mask as exp_compute does not use it.
     h->uni_vmovups(vmm_aux2, vmm_src);
     h->uni_vandps(vmm_aux2, vmm_aux2, table_val(12));
@@ -545,7 +545,7 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
         h->vptestmd(k_mask, vmm_aux2, vmm_aux2);
         h->vblendmps(vmm_aux3 | k_mask, vmm_aux3, vmm_src);
     } else {
-        h->uni_vmovups(vmm_aux0, vmm_aux2);// The mask should be xmm0 for sse4.2
+        h->uni_vmovups(vmm_aux0, vmm_aux2);// The mask should be xmm0 for sse4.1
         h->uni_vblendvps(vmm_aux3, vmm_aux3, vmm_src, vmm_aux0);
     }
     h->uni_vmovups(vmm_src, vmm_aux3);
@@ -740,7 +740,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
 
 template struct jit_uni_eltwise_injector_f32<avx512_common>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
-template struct jit_uni_eltwise_injector_f32<sse42>;
+template struct jit_uni_eltwise_injector_f32<sse41>;
 
 
 struct jit_args {
@@ -788,7 +788,7 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
             }
         }
 
-        if (isa == sse42) {
+        if (isa == sse41) {
             for (int i = 0; i < uf; i++) {
                 movups(Vmm(2 * uf + i + 1), Vmm(i + 1));
                 mulps(Vmm(2 * uf + i + 1), vmm_ns);
@@ -838,7 +838,7 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
     jit_uni_relu_kernel_f32(const eltwise_desc_t &desc)
         : jit_uni_eltwise_kernel_f32(desc), jit_generator() {
         assert(desc.alg_kind == alg_kind::eltwise_relu);
-        assert(isa == sse42 || isa == avx2 || isa == avx512_common);
+        assert(isa == sse41 || isa == avx2 || isa == avx512_common);
 
         Reg64 param = abi_param1;
 
@@ -887,7 +887,7 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
     }
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xmm,
                                              isa == avx2, Ymm, Zmm>::type;
 
     Reg64 reg_from = rax;
@@ -979,7 +979,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
     ~jit_uni_kernel_fwd_f32() { delete eltwise_injector_; }
 
 private:
-    using Vmm = typename utils::conditional3<isa == sse42, Xmm,
+    using Vmm = typename utils::conditional3<isa == sse41, Xmm,
                 isa == avx2, Ymm, Zmm>::type;
 
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
@@ -1130,8 +1130,8 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
     });
 }
 
-template struct jit_uni_eltwise_fwd_t<sse42>;
-template struct jit_uni_eltwise_bwd_t<sse42>;
+template struct jit_uni_eltwise_fwd_t<sse41>;
+template struct jit_uni_eltwise_bwd_t<sse41>;
 template struct jit_uni_eltwise_fwd_t<avx2>;
 template struct jit_uni_eltwise_bwd_t<avx2>;
 template struct jit_uni_eltwise_fwd_t<avx512_common>;
