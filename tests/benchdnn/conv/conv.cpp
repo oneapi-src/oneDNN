@@ -571,6 +571,9 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(init_pd(p, cd, cpd, r), WARN);
 
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
+        return OK;
+
     prb_t *p_temp = nullptr;
     if (p->alg == AUTO || p->alg == WINO) {
         p_temp = new prb_t((desc_t)*p, p->dir, p->cfg,
@@ -579,10 +582,6 @@ int doit(const prb_t *p, res_t *r) {
         p_temp->cfg = auto_cfg(p_temp->alg, p->cfg);
         p = p_temp;
     }
-
-
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
@@ -665,6 +664,7 @@ int doit(const prb_t *p, res_t *r) {
     } else {
         delete p_bia_dt;
         delete p_bia_fp;
+        delete p_temp;
         SAFE(FAIL, CRIT);
     }
 
