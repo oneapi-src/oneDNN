@@ -37,7 +37,8 @@ void compensation_init(const char *offsetC, int32_t *compensation, int len,
        for (int i = 0; i < len; i++)
            compensation[i] = oc[i];
    } else {
-       parallel_nd(len, [=](int i) { compensation[i] = 0; });
+       for (int i = 0; i < len; i++)
+           compensation[i] = 0;
    }
 }
 
