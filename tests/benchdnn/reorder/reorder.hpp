@@ -30,6 +30,14 @@ namespace reorder {
 
 using dims_t = std::vector<int64_t>;
 
+enum alg_t { ALG_REF, ALG_BOOT };
+alg_t str2alg(const char *str);
+const char *alg2str(alg_t alg);
+
+enum flag_t { FLAG_NONE, FLAG_CONV_S8S8, FLAG_GCONV_S8S8 };
+flag_t str2flag(const char *str);
+const char *flag2str(flag_t flag);
+
 struct dt_conf_s {
     mkldnn_data_type_t dt;
     int min;
@@ -52,8 +60,14 @@ struct q10n_conf_t {
 
 struct prb_t {
     prb_t(const reorder_conf_t &r, const dt_conf_t &conf_in,
-            const dt_conf_t &conf_out, const attr_t &attr, float scale = 0.f)
-        : reorder(r), conf_in(conf_in), conf_out(conf_out), attr(attr) {
+            const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
+            flag_t oflag, float scale = 0.f)
+        : reorder(r)
+        , conf_in(conf_in)
+        , conf_out(conf_out)
+        , attr(attr)
+        , alg(alg)
+        , oflag(oflag) {
         if (scale != 0.f) this->attr.oscale.scale = scale;
     }
 
@@ -61,6 +75,8 @@ struct prb_t {
     dt_conf_t conf_in;
     dt_conf_t conf_out;
     attr_t attr;
+    alg_t alg;
+    flag_t oflag;
 };
 
 extern const char *perf_template; /* performance output template */

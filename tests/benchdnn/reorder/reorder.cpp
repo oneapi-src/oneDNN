@@ -150,6 +150,30 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
     return OK;
 }
 
+int compare_bootstrap(
+        dnn_mem_t &mem_expected, dnn_mem_t &mem_computed, res_t *r) {
+    int diff = 0;
+    // map memory to allow direct memory access
+    mem_expected.map();
+    mem_computed.map();
+    // demand bit-wise identical results
+    size_t expected_size = mem_expected.size();
+    size_t computed_size = mem_computed.size();
+    if (expected_size == computed_size)
+        diff = memcmp(
+                (void *)mem_expected, (void *)mem_computed, expected_size);
+    else
+        diff = 1;
+    // unmap memory now that we are done with it
+    mem_expected.unmap();
+    mem_computed.unmap();
+    // set results and check state for failure
+    r->errors = diff == 0 ? 0 : 1;
+    r->state = diff == 0 ? PASSED : FAILED;
+    r->total = 1;
+    return r->state == FAILED ? FAIL : OK;
+}
+
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         const float *scales, int64_t count, res_t *r){
     int64_t nelems = mem_expected.nelems();
@@ -261,6 +285,8 @@ int check_reorder(const prb_t *p, res_t *res) {
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
     dnn_mem_t mem_test_dt_out_fmt_ref(
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+    dnn_mem_t mem_test_dt_out_fmt_out(
+            ndims, dims, p->conf_out->dt, r.tag_out, engine_tgt);
 
     /* Step 2: fill scales */
     int64_t count = 0;
@@ -277,6 +303,18 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
 
+    /* check for extra flags on output format, and set them */
+    if (p->alg == ALG_BOOT
+            && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
+        int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
+        auto set_oflags = [=](dnn_mem_t &m) {
+            m.md_.extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
+            m.md_.extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
+        };
+        set_oflags(mem_dt_out_fmt_out);
+        set_oflags(mem_test_dt_out_fmt_out);
+    }
+
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
             &check_rpd, &mem_dt_in_fmt_in.md_, engine_tgt,
@@ -292,15 +330,35 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 5: check correctness */
     if (bench_mode & CORR) {
-        /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
-        SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
+        if (p->alg == ALG_BOOT) {
+            /* "bootstrap" algorithm: compare to another mkldnn reorder. use
+             * this when benchdnn does not know about all details of the data
+             * layout, as is the case for compensated weights formats. */
 
-        /* Step 5b: execute benchdnn reorder */
-        SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales), WARN);
+            /* Step 5a: mkldnn reorder from ref format to output format */
+            SAFE(mem_test_dt_out_fmt_out.reorder(
+                         mem_dt_in_fmt_ref, mkldnn_attr),
+                    WARN);
 
-        /* Step 5c: compare benchdnn and mkldnn output */
-        SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref,
-                    scales, count, res), WARN);
+            /* Step 5b: compare results (expect bit-wise exactness) */
+            SAFE(compare_bootstrap(
+                         mem_test_dt_out_fmt_out, mem_dt_out_fmt_out, res),
+                    WARN);
+        } else {
+            /* (default) "reference" algorithm: compare to benchdnn reorder */
+
+            /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
+            SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
+
+            /* Step 5b: execute benchdnn reorder */
+            SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales),
+                    WARN);
+
+            /* Step 5c: compare benchdnn and mkldnn output */
+            SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref, scales,
+                         count, res),
+                    WARN);
+        }
     }
 
     /* Step 6: performance measurement */
