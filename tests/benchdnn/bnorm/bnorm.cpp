@@ -80,8 +80,8 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     const int64_t L = p->mb * p->id * p->ih * p->iw;
     const int64_t logL = (int64_t)ceilf(log2f(L));
 
-    assert(logL <= 0 || (1<<(logL-1)) < L);
-    assert(L <= (1<<logL));
+    assert(logL <= 0 || (1LL <<(logL-1)) < L);
+    assert(L <= (1LL <<logL));
 
     const int64_t min_flex_bits = 3;
     const int64_t want_flex_bits = 6;
