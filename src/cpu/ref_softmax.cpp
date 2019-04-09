@@ -252,7 +252,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
             data_t sbr = 0;
             for (int c = 0; c < channels_; c++) {
                 size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
-                size_t off_data = diff_d.off_l(ou * dim + c * inner_size_ + in);
+                size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
                 sbr += diff_dst[off_diff] * dst[off_data];
             }
 
