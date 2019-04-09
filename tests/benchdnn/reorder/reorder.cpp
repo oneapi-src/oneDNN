@@ -285,6 +285,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     dnn_mem_t mem_dt_in_fmt_in(ndims, dims, p->conf_in->dt, r.fmt_in);
     dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.fmt_out);
     dnn_mem_t mem_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
+    dnn_mem_t mem_test_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.fmt_out);
     dnn_mem_t mem_test_dt_out_fmt_ref(ndims, dims, p->conf_out->dt, fmt_ref);
 
     /* Step 2: fill scales */
@@ -316,15 +317,37 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 5: check corrrectness */
     if (bench_mode & CORR) {
-        /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
-        SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
+        if (p->alg == ALG_BOOT) {
+            /* "bootstrap" algorithm: compare to another mkldnn reorder. use
+             * this when benchdnn does not know about all details of the data
+             * layout, as is the case for "compensated" (_s8s8) formats */
 
-        /* Step 5b: execute benchdnn reorder */
-        SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales), WARN);
+            /* Step 5a: mkldnn reorder from ref format to output format */
+            SAFE(mem_test_dt_out_fmt_out.reorder(
+                         mem_dt_in_fmt_ref, mkldnn_attr),
+                    WARN);
 
-        /* Step 5c: compare benchdnn and mkldnn output */
-        SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref,
-                    scales, count, res), WARN);
+            /* Step 5b: compare results (expect bit-wise exactness) */
+            int diff = 0;
+            SAFE(diff = memcmp((void *)mem_test_dt_out_fmt_out,
+                         (void *)mem_dt_out_fmt_out, mem_dt_out_fmt_out.size()),
+                    WARN);
+            res->state = diff == 0 ? PASSED : FAILED;
+        } else {
+            /* (default) "reference" algorithm: compare to benchdnn reorder */
+
+            /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
+            SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
+
+            /* Step 5b: execute benchdnn reorder */
+            SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales),
+                    WARN);
+
+            /* Step 5c: compare benchdnn and mkldnn output */
+            SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref, scales,
+                         count, res),
+                    WARN);
+        }
     }
 
     /* Step 6: performance measurement */

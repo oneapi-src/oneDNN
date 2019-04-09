@@ -24,3 +24,14 @@
 
 --fmt=nchw,nhwc,nChw8c,nChw16c 2x64x3x3
 --fmt=oihw,hwio 2x64x3x3
+
+#
+# s8, f32 -> s8 w/ compensations
+#
+--reset
+--alg=bootstrap
+--idt=s8,f32
+--odt=s8
+--ifmt=hwio --ofmt=hwio_s8s8 32x32x3x3
+--ifmt=hwigo --ofmt=hwigo_s8s8 2x32x32x3x3
+--ifmt=hwio --ofmt=OIhw4i16o4i_s8s8 32x32x3x3
