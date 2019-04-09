@@ -62,6 +62,8 @@ struct softmax_pd_t: public primitive_desc_t {
     dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
     dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
 
+    int axis() const { return desc_.softmax_axis; }
+
     int ndims() const { return data_desc().ndims; }
 
     bool is_fwd() const {

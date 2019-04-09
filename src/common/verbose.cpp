@@ -536,6 +536,9 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
 
     mkldnn_md2dim_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->dst_md());
 
+    DPRINT(aux_str, MKLDNN_VERBOSE_AUX_LEN, aux_written,
+            "axis:%d", s->axis());
+
     verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
             aux_str, prb_str);
 }
