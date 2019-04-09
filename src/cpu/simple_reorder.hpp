@@ -171,12 +171,11 @@ typename utils::enable_if<tag_i == any && (false
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-          (tag_i == goiw && tag_o == gOIw4i16o4i)
-       || (tag_i == oiw && tag_o == OIw4i16o4i)
-       || (tag_i == goihw && tag_o == gOIhw4i16o4i)
-       || (tag_i == oihw && tag_o == OIhw4i16o4i)
-       || (tag_i == goihw && tag_o == gOIhw2i8o4i)
-       || (tag_i == goihw && tag_o == gOIhw4o4i)
+          (tag_i == oiw && tag_o == OIw4i16o4i)
+       || (tag_i == goiw && tag_o == gOIw4i16o4i)
+       || (utils::one_of(tag_i, hwio, oihw) && tag_o == OIhw4i16o4i)
+       || (utils::one_of(tag_i, goihw, hwigo)
+               && one_of(tag_o, gOIhw4o4i, gOIhw2i8o4i, gOIhw4i16o4i))
     , spec::conv_s8s8>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -210,7 +209,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             ? 8
             : 16;
 
-        const auto &_g_oihw_d = order_keep ? input_d : output_d;
+        const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
             ? output_d.padded_dims()
@@ -240,12 +239,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
             for (int ic = 0; ic < ic_block; ++ic) {
             for (int oc = 0; oc < oc_block; ++oc) {
-                const auto _g_oihw_off =
-                    oc * _g_oihw_d.blocking_desc().strides[w_groups + 0]
-                  + ic * _g_oihw_d.blocking_desc().strides[w_groups + 1];
-                out[index(oc, ic)]
-                    = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                            inp[_g_oihw_off], s[oc] * adj_scale);
+                const auto plain_off
+                        = oc * plain_d.blocking_desc().strides[w_groups + 0]
+                        + ic * plain_d.blocking_desc().strides[w_groups + 1];
+                out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        inp[plain_off], s[oc] * adj_scale);
                 c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
             }
             }
@@ -292,8 +290,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<false
-    ||(tag_i == goiw && tag_o == Goiw16g)
-    ||(tag_i == goihw && tag_o == Goihw16g)
+    || (tag_i == goiw && tag_o == Goiw16g)
+    || (utils::one_of(tag_i, goihw, hwigo) && tag_o == Goihw16g)
     , spec::conv_s8s8>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
