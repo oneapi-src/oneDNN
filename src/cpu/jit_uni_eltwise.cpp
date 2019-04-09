@@ -143,11 +143,6 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
     if (isa == avx512_common) {
         h->vcvtps2dq(vmm_aux1 | h->T_rd_sae, vmm_src);
         h->vcvtdq2ps(vmm_aux1, vmm_aux1);
-
-        h->vcmpps(k_mask, vmm_aux1, vmm_src, _cmp_nle_us);
-        h->vmovups(vmm_aux3 | k_mask | h->T_z, table_val(0));
-
-        h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_aux3);
     } else {
         h->uni_vroundps(vmm_aux1, vmm_src, _op_floor);
     }
