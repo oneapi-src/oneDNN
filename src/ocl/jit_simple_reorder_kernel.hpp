@@ -40,9 +40,9 @@ struct jit_simple_reorder_kernel {
         status_t status = status::success;
 
         const auto &dims = output_md.padded_dims();
-        jrp.do_reorder = input_md != output_md;
-        jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.is_alpha_beta = (pd->alpha() != 1.0 || pd->beta() != 0.0);
+        jrp.do_reorder = jrp.is_alpha_beta ? true : input_md != output_md;
+        jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.ndims = input_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
         jrp.par_dims = 4;
@@ -111,7 +111,7 @@ struct jit_simple_reorder_kernel {
                            gOIhw2o8i8o2i, gOIdhw8i16o2i))
             jrp.with_group = 1;
 
-        if (jrp.has_padding)
+        if (jrp.has_padding || jrp.is_alpha_beta)
             return status;
 
         const bool type_f32 = input_md.data_type() == mkldnn_f32
@@ -207,6 +207,7 @@ struct jit_simple_reorder_kernel {
 
         const bool opt_reorder = true
                 && !jrp.has_padding
+                && !jrp.is_alpha_beta
                 && (((input_type == mkldnn_f32 && output_type == mkldnn_f32)
                             && (input_md.matches_tag(nChw16c)
                                        || output_md.matches_tag(nChw16c)

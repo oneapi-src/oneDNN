@@ -351,62 +351,52 @@ __kernel void any2any_kernel(__global DT_IN *input, __global DT_OUT *output,
     d5 = get_global_id(2) % BLOCK_2;
 #    endif
 
-#    if ALPHA_BETA
-#    else
     int p[32] = { 0, 8, 16, 24, 1, 9, 17, 25, 2, 10, 18, 26, 3, 11, 19, 27, 4,
         12, 20, 28, 5, 13, 21, 29, 6, 14, 22, 30, 7, 15, 23, 31 };
 
-#if PAD_FILL_ZERO
+#    if PAD_FILL_ZERO
     if (d0 >= SRC_DIM0
-    #if NDIMS > 1
+#        if NDIMS > 1
         || d1 >= SRC_DIM1
-    #endif
-    #if NDIMS > 2
+#        endif
+#        if NDIMS > 2
         || d2 >= SRC_DIM2
-    #endif
-    #if NDIMS > 3
+#        endif
+#        if NDIMS > 3
         || d3 >= SRC_DIM3
-    #endif
-    #if NDIMS > 4
+#        endif
+#        if NDIMS > 4
         || d4 >= SRC_DIM4
-    #endif
-    #if NDIMS > 5
+#        endif
+#        if NDIMS > 5
         || d5 >= SRC_DIM5
-    #endif
+#        endif
     ) {
         output[OUT_OFF(d0,d1,d2,d3,d4,d5)] = 0;
         return;
     }
-#endif
-
-
-#        if IN_TYPE_F32 && OUT_TYPE_F32
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = input[IN_OFF(d0, d1, d2, d3, d4, d5)];
-#        else
-#            if OUT_TYPE_U8 || OUT_TYPE_S8
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = input[IN_OFF(d0, d1, d2, d3, d4, d5)];
-#            endif
-#            if IN_TYPE_U8 || IN_TYPE_S8
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = input[IN_OFF(d0, d1, d2, d3, d4, d5)];
-#            endif
-#            if IN_TYPE_F16 && OUT_TYPE_F16
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = input[IN_OFF(d0, d1, d2, d3, d4, d5)];
-#            else
-#                if OUT_TYPE_F16
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = convert_half(input[IN_OFF(d0, d1, d2, d3, d4, d5)]);
-#                endif
-#                if IN_TYPE_F16
-    output[OUT_OFF(d0, d1, d2, d3, d4, d5)]
-            = convert_float(input[IN_OFF(d0, d1, d2, d3, d4, d5)]);
-#                endif
-#            endif
-#        endif
 #    endif
+
+    const int in_off = IN_OFF(d0,d1,d2,d3,d4,d5);
+    const int out_off = OUT_OFF(d0,d1,d2,d3,d4,d5);
+#    if ALPHA_BETA
+    const float a = convert_float(input[in_off]);
+    const float b = convert_float(output[out_off]);
+    const float tmp = alpha * a + beta * b;
+#        if OUT_TYPE_F16
+        output[out_off] = convert_half(tmp);
+#        else
+        output[out_off] = tmp;
+#        endif
+#    else
+#        if IN_TYPE_F16 && !OUT_TYPE_F16
+    output[out_off] = convert_float(input[in_off]);
+#        elif !IN_TYPE_F16 && OUT_TYPE_F16
+    output[out_off] = convert_half(input[in_off]);
+#        else
+    output[out_off] = input[in_off];
+#        endif
+#   endif
     return;
 #else
 
