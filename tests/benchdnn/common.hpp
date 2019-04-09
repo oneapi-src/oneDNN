@@ -94,7 +94,18 @@ extern int verbose;
     } \
 } while (0)
 
-enum prim_t { SELF, CONV, DECONV, IP, SHUFFLE, REORDER, BNORM, RNN, DEF = CONV, };
+enum prim_t {
+    SELF,
+    CONV,
+    DECONV,
+    IP,
+    SHUFFLE,
+    REORDER,
+    BNORM,
+    RNN,
+    SOFTMAX,
+    DEF = CONV,
+};
 
 enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
 const char *bench_mode2str(bench_mode_t mode);

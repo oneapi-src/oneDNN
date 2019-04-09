@@ -1,0 +1,37 @@
+--reset
+
+--dir=FWD_D
+--tag=nc
+--axis=1 --batch=softmax_2d
+--axis=0 --batch=softmax_2d
+
+--dir=BWD_D
+--tag=nc
+--axis=1 --batch=softmax_2d
+--axis=0 --batch=softmax_2d
+
+--dir=FWD_D
+--tag=nchw
+--axis=1 --batch=softmax_4d
+--axis=0 --batch=softmax_4d
+--axis=2 --batch=softmax_4d
+--axis=3 --batch=softmax_4d
+
+--tag=nChw8c
+--axis=1 --batch=softmax_4d
+--axis=0 --batch=softmax_4d
+--axis=2 --batch=softmax_4d
+--axis=3 --batch=softmax_4d
+
+--dir=BWD_D
+--tag=nchw
+--axis=1 --batch=softmax_4d
+--axis=0 --batch=softmax_4d
+--axis=2 --batch=softmax_4d
+--axis=3 --batch=softmax_4d
+
+--tag=nChw8c
+--axis=1 --batch=softmax_4d
+--axis=0 --batch=softmax_4d
+--axis=2 --batch=softmax_4d
+--axis=3 --batch=softmax_4d
