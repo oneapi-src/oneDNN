@@ -90,6 +90,8 @@ int bench(int argc, char **argv, bool main_bench) {
             pattern = argv[arg] + 8;
         else if (!strncmp("--mode=", argv[0], 7))
             bench_mode = str2bench_mode(argv[0] + 7);
+        else if (!strcmp("--reset", argv[arg]))
+            reset_parameters();
         else if (!strncmp("-v", argv[arg], 2))
             verbose = atoi(argv[arg] + 2);
         else if (!strncmp("--verbose=", argv[arg], 10))

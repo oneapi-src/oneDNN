@@ -1,0 +1,3 @@
+--reset
+--batch=shuffle
+--batch=shuffle_axis
