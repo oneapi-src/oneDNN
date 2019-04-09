@@ -165,7 +165,7 @@ typename utils::enable_if<fmt_i == any && (false
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<(
-                utils::one_of(fmt_i, goihw, oihw, goiw, oiw)
+                utils::one_of(fmt_i, goihw, oihw, goiw, oiw, hwio)
                 && (format_traits<fmt_o>::blk_fmt == bf::_4i16o4i_s8s8
                            || format_traits<fmt_o>::blk_fmt == bf::_2i8o4i_s8s8
                            || format_traits<fmt_o>::blk_fmt
@@ -175,8 +175,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     {
         const size_t D_mask = utils::array_product(input_d.dims(),
                                 math::ilog2q(attr->output_scales_.mask_ + 1));
-        const int oc = (input_d.dims()[(fmt_i == goihw) + 0]);
-        const int g = (fmt_i == goihw) ? (input_d.dims()[0]) : 1;
+        static constexpr bool w_groups
+                = format_traits<fmt_i>::data_kind == dk::gwei;
+        const int oc = input_d.dims()[w_groups + 0];
+        const int g = w_groups ? input_d.dims()[0] : 1;
 
         return input_d.format() == fmt_i
             && output_d.format() == fmt_o
@@ -189,8 +191,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr int is_1d = utils::one_of(fmt_i, goiw, oiw);
-        static constexpr bool w_groups = utils::one_of(fmt_i, goiw, goihw);
+        constexpr int is_1d = format_traits<fmt_o>::ndims_sp == 1;
+        static constexpr bool w_groups
+                = format_traits<fmt_o>::data_kind == dk::gwei;
         const int blksize = format_traits<fmt_o>::blk_size;
         const int sblk = 4;
 
