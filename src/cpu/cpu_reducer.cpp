@@ -47,7 +47,7 @@ void reduce_balancer_t::balance() {
     int njobs_per_group_ub = div_up(njobs_, ngroups);
 
     /* rough upper-bound estimation, will be fixed during brute force */
-    size_t thread_complexity_ub = njobs_ * job_size_ * reduction_size_;
+    size_t thread_complexity_ub = (size_t)njobs_ * job_size_ * reduction_size_;
 
     /* brute force parameters for the best balance... */
     for (int c_njobs_per_group = min_njobs_per_group;
