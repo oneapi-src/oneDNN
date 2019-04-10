@@ -612,7 +612,7 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
             &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
 
         auto wei_adj_scale =
-            (wei_md.extra().flags | memory_extra_flags::scale_adjust)
+            (wei_md.extra().flags & memory_extra_flags::scale_adjust)
             ? wei_md.extra().scale_adjust : 1.f;
 
         parallel(0, [&](int ithr, int nthr) {

@@ -253,7 +253,7 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     }
 
     jcp.wei_adj_scale =
-        (weights_d.extra().flags | memory_extra_flags::scale_adjust)
+        (weights_d.extra().flags & memory_extra_flags::scale_adjust)
         ? weights_d.extra().scale_adjust : 1.f;
 
     jcp.loop_order = jcp.ngroups > 1 ? loop_ngc : loop_cgn;

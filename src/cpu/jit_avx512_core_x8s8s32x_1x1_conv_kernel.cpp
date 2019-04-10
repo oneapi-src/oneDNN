@@ -798,7 +798,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     assert(IMPLICATION(!jcp.is_oc_scale, oscales.mask_ == 0));
 
     jcp.wei_adj_scale =
-        (weights_d.extra().flags | memory_extra_flags::scale_adjust)
+        (weights_d.extra().flags & memory_extra_flags::scale_adjust)
         ? weights_d.extra().scale_adjust : 1.f;
 
     return status::success;
