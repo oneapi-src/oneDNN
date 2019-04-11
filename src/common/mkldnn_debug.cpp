@@ -178,6 +178,7 @@ const char *mkldnn_fmt2str(mkldnn_memory_format_t v) {
     if (v == mkldnn_hIOw64i16o) return "hIOw64i16o";
 
     if (v == mkldnn_NhCw16n128c) return "NhCw16n128c";
+    if (v == mkldnn_NhCw16n64c) return "NhCw16n64c";
 
     assert(!"unknown fmt");
     return "unknown fmt";

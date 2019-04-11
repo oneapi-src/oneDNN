@@ -276,6 +276,7 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     case f::hIOw64i16o:
 
     case f::NhCw16n128c:
+    case f::NhCw16n64c:
         ndims = 4; break;
     case f::ncdhw:
     case f::ndhwc:

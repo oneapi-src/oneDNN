@@ -223,6 +223,7 @@ namespace memory_format {
     const memory_format_t hIOw64i16o = mkldnn_hIOw64i16o;
 
     const memory_format_t NhCw16n128c = mkldnn_NhCw16n128c;
+    const memory_format_t NhCw16n64c = mkldnn_NhCw16n64c;
 
 }
 

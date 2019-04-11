@@ -201,7 +201,8 @@ inline memory_format_t format_normalize(const memory_format_t fmt) {
             hIOw32i16o,
             hIOw64i16o,
 
-            NhCw16n128c
+            NhCw16n128c,
+            NhCw16n64c
 
 
             );

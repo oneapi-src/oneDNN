@@ -750,8 +750,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     for (int ki = 0; ki < kh_iters; ++ki) {
 
                         for (int ocb = 0; ocb < jcp.nb_oc; ++ocb) {
-
+                            
                             for (int icb = icb_s; icb < icb_e; ++icb) {
+
 
                                 int mb_s = (g == p.g[0] && mbb == p.mbb[0] && ih == p.ih[0]
                                         && icb == p.icb[0]) ? p.mb[0] : 0;

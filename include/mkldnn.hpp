@@ -710,6 +710,7 @@ struct memory: public primitive  {
         hIOw64i16o = mkldnn_hIOw64i16o,
 
         NhCw16n128c = mkldnn_NhCw16n128c,
+        NhCw16n64c = mkldnn_NhCw16n64c,
 
 
         //hIO64iw64o = mkldnn_hIO64iw64o,

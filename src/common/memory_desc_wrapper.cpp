@@ -289,6 +289,16 @@ status_t fill_NhCw16n128c(memory_desc_t &md) {
     return fill_contiguous_blocked(md, block_dims, perm);
 }
 
+status_t fill_NhCw16n64c(memory_desc_t &md) {
+    if (md.ndims != 4) return invalid_arguments;
+
+    const dims_t block_dims = {16, 64, 1, 1};
+    const int perm[] = {
+        0, 2, 1, 3,
+        6, 4, 7, 5};
+    return fill_contiguous_blocked(md, block_dims, perm);
+}
+
 status_t fill_NhC8nw128c(memory_desc_t &md, int w) {
     if (md.ndims != 4) return invalid_arguments;
 
@@ -1124,6 +1134,7 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc, int w
     case hIOw64i16o: return fill_hIOw64i16o(memory_desc);
 
     case NhCw16n128c: return fill_NhCw16n128c(memory_desc);
+    case NhCw16n64c: return fill_NhCw16n64c(memory_desc);
 
     default: break;
     }
