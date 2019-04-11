@@ -61,6 +61,7 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
         }
 
         status_t init() {
+            const auto &post_ops = attr()->post_ops_;
             bool args_ok = true
                     && utils::one_of(engine_kind::gpu, src_engine_->kind(),
                                dst_engine_->kind())
@@ -68,7 +69,10 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
                                engine_kind::cpu)
                     && utils::one_of(dst_engine_->kind(), engine_kind::gpu,
                                engine_kind::cpu)
-                    && attr()->has_default_values();
+                    && (attr()->has_default_values()
+                        || IMPLICATION(post_ops.len_ != 0,
+                            post_ops.len_ == 1
+                            && post_ops.entry_[0].kind == primitive_kind::sum));
             if (!args_ok)
                 return status::unimplemented;
 

@@ -62,9 +62,11 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                     + src_dims[2]*src_dims[3]*c
                     + src_dims[1]*src_dims[2]*src_dims[3]*n;
                 if (num == 0) {
-                    src_sum = data_t(scale[num]) * src_data[src_mdw.off_l(src_idx, true)];
+                    src_sum = data_t(scale[num])
+                            * src_data[src_mdw.off_l(src_idx, false)];
                 } else {
-                    src_sum += data_t(scale[num])* src_data[src_mdw.off_l(src_idx, true)];
+                    src_sum += data_t(scale[num])
+                            * src_data[src_mdw.off_l(src_idx, false)];
                 }
 
                 src_sum = std::max(std::min(src_sum,
@@ -77,7 +79,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 + dst_dims[3]*h
                 + dst_dims[2]*dst_dims[3]*c
                 + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
-            auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, true)];
+            auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, false)];
             auto e = (std::abs(src_sum) > 1e-4) ? diff / src_sum : diff;
             EXPECT_NEAR(e, 0.0, 1.2e-7);
             }
@@ -240,6 +242,10 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestSumEF, test, ::testing::Values( \
     {2, 8, 4 ,4}, {0.1f}, 0, true, mkldnn_invalid_arguments} \
 ));
 
+#define INST_TEST_CASE(test, omit_output) \
+    CPU_INST_TEST_CASE(test, omit_output) \
+    GPU_INST_TEST_CASE(test, omit_output)
+
 using sum_test_float_omit_output = sum_test<float,float>;
 using sum_test_u8_omit_output = sum_test<uint8_t,float>;
 using sum_test_s8_omit_output = sum_test<int8_t,float>;
@@ -260,18 +266,15 @@ INSTANTIATE_TEST_SUITE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
     ));
 #undef CASE_CC
 
-CPU_INST_TEST_CASE(sum_test_float_omit_output, 1)
+INST_TEST_CASE(sum_test_float_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_u8_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_s8_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_s32_omit_output, 1)
 
-CPU_INST_TEST_CASE(sum_test_float, 0)
+INST_TEST_CASE(sum_test_float, 0)
 CPU_INST_TEST_CASE(sum_test_u8, 0)
 CPU_INST_TEST_CASE(sum_test_s8, 0)
 CPU_INST_TEST_CASE(sum_test_s32, 0)
-
-GPU_INST_TEST_CASE(sum_test_float_omit_output, 1)
-GPU_INST_TEST_CASE(sum_test_float, 0)
 
 #undef CPU_INST_TEST_CASE
 #undef GPU_INST_TEST_CASE
