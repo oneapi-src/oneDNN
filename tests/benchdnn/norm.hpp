@@ -52,7 +52,7 @@ struct norm_t {
     real_t operator[](int type) const { return norm_[type]; }
 
     acc_t norm_[L_LAST];
-    int num_;
+    size_t num_;
 };
 
 struct diff_norm_t {
