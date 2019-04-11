@@ -22,6 +22,11 @@ if(Threading_cmake_included)
 endif()
 set(Threading_cmake_included true)
 
+# Always require pthreads even for sequential threading (required for e.g.
+# std::call_once that relies on mutexes)
+find_package(Threads REQUIRED)
+list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
+
 # Replace existing define for threading (if any) with a new one
 macro(set_threading threading)
     if(MKLDNN_THR_CURRENT)
