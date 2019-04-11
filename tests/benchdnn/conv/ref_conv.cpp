@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include "src/common/mkldnn_thread.hpp"
-#include "src/common/math_utils.hpp"
 
 #include "conv/conv_common.hpp"
 
@@ -81,48 +80,6 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
-    auto maybe_scale = [&](float &d, int oc) {
-        if (!p->attr.oscale.is_def()) {
-            using policy_t = attr_t::scale_t::policy_t;
-            const auto &s = p->attr.oscale;
-            if (s.policy == policy_t::COMMON) {
-                d *= s.scale;
-            } else {
-                d *= p->scales[oc];
-            }
-        }
-    };
-
-    auto maybe_post_ops = [&](float &conv_res, float dst) {
-        using namespace mkldnn::impl::math;
-
-        const auto &ops = p->attr.post_ops;
-        for (int idx = 0; idx < ops.len; ++idx) {
-            using pk = attr_t::post_ops_t::kind_t;
-            const auto &e = ops.entry[idx];
-
-            const auto &s = e.eltwise.scale;
-            const auto &a = e.eltwise.alpha;
-            const auto &b = e.eltwise.beta;
-
-            switch (e.kind) {
-            case pk::SUM: conv_res += e.sum.scale * dst; break;
-            case pk::RELU: conv_res = s*relu_fwd(conv_res, a); break;
-            case pk::TANH: conv_res = s*tanh_fwd(conv_res); break;
-            case pk::ELU: conv_res = s*elu_fwd(conv_res, a); break;
-            case pk::SQUARE: conv_res = s*square_fwd(conv_res); break;
-            case pk::ABS: conv_res = s*abs_fwd(conv_res); break;
-            case pk::SQRT: conv_res = s*sqrt_fwd(conv_res); break;
-            case pk::LINEAR: conv_res = s*linear_fwd(conv_res, a, b); break;
-            case pk::BRELU: conv_res = s*bounded_relu_fwd(conv_res, a); break;
-            case pk::SRELU: conv_res = s*soft_relu_fwd(conv_res); break;
-            case pk::LOGISTIC: conv_res = s*logistic_fwd(conv_res); break;
-            default:
-                assert(!"unknown attr::post_ops::kind");
-            }
-        }
-    };
-
     mkldnn::impl::parallel_nd(p->g, p->mb, p->oc / p->g, p->od, p->oh, p->ow,
         [&](int g, int mb, int oc, int od, int oh, int ow) {
             const size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
@@ -136,8 +93,8 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m,
                 conv_res += ((float*)bia_m)[bia_off];
             }
 
-            maybe_scale(conv_res, g * p->oc / p->g + oc);
-            maybe_post_ops(conv_res, dst);
+            maybe_scale(conv_res, p->scales, g * p->oc / p->g + oc, p->attr);
+            maybe_post_ops(conv_res, dst, p->attr);
 
             dst = conv_res;
         }
@@ -223,49 +180,6 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     };
 
-    auto maybe_scale = [&](float &ds, int ic) {
-        if (!p->attr.oscale.is_def()) {
-            using policy_t = attr_t::scale_t::policy_t;
-            const auto &s = p->attr.oscale;
-            if (s.policy == policy_t::COMMON) {
-                ds *= s.scale;
-            } else {
-                ds *= p->scales[ic];
-            }
-        }
-    };
-
-    /* Used for Deconv FWD */
-    auto maybe_post_ops = [&](float &conv_res, float dst) {
-        using namespace mkldnn::impl::math;
-
-        const auto &ops = p->attr.post_ops;
-        for (int idx = 0; idx < ops.len; ++idx) {
-            using pk = attr_t::post_ops_t::kind_t;
-            const auto &e = ops.entry[idx];
-
-            const auto &s = e.eltwise.scale;
-            const auto &a = e.eltwise.alpha;
-            const auto &b = e.eltwise.beta;
-
-            switch (e.kind) {
-            case pk::SUM: conv_res += e.sum.scale * dst; break;
-            case pk::RELU: conv_res = s*relu_fwd(conv_res, a); break;
-            case pk::TANH: conv_res = s*tanh_fwd(conv_res); break;
-            case pk::ELU: conv_res = s*elu_fwd(conv_res, a); break;
-            case pk::SQUARE: conv_res = s*square_fwd(conv_res); break;
-            case pk::ABS: conv_res = s*abs_fwd(conv_res); break;
-            case pk::SQRT: conv_res = s*sqrt_fwd(conv_res); break;
-            case pk::LINEAR: conv_res = s*linear_fwd(conv_res, a, b); break;
-            case pk::BRELU: conv_res = s*bounded_relu_fwd(conv_res, a); break;
-            case pk::SRELU: conv_res = s*soft_relu_fwd(conv_res); break;
-            case pk::LOGISTIC: conv_res = s*logistic_fwd(conv_res); break;
-            default:
-                assert(!"unknown attr::post_ops::kind");
-            }
-        }
-    };
-
     mkldnn::impl::parallel_nd(p->g, p->mb, p->ic / p->g, p->id, p->ih, p->iw,
         [&](int g, int mb, int ic, int id, int ih, int iw) {
             size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
@@ -280,8 +194,8 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                 const size_t bia_off = (size_t)g * p->ic / p->g + ic;
                 conv_res += ((float*)bia_m)[bia_off];
             }
-            maybe_scale(conv_res, g * p->ic / p->g + ic);
-            maybe_post_ops(conv_res, ds);
+            maybe_scale(conv_res, p->scales, g * p->ic / p->g + ic, p->attr);
+            maybe_post_ops(conv_res, ds, p->attr);
 
             ds = conv_res;
         }
