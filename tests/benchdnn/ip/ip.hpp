@@ -35,10 +35,10 @@ struct desc_t {
 typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
     double min, max; /* representative */
-    int f_min, f_max; /* fill range */
+    double f_min, f_max; /* fill range */
     int f_base; /* fill base, use 0 */
-    int f_step; /* fill step, use 1 */
     double f_sparsity; /* amount of non-zeros, default 0.25 */
+    double f_scale; /* fill scale, scaling factor for integer generated data */
     double eps; /* acceptable error */
 } _dt_conf_t[DAT_TOTAL];
 
