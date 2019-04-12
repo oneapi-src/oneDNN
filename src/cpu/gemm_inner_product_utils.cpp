@@ -29,7 +29,7 @@ using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
-        const cpu_inner_product_fwd_pd_t *pd, bool dst_is_acc)
+        const cpu_inner_product_fwd_pd_t *pd)
     : ker_(nullptr), OC_(pd->OC())
     , bias_data_type_(data_type::undef), bias_data_type_size_(0)
     , scale_idx_mult_(0), do_bias_(false), do_relu_(false)
@@ -119,7 +119,11 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         auto vreg_dst_ = vreg_dst(idx);
         if (apply_mask)
             vreg_dst_ = vreg_dst_ | kreg_rem_mask;
-        vcvtdq2ps(vreg_dst_, acc_addr);
+
+        switch (acc_type) {
+        case data_type::s32: vcvtdq2ps(vreg_dst_, acc_addr); break;
+        case data_type::f32: vmovups(vreg_dst_, acc_addr); break;
+        }
 
         if (do_bias_) {
             auto bias_addr = ptr[reg_bias + offset * bias_data_type_size_];
