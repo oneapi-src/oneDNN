@@ -127,7 +127,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             const input_vector &inputs, const output_vector &outputs)
         : cpu_primitive_t(apd, inputs, outputs, true) {
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
-                dst_type>(apd, pd()->dst_is_acc_);
+                dst_type>(apd);
     }
     ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 

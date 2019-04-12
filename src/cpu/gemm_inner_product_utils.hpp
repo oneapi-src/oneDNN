@@ -35,7 +35,7 @@ class pp_kernel_t : jit_generator
 {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
-    pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool dst_is_acc);
+    pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd);
 
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
