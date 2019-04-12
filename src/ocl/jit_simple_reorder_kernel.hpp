@@ -105,6 +105,12 @@ struct jit_simple_reorder_kernel {
         default: status = status::unimplemented; break;
         }
 
+        if (input_md.matches_one_of_tag(
+                    gOIhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw8i16o2i)
+                || output_md.matches_one_of_tag(gOIhw8i16o2i, gOIhw4o8i8o4i,
+                           gOIhw2o8i8o2i, gOIdhw8i16o2i))
+            jrp.with_group = 1;
+
         if (jrp.has_padding)
             return status;
 
@@ -155,11 +161,6 @@ struct jit_simple_reorder_kernel {
             jrp.block[2] = dims[jrp.with_group + 3];
         }
 
-        if (input_md.matches_one_of_tag(
-                    gOIhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw8i16o2i)
-                || output_md.matches_one_of_tag(gOIhw8i16o2i, gOIhw4o8i8o4i,
-                           gOIhw2o8i8o2i, gOIdhw8i16o2i))
-            jrp.with_group = 1;
         return status;
     };
 
