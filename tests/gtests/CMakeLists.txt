@@ -69,6 +69,14 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_rnn_forward.cpp
                               )
 
+# Workaround for an Intel compiler bug: stack unwinding does not restore
+# some of the nonvolatile registers with /O2 optimization
+if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+    set_source_files_properties(
+            test_convolution_eltwise_forward_x8s8f32s32.cpp
+            PROPERTIES COMPILE_FLAGS "/O1")
+endif()
+
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(TEST_FILE_WE ${TEST_FILE} NAME_WE)
     set(CURR_APP_NAME ${TEST_FILE_WE})
