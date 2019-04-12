@@ -296,10 +296,10 @@ void compare(int64_t m, int64_t n, const c_dt *c, const c_dt *c_ref, int64_t ldc
                 EXPECT_NEAR(diff, 0, 1) << "Row: " << j << " Col: " << i;
             } else {
                 if (data_traits<b_dt>::data_type == data_type::u8) {
-                    c_dt eps = k / 1000 + 1;
+                    c_dt eps = k / 700 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 } else if (data_traits<b_dt>::data_type == data_type::s8) {
-                    c_dt eps = k / 500 + 1;
+                    c_dt eps = k / 350 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 }
             }
