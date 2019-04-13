@@ -19,12 +19,18 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "primitive.hpp"
+#include "primitive_exec_types.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
+
+status_t stream_t::enqueue_primitive(const primitive_t *primitive, const exec_ctx_t &ctx) {
+    return primitive->execute(ctx);
+}
 
 /* API */
 

@@ -74,7 +74,7 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
     const int gpu_exec_time_level = 4;
     if (mkldnn_verbose()->level) {
         double ms = get_msec();
-        status = primitive->execute(ctx);
+        status = stream->enqueue_primitive(primitive, ctx);
         // Do not output execution time for GPU engines unless the verbose
         // level is at least gpu_exec_time_level
         if (stream->engine()->kind() == engine_kind::gpu
@@ -95,7 +95,7 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
             fflush(0);
         }
     } else {
-        status = primitive->execute(ctx);
+        status = stream->enqueue_primitive(primitive, ctx);
     }
 
     if (msan_enabled) unpoison_outputs(ctx.args());
