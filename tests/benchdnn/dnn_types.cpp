@@ -347,6 +347,16 @@ mkldnn_engine_kind_t str2engine_kind(const char *str) {
     return mkldnn_cpu;
 }
 
+const char *engine_kind2str(mkldnn_engine_kind_t engine) {
+    switch (engine) {
+    case mkldnn_any_engine: return "any";
+    case mkldnn_cpu: return "cpu";
+    case mkldnn_gpu: return "gpu";
+    }
+    assert(!"incorrect engine kind");
+    return "incorrect engine kind";
+}
+
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;

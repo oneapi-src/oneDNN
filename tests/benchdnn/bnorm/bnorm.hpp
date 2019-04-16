@@ -26,6 +26,7 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "perf_report.hpp"
 
 namespace bnorm {
 
@@ -45,7 +46,6 @@ struct desc_t {
     float eps;
     const char *name;
 };
-const size_t max_desc_len = 196;
 int str2desc(desc_t *desc, const char *str);
 void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 
@@ -66,14 +66,61 @@ struct prb_t: public desc_t {
     flags_t flags;
     attr_t attr;
 };
-const size_t max_prb_len = max_attr_len + max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_attributes(char *buf) const override {
+        if (!p_->attr.is_def())
+            attr2str(&p_->attr, buf);
+    }
+
+    virtual void dump_data_type(char *buf) const override {
+        dprint(buf, dt2str(p_->dt));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        if (p_->id > 1)
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT ",%g",
+                    p_->mb, p_->ic, p_->id, p_->ih, p_->iw, p_->eps);
+        else
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT ",%g",
+                    p_->mb, p_->ic, p_->ih, p_->iw, p_->eps);
+    }
+
+    virtual void dump_descriptor_name(char *buf) const override {
+        dprint(buf, p_->name);
+    }
+
+    virtual void dump_direction(char *buf) const override {
+        dprint(buf, dir2str(p_->dir));
+    }
+
+    virtual void dump_flags(char *buf) const override {
+        dprint(buf, flags2str(p_->flags));
+    }
+
+    virtual void dump_tag(char *buf) const override {
+        dprint(buf, tag2str(p_->tag));
+    }
+
+private:
+    const prb_t *p_;
+};
 
 /* some extra control parameters which shouldn't be placed in prb_t */
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
-
-extern const char *perf_template; /* performance output template */
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
 inline size_t data_off(const prb_t *p,
         int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {

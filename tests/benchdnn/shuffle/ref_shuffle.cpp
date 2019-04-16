@@ -22,8 +22,8 @@ namespace shuffle {
 void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst)
 {
     const int ndims = (int)p->dims.size();
-    const int axis = p->a;
-    const int64_t group_size = p->g;
+    const int axis = p->axis;
+    const int64_t group_size = p->group;
     const int64_t axis_size = p->dims[axis];
     int64_t inner_size = 1, outer_size = 1;
 

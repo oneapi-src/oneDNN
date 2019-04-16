@@ -37,13 +37,13 @@ typedef enum {
 
 typedef enum { action_copy = 0, action_sum, action_concat } rnn_action_t;
 
-mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
        mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d);
 
-mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
@@ -66,21 +66,21 @@ float dtanhf(float x);
 float one_m_square(float x);
 float x_m_square(float x);
 
-int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
 
-int compare_input(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_input(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare);
-int compare_states(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_states(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare);
-int compare_weights_input(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_input(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
-int compare_weights_states(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_states(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
-int compare_bias(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_bias(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare);
-int compare_dst_last_layer(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
-int compare_dst_last_iteration(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
 };

@@ -139,38 +139,33 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 }
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char desc_buf[max_desc_len];
-    char dir_str[32] = {0};
-    char dt_str[16] = {0};
-    char tag_str[32] = {0};
-    char flags_str[16] = {0};
-    char attr_buf[max_attr_len];
-    char check_str[24] = {0};
-    desc2str(p, desc_buf, canonical);
-    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
-    snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
-    snprintf(flags_str, sizeof(flags_str), "--flags=%s ", flags2str(p->flags));
-    bool is_attr_def = p->attr.is_def();
-    if (!is_attr_def) {
-        int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
+    char dir_str[32] = "", dt_str[32] = "", tag_str[32] = "", alg_str[32] = "",
+         flags_str[32] = "", attr_str[max_attr_len] = "",
+         desc_str[max_desc_len] = "";
+
+    if (p->dir != FWD_B)
+        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    if (p->dt != mkldnn_f32)
+        snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
+    if (p->tag != mkldnn_nchw)
+        snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
+    if (p->flags != (flags_t)0)
+        snprintf(flags_str, sizeof(flags_str), "--flags=%s ",
+                flags2str(p->flags));
+    if (p->check_alg != ALG_AUTO)
+        snprintf(alg_str, sizeof(alg_str), "--check-alg=%s ",
+                check_alg2str(p->check_alg));
+    if (!p->attr.is_def()) {
+        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
         SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_buf + len);
-        len = (int)strnlen(attr_buf, max_attr_len);
-        snprintf(attr_buf + len, max_attr_len - len, "\" ");
+        attr2str(&p->attr, attr_str + len);
+        len = (int)strnlen(attr_str, max_attr_len);
+        snprintf(attr_str + len, max_attr_len - len, "\" ");
     }
-    snprintf(check_str, sizeof(check_str), "--check-alg=%s ",
-            check_alg2str(p->check_alg));
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s%s",
-            p->check_alg == ALG_AUTO ? "" : check_str,
-            p->dir == FWD_B ? "" : dir_str,
-            p->dt == mkldnn_f32 ? "" : dt_str,
-            is_bnorm_3d(p)
-                ? p->tag == mkldnn_ncdhw ? "" : tag_str
-                : p->tag == mkldnn_nchw ? "" : tag_str,
-            p->flags == (flags_t)0 ? "" : flags_str,
-            is_attr_def ? "" : attr_buf,
-            desc_buf);
+    desc2str(p, desc_str, canonical);
+
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s%s", dir_str, dt_str, tag_str,
+            attr_str, alg_str, flags_str, desc_str);
 }
 
 }

@@ -35,7 +35,7 @@ namespace rnn {
 
 #define CALL_MKLDNN_RNN 1
 
-mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const rnn_prb_t *p) {
+mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const prb_t *p) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
 
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
@@ -55,7 +55,7 @@ mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const rnn_prb_t *p) {
     return mkldnn_attr;
 }
 
-int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
+int fill_memory(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         dnn_mem_t &mem2) {
 #ifdef CALL_MKLDNN_RNN
     const size_t nelems = mem1.nelems();
@@ -84,7 +84,7 @@ int fill_memory(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
     return OK;
 }
 
-inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
+inline int init_pd(const prb_t *p, mkldnn_rnn_desc_t rd[2],
         mkldnn_primitive_desc_t rpd[2], res_t *r) {
     const bool is_bwd = p->prop == mkldnn_backward;
     // If we are testing backward, we have to first run forward
@@ -254,7 +254,7 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
     return OK;
 }
 
-int doit(const rnn_prb_t *p, res_t *r) {
+int doit(const prb_t *p, res_t *r) {
     res_t res_zero{};
     *r = res_zero;
 

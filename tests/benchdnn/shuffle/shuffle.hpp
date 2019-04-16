@@ -27,6 +27,7 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "perf_report.hpp"
 
 namespace shuffle {
 
@@ -45,30 +46,62 @@ const dt_conf_t conf_s8 = {mkldnn_s8, INT8_MIN, -2*INT8_MIN};
 const dt_conf_t conf_u8 = {mkldnn_u8, 0, UINT8_MAX};
 const dt_conf_t conf_s32 = {mkldnn_s32, -int_max_exact, 2*int_max_exact};
 
-const size_t max_desc_len = 196;
-
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, int axis, int64_t group)
-        : dims(dims), dir(dir), dt(dt), tag(tag), a(axis), g(group) {}
+        : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), group(group) {}
     ~prb_t() {}
 
     dims_t dims;
     dir_t dir;
     mkldnn_data_type_t dt;
     mkldnn_format_tag_t tag;
-    int a;
-    int64_t g;
+    int axis;
+    int64_t group;
 };
 
-const size_t max_dims_len = 20;
 dims_t str2dims(const char *str);
 void dims2str(const dims_t &dims, char *buffer);
-const size_t max_prb_len = max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
-extern const char *perf_template; /* performance output template */
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_axis(char *buf) const override {
+        dprint(buf, p_->axis);
+    }
+
+    virtual void dump_data_type(char *buf) const override {
+        dprint(buf, dt2str(p_->dt));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        dims2str(p_->dims, buf);
+    }
+
+    virtual void dump_direction(char *buf) const override {
+        dprint(buf, dir2str(p_->dir));
+    }
+
+    virtual void dump_group_size(char *buf) const override {
+        dprint(buf, p_->group);
+    }
+
+    virtual void dump_tag(char *buf) const override {
+        dprint(buf, tag2str(p_->tag));
+    }
+
+private:
+    const prb_t *p_;
+};
 
 inline size_t data_off(const prb_t *p,
         int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {

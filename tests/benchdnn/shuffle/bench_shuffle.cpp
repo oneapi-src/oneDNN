@@ -40,7 +40,10 @@ int axis = 1;
 int64_t group = 1;
 const char *pattern = NULL;
 bool allow_unimpl = false;
-const char *perf_template = "perf,%z,%q,%f,%D,%a,%g,%-t,%0t";
+const char *perf_template_csv =
+    "perf,%engine%,%dir%,%dt%,%tag%,%group%,%axis%,%DESC%,%-time%,%0time%";
+const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
+const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     dir = FWD_D;
@@ -66,8 +69,10 @@ void check_correctness() {
     bool want_perf_report = false;
     parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
+    if (want_perf_report && bench_mode & PERF) {
+        perf_report_t pr(perf_template);
+        pr.report(&p, &res, pstr);
+    }
 
     benchdnn_stat.tests++;
 }
@@ -90,6 +95,14 @@ int bench(int argc, char **argv, bool main_bench) {
             pattern = argv[arg] + 8;
         else if (!strncmp("--mode=", argv[0], 7))
             bench_mode = str2bench_mode(argv[0] + 7);
+        else if (!strncmp("--perf-template=", argv[arg], 16)) {
+            if (!strcmp("def", argv[arg] + 16))
+                perf_template = perf_template_def;
+            else if (!strcmp("csv", argv[arg] + 16))
+                perf_template = perf_template_csv;
+            else
+                perf_template = argv[arg] + 16;
+        }
         else if (!strcmp("--reset", argv[arg]))
             reset_parameters();
         else if (!strncmp("-v", argv[arg], 2))

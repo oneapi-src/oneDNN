@@ -19,13 +19,6 @@
 #include "rnn/rnn_aux.hpp"
 #include "norm.hpp"
 
-#define DPRINT(...)                                     \
-    do {                                                \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l;                                    \
-        rem_len -= l;                                   \
-    } while (0)
-
 namespace rnn {
 
 alg_t str2alg(const char *str) {
@@ -164,8 +157,8 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
     return "unknown direction";
 }
 
-int str2desc(rnn_desc_t *desc, const char *str) {
-    rnn_desc_t d{0};
+int str2desc(desc_t *desc, const char *str) {
+    desc_t d{0};
 
     /* canonical form:
      * lXtXmXsicXslcXdicXdlc
@@ -220,8 +213,14 @@ int str2desc(rnn_desc_t *desc, const char *str) {
     return OK;
 }
 
+#define DPRINT(...)                                     \
+    do {                                                \
+        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
+        buffer += l;                                    \
+        rem_len -= l;                                   \
+    } while (0)
 
-void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
+void prb2str(const prb_t *p, char *buffer) {
     int rem_len = max_prb_len;
 
     DPRINT("--prop=%s --alg=%s --activation=%s --direction=%s --cfg=%s "
@@ -239,7 +238,9 @@ void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     DPRINT("n\"%s\"", p->name);
 }
 
-mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+#undef DPRINT
+
+mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
@@ -276,7 +277,7 @@ mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
     return init_status;
 }
 
-mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
@@ -362,7 +363,7 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     size_t nelems = mem_dt.nelems();
 
@@ -529,36 +530,36 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int compare_input(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_input(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_states(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_states(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_input(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_input(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_states(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_states(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_bias(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_bias(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, bias, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_layer(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_layer, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_iteration(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_iteration, mem_dt, mem_fp, r, final_compare);
 }
 
-void rnn_prb_t::set_qparams(float fp_min, float fp_max) {
+void prb_t::set_qparams(float fp_min, float fp_max) {
     if (cfg == conf_f32 || cfg == conf_f16) {
         data_shift = 0.;
         data_scale = 1.;

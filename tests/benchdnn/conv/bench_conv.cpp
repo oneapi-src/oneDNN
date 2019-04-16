@@ -38,7 +38,13 @@ alg_t alg = DIRECT;
 attr_t attr;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
+const char *perf_template_csv =
+    "perf,%engine%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
+    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_def =
+    "perf,%engine%,%name%,%desc%,"
+    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -62,14 +68,14 @@ void check_correctness(const desc_t *c) {
 
     res_t res{};
     const int status = conv::doit(&p, &res);
-    (void)status;
 
     bool want_perf_report = false;
-
     parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
+    if (want_perf_report && bench_mode & PERF) {
+        perf_report_t pr(perf_template);
+        pr.report(&p, &res, pstr);
+    }
 
     benchdnn_stat.tests++;
 }
@@ -94,8 +100,14 @@ int bench(int argc, char **argv, bool main_bench) {
             skip_impl = argv[arg] + 12;
         else if (!strncmp("--allow-unimpl=", argv[arg], 15))
             allow_unimpl = str2bool(argv[arg] + 15);
-        else if (!strncmp("--perf-template=", argv[arg], 16))
-            perf_template = argv[arg] + 16;
+        else if (!strncmp("--perf-template=", argv[arg], 16)) {
+            if (!strcmp("def", argv[arg] + 16))
+                perf_template = perf_template_def;
+            else if (!strcmp("csv", argv[arg] + 16))
+                perf_template = perf_template_csv;
+            else
+                perf_template = argv[arg] + 16;
+        }
         else if (!strcmp("--reset", argv[arg]))
             reset_parameters();
         else if (!strncmp("--mode=", argv[arg], 7))

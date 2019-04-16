@@ -25,6 +25,7 @@
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "perf_report.hpp"
 
 namespace reorder {
 
@@ -44,6 +45,14 @@ struct dt_conf_s {
     int range;
 };
 typedef const dt_conf_s *dt_conf_t;
+
+extern const dt_conf_t conf_f32;
+extern const dt_conf_t conf_s8;
+extern const dt_conf_t conf_u8;
+extern const dt_conf_t conf_s32;
+
+dt_conf_t dt2cfg(mkldnn_data_type_t dt);
+mkldnn_data_type_t cfg2dt(dt_conf_t cfg);
 
 struct reorder_conf_t {
     dims_t dims;
@@ -67,8 +76,10 @@ struct prb_t {
         , conf_out(conf_out)
         , attr(attr)
         , alg(alg)
-        , oflag(oflag) {
+        , oflag(oflag)
+        , ops(0) {
         if (scale != 0.f) this->attr.oscale.scale = scale;
+        count_ops();
     }
 
     const reorder_conf_t reorder;
@@ -77,23 +88,66 @@ struct prb_t {
     attr_t attr;
     alg_t alg;
     flag_t oflag;
+    double ops;
+
+    void count_ops() {
+        if (ops > 0) return;
+
+        ops = 1;
+        for (size_t d = 0; d < reorder.dims.size(); ++d)
+            ops *= reorder.dims[d];
+    };
 };
 
-extern const char *perf_template; /* performance output template */
-
-extern const dt_conf_t conf_f32;
-extern const dt_conf_t conf_s8;
-extern const dt_conf_t conf_u8;
-extern const dt_conf_t conf_s32;
-dt_conf_t dt2cfg(mkldnn_data_type_t dt);
-mkldnn_data_type_t cfg2dt(dt_conf_t cfg);
-
-const size_t max_dims_len = 20;
-const size_t max_prb_len = 392;
 dims_t str2dims(const char *str);
 void dims2str(const dims_t &dims, char *buffer);
-void prb2str(const prb_t *p, const res_t *res, char *buffer);
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
+void prb2str(const prb_t *p, char *buffer);
+
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_algorithm(char *buf) const override {
+        dprint(buf, alg2str(p_->alg));
+    }
+
+    virtual void dump_attributes(char *buf) const override {
+        if (!p_->attr.is_def())
+            attr2str(&p_->attr, buf);
+    }
+
+    virtual void dump_data_type(char *buf) const override {
+        snprintf(buf, max_dump_len, "%s,%s", dt2str(cfg2dt(p_->conf_in)),
+                dt2str(cfg2dt(p_->conf_out)));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        dims2str(p_->reorder.dims, buf);
+    }
+
+    virtual void dump_flags(char *buf) const override {
+        dprint(buf, flag2str(p_->oflag));
+    }
+
+    virtual void dump_tag(char *buf) const override {
+        snprintf(buf, max_dump_len, "%s,%s", tag2str(p_->reorder.tag_in),
+                tag2str(p_->reorder.tag_out));
+    }
+
+    virtual double ops() const override {
+        return p_->ops;
+    }
+
+private:
+    const prb_t *p_;
+};
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv, bool main_bench = true);

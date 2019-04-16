@@ -41,7 +41,11 @@ attr_t attr;
 const char *pattern = NULL;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%z,%F,%q,%f,%D,%-t,%0t";
+const char *perf_template_csv =
+    "perf,%engine%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%DESC%,"
+    "%-time%,%0time%";
+const char *perf_template_def = "perf,%engine%,%name%,%desc%,%-time%,%0time%";
+const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     check_alg = ALG_AUTO;
@@ -71,8 +75,10 @@ void check_correctness(const desc_t *c) {
     bool want_perf_report = false;
     parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
+    if (want_perf_report && bench_mode & PERF) {
+        perf_report_t pr(perf_template);
+        pr.report(&p, &res, pstr);
+    }
 
     benchdnn_stat.tests++;
 }
@@ -101,8 +107,14 @@ int bench(int argc, char **argv, bool main_bench) {
             skip_impl = argv[arg] + 12;
         else if (!strncmp("--allow-unimpl=", argv[arg], 15))
             allow_unimpl = str2bool(argv[arg] + 15);
-        else if (!strncmp("--perf-template=", argv[arg], 16))
-            perf_template = argv[arg] + 16;
+        else if (!strncmp("--perf-template=", argv[arg], 16)) {
+            if (!strcmp("def", argv[arg] + 16))
+                perf_template = perf_template_def;
+            else if (!strcmp("csv", argv[arg] + 16))
+                perf_template = perf_template_csv;
+            else
+                perf_template = argv[arg] + 16;
+        }
         else if (!strcmp("--reset", argv[arg]))
             reset_parameters();
         else if (!strncmp("--mode=", argv[arg], 7))

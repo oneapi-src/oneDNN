@@ -25,6 +25,7 @@
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "perf_report.hpp"
 
 namespace pool {
 
@@ -43,7 +44,6 @@ struct desc_t {
 
     const char *name;
 };
-const size_t max_desc_len = 196;
 int str2desc(desc_t *desc, const char *str);
 void desc2str(const desc_t *d, char *buffer, bool canonical = false);
 
@@ -86,13 +86,63 @@ struct prb_t: public desc_t {
     mkldnn_format_tag_t tag;
     alg_t alg;
 };
-const size_t max_prb_len = max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_algorithm(char *buf) const override {
+        dprint(buf, alg2str(p_->alg));
+    }
+
+    virtual void dump_config(char *buf) const override {
+        dprint(buf, cfg2str(p_->cfg));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        if (p_->id > 1)
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
+                    p_->mb, p_->ic, p_->id, p_->ih, p_->iw, p_->od,
+                    p_->oh, p_->ow, p_->kd, p_->kh, p_->kw, p_->sd,
+                    p_->sh, p_->sw, p_->pd, p_->ph, p_->pw);
+        else
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
+                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
+                    p_->mb, p_->ic, p_->ih, p_->iw, p_->oh, p_->ow,
+                    p_->kh, p_->kw, p_->sh, p_->sw, p_->ph, p_->pw);
+    }
+
+    virtual void dump_descriptor_name(char *buf) const override {
+        dprint(buf, p_->name);
+    }
+
+    virtual void dump_direction(char *buf) const override {
+        dprint(buf, dir2str(p_->dir));
+    }
+
+    virtual void dump_tag(char *buf) const override {
+        dprint(buf, tag2str(p_->tag));
+    }
+
+private:
+    const prb_t *p_;
+};
 
 /* some extra control parameters which shouldn't be placed in prb_t */
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern bool allow_unimpl; /* true means do not treat unimplemented as error */
-extern const char *perf_template; /* performance output template */
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {
@@ -151,8 +201,6 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
         dnn_mem_t &ws);
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
         const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
-
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 
 int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
 int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);

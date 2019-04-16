@@ -32,7 +32,12 @@ flag_t oflag = FLAG_NONE;
 bool allow_unimpl = false;
 bool both_dir_dt = false;
 bool both_dir_tag = false;
-const char *perf_template = "perf,%n,%D,%O,%-t,%-Gp,%0t,%0Gp";
+const char *perf_template_csv =
+    "perf,%engine%,%dt%,%tag%,%alg%,%flags%,%attr%,%DESC%,"
+    "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+const char *perf_template_def =
+    "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+const char *perf_template = perf_template_def;
 
 std::vector<mkldnn_data_type_t> v_idt, v_odt;
 std::vector<mkldnn_format_tag_t> v_itag, v_otag;
@@ -51,19 +56,19 @@ void reset_parameters() {
 }
 
 void check(const prb_t *p) {
-    res_t res{};
     char pstr[max_prb_len];
-    prb2str(p, &res, pstr);
+    prb2str(p, pstr);
 
+    res_t res{};
     int status = reorder::doit(p, &res);
 
-    prb2str(p, &res, pstr);
     bool want_perf_report = false;
-
     parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-    if (bench_mode & PERF)
-        perf_report(p, &res, pstr);
+    if (want_perf_report && bench_mode & PERF) {
+        perf_report_t pr(perf_template);
+        pr.report(p, &res, pstr);
+    }
 
     benchdnn_stat.tests++;
 }
@@ -142,8 +147,14 @@ int bench(int argc, char **argv, bool main_bench) {
             allow_unimpl = str2bool(argv[arg] + 15);
         else if (!strcmp("--run", argv[arg]))
             run();
-        else if (!strncmp("--perf-template=", argv[arg], 16))
-            perf_template = argv[arg] + 16;
+        else if (!strncmp("--perf-template=", argv[arg], 16)) {
+            if (!strcmp("def", argv[arg] + 16))
+                perf_template = perf_template_def;
+            else if (!strcmp("csv", argv[arg] + 16))
+                perf_template = perf_template_csv;
+            else
+                perf_template = argv[arg] + 16;
+        }
         else if (!strcmp("--reset", argv[arg]))
             reset_parameters();
         else if (!strncmp("--mode=", argv[arg], 7))

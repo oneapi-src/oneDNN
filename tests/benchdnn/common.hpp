@@ -113,6 +113,12 @@ const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 extern bench_mode_t bench_mode;
 
+/* string length constants */
+constexpr size_t max_attr_len = 128;
+constexpr size_t max_desc_len = 160;
+constexpr size_t max_base_prb_len = 196;
+constexpr size_t max_prb_len = max_attr_len + max_desc_len + max_base_prb_len;
+
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
 extern int min_times_per_prb; /** minimal amount of runs per prb */

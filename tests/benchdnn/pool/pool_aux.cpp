@@ -220,19 +220,21 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 }
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char desc_buf[max_desc_len];
-    char dir_str[32] = "", cfg_str[32] = "", alg_str[32] = "", tag_str[32] = "";
+    char dir_str[32] = "", cfg_str[32] = "", alg_str[32] = "", tag_str[32] = "",
+         desc_buf[max_desc_len] = "";
+
+    if (p->dir != FWD_D)
+        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    if (p->cfg != conf_f32)
+        snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
+    if (p->tag != mkldnn_nchw)
+        snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
+    if (p->alg != MAX)
+        snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
     desc2str(p, desc_buf, canonical);
-    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
-    snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
-    snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s",
-            p->dir == FWD_D ? "" : dir_str,
-            p->cfg == conf_f32 ? "" : cfg_str,
-            p->tag == mkldnn_nchw ? "" : tag_str,
-            p->alg == MAX ? "" : alg_str,
-            desc_buf);
+
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s", dir_str, cfg_str, tag_str,
+            alg_str, desc_buf);
 }
 
 }

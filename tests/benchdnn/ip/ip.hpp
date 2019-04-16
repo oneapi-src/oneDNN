@@ -22,10 +22,9 @@
 #include "common.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "perf_report.hpp"
 
 namespace ip {
-const size_t max_prb_len = 392;
-const size_t max_desc_len = 196;
 
 struct desc_t {
     int64_t mb, oc, ic, id, ih, iw;
@@ -50,27 +49,79 @@ extern const _dt_conf_t conf_u8s8u8s32;
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
             const attr_t &attr)
-        : desc_t(desc), dir(dir), cfg(cfg), attr(attr), scales(NULL) {
-        if (mb)
-            this->mb = mb;
+        : desc_t(desc), dir(dir), cfg(cfg), attr(attr), ops(0), scales(NULL) {
+        if (mb) this->mb = mb;
+        count_ops();
         generate_oscales();
     }
     ~prb_t() { if (scales) zfree(scales); }
+
     dir_t dir;
     const dt_conf_t *cfg;
     attr_t attr;
+
+    double ops;
     float *scales;
+
+    void count_ops() {
+        if (ops > 0) return;
+        ops = 2. * mb * ic * oc * id * ih * iw;
+    };
 
     void generate_oscales();
 };
 
 int str2desc(desc_t *desc, const char *str);
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 
-extern const char *perf_template; /* performance output template */
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_attributes(char *buf) const override {
+        if (!p_->attr.is_def())
+            attr2str(&p_->attr, buf);
+    }
+
+    virtual void dump_config(char *buf) const override {
+        dprint(buf, cfg2str(p_->cfg));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        if (p_->id > 1)
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
+                    p_->mb, p_->oc, p_->ic, p_->id, p_->ih, p_->iw);
+        else
+            snprintf(buf, max_dump_len,
+                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
+                    p_->mb, p_->oc, p_->ic, p_->ih, p_->iw);
+    }
+
+    virtual void dump_descriptor_name(char *buf) const override {
+        dprint(buf, p_->name);
+    }
+
+    virtual void dump_direction(char *buf) const override {
+        dprint(buf, dir2str(p_->dir));
+    }
+
+    virtual double ops() const override {
+        return p_->ops;
+    }
+
+private:
+    const prb_t *p_;
+};
 
 inline size_t src_off_f(const prb_t *p,
         int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {

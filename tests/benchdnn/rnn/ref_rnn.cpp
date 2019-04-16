@@ -164,7 +164,7 @@ void gru_lbr_fwd(int64_t sic, int64_t slc, int64_t dic, int64_t wc, int64_t batc
 }
 
 // w = [weights_layer | weights_iter] : with order f, i , o, \bar(c)
-void lstm_fwd(const rnn_prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t wc, int64_t batch,
+void lstm_fwd(const prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t wc, int64_t batch,
         int64_t n_gates, float *dst_iter_h_, float *c_dst_, float *gates_,
         const float *weights_layer_, const float *weights_iter_h_,
         const float *bias_, const float *src_layer_, const float *src_iter_h_,
@@ -230,7 +230,7 @@ void lstm_fwd(const rnn_prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t
         }
 }
 
-void rnn_cell_fwd(const rnn_prb_t *p, alg_t alg, activation_t f, int64_t sic,
+void rnn_cell_fwd(const prb_t *p, alg_t alg, activation_t f, int64_t sic,
         int64_t slc, int64_t dic, int64_t wc, int64_t batch, int64_t n_gates, float *dst_iter_h,
         float *dst_iter_c, float *gates, const float *weights_layer,
         const float *weights_iter, const float *bias, const float *src_layer,
@@ -272,7 +272,7 @@ void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst, const floa
 }
 
 void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
-        bool round = false, const rnn_prb_t *p = nullptr) {
+        bool round = false, const prb_t *p = nullptr) {
     AOC<float> src(src_, dimc, ld_src);
     mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
@@ -290,7 +290,7 @@ void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
 }
 
 void scale(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float scale,
-        bool round = false, const rnn_prb_t *p = nullptr) {
+        bool round = false, const prb_t *p = nullptr) {
     AOC<float> src(src_, dimc, ld_src);
     mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
@@ -304,7 +304,7 @@ void scale(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float scale,
 /* lstm example:
  * fwd: ws keeps {h, c} for every cell
  */
-void copy_init_fwd(const rnn_prb_t *p, alg_t alg, int64_t sic, int64_t slc, int64_t dic,
+void copy_init_fwd(const prb_t *p, alg_t alg, int64_t sic, int64_t slc, int64_t dic,
         int64_t dlc, int64_t wc, int64_t batch, int64_t n_layer, int64_t n_iter, int64_t n_dir,
         int64_t n_states, float *ws_, const float *src_layer_,
         const float *firstit_states_, rnn_iter_direction_t iter_dir,
@@ -388,7 +388,7 @@ void copy_init_bwd(alg_t alg, int64_t sic, int64_t slc, int64_t dic, int64_t dlc
     }
 }
 
-void copy_res_fwd(const rnn_prb_t *p, alg_t alg, int64_t sic, int64_t slc, int64_t dic,
+void copy_res_fwd(const prb_t *p, alg_t alg, int64_t sic, int64_t slc, int64_t dic,
         int64_t dlc, int64_t wc, int64_t batch, int64_t n_layer, int64_t n_iter, int64_t n_dir,
         int64_t n_states, float *lastit_states_, float *lastlay_states_,
         const float *ws_, rnn_iter_direction_t iter_dir,
@@ -480,7 +480,7 @@ void copy_res_bwd(alg_t alg, int64_t sic, int64_t slc, int64_t dic, int64_t dlc,
     }
 }
 
-void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
+void rnn_linear_fwd(const prb_t *p, mkldnn_rnn_direction_t direction,
         const float *src_iter_, const float *src_layer_,
         const float *weights_layer_, const float *weights_iter_h_,
         const float *bias_, float *dst_iter_, float *dst_layer_, float *ws_,
@@ -570,7 +570,7 @@ void rnn_linear_fwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
     delete[] ws_local_;
 }
 
-void compute_ref_fwd(const rnn_prb_t *p, dnn_mem_t &src_layer_m,
+void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &weights_src_layer_m,
         dnn_mem_t &weights_src_iter_m, dnn_mem_t &bias_m,
         dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
@@ -914,7 +914,7 @@ void rnn_cell_bwd(alg_t alg, activation_t f, int64_t sic, int64_t slc, int64_t d
     }
 }
 
-void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
+void rnn_linear_bwd(const prb_t *p, mkldnn_rnn_direction_t direction,
         const float *diff_dst_iter_, const float *diff_dst_layer_,
         const float *weights_layer_, const float *weights_iter_h_,
         const float *bias_, float *diff_src_iter_, float *diff_src_layer_,
@@ -1049,7 +1049,7 @@ void rnn_linear_bwd(const rnn_prb_t *p, mkldnn_rnn_direction_t direction,
     delete[] ws_local_;
 }
 
-void compute_ref_bwd(const rnn_prb_t *p, dnn_mem_t &input_m,
+void compute_ref_bwd(const prb_t *p, dnn_mem_t &input_m,
         dnn_mem_t &states_m, dnn_mem_t &diff_last_layer_m,
         dnn_mem_t &diff_last_iteration_m, dnn_mem_t &weights_input_m,
         dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,

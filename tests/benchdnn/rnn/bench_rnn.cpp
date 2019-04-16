@@ -34,7 +34,6 @@ namespace rnn {
 mkldnn_prop_kind_t prop = mkldnn_forward;
 alg_t alg = VANILLA_RNN;
 mkldnn_rnn_direction_t direction = mkldnn_unidirectional_left2right;
-const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
 const dt_conf_t *cfg = conf_f32;
 policy_t scale_policy = NONE;
 attr_t attr;
@@ -44,6 +43,11 @@ unsigned int flags = 0x0;
 activation_t activation = RELU;
 float alpha = 0.0f;
 float beta = 0.0f;
+const char *perf_template_csv =
+    "perf,%engine%,%name%,%prop%,%DESC%,"
+    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_def = perf_template_csv;
+const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -55,6 +59,26 @@ void reset_parameters() {
     scale_policy = NONE;
     allow_unimpl = false;
     mb = 0;
+}
+
+void check_correctness(const desc_t *c) {
+    const prb_t p(*c, cfg, prop, alg, direction, attr,
+        scale_policy, flags, activation, alpha, beta, mb);
+    char pstr[max_prb_len];
+    prb2str(&p, pstr);
+
+    res_t res{};
+    const int status = rnn::doit(&p, &res);
+
+    bool want_perf_report = false;
+    parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+
+    if (want_perf_report && bench_mode & PERF) {
+        perf_report_t pr(perf_template);
+        pr.report(&p, &res, pstr);
+    }
+
+    benchdnn_stat.tests++;
 }
 
 int bench(int argc, char **argv, bool main_bench) {
@@ -69,7 +93,8 @@ int bench(int argc, char **argv, bool main_bench) {
                 prop = mkldnn_backward;
             else
                 assert("unknown dir");
-        } else if (!strncmp("--alg=", argv[arg], 6))
+        }
+        else if (!strncmp("--alg=", argv[arg], 6))
             alg = str2alg(argv[arg] + 6);
         else if (!strncmp("--cfg=", argv[arg], 6))
             cfg = str2cfg(argv[arg] + 6);
@@ -85,8 +110,14 @@ int bench(int argc, char **argv, bool main_bench) {
             scale_policy = str2policy(argv[arg] + 10);
         else if (!strncmp("--reset", argv[arg], 7))
             reset_parameters();
-        else if (!strncmp("--perf-template=", argv[arg], 16))
-            perf_template = argv[arg] + 16;
+        else if (!strncmp("--perf-template=", argv[arg], 16)) {
+            if (!strcmp("def", argv[arg] + 16))
+                perf_template = perf_template_def;
+            else if (!strcmp("csv", argv[arg] + 16))
+                perf_template = perf_template_csv;
+            else
+                perf_template = argv[arg] + 16;
+        }
         else if (!strncmp("--mb=", argv[arg], 5))
             mb = atoi(argv[arg] + 5);
         else if (!strncmp("-v", argv[arg], 2))
@@ -94,8 +125,8 @@ int bench(int argc, char **argv, bool main_bench) {
         else if (!strncmp("--verbose=", argv[arg], 10))
             verbose = atoi(argv[arg] + 10);
         else {
-            rnn_desc_t d;
-            if (str2desc(&d, argv[arg]) == FAIL) {
+            desc_t c;
+            if (str2desc(&c, argv[arg]) == FAIL) {
                 fprintf(stderr, "driver: unknown option: `%s`, exiting...\n",
                         argv[arg]);
                 exit(2);
@@ -107,29 +138,11 @@ int bench(int argc, char **argv, bool main_bench) {
                         cfg2str(cfg));
                 exit(2);
             }
-            check(&d);
+            check_correctness(&c);
         }
     }
+
     return OK;
-}
-
-void check(rnn_desc_t *d) {
-    const rnn_prb_t p(*d, cfg, prop, alg, direction, attr,
-        scale_policy, mb, flags, activation, alpha, beta);
-    res_t res{};
-    char pstr[max_prb_len];
-
-    int status = rnn::doit(&p, &res);
-
-    prb2str(&p, &res, pstr);
-    bool want_perf_report = false;
-
-    parse_result(res, want_perf_report, allow_unimpl, status, pstr);
-
-    if (bench_mode & PERF)
-        perf_report(&p, &res, pstr);
-
-    benchdnn_stat.tests++;
 }
 
 } // namespace rnn

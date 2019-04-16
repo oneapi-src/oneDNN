@@ -17,11 +17,6 @@
 #include "mkldnn_debug.hpp"
 #include "reorder/reorder.hpp"
 
-#define DPRINT(...) do { \
-    int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-    buffer += l; rem_len -= l; \
-} while(0)
-
 namespace reorder {
 
 alg_t str2alg(const char *str) {
@@ -73,41 +68,45 @@ dims_t str2dims(const char *str) {
     return dims;
 }
 
+#define DPRINT(...) do { \
+    int l = snprintf(buffer, rem_len, __VA_ARGS__); \
+    buffer += l; rem_len -= l; \
+} while(0)
+
 void dims2str(const dims_t &dims, char *buffer) {
-    int rem_len = max_dims_len;
+    int rem_len = max_desc_len;
     for (size_t d = 0; d < dims.size() - 1; ++d)
         DPRINT(IFMT "x", dims[d]);
     DPRINT(IFMT, dims[dims.size() - 1]);
 }
 
-void prb2str(const prb_t *p, const res_t *res, char *buffer) {
-    char dims_buf[max_dims_len] = {0};
-    dims2str(p->reorder.dims, dims_buf);
+#undef DPRINT
 
-    char alg_str[32] = "";
+void prb2str(const prb_t *p, char *buffer) {
+    char dt_str[32] = "", tag_str[32] = "", alg_str[32] = "",
+         oflag_str[32] = "", attr_str[max_attr_len] = "",
+         dims_str[max_desc_len] = "";
+
+    snprintf(dt_str, sizeof(dt_str), "--idt=%s --odt=%s ",
+            dt2str(cfg2dt(p->conf_in)), dt2str(cfg2dt(p->conf_out)));
+    snprintf(tag_str, sizeof(tag_str), "--itag=%s --otag=%s ",
+            tag2str(p->reorder.tag_in), tag2str(p->reorder.tag_out));
     if (p->alg != ALG_REF)
         snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-
-    char oflag_str[32] = "";
     if (p->oflag != FLAG_NONE)
         snprintf(oflag_str, sizeof(oflag_str), "--oflag=%s ",
                 flag2str(p->oflag));
-
-    char attr_buf[max_attr_len] = {0};
-    bool is_attr_def = p->attr.is_def();
-    if (!is_attr_def) {
-        int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
+    if (!p->attr.is_def()) {
+        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
         SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_buf + len);
-        len = (int)strnlen(attr_buf, max_attr_len);
-        snprintf(attr_buf + len, max_attr_len - len, "\" ");
+        attr2str(&p->attr, attr_str + len);
+        len = (int)strnlen(attr_str, max_attr_len);
+        snprintf(attr_str + len, max_attr_len - len, "\" ");
     }
+    dims2str(p->reorder.dims, dims_str);
 
-    int rem_len = max_prb_len;
-    DPRINT("--idt=%s --odt=%s --itag=%s --otag=%s %s%s%s%s",
-            dt2str(cfg2dt(p->conf_in)), dt2str(cfg2dt(p->conf_out)),
-            tag2str(p->reorder.tag_in), tag2str(p->reorder.tag_out),
-            alg_str, oflag_str, attr_buf, dims_buf);
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s", dt_str, tag_str, alg_str,
+            oflag_str, attr_str, dims_str);
 }
 
 }
