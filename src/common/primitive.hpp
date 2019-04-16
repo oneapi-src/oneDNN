@@ -18,6 +18,7 @@
 #define PRIMITIVE_HPP
 
 #include <assert.h>
+#include <atomic>
 
 #include "mkldnn.h"
 
@@ -46,9 +47,7 @@
  */
 struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd)
-        : pd_(pd->clone()) {}
-    virtual ~mkldnn_primitive() { delete pd_; }
-
+        : pd_(pd->clone()), counter_(0) { retain(); }
     virtual mkldnn::impl::status_t init() { return mkldnn::impl::status::success; }
 
     /** returns primitive's engine */
@@ -62,10 +61,24 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     virtual mkldnn::impl::status_t execute(const mkldnn::impl::exec_ctx_t &ctx)
         const = 0;
 
+    void retain() {
+        counter_++;
+    }
+
+    void release() {
+        if (--counter_ == 0) {
+            delete this;
+        }
+    }
+
 protected:
     const mkldnn::impl::primitive_desc_t *pd_;
 
+    virtual ~mkldnn_primitive() { delete pd_; }
+
 private:
+    std::atomic<int> counter_;
+
     mkldnn_primitive() = delete;
     mkldnn_primitive(const mkldnn_primitive &) = delete;
     mkldnn_primitive(mkldnn_primitive &&) = delete;

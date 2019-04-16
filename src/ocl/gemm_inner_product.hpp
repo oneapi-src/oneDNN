@@ -142,7 +142,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
     gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
         pd()->gemm_pd_->create_primitive(&gemm_);
     }
-    ~gemm_inner_product_fwd_t() { delete gemm_; }
+    ~gemm_inner_product_fwd_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -225,7 +225,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
     gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
         pd()->gemm_pd_->create_primitive(&gemm_);
     }
-    ~gemm_inner_product_bwd_data_t() { delete gemm_; }
+    ~gemm_inner_product_bwd_data_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -330,7 +330,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
     gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
         pd()->gemm_pd_->create_primitive(&gemm_);
     }
-    ~gemm_inner_product_bwd_weights_t() { delete gemm_; }
+    ~gemm_inner_product_bwd_weights_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

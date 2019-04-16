@@ -133,12 +133,10 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
     c_mem->memory_storage()->set_offset(offset_c * sizeof(data_t));
 
     // Create primitive
-    std::unique_ptr<primitive_t> gemm_prim;
-    primitive_t *gemm_prim_ptr;
-    status = pd->create_primitive(&gemm_prim_ptr);
+    primitive_t *gemm_prim;
+    status = pd->create_primitive(&gemm_prim);
     if (status != status::success)
         return status;
-    gemm_prim.reset(gemm_prim_ptr);
 
     exec_args_t args = {
         { MKLDNN_ARG_SRC_0, { a_mem.get(), true } },
@@ -148,6 +146,7 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
 
     exec_ctx_t ctx(s.get(), std::move(args));
     status = gemm_prim->execute(ctx);
+    gemm_prim->release();
     if (status != status::success)
         return status;
 

@@ -122,7 +122,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
 
     ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t()
-    { delete conv_p_; }
+    { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return conv_p_->execute(ctx);

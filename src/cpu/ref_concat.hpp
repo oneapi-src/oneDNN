@@ -71,7 +71,7 @@ struct ref_concat_t: public cpu_primitive_t {
             pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
     }
 
-    ~ref_concat_t() { for (auto &r: reorders_) delete r; }
+    ~ref_concat_t() { for (auto &r: reorders_) r->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto n = pd()->n_inputs();

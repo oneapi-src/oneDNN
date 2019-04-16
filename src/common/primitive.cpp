@@ -113,7 +113,7 @@ status_t mkldnn_primitive_get_primitive_desc(const primitive_t *primitive,
 
 status_t mkldnn_primitive_destroy(primitive_t *primitive) {
     if (primitive != nullptr)
-        delete primitive;
+        primitive->release();
     return success;
 }
 

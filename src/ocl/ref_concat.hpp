@@ -17,6 +17,7 @@
 #ifndef REF_CONCAT_HPP
 #define REF_CONCAT_HPP
 
+#include "common/engine.hpp"
 #include "common/reorder_pd.hpp"
 #include "ocl/ocl_concat_pd.hpp"
 
@@ -76,7 +77,7 @@ struct ref_concat_t : public primitive_t {
 
     ~ref_concat_t() {
         for (auto &r : reorders_)
-            delete r;
+            r->release();
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

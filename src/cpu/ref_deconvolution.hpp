@@ -208,7 +208,7 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
 
     ref_deconvolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
     { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
-    ~ref_deconvolution_fwd_t() { delete conv_p_; }
+    ~ref_deconvolution_fwd_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
@@ -334,7 +334,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
 
     ref_deconvolution_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd)
     { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
-    ~ref_deconvolution_bwd_data_t() { delete conv_p_; }
+    ~ref_deconvolution_bwd_data_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
@@ -443,7 +443,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
 
     ref_deconvolution_bwd_weights_t(const pd_t *apd): cpu_primitive_t(apd)
     { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
-    ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
+    ~ref_deconvolution_bwd_weights_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
