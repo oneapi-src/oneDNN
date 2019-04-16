@@ -98,6 +98,8 @@ register_benchdnn_test(test_benchdnn_shuffle
     cpu "--shuffle --batch=inputs/shuffle/test_shuffle_all")
 register_benchdnn_test(test_benchdnn_softmax
     cpu "--softmax --batch=inputs/softmax/test_softmax_all")
+register_benchdnn_test(test_benchdnn_pool
+    cpu "--pool --batch=inputs/pool/test_pool_all")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "--conv --batch=inputs/test_conv_regression"

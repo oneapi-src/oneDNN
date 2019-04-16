@@ -35,6 +35,7 @@
 #include "bnorm/bnorm.hpp"
 #include "rnn/rnn.hpp"
 #include "softmax/softmax.hpp"
+#include "pool/pool.hpp"
 
 int verbose {0};
 bench_mode_t bench_mode {CORR};
@@ -58,6 +59,7 @@ int main(int argc, char **argv) {
         else if (!strcmp("--bnorm", argv[0])) prim = BNORM;
         else if (!strcmp("--rnn", argv[0])) prim = RNN;
         else if (!strcmp("--softmax", argv[0])) prim = SOFTMAX;
+        else if (!strcmp("--pool", argv[0])) prim = POOL;
         else if (!strncmp("--mode=", argv[0], 7))
             bench_mode = str2bench_mode(argv[0] + 7);
         else if (!strncmp("--max-ms-per-prb=", argv[0], 17))
@@ -90,6 +92,7 @@ int main(int argc, char **argv) {
     case BNORM: bnorm::bench(argc, argv); break;
     case RNN: rnn::bench(argc, argv); break;
     case SOFTMAX: softmax::bench(argc, argv); break;
+    case POOL: pool::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
     }
 

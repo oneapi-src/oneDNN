@@ -1,0 +1,142 @@
+--reset
+
+# 2d cases
+--mb=2
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=MAX --dir=FWD_D --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=s8  --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=FWD_I --cfg=u8  --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_D --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=s8  --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=FWD_I --cfg=u8  --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_D --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=s32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=s8  --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=FWD_I --cfg=u8  --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nchw    --batch=pool_2d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nhwc    --batch=pool_2d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nChw8c  --batch=pool_2d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nChw16c --batch=pool_2d_all
+
+# separate inputs for kernel in padded area cases due to AVG_NP is not applicable
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_D --cfg=s32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=s32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=s8  --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=FWD_I --cfg=u8  --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_D --cfg=s32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=s32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=s8  --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=FWD_I --cfg=u8  --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nchw    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nhwc    --batch=pool_ker_in_pad
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nChw8c  --batch=pool_ker_in_pad
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nChw16c --batch=pool_ker_in_pad
+
+# 3d cases
+--mb=2
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=MAX --dir=FWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=MAX --dir=FWD_D --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=s8  --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=FWD_I --cfg=u8  --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=MAX --dir=BWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_D --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=s8  --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=FWD_I --cfg=u8  --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_NP --dir=BWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_D --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=s32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=s8  --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=FWD_I --cfg=u8  --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=ncdhw    --batch=pool_3d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=ndhwc    --batch=pool_3d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nCdhw8c  --batch=pool_3d_all
+--alg=AVG_P --dir=BWD_D --cfg=f32 --tag=nCdhw16c --batch=pool_3d_all

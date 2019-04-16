@@ -104,6 +104,7 @@ enum prim_t {
     BNORM,
     RNN,
     SOFTMAX,
+    POOL,
     DEF = CONV,
 };
 

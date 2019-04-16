@@ -1,0 +1,168 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#ifndef _POOL_HPP
+#define _POOL_HPP
+
+#include <stdint.h>
+#include <limits.h>
+#include <assert.h>
+
+#include "common.hpp"
+#include "dnn_types.hpp"
+#include "mkldnn_common.hpp"
+#include "mkldnn_memory.hpp"
+
+namespace pool {
+
+enum alg_t { MAX, AVG_NP, AVG_P };
+alg_t str2alg(const char *str);
+const char *alg2str(alg_t alg);
+alg_t alg_kind2alg(mkldnn_alg_kind_t alg);
+
+struct desc_t {
+    int64_t mb, ic;
+    int64_t id, ih, iw;
+    int64_t od, oh, ow;
+    int64_t kd, kh, kw;
+    int64_t sd, sh, sw;
+    int64_t pd, ph, pw;
+
+    const char *name;
+};
+const size_t max_desc_len = 196;
+int str2desc(desc_t *desc, const char *str);
+void desc2str(const desc_t *d, char *buffer, bool canonical = false);
+
+/** configuration structure, that controls initial data filling + error check
+ *
+ * dt defines pooling precision
+ *
+ * for each type (SRC and DST) the values are filled as follows:
+ * if (rand() > f_sparsity) then:
+ *     v <-- f_base // it is guaranteed each kernel window
+ *                  // has at least one non-zero element
+ * else:
+ *     v <-- f_min + rand() * f_step % (f_max - f_min)
+ *
+ * on final check the resulting values should be in [min .. max] range, the
+ * relative difference should not exceed eps
+ */
+typedef struct dt_conf_t {
+    mkldnn_data_type_t dt;
+    double min, max; /* representative */
+    int f_min, f_max; /* fill range */
+    double eps; /* acceptable error */
+} _dt_conf_t[DAT_TOTAL];
+
+extern const _dt_conf_t conf_f32;
+
+const dt_conf_t *str2cfg(const char *str);
+const char *cfg2str(const dt_conf_t *cfg);
+
+struct prb_t: public desc_t {
+    prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
+             mkldnn_format_tag_t tag, alg_t alg, int64_t mb = 0)
+        : desc_t(desc), dir(dir), cfg(cfg), tag(tag), alg(alg) {
+        if (mb) this->mb = mb;
+    }
+    ~prb_t() {}
+
+    dir_t dir;
+    const dt_conf_t *cfg;
+    mkldnn_format_tag_t tag;
+    alg_t alg;
+};
+const size_t max_prb_len = max_desc_len + 196;
+void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+
+/* some extra control parameters which shouldn't be placed in prb_t */
+extern const char *skip_impl; /* NULL or "" means do not skip anything */
+extern bool allow_unimpl; /* true means do not treat unimplemented as error */
+extern const char *perf_template; /* performance output template */
+
+inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
+        int64_t ih, int64_t iw) {
+    return (((mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+}
+
+inline void inv_src_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
+        int64_t &id, int64_t &ih, int64_t &iw) {
+    iw = off % p->iw; off /= p->iw;
+    ih = off % p->ih; off /= p->ih;
+    id = off % p->id; off /= p->id;
+    ic = off % p->ic; off /= p->ic;
+    mb = off % p->mb; off /= p->mb;
+    assert(off == 0);
+}
+
+inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t od,
+        int64_t oh, int64_t ow) {
+    return (((mb * p->ic + ic) * p->od + od) * p->oh + oh) * p->ow + ow;
+}
+
+inline void inv_dst_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
+        int64_t &od, int64_t &oh, int64_t &ow) {
+    ow = off % p->ow; off /= p->ow;
+    oh = off % p->oh; off /= p->oh;
+    od = off % p->od; off /= p->od;
+    ic = off % p->ic; off /= p->ic;
+    mb = off % p->mb; off /= p->mb;
+    assert(off == 0);
+}
+
+inline int64_t ker_off_f(const prb_t *p, int64_t kd, int64_t kh, int64_t kw) {
+    return (kd * p->kh + kh) * p->kw + kw;
+}
+
+inline int64_t get_num_summands(const prb_t *p, int64_t d, int64_t h, int64_t w)
+{
+    const int64_t ID = p->id, IH = p->ih, IW = p->iw;
+    const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+    const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
+    const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+
+    auto d_start = MAX2(d * SD - PD, 0);
+    auto h_start = MAX2(h * SH - PH, 0);
+    auto w_start = MAX2(w * SW - PW, 0);
+    auto d_end = MIN2(d * SD - PD + KD, ID);
+    auto h_end = MIN2(h * SH - PH + KH, IH);
+    auto w_end = MIN2(w * SW - PW + KW, IW);
+
+    return p->alg == AVG_P
+        ? KD * KH * KW
+        : (d_end - d_start) * (h_end - h_start) * (w_end - w_start);
+}
+
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
+        dnn_mem_t &ws);
+void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
+        const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
+
+void perf_report(const prb_t *p, const res_t *r, const char *pstr);
+
+int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+
+int doit(const prb_t *p, res_t *res);
+int bench(int argc, char **argv, bool main_bench = true);
+
+}
+
+#endif
