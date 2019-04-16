@@ -16,7 +16,7 @@
 
 #include "ocl_utils.hpp"
 
-#include "ocl_engine.hpp"
+#include "cl_engine.hpp"
 
 #include <CL/cl_ext.h>
 
@@ -65,9 +65,9 @@ status_t get_ocl_devices(
 } // namespace ocl_utils
 
 status_t ocl_jit_t::build(const engine_t *engine) {
-    auto *ocl_engine = utils::downcast<const ocl_engine_t *>(engine);
-    cl_context ctx = ocl_engine->context();
-    cl_device_id dev = ocl_engine->device();
+    auto *cl_engine = utils::downcast<const cl_engine_t *>(engine);
+    cl_context ctx = cl_engine->ocl_context();
+    cl_device_id dev = cl_engine->ocl_device();
 
     cl_int err = CL_SUCCESS;
 

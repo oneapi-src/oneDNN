@@ -23,28 +23,29 @@
 #include "common/engine.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "ocl/ocl_device_info.hpp"
+#include "ocl/cl_device_info.hpp"
+#include "ocl/cl_engine.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_engine_t : public engine_t
+class ocl_engine_t : public cl_engine_t
 {
 public:
     static status_t get_ocl_devices(std::vector<cl_device_id> *devices);
 
     ocl_engine_t(cl_device_id adevice)
-        : engine_t(engine_kind::gpu, backend_kind::ocl)
+        : cl_engine_t(engine_kind::gpu, backend_kind::ocl,
+                  cl_device_info_t(adevice))
         , device_(adevice)
-        , device_info_(adevice)
         , context_(nullptr)
         , is_user_context_(false) {}
     ocl_engine_t(cl_device_id adevice, cl_context acontext)
-        : engine_t(engine_kind::gpu, backend_kind::ocl)
+        : cl_engine_t(engine_kind::gpu, backend_kind::ocl,
+                  cl_device_info_t(adevice))
         , device_(adevice)
-        , device_info_(adevice)
         , context_(acontext)
         , is_user_context_(true) {}
     virtual ~ocl_engine_t() override {
@@ -73,15 +74,13 @@ public:
     cl_device_id device() const { return device_; }
     cl_context context() const { return context_; }
 
-    stream_t *service_stream() const { return service_stream_.get(); }
+    virtual cl_device_id ocl_device() const override { return device(); }
+    virtual cl_context ocl_context() const override { return context(); }
 
-    virtual bool mayiuse(device_ext_t ext) const {
-        return device_info_.has(ext);
-    }
+    stream_t *service_stream() const { return service_stream_.get(); }
 
 private:
     cl_device_id device_;
-    device_info_t device_info_;
     cl_context context_;
     bool is_user_context_;
 

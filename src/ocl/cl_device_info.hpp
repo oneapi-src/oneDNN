@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_DEVICE_INFO_HPP
-#define OCL_DEVICE_INFO_HPP
+#ifndef CL_DEVICE_INFO_HPP
+#define CL_DEVICE_INFO_HPP
 
 #include <CL/cl.h>
 #include <stdint.h>
@@ -28,16 +28,16 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-enum class device_ext_t {
+enum class cl_device_ext_t {
     khr_fp16 = 1 << 0,
     intel_subgroups = 1 << 1,
     intel_subgroups_short = 1 << 2,
     last
 };
 
-static const char *ext2str(device_ext_t ext) {
+static const char *ext2str(cl_device_ext_t ext) {
 #define CASE(x) \
-    case device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
+    case cl_device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
     switch (ext) {
         CASE(khr_fp16);
         CASE(intel_subgroups);
@@ -46,9 +46,9 @@ static const char *ext2str(device_ext_t ext) {
     }
 #undef CASE
 }
-struct device_info_t {
+struct cl_device_info_t {
 public:
-    device_info_t(cl_device_id device) : device_(device), ext_(0) {}
+    cl_device_info_t(cl_device_id device) : device_(device), ext_(0) {}
 
     cl_int init() {
         // Extensions.
@@ -65,9 +65,9 @@ public:
             return err;
         }
 
-        for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
+        for (uint64_t i_ext = 1; i_ext < (uint64_t)cl_device_ext_t::last;
                 i_ext <<= 1) {
-            const char *s_ext = ext2str((device_ext_t)i_ext);
+            const char *s_ext = ext2str((cl_device_ext_t)i_ext);
             if (s_ext != nullptr && strstr(&c_ext[0], s_ext) != nullptr) {
                 ext_ |= i_ext;
             }
@@ -85,7 +85,7 @@ public:
         return err;
     }
 
-    bool has(device_ext_t ext) const { return ext_ & (uint64_t)ext; }
+    bool has(cl_device_ext_t ext) const { return ext_ & (uint64_t)ext; }
 
 private:
     cl_device_id device_;

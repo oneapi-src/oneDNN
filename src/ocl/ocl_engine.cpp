@@ -31,6 +31,8 @@ namespace impl {
 namespace ocl {
 
 status_t ocl_engine_t::init() {
+    CHECK(cl_engine_t::init());
+
     cl_int err = CL_SUCCESS;
     if (is_user_context_) {
         err = clRetainContext(context_);
@@ -42,7 +44,6 @@ status_t ocl_engine_t::init() {
     }
 
     OCL_CHECK(err);
-    OCL_CHECK(device_info_.init());
 
     status_t status
             = ocl_utils::check_device(engine_kind::gpu, device_, context_);
