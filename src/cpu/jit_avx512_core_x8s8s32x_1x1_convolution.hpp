@@ -67,7 +67,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
 
             status_t status = jit_avx512_core_x8s8s32x_1x1_conv_kernel::
                 init_conf(jcp_, *conv_d, *src_d, *weights_md(), *dst_md(),
-                        *weights_md(1), *attr(), mkldnn_get_max_threads(),
+                        with_bias() ? *weights_md(1) : types::zero_md(),
+                        *attr(), mkldnn_get_max_threads(),
                         rtus_.reduce_src_);
             if (status != status::success) return status;
 
