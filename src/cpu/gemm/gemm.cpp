@@ -18,6 +18,7 @@
 
 #include "mkldnn_traits.hpp"
 #include "nstl.hpp"
+#include "utils.hpp"
 
 #include "jit_generator.hpp"
 
@@ -44,6 +45,19 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+void msan_unpoison_matrix(void *C, int M, int N, int LDC, size_t typesize) {
+    assert(C != nullptr && M > 0 && N > 0 && LDC >= M && typesize);
+    if (msan_enabled) {
+        size_t col_size = M * typesize;
+        size_t col_stride = LDC * typesize;
+        uint8_t *col = (uint8_t *)C;
+        for (int j = 0; j < N; j++) {
+            msan_unpoison(col, col_size);
+            col += col_stride;
+        }
+    }
+}
 
 mkldnn_status_t check_gemm_input(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const int *lda,
@@ -116,24 +130,28 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
                 cblas_saxpy(*M, 1.0, bias, incx, C + offset, incy);
             });
         }
-        return mkldnn_success;
+        status = mkldnn_success;
     }
-#endif
-
+#else
     if (mayiuse(avx512_mic)) {
-        return jit_avx512_common_gemm_f32(transa, transb,
+        status = jit_avx512_common_gemm_f32(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
     } else if (mayiuse(avx)) {
         float *dummy_ao = NULL;
         float *dummy_bo = NULL;
 
-        return gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
+        status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
                 A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
                 force_jit_nocopy_gemm);
     } else {
-        return ref_gemm<float>(transa, transb,
+        status = ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
     }
+#endif
+
+    if (status == mkldnn_success)
+        msan_unpoison_matrix(C, *M, *N, *ldc, sizeof(*C));
+    return status;
 }
 
 template <typename b_dt>
@@ -174,11 +192,11 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         // TODO CBLAS implementation of gemm_s8s8s32 goes here.
         // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
         if (utils::everyone_is(0, *ao, *bo)) {
-            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
+            status = simple_gemm_s8s8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
                     C, LDC, co);
         } else {
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+            status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
         }
     }
@@ -194,27 +212,33 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         switch (isa) {
         case avx512_core:
         case avx512_core_vnni:
-            return gemm_driver(transa, transb, offsetc, M,
+            status = gemm_driver(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
                     C, LDC, co, false);
+            break;
         default:
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+            status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+            break;
         }
     } else {
         assert(data_traits<b_dt>::data_type == data_type::s8);
         // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
         if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
                 && *ao == 0 && *bo == 0) {
-            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
+            status = simple_gemm_s8s8s32(transa, transb, offsetc, M,
                     N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
                     C, LDC, co);
         } else {
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+            status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
                     alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
         }
     }
 #endif
+
+    if (status == mkldnn_success)
+        msan_unpoison_matrix(C, *M, *N, *LDC, sizeof(*C));
+    return status;
 }
 
 template
