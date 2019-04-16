@@ -28,6 +28,30 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 
+static engine_t *get_reorder_engine(
+        engine_t *src_engine, engine_t *dst_engine) {
+    auto s_ek = src_engine->kind();
+    auto d_ek = dst_engine->kind();
+    auto s_bk = src_engine->backend_kind();
+    auto d_bk = dst_engine->backend_kind();
+
+    if (d_bk == backend_kind::native)
+        return src_engine;
+
+    if (s_bk == backend_kind::native)
+        return dst_engine;
+
+    if (d_ek == engine_kind::cpu)
+        return src_engine;
+
+    if (s_ek == engine_kind::cpu)
+        return dst_engine;
+
+    assert(s_ek == engine_kind::gpu);
+    assert(d_ek == engine_kind::gpu);
+    return src_engine;
+}
+
 status_t mkldnn_reorder_primitive_desc_create(
         primitive_desc_t **reorder_pd,
         engine_t *src_engine, const memory_desc_t *src_md,
@@ -48,12 +72,11 @@ status_t mkldnn_reorder_primitive_desc_create(
     if (!s_mdw.consistent_with(d_mdw))
         return invalid_arguments;
 
-    auto e = (s_ek != engine_kind::cpu) ? src_engine : dst_engine;
-
     const primitive_attr_t dummy_attr;
     if (attr == NULL)
         attr = &dummy_attr;
 
+    auto e = get_reorder_engine(src_engine, dst_engine);
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
         if ((*r)(r_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
                 == success) {

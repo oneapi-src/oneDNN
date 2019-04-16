@@ -69,6 +69,10 @@ struct dnn_mem_t {
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
+        mkldnn_engine_t reorder_engine;
+        DNN_SAFE(mkldnn_primitive_desc_query(
+                         rpd, mkldnn_query_engine, 0, &reorder_engine),
+                CRIT);
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
 
         mkldnn_exec_arg_t args[] = {
@@ -76,8 +80,6 @@ struct dnn_mem_t {
             {MKLDNN_ARG_TO, m_},
         };
 
-        mkldnn_engine_t reorder_engine
-                = (rhs.engine_kind_ != mkldnn_cpu) ? rhs.engine_ : engine_;
         mkldnn_stream_t reorder_stream
                 = (reorder_engine == engine_ref) ? stream_ref : stream_tgt;
 
