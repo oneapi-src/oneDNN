@@ -29,7 +29,11 @@
 
 namespace mkldnn {
 namespace impl {
-enum memory_flags_t { alloc = 0x1, use_backend_ptr = 0x2 };
+enum memory_flags_t {
+    alloc = 0x1,
+    use_backend_ptr = 0x2,
+    use_host_ptr = 0x4,
+};
 } // namespace impl
 } // namespace mkldnn
 

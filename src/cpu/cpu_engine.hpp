@@ -28,6 +28,18 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+class cpu_engine_impl_list_t
+{
+public:
+    static const engine_t::concat_primitive_desc_create_f *
+    get_concat_implementation_list();
+    static const engine_t::reorder_primitive_desc_create_f *
+    get_reorder_implementation_list();
+    static const engine_t::sum_primitive_desc_create_f *
+    get_sum_implementation_list();
+    static const engine_t::primitive_desc_create_f *get_implementation_list();
+};
+
 class cpu_engine_t: public engine_t {
 public:
     cpu_engine_t() : engine_t(engine_kind::cpu, backend_kind::native) {}
@@ -39,14 +51,25 @@ public:
 
     virtual status_t create_stream(stream_t **stream, unsigned flags) override;
 
-    virtual const concat_primitive_desc_create_f*
-        get_concat_implementation_list() const override;
-    virtual const reorder_primitive_desc_create_f*
-        get_reorder_implementation_list() const override;
-    virtual const sum_primitive_desc_create_f*
-        get_sum_implementation_list() const override;
-    virtual const primitive_desc_create_f*
-        get_implementation_list() const override;
+    virtual const concat_primitive_desc_create_f *
+    get_concat_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_concat_implementation_list();
+    }
+
+    virtual const reorder_primitive_desc_create_f *
+    get_reorder_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_reorder_implementation_list();
+    }
+
+    virtual const sum_primitive_desc_create_f *
+    get_sum_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_sum_implementation_list();
+    }
+
+    virtual const primitive_desc_create_f *
+    get_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_implementation_list();
+    }
 };
 
 class cpu_engine_factory_t: public engine_factory_t {

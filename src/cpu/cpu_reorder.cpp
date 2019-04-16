@@ -245,7 +245,7 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 };
 }
 
-const rpd_create_f *cpu_engine_t::get_reorder_implementation_list() const {
+const rpd_create_f *cpu_engine_impl_list_t::get_reorder_implementation_list() {
     return cpu_reorder_impl_list;
 }
 

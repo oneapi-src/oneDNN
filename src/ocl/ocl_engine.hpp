@@ -31,6 +31,18 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
+class cl_engine_impl_list_t
+{
+public:
+    static const engine_t::concat_primitive_desc_create_f *
+    get_concat_implementation_list();
+    static const engine_t::reorder_primitive_desc_create_f *
+    get_reorder_implementation_list();
+    static const engine_t::sum_primitive_desc_create_f *
+    get_sum_implementation_list();
+    static const engine_t::primitive_desc_create_f *get_implementation_list();
+};
+
 class ocl_engine_t : public cl_engine_t
 {
 public:
@@ -63,16 +75,27 @@ public:
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
     virtual const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override;
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const override;
-    virtual const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override;
-    virtual const primitive_desc_create_f *
-    get_implementation_list() const override;
+    get_concat_implementation_list() const override {
+        return cl_engine_impl_list_t::get_concat_implementation_list();
+    }
 
-    cl_device_id device() const { return device_; }
-    cl_context context() const { return context_; }
+    virtual const reorder_primitive_desc_create_f *
+    get_reorder_implementation_list() const override {
+        return cl_engine_impl_list_t::get_reorder_implementation_list();
+    }
+
+    virtual const sum_primitive_desc_create_f *
+    get_sum_implementation_list() const override {
+        return cl_engine_impl_list_t::get_sum_implementation_list();
+    }
+
+    virtual const primitive_desc_create_f *
+    get_implementation_list() const override {
+        return cl_engine_impl_list_t::get_implementation_list();
+    }
+
+    virtual cl_device_id device() const { return device_; }
+    virtual cl_context context() const { return context_; }
 
     virtual cl_device_id ocl_device() const override { return device(); }
     virtual cl_context ocl_context() const override { return context(); }

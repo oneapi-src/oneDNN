@@ -38,7 +38,7 @@ static const cpd_create_f cpu_concat_impl_list[] = {
 #undef INSTANCE
 }
 
-const cpd_create_f *cpu_engine_t::get_concat_implementation_list() const {
+const cpd_create_f *cpu_engine_impl_list_t::get_concat_implementation_list() {
     return cpu_concat_impl_list;
 }
 

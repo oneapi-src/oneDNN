@@ -133,7 +133,7 @@ static const pd_create_f ocl_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const pd_create_f *ocl_engine_t::get_implementation_list() const {
+const pd_create_f *cl_engine_impl_list_t::get_implementation_list() {
     return ocl_impl_list;
 }
 

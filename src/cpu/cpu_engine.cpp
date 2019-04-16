@@ -280,7 +280,7 @@ static const pd_create_f cpu_impl_list[] = {
 #undef INSTANCE
 }
 
-const pd_create_f* cpu_engine_t::get_implementation_list() const {
+const pd_create_f *cpu_engine_impl_list_t::get_implementation_list() {
     return cpu_impl_list;
 }
 
