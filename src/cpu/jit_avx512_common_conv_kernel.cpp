@@ -537,7 +537,7 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_sparse() {
 
         sub(reg_ker, oc_block * typesize);
 
-        int rotation_unroll_factor = oc_buffs * (kw + 1) <= 30 ? (kw + 1) * stride_w : kw * stride_w;
+        int rotation_unroll_factor = cur_oc_buffs * (kw + 1) <= 30 ? (kw + 1) * stride_w : kw * stride_w;
         int l_iw = kw > l_pad ? kw - l_pad : 1;
         l_iw++; // unroll one more due to pipelined vector write
 
@@ -2057,68 +2057,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
     
     const int vsize = 16;
 
-    /*Label no_init_label;
-
-    mov(reg_channel, ptr[param + GET_OFF(channel)]);
-    cmp(reg_channel, 0);
-    jne(no_init_label, T_NEAR);
-
-    if (oc_buffs * ow > 128 || jcp.with_bias) { // threshold may be tweaked later
-
-        Reg64 aux_reg_out = aux_reg_inp;
-        Reg64 aux_reg_out_prf = aux_reg_ker;
-
-        if (jcp.with_bias) {
-            mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
-        }
-
-        mov(aux_reg_out, reg_out);
-        mov(aux_reg_out_prf, reg_out_prf);
-
-        mov(reg_channel, oc_buffs);
-
-        Label oc_loop_label;
-        L(oc_loop_label);
-
-        if (jcp.with_bias) {
-            vmovups(zmm_zero, ptr[reg_bias]);
-            add(reg_bias, typesize * oc_block);
-        }
-
-        for (int oi = 0; oi < ow; oi++) {
-            vmovups(EVEX_compress_addr_safe(aux_reg_out, oi * oc_block * typesize,
-                        reg_long_offt), zmm_zero);
-            prefetcht1(EVEX_compress_addr_safe(aux_reg_out_prf, oi * oc_block * typesize,
-                        reg_long_offt));
-        }
-
-        add(aux_reg_out, typesize * oc_block * mb_block * ow);
-        add(aux_reg_out_prf, typesize * oc_block * mb_block * ow);
-
-        dec(reg_channel);
-        cmp(reg_channel, 0);
-        jne(oc_loop_label);
-
-        if (jcp.with_bias) {
-            vpxord(zmm_zero, zmm_zero, zmm_zero);
-        }
-
-    } else {
-
-        for (int oc = 0; oc < oc_buffs; oc++) {
-            for (int oi = 0; oi < ow; oi++) {
-                vmovups(EVEX_compress_addr_safe(reg_out, (oc * oc_block * ow 
-                            + oi * oc_block) * typesize,
-                            reg_long_offt), zmm_zero);
-                prefetcht1(EVEX_compress_addr_safe(reg_out_prf, (oc * oc_block * ow 
-                            + oi * oc_block) * typesize,
-                            reg_long_offt));
-            }
-        }
-    }
-
-    L(no_init_label);*/
-
     auto get_reg_idx = [=](int ki, int oc_buff) {
         
         return oc_buff * kw + ki + 1;
@@ -2278,8 +2216,69 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop_fma_sparse() {
             }
         }
 
-        for (int ii = 0; ii < iw; ii++) {
-            comp_unrolled(ii, cur_oc_buffs);
+        int rotation_unroll_factor = kw * stride_w;
+        int l_iw = kw > l_pad ? kw - l_pad : 1;
+        l_iw++; // unroll one more due to pipelined vector write
+
+        int r_iw = iw - 1 - (iw - 1 - l_iw) % rotation_unroll_factor;
+
+        if (l_iw <= r_iw - rotation_unroll_factor * 5) { // threshold needs to be dynamically calculated based on the instruction count per section
+
+
+            int niter = (r_iw - l_iw) / rotation_unroll_factor;
+
+            cout << "nr:" << nr << " l_iw:" << l_iw << " r_iw:" << r_iw << " oc_iters:" << oc_iters
+                << " oc_buffs:" << oc_buffs << endl;
+
+            cout << "leading :" << l_iw << " trailing:" << ow - r_iw
+                << " factor:" << rotation_unroll_factor
+                << " niter:" << niter << endl;
+
+            for (int ii = 0; ii < l_iw; ii++) {
+                comp_unrolled(ii, cur_oc_buffs);
+            }
+
+            Reg64 iw_itr_reg = reg_channel;
+
+            mov(iw_itr_reg, niter);
+
+            Label iw_loop_label;
+            L(iw_loop_label); {
+
+                for (int i = 0; i < rotation_unroll_factor; i++) {
+                    comp_unrolled(l_iw + i, cur_oc_buffs);
+                }
+
+                add(reg_inp, mb_block * typesize * rotation_unroll_factor);
+                add(reg_out, oc_block * cur_oc_buffs * mb_block * typesize
+                    * rotation_unroll_factor / stride_w);
+
+                add(reg_inp_prf, mb_block * typesize * rotation_unroll_factor);
+
+                dec(iw_itr_reg);
+                jnz(iw_loop_label, T_NEAR);
+
+            }
+
+            sub(reg_inp, mb_block * typesize * rotation_unroll_factor * niter);
+            sub(reg_out, oc_block * cur_oc_buffs * mb_block * typesize
+                * rotation_unroll_factor / stride_w * niter);
+            sub(reg_inp_prf, mb_block * typesize * rotation_unroll_factor * niter);
+
+            mov(reg_channel, ptr[param + GET_OFF(channel)]);
+
+            for (int ii = r_iw; ii < iw; ii++) {
+                comp_unrolled(ii, cur_oc_buffs);
+            }
+
+
+        } else {
+
+            mov(reg_channel, ptr[param + GET_OFF(channel)]);
+
+            for (int ii = 0; ii < iw; ii++) {
+                comp_unrolled(ii, cur_oc_buffs);
+            }
         }
     };
 
@@ -2333,7 +2332,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate()
     mov(reg_ker, ptr[param1 + GET_OFF(filt)]);
 
     mov(reg_inp_prf, ptr[param1 + GET_OFF(src_prf)]);
-    mov(reg_channel, ptr[param + GET_OFF(channel)]);
     //mov(reg_out_prf, ptr[param1 + GET_OFF(dst_prf)]);
     //mov(reg_ker_prf, ptr[param + GET_OFF(filt_prf)]);
 
