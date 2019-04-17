@@ -65,9 +65,11 @@ void test1() {
 
     CHECK(mkldnn_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == NULL);
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
     CHECK(mkldnn_memory_set_data_handle(m, data));
     CHECK(mkldnn_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == data);
+#endif
 
     CHECK_TRUE(mkldnn_memory_desc_get_size(&md) == LENGTH_100 * sizeof(data[0]));
 

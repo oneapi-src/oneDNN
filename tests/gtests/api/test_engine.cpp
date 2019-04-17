@@ -62,14 +62,29 @@ TEST_P(engine_test_c, CreateWithBackend) {
     SKIP_IF(mkldnn_engine_get_count(engine_kind) == 0,
             "Engine kind is not supported.");
 
-    auto backend_kinds = { mkldnn_backend_native, mkldnn_backend_ocl };
+    auto backend_kinds = { mkldnn_backend_native, mkldnn_backend_ocl,
+        mkldnn_backend_sycl };
     for (auto backend_kind : backend_kinds) {
         if (engine_kind == mkldnn_cpu) {
+#if MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_OPENCL
             if (backend_kind == mkldnn_backend_ocl)
                 continue;
+#endif
+#if MKLDNN_CPU_BACKEND != MKLDNN_BACKEND_SYCL
+            if (backend_kind == mkldnn_backend_sycl)
+                continue;
+#endif
         } else if (engine_kind == mkldnn_gpu) {
             if (backend_kind == mkldnn_backend_native)
                 continue;
+#if MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_OPENCL
+            if (backend_kind == mkldnn_backend_ocl)
+                continue;
+#endif
+#if MKLDNN_GPU_BACKEND != MKLDNN_BACKEND_SYCL
+            if (backend_kind == mkldnn_backend_sycl)
+                continue;
+#endif
         }
 
         mkldnn_engine_t engine;

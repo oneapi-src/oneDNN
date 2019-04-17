@@ -48,12 +48,13 @@ protected:
         auto e = engine(get_test_engine_kind(), 0);
 
         mkldnn::memory mem0({p.dims, memory::data_type::f32, p.fmt_tag}, e);
-        auto mem0_ptr = map_memory<data_t>(mem0);
         memory::dim phys_size = mem0.get_desc().get_size() / sizeof(data_t);
-        fill_data<data_t>(phys_size, mem0_ptr);
-
         std::vector<data_t> mem1_vec(phys_size);
-        mem1_vec.assign((data_t *)mem0_ptr, (data_t *)mem0_ptr + phys_size);
+        {
+            auto mem0_ptr = map_memory<data_t>(mem0);
+            fill_data<data_t>(phys_size, mem0_ptr);
+            mem1_vec.assign((data_t *)mem0_ptr, (data_t *)mem0_ptr + phys_size);
+        }
 
         mkldnn::memory mem1({p.dims, memory::data_type::f32, p.fmt_tag}, e,
                 mem1_vec.data());
@@ -61,8 +62,12 @@ protected:
         check_zero_tail<data_t>(0, mem1);
         check_zero_tail<data_t>(1, mem0);
 
-        for (memory::dim i = 0; i < phys_size; ++i)
-            EXPECT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i;
+        {
+            auto mem0_ptr = map_memory<data_t>(mem0);
+            auto mem1_ptr = map_memory<data_t>(mem1);
+            for (memory::dim i = 0; i < phys_size; ++i)
+                EXPECT_NEAR(mem0_ptr[i], mem1_ptr[i], 1e-7) << i;
+        }
     }
 };
 
