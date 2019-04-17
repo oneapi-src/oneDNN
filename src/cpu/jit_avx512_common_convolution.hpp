@@ -25,6 +25,8 @@
 #include "cpu_reducer.hpp"
 #include "cpu_barrier.hpp"
 
+#define GRANULARITY 100
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -97,40 +99,79 @@ struct _jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         int oc_iters = j.nb_oc / step;
 
         int work_amount = j.ngroups * j.oh * j.nb_mb * j.mb_block * oc_iters;
+        if (1) {//work_amount < nthr * GRANULARITY) {
 
-        parallel(nthr, [&](const int ithr, const int nthr) {
-            int start, end;
-            balance211(work_amount, nthr, ithr, start, end);
+            parallel(nthr, [&](const int ithr, const int nthr) {
+                int start, end;
+                balance211(work_amount, nthr, ithr, start, end);
 
-            param_t &p = params_[ithr];
-            int g{0}, mbb{0}, oh{0}, ocb{0}, mb_s{0};
-            
-            nd_iterator_init(start, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
-                    ocb, oc_iters, mb_s, j.mb_block);
-
-            p.g[1] = p.g[0] = g;
-            p.mbb[1] = p.mbb[0] = mbb;
-            p.oh[1] = p.oh[0] = oh;
-            p.ocb[1] = p.ocb[0] = ocb;
-            p.mb[1] = p.mb[0] = mb_s;
-
-            while (start < end) {
-
-                p.g[1] = g;
-                p.mbb[1] = mbb;
-                p.oh[1] = oh;
-                p.ocb[1] = ocb;
-
-                int work_rem = end - start;
-
-                p.mb[1] = mb_s + work_rem > j.mb_block ? j.mb_block : mb_s + work_rem;
-
-                nd_iterator_jump(start, end, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                param_t &p = params_[ithr];
+                int g{0}, mbb{0}, oh{0}, ocb{0}, mb_s{0};
+                
+                nd_iterator_init(start, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
                         ocb, oc_iters, mb_s, j.mb_block);
-            }
+
+                p.g[1] = p.g[0] = g;
+                p.mbb[1] = p.mbb[0] = mbb;
+                p.oh[1] = p.oh[0] = oh;
+                p.ocb[1] = p.ocb[0] = ocb;
+                p.mb[1] = p.mb[0] = mb_s;
+
+                while (start < end) {
+
+                    p.g[1] = g;
+                    p.mbb[1] = mbb;
+                    p.oh[1] = oh;
+                    p.ocb[1] = ocb;
+
+                    int work_rem = end - start;
+
+                    p.mb[1] = mb_s + work_rem > j.mb_block ? j.mb_block : mb_s + work_rem;
+
+                    nd_iterator_jump(start, end, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                            ocb, oc_iters, mb_s, j.mb_block);
+                }
 
 
-        });
+            });
+        } else {
+            work_amount = j.ngroups * j.oh * j.nb_mb * j.mb_block;
+
+            parallel(nthr, [&](const int ithr, const int nthr) {
+                int start, end;
+                balance211(work_amount, nthr, ithr, start, end);
+
+                param_t &p = params_[ithr];
+                int g{0}, mbb{0}, oh{0}, mb_s{0};
+                
+                nd_iterator_init(start, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                        mb_s, j.mb_block);
+
+                p.g[1] = p.g[0] = g;
+                p.mbb[1] = p.mbb[0] = mbb;
+                p.oh[1] = p.oh[0] = oh;
+                p.mb[1] = p.mb[0] = mb_s;
+
+                p.ocb[0] = 0;
+                p.ocb[1] = oc_iters - 1;
+
+                while (start < end) {
+
+                    p.g[1] = g;
+                    p.mbb[1] = mbb;
+                    p.oh[1] = oh;
+
+                    int work_rem = end - start;
+
+                    p.mb[1] = mb_s + work_rem > j.mb_block ? j.mb_block : mb_s + work_rem;
+
+                    nd_iterator_jump(start, end, g, j.ngroups, mbb, j.nb_mb, oh, j.oh,
+                            mb_s, j.mb_block);
+                }
+
+
+            });
+        }
 
         if (conf_.want_padded_bias()) {
             assert(j.ngroups == 1);

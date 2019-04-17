@@ -533,142 +533,19 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_sparse() {
 
     };
 
-
-    auto comp_loop = [&](int idx, int ii, int cur_oc_buffs) {
-
-        Reg64 aux_reg_out = aux_reg_ker;
-        Reg64 mask_reg = reg_oi;
-        Reg32 ic_itr_reg = reg_kh.cvt32();
-        Reg64 lzcnt_reg = reg_channel;
-
-        kmovw(mask_reg.cvt32(), k7);
-        popcnt(ic_itr_reg, mask_reg.cvt32());
-
-        size_t aux_src_offset = typesize * (idx + 1) * ic_block;
-        vcmpps(k7, zmm_zero, EVEX_compress_addr_safe(aux_reg_inp, aux_src_offset, // pipelined
-                                reg_long_offt), 4);
-
-        prefetcht1(EVEX_compress_addr_safe(reg_inp_prf, aux_src_offset, // pipelined
-                                reg_long_offt));
-
-        /*int pref_idx = idx + 2;
-
-        aux_src_offset = typesize * pref_idx * ic_block; // may overflow but it's ok
-        mic_prefetcht1(EVEX_compress_addr_safe(aux_reg_inp, aux_src_offset,
-                                reg_long_offt));*/
-
-        for (int ki = 0; ki < kw; ki++) {
-            for (int oc_buff = 0; oc_buff < cur_oc_buffs; oc_buff++) {
-
-                int reg_idx = get_reg_idx(ii, oc_buff);
-
-                Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                if (stride_w / dilate_w >= kw || dilate_w > stride_w
-                    || stride_w % dilate_w != 0 || ki < stride_w) {
-
-                    size_t aux_dst_offset = (size_t)typesize
-                        * (oc_buff * oc_block * oh * ow 
-                        + ((idx - 1) * stride_w - l_pad + ki * dilate_w) * oc_block);
-                    vmovups(EVEX_compress_addr_safe(aux_reg_out, aux_dst_offset,
-                                reg_long_offt), zmm);
-                }
-            }
-        }
-
-        for (int ki = 0; ki < kw; ki++) {
-            for (int oc_buff = 0; oc_buff < cur_oc_buffs; oc_buff++) {
-
-                int reg_idx = get_reg_idx(ii, oc_buff);
-
-                Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                if (stride_w / dilate_w >= kw || dilate_w > stride_w
-                    || stride_w % dilate_w != 0 || ki >= kw - stride_w) {
-
-                    size_t aux_dst_offset = (size_t)typesize
-                        * (oc_buff * oc_block * oh * ow 
-                        + (idx * stride_w  - l_pad + ki * dilate_w) * oc_block);
-                    vmovups(zmm, EVEX_compress_addr_safe(aux_reg_out, aux_dst_offset,
-                                reg_long_offt));
-                    prefetcht1(EVEX_compress_addr_safe(reg_out_prf, aux_dst_offset,
-                                reg_long_offt));
-                }
-
-            }
-        }
-
-        Label ic_loop_end_label;
-        jz(ic_loop_end_label, T_NEAR);
-
-        tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32());
-        inc(lzcnt_reg.cvt32());
-
-        shrx(mask_reg.cvt32(), mask_reg.cvt32(), lzcnt_reg.cvt32());
-
-        push(aux_reg_inp);
-        push(reg_ker);
-
-        //add(qword[param + GET_OFF(perf_cnt)], ic_itr_reg);
-
-        Label ic_loop_label;
-        L(ic_loop_label); {
-
-            lea(aux_reg_inp, ptr[aux_reg_inp + lzcnt_reg * typesize]);
-
-            int aux_src_offset = typesize * (idx * ic_block - 1);
-            vbroadcastss(zmm_o, ptr[aux_reg_inp + aux_src_offset]);
-
-            shl(lzcnt_reg.cvt32(), 6);
-            add(reg_ker, lzcnt_reg);
-
-            tzcnt(lzcnt_reg.cvt32(), mask_reg.cvt32()); // pipelined
-            inc(lzcnt_reg.cvt32());
-
-            dec(ic_itr_reg);
-
-            shrx(mask_reg.cvt32(), mask_reg.cvt32(), lzcnt_reg.cvt32()); // does not change flags
-
-            for (int oc_buff = 0; oc_buff < cur_oc_buffs; oc_buff++) {
-                for (int ki = 0; ki < kw; ki++) {
-
-                    int reg_idx = get_reg_idx(ii, oc_buff);
-
-                    Zmm zmm = Xbyak::Zmm(reg_idx);
-                    
-                    size_t aux_kernel_offset = typesize * (oc_buff
-                                    * kw * kh * oc_block * ic_block
-                                    - oc_block + ki * oc_block * ic_block);
-                    vfmadd231ps(zmm, zmm_o,
-                            EVEX_compress_addr_safe(reg_ker, aux_kernel_offset,
-                                reg_long_offt)); // probably don't need safe for weight tensor
-
-                }
-            }
-
-            jnz(ic_loop_label, T_NEAR);
-        }
-
-        pop(reg_ker);
-        pop(aux_reg_inp);
-
-        L(ic_loop_end_label);
-
-    };
-
     auto outer_loop = [&](int cur_oc_buffs) {
-
-        int rotation_unroll_factor = stride_w * kw;
 
         sub(reg_ker, oc_block * typesize);
 
-        if(0) {
-        //if (l_iw <= iw - rotation_unroll_factor * 2) { // threshold needs to be dynamically calculated based on the instruction count per section
+        int rotation_unroll_factor = oc_buffs * (kw + 1) <= 30 ? (kw + 1) * stride_w : kw * stride_w;
+        int l_iw = kw > l_pad ? kw - l_pad : 1;
+        l_iw++; // unroll one more due to pipelined vector write
 
-            /*int l_iw = kw > l_pad ? kw - l_pad : 1;
-            l_iw++; // unroll one more due to pipelined vector write
+        int r_iw = iw - 1 - (iw - 1 - l_iw) % rotation_unroll_factor;
 
-            int r_iw = iw - 1 - (iw - 1 - l_iw) % rotation_unroll_factor;
+        if (l_iw <= r_iw - rotation_unroll_factor * 5) { // threshold needs to be dynamically calculated based on the instruction count per section
+
+
             int niter = (r_iw - l_iw) / rotation_unroll_factor;
 
             cout << "nr:" << nr << " l_iw:" << l_iw << " r_iw:" << r_iw << " oc_iters:" << oc_iters
@@ -678,52 +555,41 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_sparse() {
                 << " factor:" << rotation_unroll_factor
                 << " niter:" << niter << endl;
 
-            for (int ii = 0; ii < l_iw; ii++) {
-                comp_unrolled(ii, cur_oc_buffs);
+            int istart = 0;
+            int step = 1; // for now
+
+            for (int ii = istart; ii < l_iw; ii++) {
+                comp_unrolled(ii, step, cur_oc_buffs);
             }
 
-            Reg64 iw_itr_reg = reg_channel;
-            Reg64 aux_reg_out = aux_reg_ker;
+            Reg64 iw_itr_reg = reg_out_prf;
 
             mov(iw_itr_reg, niter);
-
-            mov(aux_reg_inp, reg_inp);
-            mov(aux_reg_out, reg_out);
-
-            add(aux_reg_inp, l_iw * ic_block * typesize);
-            add(aux_reg_out, l_iw * stride_w * oc_block * typesize);
-
-            add(reg_inp_prf, l_iw * ic_block * typesize);
-            add(reg_out_prf, l_iw * stride_w * oc_block * typesize);
 
             Label iw_loop_label;
             L(iw_loop_label); {
 
-                push(iw_itr_reg);
-
                 for (int i = 0; i < rotation_unroll_factor; i++) {
-                    comp_loop(i, l_iw + i, cur_oc_buffs);
+                    comp_unrolled(l_iw + i, step, cur_oc_buffs);
                 }
 
-                pop(iw_itr_reg);
-
-                add(aux_reg_inp, ic_block * typesize * rotation_unroll_factor);
-                add(aux_reg_out, stride_w * oc_block * typesize * rotation_unroll_factor);
+                add(reg_inp, ic_block * typesize * rotation_unroll_factor);
+                add(reg_out, oc_block * typesize * rotation_unroll_factor / stride_w);
 
                 add(reg_inp_prf, ic_block * typesize * rotation_unroll_factor);
-                add(reg_out_prf, stride_w * oc_block * typesize * rotation_unroll_factor);
 
                 dec(iw_itr_reg);
                 jnz(iw_loop_label, T_NEAR);
 
             }
 
-            mov(reg_inp_prf, ptr[param + GET_OFF(src_prf)]);
-            mov(reg_out_prf, ptr[param + GET_OFF(dst_prf)]);
+            sub(reg_inp, ic_block * typesize * rotation_unroll_factor * niter);
+            sub(reg_out, oc_block * typesize * rotation_unroll_factor / stride_w * niter);
+            sub(reg_inp_prf, ic_block * typesize * rotation_unroll_factor * niter);
 
-            for (int ii = r_iw; ii < ow; ii++) {
-                comp_unrolled(ii, cur_oc_buffs);
-            }*/
+            for (int ii = r_iw; ii < iw; ii++) {
+                comp_unrolled(ii, step, cur_oc_buffs);
+            }
 
         } else {
 
