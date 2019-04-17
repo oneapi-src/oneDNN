@@ -262,11 +262,33 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<mkldnn_alg_kind_t>(aalgorithm);
 }
 
-enum batch_normalization_flags {
+enum class batch_normalization_flags : unsigned {
     use_global_stats = mkldnn_use_global_stats,
     use_scale_shift = mkldnn_use_scaleshift,
     fuse_bn_relu = mkldnn_fuse_bn_relu
 };
+
+inline batch_normalization_flags operator|(
+        batch_normalization_flags lhs, batch_normalization_flags rhs) {
+    return static_cast<batch_normalization_flags>(
+            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+}
+
+inline batch_normalization_flags operator&(
+        batch_normalization_flags lhs, batch_normalization_flags rhs) {
+    return static_cast<batch_normalization_flags>(
+            static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
+}
+
+inline batch_normalization_flags operator^(
+        batch_normalization_flags lhs, batch_normalization_flags rhs) {
+    return static_cast<batch_normalization_flags>(
+            static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));
+}
+
+inline batch_normalization_flags operator~(batch_normalization_flags rhs) {
+    return static_cast<batch_normalization_flags>(~static_cast<unsigned>(rhs));
+}
 
 inline mkldnn_batch_normalization_flags_t convert_to_c(
         batch_normalization_flags aflag) {
@@ -614,7 +636,7 @@ template <> struct handle_traits<mkldnn_stream_t> {
 struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
-    enum: unsigned {
+    enum class flags : unsigned {
         default_order = mkldnn_stream_default_order,
         in_order = mkldnn_stream_default_order,
         out_of_order = mkldnn_stream_out_of_order,
@@ -623,9 +645,10 @@ struct stream: public handle<mkldnn_stream_t> {
 
     /// Constructs a stream.
     stream(const engine &aengine,
-            unsigned flags = static_cast<unsigned>(default_flags)) {
+            flags aflags = flags::default_flags) {
         mkldnn_stream_t astream;
-        error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(), flags),
+        error::wrap_c_api(mkldnn_stream_create(&astream, aengine.get(),
+                                  static_cast<mkldnn_stream_flags_t>(aflags)),
                 "could not create a stream");
         reset(astream);
     }
@@ -654,6 +677,25 @@ struct stream: public handle<mkldnn_stream_t> {
         return *this;
     }
 };
+
+inline stream::flags operator|(stream::flags lhs, stream::flags rhs) {
+    return static_cast<stream::flags>(
+            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+}
+
+inline stream::flags operator&(stream::flags lhs, stream::flags rhs) {
+    return static_cast<stream::flags>(
+            static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
+}
+
+inline stream::flags operator^(stream::flags lhs, stream::flags rhs) {
+    return static_cast<stream::flags>(
+            static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));
+}
+
+inline stream::flags operator~(stream::flags rhs) {
+    return static_cast<stream::flags>(~static_cast<unsigned>(rhs));
+}
 
 /// @}
 
@@ -2304,12 +2346,13 @@ struct batch_normalization_forward : public primitive {
         mkldnn_batch_normalization_desc_t data;
         template <typename T>
         desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
-                unsigned flags) {
+                batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
-                        mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                        static_cast<float>(epsilon), flags),
-                "could not create a batch normalization forward descriptor");
+                            mkldnn::convert_to_c(aprop_kind), &src_desc.data,
+                            static_cast<float>(epsilon), convert_to_c(flags)),
+                    "could not create a batch normalization forward "
+                    "descriptor");
         }
     };
 
@@ -2336,10 +2379,8 @@ struct batch_normalization_forward : public primitive {
             error::wrap_c_api(mkldnn_primitive_desc_query(
                     get(), mkldnn::convert_to_c(query::batch_normalization_d), 0, &p),
                     "could not get a batch-normalization descriptor");
-            return query_md(
-                    p->flags & use_global_stats
-                            ? query::src_md
-                            : query::dst_md,
+            return query_md(p->flags & mkldnn_use_global_stats ? query::src_md
+                                                               : query::dst_md,
                     kind);
         }
     };
@@ -2352,13 +2393,15 @@ struct batch_normalization_backward : public primitive {
         mkldnn_batch_normalization_desc_t data;
         template <typename T>
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, T epsilon, unsigned flags) {
+                const memory::desc &data_desc, T epsilon,
+                batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_backward_desc_init(&data,
-                        mkldnn::convert_to_c(aprop_kind),
-                        &diff_data_desc.data, &data_desc.data,
-                        static_cast<float>(epsilon), flags),
-                "could not create a batch normalization backward descriptor");
+                            mkldnn::convert_to_c(aprop_kind),
+                            &diff_data_desc.data, &data_desc.data,
+                            static_cast<float>(epsilon), convert_to_c(flags)),
+                    "could not create a batch normalization backward "
+                    "descriptor");
         }
     };
 
