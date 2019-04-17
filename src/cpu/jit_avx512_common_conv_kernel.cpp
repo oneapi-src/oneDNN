@@ -77,9 +77,6 @@ inline bool is_1stconv(const jit_conv_conf_t &jcp) {
 
 void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_sparse() {
 
-    Label kh_label, kd_label, skip_kd_loop;
-    Label end_label, clear_label;
-
     /**********************************************
 
     reg64_t param = abi_param1;
@@ -129,6 +126,9 @@ void jit_avx512_common_conv_fwd_kernel::compute_loop_fma_sparse() {
     reg64_t reg_out_long_offt = r14;
 
     ***********************************************/
+
+    Label kh_label, kd_label, skip_kd_loop;
+    Label end_label, clear_label;
 
     int kw = jcp.kw;
     int kh = jcp.kh;
@@ -1106,8 +1106,43 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     return status::success;
 }
 
-void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse()
-{
+void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse() {
+
+    /**********************************************
+
+    reg64_t param = abi_param1;
+    reg64_t reg_dst = r8;
+    reg64_t reg_ker = r9;
+    reg64_t reg_src = r10;
+
+    reg64_t reg_dst_prf = r11;
+    reg64_t reg_ker_prf = r12;
+    reg64_t reg_src_prf = r13;
+
+    reg64_t aux_reg_dst = r14;
+    reg64_t aux_reg_ker = r15;
+
+    reg64_t aux_reg_dst_prf = rsi;
+    reg64_t aux_reg_ker_prf = rdx;
+
+    reg64_t aux_reg_dst_d_prf = r13;
+    reg64_t aux_reg_dst_d = rbx;
+    reg64_t aux_reg_ker_d_prf = abi_not_param1;
+    reg64_t aux_reg_ker_d = r9;
+    reg64_t reg_ki = r10;
+
+    reg64_t reg_kj = rax;
+    reg64_t reg_oi = rbx;
+    reg64_t reg_kh = abi_not_param1;
+
+    reg64_t reg_channel = rsi;
+
+    reg64_t reg_tmp = rbp;
+    reg64_t reg_long_offt = r14;
+
+    ***********************************************/
+
+
     Label kh_label, kd_label, skip_kd_loop;
     Label end_label, clear_label;
 
@@ -1434,169 +1469,39 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse()
 
         L(oc_loop_end_label);
 
-    };
+        if (oi == ow - 1) {
+            for (int ki = 0; ki < kw; ki++) {
+                for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
 
+                    if (oi * stride_w - l_pad + ki * dilate_w >= 0
+                        && oi * stride_w - l_pad + ki * dilate_w < iw) {
 
-    auto comp_loop = [&](int idx, int oi, int cur_ic_buffs) {
+                        int reg_idx = get_reg_idx(oi, ic_buff, ki);
 
-        Reg64 aux_reg_src = aux_reg_ker;
-        Reg64 mask_reg = reg_oi;
-        Reg32 oc_itr_reg = reg_kh.cvt32();
-        Reg64 tzcnt_reg = reg_channel;
+                        Zmm zmm = Xbyak::Zmm(reg_idx);
 
-        kmovw(mask_reg.cvt32(), k7);
-        popcnt(oc_itr_reg, mask_reg.cvt32());
-
-        size_t aux_dst_offset = typesize * (idx + 1) * oc_block;
-        vcmpps(k7, zmm_zero, EVEX_compress_addr_safe(aux_reg_dst, aux_dst_offset, // pipelined
-                                reg_long_offt), 4);
-
-        prefetcht1(EVEX_compress_addr_safe(reg_dst_prf, aux_dst_offset, // pipelined
-                                reg_long_offt));
-
-        for (int ki = 0; ki < kw; ki++) {
-            for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
-
-                int reg_idx = get_reg_idx(oi - 1, ic_buff, ki);
-
-                Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                if (stride_w / dilate_w >= kw || dilate_w > stride_w
-                    || stride_w % dilate_w != 0 || ki < stride_w) {
-
-                    size_t aux_src_offset = (size_t)typesize
-                        * (ic_buff * ic_block * mb_block * iw 
-                        + ((idx - 1) * stride_w - l_pad + ki * dilate_w) * ic_block);
-                    vmovups(EVEX_compress_addr_safe(aux_reg_src, aux_src_offset,
-                                reg_long_offt), zmm);
+                        Label no_update_label;
+                        
+                        size_t aux_src_offset = (size_t)typesize
+                            * (ic_buff * ic_block * mb_block * iw 
+                            + (oi * stride_w - l_pad + ki * dilate_w) * ic_block);
+                        vmovups(EVEX_compress_addr_safe(reg_src, aux_src_offset,
+                                    reg_long_offt), zmm);
+                    }
                 }
             }
         }
 
-        for (int ki = 0; ki < kw; ki++) {
-            for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
-
-                int reg_idx = get_reg_idx(oi, ic_buff, ki);
-
-                Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                if (stride_w / dilate_w >= kw || dilate_w > stride_w
-                    || stride_w % dilate_w != 0 || ki >= kw - stride_w) {
-
-                    size_t aux_src_offset = (size_t)typesize
-                        * (ic_buff * ic_block * mb_block * iw 
-                        + (idx * stride_w  - l_pad + ki * dilate_w) * ic_block);
-                    vmovups(zmm, EVEX_compress_addr_safe(aux_reg_src, aux_src_offset,
-                                reg_long_offt));
-                    prefetcht1(EVEX_compress_addr_safe(reg_src_prf, aux_src_offset,
-                                reg_long_offt));
-                }
-
-                /*int pref_idx = idx + 2;
-
-                if (stride_w / dilate_w >= kw || dilate_w > stride_w
-                    || stride_w % dilate_w != 0 || ki >= kw - stride_w) {
-
-                    size_t aux_src_offset = (size_t)typesize
-                        * (ic_buff * ic_block * ih * iw 
-                        + (pref_idx * stride_w  - l_pad + ki * dilate_w) * ic_block);
-                    mic_prefetcht0(EVEX_compress_addr_safe(aux_reg_src, aux_src_offset,
-                                reg_long_offt));
-                }*/
-            }
-        }
-
-        Label oc_loop_end_label;
-        jz(oc_loop_end_label, T_NEAR);
-
-        tzcnt(tzcnt_reg.cvt32(), mask_reg.cvt32());
-        inc(tzcnt_reg.cvt32());
-
-        shrx(mask_reg.cvt32(), mask_reg.cvt32(), tzcnt_reg.cvt32());
-
-        push(aux_reg_dst);
-        push(reg_ker);
-
-        //add(qword[param + GET_OFF(perf_cnt)], oc_itr_reg);
-
-        Label oc_loop_label;
-        L(oc_loop_label); {
-
-            lea(aux_reg_dst, ptr[aux_reg_dst + tzcnt_reg * typesize]);
-
-            int aux_dst_offset = typesize * (idx * oc_block - 1);
-            vbroadcastss(zmm_o, ptr[aux_reg_dst + aux_dst_offset]);
-
-            shl(tzcnt_reg.cvt32(), 6);
-            add(reg_ker, tzcnt_reg);
-
-            tzcnt(tzcnt_reg.cvt32(), mask_reg.cvt32()); // pipelined
-            inc(tzcnt_reg.cvt32());
-
-            dec(oc_itr_reg);
-
-            shrx(mask_reg.cvt32(), mask_reg.cvt32(), tzcnt_reg.cvt32()); // does not change flags
-
-            for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
-                for (int ki = 0; ki < kw; ki++) {
-
-                    int reg_idx = get_reg_idx(oi, ic_buff, ki);
-
-                    Zmm zmm = Xbyak::Zmm(reg_idx);
-                    
-                    size_t aux_kernel_offset = typesize * (ic_buff
-                                    * kw * ic_block * oc_block
-                                    + ki * ic_block * oc_block);
-                    vfmadd231ps(zmm, zmm_o,
-                            EVEX_compress_addr_safe(reg_ker, aux_kernel_offset,
-                                reg_long_offt)); // probably don't need safe for weight tensor
-
-                }
-            }
-
-            jnz(oc_loop_label, T_NEAR);
-        }
-
-        pop(reg_ker);
-        pop(aux_reg_dst);
-
-        L(oc_loop_end_label);
-
-    };
-
-    auto epilogue = [&](int cur_ic_buffs) {
-
-
-        for (int ki = 0; ki < kw; ki++) {
-            for (int ic_buff = 0; ic_buff < cur_ic_buffs; ic_buff++) {
-
-                if ((ow - 1) * stride_w - l_pad + ki * dilate_w >= 0
-                    && (ow - 1) * stride_w - l_pad + ki * dilate_w < iw) {
-
-                    int reg_idx = get_reg_idx((ow - 1), ic_buff, ki);
-
-                    Zmm zmm = Xbyak::Zmm(reg_idx);
-
-                    Label no_update_label;
-                    
-                    size_t aux_src_offset = (size_t)typesize
-                        * (ic_buff * ic_block * mb_block * iw 
-                        + ((ow - 1) * stride_w - l_pad + ki * dilate_w) * ic_block);
-                    vmovups(EVEX_compress_addr_safe(reg_src, aux_src_offset,
-                                reg_long_offt), zmm);
-                }
-            }
-        }
     };
 
     auto outer_loop = [&](int cur_ic_buffs) {
 
         sub(reg_ker, ic_block * typesize);
 
-        if (0) {
-        //if (l_ow <= r_ow - rotation_unroll_factor * 2) { // threshold needs to be dynamically calculated based on the instruction count per section
+        int rr_ow = r_ow - (r_ow - l_ow) % rotation_unroll_factor;
 
-            int rr_ow = r_ow - (r_ow - l_ow) % rotation_unroll_factor;
+        if (l_ow <= rr_ow - rotation_unroll_factor * 5) { // threshold needs to be dynamically calculated based on the instruction count per section
+
             int niter = (rr_ow - l_ow) / rotation_unroll_factor;
 
             cout << "leading :" << l_ow << " trailing:" << ow - rr_ow
@@ -1607,44 +1512,30 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse()
                 comp_unrolled(oi, cur_ic_buffs);
             }
 
-            Reg64 ow_itr_reg = reg_channel;
-            Reg64 aux_reg_src = aux_reg_ker;
+            Reg64 ow_itr_reg = reg_src_prf;
 
             mov(ow_itr_reg, niter);
-
-            mov(aux_reg_dst, reg_dst);
-            mov(aux_reg_src, reg_src);
-
-            add(aux_reg_dst, l_ow * oc_block * typesize);
-            add(aux_reg_src, l_ow * stride_w * ic_block * typesize);
-
-            add(reg_dst_prf, l_ow * oc_block * typesize);
-            add(reg_src_prf, l_ow * stride_w * ic_block * typesize);
 
             Label ow_loop_label;
             L(ow_loop_label); {
 
-                push(ow_itr_reg);
-
                 for (int i = 0; i < rotation_unroll_factor; i++) {
-                    comp_loop(i, l_ow + i, cur_ic_buffs);
+                    comp_unrolled(l_ow + i, cur_ic_buffs);
                 }
 
-                pop(ow_itr_reg);
-
-                add(aux_reg_dst, oc_block * typesize * rotation_unroll_factor);
-                add(aux_reg_src, stride_w * ic_block * typesize * rotation_unroll_factor);
+                add(reg_dst, oc_block * typesize * rotation_unroll_factor);
+                add(reg_src, ic_block * typesize * rotation_unroll_factor * stride_w);
 
                 add(reg_dst_prf, oc_block * typesize * rotation_unroll_factor);
-                add(reg_src_prf, stride_w * ic_block * typesize * rotation_unroll_factor);
 
                 dec(ow_itr_reg);
                 jnz(ow_loop_label, T_NEAR);
 
             }
 
-            mov(reg_src_prf, ptr[param + GET_OFF(src_prf)]);
-            mov(reg_dst_prf, ptr[param + GET_OFF(dst_prf)]);
+            sub(reg_dst, oc_block * typesize * rotation_unroll_factor * niter);
+            sub(reg_src, ic_block * typesize * rotation_unroll_factor * stride_w * niter);
+            sub(reg_dst_prf, oc_block * typesize * rotation_unroll_factor * niter);
 
             for (int oi = rr_ow; oi < ow; oi++) {
                 comp_unrolled(oi, cur_ic_buffs);
@@ -1659,7 +1550,6 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_fma_sparse()
             }
         }
 
-        epilogue(cur_ic_buffs);
     };
 
     outer_loop(ic_buffs);
