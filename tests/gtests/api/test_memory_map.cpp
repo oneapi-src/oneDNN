@@ -159,7 +159,7 @@ TEST_P(memory_map_test_cpp, Map) {
     engine eng_ref(engine_kind, 0);
 
     const mkldnn::memory::dim N = 7;
-    memory::desc mem_d({ N }, memory::data_type::f32, memory::x);
+    memory::desc mem_d({ N }, memory::data_type::f32, memory::format_tag::x);
 
     memory mem_ref(mem_d, eng_ref);
 

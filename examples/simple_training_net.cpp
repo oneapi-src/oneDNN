@@ -33,7 +33,7 @@ void simple_net() {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    auto cpu_engine = engine(engine::cpu, 0);
+    auto cpu_engine = engine(engine::kind::cpu, 0);
     stream s(cpu_engine);
 
     /* Vector of primitives and their execute arguments */
@@ -89,7 +89,7 @@ void simple_net() {
 
     /* create a convolution primitive descriptor */
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
-            convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
+            algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
             conv_dst_md, conv_strides, conv_padding, conv_padding,
             padding_kind::zero);
     auto conv_pd = convolution_forward::primitive_desc(conv_desc, cpu_engine);
@@ -155,7 +155,7 @@ void simple_net() {
     const float k = 1.0f;
 
     /* create a lrn primitive descriptor */
-    auto lrn_desc = lrn_forward::desc(prop_kind::forward, lrn_across_channels,
+    auto lrn_desc = lrn_forward::desc(prop_kind::forward, algorithm::lrn_across_channels,
             relu_pd.dst_desc(), local_size, alpha, beta, k);
     auto lrn_pd = lrn_forward::primitive_desc(lrn_desc, cpu_engine);
 
@@ -190,7 +190,7 @@ void simple_net() {
     auto pool_dst_md = memory::desc({ pool_dst_tz }, dt::f32, tag::any);
 
     /* create a pooling primitive descriptor */
-    auto pool_desc = pooling_forward::desc(prop_kind::forward, pooling_max,
+    auto pool_desc = pooling_forward::desc(prop_kind::forward, algorithm::pooling_max,
             lrn_dst_memory.get_desc(), pool_dst_md, pool_strides, pool_kernel,
             pool_padding, pool_padding, padding_kind::zero);
     auto pool_pd = pooling_forward::primitive_desc(pool_desc, cpu_engine);
@@ -237,7 +237,7 @@ void simple_net() {
     auto pool_diff_dst_md = pool_dst_memory.get_desc();
 
     /* create backward pooling descriptor*/
-    auto pool_bwd_desc = pooling_backward::desc(pooling_max, pool_diff_src_md,
+    auto pool_bwd_desc = pooling_backward::desc(algorithm::pooling_max, pool_diff_src_md,
             pool_diff_dst_md, pool_strides, pool_kernel, pool_padding,
             pool_padding, padding_kind::zero);
     /* backward primitive descriptor needs to hint forward descriptor */
@@ -268,7 +268,7 @@ void simple_net() {
     auto lrn_diff_dst_md = lrn_dst_memory.get_desc();
 
     /* create backward lrn primitive descriptor */
-    auto lrn_bwd_desc = lrn_backward::desc(lrn_across_channels,
+    auto lrn_bwd_desc = lrn_backward::desc(algorithm::lrn_across_channels,
             lrn_pd.src_desc(), lrn_diff_dst_md, local_size, alpha, beta, k);
     auto lrn_bwd_pd
             = lrn_backward::primitive_desc(lrn_bwd_desc, cpu_engine, lrn_pd);
@@ -323,7 +323,7 @@ void simple_net() {
 
     /* create backward convolution primitive descriptor */
     auto conv_bwd_weights_desc = convolution_backward_weights::desc(
-            convolution_direct, conv_bwd_src_md, conv_diff_weights_md,
+            algorithm::convolution_direct, conv_bwd_src_md, conv_diff_weights_md,
             conv_diff_bias_md, conv_diff_dst_md, conv_strides, conv_padding,
             conv_padding, padding_kind::zero);
     auto conv_bwd_weights_pd = convolution_backward_weights::primitive_desc(

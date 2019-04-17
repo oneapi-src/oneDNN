@@ -80,16 +80,16 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
 
             auto &d = dst_data[didx];
             switch (elt_alg) {
-            case eltwise_relu: d = relu_fwd(d, elt_alpha); break;
-            case eltwise_tanh: d = tanh_fwd(d); break;
-            case eltwise_elu: d = elu_fwd(d, elt_alpha); break;
-            case eltwise_square: d = square_fwd(d); break;
-            case eltwise_abs: d = abs_fwd(d); break;
-            case eltwise_sqrt: d = sqrt_fwd(d); break;
-            case eltwise_linear: d = linear_fwd(d, elt_alpha, elt_beta); break;
-            case eltwise_bounded_relu: d = bounded_relu_fwd(d, elt_alpha); break;
-            case eltwise_soft_relu: d = soft_relu_fwd(d); break;
-            case eltwise_logistic: d = logistic_fwd(d); break;
+            case algorithm::eltwise_relu: d = relu_fwd(d, elt_alpha); break;
+            case algorithm::eltwise_tanh: d = tanh_fwd(d); break;
+            case algorithm::eltwise_elu: d = elu_fwd(d, elt_alpha); break;
+            case algorithm::eltwise_square: d = square_fwd(d); break;
+            case algorithm::eltwise_abs: d = abs_fwd(d); break;
+            case algorithm::eltwise_sqrt: d = sqrt_fwd(d); break;
+            case algorithm::eltwise_linear: d = linear_fwd(d, elt_alpha, elt_beta); break;
+            case algorithm::eltwise_bounded_relu: d = bounded_relu_fwd(d, elt_alpha); break;
+            case algorithm::eltwise_soft_relu: d = soft_relu_fwd(d); break;
+            case algorithm::eltwise_logistic: d = logistic_fwd(d); break;
             default: assert(!"unknown alg_kind");
             }
         }
@@ -106,7 +106,7 @@ protected:
                 = ::testing::TestWithParam<
                 test_convolution_eltwise_params_t>::GetParam();
 
-        ASSERT_EQ(p.aalgorithm, convolution_direct);
+        ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         float eltwise_alpha = p.eltwise_alpha;
@@ -145,7 +145,7 @@ protected:
                 data_t_wei(0), data_t_wei(1));
         check_zero_tail<data_t_wei>(1, c_weights);
 
-        bool with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
+        bool with_bias = p.formats.bias_format != memory::format_tag::undef;
         auto c_bias_desc = with_bias ?
                 create_md({ cd.oc }, data_type_dst, p.formats.bias_format) :
                 create_md({}, data_type_dst, p.formats.bias_format);

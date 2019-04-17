@@ -173,7 +173,7 @@ void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout, 
         int64_t C, int64_t LD, const mapper_t &mapper) {
     auto M = map_memory<data_t>(M_mem);
     auto dt = data_traits<data_t>::data_type;
-    bool is_fp = (dt == memory::f16 || dt == memory::f32);
+    bool is_fp = (dt == memory::data_type::f16 || dt == memory::data_type::f32);
     const data_t mean = (data_t)(is_fp ? 1.f : 4);
     const data_t var = (data_t)(is_fp ? 2e-1f : 3);
 
@@ -431,7 +431,7 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem, const test_memory &) {
 #if MKLDNN_WITH_OPENCL
-        if (get_test_engine_kind() == engine::gpu) {
+        if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng(get_test_engine_kind(), 0);
             stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
@@ -459,7 +459,7 @@ struct mkldnn_gemm<float, float, float> {
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
 #if MKLDNN_WITH_OPENCL
-        if (get_test_engine_kind() == engine::gpu) {
+        if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng(get_test_engine_kind(), 0);
             stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
@@ -573,17 +573,17 @@ protected:
         const auto &p = ::testing::TestWithParam<test_params>::GetParam();
 
         bool zero_off = (p.off.a == 0 && p.off.b == 0 && p.off.c == 0);
-        SKIP_IF(!zero_off && get_test_engine_kind() == engine::cpu,
+        SKIP_IF(!zero_off && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support non-zero offsets.");
 
-        bool is_f16 = (data_traits<c_dt>::data_type == memory::f16);
-        SKIP_IF(is_f16 && get_test_engine_kind() == engine::cpu,
+        bool is_f16 = (data_traits<c_dt>::data_type == memory::data_type::f16);
+        SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
 
-        SKIP_IF(get_test_engine_kind() == engine::gpu && p.transA != 'n'
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transA != 'n'
                         && p.transA != 'N' && p.transA != 't' && p.transA != 'T',
                 "GPU interfaces take transA as enum.");
-        SKIP_IF(get_test_engine_kind() == engine::gpu && p.transB != 'n'
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transB != 'n'
                         && p.transB != 'N' && p.transB != 't' && p.transB != 'T',
                 "GPU interfaces take transB as enum.");
 

@@ -165,7 +165,7 @@ void copy_context(float *src_iter, dim_t n_layers, dim_t n_states, dim_t batch,
 }
 
 void simple_net() {
-    auto cpu_engine = engine(engine::cpu, 0);
+    auto cpu_engine = engine(engine::kind::cpu, 0);
     stream s(cpu_engine);
 
     /*

@@ -28,7 +28,7 @@ protected:
 
 TEST_F(attr_test, TestScratchpadMode) {
     mkldnn::primitive_attr attr;
-    for (auto m: {scratchpad_mode_library, scratchpad_mode_user}) {
+    for (auto m: {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
         EXPECT_EQ(m, attr.get_scratchpad_mode());
     }
@@ -39,21 +39,22 @@ TEST_F(attr_test, TestScratchpadModeEx) {
 
     const memory::dim N = 2, C = 2, W = 2;
 
-    memory::desc data_md({N, C, W}, memory::f32, memory::ncw);
+    memory::desc data_md(
+            { N, C, W }, memory::data_type::f32, memory::format_tag::ncw);
 
     mkldnn::primitive_attr attr;
-    auto softmax_d = softmax_forward::desc(forward_inference, data_md, 1);
-    for (auto m: {scratchpad_mode_library, scratchpad_mode_user}) {
+    auto softmax_d = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
+    for (auto m: {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
         auto softmax_pd = softmax_forward::primitive_desc(
                 softmax_d, attr, eng);
         auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
-        auto mem_consumption = (long)softmax_pd.query_s64(memory_consumption_s64);
+        auto mem_consumption = (long)softmax_pd.query_s64(query::memory_consumption_s64);
 
         // printf("scratchpad_size: %ld\n", scratchpad_size);
         // printf("mem consumption: %ld\n", mem_consumption);
 
-        if (m == scratchpad_mode_library) {
+        if (m == scratchpad_mode::library) {
             EXPECT_EQ(scratchpad_size, 0L);
         } else {
             EXPECT_EQ(mem_consumption, 0L);

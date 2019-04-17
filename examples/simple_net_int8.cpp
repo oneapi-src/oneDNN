@@ -30,7 +30,7 @@ void simple_net_int8() {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    auto cpu_engine = engine(engine::cpu, 0);
+    auto cpu_engine = engine(engine::kind::cpu, 0);
     stream s(cpu_engine);
 
     const int batch = 8;
@@ -88,7 +88,7 @@ void simple_net_int8() {
 
     /* create a convolution */
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
-            convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
+            algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
             conv_dst_md, conv_strides, conv_padding, conv_padding,
             padding_kind::zero);
 

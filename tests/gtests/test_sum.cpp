@@ -88,7 +88,8 @@ protected:
     virtual void SetUp() {
         sum_test_params p
             = ::testing::TestWithParam<sum_test_params>::GetParam();
-        SKIP_IF(get_test_engine_kind() && p.is_output_omitted,
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
+                && p.is_output_omitted,
                 "GPU does not support omitted output.");
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);

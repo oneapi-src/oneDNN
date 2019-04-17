@@ -33,12 +33,14 @@ using cfg_f32 = test_simple_params<f32_f32>;
 using reorder_simple_test_f32_f32 = reorder_simple_test<f32_f32>;
 
 TEST_P(reorder_simple_test_f32_f32, CPU_GPU) {
-    SKIP_IF(engine::get_count(engine::gpu) == 0, "GPU engines not found.");
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
+            "GPU engines not found.");
     Test(engine::kind::cpu, engine::kind::gpu);
 }
 
 TEST_P(reorder_simple_test_f32_f32, GPU_CPU) {
-    SKIP_IF(engine::get_count(engine::gpu) == 0, "GPU engines not found.");
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
+            "GPU engines not found.");
     Test(engine::kind::gpu, engine::kind::cpu);
 }
 

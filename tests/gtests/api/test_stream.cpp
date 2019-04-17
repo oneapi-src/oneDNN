@@ -42,7 +42,7 @@ TEST(stream_test_c, Wait) {
 }
 
 TEST(stream_test_cpp, Wait) {
-    engine eng(engine::cpu, 0);
+    engine eng(engine::kind::cpu, 0);
     stream s(eng);
     s.wait();
 }

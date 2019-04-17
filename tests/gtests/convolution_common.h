@@ -22,7 +22,7 @@
     { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
     mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
-#define ALGORITHM mkldnn::convolution_direct
+#define ALGORITHM mkldnn::algorithm::convolution_direct
 
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o

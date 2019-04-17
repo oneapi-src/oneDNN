@@ -127,12 +127,12 @@ protected:
             Forward(inference, use_global_stats);
             Forward(inference, use_scale_shift);
 
-            Backward(backward_data);
-            Backward(backward_data, use_global_stats);
-            Backward(backward_data, use_scale_shift);
-            Backward(backward_data, use_scale_shift | use_global_stats);
-            Backward(backward, use_scale_shift);
-            Backward(backward, use_scale_shift | use_global_stats);
+            Backward(prop_kind::backward_data);
+            Backward(prop_kind::backward_data, use_global_stats);
+            Backward(prop_kind::backward_data, use_scale_shift);
+            Backward(prop_kind::backward_data, use_scale_shift | use_global_stats);
+            Backward(prop_kind::backward, use_scale_shift);
+            Backward(prop_kind::backward, use_scale_shift | use_global_stats);
         } else if (isS8(data_type)) {
             Forward(inference, use_global_stats);
             Forward(inference, use_global_stats | use_scale_shift);
@@ -404,7 +404,7 @@ protected:
         const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(diff_weights_d.data);
 
         if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0) {
-            if (pk == backward) {
+            if (pk == prop_kind::backward) {
                 for (memory::dim c = 0; c < bp.c; ++c) {
                     auto dg = diff_weights_data[diff_weights_mdw.off_l(c, true)];
                     auto db = diff_weights_data[diff_weights_mdw.off_l(bp.c + c, true)];
@@ -443,7 +443,7 @@ protected:
             }
             ref_diff_gamma *= sqrt_variance;
 
-            if (pk == backward) {
+            if (pk == prop_kind::backward) {
                 auto diff_gamma =
                     diff_weights_data[diff_weights_mdw.off_l(c, true)];
                 float norm_max =

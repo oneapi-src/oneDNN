@@ -132,7 +132,7 @@ protected:
         attr.mkldnn_attr_recreate();
 
         auto aprop_kind = prop_kind::forward;
-        bool with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
+        bool with_bias = p.formats.bias_format != memory::format_tag::undef;
 
         auto c_src_desc = create_md({ cd.mb, cd.ic, cd.ih, cd.iw },
             data_type_src, p.formats.src_format);

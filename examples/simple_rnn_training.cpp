@@ -62,7 +62,7 @@ void simple_net() {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    auto cpu_engine = engine(engine::cpu, 0);
+    auto cpu_engine = engine(engine::kind::cpu, 0);
     stream s(cpu_engine);
 
     bool is_training = true;

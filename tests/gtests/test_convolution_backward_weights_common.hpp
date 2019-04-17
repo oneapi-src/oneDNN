@@ -125,7 +125,7 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<test_convolution_params_t>::GetParam();
 
-        ASSERT_EQ(p.aalgorithm, convolution_direct);
+        ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         memory::data_type data_type_src = data_traits<data_t_src>::data_type;

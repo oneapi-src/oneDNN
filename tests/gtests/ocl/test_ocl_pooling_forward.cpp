@@ -60,7 +60,7 @@ int ref_pool_fwd(const pool_test_params &p, const memory &src,
     cl_mem cl_dst = dst.get_ocl_mem_object();
 
     bool with_workspace = true && p.aprop_kind == prop_kind::forward_training
-            && p.aalgorithm == pooling_max;
+            && p.aalgorithm == algorithm::pooling_max;
 
     cl_mem cl_ws = with_workspace ? ws.get_ocl_mem_object() : NULL;
 
@@ -314,7 +314,7 @@ protected:
 
         bool with_workspace = true
                 && p.aprop_kind == prop_kind::forward_training
-                && p.aalgorithm == pooling_max;
+                && p.aalgorithm == algorithm::pooling_max;
         auto p_workspace_desc = with_workspace
                 ? pool_prim_desc.workspace_desc()
                 : memory::desc({}, data_type, p.dst_format);
@@ -323,7 +323,7 @@ protected:
 
         auto p_workspace_host_desc = with_workspace
                 ? memory::desc({ pd.mb, pd.c, pd.oh, pd.ow },
-                          mkldnn::memory::s32, p.dst_format)
+                          mkldnn::memory::data_type::s32, p.dst_format)
                 : memory::desc({}, data_type, p.dst_format);
         p_workspace_host.reset(new memory(p_workspace_host_desc, eng_host));
 

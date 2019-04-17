@@ -125,7 +125,7 @@ class primitive: public handle<mkldnn_primitive_t> {
 public:
     /// A proxy to C primitive kind enum
     enum class kind {
-        undefined_primitive = mkldnn_undefined_primitive,
+        undef = mkldnn_undefined_primitive,
         reorder = mkldnn_reorder,
         concat = mkldnn_concat,
         sum = mkldnn_sum,
@@ -197,16 +197,16 @@ const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
 ///
 /// @{
 
-enum scratchpad_mode {
-    scratchpad_mode_library = mkldnn_scratchpad_mode_library,
-    scratchpad_mode_user = mkldnn_scratchpad_mode_user,
+enum class scratchpad_mode {
+    library = mkldnn_scratchpad_mode_library,
+    user = mkldnn_scratchpad_mode_user,
 };
 
 inline mkldnn_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
     return static_cast<mkldnn_scratchpad_mode_t>(mode);
 }
 
-enum padding_kind {
+enum class padding_kind {
     zero = mkldnn_padding_zero
 };
 
@@ -214,7 +214,7 @@ inline mkldnn_padding_kind_t convert_to_c(padding_kind kind) {
     return static_cast<mkldnn_padding_kind_t>(kind);
 }
 
-enum prop_kind {
+enum class prop_kind {
     forward_training = mkldnn_forward_training,
     forward_scoring = mkldnn_forward_scoring,
     forward_inference = mkldnn_forward_inference,
@@ -229,8 +229,8 @@ inline mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
     return static_cast<mkldnn_prop_kind_t>(kind);
 }
 
-enum algorithm {
-    algorithm_undef = mkldnn_alg_kind_undef,
+enum class algorithm {
+    undef = mkldnn_alg_kind_undef,
     convolution_auto = mkldnn_convolution_auto,
     convolution_direct = mkldnn_convolution_direct,
     convolution_winograd = mkldnn_convolution_winograd,
@@ -273,7 +273,7 @@ inline mkldnn_batch_normalization_flags_t convert_to_c(
     return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
 }
 
-enum rnn_direction {
+enum class rnn_direction {
     unidirectional_left2right = mkldnn_unidirectional_left2right,
     unidirectional_right2left = mkldnn_unidirectional_right2left,
     unidirectional = mkldnn_unidirectional,
@@ -285,10 +285,10 @@ inline mkldnn_rnn_direction_t convert_to_c(rnn_direction adir) {
     return static_cast<mkldnn_rnn_direction_t>(adir);
 }
 
-enum query {
+enum class query {
     undef = mkldnn_query_undef,
 
-    query_engine = mkldnn_query_engine,
+    engine = mkldnn_query_engine,
     primitive_kind = mkldnn_query_primitive_kind,
 
     num_of_inputs_s32 = mkldnn_query_num_of_inputs_s32,
@@ -297,7 +297,7 @@ enum query {
     time_estimate_f64 = mkldnn_query_time_estimate_f64,
     memory_consumption_s64 = mkldnn_query_memory_consumption_s64,
 
-    query_scratchpad_engine = mkldnn_query_scratchpad_engine,
+    scratchpad_engine = mkldnn_query_scratchpad_engine,
 
     impl_info_str = mkldnn_query_impl_info_str,
 
@@ -495,7 +495,7 @@ struct engine: public handle<mkldnn_engine_t> {
     // gcc bug??? using handle::handle;
 
     /// Kinds of engines.
-    enum kind {
+    enum class kind {
         /// An unspecified engine
         any = mkldnn_any_engine,
         /// CPU engine
@@ -544,7 +544,7 @@ struct engine: public handle<mkldnn_engine_t> {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
                 mkldnn_primitive_desc_query(pd.get(),
-                    mkldnn::convert_to_c(query_engine), 0, &engine_q),
+                    mkldnn::convert_to_c(mkldnn::query::engine), 0, &engine_q),
                 "could not get engine from primitive_desc");
         reset(engine_q, true);
     }
@@ -585,7 +585,7 @@ struct engine: public handle<mkldnn_engine_t> {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
                 mkldnn_primitive_desc_query(pd.get(),
-                    mkldnn::convert_to_c(query_engine), 0, &engine_q),
+                    mkldnn::convert_to_c(mkldnn::query::engine), 0, &engine_q),
                 "could not get engine from primitive_desc");
 
         return engine(engine_q);
@@ -679,8 +679,8 @@ struct memory: public handle<mkldnn_memory_t> {
 
     /// Data type specification. See #mkldnn_data_type_t for a detailed
     /// description.
-    enum data_type {
-        data_undef = mkldnn_data_type_undef,
+    enum class data_type {
+        undef = mkldnn_data_type_undef,
         f16 = mkldnn_f16,
         f32 = mkldnn_f32,
         s32 = mkldnn_s32,
@@ -690,8 +690,8 @@ struct memory: public handle<mkldnn_memory_t> {
 
     /// Memory format tag specification. See #mkldnn_format_tag_t
     /// for a detailed description.
-    enum format_tag {
-        format_tag_undef = mkldnn_format_tag_undef,
+    enum class format_tag {
+        undef = mkldnn_format_tag_undef,
         any = mkldnn_format_tag_any,
         a = mkldnn_a,
         ab = mkldnn_ab,
@@ -1162,7 +1162,7 @@ struct reorder : public primitive {
 
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
-                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+                    get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
             if (cdesc == nullptr)
                 return memory::desc();
             return memory::desc(*cdesc);
@@ -1172,7 +1172,7 @@ struct reorder : public primitive {
             mkldnn_engine_t engine_q;
             error::wrap_c_api(
                 mkldnn_primitive_desc_query(get(),
-                    mkldnn::convert_to_c(query_scratchpad_engine), 0, &engine_q),
+                    mkldnn::convert_to_c(query::scratchpad_engine), 0, &engine_q),
                 "could not get scratchpad engine from reorder primitive_desc");
 
             return engine(engine_q);
@@ -1240,7 +1240,7 @@ struct concat : public primitive {
 
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
-                    get(), mkldnn::convert_to_c(dst_md), 0);
+                    get(), mkldnn::convert_to_c(query::dst_md), 0);
             error::wrap_c_api(
                     cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
                     "could not get a dst memory descriptor");
@@ -1249,7 +1249,7 @@ struct concat : public primitive {
 
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
-                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+                    get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
             if (cdesc == nullptr)
                 return memory::desc();
             return memory::desc(*cdesc);
@@ -1315,7 +1315,7 @@ struct sum : public primitive {
 
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
-                    get(), mkldnn::convert_to_c(dst_md), 0);
+                    get(), mkldnn::convert_to_c(query::dst_md), 0);
             error::wrap_c_api(
                     cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
                     "could not get a dst memory descriptor");
@@ -1324,7 +1324,7 @@ struct sum : public primitive {
 
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
-                    get(), mkldnn::convert_to_c(scratchpad_md), 0);
+                    get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
             if (cdesc == nullptr)
                 return memory::desc();
             return memory::desc(*cdesc);
@@ -1410,8 +1410,9 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 
     /// Queries and returns requested memory descriptor.
     memory::desc query_md(query what, int idx = 0) const {
-        std::vector<query> valid_q{src_md, diff_src_md, weights_md,
-            diff_weights_md, dst_md, diff_dst_md, workspace_md, scratchpad_md};
+        std::vector<query> valid_q{ query::src_md, query::diff_src_md,
+            query::weights_md, query::diff_weights_md, query::dst_md,
+            query::diff_dst_md, query::workspace_md, query::scratchpad_md };
         if (!std::any_of(valid_q.cbegin(), valid_q.cend(),
                     [=](query q) { return what == q; }))
             throw error(mkldnn_invalid_arguments, "invalid memory query");
@@ -1425,7 +1426,7 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 
     // register specialized queries, e.g. src_desc()
 #   define REG_QUERY_MD(name, what, idx) \
-    memory::desc name ## _desc() const { return query_md(what ## _md, idx); }
+    memory::desc name ## _desc() const { return query_md(query::what ## _md, idx); }
 
   private:
     handle<mkldnn_primitive_desc_iterator_t> pd_iterator;
@@ -2333,9 +2334,13 @@ struct batch_normalization_forward : public primitive {
         memory::desc stat_desc(int kind) const {
             mkldnn_batch_normalization_desc_t *p;
             error::wrap_c_api(mkldnn_primitive_desc_query(
-                    get(), mkldnn::convert_to_c(batch_normalization_d), 0, &p),
+                    get(), mkldnn::convert_to_c(query::batch_normalization_d), 0, &p),
                     "could not get a batch-normalization descriptor");
-            return query_md(p->flags & use_global_stats ? src_md : dst_md, kind);
+            return query_md(
+                    p->flags & use_global_stats
+                            ? query::src_md
+                            : query::dst_md,
+                    kind);
         }
     };
 
@@ -2525,7 +2530,7 @@ struct rnn_cell {
                         mkldnn::convert_to_c(activation_f), 0U, 0, 0),
                     "could not init an rnn cell descriptor");
         }
-        desc(algorithm kind): desc(kind, algorithm::algorithm_undef) {}
+        desc(algorithm kind): desc(kind, algorithm::undef) {}
 
         operator const mkldnn_rnn_cell_desc_t*() const { return &c_rnn_cell_; }
 

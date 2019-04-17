@@ -54,8 +54,8 @@ int find_negative(const memory &mem, const memory::dims adims) {
 }
 
 void doit() {
-    auto cpu_engine = engine(engine::cpu, 0);
-    auto gpu_engine = engine(engine::gpu, 0);
+    auto cpu_engine = engine(engine::kind::cpu, 0);
+    auto gpu_engine = engine(engine::kind::gpu, 0);
 
     const auto tz = memory::dims{ 2, 16, 1, 1 };
 

@@ -147,16 +147,16 @@ void check_eltwise_fwd(const eltwise_test_params &p,
         data_t s = src_data[i];
         data_t ref_d = 0;
         switch (p.alg_kind) {
-        case eltwise_relu:        ref_d = relu_fwd(s, p.alpha);           break;
-        case eltwise_tanh:        ref_d = tanh_fwd(s);                    break;
-        case eltwise_elu:         ref_d = elu_fwd(s, p.alpha);            break;
-        case eltwise_square:      ref_d = square_fwd(s);                  break;
-        case eltwise_abs:         ref_d = abs_fwd(s);                     break;
-        case eltwise_sqrt:        ref_d = sqrt_fwd(s);                    break;
-        case eltwise_linear:      ref_d = linear_fwd(s, p.alpha, p.beta); break;
-        case eltwise_bounded_relu: ref_d = bounded_relu_fwd(s, p.alpha);  break;
-        case eltwise_soft_relu:   ref_d = soft_relu_fwd(s);               break;
-        case eltwise_logistic:    ref_d = logistic_fwd(s);                break;
+        case algorithm::eltwise_relu:        ref_d = relu_fwd(s, p.alpha);           break;
+        case algorithm::eltwise_tanh:        ref_d = tanh_fwd(s);                    break;
+        case algorithm::eltwise_elu:         ref_d = elu_fwd(s, p.alpha);            break;
+        case algorithm::eltwise_square:      ref_d = square_fwd(s);                  break;
+        case algorithm::eltwise_abs:         ref_d = abs_fwd(s);                     break;
+        case algorithm::eltwise_sqrt:        ref_d = sqrt_fwd(s);                    break;
+        case algorithm::eltwise_linear:      ref_d = linear_fwd(s, p.alpha, p.beta); break;
+        case algorithm::eltwise_bounded_relu: ref_d = bounded_relu_fwd(s, p.alpha);  break;
+        case algorithm::eltwise_soft_relu:   ref_d = soft_relu_fwd(s);               break;
+        case algorithm::eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -170,9 +170,9 @@ void compare_eltwise_fwd(const eltwise_test_params &p,
     auto ref_dst_data = map_memory<data_t>(ref_dst);
     auto dst_data = map_memory<data_t>(dst);
 
-    float eps = (data_traits<data_t>::data_type == memory::f16)
+    float eps = (data_traits<data_t>::data_type == memory::data_type::f16)
             ? 5e-2
-            : (p.alg_kind == eltwise_soft_relu) ? 2e-6 : 1e-6;
+            : (p.alg_kind == algorithm::eltwise_soft_relu) ? 2e-6 : 1e-6;
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -195,7 +195,8 @@ void check_eltwise_bwd(const eltwise_test_params &p,
     const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
     const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    float eps = (data_traits<data_t>::data_type == memory::f16) ? 5e-2 : 1e-6;
+    float eps = (data_traits<data_t>::data_type == memory::data_type::f16)
+        ? 5e-2 : 1e-6;
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -203,22 +204,22 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         data_t ref_dd = diff_dst_data[diff_data_mdw.off_l(i)];
         data_t ref_ds = 0;
         switch (p.alg_kind) {
-        case eltwise_relu:   ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
-        case eltwise_tanh:   ref_ds = tanh_bwd(ref_dd, ref_s); break;
-        case eltwise_elu:    ref_ds = elu_bwd(ref_dd, ref_s, p.alpha); break;
-        case eltwise_square: ref_ds = square_bwd(ref_dd, ref_s); break;
-        case eltwise_abs:    ref_ds = abs_bwd(ref_dd, ref_s); break;
-        case eltwise_sqrt:   ref_ds = sqrt_bwd(ref_dd, ref_s); break;
-        case eltwise_linear:
+        case algorithm::eltwise_relu:   ref_ds = relu_bwd(ref_dd, ref_s, p.alpha); break;
+        case algorithm::eltwise_tanh:   ref_ds = tanh_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_elu:    ref_ds = elu_bwd(ref_dd, ref_s, p.alpha); break;
+        case algorithm::eltwise_square: ref_ds = square_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_abs:    ref_ds = abs_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_sqrt:   ref_ds = sqrt_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_linear:
             ref_ds = linear_bwd(ref_dd, ref_s, p.alpha, p.beta);
             break;
-        case eltwise_bounded_relu:
+        case algorithm::eltwise_bounded_relu:
             ref_ds = bounded_relu_bwd(ref_dd, ref_s, p.alpha);
             break;
-        case eltwise_soft_relu:
+        case algorithm::eltwise_soft_relu:
             ref_ds = soft_relu_bwd(ref_dd, ref_s);
             break;
-        case eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
         EXPECT_NEAR(diff_src_data[diff_data_mdw.off_l(i)], ref_ds, eps);
@@ -244,7 +245,8 @@ private:
 
 protected:
     virtual void SetUp() {
-        SKIP_IF(data_type == memory::f16 && get_test_engine_kind() == engine::cpu,
+        SKIP_IF(data_type == memory::data_type::f16
+                && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
@@ -274,7 +276,7 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = p.alg_kind == eltwise_elu ? data_t(1) : data_t(200);
+                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
         fill_data<data_t>(n_elems(*data_desc), *src,
                 data_median, data_deviation);
         check_zero_tail<data_t>(1, *src);
@@ -300,7 +302,7 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = p.alg_kind == eltwise_elu ? data_t(1) : data_t(200);
+                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
         fill_data<data_t>(n_elems(*diff_data_desc),
                 *diff_dst, data_median,
                 data_deviation);

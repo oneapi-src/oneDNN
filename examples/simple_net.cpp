@@ -38,7 +38,7 @@ void simple_net(int times = 100) {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    engine eng(engine::cpu, 0);
+    engine eng(engine::kind::cpu, 0);
     stream s(eng);
 
     /* Create a vector primitive to hold the network. For efficiency purpose,
@@ -86,7 +86,7 @@ void simple_net(int times = 100) {
 
     /* create a convolution */
     auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
-            convolution_direct, conv1_src_md, conv1_weights_md, conv1_bias_md,
+            algorithm::convolution_direct, conv1_src_md, conv1_weights_md, conv1_bias_md,
             conv1_dst_md, conv1_strides, conv1_padding, conv1_padding,
             padding_kind::zero);
     auto conv1_prim_desc = convolution_forward::primitive_desc(conv1_desc, eng);
@@ -145,7 +145,7 @@ void simple_net(int times = 100) {
 
     /* create lrn primitive and add it to net */
     auto lrn1_desc = lrn_forward::desc(prop_kind::forward_inference,
-            lrn_across_channels, conv1_dst_memory.get_desc(), local1_size,
+            algorithm::lrn_across_channels, conv1_dst_memory.get_desc(), local1_size,
             alpha1, beta1, k1);
     auto lrn1_prim_desc = lrn_forward::primitive_desc(lrn1_desc, eng);
     auto lrn1_dst_memory = memory(lrn1_prim_desc.dst_desc(), eng);
@@ -169,7 +169,7 @@ void simple_net(int times = 100) {
 
     /* create a pooling */
     auto pool1_desc = pooling_forward::desc(prop_kind::forward_inference,
-            pooling_max, lrn1_dst_memory.get_desc(), pool1_dst_md,
+            algorithm::pooling_max, lrn1_dst_memory.get_desc(), pool1_dst_md,
             pool1_strides, pool1_kernel, pool_padding, pool_padding,
             padding_kind::zero);
     auto pool1_pd = pooling_forward::primitive_desc(pool1_desc, eng);
@@ -211,7 +211,7 @@ void simple_net(int times = 100) {
 
     /* create a convolution */
     auto conv2_desc = convolution_forward::desc(prop_kind::forward_inference,
-            convolution_direct, conv2_src_md, conv2_weights_md, conv2_bias_md,
+            algorithm::convolution_direct, conv2_src_md, conv2_weights_md, conv2_bias_md,
             conv2_dst_md, conv2_strides, conv2_padding, conv2_padding,
             padding_kind::zero);
     auto conv2_prim_desc = convolution_forward::primitive_desc(conv2_desc, eng);
@@ -269,7 +269,7 @@ void simple_net(int times = 100) {
 
     /* create lrn primitive and add it to net */
     auto lrn2_desc = lrn_forward::desc(prop_kind::forward_inference,
-            lrn_across_channels, conv2_prim_desc.dst_desc(), local2_size,
+            algorithm::lrn_across_channels, conv2_prim_desc.dst_desc(), local2_size,
             alpha2, beta2, k2);
     auto lrn2_prim_desc = lrn_forward::primitive_desc(lrn2_desc, eng);
     auto lrn2_dst_memory = memory(lrn2_prim_desc.dst_desc(), eng);
@@ -293,7 +293,7 @@ void simple_net(int times = 100) {
 
     /* create a pooling */
     auto pool2_desc = pooling_forward::desc(prop_kind::forward_inference,
-            pooling_max, lrn2_dst_memory.get_desc(), pool2_dst_md,
+            algorithm::pooling_max, lrn2_dst_memory.get_desc(), pool2_dst_md,
             pool2_strides, pool2_kernel, pool2_padding, pool2_padding,
             padding_kind::zero);
     auto pool2_pd = pooling_forward::primitive_desc(pool2_desc, eng);
@@ -336,7 +336,7 @@ void simple_net(int times = 100) {
 
     /* create a convolution */
     auto conv3_desc = convolution_forward::desc(prop_kind::forward_inference,
-            convolution_direct, conv3_src_md, conv3_weights_md, conv3_bias_md,
+            algorithm::convolution_direct, conv3_src_md, conv3_weights_md, conv3_bias_md,
             conv3_dst_md, conv3_strides, conv3_padding, conv3_padding,
             padding_kind::zero);
     auto conv3_prim_desc = convolution_forward::primitive_desc(conv3_desc, eng);
@@ -413,7 +413,7 @@ void simple_net(int times = 100) {
 
     /* create a convolution */
     auto conv4_desc = convolution_forward::desc(prop_kind::forward_inference,
-            convolution_direct, conv4_src_md, conv4_weights_md, conv4_bias_md,
+            algorithm::convolution_direct, conv4_src_md, conv4_weights_md, conv4_bias_md,
             conv4_dst_md, conv4_strides, conv4_padding, conv4_padding,
             padding_kind::zero);
     auto conv4_prim_desc = convolution_forward::primitive_desc(conv4_desc, eng);
@@ -489,7 +489,7 @@ void simple_net(int times = 100) {
 
     /* create a convolution */
     auto conv5_desc = convolution_forward::desc(prop_kind::forward_inference,
-            convolution_direct, conv5_src_md, conv5_weights_md, conv5_bias_md,
+            algorithm::convolution_direct, conv5_src_md, conv5_weights_md, conv5_bias_md,
             conv5_dst_md, conv5_strides, conv5_padding, conv5_padding,
             padding_kind::zero);
     auto conv5_prim_desc = convolution_forward::primitive_desc(conv5_desc, eng);
@@ -551,7 +551,7 @@ void simple_net(int times = 100) {
 
     /* create a pooling */
     auto pool5_desc = pooling_forward::desc(prop_kind::forward_inference,
-            pooling_max, conv5_dst_memory.get_desc(), pool5_dst_md,
+            algorithm::pooling_max, conv5_dst_memory.get_desc(), pool5_dst_md,
             pool5_strides, pool5_kernel, pool5_padding, pool5_padding,
             padding_kind::zero);
     auto pool5_pd = pooling_forward::primitive_desc(pool5_desc, eng);

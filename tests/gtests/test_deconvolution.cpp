@@ -146,8 +146,8 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_convolution_sizes_t dd = p.sizes;
-        p.formats.bias_format = memory::format_tag::format_tag_undef;
-        with_bias = p.formats.bias_format != memory::format_tag::format_tag_undef;
+        p.formats.bias_format = memory::format_tag::undef;
+        with_bias = p.formats.bias_format != memory::format_tag::undef;
 
         memory::dims src_dims = {dd.mb, dd.ic, dd.ih, dd.iw};
         memory::dims dst_dims = {dd.mb, dd.oc, dd.oh, dd.ow};
@@ -399,7 +399,7 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
     { mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
     mkldnn::memory::format_tag::bias, mkldnn::memory::format_tag::dst }
 
-#define ALGORITHM mkldnn::deconvolution_direct
+#define ALGORITHM mkldnn::algorithm::deconvolution_direct
 
 #define PARAMS(src, weights, bias, dst, ...) \
         deconvolution_test_params { ALGORITHM, \

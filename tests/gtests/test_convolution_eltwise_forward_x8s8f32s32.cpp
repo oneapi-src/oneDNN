@@ -44,23 +44,23 @@ using convolution_test_s8s8s32f32 =
 #define EXPAND_ARGS(args) args
 
 #define PARAMS(...) \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_relu, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_elu, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_tanh, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_square, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_abs, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_sqrt, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_linear, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_bounded_relu, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_soft_relu, __VA_ARGS__)), \
-    EXPAND_ARGS(PARAMS_CONV(eltwise_logistic, __VA_ARGS__))
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_relu, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_elu, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_tanh, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_square, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_abs, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_sqrt, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_linear, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
+    EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_logistic, __VA_ARGS__))
 
 #define ELTWISE_ALPHA 0.5f
 #define ELTWISE_BETA 0.f
 
 #define PARAMS_CONV(alg, src, weights, bias, dst, ...) \
     test_convolution_eltwise_params_t {alg, \
-        mkldnn::convolution_direct, ELTWISE_ALPHA, ELTWISE_BETA, \
+        mkldnn::algorithm::convolution_direct, ELTWISE_ALPHA, ELTWISE_BETA, \
     EXPAND_FORMATS(src, weights, bias, dst), /* empty attributes */ {}, \
     {__VA_ARGS__} }
 

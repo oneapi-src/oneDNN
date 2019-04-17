@@ -82,10 +82,10 @@ protected:
         memory::dim s, g;
 
         switch (p.aalgorithm) {
-        case vanilla_lstm:
+        case algorithm::vanilla_lstm:
             g = 4; s = 2; break;
-        case vanilla_gru:
-        case gru_linear_before_reset:
+        case algorithm::vanilla_gru:
+        case algorithm::gru_linear_before_reset:
             g = 3; s = 1; break;
         default:
             g = 1; s = 1; break;

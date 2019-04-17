@@ -129,7 +129,7 @@ protected:
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
 
-        bool with_bias = p.diff_bias_format != memory::format_tag::format_tag_undef;
+        bool with_bias = p.diff_bias_format != memory::format_tag::undef;
 
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
@@ -257,19 +257,19 @@ CPU_INSTANTIATE_TEST_SUITE_P(
         ::testing::Values(
                 inprod_test_params_float{
                         memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
                 inprod_test_params_float{
                         memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) },
                 inprod_test_params_float{
                         memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
                 inprod_test_params_float{
                         memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
 CPU_INSTANTIATE_TEST_SUITE_P(
@@ -277,43 +277,43 @@ CPU_INSTANTIATE_TEST_SUITE_P(
         ::testing::Values(
                 inprod_test_params_float{
                         memory::format_tag::any, memory::format_tag::any,
-                        memory::format_tag::format_tag_undef, memory::format_tag::any,
+                        memory::format_tag::undef, memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::any, memory::format_tag::any,
-                        memory::format_tag::format_tag_undef, memory::format_tag::any,
+                        memory::format_tag::undef, memory::format_tag::any,
                         EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{
                         memory::format_tag::nhwc, memory::format_tag::hwio,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::nhwc, memory::format_tag::oihw,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::nchw, memory::format_tag::oihw,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 1000, 6, 6 ) },
                 inprod_test_params_float{
                         memory::format_tag::nc, memory::format_tag::oi,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 32, 1152, 1, 1 ) },
                 inprod_test_params_float{
                         memory::format_tag::nc, memory::format_tag::oi,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 2, 4, 1, 1 ) },
                 inprod_test_params_float{
                         memory::format_tag::nc, memory::format_tag::io,
-                        memory::format_tag::format_tag_undef, memory::format_tag::nc,
+                        memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
 CPU_INSTANTIATE_TEST_SUITE_P(
