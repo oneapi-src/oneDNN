@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -833,14 +833,14 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop(int ur_w,
                 || (jcp.kd - 1) * (jcp.dilate_d + 1) < nstl::max(jcp.f_pad, jcp.back_pad)) {
             mov(reg_kj, ptr[param1 + GET_OFF(kd_padding)]);
             cmp(reg_kj, 0);
-            je(skip_compute_loop, T_NEAR);
+            jle(skip_compute_loop, T_NEAR);
         }
     }
     if ((jcp.dilate_h >= jcp.ih)
             || (jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
         mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
         cmp(reg_kj, 0);
-        je(skip_compute_loop, T_NEAR);
+        jle(skip_compute_loop, T_NEAR);
     }
 
     if (jcp.ver == ver_4fma)
@@ -2109,11 +2109,11 @@ inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
     if (jcp.ndims == 5) {
         mov(reg_kj, ptr[param + GET_OFF(kd_padding)]);
         cmp(reg_kj, 0);
-        je(skip_compute_loop, T_NEAR);
+        jle(skip_compute_loop, T_NEAR);
     }
     mov(reg_kj, ptr[param + GET_OFF(kh_padding)]);
     cmp(reg_kj, 0);
-    je(skip_compute_loop, T_NEAR);
+    jle(skip_compute_loop, T_NEAR);
 
     if (jcp.ver == ver_4fma)
         compute_loop_4fma(ur_w, l_overflow, r_overflow);
@@ -3006,6 +3006,9 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel()
 
     mov(reg_oi, ptr[param + GET_OFF(d_worksize)]);
     sub(reg_oi, ptr[param + GET_OFF(d_index)]);
+    cmp(reg_oi, 0);
+    jle(skip_bias, T_NEAR); // no iterations along depth dimension
+
     mov(reg_tmp, jcp.oc_block * jcp.ow * jcp.oh * jcp.typesize_out);
     imul(reg_oi, reg_tmp);
 
@@ -3218,8 +3221,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_d_loop_common() {
     mov(reg_d_index, ptr[param + GET_OFF(d_index)]);
     mov(reg_kd_count, ptr[param + GET_OFF(kd_padding)]);
 
+    cmp(reg_kd_count, 0);
+    jle(loop_end_label, T_NEAR); // no iterations along kd
     cmp(reg_d_index, ptr[param + GET_OFF(d_worksize)]);
-    jge(loop_end_label, T_NEAR);
+    jge(loop_end_label, T_NEAR); // no iterations along depth dimension
 
     L(d_loop_label);
 
