@@ -163,17 +163,18 @@ protected:
         auto dst_layer_tgt = memory(dst_layer_md_tgt, eng);
         auto dst_iter_tgt = memory(dst_iter_md_tgt, eng);
 
+        // Assumption: b is a plain layout
         auto init_tensor = [&](memory a, memory b) {
-            auto a_ptr = map_memory<float>(a);
+            auto b_ptr = map_memory<float>(b);
             auto desc = a.get_desc();
-            auto a_dims = desc.data.dims;
-            auto a_ndims = desc.data.ndims;
-            auto n_elems = std::accumulate(a_dims, a_dims + a_ndims, size_t(1),
+            auto b_dims = desc.data.dims;
+            auto b_ndims = desc.data.ndims;
+            auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<float>());
             const mkldnn::impl::memory_desc_wrapper mdw(desc.data);
             for(size_t i = 0; i < n_elems; i++)
-                a_ptr[mdw.off_l(i, false)] = i;
-            reorder(a, b).execute(strm, a, b);
+                b_ptr[i] = i;
+            reorder(b, a).execute(strm, b, a);
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
