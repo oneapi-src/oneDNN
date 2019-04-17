@@ -735,7 +735,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
 
     int condition_1D_copya = 0;
     if (mayiuse(avx512_core)) {
-        if (m >= 1000 && (n >= nthrs * N2D_MAX / 4)) {
+        const dim_t thresh = isInteger ? 68 : N2D_MAX / 4;
+        if (m >= 1000 && (n >= nthrs * thresh)) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
@@ -746,10 +747,9 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         }
     }
 
-    // If offset is non-zero, we need to keep 1D_copya to reduce update
+    // If A or B offset are non-zero, we need to keep 1D_copya to reduce update
     // overhead for integer case.
-    if (isInteger && (arg->ao != 0 || arg->bo != 0 || arg->co[0] != 0 ||
-                arg->offsetc != FIX_OFFSET)) {
+    if (isInteger && (arg->ao != 0 || arg->bo != 0)) {
         condition_2D_bsrc = 0;
         condition_1D_copya = 1;
     }
