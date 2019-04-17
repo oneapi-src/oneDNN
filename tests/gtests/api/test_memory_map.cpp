@@ -31,29 +31,39 @@ class memory_map_test_c : public ::testing::TestWithParam<mkldnn_engine_kind_t>
 protected:
     virtual void SetUp() {
         auto engine_kind = GetParam();
-
-        auto status = mkldnn_engine_create(&engine, engine_kind, 0);
-        if (status != mkldnn_success)
+        if (mkldnn_engine_get_count(engine_kind) == 0)
             return;
 
+        MKLDNN_CHECK(mkldnn_engine_create(&engine, engine_kind, 0));
+        MKLDNN_CHECK(mkldnn_engine_create(&engine_ref, engine_kind, 0));
         MKLDNN_CHECK(mkldnn_stream_create(
                 &stream, engine, mkldnn_stream_default_flags));
+        MKLDNN_CHECK(mkldnn_stream_create(
+                &stream_ref, engine_ref, mkldnn_stream_default_flags));
     }
 
     virtual void TearDown() {
         if (engine) {
             MKLDNN_CHECK(mkldnn_engine_destroy(engine));
         }
+        if (engine_ref) {
+            MKLDNN_CHECK(mkldnn_engine_destroy(engine_ref));
+        }
         if (stream) {
             MKLDNN_CHECK(mkldnn_stream_destroy(stream));
+        }
+        if (stream_ref) {
+            MKLDNN_CHECK(mkldnn_stream_destroy(stream_ref));
         }
     }
 
     mkldnn_engine_t engine = nullptr;
+    mkldnn_engine_t engine_ref = nullptr;
     mkldnn_stream_t stream = nullptr;
+    mkldnn_stream_t stream_ref = nullptr;
 };
 
-class memory_test_cpp
+class memory_map_test_cpp
     : public ::testing::TestWithParam<mkldnn_engine_kind_t>
 {
 };
@@ -84,9 +94,6 @@ TEST_P(memory_map_test_c, Map) {
     const int ndims = 1;
     const mkldnn_dim_t N = 15;
     const mkldnn_dims_t dims = { N };
-
-    mkldnn_engine_t engine_ref;
-    MKLDNN_CHECK(mkldnn_engine_create(&engine_ref, mkldnn_cpu, 0));
 
     mkldnn_memory_desc_t mem_d;
     MKLDNN_CHECK(mkldnn_memory_desc_init_by_tag(
@@ -121,8 +128,9 @@ TEST_P(memory_map_test_c, Map) {
 
     mkldnn_exec_arg_t reorder_args[2]
             = { { MKLDNN_ARG_SRC, mem_ref }, { MKLDNN_ARG_DST, mem } };
-    MKLDNN_CHECK(mkldnn_primitive_execute(reorder, stream, 2, reorder_args));
-    MKLDNN_CHECK(mkldnn_stream_wait(stream));
+    MKLDNN_CHECK(
+            mkldnn_primitive_execute(reorder, stream_ref, 2, reorder_args));
+    MKLDNN_CHECK(mkldnn_stream_wait(stream_ref));
 
     // Validate the results
     void *mapped_ptr;
@@ -139,35 +147,38 @@ TEST_P(memory_map_test_c, Map) {
 
     MKLDNN_CHECK(mkldnn_memory_destroy(mem));
     MKLDNN_CHECK(mkldnn_memory_destroy(mem_ref));
-
-    MKLDNN_CHECK(mkldnn_engine_destroy(engine_ref));
 }
 
-TEST_P(memory_test_cpp, Map) {
+TEST_P(memory_map_test_cpp, Map) {
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,
             "Engine kind is not supported");
 
     engine eng(engine_kind, 0);
-    engine eng_ref(engine::kind::cpu, 0);
+    engine eng_ref(engine_kind, 0);
 
     const mkldnn::memory::dim N = 7;
     memory::desc mem_d({ N }, memory::data_type::f32, memory::x);
 
-    std::vector<float> buffer_ref(N);
-    std::iota(buffer_ref.begin(), buffer_ref.end(), 1);
+    memory mem_ref(mem_d, eng_ref);
 
-    memory mem_ref(mem_d, eng, buffer_ref.data());
+    float buffer_ref[N];
+    std::iota(buffer_ref, buffer_ref + N, 1);
+
+    float *mapped_ptr_ref = mem_ref.map_data<float>();
+    std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref);
+    mem_ref.unmap_data(mapped_ptr_ref);
+
     memory mem(mem_d, eng);
 
     reorder::primitive_desc reorder_pd(
-            eng, mem_d, eng, mem_d, primitive_attr());
+            eng_ref, mem_d, eng, mem_d, primitive_attr());
     reorder reorder_prim(reorder_pd);
 
-    stream strm(eng);
-    reorder_prim.execute(strm, mem_ref, mem);
-    strm.wait();
+    stream strm_ref(eng_ref);
+    reorder_prim.execute(strm_ref, mem_ref, mem);
+    strm_ref.wait();
 
     float *mapped_ptr = mem.map_data<float>();
     for (size_t i = 0; i < N; i++) {
@@ -185,14 +196,14 @@ struct PrintToStringParamName {
     }
 };
 
-auto all_engine_kinds = ::testing::Values(mkldnn_cpu);
+auto all_engine_kinds = ::testing::Values(mkldnn_cpu, mkldnn_gpu);
 
 } // namespace
 
 INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_c, all_engine_kinds,
         PrintToStringParamName());
 
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_test_cpp,
-        all_engine_kinds, PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_cpp, all_engine_kinds,
+        PrintToStringParamName());
 
 } // namespace mkldnn

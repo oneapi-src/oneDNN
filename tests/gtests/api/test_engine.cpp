@@ -28,6 +28,19 @@ class engine_test_cpp : public ::testing::TestWithParam<mkldnn_engine_kind_t>
 {
 };
 
+static void compare_backend(
+        mkldnn_engine_kind_t engine_kind, mkldnn_backend_kind_t backend_kind) {
+    if (engine_kind == mkldnn_cpu) {
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
+        EXPECT_EQ(backend_kind, mkldnn_backend_native);
+#endif
+    } else if (engine_kind == mkldnn_gpu) {
+#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
+        EXPECT_EQ(backend_kind, mkldnn_backend_ocl);
+#endif
+    }
+}
+
 TEST_P(engine_test_c, GetBackend) {
     mkldnn_engine_kind_t engine_kind = GetParam();
     SKIP_IF(mkldnn_engine_get_count(engine_kind) == 0,
@@ -39,7 +52,7 @@ TEST_P(engine_test_c, GetBackend) {
     mkldnn_backend_kind_t backend_kind;
     MKLDNN_CHECK(mkldnn_engine_get_backend_kind(engine, &backend_kind));
 
-    EXPECT_EQ(backend_kind, mkldnn_backend_native);
+    compare_backend(engine_kind, backend_kind);
 
     MKLDNN_CHECK(mkldnn_engine_destroy(engine));
 }
@@ -49,15 +62,28 @@ TEST_P(engine_test_c, CreateWithBackend) {
     SKIP_IF(mkldnn_engine_get_count(engine_kind) == 0,
             "Engine kind is not supported.");
 
-    mkldnn_engine_t engine;
-    MKLDNN_CHECK(mkldnn_engine_create_with_backend(
-            &engine, engine_kind, mkldnn_backend_native, 0));
+    auto backend_kinds = { mkldnn_backend_native, mkldnn_backend_ocl };
+    for (auto backend_kind : backend_kinds) {
+        if (engine_kind == mkldnn_cpu) {
+            if (backend_kind == mkldnn_backend_ocl)
+                continue;
+        } else if (engine_kind == mkldnn_gpu) {
+            if (backend_kind == mkldnn_backend_native)
+                continue;
+        }
 
-    mkldnn_backend_kind_t backend_kind;
-    MKLDNN_CHECK(mkldnn_engine_get_backend_kind(engine, &backend_kind));
-    EXPECT_EQ(backend_kind, mkldnn_backend_native);
+        mkldnn_engine_t engine;
+        MKLDNN_CHECK(mkldnn_engine_create_with_backend(
+                &engine, engine_kind, backend_kind, 0));
 
-    MKLDNN_CHECK(mkldnn_engine_destroy(engine));
+        mkldnn_backend_kind_t queried_backend_kind;
+        MKLDNN_CHECK(
+                mkldnn_engine_get_backend_kind(engine, &queried_backend_kind));
+
+        EXPECT_EQ(queried_backend_kind, backend_kind);
+
+        MKLDNN_CHECK(mkldnn_engine_destroy(engine));
+    }
 }
 
 TEST_P(engine_test_cpp, GetBackend) {
@@ -66,7 +92,9 @@ TEST_P(engine_test_cpp, GetBackend) {
             "Engine kind is not supported.");
 
     engine eng(engine_kind, 0);
-    EXPECT_EQ(eng.get_backend_kind(), backend_kind::native);
+
+    compare_backend(static_cast<mkldnn_engine_kind_t>(engine_kind),
+            static_cast<mkldnn_backend_kind_t>(eng.get_backend_kind()));
 }
 
 namespace {
@@ -78,7 +106,7 @@ struct PrintToStringParamName {
     }
 };
 
-auto all_engine_kinds = ::testing::Values(mkldnn_cpu);
+auto all_engine_kinds = ::testing::Values(mkldnn_cpu, mkldnn_gpu);
 
 } // namespace
 

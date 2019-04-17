@@ -494,6 +494,8 @@ inline std::string to_string(mkldnn_engine_kind_t engine_kind) {
     std::stringstream ss;
     if (engine_kind == mkldnn_cpu)
         ss << "cpu";
+    else if (engine_kind == mkldnn_gpu)
+        ss << "gpu";
     else
         ss << "unknown";
 
