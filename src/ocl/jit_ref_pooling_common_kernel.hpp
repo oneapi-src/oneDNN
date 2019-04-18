@@ -77,7 +77,9 @@ struct jit_ref_pooling_fwd_kernel {
         jpp.gws_d[0] = jpp.mb;
         jpp.gws_d[1] = jpp.c;
         jpp.gws_d[2] = 1;
+        jpp.sub_group_size = 1;
         jpp.use_16mb_unroll = 0;
+        jpp.use_16c_unroll = 0;
         // disable subgroup optimization for s8
         // waiting for cl_intel_subgroups_char
         if (utils::one_of(src_d.data_type(), data_type::f32, data_type::f16)
@@ -89,14 +91,16 @@ struct jit_ref_pooling_fwd_kernel {
                                       && dst_d.matches_tag(NCdhw16n16c))
                            || (src_d.matches_tag(nCdhw16c)
                                       && dst_d.matches_tag(nCdhw16c)))) {
-            jpp.use_16mb_unroll = 1;
+            jpp.use_16mb_unroll = src_d.matches_one_of_tag(NChw16n16c, NCdhw16n16c);
+            jpp.use_16c_unroll = 1;
+            jpp.sub_group_size = 16;
             jpp.lws_d[0] = 1;
             jpp.lws_d[1] = 16;
             jpp.lws_d[2] = 1;
             jpp.gws_d[0] = jpp.is_backward ? jpp.id * jpp.ih * jpp.iw
                                            : jpp.od * jpp.oh * jpp.ow;
             jpp.gws_d[1] = jpp.c;
-            jpp.gws_d[2] = (jpp.mb % 16 == 0) ? jpp.mb / 16 : jpp.mb;
+            jpp.gws_d[2] = jpp.use_16mb_unroll ? jpp.mb / 16 : jpp.mb;
         }
 
         return status::success;
@@ -129,7 +133,9 @@ struct jit_ref_pooling_fwd_kernel {
         jit.define_int("LWS_0", jpp.lws_d[0]);
         jit.define_int("LWS_1", jpp.lws_d[1]);
         jit.define_int("LWS_2", jpp.lws_d[2]);
+        jit.define_int("SUB_GROUP_SIZE", jpp.sub_group_size);
         jit.define_int("USE_16MB_UNROLL", jpp.use_16mb_unroll);
+        jit.define_int("USE_16C_UNROLL", jpp.use_16c_unroll);
         jit.define_int("IS_TRAINING", jpp.is_training);
         if (jpp.is_backward)
             jit.define_int("POOLING_BWD", 1);
