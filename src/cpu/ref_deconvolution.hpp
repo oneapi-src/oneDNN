@@ -344,7 +344,7 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
         conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
         if (!types::is_zero_md(pd()->scratchpad_md()))
             conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+        const exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
         return status::success;
@@ -453,7 +453,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
         if (!types::is_zero_md(pd()->scratchpad_md()))
             conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+        const exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
         status_t status = conv_p_->execute(conv_ctx);
         if (status != status::success) return status;

@@ -58,6 +58,10 @@ struct exec_ctx_t {
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
         : stream_(stream)
         , args_(std::move(args)) {}
+    exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
+        : stream_(other.stream_)
+        , args_(std::move(args))
+        , memory_storage_mapping_(other.memory_storage_mapping_) {}
 
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
