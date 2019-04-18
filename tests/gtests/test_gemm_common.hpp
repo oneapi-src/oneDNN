@@ -430,10 +430,10 @@ template <>
 struct mkldnn_gemm<float16_t, float16_t, float16_t> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem, const test_memory &) {
+        engine eng(get_test_engine_kind(), 0);
+        stream s(eng);
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            engine eng(get_test_engine_kind(), 0);
-            stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
             mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
                     ? mkldnn_notrans
@@ -448,6 +448,24 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
             s.wait();
             return status;
         }
+#elif MKLDNN_WITH_SYCL
+        if (eng.get_backend_kind() == backend_kind::sycl) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+            transpose transa = (p.transA == 'n' || p.transA == 'N')
+                    ? transpose::notrans
+                    : transpose::trans;
+            transpose transb = (p.transB == 'n' || p.transB == 'N')
+                    ? transpose::notrans
+                    : transpose::trans;
+            auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
+            auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
+            auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
+            mkldnn::gemm(sycl_queue, transa, transb, p.M, p.N, p.K, p.alpha, a,
+                    p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
+                    p.ldc);
+            s.wait();
+            return mkldnn_success;
+        }
 #endif
         throw error(mkldnn_runtime_error, "unknown gemm");
     }
@@ -458,10 +476,10 @@ struct mkldnn_gemm<float, float, float> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
+        engine eng(get_test_engine_kind(), 0);
+        stream s(eng);
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            engine eng(get_test_engine_kind(), 0);
-            stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
             mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
                     ? mkldnn_notrans
@@ -476,7 +494,27 @@ struct mkldnn_gemm<float, float, float> {
             s.wait();
             return status;
         }
+#elif MKLDNN_WITH_SYCL
+        if (eng.get_backend_kind() == backend_kind::sycl) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+            transpose transa = (p.transA == 'n' || p.transA == 'N')
+                    ? transpose::notrans
+                    : transpose::trans;
+            transpose transb = (p.transB == 'n' || p.transB == 'N')
+                    ? transpose::notrans
+                    : transpose::trans;
+            auto a = a_mem.get().get_sycl_buffer<float>();
+            auto b = b_mem.get().get_sycl_buffer<float>();
+            auto c = c_mem.get().get_sycl_buffer<float>();
+            mkldnn::gemm(sycl_queue, transa, transb, p.M, p.N, p.K, p.alpha, a,
+                    p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
+                    p.ldc);
+            s.wait();
+            return mkldnn_success;
+        }
 #endif
+        assert(eng.get_backend_kind() == backend_kind::native);
+
         auto A = map_memory<float>(a_mem);
         auto B = map_memory<float>(b_mem);
         auto C = map_memory<float>(c_mem);
@@ -579,6 +617,11 @@ protected:
         bool is_f16 = (data_traits<c_dt>::data_type == memory::data_type::f16);
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
+
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+        SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
+                "SYCL CPU GEMM not implemented.");
+#endif
 
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transA != 'n'
                         && p.transA != 'N' && p.transA != 't' && p.transA != 'T',
