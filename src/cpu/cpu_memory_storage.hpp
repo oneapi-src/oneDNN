@@ -66,8 +66,8 @@ public:
     }
 
 private:
-    void *data_;
-    bool is_owned_;
+    void *data_ = nullptr;
+    bool is_owned_ = false;
 };
 
 } // namespace cpu
