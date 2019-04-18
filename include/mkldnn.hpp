@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+/// @file
+/// C++ API
 
 #ifndef MKLDNN_HPP
 #define MKLDNN_HPP
@@ -214,6 +217,7 @@ inline mkldnn_padding_kind_t convert_to_c(padding_kind kind) {
     return static_cast<mkldnn_padding_kind_t>(kind);
 }
 
+/// Propagation kind
 enum class prop_kind {
     forward_training = mkldnn_forward_training,
     forward_scoring = mkldnn_forward_scoring,
@@ -375,7 +379,10 @@ template <> struct handle_traits<mkldnn_post_ops_t> {
 };
 #endif
 
+/// Post operations
 struct post_ops: public handle<mkldnn_post_ops_t> {
+
+    /// Creates an empty sequence of post operations.
     post_ops() {
         mkldnn_post_ops_t result;
         error::wrap_c_api(mkldnn_post_ops_create(&result),
@@ -393,16 +400,46 @@ struct post_ops: public handle<mkldnn_post_ops_t> {
                     index));
     }
 
+    /// Appends accumulation (sum) post operation. Prior to accumulating the
+    /// result, the previous value would be multiplied by @p scale.
+    ///
+    /// The kind of this post operation is #mkldnn_sum.
+    ///
+    /// This feature might improve performance for cases like residual learning
+    /// blocks, where the result of convolution is accumulated to the previously
+    /// computed activations. The parameter @p scale might be extreme for the
+    /// integer-based computations when the result and previous activations have
+    /// different logical scaling factors.
+    ///
+    /// In the simplest case when the accumulation is the only post operation,
+    /// the computations would be:
+    /// dst[] <- scale * dst[] + op(...) // instead of dst[] <- op(...)
+    ///
+    /// @note
+    ///     This post operation (as well as all the others) disregards the
+    ///     original layout of the destination; that is, the layout of the
+    ///     original destination is expected to be the same as the layout of the
+    ///     stored destination.
     void append_sum(float scale = 1.) {
         error::wrap_c_api(mkldnn_post_ops_append_sum(get(), scale),
                 "could not append sum");
     }
 
+    /// Gets the parameters of the accumulation (sum) post operation with index
+    /// @p index.
     void get_params_sum(int index, float &scale) const {
         error::wrap_c_api(mkldnn_post_ops_get_params_sum(get(), index, &scale),
                 "could not get sum params");
     }
 
+    /// Appends eltwise post operation.
+    ///
+    /// The kind of this post operation is #mkldnn_eltwise.
+    ///
+    /// In the simplest case when the eltwise is the only post operation, the
+    /// computations would be:
+    /// dst[] <- scale * eltwise_op ( op(...) ) // instead of dst[] <- op(...)
+    /// where eltwise_op is configured with the given parameters.
     void append_eltwise(float scale, algorithm alg, float alpha,
             float beta) {
         error::wrap_c_api(mkldnn_post_ops_append_eltwise(get(), scale,
@@ -410,6 +447,7 @@ struct post_ops: public handle<mkldnn_post_ops_t> {
                 "could not append eltwise");
     }
 
+    /// Gets the eltwise parameters of the post operation with index @p index.
     void get_params_eltwise(int index, float &scale, algorithm &alg,
             float &alpha, float &beta) const {
         mkldnn_alg_kind_t c_alg;
@@ -426,6 +464,7 @@ template <> struct handle_traits<mkldnn_primitive_attr_t> {
 };
 #endif
 
+/// Primitive attributes
 struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
     primitive_attr() {
         mkldnn_primitive_attr_t result;
@@ -447,6 +486,8 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
                 "could not set scratchpad mode");
     }
 
+    /// Gets correspondence scale @p mask and a constant floating point vector
+    /// of output @p scales previously set by set_output_scales.
     void get_output_scales(int &mask, std::vector<float> &scales) const
     {
         mkldnn_dim_t count;
@@ -462,6 +503,21 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
             scales[c] = c_scales[c];
     }
 
+    /// Sets output scales for primitive operations. The correspondence scale
+    /// @p mask is stored for future use.
+    ///
+    /// The @p mask argument defines the correspondence between the output
+    /// tensor dimensions and the @p scales vector. Set the i-th bit of @p mask
+    /// to 1 to use a dedicated scaling factor for each slice of the output
+    /// tensor over the i-th dimension. Set @p mask to 0 to use a common
+    /// scaling factor for the whole output tensor.
+    ///
+    /// @note
+    ///      The dimension order is always native and does not depend on the
+    ///      actual layout used. Examples:
+    ///       - 2D dimensional data the order of dimensions is always: (n, c)
+    ///       - 4D dimensional data the order is always: (n, c, h, w)
+    ///       - 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
     void set_output_scales(int mask, const std::vector<float> &scales)
     {
         error::wrap_c_api(mkldnn_primitive_attr_set_output_scales(get(),
@@ -469,6 +525,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
                 "could not set int output scales");
     }
 
+    /// Returns @p post_ops previously set by set_post_ops.
     const post_ops get_post_ops() const {
         post_ops result;
         const_mkldnn_post_ops_t c_result;
@@ -477,18 +534,50 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         result.reset(const_cast<mkldnn_post_ops_t>(c_result), true);
         return result;
     }
-
+    
+    /// Sets @p post_ops for future use.
     void set_post_ops(post_ops ops) {
         error::wrap_c_api(mkldnn_primitive_attr_set_post_ops(get(), ops.get()),
                 "could not set post operation sequence");
     }
 
+    /// Sets quantization @p scale and @p shift for RNN data tensors.  For
+    /// performance reasons, the low-precision configuration of the RNN
+    /// primitive expects input activations to have the unsigned int8 data type.
+    /// Scale and shift used to quantize floating-point data to unsigned integer
+    /// must be passed to the RNN primitive using attributes.
+    /// @note
+    ///     Quantization scale and shift are common for src_layer, src_iter,
+    ///     dst_iter, and dst_layer.
     void set_rnn_data_qparams(const float scale, const float shift)
     {
         error::wrap_c_api(mkldnn_primitive_attr_set_rnn_data_qparams(get(),
                     scale, shift), "could not set rnn data int scale/shift");
     }
 
+    /// Sets quantization scales @p weights_scales for RNN weights tensors.  The
+    /// low-precision configuration of the RNN primitive expects input weights
+    /// to have the signed int8 data type. Scales used to quantize
+    /// floating-point data to signed integer must be passed to the RNN
+    /// primitive using attributes.  The @p mask argument defines correspondence
+    /// between output tensor dimensions and the @p weights_scales array. Set
+    /// the i-th bit of @p mask to 1 to use a dedicated scaling factor for each
+    /// slice of the output tensor over the i-th dimension. Set @p mask to 0 to
+    /// use a common scaling factor for the whole output tensor.
+    /// @note
+    ///      The dimension order is always native and does not depend on the
+    ///      actual layout used. For example, five-dimensional weights always
+    ///      have (l, d, i, g, o) logical dimension ordering.
+    /// @note
+    ///     Quantization scales are common for weights_layer and
+    ///     weights_iteration
+    /// @note
+    ///     There is no way to check whether @p count corresponds to @p mask
+    ///     until an actual primitive descriptor is created, so it is the user's
+    ///     responsibility to set proper values. The following formula must
+    ///     hold:
+    ///
+    ///      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
     void set_rnn_weights_qparams(int mask, const std::vector<float> &scales)
     {
         error::wrap_c_api(mkldnn_primitive_attr_set_rnn_weights_qparams(get(),
@@ -529,7 +618,6 @@ struct engine: public handle<mkldnn_engine_t> {
     /// Returns the number of engines of a certain kind.
     ///
     /// @param akind The kind of engines to count.
-
     static size_t get_count(kind akind) {
         return mkldnn_engine_get_count(convert_to_c(akind));
     }
@@ -538,8 +626,8 @@ struct engine: public handle<mkldnn_engine_t> {
     ///
     /// @param akind The kind of engine to construct.
     /// @param index The index of the engine. Must be less than the value
-    ///              returned by #get_count() for this particular kind of engine.
-
+    ///              returned by #get_count() for this particular kind
+    ///              of engine.
     engine(kind akind, size_t index) {
         mkldnn_engine_t aengine;
         error::wrap_c_api(
@@ -633,6 +721,7 @@ template <> struct handle_traits<mkldnn_stream_t> {
 };
 #endif
 
+/// An execution stream.
 struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
@@ -730,10 +819,12 @@ struct memory: public handle<mkldnn_memory_t> {
         u8 = mkldnn_u8,
     };
 
-    /// Memory format tag specification. See #mkldnn_format_tag_t
-    /// for a detailed description.
+    /// Memory format tag specification. See #mkldnn_format_tag_t for a
+    /// detailed description.
     enum class format_tag {
         undef = mkldnn_format_tag_undef,
+        /// Placeholder memory format tag. The primitive selects a format
+        /// automatically.
         any = mkldnn_format_tag_any,
         a = mkldnn_a,
         ab = mkldnn_ab,
@@ -1021,7 +1112,7 @@ struct memory: public handle<mkldnn_memory_t> {
         /// @param adata A C API #mkldnn_memory_desc_t structure.
         desc(const mkldnn_memory_desc_t &adata): data(adata) {}
 
-        /// Constructs a sub-memory descriptor
+        /// Constructs a sub-memory descriptor.
         //
         /// @param adims Sizes of a sub-memory
         /// @param offsets Offsets of a sub-memory
@@ -1033,8 +1124,8 @@ struct memory: public handle<mkldnn_memory_t> {
             return desc(sub_md);
         }
 
-        /// Returns the number of bytes required to allocate the memory described
-        /// including the padding area.
+        /// Returns the number of bytes required to allocate the memory
+        /// described including the padding area.
         size_t get_size() const { return mkldnn_memory_desc_get_size(&data); }
 
         bool operator==(const desc &other) const {
@@ -1174,9 +1265,13 @@ inline bool operator!=(memory::format_tag a, mkldnn_format_tag_t b) {
 /// @addtogroup cpp_api_reorder Reorder
 /// A primitive to copy data between memory formats.
 ///
+/// @sa @ref dev_guide_reorder in developer guide
 /// @sa @ref c_api_reorder in @ref c_api
 /// @{
 
+/// Initializes a reorder primitive using the description of the source
+/// (@p src_engine and @p src_md) and destination (@p dst_engine and @p dst_md)
+/// memory, and an @p attr attribute.
 struct reorder : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
@@ -1239,9 +1334,17 @@ struct reorder : public primitive {
 /// @addtogroup cpp_api_concat Concat
 /// A primitive to concatenate data by arbitrary dimension.
 ///
+/// @sa @ref dev_guide_concat in developer guide
 /// @sa @ref c_api_concat in @ref c_api
 /// @{
 
+/// Implements primitive descriptor and primitive for concat.
+///
+/// Creates an out-of-place primitive descriptor for concatenation of @p n
+/// inputs by @p concat_dimension with resulting @p output_desc memory
+/// descriptor. @p output_desc can be NULL or specified with the
+/// #mkldnn::memory::format_tag::any format kind--in this case, the appropriate memory
+/// format would be chosen automatically.
 struct concat : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         std::vector<mkldnn_memory_desc_t> cpp_to_c(
@@ -1308,9 +1411,15 @@ struct concat : public primitive {
 /// @addtogroup cpp_api_sum Sum
 /// A primitive to sum data.
 ///
+/// @sa @ref dev_guide_sum in developer guide
 /// @sa @ref c_api_sum in @ref c_api
 /// @{
 
+/// Creates an out-of-place sum primitive descriptor for sum of @p n inputs
+/// multiplied by the scale with resulting @p output_desc memory descriptor.
+/// @p output_desc can be NULL or specified with the
+/// #mkldnn::memory::format_tag::any format kind--in this case, the
+/// appropriate memory format would be chosen automatically.
 struct sum : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         std::vector<mkldnn_memory_desc_t> cpp_to_c(
@@ -1390,6 +1499,10 @@ struct sum : public primitive {
 
 /// A base class for all primitive descriptors.
 struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+
+    /// Creates a primitive descriptor from given @p op_desc, @p attr, @p
+    /// engine, and optionally a hint primitive descriptor from forward
+    /// propagation.
     primitive_desc(const_mkldnn_op_desc_t desc, const primitive_attr *attr,
             const engine &e, const_mkldnn_primitive_desc_t hint_fwd_pd) {
         mkldnn_primitive_desc_iterator_t iterator = nullptr;
@@ -1484,14 +1597,31 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 /// @}
 
 /// @addtogroup cpp_api_convolution Convolution
-/// A primitive to compute convolution using different algorithms.
+/// Computes a forward propagation, backward propagation, or weight update
+/// for convolution operation with bias on a batch of multi-dimensional tensors.
 ///
+/// @sa @ref dev_guide_convolution in developer guide
 /// @sa @ref c_api_convolution in @ref c_api
 /// @{
 
+/// Convolution forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive
+/// for the convolution forward propagation.
 struct convolution_forward: public primitive {
+
+    /// Descriptor for convolution forward propagation.
     struct desc {
         mkldnn_convolution_desc_t data;
+
+        /// Initializes a descriptor for convolution forward propagation without
+        /// bias using @p aprop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference),
+        /// @p aalgorithm, memory descriptors, @p strides, @p padding_l,
+        /// @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1511,6 +1641,15 @@ struct convolution_forward: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution forward descriptor");
         }
+
+        /// Initializes a descriptor for convolution forward propagation with
+        /// bias using @p prop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
+        /// padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1529,6 +1668,15 @@ struct convolution_forward: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution forward descriptor");
         }
+
+        /// Initializes a descriptor for dilated convolution forward propagation
+        /// without bias using @p prop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference),
+        /// @p aalgorithm, memory descriptors, @p strides, @p dilates,
+        /// @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1552,6 +1700,15 @@ struct convolution_forward: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a dilated convolution forward descriptor");
         }
+
+        /// Initializes a descriptor for dilated convolution forward propagation
+        /// with bias using @p prop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference),
+        /// @p aalgorithm, memory descriptors, @p strides, @p dilates,
+        /// @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1576,10 +1733,16 @@ struct convolution_forward: public primitive {
         }
     };
 
+    /// Primitive descriptor for convolution forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for convolution forward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
+        /// Initializes a primitive descriptor for convolution forward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
@@ -1590,12 +1753,27 @@ struct convolution_forward: public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates a convolution forward propagation primitive from the
+    /// corresponding primitive descriptor.
     convolution_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Convolution backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive for the
+/// convolution backward propagation.
 struct convolution_backward_data : public primitive {
+
+    /// Descriptor for convolution backward propagation.
     struct desc {
         mkldnn_convolution_desc_t data;
+
+        /// Initializes a descriptor for convolution backward propagation
+        /// using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
@@ -1614,6 +1792,13 @@ struct convolution_backward_data : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward data descriptor");
         }
+
+        /// Initializes a descriptor for dilated convolution backward
+        /// propagation using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
@@ -1637,11 +1822,17 @@ struct convolution_backward_data : public primitive {
         }
     };
 
+    /// Primitive descriptor for convolution backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes primitive descriptor for convolution backward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e,
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
+        /// Initializes primitive descriptor for convolution backward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
@@ -1652,12 +1843,27 @@ struct convolution_backward_data : public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates a convolution backward propagation primitive from the
+    /// corresponding primitive descriptor.
     convolution_backward_data(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Convolution weight update.
+///
+/// Implements descriptor, primitive descriptor, and primitive for the
+/// convolution weight update.
 struct convolution_backward_weights : public primitive {
+
+    /// Descriptor for convolution weight update.
     struct desc {
         mkldnn_convolution_desc_t data;
+
+        /// Initializes a descriptor for convolution weight update with bias
+        /// using @p aalgorithm, memory descriptors, @p strides, @p padding_l,
+        /// @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1678,6 +1884,13 @@ struct convolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for convolution weight update without
+        /// bias using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1696,6 +1909,13 @@ struct convolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for dilated convolution weight update
+        /// with bias using @p aalgorithm, memory descriptors, @p strides,
+        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1718,6 +1938,13 @@ struct convolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a convolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for dilated convolution weight update
+        /// without bias using @p aalgorithm, memory descriptors, @p strides,
+        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1741,11 +1968,16 @@ struct convolution_backward_weights : public primitive {
 
     };
 
+    /// Primitive descriptor for convolution weight update.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for convolution weight update.
         primitive_desc(const desc &desc, const engine &e,
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
+        /// Initializes a primitive descriptor for convolution weight update
+        /// with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
@@ -1757,6 +1989,8 @@ struct convolution_backward_weights : public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates convolution weight update primitive from corresponding
+    /// primitive descriptor.
     convolution_backward_weights(const primitive_desc &pd): primitive(pd) {}
 };
 
@@ -1768,9 +2002,24 @@ struct convolution_backward_weights : public primitive {
 /// @sa @ref c_api_deconvolution in @ref c_api
 /// @{
 
+/// Deconvolution forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive
+/// for the deconvolution forward propagation.
 struct deconvolution_forward: public primitive {
+
+    /// Descriptor for convolution forward propagation.
     struct desc {
         mkldnn_deconvolution_desc_t data;
+
+        /// Initializes a descriptor for deconvolution forward propagation
+        /// with bias using @p prop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
+        /// padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1790,6 +2039,15 @@ struct deconvolution_forward: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a deconvolution forward descriptor");
         }
+
+        /// Initializes a descriptor for deconvolution forward propagation
+        /// without bias using @p prop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
+        /// padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1808,6 +2066,15 @@ struct deconvolution_forward: public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a deconvolution forward descriptor");
         }
+
+        /// Initializes a descriptor for dilated deconvolution forward
+        /// propagation with bias using @p aprop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
+        /// aalgorithm memory descriptors, @p strides, @p dilates, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1829,6 +2096,15 @@ struct deconvolution_forward: public primitive {
                         &padding_r[0], mkldnn::convert_to_c(apadding_kind)),
                     "could not create a dilated deconvolution forward descriptor");
         }
+
+        /// Initializes a descriptor for dilated deconvolution forward
+        /// propagation without bias using @p aprop_kind (possible values are
+        /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
+        /// aalgorithm, memory descriptors, @p strides, @p dilates, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
@@ -1851,10 +2127,16 @@ struct deconvolution_forward: public primitive {
         }
     };
 
+     /// Primitive descriptor for deconvolution forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for deconvolution forward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
+        /// Initializes primitive descriptor for deconvolution forward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
@@ -1865,12 +2147,27 @@ struct deconvolution_forward: public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates a deconvolution forward propagation primitive from the
+    /// corresponding primitive descriptor.
     deconvolution_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Deconvolution backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive for the
+/// deconvolution backward propagation.
 struct deconvolution_backward_data : public primitive {
+
+    /// Descriptor for deconvolution backward propagation.
     struct desc {
         mkldnn_deconvolution_desc_t data;
+
+        /// Initializes a descriptor for deconvolution backward propagation
+        /// using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
@@ -1889,6 +2186,13 @@ struct deconvolution_backward_data : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a deconvolution backward data descriptor");
         }
+
+        /// Initializes descriptor for dilated deconvolution backward propagation
+        /// using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
@@ -1911,11 +2215,17 @@ struct deconvolution_backward_data : public primitive {
         }
     };
 
+    /// Primitive descriptor for deconvolution backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for deconvolution backward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
+        /// Initializes a primitive descriptor for deconvolution backward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
@@ -1926,12 +2236,27 @@ struct deconvolution_backward_data : public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates a deconvolution backward propagation primitive from the
+    /// corresponding primitive descriptor.
     deconvolution_backward_data(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Deconvolution weight update.
+///
+/// Implements descriptor, primitive descriptor, and primitive
+/// for the deconvolution weight update.
 struct deconvolution_backward_weights : public primitive {
+
+     /// Descriptor for deconvolution weight update.
     struct desc {
         mkldnn_deconvolution_desc_t data;
+
+        /// Initializes a descriptor for deconvolution weight update with bias
+        /// using @p aalgorithm, memory descriptors, @p strides, @p padding_l,
+        /// @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1952,6 +2277,13 @@ struct deconvolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a deconvolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for deconvolution weight update without
+        /// bias using @p aalgorithm, memory descriptors, @p strides, @p
+        /// padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1970,6 +2302,13 @@ struct deconvolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a deconvolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for dilated deconvolution weight update
+        /// with bias using @p aalgorithm, memory descriptors, @p strides, @p
+        /// dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -1992,6 +2331,13 @@ struct deconvolution_backward_weights : public primitive {
                         mkldnn::convert_to_c(apadding_kind)),
                     "could not create a dilated  deconvolution backward weights descriptor");
         }
+
+        /// Initializes a descriptor for dilated deconvolution weight update
+        /// without bias using @p aalgorithm, memory descriptors, @p strides,
+        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        ///
+        /// @note Memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
@@ -2014,11 +2360,16 @@ struct deconvolution_backward_weights : public primitive {
         }
     };
 
+    /// Primitive descriptor for deconvolution weight update.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for deconvolution weight update.
         primitive_desc(const desc &desc, const engine &e,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
+        /// Initializes a primitive descriptor for deconvolution weight update
+        /// with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
@@ -2030,6 +2381,8 @@ struct deconvolution_backward_weights : public primitive {
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
 
+    /// Creates a deconvolution weight update primitive from the corresponding
+    /// primitive descriptor.
     deconvolution_backward_weights(const primitive_desc &pd): primitive(pd) {}
 };
 
@@ -2039,13 +2392,23 @@ struct deconvolution_backward_weights : public primitive {
 /// A primitive to perform local response normalization (LRN) across or within
 /// channels.
 ///
+/// @sa @ref dev_guide_lrn in developer guide
 /// @sa @ref c_api_lrn in @ref c_api
 /// @{
 
+/// Local response normalization for forward propagation. Implements
+/// descriptor, primitive descriptor, and primitive.
 struct lrn_forward : public primitive {
+
+    /// Descriptor for local response normalization forward propagation.
     struct desc {
         mkldnn_lrn_desc_t data;
 
+        /// Initializes a descriptor for forward propagation using @p prop_kind
+        /// (possible values are #mkldnn::forward_training and
+        /// #mkldnn::forward_inference), @p aalgorithm, memory descriptor @p
+        /// data_desc, and regularization parameters @p local_size, @p alpha, @p
+        /// beta, and @p k.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc, memory::dim local_size,
                 float alpha, float beta, float k = 1.f) {
@@ -2056,6 +2419,8 @@ struct lrn_forward : public primitive {
         }
     };
 
+    /// Primitive descriptor for local response normalization forward
+    /// propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
@@ -2072,10 +2437,18 @@ struct lrn_forward : public primitive {
     lrn_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Local response normalization for backward propagation.  Implements
+/// descriptor, primitive descriptor, and primitive.
 struct lrn_backward : public primitive {
+
+    /// Descriptor for local response normalization backward propagation.
     struct desc {
         mkldnn_lrn_desc_t data;
 
+        /// Initializes a descriptor for backward propagation using @p aalgorithm,
+        /// memory descriptors @p data_desc and @p diff_data_desc, and
+        /// regularization parameters @p local_size, @p alpha, @p beta, and
+        /// @p k.
         desc(algorithm aalgorithm, const memory::desc &data_desc,
                 const memory::desc &diff_data_desc, memory::dim local_size,
                 float alpha, float beta, float k = 1.f) {
@@ -2086,6 +2459,8 @@ struct lrn_backward : public primitive {
         }
     };
 
+    /// Primitive descriptor for local response normalization backward
+    /// propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const lrn_forward::primitive_desc &hint_fwd_pd)
@@ -2109,12 +2484,23 @@ struct lrn_backward : public primitive {
 /// @addtogroup cpp_api_pooling Pooling
 /// A primitive to perform max or average pooling.
 ///
+/// @sa @ref dev_guide_pooling in developer guide
 /// @sa @ref c_api_pooling in @ref c_api
 /// @{
 
+/// Pooling for forward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct pooling_forward : public primitive {
+
+    /// Descriptor for pooling forward propagation.
     struct desc {
         mkldnn_pooling_desc_t data;
+
+        /// Initializes a pooling descriptor for forward propagation using @p
+        /// aprop_kind (possible values are #mkldnn::forward_training and
+        /// #mkldnn::forward_inference), @p aalgorithm, memory descriptors, and
+        /// pooling parameters in the spatial domain: @p strides, @p kernel
+        /// sizes, @p padding_l, @p padding_r, and @p apadding_kind.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &dst_desc,
@@ -2138,6 +2524,7 @@ struct pooling_forward : public primitive {
         }
     };
 
+    /// Primitive descriptor for pooling forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
@@ -2155,8 +2542,15 @@ struct pooling_forward : public primitive {
 };
 
 struct pooling_backward : public primitive {
+
+    /// Descriptor for pooling backward propagation.
     struct desc {
         mkldnn_pooling_desc_t data;
+
+        /// Initializes a pooling descriptor for backward propagation using @p
+        /// aalgorithm, memory descriptors, and pooling parameters in the spatial
+        /// domain: @p strides, @p kernel sizes, @p padding_l, @p padding_r,
+        /// and @p apadding_kind.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc,
@@ -2179,6 +2573,7 @@ struct pooling_backward : public primitive {
         }
     };
 
+    /// Primitive descriptor for pooling backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const pooling_forward::primitive_desc &hint_fwd_pd)
@@ -2200,31 +2595,51 @@ struct pooling_backward : public primitive {
 /// @}
 
 /// @addtogroup cpp_api_eltwise Eltwise
-/// A primitive to compute element-wise operations like parametric rectifier
-/// linear unit (ReLU).
+/// A primitive to compute element-wise operations such as rectified linear
+/// unit (ReLU).
 ///
+/// Both forward and backward passes support in-place operation; that is, src
+/// and dst point to the same memory for forward pass, and diff_dst and
+/// diff_src point to the same memory for backward pass.
+///
+/// @warning Because the original src is required for backward pass, in-place
+/// forward pass in general cannot be applied during training. However, for
+/// some kinds of element-wise operations (namely ReLU with alpha parameter
+/// equals 0), dst and src can be interchangeable for the backward pass, which
+/// enables performance of in-place forward even for training.
+///
+/// @sa @ref dev_guide_eltwise in developer guide
 /// @sa @ref c_api_eltwise in @ref c_api
 /// @{
 
+/// Element-wise operations for forward propagation.  Implements descriptor,
+/// primitive descriptor, and primitive.
 struct eltwise_forward : public primitive {
+
+    /// Initializes an eltwise descriptor for forward propagation using @p
+    /// prop_kind (possible values are #mkldnn::forward_training and
+    /// #mkldnn::forward_inference), @p aalgorithm algorithm, memory
+    /// descriptor @p data_desc, @p alpha, and @p beta parameters.
     struct desc {
         mkldnn_eltwise_desc_t data;
         template <typename T>
-        desc(prop_kind aprop_kind, algorithm alg_kind,
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc, T alpha = 0, T beta = 0) {
             error::wrap_c_api(mkldnn_eltwise_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
-                        mkldnn::convert_to_c(alg_kind), &src_desc.data,
+                        mkldnn::convert_to_c(aalgorithm), &src_desc.data,
                         static_cast<float>(alpha), static_cast<float>(beta)),
                     "could not create a eltwise forward descriptor");
         }
     };
 
+    /// Primitive descriptor for eltwise forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
-        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
+        primitive_desc(const desc &desc, const primitive_attr &attr,
+                const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
         REG_QUERY_MD(src, src, 0);
@@ -2235,21 +2650,28 @@ struct eltwise_forward : public primitive {
     eltwise_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Element-wise operations for backward propagation.  Implements descriptor,
+/// primitive descriptor, and primitive.
 struct eltwise_backward : public primitive {
+
+    /// Initializes an eltwise descriptor for backward propagation using @p
+    /// aalgorithm algorithm memory descriptors @p diff_data_desc and @p
+    /// data_desc, and the @p alpha and @p beta parameters.
     struct desc {
         mkldnn_eltwise_desc_t data;
 
         template <typename T>
-        desc(algorithm alg_kind, const memory::desc &diff_data_desc,
+        desc(algorithm aalgorithm, const memory::desc &diff_data_desc,
                 const memory::desc &data_desc, T alpha = 0, T beta = 0) {
             error::wrap_c_api(mkldnn_eltwise_backward_desc_init(&data,
-                        mkldnn::convert_to_c(alg_kind), &diff_data_desc.data,
+                        mkldnn::convert_to_c(aalgorithm), &diff_data_desc.data,
                         &data_desc.data, static_cast<float>(alpha),
                         static_cast<float>(beta)),
                     "could not create a eltwise backward descriptor");
         }
     };
 
+    /// Primitive descriptor for eltwise backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const eltwise_forward::primitive_desc &hint_fwd_pd)
@@ -2273,12 +2695,21 @@ struct eltwise_backward : public primitive {
 /// @addtogroup cpp_api_softmax Softmax
 /// A primitive to perform softmax.
 ///
+/// @sa @ref dev_guide_softmax in developer guide
 /// @sa @ref c_api_softmax in @ref c_api
 /// @{
 
+/// Softmax for forward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct softmax_forward : public primitive {
+
+    /// Descriptor for softmax forward propagation.
     struct desc {
         mkldnn_softmax_desc_t data;
+
+        /// Initializes a softmax descriptor for forward propagation using @p
+        /// prop_kind (possible values are #mkldnn::forward_training and
+        /// #mkldnn::forward_inference) and memory descriptor @p data_desc.
         desc(prop_kind aprop_kind, const memory::desc &data_desc,
              int softmax_axis) {
             error::wrap_c_api(mkldnn_softmax_forward_desc_init(&data,
@@ -2288,6 +2719,7 @@ struct softmax_forward : public primitive {
         }
     };
 
+    /// Primitive descriptor for softmax forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
@@ -2303,9 +2735,16 @@ struct softmax_forward : public primitive {
     softmax_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Softmax for backward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct softmax_backward : public primitive {
+
+    /// Descriptor for softmax backward propagation.
     struct desc {
         mkldnn_softmax_desc_t data;
+
+        /// Initializes a softmax descriptor for backward propagation using
+        /// memory descriptors @p diff_desc and @p data_desc.
         desc(const memory::desc &diff_desc, const memory::desc &data_desc,
                 int softmax_axis) {
             error::wrap_c_api(mkldnn_softmax_backward_desc_init(&data,
@@ -2314,6 +2753,7 @@ struct softmax_backward : public primitive {
         }
     };
 
+    /// Primitive descriptor for softmax backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const softmax_forward::primitive_desc &hint_fwd_pd)
@@ -2335,16 +2775,41 @@ struct softmax_backward : public primitive {
 
 /// @}
 
-/// @addtogroup cpp_api_batch_norm Batch normalization
+/// @addtogroup cpp_api_batch_normalization Batch normalization
 /// A primitive to perform batch normalization.
 ///
+/// Both forward and backward passes support in-place operation; that is, src
+/// and dst point to the same memory for forward pass, and diff_dst and diff_src
+/// point to the same memory for backward pass.
+///
+/// Batch normalization supports different flavors controlled by
+/// mkldnn_batch_normalization_desc_t.  For example, batch normalization can
+/// compute the mean and variance on its own or take them as inputs.  It can
+/// either perform scaling and shifting using gamma and beta parameters or not.
+/// Optionally, it can also perform a fused ReLU, which in case of training
+/// would also require a workspace.
+///
+/// @sa @ref dev_guide_batch_normalization in developer guide
 /// @sa @ref c_api_batch_normalization in @ref c_api
 /// @{
 
+/// Batch normalization for forward propagation.  Implements descriptor,
+/// primitive descriptor, and primitive.
 struct batch_normalization_forward : public primitive {
+
+    /// Descriptor for batch normalization forward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
         template <typename T>
+
+        /// Initializes a batch normalization descriptor for forward propagation
+        /// using @p prop_kind (possible values are #mkldnn::forward_training and
+        /// #mkldnn::forward_inference), memory descriptor @p data_desc,
+        /// normalization parameter @p epsilon, and @p flags set using bit flags
+        /// of type mkldnn_batch_normalization_desc_t.
+        ///
+        /// @note In-place operation is supported; that is, dst points to the
+        ///       same memory as src.
         desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
                 batch_normalization_flags flags) {
             error::wrap_c_api(
@@ -2356,10 +2821,16 @@ struct batch_normalization_forward : public primitive {
         }
     };
 
+    /// Primitive descriptor for batch normalization forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for batch normalization forward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
+        /// Initializes a primitive descriptor for batch normalization forward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
@@ -2388,10 +2859,23 @@ struct batch_normalization_forward : public primitive {
     batch_normalization_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Batch normalization backward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct batch_normalization_backward : public primitive {
+
+    /// Descriptor for batch normalization backward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
         template <typename T>
+
+        /// Initializes a batch normalization descriptor for backward
+        /// propagation with respect to data and scale-shift parameters using
+        /// memory descriptors @p data_desc and @p diff_data_desc, normalization
+        /// parameter @p epsilon, and @p flags set using bit flags of type
+        /// mkldnn_batch_normalization_desc_t.
+        ///
+        /// @note In-place operation is supported; that is, diff_src points to
+        ///       the same memory as diff_dst.
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
                 const memory::desc &data_desc, T epsilon,
                 batch_normalization_flags flags) {
@@ -2405,11 +2889,17 @@ struct batch_normalization_backward : public primitive {
         }
     };
 
+    /// Primitive descriptor for batch normalization backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+
+        /// Initializes a primitive descriptor for batch normalization backward
+        /// propagation.
         primitive_desc(const desc &desc, const engine &e,
                 const batch_normalization_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
+        /// Initializes a primitive descriptor for batch normalization backward
+        /// propagation with attributes defined by @p attr.
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
                 const batch_normalization_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
@@ -2435,10 +2925,23 @@ struct batch_normalization_backward : public primitive {
 /// @addtogroup cpp_api_inner_product Inner Product
 /// A primitive to compute an inner product.
 ///
+/// @sa @ref dev_guide_inner_product in developer guide
 /// @sa @ref c_api_inner_product in @ref c_api
 /// @{
 
+/// Inner product for forward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct inner_product_forward: public primitive {
+
+    /// Initializes an inner product descriptor for forward propagation using
+    /// @p prop_kind (possible values are #mkldnn::forward_training and
+    /// #mkldnn::forward_inference) and memory descriptors. In order to create
+    /// an inner product without bias, @p bias_desc should refer to a
+    /// descriptor with memory format kind set to
+    /// #mkldnn::memory::format_tag::undef.
+    ///
+    /// @note Memory descriptors are allowed to be initialized with
+    ///       #mkldnn::memory::format_tag::any value of @p format_kind.
     struct desc {
         mkldnn_inner_product_desc_t data;
         desc(prop_kind aprop_kind, const memory::desc &src_desc,
@@ -2463,6 +2966,7 @@ struct inner_product_forward: public primitive {
         }
     };
 
+    /// Primitive descriptor for inner product forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
@@ -2480,7 +2984,15 @@ struct inner_product_forward: public primitive {
     inner_product_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Inner product for backward propagation with respect to data.  Implements
+/// descriptor, primitive descriptor, and primitive.
 struct inner_product_backward_data: public primitive {
+
+    /// Initializes an inner product descriptor for backward propagation with
+    /// respect to data using memory descriptors.
+    ///
+    /// @note Memory descriptors are allowed to be initialized with
+    ///       #mkldnn::memory::format_tag::any value of @p format_kind.
     struct desc {
         mkldnn_inner_product_desc_t data;
         desc(const memory::desc &diff_src_desc,
@@ -2494,6 +3006,8 @@ struct inner_product_backward_data: public primitive {
         }
     };
 
+    /// Primitive descriptor for inner product backward propagation with
+    /// respect to data.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
@@ -2512,7 +3026,15 @@ struct inner_product_backward_data: public primitive {
     inner_product_backward_data(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Inner product for backward propagation with respect to weights.  Implements
+/// descriptor, primitive descriptor, and primitive.
 struct inner_product_backward_weights: public primitive {
+
+    /// Initializes an inner product descriptor for backward propagation with
+    /// respect to weights using memory descriptors.
+    ///
+    /// @note Memory descriptors are allowed to be initialized with
+    ///       #mkldnn::memory::format_tag::any value of @p format_kind.
     struct desc {
         mkldnn_inner_product_desc_t data;
         desc(const memory::desc &src_desc,
@@ -2536,6 +3058,8 @@ struct inner_product_backward_weights: public primitive {
         }
     };
 
+    /// Primitive descriptor for inner product backward propagation with
+    /// respect to weights.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
@@ -2560,13 +3084,23 @@ struct inner_product_backward_weights: public primitive {
 /// @addtogroup cpp_api_rnn RNN
 /// A primitive to compute common recurrent layer.
 ///
+/// @sa @ref dev_guide_rnn in developer guide
 /// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
+/// Implements a recurrent cell.
 struct rnn_cell {
+
+    /// Descriptor for recurrent cell.
     struct desc {
         mkldnn_rnn_cell_desc_t c_rnn_cell_;
 
+        /// Initializes a recurrent cell descriptor using @p rnn_cell_desc, @p
+        /// kind (possible values are #mkldnn::algorithn::vanilla_rnn,
+        /// #mkldnn::algorithm::vanilla_lstm, #mkldnn::algorithm::vanilla_gru,
+        /// and #mkldnn::algorithm::gru_linear_before_reset), @p activation_f
+        /// (possible values are #mkldnn::algorithm::eltwise_relu and
+        /// #mkldnn::algorithm::eltwise_tanh).
         desc(algorithm kind, algorithm activation_f) {
             error::wrap_c_api(mkldnn_rnn_cell_desc_init(&c_rnn_cell_,
                         mkldnn::convert_to_c(kind),
@@ -2594,18 +3128,39 @@ struct rnn_cell {
             c_rnn_cell_.clipping = clipping;
         }
 
+        /// Returns the number of states of a particular RNN cell descriptor.
         int get_gates_count() const {
             return mkldnn_rnn_cell_get_gates_count(&c_rnn_cell_);
         }
+
+        /// Returns the number of states of a particular RNN cell descriptor.
         int get_state_count() const {
             return mkldnn_rnn_cell_get_states_count(&c_rnn_cell_);
         }
     };
 };
 
+/// RNN for forward propagation.  Implements descriptor, primitive descriptor,
+/// and primitive.
 struct rnn_forward : public primitive {
+
+    /// Descriptor for RNN forward propagation.
     struct desc {
         mkldnn_rnn_desc_t data;
+
+        /// Initializes an RNN descriptor for forward propagation using @p
+        /// prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+        /// @note If @p prop_kind equals #mkldnn::forward_training, you must
+        /// query a workspace memory descriptor before creating the primitive.
+        ///
+        /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
+        /// to point to a zero memory descriptor, which would indicate that
+        /// the RNN primitive should not use them.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc can be
+        ///     initialized with an #mkldnn::memory::format_tag::any value of @p
+        ///     format_kind.
         desc(prop_kind aprop_kind, rnn_cell::desc cell,
                 const rnn_direction direction,
                 const memory::desc &src_layer_desc,
@@ -2628,6 +3183,7 @@ struct rnn_forward : public primitive {
 
     };
 
+    /// Primitive descriptor for RNN forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
@@ -2649,9 +3205,25 @@ struct rnn_forward : public primitive {
     rnn_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// RNN for backward propagation.  Implements descriptor, primitive descriptor,
+/// and primitive.
 struct rnn_backward : public primitive {
+
+    /// RNN descriptor for backward propagation.
     struct desc {
         mkldnn_rnn_desc_t data;
+
+        /// Initializes an RNN descriptor for backward propagation using @p
+        /// prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+        ///
+        /// @note All memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
+        ///
+        /// @p src_iter_desc (simultaneously with @p diff_src_iter_desc), @p
+        /// bias_desc (simultaneously with @p diff_bias_desc), and @p
+        /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
+        /// allowed point to a zero memory descriptor, which would indicate
+        /// that the RNN primitive should not use them.
         desc(prop_kind aprop_kind, rnn_cell::desc cell,
                 const rnn_direction direction,
                 const memory::desc &src_layer_desc,
@@ -2684,6 +3256,7 @@ struct rnn_backward : public primitive {
 
     };
 
+    /// Primitive descriptor for RNN backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const rnn_forward::primitive_desc &hint_fwd_pd)
@@ -2721,12 +3294,21 @@ struct rnn_backward : public primitive {
 /// @addtogroup cpp_api_shuffle Shuffle
 /// A primitive to shuffle data along the axis.
 ///
+/// @sa @ref dev_guide_shuffle in developer guide
 /// @sa @ref c_api_shuffle in @ref c_api
 /// @{
 
+/// Shuffle for forward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct shuffle_forward : public primitive {
+
+    /// Descriptor for shuffle forward propagation.
     struct desc {
         mkldnn_shuffle_desc_t data;
+
+        /// Initializes a shuffle descriptor for forward propagation using @p
+        /// prop_kind, memory descriptor @p data_desc, @p axis, and @p
+        /// group_size.
         desc(prop_kind aprop_kind, const memory::desc &data_desc,
                 int axis, int group_size) {
             error::wrap_c_api(mkldnn_shuffle_forward_desc_init(&data,
@@ -2736,6 +3318,7 @@ struct shuffle_forward : public primitive {
         }
     };
 
+    /// Primitive descriptor for shuffle forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const primitive_attr &aattr = primitive_attr())
@@ -2749,9 +3332,16 @@ struct shuffle_forward : public primitive {
     shuffle_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// Shuffle for backward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
 struct shuffle_backward : public primitive {
+
+    // Descriptor for shuffle backward propagation.
     struct desc {
         mkldnn_shuffle_desc_t data;
+
+        /// Initializes a shuffle descriptor for backward propagation using
+        /// memory descriptor @p diff_data_desc, @p axis, and @p group_size.
         desc(const memory::desc &diff_data_desc, int axis, int group_size) {
             error::wrap_c_api(mkldnn_shuffle_backward_desc_init(&data,
                         &diff_data_desc.data, axis, group_size),
@@ -2759,6 +3349,7 @@ struct shuffle_backward : public primitive {
         }
     };
 
+    // Primitive descriptor for shuffle backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
         primitive_desc(const desc &desc, const engine &e,
                 const shuffle_forward::primitive_desc &hint_fwd_pd,

@@ -17,16 +17,16 @@
 #ifndef MKLDNN_VERSION_H
 #define MKLDNN_VERSION_H
 
-/* Major version of MKL-DNN */
+/// Major version
 #define MKLDNN_VERSION_MAJOR @MKLDNN_VERSION_MAJOR@
 
-/* Minor version of MKL-DNN */
+/// Minor version
 #define MKLDNN_VERSION_MINOR @MKLDNN_VERSION_MINOR@
 
-/* Patch version of MKL-DNN */
+/// Patch version
 #define MKLDNN_VERSION_PATCH @MKLDNN_VERSION_PATCH@
 
-/* Git Commit Hash of MKL-DNN */
+/// Git commit hash
 #define MKLDNN_VERSION_HASH  "@MKLDNN_VERSION_HASH@"
 
 #endif
