@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if MB % 16 == 0
+#if USE_16MB_UNROLL == 1
 #    define MB_BLOCK 16
 #    define MB16
 #    define VECT_DT_N 8
@@ -26,11 +26,14 @@
 #include "ocl/ocl_types.h"
 
 #if POOLING_FWD == 1
+#if SUB_GROUP_SIZE != 1
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+#endif
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __kernel void ref_pooling_fwd_kernel(
         __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
 
-#    if USE_16MB_UNROLL == 1
+#    if USE_16C_UNROLL == 1
     const int mb = get_global_id(2) * MB_BLOCK;
     const int oc = get_group_id(1) * 16;
     const int sp = get_global_id(0);
@@ -154,7 +157,7 @@ __kernel void ref_pooling_fwd_kernel(
 #            endif
 #        endif // POOLING_MAX && IS_TRAINING
 
-#    else // USE_16MB_UNROLL == 0
+#    else // USE_16C_UNROLL == 0
     const int mb = get_global_id(0);
     const int oc = get_global_id(1);
 
@@ -222,10 +225,14 @@ __kernel void ref_pooling_fwd_kernel(
 }
 #endif
 #if POOLING_BWD == 1
+#if SUB_GROUP_SIZE != 1
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+#endif
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __kernel void ref_pooling_bwd_kernel(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
 
-#    if USE_16MB_UNROLL == 1
+#    if USE_16C_UNROLL == 1
     const int mb = get_global_id(2) * MB_BLOCK;
     const int oc = get_group_id(1) * 16;
 
