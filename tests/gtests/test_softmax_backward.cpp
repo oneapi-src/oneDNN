@@ -135,6 +135,7 @@ protected:
                     {MKLDNN_ARG_DST, dst},
                     {MKLDNN_ARG_DIFF_DST, diff_dst},
                     {MKLDNN_ARG_DIFF_SRC, diff_src}});
+            strm.wait();
 
             check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
             check_zero_tail<data_t>(0, diff_src);
