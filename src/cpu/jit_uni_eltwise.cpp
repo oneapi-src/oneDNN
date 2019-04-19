@@ -140,12 +140,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
     h->uni_vaddps(vmm_src, vmm_src, table_val(1));
 
     // tmp = floorf(fx)
-    if (isa == avx512_common) {
-        h->vcvtps2dq(vmm_aux1 | h->T_rd_sae, vmm_src);
-        h->vcvtdq2ps(vmm_aux1, vmm_aux1);
-    } else {
-        h->uni_vroundps(vmm_aux1, vmm_src, _op_floor);
-    }
+    h->uni_vroundps(vmm_aux1, vmm_src, _op_floor);
 
     //keep fx for further computations
     h->uni_vmovups(vmm_src, vmm_aux1); //vmm_src = fx
@@ -420,12 +415,7 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
     h->uni_vaddps(vmm_src, vmm_src, table_val(1));
 
     // tmp = floorf(fx)
-    if (isa == avx512_common) {
-        h->vcvtps2dq(vmm_aux0 | h->T_rd_sae, vmm_src);
-        h->vcvtdq2ps(vmm_aux0, vmm_aux0);
-    } else {
-        h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
-    }
+    h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
 
     // keep fx for further computations
     h->uni_vmovups(vmm_src, vmm_aux0); //vmm_src = fx
