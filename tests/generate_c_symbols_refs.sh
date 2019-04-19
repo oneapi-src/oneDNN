@@ -21,7 +21,7 @@ shift 2
 
 echo -e '#include "mkldnn.h"' > "$output"
 echo -e "const void *c_functions[] = {" >> "$output"
-cpp "${@/#/-I}" "${mkldnn_root}/include/mkldnn.h" \
+cpp -w "${@/#/-I}" "${mkldnn_root}/include/mkldnn.h" \
     | grep -o 'mkldnn_\w\+(' \
     | sed 's/\(.*\)(/(void*)\1,/g' \
     | sort -u >> "$output"
