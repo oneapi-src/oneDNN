@@ -56,8 +56,12 @@ Intel MKL-DNN is used in the following software products:
 Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
 software includes the following third-party components:
-* [Xbyak](https://github.com/herumi/xbyak) distributed under [3-clause BSD licence](src/cpu/xbyak/COPYRIGHT)
-* [gtest](https://github.com/google/googletest) distributed under [3-clause BSD license](tests/gtests/gtest/LICENSE)
+* [Xbyak](https://github.com/herumi/xbyak) distributed under
+[3-clause BSD licence](src/cpu/xbyak/COPYRIGHT)
+* [gtest](https://github.com/google/googletest) distributed under
+[3-clause BSD license](tests/gtests/gtest/LICENSE)
+* [ittnotify](https://github.com/intel/IntelSEAPI) distributed under
+[3-clause BSD license](src/cpu/jit_utils/jitprofiling/LICENSE.BSD)
 
 ## Documentation
 * [Introduction](https://intel.github.io/mkl-dnn) explains the programming model
