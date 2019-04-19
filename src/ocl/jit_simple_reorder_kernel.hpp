@@ -51,6 +51,7 @@ struct jit_simple_reorder_kernel {
         jrp.lws_d[1] = 1;
         jrp.lws_d[2] = 1;
         jrp.with_group = 0;
+        jrp.sub_group_size = 1;
         switch (jrp.ndims) {
         case 1:
             jrp.gws_d[0] = dims[0];
@@ -113,6 +114,7 @@ struct jit_simple_reorder_kernel {
         if (type_f32_f16
                 && (input_md.matches_tag(NChw16n16c)
                            || output_md.matches_tag(NChw16n16c))) {
+            jrp.sub_group_size = 16;
             jrp.lws_d[1] = 16;
             jrp.gws_d[0] = dims[0] / 16;
             jrp.block[0] = 1;
@@ -123,6 +125,7 @@ struct jit_simple_reorder_kernel {
         } else if (type_f32_f16
                 && (input_md.matches_tag(nChw16c)
                            || output_md.matches_tag(nChw16c))) {
+            jrp.sub_group_size = 16;
             jrp.lws_d[1] = 16;
             jrp.gws_d[0] = dims[0];
             jrp.block[0] = 1;
@@ -138,6 +141,7 @@ struct jit_simple_reorder_kernel {
             jrp.with_group
                     = input_md.matches_one_of_tag(gIOhw16i16o, gOIhw16o16i)
                     || output_md.matches_one_of_tag(gIOhw16i16o, gOIhw16o16i);
+            jrp.sub_group_size = 16;
             jrp.lws_d[0] = 16;
             jrp.gws_d[0] = jrp.with_group ? dims[0] * dims[1] : dims[0];
             jrp.gws_d[1] = dims[jrp.with_group + 1] / 16;
@@ -220,6 +224,7 @@ struct jit_simple_reorder_kernel {
                                                  || output_md.matches_tag(
                                                             NChw16n16c))));
         jit.define_int("REF_REORDER", !opt_reorder);
+        jit.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
 
         if (input_md.matches_tag(nChw16c)) {
             jit.define_int("IN_NCHW16C", 1);

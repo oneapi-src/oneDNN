@@ -321,6 +321,9 @@
 #    pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
+#if SUB_GROUP_SIZE != 1
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+#endif
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __kernel void any2any_kernel(__global DT_IN *input, __global DT_OUT *output,
         float alpha, float beta) {
