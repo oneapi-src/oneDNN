@@ -66,11 +66,15 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
     };
 
     auto set_ws = [=](int mb, int oc, int od, int oh, int ow, int value) {
+        // value = -1 means that pool window is placed outside of source domain
+        // for current {od, oh, ow} point
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
             size_t offset = is_3d
                 ? ws_d.off(mb, oc, od, oh, ow) : ws_d.off(mb, oc, oh, ow);;
             if (ws_dt == data_type::u8) {
+                if (value == -1)
+                    value = 255;
                 assert(0 <= value && value <= 255);
                 ws[offset] = value;
             } else
@@ -79,6 +83,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
     };
 
     auto ker_max = [=](data_t *d, int mb, int oc, int oh, int ow) {
+        int current_pool_size = 0;
         for (int kh = 0; kh < KH; ++kh) {
             for (int kw = 0; kw < KW; ++kw) {
                 const int ih = oh * SH - padT + kh;
@@ -92,8 +97,14 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
                     d[0] = s;
                     set_ws(mb, oc, 1, oh, ow, kh*KW + kw);
                 }
+                current_pool_size++;
             }
         }
+
+        // corner case: pool window is outside of real input domain
+        // for this point.
+        if (current_pool_size == 0)
+            set_ws(mb, oc, 1, oh, ow, -1);
     };
 
     auto ker_avg = [=](data_t *d, int mb, int oc, int oh, int ow) {
@@ -104,6 +115,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
 
         auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
             : (ih_end - ih_start)*(iw_end - iw_start);
+        assert(num_summands > 0);
 
         acc_data_t dst = 0;
         for (int ih = ih_start; ih < ih_end; ++ih) {
@@ -116,6 +128,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
     };
 
     auto ker_max_3d = [=](data_t *d, int mb, int oc, int od, int oh, int ow) {
+        int current_pool_size = 0;
         for (int kd = 0; kd < KD; ++kd) {
             for (int kh = 0; kh < KH; ++kh) {
                 for (int kw = 0; kw < KW; ++kw) {
@@ -132,9 +145,15 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
                         d[0] = s;
                         set_ws(mb, oc, od, oh, ow, kd * KH * KW + kh*KW + kw);
                     }
+                    current_pool_size++;
                 }
             }
         }
+
+        // corner case: pool window is outside of real input domain
+        // for this point.
+        if (current_pool_size == 0)
+            set_ws(mb, oc, 1, oh, ow, -1);
     };
 
     auto ker_avg_3d = [=](data_t *d, int mb, int oc, int od, int oh, int ow) {
@@ -147,6 +166,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
 
         auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH*KD
             : (ih_end - ih_start)*(iw_end - iw_start)*(id_end - id_start);
+        assert(num_summands > 0);
 
         acc_data_t dst = 0;
         for (int id = id_start; id < id_end; ++id) {
@@ -236,6 +256,12 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
         const size_t ws_off = ws_d.off(mb, oc, oh, ow);
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_off] : ((int *)ws)[ws_off];
+
+        if (index == -1
+               || (ws_d.data_type() == data_type::u8 && index == 255))
+           return; // corner case: pool window is outside of real input domain
+                   // for this point, do nothing
+
         const int kw = index % KW;
         const int kh = index / KW;
         const int ih = oh * SH - padT + kh;
@@ -261,6 +287,7 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
 
         auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH
             : (ih_end - ih_start)*(iw_end - iw_start);
+        assert(num_summands > 0);
 
         for (int ih = ih_start; ih < ih_end; ++ih) {
             for (int iw = iw_start; iw < iw_end; ++iw) {
@@ -285,6 +312,12 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
         const size_t ws_off = ws_d.off(mb, oc, od, oh, ow);
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_off] : ((int *)ws)[ws_off];
+
+        if (index == -1
+               || (ws_d.data_type() == data_type::u8 && index == 255))
+           return; // corner case: pool window is outside of real input domain
+                   // for this point, do nothing
+
         const int kw = index % KW;
         const int kh = (index / KW) % KH;
         const int kd = (index / KW) / KH;
@@ -317,6 +350,7 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
 
         auto num_summands = (alg == pooling_avg_include_padding) ? KW*KH*KD
             : (ih_end - ih_start)*(iw_end - iw_start)*(id_end - id_start);
+        assert(num_summands > 0);
 
         for (int id = id_start; id < id_end; ++id)
         for (int ih = ih_start; ih < ih_end; ++ih)
