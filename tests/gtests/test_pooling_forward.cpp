@@ -142,7 +142,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             const data_t out_ref = (data_t)acc_ref;
             EXPECT_NEAR(out, out_ref, 1e-6);
             if(p.aalgorithm == pooling_max
-                && p.aprop_kind == forward_training) {
+                && p.aprop_kind == forward_training && is_initialized) {
                 EXPECT_EQ(out_index, out_ref_index) << " n = " << n
                 << " c = " << c << " od = " << od << " oh = " << oh
                 << " ow = " << ow;
@@ -1439,5 +1439,30 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c, memory::format::nChw8c,
              EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
 
+            ));
+
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingTFUnitTests, pooling_test_float, ::testing::Values(
+            pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 2, 1, 32, 1, 6, 1, 6, 0, 2, 1, 6) }
+            ,pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 2, 6, 1, 6, 6, 2, 2, 6, 6) }
+            ,pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 2, 6, 1, 6, 6, 6, 6, 2, 2),
+            true, mkldnn_invalid_arguments }
+            ,pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 32, 1, 32, 1, 6, 1, 6, 0, 2, 1, 6) }
+            ,pool_test_params_float{ prop_kind::forward_training,
+            engine::kind::cpu, algorithm::pooling_max,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
             ));
 }

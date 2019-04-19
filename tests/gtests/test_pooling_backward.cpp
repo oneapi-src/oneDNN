@@ -912,4 +912,28 @@ INSTANTIATE_TEST_CASE_P(
 
             ));
 
+INSTANTIATE_TEST_CASE_P(
+        TestPoolingTFUnitTests, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 2, 1, 32, 1, 6, 1, 6, 0, 2, 1, 6) }
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 2, 6, 1, 6, 6, 2, 2, 6, 6) }
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 2, 6, 1, 6, 6, 6, 6, 2, 2),
+            true, mkldnn_invalid_arguments }
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 32, 1, 32, 1, 6, 1, 6, 0, 2, 1, 6) }
+            ,pool_bwd_test_params_float{
+            engine::kind::cpu, algorithm::pooling_max,
+            memory::format::nChw16c, memory::format::nChw16c,
+            EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
+            ));
 }
