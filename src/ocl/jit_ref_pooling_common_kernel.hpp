@@ -100,7 +100,7 @@ struct jit_ref_pooling_fwd_kernel {
             jpp.lws_d[1] = 16;
             jpp.lws_d[2] = 1;
             jpp.gws_d[0] = jpp.is_backward ? jpp.id * jpp.ih * jpp.iw
-                                           : jpp.od * jpp.oh * jpp.ow;
+                                           : jpp.od * jpp.oh;
             jpp.gws_d[1] = jpp.c;
             jpp.gws_d[2] = jpp.use_16mb_unroll ? jpp.mb / 16 : jpp.mb;
         }
