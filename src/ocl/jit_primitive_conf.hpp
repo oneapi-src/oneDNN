@@ -207,6 +207,7 @@ struct jit_reorder_conf_t {
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];
+    int sub_group_size;
 };
 
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
