@@ -22,6 +22,7 @@
 #include <vector>
 #include <cmath>
 #include <stdint.h>
+#include<iostream>
 
 #include "gtest/gtest.h"
 
@@ -32,6 +33,14 @@
 #include "mkldnn.hpp"
 
 #include "src/common/mkldnn_thread.hpp"
+
+#define SKIP_IF(cond, msg)                                      \
+    do {                                                        \
+        if (cond) {                                             \
+            std::cout << "[ SKIPPED ] " << (msg) << std::endl; \
+            return;                                             \
+        }                                                       \
+    } while (0)
 
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float> {
@@ -385,6 +394,29 @@ static void fill_data(const size_t size, data_t *data, double sparsity = 1.,
         if (init_negs && n%4 == 0U)
             data[n] = static_cast<data_t>(-data[n]); // weird for unsigned types!
     });
+}
+
+template <typename data_t>
+inline void fill_data(const size_t size, data_t *data, const int init_range)
+{
+    for (size_t i = 0; i < size; i++) {
+        float sign = (i % 3 == 0U) ? -1.0 : 1.0;
+        data[i] = sign * ((i * 1637) % init_range);
+    }
+
+}
+
+template <>
+inline void fill_data<mkldnn_bfloat16_t>(const size_t size, mkldnn_bfloat16_t *data,
+        const int init_range)
+{
+    union float_raw t = {0};
+    for (size_t i = 0; i < size; i++) {
+        float sign = (i % 3 == 0U) ? -1.0 : 1.0;
+        t.f = sign * (float)((i * 1637) % init_range);
+        data[i] = t.i[1];
+    }
+
 }
 
 static inline void fill_data_bf16(const size_t size,
