@@ -186,7 +186,7 @@ void lstm_fwd(const rnn_prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t
             weights_iter_h_, n_gates * dic, 1.0, gates_, n_gates * dic);
 
     auto maybe_deq_w = [&](float g, int64_t oc) {
-        if (p->cfg == conf_f32)
+        if (p->cfg == conf_f32 || p->cfg == conf_f16)
             return g;
         float scale = 1.;
         if (p->scale_policy == PER_OC)
@@ -209,7 +209,7 @@ void lstm_fwd(const rnn_prb_t *p, int64_t sic, int64_t slc, int64_t dic, int64_t
     lstm_activation(dic, n_gates, batch, gates_);
 
     auto maybe_q_d = [&](float h) {
-        if (p->cfg == conf_f32)
+        if (p->cfg == conf_f32 || p->cfg == conf_f16)
             return h;
         float fp = p->data_scale * h;
         fp = mxcsr_round(fp);

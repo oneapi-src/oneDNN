@@ -92,11 +92,25 @@ const _dt_conf_t conf_f32u8f32f32 = {
     { mkldnn_f32, -int_max_exact, int_max_exact, -1, 1, 0.f, 0.01f, 1e-5 }, //dst_last_layer
 };
 
+const int int_max_exact_half = 1<<11;
+const _dt_conf_t conf_f16 = {
+#define EPS 1e-1
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+    { mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS },
+#undef EPS
+};
+
 const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg)                         \
     if (!strcasecmp(STRINGIFY(cfg), str)) \
     return CONCAT2(conf_, cfg)
     CASE(f32);
+    CASE(f16);
     CASE(u8u8u8u8);
     CASE(u8u8u8f32);
     CASE(f32u8f32u8);
@@ -114,6 +128,7 @@ const char *cfg2str(const dt_conf_t *cfg) {
     if (cfg == CONCAT2(conf_, _cfg)) \
     return STRINGIFY(_cfg)
     CASE(f32);
+    CASE(f16);
     CASE(u8u8u8u8);
     CASE(u8u8u8f32);
     CASE(f32u8f32u8);

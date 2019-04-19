@@ -97,7 +97,7 @@ int bench(int argc, char **argv, bool main_bench) {
                         argv[arg]);
                 exit(2);
             }
-            if (cfg != conf_f32 && scale_policy == NONE) {
+            if (cfg != conf_f32 && cfg != conf_f16 && scale_policy == NONE) {
                 fprintf(stderr,
                         "driver: configuration ``%s` requires scale policy to "
                         "be COMMON or PER_OC, exiting...\n",

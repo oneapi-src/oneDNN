@@ -37,6 +37,24 @@ struct jit_offsets {
     int bias_off[3][MAX_NDIMS];
 };
 
+struct jit_rnn_offsets {
+    int src_layer_off[3][MAX_NDIMS];
+    int src_iter_off[3][MAX_NDIMS];
+    int weights_layer_off[3][MAX_NDIMS];
+    int weights_iter_off[3][MAX_NDIMS];
+    int bias_off[3][MAX_NDIMS];
+    int dst_layer_off[3][MAX_NDIMS];
+    int dst_iter_off[3][MAX_NDIMS];
+    int diff_src_layer_off[3][MAX_NDIMS];
+    int diff_src_iter_off[3][MAX_NDIMS];
+    int diff_weights_layer_off[3][MAX_NDIMS];
+    int diff_weights_iter_off[3][MAX_NDIMS];
+    int diff_bias_off[3][MAX_NDIMS];
+    int diff_dst_layer_off[3][MAX_NDIMS];
+    int diff_dst_iter_off[3][MAX_NDIMS];
+    int ws_off[3][MAX_NDIMS];
+};
+
 /* convolution */
 enum conv_version_t {
     ver_unused,
@@ -110,6 +128,57 @@ struct jit_inner_product_conf_t {
     bool is_forward, is_backward_data, is_backward_weights;
     float relu_negative_slope;
     data_type_t src_dt;
+};
+
+/* rnn */
+struct jit_rnn_conf_t {
+    int cell_kind;
+    int activation_kind;
+    int direction_kind;
+    bool with_bias;
+    bool with_src_iter;
+    bool with_dst_iter;
+    bool is_lbr;
+    bool is_forward;
+    data_type_t src_dt;
+    data_type_t wei_dt;
+
+
+    int n_layer;
+    int n_direction;
+    int n_iter;
+    int n_gates;
+    int n_bias;
+    int n_states;
+    int n_weights_input;
+    int n_weights_state;
+    int batch;
+    int slc;
+    int sic;
+    int dic;
+    int dlc;
+    int wic;
+    int n_parts_wei_st, n_parts_wei_i;
+    int src_layer_ndims;
+    int src_iter_ndims;
+    int weights_layer_ndims;
+    int weights_iter_ndims;
+    int dst_layer_ndims;
+    int dst_iter_ndims;
+    int bias_ndims;
+    int diff_src_layer_ndims;
+    int diff_src_iter_ndims;
+    int diff_weights_layer_ndims;
+    int diff_weights_iter_ndims;
+    int diff_dst_layer_ndims;
+    int diff_dst_iter_ndims;
+    int diff_bias_ndims;
+
+    size_t ws_gates_offset;
+    size_t ws_states_offset;
+    size_t ws_diff_states_offset;
+    size_t ws_grid_comp_offset;
+    size_t ws_cell_comp_offset;
 };
 
 /* bnorm */

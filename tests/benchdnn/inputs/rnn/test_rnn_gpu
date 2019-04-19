@@ -1,0 +1,71 @@
+# f32
+
+# RNN
+# direction
+# l2r
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=RELU
+--prop=FWD_D --batch=rnn_small
+
+# r2l
+--reset --alg=VANILLA_RNN
+--direction=right2left
+--activation=RELU
+--prop=FWD_D --batch=rnn_small
+
+# concat
+--reset --alg=VANILLA_RNN
+--direction=concat
+--activation=RELU
+--prop=FWD_D --batch=rnn_small
+
+# sum
+--reset --alg=VANILLA_RNN
+--direction=sum
+--activation=RELU
+--prop=FWD_D --batch=rnn_small
+
+# activation
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=TANH
+--prop=FWD_D --batch=rnn_small
+
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=LOGISTIC
+--prop=FWD_D --batch=rnn_small
+
+# LSTM
+--reset --alg=VANILLA_LSTM
+--direction=left2right
+--activation=TANH
+--prop=FWD_D --batch=rnn_small
+
+# f16
+# RNN
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=RELU
+--cfg=f16
+--prop=FWD_D --batch=rnn_small
+
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=TANH
+--cfg=f16
+--prop=FWD_D --batch=rnn_small
+
+--reset --alg=VANILLA_RNN
+--direction=left2right
+--activation=LOGISTIC
+--cfg=f16
+--prop=FWD_D --batch=rnn_small
+
+# LSTM
+--reset --alg=VANILLA_LSTM
+--direction=left2right
+--activation=TANH
+--cfg=f16
+--prop=FWD_D --batch=rnn_small

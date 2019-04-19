@@ -106,6 +106,8 @@ struct rnn_pd_t : public primitive_desc_t {
 
     dim_t DLC() const { return desc_.dst_layer_desc.dims[2]; }
 
+    int S() const { return mkldnn_rnn_cell_get_states_count(&desc_.cell_desc); }
+
     bool with_bias() const
     { return !memory_desc_wrapper(desc_.bias_desc).is_zero(); }
 

@@ -122,6 +122,14 @@ status_t check_data_type_consistency_fwd(const rnn_cell_desc_t *rnn_cell_desc,
                           dst_iter_desc->data_type == f32)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
+    bool is_f16 = everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
+                          weights_layer_dt)
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                          src_iter_desc->data_type == f16)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                          dst_iter_desc->data_type == f16)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f16);
+
 #if USE_MKL_PACKED_GEMM
     bool is_u8u8u8 = src_layer_dt == u8
             && IMPLICATION(!is_zero_md(src_iter_desc),
@@ -144,11 +152,12 @@ status_t check_data_type_consistency_fwd(const rnn_cell_desc_t *rnn_cell_desc,
     bool is_inference = prop_kind == prop_kind::forward_inference;
     bool is_lstm = rnn_cell_desc->cell_kind == mkldnn_vanilla_lstm;
 
-    return (is_f32 || ((is_u8u8u8 || is_f32u8f32) && is_lstm && is_inference))
+    return (is_f32 || is_f16
+            || ((is_u8u8u8 || is_f32u8f32) && is_lstm && is_inference))
             ? success
             : unimplemented;
 #else
-    return is_f32 ? success : unimplemented;
+    return (is_f32 || is_f16) ? success : unimplemented;
 #endif
 }
 

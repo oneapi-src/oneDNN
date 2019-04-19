@@ -30,6 +30,7 @@
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_lrn.hpp"
 #include "ocl/ref_pooling.hpp"
+#include "ocl/ref_rnn.hpp"
 #include "ocl/ref_softmax.hpp"
 
 #include "ocl/ocl_engine.hpp"
@@ -123,6 +124,9 @@ static const pd_create_f ocl_impl_list[] = {
     /* gemm */
     INSTANCE(jit_gen9_gemm_t<f16>),
     INSTANCE(jit_gen9_gemm_t<f32>),
+    /*rnn*/
+    INSTANCE(ref_rnn_fwd_f16_t),
+    INSTANCE(ref_rnn_fwd_f32_t),
     nullptr,
 };
 

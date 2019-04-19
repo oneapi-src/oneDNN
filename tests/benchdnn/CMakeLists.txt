@@ -115,6 +115,8 @@ if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
         gpu "--bnorm --batch=inputs/bnorm/test_bnorm_gpu")
     register_benchdnn_test(test_benchdnn_ip
         gpu "--ip --batch=inputs/ip/test_ip_gpu")
+    register_benchdnn_test(test_benchdnn_rnn
+        gpu "--rnn --batch=inputs/rnn/test_rnn_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")

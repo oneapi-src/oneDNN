@@ -159,6 +159,7 @@ typedef struct dt_conf_t {
 } _dt_conf_t[data_kind_total];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_f16;
 extern const _dt_conf_t conf_u8u8u8u8;
 extern const _dt_conf_t conf_u8u8u8f32;
 extern const _dt_conf_t conf_f32u8f32f32;

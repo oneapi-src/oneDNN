@@ -465,7 +465,7 @@ int compare_dst_last_iteration(const rnn_prb_t *p, dnn_mem_t &mem_dt,
 }
 
 void rnn_prb_t::set_qparams(float fp_min, float fp_max) {
-    if (cfg == conf_f32) {
+    if (cfg == conf_f32 || cfg == conf_f16) {
         data_shift = 0.;
         data_scale = 1.;
         wei_scale = 1.;
