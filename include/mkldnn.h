@@ -18,48 +18,13 @@
 #define MKLDNN_H
 
 #include "mkldnn_config.h"
-
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
-/* All symbols shall be internal unless marked as MKLDNN_API */
-#if defined _WIN32 || defined __CYGWIN__
-#   define MKLDNN_HELPER_DLL_IMPORT __declspec(dllimport)
-#   define MKLDNN_HELPER_DLL_EXPORT __declspec(dllexport)
-#else
-#   if __GNUC__ >= 4
-#       define MKLDNN_HELPER_DLL_IMPORT __attribute__ ((visibility ("default")))
-#       define MKLDNN_HELPER_DLL_EXPORT __attribute__ ((visibility ("default")))
-#   else
-#       define MKLDNN_HELPER_DLL_IMPORT
-#       define MKLDNN_HELPER_DLL_EXPORT
-#   endif
-#endif
-
-#ifdef MKLDNN_DLL
-#   ifdef MKLDNN_DLL_EXPORTS
-#       define MKLDNN_API MKLDNN_HELPER_DLL_EXPORT
-#   else
-#       define MKLDNN_API MKLDNN_HELPER_DLL_IMPORT
-#   endif
-#else
-#   define MKLDNN_API
-#endif
-
-#if defined (__GNUC__)
-#   define MKLDNN_DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
-#   define MKLDNN_DEPRECATED __declspec(deprecated)
-#else
-#   define MKLDNN_DEPRECATED
-#endif
-
 #include "mkldnn_types.h"
 #include "mkldnn_version.h"
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 #if MKLDNN_WITH_OPENCL
 #   include <CL/cl.h>
 #endif
-
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
 #ifdef __cplusplus

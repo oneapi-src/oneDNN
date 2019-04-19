@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-/* DO NOT EDIT, AUTO-GENERATED */
+// DO NOT EDIT, AUTO-GENERATED
 
 #include <assert.h>
 

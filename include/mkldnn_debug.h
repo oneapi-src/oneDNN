@@ -14,47 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-/* DO NOT EDIT, AUTO-GENERATED */
+// DO NOT EDIT, AUTO-GENERATED
 
 #ifndef MKLDNN_DEBUG_H
 #define MKLDNN_DEBUG_H
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// @file
+/// Debug capabilities
 
-/* All symbols shall be internal unless marked as MKLDNN_API */
-#if defined _WIN32 || defined __CYGWIN__
-#   define MKLDNN_HELPER_DLL_IMPORT __declspec(dllimport)
-#   define MKLDNN_HELPER_DLL_EXPORT __declspec(dllexport)
-#else
-#   if __GNUC__ >= 4
-#       define MKLDNN_HELPER_DLL_IMPORT __attribute__ ((visibility ("default")))
-#       define MKLDNN_HELPER_DLL_EXPORT __attribute__ ((visibility ("default")))
-#   else
-#       define MKLDNN_HELPER_DLL_IMPORT
-#       define MKLDNN_HELPER_DLL_EXPORT
-#   endif
-#endif
-
-#ifdef MKLDNN_DLL
-#   ifdef MKLDNN_DLL_EXPORTS
-#       define MKLDNN_API MKLDNN_HELPER_DLL_EXPORT
-#   else
-#       define MKLDNN_API MKLDNN_HELPER_DLL_IMPORT
-#   endif
-#else
-#   define MKLDNN_API
-#endif
-
-#if defined (__GNUC__)
-#   define MKLDNN_DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
-#   define MKLDNN_DEPRECATED __declspec(deprecated)
-#else
-#   define MKLDNN_DEPRECATED
-#endif
-
+#include "mkldnn_config.h"
 #include "mkldnn_types.h"
-#endif /* DOXYGEN_SHOULD_SKIP_THIS */
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,25 +41,23 @@ const char MKLDNN_API *mkldnn_mkldnn_transpose_t2str(mkldnn_transpose_t v);
 const char MKLDNN_API *mkldnn_mkldnn_backend_kind_t2str(mkldnn_backend_kind_t v);
 const char MKLDNN_API *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v);
 
-/** Forms a format string for a given memory descriptor.
- *
- * The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
- * Here:
- *  - dt       -- data type
- *  - p        -- indicates there is non-trivial padding
- *  - o        -- indicates there is non-trivial padding offset
- *  - 0        -- indicates there is non-trivial offset0
- *  - fmt_kind -- format kind (blocked, wino, etc...)
- *  - fmt      -- extended format string (format_kind specific)
- *  - extra    -- shows extra fields (underspecified)
- */
+/// Forms a format string for a given memory descriptor.
+///
+/// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+/// Here:
+///  - dt       -- data type
+///  - p        -- indicates there is non-trivial padding
+///  - o        -- indicates there is non-trivial padding offset
+///  - 0        -- indicates there is non-trivial offset0
+///  - fmt_kind -- format kind (blocked, wino, etc...)
+///  - fmt      -- extended format string (format_kind specific)
+///  - extra    -- shows extra fields (underspecified)
 int MKLDNN_API mkldnn_md2fmt_str(char *fmt_str, size_t fmt_str_len,
         const mkldnn_memory_desc_t *md);
 
-/** Forms a dimension string for a given memory descriptor.
- *
- * The format is defined as: 'dim0xdim1x...xdimN
- */
+/// Forms a dimension string for a given memory descriptor.
+///
+/// The format is defined as: 'dim0xdim1x...xdimN
 int MKLDNN_API mkldnn_md2dim_str(char *dim_str, size_t dim_str_len,
         const mkldnn_memory_desc_t *md);
 
