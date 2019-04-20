@@ -245,6 +245,8 @@ private:
 
 protected:
     virtual void SetUp() {
+        data_type = data_traits<data_t>::data_type;
+
         SKIP_IF(data_type == memory::data_type::f16
                 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
@@ -258,8 +260,6 @@ protected:
 
         eng.reset(new engine(get_test_engine_kind(), 0));
         strm.reset(new stream(*eng));
-
-        data_type = data_traits<data_t>::data_type;
 
         Forward();
         Backward();
