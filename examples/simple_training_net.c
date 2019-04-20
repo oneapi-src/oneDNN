@@ -740,9 +740,6 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_primitive_desc_destroy(relu_pd));
     CHECK(mkldnn_primitive_desc_destroy(conv_pd));
 
-    free(net_src);
-    free(net_dst);
-
     mkldnn_memory_destroy(conv_user_src_memory);
     mkldnn_memory_destroy(conv_user_weights_memory);
     mkldnn_memory_destroy(conv_user_bias_memory);
@@ -752,9 +749,6 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_destroy(conv_reorder_src);
     mkldnn_primitive_destroy(conv_reorder_weights);
     mkldnn_primitive_destroy(conv);
-
-    free(conv_weights);
-    free(conv_bias);
 
     mkldnn_memory_destroy(relu_dst_memory);
     mkldnn_primitive_destroy(relu);
@@ -781,8 +775,6 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_destroy(pool_reorder_diff_dst);
     mkldnn_primitive_destroy(pool_bwd);
 
-    free(net_diff_dst);
-
     mkldnn_memory_destroy(lrn_diff_src_memory);
     mkldnn_primitive_destroy(lrn_bwd);
 
@@ -799,10 +791,15 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_destroy(conv_reorder_diff_weights);
     mkldnn_primitive_destroy(conv_bwd_weights);
 
+    mkldnn_engine_destroy(engine);
+
+    free(net_src);
+    free(net_dst);
+    free(conv_weights);
+    free(conv_bias);
+    free(net_diff_dst);
     free(conv_diff_bias_buffer);
     free(conv_user_diff_weights_buffer);
-
-    mkldnn_engine_destroy(engine);
 
     return mkldnn_success;
 }
