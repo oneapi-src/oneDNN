@@ -35,8 +35,13 @@ register_exe(simple-net-cpp simple_net.cpp "test")
 register_exe(simple-training-net-c simple_training_net.c "test" ${LIBM})
 register_exe(simple-training-net-cpp simple_training_net.cpp "test" ${LIBM})
 register_exe(simple-net-int8-cpp simple_net_int8.cpp "test")
-register_exe(simple-rnn-cpp simple_rnn.cpp "test")
-register_exe(simple-rnn-int8-cpp simple_rnn_int8.cpp "test")
+
+# RNN examples access memory directly so work with the native CPU backend only
+if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
+    register_exe(simple-rnn-cpp simple_rnn.cpp "test")
+    register_exe(simple-rnn-int8-cpp simple_rnn_int8.cpp "test")
+endif()
+
 register_exe(simple-rnn-training-cpp simple_rnn_training.cpp "test")
 
 if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
