@@ -669,10 +669,8 @@ mkldnn_status_t simple_net() {
     const mkldnn_memory_desc_t *conv_diff_bias_md
             = mkldnn_primitive_desc_query_md(
                     conv_bwd_weights_pd, mkldnn_query_diff_weights_md, 1);
-    CHECK(mkldnn_memory_create(
-            &conv_diff_bias_memory, conv_diff_bias_md, engine, NULL));
-    CHECK(mkldnn_memory_set_data_handle(
-            conv_diff_bias_memory, conv_diff_bias_buffer));
+    CHECK(mkldnn_memory_create(&conv_diff_bias_memory, conv_diff_bias_md,
+            engine, conv_diff_bias_buffer));
 
     /* finally created backward convolution weights primitive */
     mkldnn_primitive_t conv_bwd_weights;
