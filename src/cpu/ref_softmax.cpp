@@ -27,6 +27,7 @@
 
 #ifdef USE_MKL
 #include "mkl_vml_functions.h"
+#include "mkl_vml_defines.h"
 #endif
 
 namespace mkldnn {
@@ -166,7 +167,13 @@ void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
         data_t *r) const {
 #ifdef USE_MKL
     if (data_type == data_type::f32) {
+// TODO: mklml for win doesn't contain vmsExp symbol
+// Remove this limitation once it's updated
+#ifndef _WIN32
+        vmsExp(n, a, r, VML_ERRMODE_NOERR);
+#else
         vsExp(n, a, r);
+#endif
         return;
     }
 #endif
