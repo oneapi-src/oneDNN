@@ -1,5 +1,5 @@
 # Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
-![v0.90 beta](https://img.shields.io/badge/v0.90-beta-orange.svg)
+![v0.95 beta](https://img.shields.io/badge/v0.90-beta-orange.svg)
 
 > NOTE
 >
