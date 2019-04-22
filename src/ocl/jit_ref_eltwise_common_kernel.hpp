@@ -44,6 +44,11 @@ struct jit_ref_eltwise_common_kernel {
 
         set_offsets(data_d, jit_off.src_off);
 
+        const auto &dims = data_d.dims();
+        jel.gws_d[0] = utils::array_product(&dims[0], ndims);
+        jel.gws_d[1] = 1;
+        jel.gws_d[2] = 1;
+
         return status::success;
     }
 

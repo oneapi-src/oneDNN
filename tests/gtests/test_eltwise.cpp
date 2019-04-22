@@ -477,7 +477,7 @@ INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
 );
 
-CPU_INST_TEST_CASE(Simple_X,
+INST_TEST_CASE(Simple_X,
     PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55)
 );
 
