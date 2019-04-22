@@ -9,6 +9,9 @@
              Implicit and explicit scratchpad modes;
              Dropping memory primitive descriptor;
              Minor clean ups;
+- 2019-04-20 [v1.0 Preview Candidate 2](https://github.com/intel/mkl-dnn/releases/tag/v1.0-pc2) is published;
+             Introduced support for Intel(R) Processor Graphics;
+             
 
 
 ## Introduction
