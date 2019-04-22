@@ -729,6 +729,10 @@ public:
                       const int imm) {
         vroundps(x, op, imm);
     }
+    void uni_vroundps(const Xbyak::Zmm &x, const Xbyak::Operand &op,
+                      const int imm) {
+        vrndscaleps(x, op, imm & 0x3);
+    }
 
     void uni_vcvtps2dq(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         cvtps2dq(x, op);
