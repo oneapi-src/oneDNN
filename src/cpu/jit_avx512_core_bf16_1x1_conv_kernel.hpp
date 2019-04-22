@@ -31,8 +31,9 @@ namespace cpu {
 
 struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     jit_avx512_core_bf16_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
-            const primitive_attr_t &attr)
-    : jcp(ajcp), attr_(attr)
+            const primitive_attr_t &attr) :
+    jit_generator(nullptr, ker_code_size),
+    jcp(ajcp), attr_(attr)
     , eltwise_injector_(nullptr)
     , bf16_emu_(nullptr)
     {
@@ -79,6 +80,9 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
     using mask_t = const Xbyak::Opmask;
+    enum {
+        ker_code_size = 1024 * 1024,
+    };
 
     reg64_t reg_bcast_data = r8;
     reg64_t reg_load_data = r10;
@@ -119,6 +123,10 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
     int bcast_loop_work_offt = 0;
+#ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+    int perm_reg_offset = 8;
+    int broadcast_space = 24;
+#endif
     int stack_space_needed = 96;
 
     void bcast_loop(int load_loop_blk);
