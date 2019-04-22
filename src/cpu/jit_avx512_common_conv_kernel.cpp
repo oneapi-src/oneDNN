@@ -3481,7 +3481,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel_3d() {
     Label skip_bias, bias_loop, skip_load_bias;
 
     mov(reg_tmp, ptr[param + GET_OFF(flags)]);
-    test(reg_tmp,reg_tmp);
+    test(reg_tmp, reg_tmp);
     jne(skip_bias, T_NEAR);
 
     mov(reg_bias, ptr[param + GET_OFF(bias)]);
@@ -3511,7 +3511,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::bias_kernel_3d() {
         cmp(reg_tmp, reg_oi);
         jl(bias_loop);
     }
-    vmovups(EVEX_compress_addr(reg_bias,0), Zmm(1));
+    vmovups(ptr[reg_bias], Zmm(1));
 
     L(skip_bias);
 }
@@ -3809,7 +3809,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
     assert(jcp.harness == harness_3d_reduction);
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
-    const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
+    const int inp_mult = jcp.is_1stconv ? 1 : ic_block;
     int iw = utils::one_of(jcp.ver, ver_4fma, ver_4vnni, ver_vnni) ? jcp.tr_iw :
                                                                      jcp.iw;
     int ow = (jcp.ver == ver_4vnni || jcp.ver == ver_vnni) ? jcp.tr_ow : jcp.ow;
@@ -3819,7 +3819,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
     const size_t filter_shift
             = jcp.typesize_out * jcp.kh * jcp.kw * ic_block * oc_block;
     const size_t input_shift = jcp.typesize_in * jcp.ih * iw * inp_mult;
-    const size_t output_shift = jcp.typesize_in * jcp.oh * ow * jcp.oc_block;
+    const size_t output_shift = jcp.typesize_in * jcp.oh * ow * oc_block;
 
     Label d_loop_label, loop_end_label, common_block_label, fpad_end_label,
             backpad_end_label, backpad_label;
