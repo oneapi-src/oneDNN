@@ -94,6 +94,10 @@ void *exec_ctx_t::data_handle(int arg) const {
     auto *mem = args_.at(arg).mem;
     if (memory_storage_mapping_.count(mem->memory_storage()) > 0)
         return memory_storage_mapping_.at(mem->memory_storage());
+
+    if (mem->memory_storage()->is_null())
+        return nullptr;
+
     assert(mem->memory_storage()->engine()->backend_kind() == backend_kind::native);
     return mem->memory_storage()->data_handle();
 }
