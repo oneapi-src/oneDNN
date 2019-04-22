@@ -147,6 +147,8 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_core_bf16_1x1_convolution_fwd_t<bf16>),
     INSTANCE(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<f32>),
     INSTANCE(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<bf16>),
+    INSTANCE(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<f32>),
+    INSTANCE(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<bf16>),
     INSTANCE(jit_avx512_core_bf16_convolution_fwd_t<f32>),
     INSTANCE(jit_avx512_core_bf16_convolution_fwd_t<bf16>),
     INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t<f32>),

@@ -621,7 +621,7 @@ void jit_trans_iw_ic_int16_t::generate() {
     vmovdqa32(vidx4, idx4);
     vmovdqa32(vidx5, idx5);
 
-    // Data for every stide case is placed consequently
+    // Data for every strided case is placed consecutively
     for (int s = 0; s < str_w; s++) {
         const int left_pad = div_up(conf_->l_pad - s, str_w);
         const int iw1 = iw + conf_->l_pad;

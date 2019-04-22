@@ -27,7 +27,7 @@
 #include "jit_transpose_src_utils.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_avx512_core_bf16_1x1_conv_kernel.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "bfloat16_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -103,6 +103,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
         protected:
             virtual status_t set_default_params() override {
                 using namespace memory_format;
+                /*TODO: Add 1d convolution support */
                 if (this->src_pd_.desc()->format == any)
                     CHECK(this->src_pd_.set_format(nChw16c));
                 if (this->dst_pd_.desc()->format == any)
@@ -118,6 +119,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
+
     _jit_avx512_core_bf16_1x1_convolution_fwd_t(const pd_t *apd,
                                           const input_vector &inputs,
                                           const output_vector &outputs)
@@ -192,6 +194,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
 
             const convolution_desc_t *conv_d = this->desc();
             const memory_desc_t *diff_src_d = this->diff_src_pd_.desc();
+
             rtus_prepare(this, conv_d, diff_src_d, this->diff_dst_pd_.desc());
 
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_,
@@ -223,7 +226,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
     protected:
         virtual status_t set_default_params() override {
             using namespace memory_format;
-
+             /*TODO: Add 1d convolution support */
             if (this->diff_src_pd_.desc()->format == any)
                 CHECK(this->diff_src_pd_.set_format(nChw16c));
             if (this->diff_dst_pd_.desc()->format == any)
@@ -238,6 +241,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
+
     _jit_avx512_core_bf16_1x1_convolution_bwd_data_t(const pd_t *apd,
                                               const input_vector &inputs,
                                               const output_vector &outputs)
@@ -284,6 +288,151 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
 template <impl::data_type_t diff_src_type>
 using jit_avx512_core_bf16_1x1_convolution_bwd_data_t =
     _jit_avx512_core_bf16_1x1_convolution_bwd_data_t<diff_src_type>;
+
+template <impl::data_type_t diff_weights_type>
+struct _jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public cpu_primitive_t
+{
+    struct pd_t : public cpu_convolution_bwd_weights_pd_t {
+        pd_t(engine_t *engine,
+                const convolution_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const convolution_fwd_pd_t *hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            , jcp_(), rtus_() {}
+
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", avx512_core, ""),
+                _jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>);
+
+        virtual status_t init() override {
+            using namespace prop_kind;
+            assert(this->engine()->kind() == engine_kind::cpu);
+            bool ok = true
+                && mayiuse(avx512_core)
+                && this->set_default_params() == status::success
+                && this->desc()->prop_kind == backward_weights
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && !this->has_zero_dim_memory()
+                && this->desc()->src_desc.data_type == data_type::bf16
+                && this->desc()->diff_weights_desc.data_type == diff_weights_type
+                && this->desc()->diff_dst_desc.data_type == data_type::bf16
+                && IMPLICATION(this->with_bias(),
+                        data_type::f32 == desc()->diff_bias_desc.data_type);
+            if (!ok) return status::unimplemented;
+
+            const convolution_desc_t *conv_d = this->desc();
+            const memory_desc_t *src_d = this->src_pd_.desc();
+            rtus_prepare(this, conv_d, src_d, this->diff_dst_pd_.desc());
+
+            status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
+                    jcp_, *conv_d, *src_d, *this->diff_weights_pd_.desc(),
+                    *this->diff_dst_pd_.desc(), *this->attr(),
+                    mkldnn_get_max_threads(), rtus_.reduce_src_);
+            if (status != status::success) return status;
+
+            init_balancers();
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(scratchpad,
+                    jcp_);
+
+            auto reducer_bia_scratchpad = memory_tracking::registrar_t(
+                    scratchpad, memory_tracking::names::prefix_reducer_bia);
+            reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
+
+            rtus_prepare_space_info(this, scratchpad);
+
+            return status::success;
+        }
+
+        // TODO (Roma): structs conf header cleanup
+        jit_1x1_conv_conf_t jcp_;
+        cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
+        reduce_to_unit_stride_t rtus_;
+
+    protected:
+        virtual status_t set_default_params() override {
+            using namespace memory_format;
+
+            if (this->src_pd_.desc()->format == any)
+                CHECK(this->src_pd_.set_format(pick(this->ndims() - 3,
+                    nCw16c, nChw16c)));
+            if (this->diff_dst_pd_.desc()->format == any)
+                CHECK(this->diff_dst_pd_.set_format(pick(this->ndims() - 3,
+                    nCw16c, nChw16c)));
+            if (this->diff_weights_pd_.desc()->format == any)
+                CHECK(this->diff_weights_pd_.set_format(this->with_groups()
+                    ? pick(this->ndims() - 3, gOIw16i16o, gOIhw16i16o)
+                    : pick(this->ndims() - 3, OIw16i16o, OIhw16i16o)));
+            if (this->diff_bias_pd_.desc()->format == any)
+                CHECK(this->diff_bias_pd_.set_format(x));
+            return status::success;
+        }
+
+    private:
+        void init_balancers() {
+            const size_t max_buffer_size = jcp_.nthr * 3 * 5 * 5 * 16 * 16;
+            if (with_bias()) {
+                reducer_bia_conf_.init(reduce_balancer_t(jcp_.nthr,
+                            jcp_.oc_block, jcp_.ngroups * jcp_.nb_load,
+                            jcp_.mb, max_buffer_size));
+            }
+        }
+    };
+
+    template <cpu_isa_t isa, typename conv_t>
+    friend void init_rtus_driver(conv_t *self);
+
+    _jit_avx512_core_bf16_1x1_convolution_bwd_weights_t(const pd_t *apd,
+                                                 const input_vector &inputs,
+                                                 const output_vector &outputs);
+
+    ~_jit_avx512_core_bf16_1x1_convolution_bwd_weights_t() {
+        delete acc_ker_;
+        delete kernel_;
+        delete reducer_bias_;
+        delete rtus_driver_;
+
+#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+        delete tr_reorder_;
+#endif
+    }
+
+    virtual void execute(event_t *e) const {
+        switch (pd()->desc()->prop_kind) {
+        case prop_kind::backward_weights:
+            execute_backward_weights();
+            break;
+        default:
+            assert(!"invalid prop_kind");
+        }
+        e->set_state(event_t::ready);
+    }
+
+    typedef typename prec_traits<data_type::bf16>::type src_data_t;
+    typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
+
+    typedef typename prec_traits<diff_weights_type>::type diff_wei_data_t;
+
+  private:
+    void execute_backward_weights() const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
+    jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
+    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
+    cpu_reducer_t<data_type::f32> *reducer_bias_;
+
+    /* reduction to unit stride */
+    rtus_driver_t<avx512_common> *rtus_driver_;
+
+#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_;
+#endif
+};
+
+template <impl::data_type_t diff_weights_type>
+using jit_avx512_core_bf16_1x1_convolution_bwd_weights_t =
+    _jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>;
 
 }
 }
