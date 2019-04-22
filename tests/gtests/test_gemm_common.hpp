@@ -411,7 +411,7 @@ void run_test_gemm<int8_t, uint8_t, int32_t>(const test_params &p) {
                 &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
                 &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
         if (status != mkldnn_success)
-            throw error(status, "mkldnn_s8u8s32 returned error");
+            throw error(status, "mkldnn_gemm_s8u8s32 returned error");
         return;
     }
 
@@ -462,7 +462,7 @@ void run_test_gemm<int8_t, int8_t, int32_t>(const test_params &p) {
                 &p.igemm_params.offsetc, &p.M, &p.N, &p.K,
                 &p.alpha, A, &p.lda, &oa, B, &p.ldb, &ob, &p.beta, C, &p.ldc, oc);
         if (status != mkldnn_success)
-            throw error(status, "mkldnn_s8s8s32 returned error");
+            throw error(status, "mkldnn_gemm_s8s8s32 returned error");
         return;
     }
 
