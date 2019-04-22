@@ -95,6 +95,7 @@ namespace data_type {
     const data_type_t s16 = mkldnn_s16;
     const data_type_t s8 = mkldnn_s8;
     const data_type_t u8 = mkldnn_u8;
+    const data_type_t bf16 = mkldnn_bf16;
 }
 
 using round_mode_t = mkldnn_round_mode_t;

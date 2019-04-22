@@ -26,6 +26,8 @@ extern "C" {
 #include <stdint.h>
 #endif
 
+typedef uint16_t mkldnn_bfloat16_t;
+
 /** @addtogroup c_api C API
  *  @{
  *
@@ -80,6 +82,8 @@ typedef enum {
     mkldnn_s8 = 5,
     /** 8-bit unsigned integer. */
     mkldnn_u8 = 6,
+    /** bfloat 16-bit. */
+    mkldnn_bf16 = 7,
 } mkldnn_data_type_t;
 
 /** Rounding mode */

@@ -39,6 +39,7 @@ const char *mkldnn_dt2str(mkldnn_data_type_t v) {
     if (v == mkldnn_data_type_undef) return "undef";
     if (v == mkldnn_f32) return "f32";
     if (v == mkldnn_s32) return "s32";
+    if (v == mkldnn_bf16) return "bf16";
     if (v == mkldnn_s16) return "s16";
     if (v == mkldnn_s8) return "s8";
     if (v == mkldnn_u8) return "u8";

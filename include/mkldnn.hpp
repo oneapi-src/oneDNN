@@ -595,6 +595,7 @@ struct memory: public primitive  {
         data_undef = mkldnn_data_type_undef,
         f32 = mkldnn_f32,
         s32 = mkldnn_s32,
+        bf16 = mkldnn_bf16,
         s16 = mkldnn_s16,
         s8 = mkldnn_s8,
         u8 = mkldnn_u8,

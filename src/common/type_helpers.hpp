@@ -64,6 +64,7 @@ inline size_t data_type_size(data_type_t data_type) {
     case s16: return sizeof(prec_traits<s16>::type);
     case s8: return sizeof(prec_traits<s8>::type);
     case u8: return sizeof(prec_traits<u8>::type);
+    case bf16: return sizeof(prec_traits<bf16>::type);
     case data_type::undef:
     default: assert(!"unknown data_type");
     }
@@ -329,6 +330,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 
     if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)) return s32;
 
+    if (one_of(bf16, src_dt, dst_dt)) return f32;
+
     assert(!"unimplemented use-case: no default parameters available");
     return dst_dt;
 }
@@ -348,15 +351,21 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
         if ((src_dt == u8 || src_dt == s8)
             && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
             return s32;
+        if ((src_dt == bf16) && (wei_dt == bf16) && one_of(dst_dt, f32, bf16))
+            return f32;
     } else if (prop_kind == backward_data) {
         if (src_dt == s32 && wei_dt == s16 && dst_dt == s16)
             return s32;
         if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8 &&
                 one_of(dst_dt, s8, u8))
             return s32;
+        if (one_of(src_dt, f32, bf16) && (dst_dt == bf16) && (wei_dt == bf16))
+            return f32;
     } else if (prop_kind == backward_weights) {
         if (src_dt == s16 && wei_dt == s32 && dst_dt == s16)
             return s32;
+        if (src_dt == bf16 && one_of(wei_dt, f32, bf16) && dst_dt == bf16)
+            return f32;
     }
 
     assert(!"unimplemented use-case: no default parameters available");
