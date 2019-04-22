@@ -1362,8 +1362,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     diff_bia + _oc * 16, (img == img_first), od_s, od_e,
                     jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off);
 
-            if (ic_b == 0) p.flags = 0;
-            else p.flags = 1;
+            p.flags = ic_b == 0 ? 0 : 1;
         }
         }
         }
