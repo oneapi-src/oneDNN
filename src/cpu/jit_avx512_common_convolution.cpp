@@ -113,20 +113,40 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(jit_conv_ker_t ker,
         ker(&p);
 }
 
+void jit_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int os_index_begin, int os_index_end,
+        int kh_padding /* kh_work_size */, size_t kh_offset) {
+    PIPELINE(src);
+    PIPELINE(dst);
+    PIPELINE(filt);
+    PIPELINE(bias);
+    PIPELINE(channel);
+    PIPELINE(os_index_begin);
+    PIPELINE(os_index_end);
+    // non-positive value of kh_padding is allowed, in this case kernel must
+    // skip kw loop computation and initialize output by zeroes
+    PIPELINE(kh_padding);
+    PIPELINE(kh_offset);
+
+    if (p.src)
+        ker(&p);
+}
+
 void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
-        int channel, int d_index, int d_worksize,
+        int channel, int os_index_begin, int os_index_end,
         int kd_padding /* kd_work_size */, size_t kd_offset) {
     PIPELINE(src);
     PIPELINE(dst);
     PIPELINE(filt);
     PIPELINE(bias);
     PIPELINE(channel);
+    PIPELINE(os_index_begin);
+    PIPELINE(os_index_end);
     // non-positive value of kd_padding is allowed, in this case kernel must
     // skip kh loop computation and initialize output by zeroes
     PIPELINE(kd_padding);
-    PIPELINE(d_worksize);
-    PIPELINE(d_index);
     PIPELINE(kd_offset);
 
     if (p.src)
@@ -987,7 +1007,9 @@ struct jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         const auto &jcp = self->kernel_->jcp;
 
         /* reduction dimension */
-        balance211(jcp.mb*jcp.od, self->nthr_mb_, ithr_mb, img_start, img_end);
+        int oh_reduce = jcp.harness == harness_2d_reduction ? jcp.oh : 1;
+        balance211(jcp.mb * jcp.od * oh_reduce, self->nthr_mb_, ithr_mb,
+                img_start, img_end);
         img_work = img_end - img_start;
 
         /* independent dimensions */
@@ -1207,6 +1229,78 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                         ti->oc_b_start, ti->ic_b_start),
                     0, 0, 0);
         }
+    }
+}
+
+template <data_type_t src_type, data_type_t diff_dst_type,
+          data_type_t diff_weights_type>
+void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+    diff_weights_type>::compute_diff_weights_2d(const thread_info_t *ti) const
+{
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+
+    const auto &jcp = kernel_->jcp;
+    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw;
+
+    diff_weights_data_t *diff_wei = ti->ithr_mb == 0
+        ? (diff_weights_data_t*)ti->diff_weights
+        : ti->wei_bia_reduction + (ti->ithr_mb - 1) * wei_size;
+    diff_weights_data_t *diff_bia = ti->ithr_mb == 0
+        ? (diff_weights_data_t*)ti->diff_bias
+        : ti->wei_bia_reduction + (nthr_mb_ - 1) * wei_size
+          + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
+
+    int img{0}, oh_s{0};
+    int img_start = ti->img_start, img_end = ti->img_end;
+    nd_iterator_init(img_start, img, jcp.mb, oh_s, jcp.oh);
+    const int img_first = img;
+
+    while (img_start < img_end) {
+        auto p = jit_conv_call_s();
+
+        int work_rem = img_end - img_start;
+        const int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
+        const int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
+        const int kh_top_overflow = nstl::max(0, -ih_s);
+        const int kh_bottom_overflow = nstl::max(0, ih_s - jcp.ih + jcp.kh);
+        int kh_padding = jcp.kh - kh_top_overflow - kh_bottom_overflow;
+        int kh_padding_offset = nstl::min(jcp.kh - 1, kh_top_overflow) * jcp.kw
+                * jcp.ic_block * jcp.oc_block * jcp.typesize_out;
+        auto src_h = ti->src + src_d.blk_off(img, 0, ih_s + kh_top_overflow);
+        auto diff_dst_h = ti->diff_dst + diff_dst_d.blk_off(img, 0, oh_s);
+
+        for (int g = ti->g_start; g < ti->g_end; ++g)
+        for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
+        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
+            const int _oc = g * jcp.nb_oc + oc_b;
+            const int _ic = g * jcp.nb_ic + ic_b;
+
+            auto src = src_h + src_d.blk_off(0, _ic);
+            auto diff_dst = diff_dst_h + diff_dst_d.blk_off(0, _oc);
+
+            jit_conv_2d_ker_bwd_w_pipeline(kernel_->jit_ker, p, src, diff_dst,
+                    diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
+                    diff_bia + _oc * jcp.oc_block, (img == img_first),
+                    oh_s, oh_e, kh_padding, kh_padding_offset);
+
+            p.flags = ic_b == 0 ? 0 : 1;
+        }
+
+        const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
+        const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+        // This call is required only to finalize pipeline with paramaters set
+        // on the last iteration of loop above. Only valid pointers make sense
+        // here as call parameters to avoid execution of prefetch instructions
+        // with nullptr, other parameters are not used in real jit call here
+        jit_conv_2d_ker_bwd_w_pipeline(kernel_->jit_ker, p,
+                ti->src + src_d.blk_off(img + 1, _ic),
+                ti->diff_dst + diff_dst_d.blk_off(img + 1, _oc),
+                diff_wei + wht_blk_off(diff_weights_d, ti->g_start,
+                                   ti->oc_b_start, ti->ic_b_start),
+                diff_bia + _oc * jcp.oc_block, 0, 0, 0, 0, 0);
+        nd_iterator_jump(img_start, img_end, img, jcp.mb, oh_s, jcp.oh);
     }
 }
 
@@ -1459,7 +1553,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 template <data_type_t src_type, data_type_t diff_dst_type,
           data_type_t diff_weights_type>
 void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-    diff_weights_type>::compute_diff_bias_3d(const thread_info_t *ti) const {
+    diff_weights_type>::reduce_diff_bias(const thread_info_t *ti) const {
 
     const auto &jcp = kernel_->jcp;
 
@@ -1537,16 +1631,26 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
         thread_info_t thread_info(this, ctx, ithr);
 
-        if (utils::one_of(pd()->ndims(), 3, 4)) {
-            compute_diff_weights(&thread_info);
+        switch (pd()->jcp_.harness) {
+        case harness_2d_reduction:
+            compute_diff_weights_2d(&thread_info);
             if (nthr_mb_ > 1) reduce_diff_weights(&thread_info);
-            if (pd()->with_bias()) compute_diff_bias(&thread_info);
-        } else if (pd()->ndims() == 5) {
+            if (pd()->with_bias())
+                reduce_diff_bias(&thread_info);
+            break;
+        case harness_3d_reduction:
             compute_diff_weights_3d(&thread_info);
             if (nthr_mb_ > 1) reduce_diff_weights_3d(&thread_info);
-            if (pd()->with_bias()) compute_diff_bias_3d(&thread_info);
-        } else {
-            assert(false);
+            if (pd()->with_bias()) reduce_diff_bias(&thread_info);
+            break;
+        case harness_mb_reduction:
+            compute_diff_weights(&thread_info);
+            if (nthr_mb_ > 1)
+                reduce_diff_weights(&thread_info);
+            if (pd()->with_bias())
+                compute_diff_bias(&thread_info);
+            break;
+        default: assert(!"Invalid harness type");
         }
     });
 
