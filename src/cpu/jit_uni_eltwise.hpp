@@ -128,7 +128,7 @@ private:
 
 struct jit_uni_eltwise_kernel_f32;
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         pd_t(engine_t *engine, const eltwise_desc_t *adesc,
@@ -138,7 +138,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_fwd_t<isa>);
+                jit_uni_eltwise_fwd_t<isa, d_type>);
 
         virtual status_t init() override;
     };
@@ -147,7 +147,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
                        const output_vector &outputs);
     ~jit_uni_eltwise_fwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
 
     virtual void execute(event_t *e) const
     {
@@ -161,7 +161,7 @@ private:
     jit_uni_eltwise_kernel_f32 *kernel_;
 };
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         pd_t(engine_t *engine, const eltwise_desc_t *adesc,
@@ -171,7 +171,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_bwd_t<isa>);
+                jit_uni_eltwise_bwd_t<isa, d_type>);
 
         virtual status_t init() override;
     };
@@ -180,7 +180,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
                        const output_vector &outputs);
     ~jit_uni_eltwise_bwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
 
     virtual void execute(event_t *e) const
     {

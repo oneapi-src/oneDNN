@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,18 @@ template <> struct data_traits<int16_t> {
 template <> struct data_traits<int32_t> {
     static const auto data_type = mkldnn::memory::data_type::s32;
 };
+template <> struct data_traits<mkldnn_bfloat16_t> {
+    static const auto data_type = mkldnn::memory::data_type::bf16;
+};
+
+template <mkldnn::memory::data_type> struct prec_traits {};
+template <> struct prec_traits<mkldnn::memory::data_type::f32> { typedef float type; };
+template <> struct prec_traits<mkldnn::memory::data_type::s32> { typedef int32_t type; };
+template <> struct prec_traits<mkldnn::memory::data_type::s16> { typedef int16_t type; };
+template <> struct prec_traits<mkldnn::memory::data_type::s8> { typedef int8_t type; };
+template <> struct prec_traits<mkldnn::memory::data_type::u8> { typedef uint8_t type; };
+template <> struct prec_traits<mkldnn::memory::data_type::bf16> { typedef mkldnn_bfloat16_t type; };
+
 
 template <typename T> inline void assert_eq(T a, T b);
 template <> inline void assert_eq<float>(float a, float b) {
@@ -298,6 +310,30 @@ inline mkldnn::memory::desc create_md(mkldnn::memory::dims dims,
     return mkldnn::memory::desc(dims, data_type, fmt);
 }
 
+union float_raw {
+  float f;
+  unsigned short i[2];
+};
+
+static void truncate_ps_to_bf16(mkldnn_bfloat16_t *out_bf16, const float *in_f32,
+                    size_t length = 1) {
+    for (size_t i = 0; i < length; i++) {
+        union float_raw t = {0};
+        t.f = in_f32[i];
+        out_bf16[i] = t.i[1];
+    }
+}
+
+static void cvt_bf16_to_ps(float *out_f32, const mkldnn_bfloat16_t *in_bf16,
+                    size_t length = 1) {
+    for (size_t i = 0; i < length; i++) {
+        union float_raw t = {0};
+        t.i[1] = in_bf16[i];
+        t.i[0] = 0;
+        out_f32[i] = t.f;
+    }
+}
+
 template <typename data_t>
 static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         double sparsity)
@@ -309,6 +345,16 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
         const bool fill = in_group == ((group % 1637) % group_size);
         return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
             : data_t{0};
+    } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::bf16) {
+        const size_t group_size = (size_t)(1. / sparsity);
+        const size_t group = index / group_size;
+        const size_t in_group = index % group_size;
+        const bool fill = in_group == ((group % 1637) % group_size);
+        float val_f32 = fill ? mean + deviation * sinf(float(index % 37))
+            : data_t{0};
+        mkldnn_bfloat16_t val_bf16;
+        truncate_ps_to_bf16(&val_bf16, &val_f32);
+        return val_bf16;
     } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
         || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16
         || data_traits<data_t>::data_type == mkldnn::memory::data_type::s8) {
@@ -339,6 +385,23 @@ static void fill_data(const size_t size, data_t *data, double sparsity = 1.,
         if (init_negs && n%4 == 0U)
             data[n] = static_cast<data_t>(-data[n]); // weird for unsigned types!
     });
+}
+
+static inline void fill_data_bf16(const size_t size,
+        mkldnn::memory& memory_bf16,
+        mkldnn::memory& memory_f32,
+        float mean = 1.0f, float deviation = 2.0e-1f, double sparsity = 1.) {
+   fill_data<float>(size, (float *)memory_f32.get_data_handle(),
+                    mean, deviation, sparsity);
+   check_zero_tail<float>(1, memory_f32);
+   truncate_ps_to_bf16((mkldnn_bfloat16_t *)memory_bf16.get_data_handle(),
+       (float *)memory_f32.get_data_handle(), size);
+
+   /* Adjust f32 data to be exactly representable in bf16
+    * in order to get computed results which are bitwise accurate
+    * when output data type is f32 */
+   cvt_bf16_to_ps((float *)memory_f32.get_data_handle(),
+           (mkldnn_bfloat16_t *)memory_bf16.get_data_handle(), size);
 }
 
 template <typename data_t>
