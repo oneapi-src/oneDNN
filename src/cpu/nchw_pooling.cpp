@@ -66,6 +66,8 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() const {
     };
 
     auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
+        // value = -1 means that pool window is placed outside of source domain
+        // for current {od, oh, ow} point
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
             size_t ws_offset
@@ -75,6 +77,8 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() const {
                 + (size_t)OW * oh
                 + (size_t)ow;
             if (ws_dt == data_type::u8) {
+                if (value == -1)
+                    value = 255;
                 assert(0 <= value && value <= 255);
                 ws[ws_offset] = value;
             } else
@@ -83,6 +87,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() const {
     };
 
     auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
+        int current_pool_size = 0;
         for (int kd = 0; kd < KD; ++kd) {
             for (int kh = 0; kh < KH; ++kh) {
                 for (int kw = 0; kw < KW; ++kw) {
@@ -105,9 +110,15 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() const {
                         d[0] = s;
                         set_ws(mb, c, od, oh, ow, kd*KH*KW + kh*KW + kw);
                     }
+                    current_pool_size++;
                 }
             }
         }
+
+        // corner case: pool window is outside of real input domain
+        // for this point.
+        if (current_pool_size == 0)
+            set_ws(mb, c, od, oh, ow, -1);
     };
 
     auto ker_avg = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
@@ -225,6 +236,11 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() const {
 
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_offset] : ((const int *)ws)[ws_offset];
+        if (index == -1
+               || (ws_d.data_type() == data_type::u8 && index == 255))
+           return; // corner case: pool window is outside of real input domain
+                   // for this point, do nothing
+
         const int kw = index % KW;
         const int kh = (index / KW) % KH;
         const int kd = (index / KW) / KH;
