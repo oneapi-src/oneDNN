@@ -40,6 +40,10 @@
 
 #if MKLDNN_WITH_SYCL
 #include <CL/sycl.hpp>
+
+#if MKLDNN_ENABLE_SYCL_VPTR
+#include "mkldnn_sycl_vptr.hpp"
+#endif
 #endif
 
 #endif
@@ -1272,22 +1276,34 @@ struct memory: public handle<mkldnn_memory_t> {
     /// @tparam T Type of the requested buffer.
     /// @tparam ndims Number of dimensions of the requested buffer.
     template <typename T, int ndims = 1>
-    cl::sycl::buffer<T, ndims> get_sycl_buffer() const {
+    cl::sycl::buffer<T, ndims> get_sycl_buffer(size_t *offset = nullptr) const {
         static_assert(ndims == 1, "only 1D buffers supported");
 
-        void *untyped_buf_ptr;
+        void *handle_ptr;
         error::wrap_c_api(
-                mkldnn_memory_get_data_handle(get(), &untyped_buf_ptr),
+                mkldnn_memory_get_data_handle(get(), &handle_ptr),
                 "could not get SYCL buffer object");
 
-        if (!untyped_buf_ptr)
+        if (!handle_ptr)
             return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(0));
 
+#if MKLDNN_ENABLE_SYCL_VPTR
+        if (offset)
+            *offset = get_sycl_offset(handle_ptr);
+
+        auto buf = mkldnn::get_sycl_buffer(handle_ptr);
+        auto range = cl::sycl::range<1>(buf.get_size());
+        return buf.reinterpret<T, 1>(range);
+#else
         auto &untyped_buf = *static_cast<impl::sycl::untyped_sycl_buffer_t *>(
-                untyped_buf_ptr);
+                handle_ptr);
+        if (offset)
+            *offset = 0;
         return untyped_buf.reinterpret<T, ndims>();
+#endif
     }
 
+#if MKLDNN_ENABLE_SYCL_VPTR == 0
     /// Sets the underlying buffer to the given SYCL buffer.
     ///
     /// @tparam T Type of the buffer.
@@ -1302,6 +1318,7 @@ struct memory: public handle<mkldnn_memory_t> {
                 mkldnn_memory_set_data_handle(get(), static_cast<void *>(&untyped_buf)),
                 "could not set SYCL buffer object");
     }
+#endif
 #endif
 
     // Must go away or be private:

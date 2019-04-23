@@ -17,11 +17,12 @@
 #ifndef SYCL_MEMORY_STORAGE_HPP
 #define SYCL_MEMORY_STORAGE_HPP
 
-#include "c_types_map.hpp"
-#include "memory_storage.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_storage.hpp"
+#include "common/utils.hpp"
+#include "sycl/sycl_utils.hpp"
 
-#include "mkldnn_support.hpp"
+#include "mkldnn.hpp"
 
 #include <CL/sycl.hpp>
 #include <memory>
@@ -35,37 +36,60 @@ class sycl_memory_storage_t : public memory_storage_t
 public:
     sycl_memory_storage_t(engine_t *engine,
             unsigned flags, size_t size, void *handle);
+#if MKLDNN_ENABLE_SYCL_VPTR
+    sycl_memory_storage_t(sycl_memory_storage_t &&other)
+        : memory_storage_t(other.engine()), vptr_(other.vptr_), is_owned_(other.is_owned_) {
+        other.vptr_ = nullptr;
+    }
+#else
     sycl_memory_storage_t(sycl_memory_storage_t &&other)
         : memory_storage_t(other.engine()), buffer_(std::move(other.buffer_)) {}
+#endif
+
+#if MKLDNN_ENABLE_SYCL_VPTR
+    virtual ~sycl_memory_storage_t() override;
+#endif
 
     sycl_memory_storage_t(const sycl_memory_storage_t &) = delete;
     sycl_memory_storage_t &operator=(const sycl_memory_storage_t &) = delete;
 
     virtual status_t get_data_handle(void **handle) const override {
+#if MKLDNN_ENABLE_SYCL_VPTR
+        *handle = vptr_;
+#else
         *handle = static_cast<void *>(buffer_.get());
+#endif
         return status::success;
     }
 
     virtual status_t set_data_handle(void *handle) override {
+#if MKLDNN_ENABLE_SYCL_VPTR
+        assert(mkldnn::is_sycl_vptr(handle));
+        vptr_ = handle;
+#else
         auto *untyped_buf_ptr = static_cast<untyped_sycl_buffer_t *>(handle);
         buffer_.reset(new untyped_sycl_buffer_t(std::move(*untyped_buf_ptr)));
+#endif
         return status::success;
     }
 
     virtual status_t map_data(void **mapped_ptr) const override;
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
+#if MKLDNN_ENABLE_SYCL_VPTR
+    void *vptr() const { return vptr_; }
+#else
     untyped_sycl_buffer_t &buffer() const { return *buffer_; }
-
-#if 0
-    template <typename T, int ndims = 1>
-    cl::sycl::buffer<T, ndims> buffer() const {
-        return buffer->to_sycl_buffer<T, ndims>();
-    }
 #endif
 
 private:
+#if MKLDNN_ENABLE_SYCL_VPTR
+    void *vptr_ = nullptr;
+    bool is_owned_ = false;
+    bool is_write_host_back_ = false;
+#else
     std::unique_ptr<untyped_sycl_buffer_t> buffer_;
+#endif
 };
 
 } // namespace sycl

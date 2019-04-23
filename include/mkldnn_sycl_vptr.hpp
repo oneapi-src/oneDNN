@@ -14,38 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_UTILS_HPP
-#define SYCL_UTILS_HPP
-
-#include "mkldnn_support.hpp"
-
-#include "common/c_types_map.hpp"
+#ifndef MKLDNN_SYCL_VPTR_HPP
+#define MKLDNN_SYCL_VPTR_HPP
 
 #include <CL/sycl.hpp>
-#include <vector>
+
+#include "mkldnn.h"
 
 namespace mkldnn {
-namespace impl {
-namespace sycl {
 
-static inline std::vector<cl::sycl::device> get_sycl_devices(
-        engine_kind_t engine_kind) {
-    std::vector<cl::sycl::device> devices;
-    auto all_platforms = cl::sycl::platform::get_platforms();
-    for (auto &plat : all_platforms) {
-        auto dev_type = (engine_kind == engine_kind::cpu)
-                ? cl::sycl::info::device_type::cpu
-                : cl::sycl::info::device_type::gpu;
-        auto devs = plat.get_devices(dev_type);
-        if (devs.empty())
-            continue;
-        devices.insert(devices.end(), devs.begin(), devs.end());
-    }
-    return devices;
-}
+void *MKLDNN_API sycl_malloc(size_t size);
 
-} // namespace sycl
-} // namespace impl
+void MKLDNN_API sycl_free(void *ptr);
+
+bool MKLDNN_API is_sycl_vptr(void *ptr);
+
+cl::sycl::buffer<uint8_t, 1> MKLDNN_API get_sycl_buffer(void *ptr);
+
+size_t MKLDNN_API get_sycl_offset(void *ptr);
+
 } // namespace mkldnn
 
 #endif

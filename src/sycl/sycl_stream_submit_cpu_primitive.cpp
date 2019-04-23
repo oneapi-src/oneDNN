@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
+#include "mkldnn.hpp"
 
 #if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
 
@@ -97,8 +97,13 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
 template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
         const storage_types *... storages) {
+#if MKLDNN_ENABLE_SYCL_VPTR
+    auto buffer_tp
+            = std::make_tuple(mkldnn::get_sycl_buffer(storages->vptr())...);
+#else
     auto buffer_tp = std::make_tuple(
             (storages->buffer().template reinterpret<uint8_t>())...);
+#endif
     constexpr size_t nbuffers = sizeof...(storage_types);
     fast_dispatch_by_size(
             submit_ctx, cgh, buffer_tp, nstl::make_index_sequence<nbuffers>{});

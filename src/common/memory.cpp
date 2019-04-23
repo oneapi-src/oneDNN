@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "mkldnn.h"
+#include "mkldnn.hpp"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
@@ -215,11 +216,19 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
     memory_desc_t z_md = types::zero_md();
-    unsigned flags = (handle == MKLDNN_MEMORY_ALLOCATE)
-            ? memory_flags_t::alloc
-            : (engine->backend_kind() == backend_kind::sycl)
-            ? memory_flags_t::use_host_ptr
-            : memory_flags_t::use_backend_ptr;
+    unsigned flags = 0;
+    if (handle == MKLDNN_MEMORY_ALLOCATE) {
+        flags = memory_flags_t::alloc;
+    } else if (engine->backend_kind() == backend_kind::sycl) {
+#if MKLDNN_ENABLE_SYCL_VPTR
+        flags = mkldnn::is_sycl_vptr(handle) ? memory_flags_t::use_backend_ptr
+                                             : memory_flags_t::use_host_ptr;
+#else
+        flags = memory_flags_t::use_host_ptr;
+#endif
+    } else {
+        flags = memory_flags_t::use_backend_ptr;
+    }
     return safe_ptr_assign<memory_t>(
             *memory, new memory_t(engine, md ? md : &z_md, flags, handle));
 }

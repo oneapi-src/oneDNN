@@ -145,6 +145,10 @@ set(MKLDNN_GPU_BACKEND "NONE" CACHE STRING
     "specifies the type of backend for GPU engines.
     Can be NONE (no GPU backend) or OPENCL (OpenCL GPU backend).")
 
+option(MKLDNN_ENABLE_SYCL_VPTR
+    "Enable virtual pointers support for SYCL."
+    OFF)
+
 set(OPENCLROOT "" CACHE STRING
     "path to Intel(R) SDK for OpenCL(TM).
     Use this option to specify custom location for OpenCL.")

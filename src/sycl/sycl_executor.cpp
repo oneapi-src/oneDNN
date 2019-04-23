@@ -86,9 +86,17 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
                             const sycl::sycl_memory_storage_t *>(mem_storage);
+#if MKLDNN_ENABLE_SYCL_VPTR
+                    auto buf = mkldnn::get_sycl_buffer(
+                            sycl_mem_storage->vptr());
+                    auto acc = buf.get_access<
+                            cl::sycl::access::mode::read_write>(cgh);
+                    cgh.set_arg(i, acc);
+#else
                     auto &sycl_buf = sycl_mem_storage->buffer();
                     sycl_buf.set_as_arg<cl::sycl::access::mode::read_write>(
                             cgh, i);
+#endif
                 } else {
                     cgh.set_arg(i, nullptr);
                 }
@@ -119,12 +127,19 @@ status_t sycl_executor_t::copy(
 
     if (src.engine()->backend_kind() == backend_kind::sycl
             && dst.engine()->backend_kind() == backend_kind::sycl) {
-        auto &sycl_buf_src
-                = utils::downcast<const sycl::sycl_memory_storage_t *>(&src)
-                          ->buffer();
-        auto &sycl_buf_dst
-                = utils::downcast<const sycl::sycl_memory_storage_t *>(&dst)
-                          ->buffer();
+        auto *src_sycl_storage
+                = utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
+        auto *dst_sycl_storage
+                = utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
+#if MKLDNN_ENABLE_SYCL_VPTR
+        auto sycl_buf_src
+                = mkldnn::get_sycl_buffer(src_sycl_storage->vptr());
+        auto sycl_buf_dst
+                = mkldnn::get_sycl_buffer(dst_sycl_storage->vptr());
+#else
+        auto &sycl_buf_src = src_sycl_storage->buffer();
+        auto &sycl_buf_dst = dst_sycl_storage->buffer();
+#endif
         size_t src_size = sycl_buf_src.get_size();
         size_t dst_size = sycl_buf_dst.get_size();
 
@@ -132,26 +147,24 @@ status_t sycl_executor_t::copy(
         MAYBE_UNUSED(src_size);
         MAYBE_UNUSED(dst_size);
 
-#ifdef MKLDNN_SYCL_COMPUTECPP
+        // FIXME: Intel SYCL fails to compile the SYCL kernel for GPU due to
+        // unresolved references to mkldnn_impl_sycl_cpu_thunk so switch to
+        // blocking map/unmap.
+#if 0
         auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(stream());
         auto &sycl_queue = sycl_stream->queue();
 
-        auto sycl_buf_dst_u8 = sycl_buf_dst.reinterpret<uint8_t>();
-        auto sycl_buf_src_u8 = sycl_buf_src.reinterpret<uint8_t>();
-
         sycl_queue.submit([&](cl::sycl::handler &cgh) {
             auto dst_acc
-                    = sycl_buf_dst_u8.get_access<cl::sycl::access::mode::write>(
+                    = sycl_buf_dst.get_access<cl::sycl::access::mode::write>(
                             cgh);
             auto src_acc
-                    = sycl_buf_src_u8.get_access<cl::sycl::access::mode::read>(
+                    = sycl_buf_src.get_access<cl::sycl::access::mode::read>(
                             cgh);
             cgh.parallel_for<mkldnn_copy_tag>(cl::sycl::range<1>(src_size),
                     [=](cl::sycl::id<1> i) { dst_acc[i] = src_acc[i]; });
         });
 #else
-        // FIXME: Intel SYCL does not support reinterpret so switch
-        // to blocking map/unmap
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
@@ -174,8 +187,13 @@ status_t sycl_executor_t::copy(
 
         auto &sycl_dst
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
+#if MKLDNN_ENABLE_SYCL_VPTR
+        auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
+        untyped_sycl_buffer_t(sycl_buf).copy_from(src_ptr_u8, size);
+#else
         auto &sycl_buf = sycl_dst.buffer();
         sycl_buf.copy_from(src_ptr_u8, size);
+#endif
     } else if (dst.engine()->kind() == engine_kind::cpu
             && dst.engine()->backend_kind() == backend_kind::native) {
         assert(src.engine()->backend_kind() == backend_kind::sycl);
@@ -186,8 +204,13 @@ status_t sycl_executor_t::copy(
 
         auto &sycl_src
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
+#if MKLDNN_ENABLE_SYCL_VPTR
+        auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
+        untyped_sycl_buffer_t(sycl_buf).copy_to(dst_ptr_u8, size);
+#else
         auto &sycl_buf = sycl_src.buffer();
         sycl_buf.copy_to(dst_ptr_u8, size);
+#endif
     } else {
         assert(!"Not expected");
         return status::runtime_error;
