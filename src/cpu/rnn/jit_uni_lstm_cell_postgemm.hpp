@@ -140,6 +140,8 @@ protected:
             add(rsp, stack_size);
         };
 
+// MKLDNN_ENABLE_FAST_RCP is not enabled by default
+#ifdef MKLDNN_ENABLE_FAST_RCP
         auto fast_recip =[&](Vmm s, Vmm tmp, bool packed) {
             if (packed)
                 uni_vrcpps(tmp, s);
@@ -152,6 +154,7 @@ protected:
             uni_vsubps(tmp, tmp, s);
             uni_vmovups(s, tmp); // s <- 2 * tmp - s * tmp^2
         };
+#endif
 
         // dequantize from s32 to float
         auto deq_w = [&](Vmm s, Vmm tmp1, Vmm tmp2, int gate, bool packed) {
@@ -162,8 +165,12 @@ protected:
                 uni_vmovups(tmp1, ptr[weights_scales_reg + gate * rnn_.dic * qscale_dt_size]);
             uni_vcvtdq2ps(s, s);
             uni_vmulps(tmp1, tmp1, dscale_off_addr);
+#ifdef MKLDNN_ENABLE_FAST_RCP
             fast_recip(tmp1, tmp2, packed);
             uni_vmulps(s, s, tmp1);
+#else
+            uni_vdivps(s, s, tmp1);
+#endif
         };
 
         // We start code generations here
