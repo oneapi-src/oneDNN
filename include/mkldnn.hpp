@@ -1152,6 +1152,21 @@ struct memory: public handle<mkldnn_memory_t> {
                     "could not initialize a memory descriptor");
         }
 
+        /// Constructs a memory descriptor by strides.
+        ///
+        /// @param adims Data dimensions
+        /// @param adata_type Data precision/type.
+        /// @param astrides The strides for dimensions.
+        desc(const dims &adims, data_type adata_type, const dims &astrides) {
+            validate_dims(adims);
+            error::wrap_c_api(mkldnn_memory_desc_init_by_strides(&data,
+                        (int)adims.size(),
+                        adims.size() == 0 ? nullptr : &adims[0],
+                        convert_to_c(adata_type),
+                        astrides.size() == 0 ? nullptr : &astrides[0]),
+                    "could not initialize a memory descriptor");
+        }
+
         /// Constructs a memory descriptor from a C API data structure.
         ///
         /// @param adata A C API #mkldnn_memory_desc_t structure.
