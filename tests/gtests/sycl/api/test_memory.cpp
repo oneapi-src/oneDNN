@@ -31,6 +31,7 @@ class init_kernel;
 
 namespace mkldnn {
 
+#if MKLDNN_ENABLE_SYCL_VPTR == 0
 TEST(sycl_memory_test, BasicInterop) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "GPU device not found.");
@@ -182,6 +183,8 @@ TEST(sycl_memory_test, InteropReorderAndUserKernel) {
         EXPECT_EQ(buf_host[i], -data[i]);
     }
 }
+
+#endif
 
 TEST(sycl_memory_test, EltwiseWithUserKernel) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
