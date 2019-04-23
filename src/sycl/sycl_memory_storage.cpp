@@ -16,7 +16,7 @@
 
 #include "sycl_memory_storage.hpp"
 
-#include "common/memory_storage_map_manager.hpp"
+#include "common/guard_manager.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_engine.hpp"
 
@@ -51,21 +51,21 @@ status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
         return status::success;
     }
 
-    auto &map_manager = memory_storage_map_manager_t::instance();
+    auto &guard_manager = guard_manager_t::instance();
 
     std::function<void()> unmap_callback;
     *mapped_ptr = buffer_->map_data<cl::sycl::access::mode::read_write>(
             [&](std::function<void()> f) { unmap_callback = f; });
 
-    return map_manager.register_unmap(this, *mapped_ptr, unmap_callback);
+    return guard_manager.enter(this, unmap_callback);
 }
 
 status_t sycl_memory_storage_t::unmap_data(void *mapped_ptr) const {
     if (!mapped_ptr)
         return status::success;
 
-    auto &map_manager = memory_storage_map_manager_t::instance();
-    return map_manager.unmap(this, mapped_ptr);
+    auto &guard_manager = guard_manager_t::instance();
+    return guard_manager.exit(this);
 }
 
 } // namespace sycl
