@@ -29,6 +29,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace nstl;
+
 template <data_type_t data_type, data_type_t acc_type>
 void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
     using namespace alg_kind;
@@ -71,11 +73,13 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward() const {
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
             size_t offset = is_3d
-                ? ws_d.off(mb, oc, od, oh, ow) : ws_d.off(mb, oc, oh, ow);;
+                ? ws_d.off(mb, oc, od, oh, ow) : ws_d.off(mb, oc, oh, ow);
             if (ws_dt == data_type::u8) {
+                const int u8_max = numeric_limits<
+                    typename prec_traits<data_type::u8>::type>::max();
                 if (value == -1)
-                    value = 255;
-                assert(0 <= value && value <= 255);
+                    value = u8_max;
+                assert(0 <= value && value <= u8_max);
                 ws[offset] = value;
             } else
                 reinterpret_cast<int *>(ws)[offset] = value;
@@ -257,8 +261,10 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_off] : ((int *)ws)[ws_off];
 
-        if (index == -1
-               || (ws_d.data_type() == data_type::u8 && index == 255))
+        const int invalid_index_value = ws_d.data_type() == data_type::u8
+            ? numeric_limits<typename prec_traits<data_type::u8>::type>::max()
+            : -1;
+        if (index == invalid_index_value)
            return; // corner case: pool window is outside of real input domain
                    // for this point, do nothing
 
@@ -313,8 +319,10 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward() const {
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_off] : ((int *)ws)[ws_off];
 
-        if (index == -1
-               || (ws_d.data_type() == data_type::u8 && index == 255))
+        const int invalid_index_value = ws_d.data_type() == data_type::u8
+            ? numeric_limits<typename prec_traits<data_type::u8>::type>::max()
+            : -1;
+        if (index == invalid_index_value)
            return; // corner case: pool window is outside of real input domain
                    // for this point, do nothing
 

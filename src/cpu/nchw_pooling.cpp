@@ -29,6 +29,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+using namespace nstl;
+
 template <impl::data_type_t data_type>
 void nchw_pooling_fwd_t<data_type>::execute_forward() const {
     using namespace alg_kind;
@@ -77,9 +79,11 @@ void nchw_pooling_fwd_t<data_type>::execute_forward() const {
                 + (size_t)OW * oh
                 + (size_t)ow;
             if (ws_dt == data_type::u8) {
+                const int u8_max = numeric_limits<
+                    typename prec_traits<data_type::u8>::type>::max();
                 if (value == -1)
-                    value = 255;
-                assert(0 <= value && value <= 255);
+                    value = u8_max;
+                assert(0 <= value && value <= u8_max);
                 ws[ws_offset] = value;
             } else
                 reinterpret_cast<int *>(ws)[ws_offset] = value;
@@ -236,8 +240,10 @@ void nchw_pooling_bwd_t<data_type>::execute_backward() const {
 
         const int index = ws_d.data_type() == data_type::u8
             ? (int)ws[ws_offset] : ((const int *)ws)[ws_offset];
-        if (index == -1
-               || (ws_d.data_type() == data_type::u8 && index == 255))
+        const int invalid_index_value = ws_d.data_type() == data_type::u8
+            ? numeric_limits<typename prec_traits<data_type::u8>::type>::max()
+            : -1;
+        if (index == invalid_index_value)
            return; // corner case: pool window is outside of real input domain
                    // for this point, do nothing
 
