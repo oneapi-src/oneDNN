@@ -444,7 +444,6 @@ int doit(const rnn_prb_t *p, res_t *r) {
 #ifdef CALL_MKLDNN_RNN
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[0], inputs, outputs), WARN);
         SAFE(execute(c), WARN);
-        DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
 #endif
         if ((p->prop == mkldnn_forward) && (bench_mode & CORR)) {
             compute_ref_fwd(p, *input_fp, *states_fp, *weights_input_fp,
@@ -475,9 +474,10 @@ int doit(const rnn_prb_t *p, res_t *r) {
             dst_diff_weights_states_dt->p_, dst_diff_bias_dt->p_ };
 
 #ifdef CALL_MKLDNN_RNN
+        // Destroy the forward primitive
+        DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
         DNN_SAFE(mkldnn_primitive_create(&c, rpd[1], inputs, outputs), WARN);
         SAFE(execute(c), WARN);
-        DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
 #endif
 
         if (bench_mode & CORR) {
@@ -580,6 +580,7 @@ int doit(const rnn_prb_t *p, res_t *r) {
 
     delete workspace_dt;
 
+    DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
     DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[0]), CRIT);
     DNN_SAFE(mkldnn_primitive_desc_destroy(rpd[1]), CRIT);
 
