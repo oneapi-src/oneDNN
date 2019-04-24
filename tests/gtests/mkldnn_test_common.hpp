@@ -312,9 +312,9 @@ static inline data_t set_value(size_t index, data_t mean, data_t deviation,
     } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::s32
         || data_traits<data_t>::data_type == mkldnn::memory::data_type::s16
         || data_traits<data_t>::data_type == mkldnn::memory::data_type::s8) {
-        return data_t(rand() % 21 - 10);
+        return data_t(index * 13 % 21 - 10);
     } else if (data_traits<data_t>::data_type == mkldnn::memory::data_type::u8) {
-        return data_t(rand() % 17);
+        return data_t(index * 13 % 17);
     } else {
         return data_t(0);
     }
