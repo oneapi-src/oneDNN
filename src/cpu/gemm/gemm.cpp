@@ -132,7 +132,9 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         }
         status = mkldnn_success;
     }
-#else
+    else
+#endif
+    {
     if (mayiuse(avx512_mic)) {
         status = jit_avx512_common_gemm_f32(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
@@ -147,7 +149,8 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         status = ref_gemm<float>(transa, transb,
                 M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
     }
-#endif
+    }
+
 
     if (status == mkldnn_success)
         msan_unpoison_matrix(C, *M, *N, *ldc, sizeof(*C));
