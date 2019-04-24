@@ -299,7 +299,7 @@ void compare(int m, int n, const c_dt *c, const c_dt *c_ref, int ldc,
                     c_dt eps = k / 1000 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 } else if (data_traits<b_dt>::data_type == data_type::s8) {
-                    c_dt eps = k / 500 + 1;
+                    c_dt eps = k / 350 + 1;
                     EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 }
             }
