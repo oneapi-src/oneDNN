@@ -12,6 +12,7 @@
 --ifmt=nChw8c --ofmt=nChw16c 2x40x3x3  # blocked with tail
 
 --attr=irmode=down;oscale=common:0.
+--fmt=ncw,nwc 2x8x8 # special 8x8 kernel
 --fmt=nchw,nhwc,nChw8c,nChw16c 2x64x3x3
 --fmt=oihw,hwio 2x64x3x3
 
