@@ -88,6 +88,7 @@ struct pooling_pd_t: public primitive_desc_t {
     dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     int ndims() const { return src_desc().ndims; }
+    int spatial_ndims() const { return ndims() - 2; }
     bool is_3d() const { return ndims() == 5; }
 
     bool has_zero_dim_memory() const
@@ -113,7 +114,7 @@ protected:
         /* the simplest way to express 256... */
         const int u8_max = nstl::numeric_limits<
             typename prec_traits<data_type::u8>::type>::max();
-        return utils::array_product(desc()->kernel, ndims()) <= u8_max
+        return utils::array_product(desc()->kernel, spatial_ndims()) <= u8_max
             ? data_type::u8 : data_type::s32;
     }
 
