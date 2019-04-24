@@ -183,8 +183,16 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     }
 
     void tr8x8_avx2(int i_off, int o_off) {
-        for (int i = 0; i < 8; i++)
-            vmovups(Ymm(i), i_addr(i_off + i * 8));
+        for (int i = 0; i < 8; i++) {
+            using namespace data_type;
+
+            if (prb_.itype == s32 && prb_.otype == f32)
+                vcvtdq2ps(Ymm(i), i_addr(i_off + i * 8));
+            else if (prb_.itype == f32 && prb_.otype == s32)
+                vcvtps2dq(Ymm(i), i_addr(i_off + i * 8));
+            else
+                vmovups(Ymm(i), i_addr(i_off + i * 8));
+        }
 
         for (int i = 0; i < 8 / 2; i++) {
             vunpcklps(Ymm(8 + i), Ymm(2 * i), Ymm(2 * i + 1));
