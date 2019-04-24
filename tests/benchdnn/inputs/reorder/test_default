@@ -16,5 +16,6 @@
 --itag=nChw8c --otag=nChw16c 2x40x3x3  # blocked with tail
 
 --attr=oscale=common:0.
+--tag=ncw,nwc 2x8x8 # special 8x8 kernel
 --tag=nchw,nhwc,nChw8c,nChw16c 2x64x3x3
 --tag=oihw,hwio 2x64x3x3
