@@ -288,7 +288,7 @@
 #    define BLOCK_WRITE8_OUT intel_sub_group_block_write_us8
 #    define BLOCK_READ_OUT intel_sub_group_block_read_us
 #    define BLOCK_WRITE_OUT intel_sub_group_block_write_us
-#    define GLOBAL_UINT_PT_OUT const __global ushort *
+#    define GLOBAL_UINT_PT_OUT __global ushort *
 #endif
 #if OUT_TYPE_F32
 #    define DT_OUT float
@@ -301,7 +301,7 @@
 #    define BLOCK_WRITE8_OUT intel_sub_group_block_write8
 #    define BLOCK_READ_OUT intel_sub_group_block_read
 #    define BLOCK_WRITE_OUT intel_sub_group_block_write
-#    define GLOBAL_UINT_PT_OUT const __global uint *
+#    define GLOBAL_UINT_PT_OUT __global uint *
 #endif
 #if OUT_TYPE_S32
 #    define DT_OUT int
@@ -314,7 +314,7 @@
 #    define BLOCK_WRITE8_OUT intel_sub_group_block_write8
 #    define BLOCK_READ_OUT intel_sub_group_block_read
 #    define BLOCK_WRITE_OUT intel_sub_group_block_write
-#    define GLOBAL_UINT_PT_OUT const __global uint *
+#    define GLOBAL_UINT_PT_OUT __global uint *
 #endif
 
 #if IN_TYPE_F16 || OUT_TYPE_F16
@@ -511,9 +511,9 @@ __kernel void any2any_kernel(__global DT_IN *input, __global DT_OUT *output,
 #        else
 #            if OUT_IOHW16I16O == 1 || OUT_OIHW16O16I == 1
     intel_sub_group_block_write8(
-            (const __global uint *)&output[0], as_uint8(blockI0));
+            (__global uint *)&output[0], as_uint8(blockI0));
     intel_sub_group_block_write8(
-            (const __global uint *)&output[8 * 16], as_uint8(blockI1));
+            (__global uint *)&output[8 * 16], as_uint8(blockI1));
 #            else
     for (int i = 0; i < 8; i++) {
 #                if IN_IOHW16I16O == 1
