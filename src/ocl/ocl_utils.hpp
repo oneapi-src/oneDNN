@@ -440,6 +440,11 @@ struct cl_nd_range_t {
         return with_local_range_ ? local_range_ : nullptr;
     }
 
+    bool is_zero() const {
+        return global_range_[0] == 0 || global_range_[1] == 0
+                || global_range_[2] == 0;
+    }
+
 private:
     size_t global_range_[3];
     size_t local_range_[3];
