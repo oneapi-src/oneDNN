@@ -127,6 +127,7 @@ static const pd_create_f ocl_impl_list[] = {
     /*rnn*/
     INSTANCE(ref_rnn_fwd_f16_t),
     INSTANCE(ref_rnn_fwd_f32_t),
+    INSTANCE(ref_rnn_bwd_f32_t),
     nullptr,
 };
 

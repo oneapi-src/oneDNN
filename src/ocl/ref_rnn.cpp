@@ -687,6 +687,8 @@ template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;
 template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
+template
+struct _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
 }
 }
 }

@@ -99,6 +99,13 @@
     + ((x1) / DIFF_SRC_L_B1) * DIFF_SRC_L_S1 + \
     ((x2) % DIFF_SRC_L_B2) * DIFF_SRC_L_SB2 \
     + ((x2) / DIFF_SRC_L_B2) * DIFF_SRC_L_S2)
+#define DIFF_DST_L_OFF(x0, x1, x2) ( \
+    ((x0) % DIFF_DST_L_B0) * DIFF_DST_L_SB0 \
+    + ((x0) / DIFF_DST_L_B0) * DIFF_DST_L_S0 + \
+    ((x1) % DIFF_DST_L_B1) * DIFF_DST_L_SB1 \
+    + ((x1) / DIFF_DST_L_B1) * DIFF_DST_L_S1 + \
+    ((x2) % DIFF_DST_L_B2) * DIFF_DST_L_SB2 \
+    + ((x2) / DIFF_DST_L_B2) * DIFF_DST_L_S2)
 #define DIFF_SRC_I_OFF(x0, x1, x2, x3, x4) ( \
     ((x0) % DIFF_SRC_I_B0) * DIFF_SRC_I_SB0 \
     + ((x0) / DIFF_SRC_I_B0) * DIFF_SRC_I_S0 + \
@@ -110,6 +117,17 @@
     + ((x3) / DIFF_SRC_I_B3) * DIFF_SRC_I_S3 + \
     ((x4) % DIFF_SRC_I_B4) * DIFF_SRC_I_SB4 \
     + ((x4) / DIFF_SRC_I_B4) * DIFF_SRC_I_S4)
+#define DIFF_DST_I_OFF(x0, x1, x2, x3, x4) ( \
+    ((x0) % DIFF_DST_I_B0) * DIFF_DST_I_SB0 \
+    + ((x0) / DIFF_DST_I_B0) * DIFF_DST_I_S0 + \
+    ((x1) % DIFF_DST_I_B1) * DIFF_DST_I_SB1 \
+    + ((x1) / DIFF_DST_I_B1) * DIFF_DST_I_S1 + \
+    ((x2) % DIFF_DST_I_B2) * DIFF_DST_I_SB2 \
+    + ((x2) / DIFF_DST_I_B2) * DIFF_DST_I_S2 + \
+    ((x3) % DIFF_DST_I_B3) * DIFF_DST_I_SB3 \
+    + ((x3) / DIFF_DST_I_B3) * DIFF_DST_I_S3 + \
+    ((x4) % DIFF_DST_I_B4) * DIFF_DST_I_SB4 \
+    + ((x4) / DIFF_DST_I_B4) * DIFF_DST_I_S4)
 #define DIFF_BIAS_OFF(x0, x1, x2, x3) ( \
     ((x0) % DIFF_BIAS_B0) * DIFF_BIAS_SB0 \
     + ((x0) / DIFF_BIAS_B0) * DIFF_BIAS_S0 + \
@@ -123,6 +141,9 @@
 DATA_T one_m_square(DATA_T a) {
     return 1.0f - a * a;
 }
+DATA_T x_m_square(DATA_T a) {
+    return (1.0f - a) * a;
+}
 DATA_T relu_fwd(DATA_T s, DATA_T alpha) {
     return s > 0 ? s : s * alpha;
 }
@@ -133,8 +154,7 @@ DATA_T logistic_fwd(DATA_T s) {
     return 1 / (1 + exp((float) -s));
 }
 DATA_T logistic_bwd(DATA_T dd, DATA_T s) {
-    DATA_T v = logistic_fwd(s);
-    return dd * v * (1 - v);
+    return dd * x_m_square(s);
 }
 DATA_T relu_bwd(DATA_T dd, DATA_T s, DATA_T alpha) {
     return s > 0 ? dd : dd * alpha;
@@ -191,22 +211,33 @@ __kernel void ref_rnn_copy_init_layer_kernel(__global DATA_T *ws,
     const int b = get_global_id(0);
 
     __global DATA_T *dst = ws + WS_DIFF_STATES_OFFSET;
-    __global DATA_T *src = src_base + DIFF_SRC_L_OFF(it, b, 0 );
 
 #if DIRECTION_KIND == CONCAT
+    __global DATA_T *src = src_base + DIFF_DST_L_OFF(it, b, 0 );
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER,0,it,N_STATES,b,s)] = src[s];
-        dst[OFF_WS_DIFF_STATES(N_LAYER,1,it,N_STATES,b,s)] = src[DIC + s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER,1,N_ITER - it - 1,N_STATES,b,s)]
+            = src[DIC + s];
     }
 #elif DIRECTION_KIND == SUM
+    __global DATA_T *src = src_base + DIFF_DST_L_OFF(it, b, 0 );
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER,0,it,N_STATES,b,s)] = src[s];
-        dst[OFF_WS_DIFF_STATES(N_LAYER,1,it,N_STATES,b,s)] = src[s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER,1,N_ITER - it - 1,N_STATES,b,s)]
+            = src[s];
+    }
+#elif DIRECTION_KIND == L2R
+    __global DATA_T *src = src_base + DIFF_DST_L_OFF(it, b, 0 );
+    for (int s = 0; s < DIC; s++) {
+        dst[OFF_WS_DIFF_STATES(N_LAYER,0,it,N_STATES,b,s)] = src[s];
+    }
+#elif DIRECTION_KIND == R2L
+    __global DATA_T *src = src_base + DIFF_DST_L_OFF(N_ITER - it - 1, b, 0 );
+    for (int s = 0; s < DIC; s++) {
+        dst[OFF_WS_DIFF_STATES(N_LAYER,0,it,N_STATES,b,s)] = src[s];
     }
 #else
-    for (int s = 0; s < DIC; s++) {
-        dst[OFF_WS_DIFF_STATES(N_LAYER,0,it,N_STATES,b,s)] = src[s];
-    }
+#error "Unsupported direction_kind"
 #endif
 #endif
 }
@@ -227,7 +258,7 @@ __kernel void ref_rnn_copy_init_iter_kernel(__global DATA_T *ws,
 #else
     __global DATA_T *dst = ws + WS_DIFF_STATES_OFFSET;
     dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, state, b, s)] = src_base
-        ? src_base[DIFF_SRC_I_OFF(lay, dir, state, b, s)]
+        ? src_base[DIFF_DST_I_OFF(lay, dir, state, b, s)]
         : 0.0;
 #endif
 }
@@ -269,7 +300,7 @@ __kernel void ref_rnn_copy_res_layer_kernel(__global DATA_T *ws,
 #if N_DIR > 1
     res += src_base[OFF_WS_DIFF_STATES(0, 1, N_ITER - 1 - it, N_STATES, b, s)];
 #endif
-    dst_base[DST_L_OFF(iter, b, dir * SLC + s)] = res;
+    dst_base[DIFF_SRC_L_OFF(iter, b, dir * SLC + s)] = res;
 #endif
 
 }
@@ -291,7 +322,7 @@ __kernel void ref_rnn_copy_res_iter_kernel(__global DATA_T *ws,
 #else
     __global DATA_T *src_base = ws + WS_DIFF_STATES_OFFSET;
     if (dst_base) {
-       dst_base[DST_I_OFF(lay, dir, state, b, s)] =
+       dst_base[DIFF_SRC_I_OFF(lay, dir, state, b, s)] =
                 src_base[OFF_WS_DIFF_STATES(lay, dir, 0, state, b, s)];
     }
 #endif
@@ -379,18 +410,18 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
     DATA_T dHt = diff_states_tp1_l[CELL_WS_DIFF_STATES(0, i, j)]
             + diff_states_t_lp1[CELL_WS_DIFF_STATES(N_STATES, i, j)];
     DATA_T dCt = diff_states_tp1_l[CELL_WS_DIFF_STATES(1, i, j)]
-            + one_m_square(tanhCt) * ws_gates[CELL_WS_GATES(i, 2, j)] * dHt;
+            + one_m_square(tanhCt) * ws_gates[CELL_WS_GATES(i, 3, j)] * dHt;
 
-    DATA_T dG0 = states_tm1_l[CELL_WS_STATES(1, i, j)]
-            * logistic_bwd(dCt, ws_gates[CELL_WS_GATES(i, 0, j)]);
-    DATA_T dG1 = ws_gates[CELL_WS_GATES(i, 3, j)]
-            * logistic_bwd(dCt, ws_gates[CELL_WS_GATES(i, 1, j)]);
-    DATA_T dG2 = logistic_bwd(tanhCt * dHt, ws_gates[CELL_WS_GATES(i, 2, j)]);
-    DATA_T dG3 = ws_gates[CELL_WS_GATES(i, 1, j)]
-            * tanh_bwd(dCt, ws_gates[CELL_WS_GATES(i, 3, j)]);
+    DATA_T dG1 = states_tm1_l[CELL_WS_STATES(1, i, j)] * dCt
+        * x_m_square(ws_gates[CELL_WS_GATES(i, 1, j)]);
+    DATA_T dG0 = ws_gates[CELL_WS_GATES(i, 2, j)] * dCt
+        * x_m_square(ws_gates[CELL_WS_GATES(i, 0, j)]);
+    DATA_T dG3 = tanhCt * dHt * x_m_square(ws_gates[CELL_WS_GATES(i, 3, j)]);
+    DATA_T dG2 = ws_gates[CELL_WS_GATES(i, 0, j)] * dCt
+        * one_m_square(ws_gates[CELL_WS_GATES(i, 2, j)]);
 
-    diff_states_t_l[CELL_WS_DIFF_STATES(1, i, j)]
-        = dCt * ws_gates[CELL_WS_GATES(i, 0, j)];
+    diff_states_t_l[CELL_WS_DIFF_STATES(1, i, j)] = dCt
+        * ws_gates[CELL_WS_GATES(i, 1, j)];
 
     ws_gates[CELL_WS_GATES(i, 0, j)] = dG0;
     ws_gates[CELL_WS_GATES(i, 1, j)] = dG1;
