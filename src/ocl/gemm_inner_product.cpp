@@ -31,7 +31,7 @@ status_t gemm_inner_product_fwd_t<src_type, wei_type, dst_type,
     gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_SRC);
     gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DST);
 
-    exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    exec_ctx_t gemm_ctx(ctx, std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
     if (gemm_exec_status != status::success)
         return gemm_exec_status;
@@ -68,7 +68,7 @@ status_t gemm_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
     gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DIFF_SRC);
 
-    exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    exec_ctx_t gemm_ctx(ctx, std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
     if (gemm_exec_status != status::success)
         return gemm_exec_status;
@@ -91,7 +91,7 @@ status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     }
     gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DIFF_WEIGHTS);
 
-    exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    exec_ctx_t gemm_ctx(ctx, std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
     if (gemm_exec_status != status::success)
         return gemm_exec_status;

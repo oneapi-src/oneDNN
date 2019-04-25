@@ -162,7 +162,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     gemm_args[MKLDNN_ARG_SRC_1] = {&gemm_mem_B, true};
     gemm_args[MKLDNN_ARG_DST] = {&gemm_mem_C, false};
 
-    auto gemm_ctx = exec_ctx_t(ctx.stream(), std::move(gemm_args));
+    auto gemm_ctx = exec_ctx_t(ctx, std::move(gemm_args));
 
     if (beta == 0.0) {
         gemm_input_->execute(gemm_ctx);
