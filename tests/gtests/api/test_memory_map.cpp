@@ -35,32 +35,21 @@ protected:
             return;
 
         MKLDNN_CHECK(mkldnn_engine_create(&engine, engine_kind, 0));
-        MKLDNN_CHECK(mkldnn_engine_create(&engine_ref, engine_kind, 0));
         MKLDNN_CHECK(mkldnn_stream_create(
                 &stream, engine, mkldnn_stream_default_flags));
-        MKLDNN_CHECK(mkldnn_stream_create(
-                &stream_ref, engine_ref, mkldnn_stream_default_flags));
     }
 
     virtual void TearDown() {
         if (engine) {
             MKLDNN_CHECK(mkldnn_engine_destroy(engine));
         }
-        if (engine_ref) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(engine_ref));
-        }
         if (stream) {
             MKLDNN_CHECK(mkldnn_stream_destroy(stream));
-        }
-        if (stream_ref) {
-            MKLDNN_CHECK(mkldnn_stream_destroy(stream_ref));
         }
     }
 
     mkldnn_engine_t engine = nullptr;
-    mkldnn_engine_t engine_ref = nullptr;
     mkldnn_stream_t stream = nullptr;
-    mkldnn_stream_t stream_ref = nullptr;
 };
 
 class memory_map_test_cpp
@@ -102,7 +91,7 @@ TEST_P(memory_map_test_c, Map) {
     // Create and fill mem_ref to use as a reference
     mkldnn_memory_t mem_ref;
     MKLDNN_CHECK(mkldnn_memory_create(
-            &mem_ref, &mem_d, engine_ref, MKLDNN_MEMORY_ALLOCATE));
+            &mem_ref, &mem_d, engine, MKLDNN_MEMORY_ALLOCATE));
 
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
@@ -121,16 +110,15 @@ TEST_P(memory_map_test_c, Map) {
     // Reorder mem_ref to memory
     mkldnn_primitive_desc_t reorder_pd;
     MKLDNN_CHECK(mkldnn_reorder_primitive_desc_create(
-            &reorder_pd, &mem_d, engine_ref, &mem_d, engine, nullptr));
+            &reorder_pd, &mem_d, engine, &mem_d, engine, nullptr));
 
     mkldnn_primitive_t reorder;
     MKLDNN_CHECK(mkldnn_primitive_create(&reorder, reorder_pd));
 
     mkldnn_exec_arg_t reorder_args[2]
             = { { MKLDNN_ARG_SRC, mem_ref }, { MKLDNN_ARG_DST, mem } };
-    MKLDNN_CHECK(
-            mkldnn_primitive_execute(reorder, stream_ref, 2, reorder_args));
-    MKLDNN_CHECK(mkldnn_stream_wait(stream_ref));
+    MKLDNN_CHECK(mkldnn_primitive_execute(reorder, stream, 2, reorder_args));
+    MKLDNN_CHECK(mkldnn_stream_wait(stream));
 
     // Validate the results
     void *mapped_ptr;
@@ -156,12 +144,11 @@ TEST_P(memory_map_test_cpp, Map) {
             "Engine kind is not supported");
 
     engine eng(engine_kind, 0);
-    engine eng_ref(engine_kind, 0);
 
     const mkldnn::memory::dim N = 7;
     memory::desc mem_d({ N }, memory::data_type::f32, memory::format_tag::x);
 
-    memory mem_ref(mem_d, eng_ref);
+    memory mem_ref(mem_d, eng);
 
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
@@ -173,12 +160,12 @@ TEST_P(memory_map_test_cpp, Map) {
     memory mem(mem_d, eng);
 
     reorder::primitive_desc reorder_pd(
-            eng_ref, mem_d, eng, mem_d, primitive_attr());
+            eng, mem_d, eng, mem_d, primitive_attr());
     reorder reorder_prim(reorder_pd);
 
-    stream strm_ref(eng_ref);
-    reorder_prim.execute(strm_ref, mem_ref, mem);
-    strm_ref.wait();
+    stream strm(eng);
+    reorder_prim.execute(strm, mem_ref, mem);
+    strm.wait();
 
     float *mapped_ptr = mem.map_data<float>();
     for (size_t i = 0; i < N; i++) {

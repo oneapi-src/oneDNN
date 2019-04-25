@@ -90,7 +90,7 @@ protected:
             = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         auto eng_i = engine(eng_kind_i, 0);
-        auto eng_o = engine(eng_kind_o, 0);
+        auto eng_o = (eng_kind_o == eng_kind_i) ? eng_i : engine(eng_kind_o, 0);
 
         const size_t nelems = std::accumulate(p.dims.begin(), p.dims.end(),
                 size_t(1), std::multiplies<size_t>());

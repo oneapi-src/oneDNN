@@ -460,7 +460,7 @@ struct mkldnn_gemm<float, float, float> {
             const test_memory &) {
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            engine eng(get_test_engine_kind(), 0);
+            engine eng = a_mem.get().get_engine();
             stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
             mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
