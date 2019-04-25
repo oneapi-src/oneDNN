@@ -205,6 +205,7 @@ protected:
                 {MKLDNN_ARG_SRC, c_src.get()},
                 {MKLDNN_ARG_DIFF_WEIGHTS, c_diff_weights.get()},
                 {MKLDNN_ARG_DIFF_BIAS, c_diff_bias.get()}});
+        strm.wait();
 
         auto ref_diff_weights = memory(c_diff_weights_desc, eng);
         auto ref_diff_bias = memory(c_diff_bias_desc, eng);

@@ -99,6 +99,7 @@ TEST(sycl_memory_test, InteropReorder) {
         dst_mem.set_sycl_buffer(dst_buf);
 
         reorder(src_mem, dst_mem).execute(s, src_mem, dst_mem);
+        s.wait();
     }
 
     // Assume that buffer destructors makes SYCL to wait on completion

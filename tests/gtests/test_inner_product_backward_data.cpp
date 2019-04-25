@@ -161,6 +161,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, *ip_diff_dst},
                 {MKLDNN_ARG_WEIGHTS, *ip_weights},
                 {MKLDNN_ARG_DIFF_SRC, *ip_diff_src}});
+        strm.wait();
 
         compute_ref_inner_product_bwd_data<data_t>(p.ndims == 5, ipd, *ip_diff_dst,
                 *ip_weights, *diff_src_ref);

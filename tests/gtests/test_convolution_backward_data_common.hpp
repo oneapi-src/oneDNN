@@ -162,6 +162,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
                 {MKLDNN_ARG_WEIGHTS, c_weights.get()},
                 {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()}});
+        strm.wait();
 
         auto ref_memory = memory(c_src_desc, eng);
         compute_ref_conv_bwd_data
