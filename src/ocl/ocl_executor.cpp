@@ -69,6 +69,9 @@ status_t ocl_executor_t::parallel_for(
     }
 
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
+    if (range.is_zero()) {
+        return status::success;
+    }
     cl_int err = clEnqueueNDRangeKernel(queue, ocl_kernel, ndims, nullptr,
             range.global_range(), range.local_range(), 0, nullptr, nullptr);
     status_t status = ocl_utils::convert_to_mkldnn(err);

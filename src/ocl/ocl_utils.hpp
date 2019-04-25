@@ -443,6 +443,11 @@ struct cl_nd_range_t {
         return with_local_range_ ? local_range_ : nullptr;
     }
 
+    bool is_zero() const {
+        return global_range_[0] == 0 || global_range_[1] == 0
+                || global_range_[2] == 0;
+    }
+
     std::string str() const {
         std::stringstream oss;
         oss << "gws = [" << global_range_[0] << ", " << global_range_[1] << ", "
