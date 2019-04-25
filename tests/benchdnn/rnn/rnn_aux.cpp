@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "mkldnn.h"
+
 #include "rnn/rnn_aux.hpp"
 #include "norm.hpp"
 
@@ -235,6 +237,98 @@ void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     DPRINT("dic" IFMT "", p->dic);
     DPRINT("dlc" IFMT "", p->dlc);
     DPRINT("n\"%s\"", p->name);
+}
+
+mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p->alg);
+    mkldnn_alg_kind_t f = activation2kind(p->activation);
+
+    mkldnn_status_t init_status;
+    switch (kind) {
+    case mkldnn_vanilla_rnn:
+        init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind,
+                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags,
+                p->alpha, p->beta);
+        break;
+    case mkldnn_vanilla_lstm:
+        init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    case mkldnn_vanilla_gru:
+        init_status = mkldnn_gru_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    case mkldnn_lbr_gru:
+        init_status = mkldnn_lbr_gru_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    default:
+        init_status = mkldnn_unimplemented;
+    }
+    return init_status;
+}
+
+mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *diff_src_layer_d,
+       mkldnn_memory_desc_t *diff_src_iter_d,
+       mkldnn_memory_desc_t *diff_weights_layer_d,
+       mkldnn_memory_desc_t *diff_weights_iter_d,
+       mkldnn_memory_desc_t *diff_bias_d,
+       mkldnn_memory_desc_t *diff_dst_layer_d,
+       mkldnn_memory_desc_t *diff_dst_iter_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p->alg);
+    mkldnn_alg_kind_t f = activation2kind(p->activation);
+
+    mkldnn_status_t init_status;
+    switch (kind) {
+    case mkldnn_vanilla_rnn:
+        init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind,
+                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags, p->alpha, p->beta);
+        break;
+    case mkldnn_vanilla_lstm:
+        init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    case mkldnn_vanilla_gru:
+        init_status = mkldnn_gru_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    case mkldnn_lbr_gru:
+        init_status = mkldnn_lbr_gru_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    default:
+        init_status = mkldnn_unimplemented;
+    }
+    return init_status;
 }
 
 void init_buffer(float *buf, int64_t size, float value) {

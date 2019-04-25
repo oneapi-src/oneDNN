@@ -36,7 +36,7 @@ alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 mkldnn_alg_kind_t alg2kind(alg_t alg);
 
-enum activation_t { RELU, LOGISTIC, TANH };
+enum activation_t { UNDEF, RELU, LOGISTIC, TANH };
 activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
@@ -175,13 +175,16 @@ const char *policy2str(attr_t::scale_t::policy_t policy);
 struct rnn_prb_t : public rnn_desc_t {
     rnn_prb_t(const rnn_desc_t desc, const dt_conf_t *cfg,
             mkldnn_prop_kind_t prop, alg_t alg,
-            mkldnn_rnn_direction_t direction, activation_t activation,
-            const attr_t &attr, policy_t scale_policy, int mb = 0)
+            mkldnn_rnn_direction_t direction,
+            const attr_t &attr, policy_t scale_policy, int mb,
+            unsigned int flags,  activation_t activation,
+            float alpha, float beta)
         : rnn_desc_t(desc)
         , cfg(cfg)
         , prop(prop)
         , alg(alg)
         , direction(direction)
+        , flags(flags)
         , activation(activation)
         , attr(attr)
         , scale_policy(scale_policy)
@@ -228,7 +231,10 @@ struct rnn_prb_t : public rnn_desc_t {
     mkldnn_prop_kind_t prop;
     alg_t alg;
     mkldnn_rnn_direction_t direction;
+    unsigned int flags;
     activation_t activation;
+    float alpha;
+    float beta;
     attr_t attr;
     policy_t scale_policy;
 

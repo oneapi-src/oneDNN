@@ -289,7 +289,13 @@ inline mkldnn_batch_normalization_flags_t convert_to_c(
     return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
 }
 
+enum class rnn_flags : unsigned {
+    undef = mkldnn_rnn_flags_undef
+};
 
+inline mkldnn_rnn_flags_t convert_to_c(
+        rnn_flags aflag) {
+    return static_cast<mkldnn_rnn_flags_t>(aflag);
 }
 
 #define MKLDNN_DEFINE_BITMASK_OPS(enum_name)                            \
@@ -331,6 +337,7 @@ inline enum_name operator~(enum_name rhs) {                             \
 }                                                                       \
 
 MKLDNN_DEFINE_BITMASK_OPS(batch_normalization_flags)
+MKLDNN_DEFINE_BITMASK_OPS(rnn_flags)
 
 #undef MKLDNN_DEFINE_BITMASK_OPS
 
@@ -569,7 +576,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         result.reset(const_cast<mkldnn_post_ops_t>(c_result), true);
         return result;
     }
-    
+
     /// Sets @p post_ops for future use.
     void set_post_ops(post_ops ops) {
         error::wrap_c_api(mkldnn_primitive_attr_set_post_ops(get(), ops.get()),
@@ -3171,58 +3178,6 @@ struct inner_product_backward_weights: public primitive {
 /// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
-/// Implements a recurrent cell.
-struct rnn_cell {
-
-    /// Descriptor for recurrent cell.
-    struct desc {
-        mkldnn_rnn_cell_desc_t c_rnn_cell_;
-
-        /// Initializes a recurrent cell descriptor using @p rnn_cell_desc, @p
-        /// kind (possible values are #mkldnn::algorithn::vanilla_rnn,
-        /// #mkldnn::algorithm::vanilla_lstm, #mkldnn::algorithm::vanilla_gru,
-        /// and #mkldnn::algorithm::gru_linear_before_reset), @p activation_f
-        /// (possible values are #mkldnn::algorithm::eltwise_relu and
-        /// #mkldnn::algorithm::eltwise_tanh).
-        desc(algorithm kind, algorithm activation_f) {
-            error::wrap_c_api(mkldnn_rnn_cell_desc_init(&c_rnn_cell_,
-                        mkldnn::convert_to_c(kind),
-                        mkldnn::convert_to_c(activation_f), 0U, 0, 0),
-                    "could not init an rnn cell descriptor");
-        }
-        desc(algorithm kind): desc(kind, algorithm::undef) {}
-
-        operator const mkldnn_rnn_cell_desc_t*() const { return &c_rnn_cell_; }
-
-        algorithm get_cell_kind() const
-        { return algorithm(c_rnn_cell_.cell_kind); }
-        algorithm get_activation() const
-        { return algorithm(c_rnn_cell_.activation_kind); }
-
-        float get_alpha() const { return c_rnn_cell_.alpha; }
-        void set_alpha(float alpha) {
-            c_rnn_cell_.flags |= mkldnn_rnn_cell_with_relu;
-            c_rnn_cell_.alpha = alpha;
-        }
-
-        float get_clipping() const { return c_rnn_cell_.clipping; }
-        void set_clipping(float clipping) {
-            c_rnn_cell_.flags |= mkldnn_rnn_cell_with_clipping;
-            c_rnn_cell_.clipping = clipping;
-        }
-
-        /// Returns the number of states of a particular RNN cell descriptor.
-        int get_gates_count() const {
-            return mkldnn_rnn_cell_get_gates_count(&c_rnn_cell_);
-        }
-
-        /// Returns the number of states of a particular RNN cell descriptor.
-        int get_state_count() const {
-            return mkldnn_rnn_cell_get_states_count(&c_rnn_cell_);
-        }
-    };
-};
-
 /// RNN for forward propagation.  Implements descriptor, primitive descriptor,
 /// and primitive.
 struct rnn_forward : public primitive {
@@ -3232,9 +3187,14 @@ struct rnn_forward : public primitive {
         mkldnn_rnn_desc_t data;
 
         /// Initializes an RNN descriptor for forward propagation using @p
-        /// prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+        /// prop_kind, @p activation, @p direction, and memory descriptors.
         /// @note If @p prop_kind equals #mkldnn::forward_training, you must
         /// query a workspace memory descriptor before creating the primitive.
+        ///
+        /// @p alpha, @p beta and @p flags are parameters to the RNN descriptor.
+        /// If @p activation is #eltwise_relu, @p alpha represents the negative
+        /// slope.
+        /// @p beta and @p flags are currently ignored.
         ///
         /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
         /// to point to a zero memory descriptor, which would indicate that
@@ -3244,23 +3204,26 @@ struct rnn_forward : public primitive {
         ///     All memory descriptors except @p src_iter_desc can be
         ///     initialized with an #mkldnn::memory::format_tag::any value of @p
         ///     format_kind.
-        desc(prop_kind aprop_kind, rnn_cell::desc cell,
-                const rnn_direction direction,
+        desc(prop_kind aprop_kind, algorithm activation,
+                rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_layer_desc,
-                const memory::desc &dst_iter_desc
-            ) {
-            error::wrap_c_api(mkldnn_rnn_forward_desc_init(&data,
-                        mkldnn::convert_to_c(aprop_kind), cell,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef,
+                float alpha = 0.0f, float beta = 0.0f) {
+            error::wrap_c_api(mkldnn_vanilla_rnn_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(activation),
                         mkldnn::convert_to_c(direction),
                         &src_layer_desc.data, &src_iter_desc.data,
                         &weights_layer_desc.data, &weights_iter_desc.data,
                         &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data),
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags), alpha, beta),
                     "could not create an RNN forward descriptor");
         }
 
@@ -3301,7 +3264,12 @@ struct rnn_backward : public primitive {
         mkldnn_rnn_desc_t data;
 
         /// Initializes an RNN descriptor for backward propagation using @p
-        /// prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+        /// prop_kind, @p activation, @p direction, and memory descriptors.
+        ///
+        /// @p alpha, @p beta and @p flags are parameters to the RNN descriptor.
+        /// If @p activation is #eltwise_relu, @p alpha represents the negative
+        /// slope.
+        /// @p beta and @p flags are currently ignored.
         ///
         /// @note All memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -3310,9 +3278,10 @@ struct rnn_backward : public primitive {
         /// bias_desc (simultaneously with @p diff_bias_desc), and @p
         /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
         /// allowed point to a zero memory descriptor, which would indicate
-        /// that the RNN primitive should not use them.
-        desc(prop_kind aprop_kind, rnn_cell::desc cell,
-                const rnn_direction direction,
+        /// that the RNN primitive should not use them and consider them to be
+        /// zero values.
+        desc(prop_kind aprop_kind, algorithm activation,
+                rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
                 const memory::desc &weights_layer_desc,
@@ -3326,9 +3295,11 @@ struct rnn_backward : public primitive {
                 const memory::desc &diff_weights_iter_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_layer_desc,
-                const memory::desc &diff_dst_iter_desc) {
-            error::wrap_c_api(mkldnn_rnn_backward_desc_init(&data,
-                        mkldnn::convert_to_c(aprop_kind), cell,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef,
+                float alpha = 0.0f, float beta = 0.0f) {
+            error::wrap_c_api(mkldnn_vanilla_rnn_backward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind), mkldnn::convert_to_c(activation),
                         mkldnn::convert_to_c(direction),
                         &src_layer_desc.data, &src_iter_desc.data,
                         &weights_layer_desc.data, &weights_iter_desc.data,
@@ -3337,7 +3308,8 @@ struct rnn_backward : public primitive {
                         &diff_src_layer_desc.data, &diff_src_iter_desc.data,
                         &diff_weights_layer_desc.data,
                         &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data),
+                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags), alpha, beta),
                     "could not create an RNN backward descriptor");
         }
 
@@ -3378,6 +3350,476 @@ struct rnn_backward : public primitive {
 
     // With last iteration (with and without input src_iter)
     rnn_backward(const primitive_desc &pd): primitive(pd) {}
+};
+
+struct lstm_forward : public primitive {
+
+    /// Descriptor for LSTM forward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes an LSTM descriptor for forward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        /// @note If @p prop_kind equals #mkldnn::forward_training, you must
+        /// query a workspace memory descriptor before creating the primitive.
+        ///
+        /// @p flags is a parameter to the LSTM descriptor and is currently
+        /// ignored.
+        ///
+        /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
+        /// to point to a zero memory descriptor, which would indicate that
+        /// the LSTM primitive should not use them.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc can be
+        ///     initialized with an #mkldnn::memory::format_tag::any value of @p
+        ///     format_kind.
+        desc(prop_kind aprop_kind,
+                rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_lstm_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create an LSTM forward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for LSTM forward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    lstm_forward(const primitive_desc &pd): primitive(pd) {}
+};
+
+/// LSTM for backward propagation.  Implements descriptor, primitive descriptor,
+/// and primitive.
+struct lstm_backward : public primitive {
+
+    /// LSTM descriptor for backward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes an LSTM descriptor for backward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        ///
+        /// @p flags is a parameter to the LSTM descriptor and is currently
+        /// ignored.
+        ///
+        /// @note All memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
+        ///
+        /// @p src_iter_desc (simultaneously with @p diff_src_iter_desc), @p
+        /// bias_desc (simultaneously with @p diff_bias_desc), and @p
+        /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
+        /// allowed point to a zero memory descriptor, which would indicate
+        /// that the LSTM primitive should not use them and consider them to be
+        /// zero values.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_lstm_backward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                        &diff_weights_layer_desc.data,
+                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
+                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create an LSTM backward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for LSTM backward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e,
+                const lstm_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
+                const lstm_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+
+        REG_QUERY_MD(diff_src_layer, diff_src, 0);
+        REG_QUERY_MD(diff_src_iter, diff_src, 1);
+        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
+        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
+        REG_QUERY_MD(diff_bias, diff_weights, 2);
+        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
+        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    // With last iteration (with and without input src_iter)
+    lstm_backward(const primitive_desc &pd): primitive(pd) {}
+};
+
+struct gru_forward : public primitive {
+
+    /// Descriptor for GRU forward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes a GRU descriptor for forward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        /// @note If @p prop_kind equals #mkldnn::forward_training, you must
+        /// query a workspace memory descriptor before creating the primitive.
+        ///
+        /// @p flags is a parameter to the GRU descriptor and is currently
+        /// ignored.
+        ///
+        /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
+        /// to point to a zero memory descriptor, which would indicate that
+        /// the GRU primitive should not use them and will default to zero
+        /// values.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc can be
+        ///     initialized with an #mkldnn::memory::format_tag::any value of @p
+        ///     format_kind.
+        desc(prop_kind aprop_kind,
+                rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_gru_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create a GRU forward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for GRU forward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    gru_forward(const primitive_desc &pd): primitive(pd) {}
+};
+
+/// GRU for backward propagation.  Implements descriptor, primitive descriptor,
+/// and primitive.
+struct gru_backward : public primitive {
+
+    /// GRU descriptor for backward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes an GRU descriptor for backward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        ///
+        /// @p flags is a parameter to the GRU descriptor and is currently
+        /// ignored.
+        ///
+        /// @note All memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
+        ///
+        /// @p src_iter_desc (simultaneously with @p diff_src_iter_desc), @p
+        /// bias_desc (simultaneously with @p diff_bias_desc), and @p
+        /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
+        /// allowed point to a zero memory descriptor, which would indicate
+        /// that the GRU primitive should not use them and consider them to be
+        /// zero values.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_gru_backward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                        &diff_weights_layer_desc.data,
+                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
+                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create an GRU backward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for GRU backward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e,
+                const gru_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
+                const gru_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+
+        REG_QUERY_MD(diff_src_layer, diff_src, 0);
+        REG_QUERY_MD(diff_src_iter, diff_src, 1);
+        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
+        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
+        REG_QUERY_MD(diff_bias, diff_weights, 2);
+        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
+        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    // With last iteration (with and without input src_iter)
+    gru_backward(const primitive_desc &pd): primitive(pd) {}
+};
+
+struct lbr_gru_forward : public primitive {
+
+    /// Descriptor for LBR GRU forward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes an LBR GRU descriptor for forward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        /// @note If @p prop_kind equals #mkldnn::forward_training, you must
+        /// query a workspace memory descriptor before creating the primitive.
+        ///
+        /// @p flags is a parameter to the LBR GRU descriptor and is currently
+        /// ignored.
+        ///
+        /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
+        /// to point to a zero memory descriptor, which would indicate that
+        /// the LBR GRU primitive should not use them and will default to zero
+        /// values.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc can be
+        ///     initialized with an #mkldnn::memory::format_tag::any value of @p
+        ///     format_kind.
+        desc(prop_kind aprop_kind,
+                rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_lbr_gru_forward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create a Linear-before-reset GRU forward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for LBR_GRU forward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    lbr_gru_forward(const primitive_desc &pd): primitive(pd) {}
+};
+
+/// LBR_GRU for backward propagation.  Implements descriptor, primitive descriptor,
+/// and primitive.
+struct lbr_gru_backward : public primitive {
+
+    /// LBR_GRU descriptor for backward propagation.
+    struct desc {
+        mkldnn_rnn_desc_t data;
+
+        /// Initializes an LBR_GRU descriptor for backward propagation using @p
+        /// prop_kind, @p direction, and memory descriptors.
+        ///
+        /// @p flags is a parameter to the LBR GRU descriptor and is currently
+        /// ignored.
+        ///
+        /// @note All memory descriptors are allowed to be initialized with
+        ///       #mkldnn::memory::format_tag::any value of @p format_kind.
+        ///
+        /// @p src_iter_desc (simultaneously with @p diff_src_iter_desc), @p
+        /// bias_desc (simultaneously with @p diff_bias_desc), and @p
+        /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
+        /// allowed point to a zero memory descriptor, which would indicate
+        /// that the LBR GRU primitive should not use them and consider them to be
+        /// zero values.
+        desc(prop_kind aprop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(mkldnn_lbr_gru_backward_desc_init(&data,
+                        mkldnn::convert_to_c(aprop_kind),
+                        mkldnn::convert_to_c(direction),
+                        &src_layer_desc.data, &src_iter_desc.data,
+                        &weights_layer_desc.data, &weights_iter_desc.data,
+                        &bias_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data,
+                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                        &diff_weights_layer_desc.data,
+                        &diff_weights_iter_desc.data, &diff_bias_desc.data,
+                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        mkldnn::convert_to_c(flags)),
+                    "could not create an LBR_GRU backward descriptor");
+        }
+
+    };
+
+    /// Primitive descriptor for LBR_GRU backward propagation.
+    struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc(const desc &desc, const engine &e,
+                const lbr_gru_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
+                const lbr_gru_forward::primitive_desc &hint_fwd_pd)
+            : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
+
+        REG_QUERY_MD(src_layer, src, 0);
+        REG_QUERY_MD(src_iter, src, 1);
+        REG_QUERY_MD(weights_layer, weights, 0);
+        REG_QUERY_MD(weights_iter, weights, 1);
+        REG_QUERY_MD(bias, weights, 2);
+        REG_QUERY_MD(dst_layer, dst, 0);
+        REG_QUERY_MD(dst_iter, dst, 1);
+        REG_QUERY_MD(workspace, workspace, 0);
+
+        REG_QUERY_MD(diff_src_layer, diff_src, 0);
+        REG_QUERY_MD(diff_src_iter, diff_src, 1);
+        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
+        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
+        REG_QUERY_MD(diff_bias, diff_weights, 2);
+        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
+        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
+        REG_QUERY_MD(scratchpad, scratchpad, 0);
+    };
+
+    // With last iteration (with and without input src_iter)
+    lbr_gru_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
 /// @}

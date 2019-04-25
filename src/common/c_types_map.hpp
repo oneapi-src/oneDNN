@@ -479,7 +479,6 @@ using batch_normalization_desc_t = mkldnn_batch_normalization_desc_t;
 using inner_product_desc_t = mkldnn_inner_product_desc_t;
 
 using rnn_direction_t = mkldnn_rnn_direction_t;
-using rnn_cell_desc_t = mkldnn_rnn_cell_desc_t;
 using rnn_desc_t = mkldnn_rnn_desc_t;
 
 /* Internal type, declared in gemm_types.hpp */

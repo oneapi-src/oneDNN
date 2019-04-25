@@ -251,14 +251,13 @@ void simple_net() {
             memory::data_type::f32, memory::format_tag::any);
 
     /* Create bidirectional RNN */
-    rnn_cell::desc bi_cell(algorithm::vanilla_lstm);
-    rnn_forward::desc bi_layer_desc(prop_kind::forward_inference, bi_cell,
+    lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
             rnn_direction::bidirectional_concat, user_enc_bidir_src_layer_md,
             memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
             user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc());
 
     auto enc_bidir_prim_desc
-            = mkldnn::rnn_forward::primitive_desc(bi_layer_desc, cpu_engine);
+            = mkldnn::lstm_forward::primitive_desc(bi_layer_desc, cpu_engine);
 
     /* Create memory for input data and use reorders to reorder user data
      * to internal representation */
@@ -281,7 +280,7 @@ void simple_net() {
     auto enc_bidir_dst_layer_memory
             = mkldnn::memory(enc_bidir_prim_desc.dst_layer_desc(), cpu_engine);
 
-    encoder_net.push_back(rnn_forward(enc_bidir_prim_desc));
+    encoder_net.push_back(lstm_forward(enc_bidir_prim_desc));
     encoder_net_args.push_back(
             { { MKLDNN_ARG_SRC_LAYER, user_enc_bidir_src_layer_memory },
                     { MKLDNN_ARG_WEIGHTS_LAYER, enc_bidir_wei_layer_memory },
@@ -338,14 +337,13 @@ void simple_net() {
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?
     /// should be an integer to specify at which layer to start
-    rnn_cell::desc enc_uni_first_cell(algorithm::vanilla_lstm);
-    rnn_forward::desc enc_uni_first_layer_desc(prop_kind::forward_inference,
-            enc_uni_first_cell, rnn_direction::unidirectional_left2right,
+    lstm_forward::desc enc_uni_first_layer_desc(prop_kind::forward_inference,
+            rnn_direction::unidirectional_left2right,
             enc_bidir_dst_layer_md, memory::desc(), enc_uni_first_wei_layer_md,
             enc_uni_first_wei_iter_md, user_enc_uni_first_bias_md,
             enc_uni_first_dst_layer_md, memory::desc());
 
-    auto enc_uni_first_prim_desc = mkldnn::rnn_forward::primitive_desc(
+    auto enc_uni_first_prim_desc = mkldnn::lstm_forward::primitive_desc(
             enc_uni_first_layer_desc, cpu_engine);
 
     auto enc_uni_first_wei_layer_memory
@@ -369,7 +367,7 @@ void simple_net() {
             enc_uni_first_prim_desc.dst_layer_desc(), cpu_engine);
 
     /// @todo add a reorder when they will be available
-    encoder_net.push_back(rnn_forward(enc_uni_first_prim_desc));
+    encoder_net.push_back(lstm_forward(enc_uni_first_prim_desc));
     encoder_net_args.push_back({ { MKLDNN_ARG_SRC_LAYER,
                                          enc_bidir_dst_layer_memory },
             { MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_first_wei_layer_memory },
@@ -420,13 +418,12 @@ void simple_net() {
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?
     /// should be an integer to specify at which layer to start
-    rnn_cell::desc enc_uni_cell(algorithm::vanilla_lstm);
-    rnn_forward::desc enc_uni_layer_desc(prop_kind::forward_inference,
-            enc_uni_cell, rnn_direction::unidirectional_left2right,
+    lstm_forward::desc enc_uni_layer_desc(prop_kind::forward_inference,
+            rnn_direction::unidirectional_left2right,
             enc_uni_first_dst_layer_md, memory::desc(), enc_uni_wei_layer_md,
             enc_uni_wei_iter_md, user_enc_uni_bias_md, enc_dst_layer_md,
             memory::desc());
-    auto enc_uni_prim_desc = mkldnn::rnn_forward::primitive_desc(
+    auto enc_uni_prim_desc = mkldnn::lstm_forward::primitive_desc(
             enc_uni_layer_desc, cpu_engine);
 
     auto enc_uni_wei_layer_memory
@@ -448,7 +445,7 @@ void simple_net() {
             = mkldnn::memory(enc_uni_prim_desc.dst_layer_desc(), cpu_engine);
 
     /// @todo add a reorder when they will be available
-    encoder_net.push_back(rnn_forward(enc_uni_prim_desc));
+    encoder_net.push_back(lstm_forward(enc_uni_prim_desc));
     encoder_net_args.push_back(
             { { MKLDNN_ARG_SRC_LAYER, enc_uni_first_dst_layer_memory },
                     { MKLDNN_ARG_WEIGHTS_LAYER, enc_uni_wei_layer_memory },
@@ -535,13 +532,12 @@ void simple_net() {
     /// @todo add suport for residual connections
     /// should it be a set residual in op_desc or a field to set manually?
     /// should be an integer to specify at which layer to start
-    rnn_cell::desc dec_cell(algorithm::vanilla_lstm);
-    rnn_forward::desc dec_ctx_desc(prop_kind::forward_inference, dec_cell,
+    lstm_forward::desc dec_ctx_desc(prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right, dec_src_layer_md,
             dec_dst_iter_md, dec_wei_layer_md, dec_wei_iter_md,
             user_dec_bias_md, dec_dst_layer_md, dec_dst_iter_noctx_md);
     auto dec_ctx_prim_desc
-            = mkldnn::rnn_forward::primitive_desc(dec_ctx_desc, cpu_engine);
+            = mkldnn::lstm_forward::primitive_desc(dec_ctx_desc, cpu_engine);
 
     auto dec_wei_layer_memory
             = memory(dec_ctx_prim_desc.weights_layer_desc(), cpu_engine);
@@ -558,7 +554,7 @@ void simple_net() {
             .execute(s, user_dec_wei_iter_memory, dec_wei_iter_memory);
 
     /// @todo add a reorder when they will be available
-    decoder_net.push_back(rnn_forward(dec_ctx_prim_desc));
+    decoder_net.push_back(lstm_forward(dec_ctx_prim_desc));
     decoder_net_args.push_back({ { MKLDNN_ARG_SRC_LAYER, dec_src_layer_memory },
             { MKLDNN_ARG_SRC_ITER, dec_dst_iter_memory },
             { MKLDNN_ARG_WEIGHTS_LAYER, dec_wei_layer_memory },

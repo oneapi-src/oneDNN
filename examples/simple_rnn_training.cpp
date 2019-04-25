@@ -217,15 +217,11 @@ void simple_net() {
             { { rightmost_dst_layer_dims }, dt::f32, tag::tnc }, cpu_engine,
             user_rightmost_dst_layer.data());
 
-    // Describe RNN cell
-    rnn_cell::desc uni_cell(algorithm::vanilla_lstm);
-
     // Describe layer, forward pass, leftmost primitive.
     // There are no primitives to the left from here,
     // so src_iter_desc needs to be zero memory desc
-    rnn_forward::desc leftmost_layer_desc(
+    lstm_forward::desc leftmost_layer_desc(
             /* aprop_kind         */ fwd_inf_train,
-            /* cell               */ uni_cell,
             /* direction          */ rnn_direction::unidirectional_left2right,
             /* src_layer_desc     */ user_leftmost_src_layer_md,
             /* src_iter_desc      */ memory::desc(),
@@ -236,7 +232,7 @@ void simple_net() {
             formatted_md(leftmost_dst_layer_dims, tag::tnc),
             /* dst_iter_desc      */ generic_md(leftmost_dst_iter_dims));
     // Describe primitive
-    auto leftmost_prim_desc = mkldnn::rnn_forward::primitive_desc(
+    auto leftmost_prim_desc = mkldnn::lstm_forward::primitive_desc(
             leftmost_layer_desc, cpu_engine);
 
     //
@@ -258,9 +254,8 @@ void simple_net() {
     // Now rightmost primitive
     // There are no primitives to the right from here,
     // so dst_iter_desc is explicit zero memory desc
-    rnn_forward::desc rightmost_layer_desc(
+    lstm_forward::desc rightmost_layer_desc(
             /* aprop_kind         */ fwd_inf_train,
-            /* cell               */ uni_cell,
             /* direction          */ rnn_direction::unidirectional_left2right,
             /* src_layer_desc     */ user_rightmost_src_layer_md,
             /* src_iter_desc      */ rightmost_src_iter_md,
@@ -270,7 +265,7 @@ void simple_net() {
             /* dst_layer_desc     */
             formatted_md(rightmost_dst_layer_dims, tag::tnc),
             /* dst_iter_desc      */ memory::desc());
-    auto rightmost_prim_desc = mkldnn::rnn_forward::primitive_desc(
+    auto rightmost_prim_desc = mkldnn::lstm_forward::primitive_desc(
             rightmost_layer_desc, cpu_engine);
 
     //
@@ -336,14 +331,14 @@ void simple_net() {
     // the workspace_primitive_desc(). This is needed for internal
     // communication between forward and backward primitives during
     // training.
-    auto create_ws = [=](mkldnn::rnn_forward::primitive_desc &pd) {
+    auto create_ws = [=](mkldnn::lstm_forward::primitive_desc &pd) {
         return mkldnn::memory(pd.workspace_desc(), cpu_engine);
     };
     auto leftmost_workspace_memory = create_ws(leftmost_prim_desc);
     auto rightmost_workspace_memory = create_ws(rightmost_prim_desc);
 
     // Construct the RNN primitive objects
-    rnn_forward leftmost_layer(leftmost_prim_desc);
+    lstm_forward leftmost_layer(leftmost_prim_desc);
     leftmost_layer.execute(s,
             { { MKLDNN_ARG_SRC_LAYER, leftmost_src_layer_memory },
                     { MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_memory },
@@ -353,7 +348,7 @@ void simple_net() {
                     { MKLDNN_ARG_DST_ITER, leftmost_dst_iter_memory },
                     { MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory } });
 
-    rnn_forward rightmost_layer(rightmost_prim_desc);
+    lstm_forward rightmost_layer(rightmost_prim_desc);
     rightmost_layer.execute(s,
             { { MKLDNN_ARG_SRC_LAYER, rightmost_src_layer_memory },
                     { MKLDNN_ARG_SRC_ITER, rightmost_src_iter_memory },
@@ -426,9 +421,8 @@ void simple_net() {
     auto rightmost_diff_dst_layer_memory = net_diff_dst_memory;
 
     // Backward leftmost primitive descriptor
-    rnn_backward::desc leftmost_layer_bwd_desc(
+    lstm_backward::desc leftmost_layer_bwd_desc(
             /* aprop_kind              */ prop_kind::backward,
-            /* cell                    */ uni_cell,
             /* direction               */
             rnn_direction::unidirectional_left2right,
             /* src_layer_desc          */ user_leftmost_src_layer_md,
@@ -446,7 +440,7 @@ void simple_net() {
             /* diff_bias_desc          */ generic_md(common_bias_dims),
             /* diff_dst_layer_desc     */ user_leftmost_diff_dst_layer_md,
             /* diff_dst_iter_desc      */ generic_md(leftmost_dst_iter_dims));
-    auto leftmost_bwd_prim_desc = mkldnn::rnn_backward::primitive_desc(
+    auto leftmost_bwd_prim_desc = mkldnn::lstm_backward::primitive_desc(
             leftmost_layer_bwd_desc, cpu_engine, leftmost_prim_desc);
 
     // As the batch dimensions are different between leftmost and rightmost
@@ -463,9 +457,8 @@ void simple_net() {
     auto rightmost_diff_src_iter_memory = leftmost_diff_dst_iter_memory;
 
     // Backward rightmost primitive descriptor
-    rnn_backward::desc rightmost_layer_bwd_desc(
+    lstm_backward::desc rightmost_layer_bwd_desc(
             /* aprop_kind              */ prop_kind::backward,
-            /* cell                    */ uni_cell,
             /* direction               */
             rnn_direction::unidirectional_left2right,
             /* src_layer_desc          */ user_rightmost_src_layer_md,
@@ -483,7 +476,7 @@ void simple_net() {
             /* diff_bias_desc          */ generic_md(common_bias_dims),
             /* diff_dst_layer_desc     */ user_rightmost_diff_dst_layer_md,
             /* diff_dst_iter_desc      */ memory::desc());
-    auto rightmost_bwd_prim_desc = mkldnn::rnn_backward::primitive_desc(
+    auto rightmost_bwd_prim_desc = mkldnn::lstm_backward::primitive_desc(
             rightmost_layer_bwd_desc, cpu_engine, rightmost_prim_desc);
 
     //
@@ -582,7 +575,7 @@ void simple_net() {
     }
 
     // Construct the RNN primitive objects for backward
-    rnn_backward rightmost_layer_bwd(rightmost_bwd_prim_desc);
+    lstm_backward rightmost_layer_bwd(rightmost_bwd_prim_desc);
     rightmost_layer_bwd.execute(s,
             { { MKLDNN_ARG_SRC_LAYER, rightmost_src_layer_bwd_memory },
                     { MKLDNN_ARG_SRC_ITER, rightmost_src_iter_memory },
@@ -604,7 +597,7 @@ void simple_net() {
                             rightmost_diff_dst_layer_memory },
                     { MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory } });
 
-    rnn_backward leftmost_layer_bwd(leftmost_bwd_prim_desc);
+    lstm_backward leftmost_layer_bwd(leftmost_bwd_prim_desc);
     leftmost_layer_bwd.execute(s,
             { { MKLDNN_ARG_SRC_LAYER, leftmost_src_layer_bwd_memory },
                     { MKLDNN_ARG_WEIGHTS_LAYER,

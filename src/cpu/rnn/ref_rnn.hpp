@@ -71,7 +71,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             using namespace utils;
             using namespace format_tag;
             using namespace rnn_utils;
-            const alg_kind_t cell_kind = this->desc()->cell_desc.cell_kind;
+            const alg_kind_t cell_kind = this->desc()->cell_kind;
 
             data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
             data_type_t weights_iter_dt

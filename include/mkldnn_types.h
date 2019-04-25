@@ -1106,27 +1106,8 @@ typedef struct {
 
 /// Flags for RNN cell.
 typedef enum {
-    mkldnn_rnn_cell_with_relu = 0x1U,
-    mkldnn_rnn_cell_with_clipping = 0x2U,
-} mkldnn_rnn_cell_flags_t;
-
-typedef struct {
-    /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
-    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
-    /// or #mkldnn_gru_linear_before_reset.
-    mkldnn_alg_kind_t cell_kind;
-    /// Activation function used. Must be either #mkldnn_eltwise_relu or
-    /// #mkldnn_eltwise_tanh.
-    mkldnn_alg_kind_t activation_kind;
-    /// RNN cell flags
-    unsigned int flags;
-    /// @c alpha is a negative slope parameter (used only if
-    /// `(flags & #mkldnn_rnn_cell_with_relu) != 0`)
-    float alpha;
-    /// clipping parameter (used only if
-    /// `(flags & #mkldnn_rnn_cell_with_clipping) != 0`)
-    float clipping;
-} mkldnn_rnn_cell_desc_t;
+    mkldnn_rnn_flags_undef = 0x0
+} mkldnn_rnn_flags_t;
 
 /// A direction of RNN primitive execution.
 typedef enum {
@@ -1151,11 +1132,9 @@ typedef struct {
     /// The kind of propagation. Possible values: #mkldnn_forward_training,
     /// #mkldnn_forward_inference, and #mkldnn_backward.
     mkldnn_prop_kind_t prop_kind;
-    /// The RNN cell desc.
-    mkldnn_rnn_cell_desc_t cell_desc;
     /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
     /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
-    /// or #mkldnn_lbr_gru.
+    /// or #mkldnn_gru_linear_before_reset.
     mkldnn_alg_kind_t cell_kind;
     /// The direction of RNN primitive execution.
     mkldnn_rnn_direction_t direction;
@@ -1173,6 +1152,10 @@ typedef struct {
     mkldnn_memory_desc_t dst_layer_desc;
     /// Destination iter memory descriptor.
     mkldnn_memory_desc_t dst_iter_desc;
+    /// Placeholders
+    mkldnn_memory_desc_t placeholder_desc;
+    mkldnn_memory_desc_t placeholder2_desc;
+
     /// Source gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_src_layer_desc;
     /// Source gradient iter memory descriptor.
@@ -1187,6 +1170,18 @@ typedef struct {
     mkldnn_memory_desc_t diff_dst_layer_desc;
     /// Destination gradient iteration memory descriptor.
     mkldnn_memory_desc_t diff_dst_iter_desc;
+    /// Placeholders
+    mkldnn_memory_desc_t diff_placeholder_desc;
+    mkldnn_memory_desc_t diff_placeholder2_desc;
+
+    /// RNN cell flags
+    unsigned int flags;
+    /// Activation function used for vanilla_rnn cell kind.
+    /// Must be either #mkldnn_eltwise_relu or #mkldnn_eltwise_tanh.
+    mkldnn_alg_kind_t activation_kind;
+    float alpha;
+    float beta;
+
 } mkldnn_rnn_desc_t;
 
 /// Transposition settings for GEMM operation

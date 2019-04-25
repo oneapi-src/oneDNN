@@ -168,20 +168,13 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
                 = dst_last_iteration_d.format_desc.blocking.strides[d + 1]
                 * dst_last_iteration_d.dims[d + 1];
 
-    mkldnn_alg_kind_t kind = alg2kind(p->alg);
-    mkldnn_alg_kind_t f = activation2kind(p->activation);
-
-    mkldnn_rnn_cell_desc_t rcd;
-    DNN_SAFE(mkldnn_rnn_cell_desc_init(&rcd, kind, f, 0U, 0, 0), WARN);
     // Initializing the forward pass
     // When inference, we use forward_inference
     // When training, we use forward_training
     {
-        mkldnn_status_t init_status = mkldnn_success;
-        init_status = mkldnn_rnn_forward_desc_init(&rd[0], fwd_prop, &rcd,
-                         p->direction, &input_d, &states_d, &weights_input_d,
-                         &weights_states_d, &bias_d, &dst_last_layer_d,
-                         &dst_last_iteration_d);
+        mkldnn_status_t init_status = init_rnn_fwd_desc(rd, p, fwd_prop, &input_d,
+                &states_d, &weights_input_d, &weights_states_d, &bias_d,
+                &dst_last_layer_d, &dst_last_iteration_d);
         if (init_status == mkldnn_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         else
@@ -214,14 +207,15 @@ inline int init_pd(const rnn_prb_t *p, mkldnn_rnn_desc_t rd[2],
                          dst_last_iteration_dims,
                          p->cfg[diff_last_iteration].dt, mkldnn_format_tag_any),
                 WARN);
-        DNN_SAFE(mkldnn_rnn_backward_desc_init(&rd[1], p->prop, &rcd,
-                         p->direction, &input_d, &states_d, &weights_input_d,
+        DNN_SAFE(init_rnn_bwd_desc(rd + 1, p, p->prop,
+                         &input_d, &states_d, &weights_input_d,
                          &weights_states_d, &bias_d, &dst_last_layer_d,
                          &dst_last_iteration_d, &diff_input_d, &diff_states_d,
                          &diff_weights_input_d, &diff_weights_states_d,
                          &diff_bias_d, &diff_last_layer_d,
                          &diff_last_iteration_d),
                 WARN);
+
     }
     auto mkldnn_attr = create_mkldnn_rnn_attr(p);
     mkldnn_status_t init_status = mkldnn_success;

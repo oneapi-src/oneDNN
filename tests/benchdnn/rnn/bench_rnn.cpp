@@ -34,13 +34,16 @@ namespace rnn {
 mkldnn_prop_kind_t prop = mkldnn_forward;
 alg_t alg = VANILLA_RNN;
 mkldnn_rnn_direction_t direction = mkldnn_unidirectional_left2right;
-activation_t activation = RELU;
 const char *perf_template = "perf,%n,%d,%GO,%GF,%-t,%-Gp,%0t,%0Gp";
 const dt_conf_t *cfg = conf_f32;
 policy_t scale_policy = NONE;
 attr_t attr;
 bool allow_unimpl = false;
 int mb = 0;
+unsigned int flags = 0x0;
+activation_t activation = RELU;
+float alpha = 0.0f;
+float beta = 0.0f;
 
 void reset_parameters() {
     cfg = conf_f32;
@@ -111,8 +114,8 @@ int bench(int argc, char **argv, bool main_bench) {
 }
 
 void check(rnn_desc_t *d) {
-    const rnn_prb_t p(*d, cfg, prop, alg, direction, activation, attr,
-        scale_policy, mb);
+    const rnn_prb_t p(*d, cfg, prop, alg, direction, attr,
+        scale_policy, mb, flags, activation, alpha, beta);
     res_t res{};
     char pstr[max_prb_len];
 

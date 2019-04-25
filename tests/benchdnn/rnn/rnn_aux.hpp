@@ -37,6 +37,25 @@ typedef enum {
 
 typedef enum { action_copy = 0, action_sum, action_concat } rnn_action_t;
 
+mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d);
+
+mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const rnn_prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *diff_src_layer_d,
+       mkldnn_memory_desc_t *diff_src_iter_d,
+       mkldnn_memory_desc_t *diff_weights_layer_d,
+       mkldnn_memory_desc_t *diff_weights_iter_d,
+       mkldnn_memory_desc_t *diff_bias_d,
+       mkldnn_memory_desc_t *diff_dst_layer_d,
+       mkldnn_memory_desc_t *diff_dst_iter_d);
+
 void init_buffer(float *buf, int64_t size, float value);
 
 float logistic(float x);
