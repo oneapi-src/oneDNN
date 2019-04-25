@@ -213,6 +213,31 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR(s8, goiw, s8, Goiw16g_s8s8, fmt_order::keep),
     REG_SR(f32, goihw, s8, Goihw16g_s8s8, fmt_order::keep),
     REG_SR(s8, goihw, s8, Goihw16g_s8s8, fmt_order::keep),
+
+    /* bf16 */
+    REG_SR_BIDIR(bf16, any, bf16, nChw16c),
+
+    REG_SR(f32, nchw, bf16, nChw16c, fmt_order::keep),
+    REG_SR(bf16, nChw16c, f32, nchw, fmt_order::keep),
+
+    REG_SR(f32, oihw, bf16, OIhw8i16o2i, fmt_order::keep),
+    REG_SR(f32, oihw, bf16, IOhw8i16o2i, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gOIhw8i16o2i, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gIOhw8i16o2i, fmt_order::keep),
+    REG_SR(f32, oihw, bf16, OIhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gOIhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, oihw, bf16, IOhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gIOhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, oihw, bf16, OIhw16i16o, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gOIhw16i16o, fmt_order::keep),
+
+    REG_SR(bf16, OIhw16i16o, f32, oihw, fmt_order::keep),
+    REG_SR(bf16, gOIhw16i16o, f32, goihw, fmt_order::keep),
+
+    REG_SR(bf16, any, bf16, any, fmt_order::any, spec::reference),
+    REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference),
+    REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference),
+
     /* s16 <-> s16 */
     REG_SR_DIRECT_COPY(s16, s16),
 
