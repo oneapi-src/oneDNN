@@ -476,7 +476,7 @@ struct mkldnn_gemm<float, float, float> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
-        engine eng(get_test_engine_kind(), 0);
+        engine eng = a_mem.get().get_engine();
         stream s(eng);
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
