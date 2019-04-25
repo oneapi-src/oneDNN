@@ -139,8 +139,8 @@ struct jit_ref_rnn_kernel {
         jit.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
         jit.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
         jit.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
-        jit.define_int("GRU_LINEAR_BEFORE_RESET",
-                alg_kind::gru_linear_before_reset);
+        jit.define_int("LBR_GRU",
+                alg_kind::lbr_gru);
         jit.define_int("CELL_KIND", jrnn.cell_kind);
 
         jit.define_int("ELTWISE_RELU", alg_kind::eltwise_relu);

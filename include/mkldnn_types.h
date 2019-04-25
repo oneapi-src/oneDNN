@@ -649,7 +649,7 @@ typedef enum {
     /// \f[ c_t = tanh(W_c*x_t + b_{c_x} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
     /// Primitive expects 4 biases on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
-    mkldnn_gru_linear_before_reset = 0x4fff,
+    mkldnn_lbr_gru = 0x4fff,
 } mkldnn_alg_kind_t;
 
 /// Flags for batch-normalization primititve.
@@ -1153,6 +1153,10 @@ typedef struct {
     mkldnn_prop_kind_t prop_kind;
     /// The RNN cell desc.
     mkldnn_rnn_cell_desc_t cell_desc;
+    /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
+    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
+    /// or #mkldnn_lbr_gru.
+    mkldnn_alg_kind_t cell_kind;
     /// The direction of RNN primitive execution.
     mkldnn_rnn_direction_t direction;
     /// Source layer memory descriptor.

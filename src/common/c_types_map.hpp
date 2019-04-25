@@ -83,7 +83,7 @@ namespace alg_kind {
     const alg_kind_t vanilla_rnn = mkldnn_vanilla_rnn;
     const alg_kind_t vanilla_lstm = mkldnn_vanilla_lstm;
     const alg_kind_t vanilla_gru = mkldnn_vanilla_gru;
-    const alg_kind_t gru_linear_before_reset = mkldnn_gru_linear_before_reset;
+    const alg_kind_t lbr_gru = mkldnn_lbr_gru;
 }
 
 using data_type_t = mkldnn_data_type_t;

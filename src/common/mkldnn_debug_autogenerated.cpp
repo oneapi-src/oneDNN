@@ -378,7 +378,7 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_vanilla_rnn) return "vanilla_rnn";
     if (v == mkldnn_vanilla_lstm) return "vanilla_lstm";
     if (v == mkldnn_vanilla_gru) return "vanilla_gru";
-    if (v == mkldnn_gru_linear_before_reset) return "gru_linear_before_reset";
+    if (v == mkldnn_lbr_gru) return "lbr_gru";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }

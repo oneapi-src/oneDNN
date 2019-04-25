@@ -123,7 +123,7 @@ struct rnn_pd_t : public primitive_desc_t {
     { return desc_.cell_desc.activation_kind; }
 
     bool is_lbr() const
-    { return cell_kind() == mkldnn_gru_linear_before_reset; }
+    { return cell_kind() == mkldnn_lbr_gru; }
 
     mkldnn_rnn_direction_t direction() const { return desc_.direction; }
 

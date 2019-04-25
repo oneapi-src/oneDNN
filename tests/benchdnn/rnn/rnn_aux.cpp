@@ -78,7 +78,7 @@ mkldnn_alg_kind_t alg2kind(alg_t alg) {
     if (alg == VANILLA_GRU)
         return mkldnn_vanilla_gru;
     if (alg == LBR_GRU)
-        return mkldnn_gru_linear_before_reset;
+        return mkldnn_lbr_gru;
     assert(!"unknown algorithm");
     return mkldnn_alg_kind_undef;
 }

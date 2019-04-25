@@ -64,7 +64,7 @@ template <typename src_data_t, typename acc_data_t>
                     param4_ = &c_states_tm1_l(i, 0);
                     param5_ = &c_states_t_l(i, 0);
                     break;
-                case alg_kind::gru_linear_before_reset:
+                case alg_kind::lbr_gru:
                     param4_ = &states_tm1_l(i, 0);
                     param5_ = &ws_gemm(i, 0, 0);
                     break;

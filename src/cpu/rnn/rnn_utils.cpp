@@ -66,7 +66,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn.is_lbr = rd.cell_desc.cell_kind == mkldnn_gru_linear_before_reset;
+    rnn.is_lbr = rd.cell_desc.cell_kind == mkldnn_lbr_gru;
 
     switch (rd.direction) {
     case mkldnn_unidirectional_left2right: rnn.exec_dir = l2r; break;
@@ -127,7 +127,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.merge_gemm_layer = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
             || is_int8;
     bool is_gru = utils::one_of(rd.cell_desc.cell_kind, alg_kind::vanilla_gru,
-            alg_kind::gru_linear_before_reset);
+            alg_kind::lbr_gru);
     rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru) || is_int8;
     bool is_inference = !rnn.is_training;
 

@@ -139,7 +139,7 @@ struct rnn_postgemm_dispatcher {
                 postgemm_part2_func = &class_name::gru_part2_postgemm;   
             }
             break;
-        case alg_kind::gru_linear_before_reset:
+        case alg_kind::lbr_gru:
             postgemm_func = &class_name::gru_lbr_postgemm;
 	    // jitted path
 	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {

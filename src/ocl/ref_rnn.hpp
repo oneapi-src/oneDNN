@@ -145,7 +145,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
             ok = ok && utils::one_of(cell_kind, alg_kind::vanilla_rnn,
                                alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                               alg_kind::gru_linear_before_reset);
+                               alg_kind::lbr_gru);
             DPRINT("%s(%d) ok=%d\n",__FUNCTION__,__LINE__,(int)ok);
 
             ok = ok && this->with_bias();
@@ -410,7 +410,7 @@ struct _ref_rnn_common_t : public primitive_t {
         case alg_kind::vanilla_gru:
             cell_func = &class_name::cell_execution_gru;
             break;
-        case alg_kind::gru_linear_before_reset:
+        case alg_kind::lbr_gru:
             cell_func = &class_name::cell_execution_gru_lbr;
             elemwise_func = &class_name::gru_lbr_elemwise;
             break;
