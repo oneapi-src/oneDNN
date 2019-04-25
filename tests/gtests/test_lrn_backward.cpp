@@ -273,6 +273,7 @@ protected:
             args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
         }
         l.execute(*strm, args);
+        strm->wait();
 
         check_zero_tail<data_t>(0, dst->get());
 
@@ -310,6 +311,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
                 {MKLDNN_ARG_WORKSPACE, *workspace},
                 {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
+        strm->wait();
 
         check_zero_tail<data_t>(0, diff_src->get());
 

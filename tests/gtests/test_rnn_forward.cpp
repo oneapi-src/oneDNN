@@ -175,6 +175,7 @@ protected:
             for(size_t i = 0; i < n_elems; i++)
                 b_ptr[i] = i;
             reorder(b, a).execute(strm, b, a);
+            strm.wait();
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
@@ -192,6 +193,7 @@ protected:
                 {MKLDNN_ARG_BIAS, bias_ref},
                 {MKLDNN_ARG_DST_LAYER, dst_layer_ref},
                 {MKLDNN_ARG_DST_ITER, dst_iter_ref}});
+        strm.wait();
 
         // run the packed version
         rnn_forward::desc tgt_desc(prop_kind::forward_inference, cell,
@@ -207,6 +209,7 @@ protected:
                 {MKLDNN_ARG_BIAS, bias_tgt},
                 {MKLDNN_ARG_DST_LAYER, dst_layer_tgt},
                 {MKLDNN_ARG_DST_ITER, dst_iter_tgt}});
+        strm.wait();
 
         // compare dst_layer and dst_iter
         compare_data<data_t>(dst_layer_ref, dst_layer_tgt, 1e-5);

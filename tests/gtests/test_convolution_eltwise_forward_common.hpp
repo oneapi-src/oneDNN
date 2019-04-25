@@ -191,6 +191,7 @@ protected:
                     {MKLDNN_ARG_WEIGHTS, c_weights},
                     {MKLDNN_ARG_BIAS, c_bias},
                     {MKLDNN_ARG_DST, c_dst}});
+            strm.wait();
         };
 
         if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))

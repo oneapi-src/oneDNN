@@ -138,6 +138,7 @@ protected:
         shuffle_forward(*shuffle_fwd_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_SRC, src->get()},
                 {MKLDNN_ARG_DST, dst->get()}});
+        strm->wait();
 
         check_shuffle<data_t>(p, src->get(), dst->get(), p.group_size);
     }
@@ -162,6 +163,7 @@ protected:
         shuffle_backward(shuffle_prim_desc).execute(*strm, {
                 {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
                 {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
+        strm->wait();
 
         const int axis_size = diff_dst_desc->data.dims[p.axis];
         check_shuffle<data_t>(p, diff_dst->get(), diff_src->get(),

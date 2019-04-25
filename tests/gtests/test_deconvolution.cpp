@@ -231,6 +231,7 @@ protected:
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
                 {MKLDNN_ARG_BIAS, bias->get()},
                 {MKLDNN_ARG_DST, dst->get()}});
+        strm->wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -255,6 +256,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
                 {MKLDNN_ARG_DIFF_SRC, conv_src.get()}});
+        strm->wait();
 
         if(with_bias) compute_bias_fwd<data_t>(dd, conv_src.get(), bias->get());
         compare_data<data_t>(conv_src.get(), dst->get());
@@ -297,6 +299,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
                 {MKLDNN_ARG_DIFF_SRC, src->get()}});
+        strm->wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -311,6 +314,7 @@ protected:
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
                 {MKLDNN_ARG_DST, conv_dst.get()}});
+        strm->wait();
 
         compare_data<data_t>(conv_dst.get(), src->get());
     }
@@ -351,6 +355,7 @@ protected:
                     {MKLDNN_ARG_SRC, src->get()},
                     {MKLDNN_ARG_DIFF_WEIGHTS, weights->get()},
                     {MKLDNN_ARG_DIFF_BIAS, bias->get()}});
+        strm->wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
@@ -375,6 +380,7 @@ protected:
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
+        strm->wait();
 
         auto weights_tr = memory(*con_weights_desc, *eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);

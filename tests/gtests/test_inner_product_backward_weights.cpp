@@ -197,6 +197,7 @@ protected:
                 {MKLDNN_ARG_SRC, *ip_src},
                 {MKLDNN_ARG_DIFF_WEIGHTS, *ip_diff_weights},
                 {MKLDNN_ARG_DIFF_BIAS, *ip_diff_bias}});
+        strm.wait();
 
         compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
                 *ip_diff_dst, *diff_weights_ref);
