@@ -29,6 +29,9 @@
 
 namespace mkldnn {
 namespace impl {
+
+struct exec_ctx_t;
+
 enum memory_flags_t {
     alloc = 0x1,
     use_backend_ptr = 0x2,
@@ -68,6 +71,7 @@ struct mkldnn_memory : public mkldnn::impl::c_compatible {
 
     /** zeros padding */
     mkldnn::impl::status_t zero_pad() const;
+    mkldnn::impl::status_t zero_pad(const mkldnn::impl::exec_ctx_t &ctx) const;
 
 protected:
     mkldnn::impl::engine_t *engine_;
@@ -75,7 +79,7 @@ protected:
 
 private:
     template <mkldnn::impl::data_type_t>
-    mkldnn::impl::status_t typed_zero_pad() const;
+    mkldnn::impl::status_t typed_zero_pad(void *ptr) const;
 
     mkldnn_memory() = delete;
     mkldnn_memory(const mkldnn_memory &) = delete;

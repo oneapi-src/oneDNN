@@ -74,6 +74,10 @@ struct exec_ctx_t {
             const memory_storage_t *mem_storage, void *data);
     void *data_handle(int arg) const;
 
+    void *map_memory_storage(const memory_storage_t *storage) const;
+    void unmap_memory_storage(
+            const memory_storage_t *storage, void *mapped_ptr) const;
+
 private:
     stream_t *stream_;
     exec_args_t args_;

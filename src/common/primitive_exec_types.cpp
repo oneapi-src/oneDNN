@@ -102,5 +102,25 @@ void *exec_ctx_t::data_handle(int arg) const {
     return mem->memory_storage()->data_handle();
 }
 
+void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
+    if (memory_storage_mapping_.count(storage) > 0)
+        return memory_storage_mapping_.at(storage);
+
+    void *mapped_ptr;
+    status_t status = storage->map_data(&mapped_ptr);
+    assert(status == status::success);
+    MAYBE_UNUSED(status);
+    return mapped_ptr;
+}
+
+void exec_ctx_t::unmap_memory_storage(
+        const memory_storage_t *storage, void *mapped_ptr) const {
+    if (memory_storage_mapping_.count(storage) > 0)
+        return;
+
+    status_t status = storage->unmap_data(mapped_ptr);
+    assert(status == status::success);
+    MAYBE_UNUSED(status);
+}
 }
 }

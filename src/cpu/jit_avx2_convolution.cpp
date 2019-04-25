@@ -159,7 +159,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     parallel(0, ker);
 
     if (pd()->wants_zero_pad_dst())
-        ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+        ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
 }
 
 void jit_avx2_convolution_bwd_data_t::execute_backward_data(

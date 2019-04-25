@@ -138,7 +138,7 @@ void _jit_uni_dw_convolution_fwd_t<isa>::execute_forward(
     });
 
     if (pd()->wants_zero_pad_dst())
-        ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+        ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
 }
 
 template struct _jit_uni_dw_convolution_fwd_t<avx512_common>;

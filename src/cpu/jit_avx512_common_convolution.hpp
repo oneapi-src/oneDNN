@@ -97,7 +97,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
             assert(false);
 
         if (pd()->wants_zero_pad_dst())
-            ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+            ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
 
         return status::success;
     }

@@ -91,7 +91,7 @@ execute_forward(const exec_ctx_t &ctx) const {
     });
 
     if (pd()->wants_zero_pad_dst())
-        ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+        ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
