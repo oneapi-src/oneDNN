@@ -1284,8 +1284,10 @@ struct memory: public handle<mkldnn_memory_t> {
                 mkldnn_memory_get_data_handle(get(), &handle_ptr),
                 "could not get SYCL buffer object");
 
+        // XXX: workaround for ComputeCpp
+        // ComputeCpp fails to construct zero-range buffer
         if (!handle_ptr)
-            return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(0));
+            return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(1));
 
 #if MKLDNN_ENABLE_SYCL_VPTR
         if (offset)
