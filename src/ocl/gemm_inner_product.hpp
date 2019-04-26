@@ -139,9 +139,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        pd()->gemm_pd_->create_primitive(&gemm_);
-    }
+    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_fwd_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -222,9 +220,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
-        pd()->gemm_pd_->create_primitive(&gemm_);
-    }
+    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_bwd_data_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -327,9 +323,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
-        pd()->gemm_pd_->create_primitive(&gemm_);
-    }
+    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_bwd_weights_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
