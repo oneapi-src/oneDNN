@@ -45,6 +45,7 @@ find_file(INTEL_SYCL_VERSION
     PATHS
         ${sycl_root_hints}
     PATH_SUFFIXES
+        include/CL/sycl
         lib/clang/9.0.0/include/CL/sycl
         lib/clang/8.0.0/include/CL/sycl
     NO_DEFAULT_PATH)
@@ -89,14 +90,7 @@ if(INTEL_SYCL_VERSION)
         include_directories(${OpenCL_INCLUDE_DIR})
     endif()
 
-    if(WIN32 AND NOT MINGW)
-        include_directories(${SYCL_INCLUDE_DIR})
-    else()
-        # Add SYCL include path to the end to avoid using the standard C/C++ headers
-        # from the SYCL distribution as they may be clang-specific and incompatible
-        # with the compiler used for building
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter ${SYCL_INCLUDE_DIR}")
-    endif()
+    include_directories(${SYCL_INCLUDE_DIR})
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsycl")
