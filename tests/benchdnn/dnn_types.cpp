@@ -110,6 +110,8 @@ data_kind_t fmt2data_kind(mkldnn_memory_format_t fmt) {
     case mkldnn_hwigo_s8s8:
     case mkldnn_gOIhw8i8o:
     case mkldnn_gOIhw16i16o:
+    case mkldnn_gOIhw2i8o4i:
+    case mkldnn_gOIhw2i8o4i_s8s8:
     case mkldnn_gOIhw4i16o4i:
     case mkldnn_gOIhw4i16o4i_s8s8:
     case mkldnn_gOIhw8i16o2i:
@@ -117,6 +119,8 @@ data_kind_t fmt2data_kind(mkldnn_memory_format_t fmt) {
     case mkldnn_gOIdhw8i16o2i:
     case mkldnn_gOIhw8o16i2o:
     case mkldnn_gIOhw8o16i2o:
+    case mkldnn_gOIhw4o4i:
+    case mkldnn_gOIhw4o4i_s8s8:
     case mkldnn_gOIhw8o8i:
     case mkldnn_gOIhw16o16i:
     case mkldnn_gIOhw16o16i:

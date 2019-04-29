@@ -47,6 +47,11 @@
 --alg=bootstrap
 --idt=s8,f32
 --odt=s8
+
 --ifmt=hwio --ofmt=hwio_s8s8 32x32x3x3
 --ifmt=hwigo --ofmt=hwigo_s8s8 2x32x32x3x3
 --ifmt=hwio --ofmt=OIhw4i16o4i_s8s8 32x32x3x3
+--ifmt=hwigo --ofmt=gOIhw4i16o4i_s8s8 2x32x32x3x3
+--ifmt=hwigo --ofmt=gOIhw4o4i_s8s8 2x36x36x3x3
+--ifmt=hwigo --ofmt=gOIhw2i8o4i_s8s8 2x40x40x3x3
+--ifmt=hwigo --ofmt=Goihw16g_s8s8 512x1x1x3x3

@@ -176,7 +176,7 @@ typename utils::enable_if<fmt_i == any && (false
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<(
-                utils::one_of(fmt_i, goihw, oihw, goiw, oiw, hwio)
+                utils::one_of(fmt_i, goihw, oihw, goiw, oiw, hwio, hwigo)
                 && (format_traits<fmt_o>::blk_fmt == bf::_4i16o4i_s8s8
                            || format_traits<fmt_o>::blk_fmt == bf::_2i8o4i_s8s8
                            || format_traits<fmt_o>::blk_fmt
@@ -193,7 +193,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         return input_d.format() == fmt_i
             && output_d.format() == fmt_o
-            && (input_d.data_type() == f32 || input_d.data_type() == s8)
+            && utils::one_of(input_d.data_type(), f32, s8)
             && output_d.data_type() == s8
             && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
@@ -211,7 +211,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int blksize = format_traits<fmt_o>::blk_size;
         const int sblk = 4;
 
-        const auto &_g_oihw_d = order_keep ? input_d : output_d;
+        const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep
             ? output_d.blocking_desc().padding_dims
@@ -239,12 +239,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             int32_t *c, const float *s, const int oc_block, const int ic_block) {
             for (int ic = 0; ic < ic_block; ++ic) {
             for (int oc = 0; oc < oc_block; ++oc) {
-                const auto _g_oihw_off =
-                    oc * _g_oihw_d.blocking_desc().strides[0][w_groups + 0]
-                  + ic * _g_oihw_d.blocking_desc().strides[0][w_groups + 1];
+                const auto plain_off =
+                    oc * plain_d.blocking_desc().strides[0][w_groups + 0]
+                  + ic * plain_d.blocking_desc().strides[0][w_groups + 1];
                 out[index(ic, oc)]
                     = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                            inp[_g_oihw_off], s[oc] * adj_scale, rmode);
+                            inp[plain_off], s[oc] * adj_scale, rmode);
                 c[oc] -= (128 * (int32_t)(out[index(ic, oc)]));
             }
             }
@@ -581,8 +581,8 @@ typename utils::enable_if<
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<true
-        && ((fmt_i == goiw || fmt_i == goihw)
-        && (fmt_o == Goiw16g_s8s8 || fmt_o == Goihw16g_s8s8))>::type> {
+        && utils::one_of(fmt_i, goiw, goihw, hwigo)
+        && format_traits<fmt_o>::blk_fmt == bf::_16g_s8s8>::type> {
 
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -595,7 +595,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             && order_keep
             && input_d.format() == fmt_i
             && output_d.format() == fmt_o
-            && (input_d.data_type() == f32 || input_d.data_type() == s8)
+            && utils::one_of(input_d.data_type(), f32, s8)
             && output_d.data_type() == s8
             && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
@@ -607,8 +607,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr int is_1d = fmt_i == goiw;
-        const int blksize = 16;
+        constexpr int is_1d = format_traits<fmt_o>::ndims_sp == 1;
+        const int blksize = format_traits<fmt_o>::blk_size;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.blocking_desc().padding_dims;

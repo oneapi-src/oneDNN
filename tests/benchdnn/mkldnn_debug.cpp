@@ -138,10 +138,14 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(gOIhw8i16o2i);
     CASE(gIOhw8i16o2i);
     CASE(gOIdhw8i16o2i);
+    CASE(gOIhw2i8o4i);
+    CASE(gOIhw2i8o4i_s8s8);
     CASE(gOIhw4i16o4i);
     CASE(gOIhw4i16o4i_s8s8);
     CASE(gOIhw8o16i2o);
     CASE(gIOhw8o16i2o);
+    CASE(gOIhw4o4i);
+    CASE(gOIhw4o4i_s8s8);
     CASE(gOIhw8o8i);
     CASE(gOIhw16o16i);
     CASE(gIOhw16o16i);

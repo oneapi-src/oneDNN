@@ -193,26 +193,34 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR(s8, any, s8, hwigo_s8s8, fmt_order::keep),
 
     REG_SR(f32, goihw, s8, gOIhw4o4i_s8s8, fmt_order::keep),
+    REG_SR(f32, hwigo, s8, gOIhw4o4i_s8s8, fmt_order::keep),
     REG_SR(s8, goihw, s8, gOIhw4o4i_s8s8, fmt_order::keep),
+    REG_SR(s8, hwigo, s8, gOIhw4o4i_s8s8, fmt_order::keep),
 
     REG_SR(f32, oiw, s8, OIw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(f32, goiw, s8, gOIw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(f32, oihw, s8, OIhw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(f32, goihw, s8, gOIhw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(f32, hwio, s8, OIhw4i16o4i_s8s8, fmt_order::keep),
+    REG_SR(f32, hwigo, s8, gOIhw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(s8, oiw, s8, OIw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(s8, goiw, s8, gOIw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(s8, oihw, s8, OIhw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(s8, goihw, s8, gOIhw4i16o4i_s8s8, fmt_order::keep),
     REG_SR(s8, hwio, s8, OIhw4i16o4i_s8s8, fmt_order::keep),
+    REG_SR(s8, hwigo, s8, gOIhw4i16o4i_s8s8, fmt_order::keep),
 
     REG_SR(f32, goihw, s8, gOIhw2i8o4i_s8s8, fmt_order::keep),
+    REG_SR(f32, hwigo, s8, gOIhw2i8o4i_s8s8, fmt_order::keep),
     REG_SR(s8, goihw, s8, gOIhw2i8o4i_s8s8, fmt_order::keep),
+    REG_SR(s8, hwigo, s8, gOIhw2i8o4i_s8s8, fmt_order::keep),
 
     REG_SR(f32, goiw, s8, Goiw16g_s8s8, fmt_order::keep),
-    REG_SR(s8, goiw, s8, Goiw16g_s8s8, fmt_order::keep),
     REG_SR(f32, goihw, s8, Goihw16g_s8s8, fmt_order::keep),
+    REG_SR(f32, hwigo, s8, Goihw16g_s8s8, fmt_order::keep),
+    REG_SR(s8, goiw, s8, Goiw16g_s8s8, fmt_order::keep),
     REG_SR(s8, goihw, s8, Goihw16g_s8s8, fmt_order::keep),
+    REG_SR(s8, hwigo, s8, Goihw16g_s8s8, fmt_order::keep),
 
     /* bf16 */
     REG_SR_BIDIR(bf16, any, bf16, nChw16c),
