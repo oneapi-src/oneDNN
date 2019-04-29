@@ -337,10 +337,12 @@ int check_reorder(const prb_t *p, res_t *res) {
 
             /* Step 5b: compare results (expect bit-wise exactness) */
             int diff = 0;
-            SAFE(diff = memcmp((void *)mem_test_dt_out_fmt_out,
-                         (void *)mem_dt_out_fmt_out, mem_dt_out_fmt_out.size()),
-                    WARN);
+            diff = memcmp((void *)mem_test_dt_out_fmt_out,
+                    (void *)mem_dt_out_fmt_out, mem_dt_out_fmt_out.size());
+            res->errors = diff == 0 ? 0 : 1;
             res->state = diff == 0 ? PASSED : FAILED;
+            res->total = 1;
+            SAFE(res->state == FAILED ? FAIL : OK, WARN);
         } else {
             /* (default) "reference" algorithm: compare to benchdnn reorder */
 
