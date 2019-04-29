@@ -133,6 +133,12 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_convolution_bwd_weights_t<f32, f32, f32, f32>),
     /* conv (bfloat16) */
+    INSTANCE(jit_uni_dw_convolution_fwd_t<avx512_core, bf16, bf16>),
+    INSTANCE(jit_uni_dw_convolution_fwd_t<avx512_core, bf16, f32>),
+    INSTANCE(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, bf16>),
+    INSTANCE(jit_uni_dw_convolution_bwd_data_t<avx512_core, bf16, f32>),
+    INSTANCE(jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16, bf16>),
+    INSTANCE(jit_uni_dw_convolution_bwd_weights_t<avx512_core, bf16, f32>),
     INSTANCE(jit_avx512_core_bf16_convolution_fwd_t),
     INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t),
     INSTANCE(jit_avx512_core_bf16_convolution_bwd_weights_t),
