@@ -152,7 +152,7 @@ template <>
 void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_vreg_mask_q(int ll) {
 
     // extract ll-th part of mask (ll-th QWORD)
-    vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << ll); // 0x3 - mask for 2 x DWORD
+    vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << 2*ll); // 0x3 - mask for 2 x DWORD
 
     // Move mask from ll-th pos to 0-th pos
     if (ll>0)
