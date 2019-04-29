@@ -113,9 +113,10 @@ struct jit_conv_conf_t {
     int ur_ow_max, ur_ow, ur_ow_tail;
     int ur_ow_nsteps;
     data_type_t bia_dt;
+    /* bf16 data-type for output */
     data_type_t dst_dt;
-    /* bf16 weights update */
-    data_type_t wei_dt;
+    data_type_t dsrc_dt;
+    data_type_t dwei_dt;
     /* avx512: max possible value is nregs(32) - aux_regs(4) */
     int src_offsets[28];
     int src_count;

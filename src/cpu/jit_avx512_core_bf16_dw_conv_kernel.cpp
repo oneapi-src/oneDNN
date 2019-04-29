@@ -19,7 +19,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_uni_dw_conv_kernel_f32.hpp"
+#include "jit_avx512_core_bf16_dw_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
@@ -27,41 +27,39 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_format;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
-
 using namespace Xbyak;
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(int ur_ch_blocks, int ur_w) {
-    int repeats = isa == sse42 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
-        for (int ch = 0; ch < ur_ch_blocks; ch++) {
-            for (int ow = 0; ow < ur_w; ow++) {
-                Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_w + ch*ur_w + ow);
+void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(int ur_ch_blocks, int ur_w) {
+    for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        for (int ow = 0; ow < ur_w; ow++) {
+            Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
 
-                int b_off = ch*jcp.ch_block + i*4;
-                if (this->jcp.with_bias)
-                    uni_vmovups(vmm_acc,
-                        vmmword[reg_bias + b_off*sizeof(float)]);
-                else
-                    uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
-
-                int o_off = ch*jcp.oh*jcp.ow*jcp.ch_block
-                    + ow*jcp.ch_block + i*4;
-                if (this->jcp.with_sum)
-                    uni_vaddps(vmm_acc, vmm_acc,
-                        vmmword[reg_output + o_off*sizeof(float)]);
+            if (this->jcp.with_bias) {
+                int b_off = ch * jcp.ch_block;
+                uni_vmovups(zmm_acc, vmmword[reg_bias + b_off * sizeof(float)]);
+            } else {
+                uni_vpxor(zmm_acc, zmm_acc, zmm_acc);
+            }
+            if (this->jcp.with_sum) {
+                int o_off = ch * jcp.oh * jcp.ow * jcp.ch_block
+                        + ow * jcp.ch_block;
+                if (jcp.dst_dt == data_type::bf16) {
+                    vpmovzxwd(zmm_prev_dst,
+                            vmmword[reg_output + o_off * jcp.typesize_out]);
+                    vpslld(zmm_prev_dst, zmm_prev_dst, 16);
+                    vaddps(zmm_acc, zmm_prev_dst);
+                } else {
+                    uni_vaddps(zmm_acc, zmm_acc,
+                            vmmword[reg_output + o_off * jcp.typesize_out]);
+                }
             }
         }
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter(
+void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter(
         int ur_ch_blocks, int ur_w) {
-    int ch_blk = jcp.ch_block;
+    int ch_block = jcp.ch_block;
     int dilate_h = jcp.dilate_h + 1;
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
@@ -82,36 +80,33 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter(
 
         Label kw_label;
         L(kw_label); {
-            int repeats = isa == sse42 ? 2 : 1;
-            for (int i = 0; i < repeats; i++) {
-                for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                    int ker_off = ch*jcp.kh*jcp.kw*ch_blk + i*4;
-                    Vmm vmm_ker = get_ker_reg(0);
-                    uni_vmovups(vmm_ker, ptr[aux1_reg_kernel
-                        + ker_off*sizeof(float)]);
-
-                    for (int ow = 0; ow < ur_w; ow++) {
-                        int inp_off = ch*jcp.ih*jcp.iw*ch_blk
-                            + ow*stride_w*ch_blk + i*4;
-                        Vmm vmm_src = get_src_reg(0);
-                        uni_vmovups(vmm_src, ptr[aux1_reg_input
-                            + inp_off*sizeof(float)]);
-
-                        Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_w
-                            + ch*ur_w + ow);
-                        uni_vfmadd231ps(vmm_acc, vmm_src, vmm_ker);
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                int ker_off = ch * jcp.kh * jcp.kw * ch_block;
+                vpmovzxwd(zmm_ker_reg,
+                        ptr[aux1_reg_kernel + ker_off * jcp.typesize_in]);
+                for (int ow = 0; ow < ur_w; ow++) {
+                    Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
+                    int inp_off = ch * jcp.ih * jcp.iw * ch_block
+                            + ow * stride_w * ch_block;
+                    /* zero-extend bf16 to packed 32-bit int */
+                    vpmovzxwd(zmm_src_reg,
+                            ptr[aux1_reg_input + inp_off * jcp.typesize_in]);
+                    if (!jcp.is_cpx) {
+                        bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
+                    } else {
+                        vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
                     }
                 }
             }
-            add(aux1_reg_kernel, ch_blk*sizeof(float));
-            add(aux1_reg_input, ch_blk*dilate_w*sizeof(float));
+            add(aux1_reg_kernel, jcp.ch_block * jcp.typesize_in);
+            add(aux1_reg_input, jcp.ch_block * dilate_w * jcp.typesize_in);
 
             dec(iter_kw);
             cmp(iter_kw, 0);
             jg(kw_label, T_NEAR);
         }
-        add(aux_reg_kernel, jcp.kw*ch_blk*sizeof(float));
-        add(aux_reg_input, jcp.iw*ch_blk*dilate_h*sizeof(float));
+        add(aux_reg_kernel, jcp.kw * jcp.ch_block * jcp.typesize_in);
+        add(aux_reg_input, jcp.iw * jcp.ch_block * dilate_h * jcp.typesize_in);
 
         dec(iter_kh);
         cmp(iter_kh, 0);
@@ -121,8 +116,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter(
     L(iter_exit_label);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
+void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
         int ur_ch_blocks, int ur_w) {
     int ch_blk = jcp.ch_block;
     int dilate_h = jcp.dilate_h + 1;
@@ -137,34 +131,30 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     mov(iter_kh, reg_kh);
     Label kh_label;
     L(kh_label); {
-        int repeats = isa == sse42 ? 2 : 1;
-        for (int i = 0; i < repeats; i++) {
-            for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                for (int kw = 0; kw < jcp.kw; kw++) {
-                    int ker_off = ch*jcp.kh*jcp.kw*ch_blk + kw*ch_blk + i*4;
+        for (int ch = 0; ch < ur_ch_blocks; ch++) {
+            for (int kw = 0; kw < jcp.kw; kw++) {
+                int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk;
 
-                    Vmm vmm_ker = get_ker_reg(0);
-                    uni_vmovups(vmm_ker, ptr[aux_reg_kernel
-                        + ker_off*sizeof(float)]);
-
-                    for (int ow = 0; ow < ur_w; ow++) {
-                        int inp_off = ch*jcp.ih*jcp.iw*ch_blk
-                            + ow*stride_w*ch_blk + kw*ch_blk*dilate_w + i*4;
-
-                        Vmm vmm_src = get_src_reg(0);
-                        uni_vmovups(vmm_src, ptr[aux_reg_input
-                            + inp_off*sizeof(float)]);
-
-                        Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_w
-                            + ch*ur_w + ow);
-                        uni_vfmadd231ps(vmm_acc, vmm_src, vmm_ker);
+                vpmovzxwd(zmm_ker_reg,
+                        ptr[aux_reg_kernel + ker_off * jcp.typesize_in]);
+                for (int ow = 0; ow < ur_w; ow++) {
+                    Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
+                    int inp_off = ch * jcp.ih * jcp.iw * ch_blk
+                            + ow * stride_w * ch_blk + kw * ch_blk * dilate_w;
+                    /* zero-extend bf16 to packed 32-bit int */
+                    vpmovzxwd(zmm_src_reg,
+                            ptr[aux_reg_input + inp_off * jcp.typesize_in]);
+                    if (!jcp.is_cpx) {
+                        bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
+                    } else {
+                        vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
                     }
                 }
             }
         }
 
-        add(aux_reg_kernel, jcp.kw*ch_blk*sizeof(float));
-        add(aux_reg_input, jcp.iw*ch_blk*dilate_h*sizeof(float));
+        add(aux_reg_kernel, jcp.kw * ch_blk * jcp.typesize_in);
+        add(aux_reg_input, jcp.iw * ch_blk * dilate_h * jcp.typesize_in);
 
         dec(iter_kh);
         cmp(iter_kh, 0);
@@ -174,35 +164,73 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     L(iter_exit_label);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_activation(
+void jit_avx512_dw_conv_fwd_kernel_bf16::apply_activation(
         int ur_ch_blocks, int ur_w) {
     if (this->jcp.with_eltwise) {
-        int repeats = isa == sse42 ? 2 : 1;
-        eltwise_injector_->compute_vector_range(4, repeats * ur_w * ur_ch_blocks + 4);
+        eltwise_injector_->compute_vector_range(
+                acc_idx_start, ur_w * ur_ch_blocks + acc_idx_start);
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
-        int ur_ch_blocks, int ur_w) {
+void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
     int ch_blk = jcp.ch_block;
 
-    int repeats = isa == sse42 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
-        for (int ch = 0; ch < ur_ch_blocks; ch++) {
-            for (int ow = 0; ow < ur_w; ow++) {
-                int o_off = ch*jcp.oh*jcp.ow*ch_blk + ow*ch_blk + i*4;
-                Vmm vmm_dst = get_acc_reg(i*ur_ch_blocks*ur_w + ch*ur_w + ow);
+    if (jcp.dst_dt == data_type::bf16 && (!jcp.is_cpx))
+        bf16_emu_->init_vcvtneps2bf16();
 
-                uni_vmovups(vmmword[reg_output + o_off*sizeof(float)], vmm_dst);
+    for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        if (jcp.dst_dt == data_type::f32) {
+            for (int ow = 0; ow < ur_w; ow++) {
+                int o_off = ch * jcp.oh * jcp.ow * ch_blk + ow * ch_blk;
+                Zmm zmm_dst = get_acc_reg(ch * ur_w + ow);
+                uni_vmovups(vmmword[reg_output + o_off * jcp.typesize_out],
+                        zmm_dst);
             }
-        }
+        } else if (jcp.dst_dt == data_type::bf16) {
+            if (jcp.is_cpx) {
+                int n_2bf2ps = (ur_w / 2) * 2;
+                int j = 0;
+                for (; j < n_2bf2ps; j += 2) {
+                    size_t aux_output_offset
+                            = ((size_t)ch * jcp.oh * jcp.ow + j) * jcp.ch_block;
+                    auto addr = ptr[reg_output
+                            + aux_output_offset * jcp.typesize_out];
+                    auto zmm_dst = get_acc_reg(ch * ur_w + j);
+                    vcvtne2ps2bf16(zmm_dst, get_acc_reg(ch * ur_w + j + 1),
+                            get_acc_reg(ch * ur_w + j));
+                    vmovups(addr, zmm_dst);
+                }
+                /* Perform tail write for odd ur_w sizes */
+                if (j < ur_w) {
+                    size_t aux_output_offset
+                            = ((size_t)ch * jcp.oh * jcp.ow + j) * jcp.ch_block;
+                    auto addr = ptr[reg_output
+                            + aux_output_offset * jcp.typesize_out];
+                    auto zmm_dst = get_acc_reg(ch * ur_w + j);
+                    auto ymm_dst = Ymm(zmm_dst.getIdx());
+                    vcvtneps2bf16(ymm_dst, zmm_dst);
+                    vmovups(addr, ymm_dst);
+                }
+            } else {
+                for (int ow = 0; ow < ur_w; ow++) {
+                    int o_off = ch * jcp.oh * jcp.ow * ch_blk + ow * ch_blk;
+                    Zmm zmm_dst = get_acc_reg(ch * ur_w + ow);
+
+                    /* down-convert f32 output to bf16 */
+                    auto ymm_dst = Ymm(zmm_dst.getIdx());
+                    bf16_emu_->r_vcvtneps2bf16(ymm_dst, zmm_dst);
+
+                    uni_vmovups(ptr[reg_output + o_off * jcp.typesize_out],
+                            ymm_dst);
+                }
+            }
+        } else
+            assert(!"unsupported destination type");
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::loop_body(int ur_ch_blocks) {
+void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
+
     Label unrolled_w_label;
     Label tail_w_label;
     Label exit_label;
@@ -221,8 +249,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::loop_body(int ur_ch_blocks) {
         apply_activation(ur_ch_blocks, ur_w);
         store_dst(ur_ch_blocks, ur_w);
 
-        add(reg_input, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_output, sizeof(float) * ur_w * jcp.ch_block);
+        add(reg_input, jcp.typesize_in * ur_w * jcp.ch_block * jcp.stride_w);
+        add(reg_output, jcp.typesize_out * ur_w * jcp.ch_block);
 
         sub(reg_ur_w, ur_w);
         jmp(unrolled_w_label);
@@ -242,8 +270,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::loop_body(int ur_ch_blocks) {
         apply_activation(ur_ch_blocks, ur_w);
         store_dst(ur_ch_blocks, ur_w);
 
-        add(reg_input, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_output, sizeof(float) * ur_w * jcp.ch_block);
+        add(reg_input, jcp.typesize_in * ur_w * jcp.ch_block * jcp.stride_w);
+        add(reg_output, jcp.typesize_out * ur_w * jcp.ch_block);
 
         sub(reg_ur_w, ur_w);
         jmp(tail_w_label);
@@ -252,8 +280,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::loop_body(int ur_ch_blocks) {
     L(exit_label);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
+void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     this->preamble();
 
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
@@ -274,7 +301,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     cmp(reg_ch_blocks, jcp.nb_ch_blocking);
     jne(ch_blocks_tail ? ch_blocks_tail_label : exit_label, T_NEAR);
 
-    loop_body(jcp.nb_ch_blocking); // channel main loop
+    loop_ow(jcp.nb_ch_blocking); // channel main loop
 
     if (ch_blocks_tail) {
         L(ch_blocks_tail_label);
@@ -282,7 +309,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
         cmp(reg_ch_blocks, ch_blocks_tail);
         jne(exit_label, T_NEAR);
 
-        loop_body(ch_blocks_tail); // channel tail loop
+        loop_ow(ch_blocks_tail); // channel tail loop
     }
 
     L(exit_label);
@@ -293,27 +320,17 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
         eltwise_injector_->prepare_table();
 }
 
-template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
-template struct jit_uni_dw_conv_fwd_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_fwd_kernel_f32<sse42>;
-
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::load_ddst(
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::load_ddst(
         int ur_ch_blocks, int ur_str_w) {
-    int repeats = isa == sse42 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
-        for (int ch = 0; ch < ur_ch_blocks; ch++) {
-            for (int w = 0; w < ur_str_w; w++) {
-                Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_str_w
-                    + ch*ur_str_w + w);
-                uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
-            }
+    for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        for (int w = 0; w < ur_str_w; w++) {
+            Zmm zmm_acc = get_acc_reg(ch * ur_str_w + w);
+            uni_vpxor(zmm_acc, zmm_acc, zmm_acc);
         }
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
         int ur_ch_blocks, int ur_str_w) {
     int kw = jcp.kw;
     int kh = jcp.kh;
@@ -341,38 +358,36 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
         mov(iter_kw, reg_kw);
         Label kw_label;
         L(kw_label); {
-            int repeats = isa == sse42 ? 2 : 1;
-            for (int i = 0; i < repeats; i++) {
-                for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                    int ker_off = ch*kh*kw*ch_blk + i*4;
-                    Vmm vmm_ker = get_ker_reg(0);
-                    uni_vmovups(vmm_ker, ptr[aux1_reg_kernel
-                        + ker_off*sizeof(float)]);
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                int ker_off = ch * kh * kw * ch_blk;
+                vpmovzxwd(zmm_ker_reg,
+                        ptr[aux1_reg_kernel + ker_off * jcp.typesize_in]);
 
-                    for (int w = 0; w < ur_str_w; w++) {
-                        int ddst_off = (ch*oh*ow + w)*ch_blk + i*4;
+                for (int w = 0; w < ur_str_w; w++) {
+                    Zmm zmm_acc = get_acc_reg(ch * ur_str_w + w);
+                    int ddst_off = (ch * oh * ow + w) * ch_blk;
+                    vpmovzxwd(zmm_dst_reg,
+                            ptr[aux1_reg_ddst + ddst_off * jcp.typesize_in]);
 
-                        Vmm vmm_src = get_src_reg(0);
-                        uni_vmovups(vmm_src, ptr[aux1_reg_ddst
-                            + ddst_off*sizeof(float)]);
-
-                        Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_str_w
-                            + ch*ur_str_w + w);
-                        uni_vfmadd231ps(vmm_acc, vmm_src, vmm_ker);
+                    if (!jcp.is_cpx) {
+                        bf16_emu_->r_vdpbf16ps(
+                                zmm_acc, zmm_dst_reg, zmm_ker_reg);
+                    } else {
+                        vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_dst_reg);
                     }
                 }
             }
 
-            add(aux1_reg_kernel, ch_blk*stride_w*sizeof(float));
-            sub(aux1_reg_ddst, ch_blk*sizeof(float));
+            add(aux1_reg_kernel, ch_blk * stride_w * jcp.typesize_in);
+            sub(aux1_reg_ddst, ch_blk * jcp.typesize_in);
 
             sub(iter_kw, stride_w);
             cmp(iter_kw, 0);
             jg(kw_label, T_NEAR);
         }
 
-        add(aux_reg_kernel, kw*ch_blk*stride_h*sizeof(float));
-        sub(aux_reg_ddst, ow*ch_blk*sizeof(float));
+        add(aux_reg_kernel, kw * ch_blk * stride_h * jcp.typesize_in);
+        sub(aux_reg_ddst, ow * ch_blk * jcp.typesize_in);
 
         sub(iter_kh, stride_h);
         cmp(iter_kh, 0);
@@ -382,30 +397,42 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
     L(iter_exit_label);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
         int ur_ch_blocks, int ur_str_w) {
     int ch_blk = jcp.ch_block;
     int iw = jcp.iw;
     int ih = jcp.ih;
     int stride_w = jcp.stride_w;
 
-    int repeats = isa == sse42 ? 2 : 1;
-    for (int i = 0; i < repeats; i++) {
-        for (int ch = 0; ch < ur_ch_blocks; ch++) {
-            for (int w = 0; w < ur_str_w; w++) {
-                int dsrc_off = (ch*ih*iw + w*stride_w)*ch_blk + i*4;
-                Vmm vmm_acc = get_acc_reg(i*ur_ch_blocks*ur_str_w
-                    + ch*ur_str_w + w);
+    if (jcp.dsrc_dt == data_type::bf16 && (!jcp.is_cpx))
+        bf16_emu_->init_vcvtneps2bf16();
 
-                uni_vmovups(ptr[reg_dsrc + dsrc_off*sizeof(float)], vmm_acc);
+    for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        for (int w = 0; w < ur_str_w; w++) {
+            int dsrc_off = (ch * ih * iw + w * stride_w) * ch_blk;
+            auto zmm_dsrc = get_acc_reg(ch * ur_str_w + w);
+
+            if (jcp.dsrc_dt == data_type::f32) {
+                uni_vmovups(
+                        ptr[reg_dsrc + dsrc_off * jcp.typesize_out], zmm_dsrc);
+            } else if (jcp.dsrc_dt == data_type::bf16) {
+                auto ymm_dsrc = Ymm(zmm_dsrc.getIdx());
+                if (jcp.is_cpx) {
+                    vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
+                } else {
+                    bf16_emu_->r_vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
+                }
+                vmovups(ptr[reg_dsrc + dsrc_off * jcp.typesize_out], ymm_dsrc);
             }
         }
     }
+    /* Note: current 'store_dsrc' is limited to storing 'ymm' output. This is
+     * because of the current implementation approach that calculates convolution as
+     * a strided backward-pass. To increase store throughput by writing 'zmm'
+     * registers, changes are needed in both JIT-kernel and Driver code. */
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
+inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::loop_body(
         int ur_ch_blocks) {
     Label unrolled_w_label;
     Label tail_w_label;
@@ -424,8 +451,8 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
         apply_filter(ur_ch_blocks, ur_w);
         store_dsrc(ur_ch_blocks, ur_w);
 
-        add(reg_dsrc, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, sizeof(float) * ur_w * jcp.ch_block);
+        add(reg_dsrc, jcp.typesize_out * ur_w * jcp.ch_block * jcp.stride_w);
+        add(reg_ddst, jcp.typesize_in * ur_w * jcp.ch_block);
 
         sub(reg_ur_str_w, ur_w);
         jmp(unrolled_w_label);
@@ -444,8 +471,8 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
         apply_filter(ur_ch_blocks, ur_w);
         store_dsrc(ur_ch_blocks, ur_w);
 
-        add(reg_dsrc, sizeof(float) * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_ddst, sizeof(float) * ur_w * jcp.ch_block);
+        add(reg_dsrc, jcp.typesize_out * ur_w * jcp.ch_block * jcp.stride_w);
+        add(reg_ddst, jcp.typesize_in * ur_w * jcp.ch_block);
 
         sub(reg_ur_str_w, ur_w);
         jmp(tail_w_label);
@@ -454,10 +481,8 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::loop_body(
     L(exit_label);
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
+void jit_avx512_dw_conv_bwd_data_kernel_bf16::generate() {
     preamble();
-
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
     mov(reg_ddst, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
@@ -486,56 +511,34 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     }
 
     L(exit_label);
-
     this->postamble();
 }
 
-template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
-template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse42>;
-
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_filter() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        for (int i = 0; i < jcp.kw; ++i) {
-            Vmm vmm_acc = get_acc_reg(r * jcp.kw + i);
-            uni_vpxor(vmm_acc, vmm_acc, vmm_acc);
-        }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::zero_filter() {
+    for (int i = 0; i < jcp.kw; ++i) {
+        Zmm zmm_acc = get_acc_reg(i);
+        uni_vpxor(zmm_acc, zmm_acc, zmm_acc);
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_filter() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        const int reg_set = r * jcp.kw;
-        for (int i = 0; i < jcp.kw; ++i) {
-            int off_filter = (reg_set + i) * simd_w;
-            Vmm vmm_acc = get_acc_reg(reg_set + i);
-            uni_vmovups(vmm_acc,
-                    vmmword[reg_tmp_filter + off_filter * sizeof(float)]);
-        }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::load_filter() {
+    for (int i = 0; i < jcp.kw; ++i) {
+        int off_filter = i * jcp.ch_block;
+        Zmm zmm_acc = get_acc_reg(i);
+        uni_vmovups(zmm_acc,
+                vmmword[reg_tmp_filter + off_filter * jcp.typesize_out]);
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_bias() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        Vmm vmm_bias = get_bias_reg(r);
-        uni_vpxor(vmm_bias, vmm_bias, vmm_bias);
-    }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::zero_bias() {
+    uni_vpxor(zmm_bias_reg, zmm_bias_reg, zmm_bias_reg);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::load_bias() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        Vmm vmm_bias = get_bias_reg(r);
-        uni_vmovups(
-                vmm_bias, vmmword[reg_bias_baddr + r * simd_w * sizeof(float)]);
-    }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::load_bias() {
+    uni_vmovups(zmm_bias_reg, vmmword[reg_bias_baddr]);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
         int unroll_w, int l_pad, int pad_offset, int ow_block) {
 
     const int iw_block = ow_block * jcp.stride_w;
@@ -547,100 +550,75 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
     const int input_overlap = nstl::max(jcp.kw - l_pad, 0);
 
     /* LOAD initial input registers, then cascade LOADs and FMAs*/
-    for (int r = 0; r < reg_repeats; ++r) {
-        for (int i_ur = 0; i_ur < unroll_w; ++i_ur) {
-            int off_output = (i_ur * reg_repeats + r) * simd_w;
-            Vmm vmm_output = get_output_reg(r);
-            uni_vmovups(vmm_output,
-                    ptr[reg_tmp_output + off_output * sizeof(float)]);
-            if (i_ur == 0) {
-                for (int c = 0; c < input_overlap; ++c) {
-                    int off_input
-                            = ((c - pad_offset) * reg_repeats + r) * simd_w;
-                    Vmm vmm_input
-                            = get_input_reg((c % jcp.kw) * reg_repeats + r);
-                    uni_vmovups(vmm_input,
-                            ptr[reg_tmp_input + off_input * sizeof(float)]);
-                }
-            } else {
-                for (int c = 0; c < cascade_input; ++c) {
-                    int overlap = (i_ur - 1) * jcp.stride_w + input_overlap;
-                    int off_input
-                            = ((overlap + c - pad_offset) * reg_repeats + r)
-                            * simd_w;
-                    Vmm vmm_input = get_input_reg(
-                            ((overlap + c) % jcp.kw) * reg_repeats + r);
-                    uni_vmovups(vmm_input,
-                            ptr[reg_tmp_input + off_input * sizeof(float)]);
-                }
+    for (int i_ur = 0; i_ur < unroll_w; ++i_ur) {
+        int off_output = i_ur * jcp.ch_block;
+        vpmovzxwd(zmm_out_reg,
+                ptr[reg_tmp_output + off_output * jcp.typesize_in]);
+        if (i_ur == 0) {
+            for (int c = 0; c < input_overlap; ++c) {
+                int off_input = (c - pad_offset) * jcp.ch_block;
+                Zmm zmm_input = get_input_reg(c);
+                vpmovzxwd(zmm_input,
+                        ptr[reg_tmp_input + off_input * jcp.typesize_in]);
             }
+        } else {
+            for (int c = 0; c < cascade_input; ++c) {
+                int overlap = (i_ur - 1) * jcp.stride_w + input_overlap;
+                int off_input = (overlap + c - pad_offset) * jcp.ch_block;
+                Zmm zmm_input = get_input_reg(overlap + c);
+                vpmovzxwd(zmm_input,
+                        ptr[reg_tmp_input + off_input * jcp.typesize_in]);
+            }
+        }
 
-            for (int i_kw = 0; i_kw < jcp.kw; ++i_kw) {
-                int io_overlap = i_kw + (i_ur * jcp.stride_w);
+        for (int i_kw = 0; i_kw < jcp.kw; ++i_kw) {
+            int io_overlap = i_kw + (i_ur * jcp.stride_w);
 
-                /* Don't apply FMAs that fall into the padded region */
-                if (io_overlap - l_pad < 0
-                        || io_overlap - jcp.l_pad >= right_border)
-                    continue;
+            /* Don't apply FMAs that fall into the padded region */
+            if (io_overlap - l_pad < 0
+                    || io_overlap - jcp.l_pad >= right_border)
+                continue;
 
-                Vmm vmm_input = get_input_reg(
-                        ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
-                Vmm vmm_acc = get_acc_reg(i_kw * reg_repeats + r);
-                Vmm vmm_aux = isa == sse42 ? get_aux_reg() : vmm_input;
-                if (isa == sse42)
-                    uni_vmovups(vmm_aux, vmm_input);
-                uni_vfmadd231ps(vmm_acc, vmm_aux, vmm_output);
+            Zmm zmm_input = get_input_reg(io_overlap - l_pad);
+            Zmm zmm_acc = get_acc_reg(i_kw);
+            if (!jcp.is_cpx) {
+                bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_input, zmm_out_reg);
+            } else {
+                vdpbf16ps(zmm_acc, zmm_input, zmm_out_reg);
             }
         }
     }
 }
 
-template <cpu_isa_t isa>
 inline void
-jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_step_unroll(
+jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_bias_step_unroll(
         const int unroll_w) {
-    for (int r = 0; r < reg_repeats; ++r) {
-        for (int i = 0; i < unroll_w; ++i) {
-            Vmm vmm_bias = get_bias_reg(r);
-            int off_output = (i * reg_repeats + r) * simd_w;
-            if (isa == sse42) {
-                /* Need to support unaligned address loads for SSE42*/
-                Vmm vmm_output = get_output_reg(1 + r);
-                uni_vmovups(vmm_output,
-                        ptr[reg_tmp_output + off_output * sizeof(float)]);
-                uni_vaddps(vmm_bias, vmm_bias, vmm_output);
-            } else {
-                uni_vaddps(vmm_bias, vmm_bias,
-                        vmmword[reg_tmp_output + off_output * sizeof(float)]);
-            }
-        }
+    for (int i = 0; i < unroll_w; ++i) {
+        int off_output = i * jcp.ch_block;
+        /* bf16 output data requires conversion to f32 */
+        vpmovzxwd(zmm_out_reg,
+                ptr[reg_tmp_output + off_output * jcp.typesize_in]);
+        vpslld(zmm_out_reg, zmm_out_reg, 0x10);
+        uni_vaddps(zmm_bias_reg, zmm_bias_reg, zmm_out_reg);
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_filter() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        const int reg_set = r * jcp.kw;
-        for (int i = 0; i < jcp.kw; ++i) {
-            int off_filter = (i + reg_set) * simd_w;
-            Vmm vmm_acc = get_acc_reg(i + reg_set);
-            uni_vmovups(vmmword[reg_tmp_filter + off_filter * sizeof(float)],
-                    vmm_acc);
-        }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::store_filter() {
+    /* bf16: all data is stored as f32. Down-convert to bf16 happens at the
+     * reduction phase. */
+    for (int i = 0; i < jcp.kw; ++i) {
+        int off_filter = i * jcp.ch_block;
+        Zmm zmm_acc = get_acc_reg(i);
+        uni_vmovups(vmmword[reg_tmp_filter + off_filter * jcp.typesize_out],
+                zmm_acc);
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::store_bias() {
-    for (int r = 0; r < reg_repeats; ++r) {
-        Vmm vmm_bias = get_bias_reg(r);
-        uni_vmovups(
-                vmmword[reg_bias_baddr + r * simd_w * sizeof(float)], vmm_bias);
-    }
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::store_bias() {
+    uni_vmovups(vmmword[reg_bias_baddr], zmm_bias_reg);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_bias_loop(
         const int block_size) {
     Label oh_label;
     Label ow_blk_label;
@@ -664,7 +642,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
         {
 
             compute_bias_step_unroll(unroll_w);
-            add(reg_tmp_output, unroll_w * ch_offset * sizeof(float));
+            add(reg_tmp_output, unroll_w * ch_offset * jcp.typesize_in);
 
             dec(iter_ow_blk);
             cmp(iter_ow_blk, 0);
@@ -673,7 +651,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
 
         if (tail_w > 0) {
             compute_bias_step_unroll(tail_w);
-            add(reg_tmp_output, tail_w * ch_offset * sizeof(float));
+            add(reg_tmp_output, tail_w * ch_offset * jcp.typesize_in);
         }
 
         inc(reg_oh);
@@ -682,8 +660,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
     }
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_zero_filter() {
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_zero_filter() {
 
     const int ch_offset = jcp.ch_block;
 
@@ -693,7 +670,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_zero_filter() {
             ptr[this->param1 + offsetof(jit_dw_conv_call_s, exec_flags)]);
     and_(reg_exec_flags, FLAG_ZERO_FILTER);
     test(reg_exec_flags, reg_exec_flags);
-    je(skip_zeroing_label);
+    je(skip_zeroing_label, T_NEAR);
 
     zero_filter();
 
@@ -703,20 +680,19 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_zero_filter() {
     {
         store_filter();
 
-        add(reg_tmp_filter, jcp.kw * ch_offset * sizeof(float));
+        add(reg_tmp_filter, jcp.kw * ch_offset * jcp.typesize_out);
         dec(reg_kh);
         cmp(reg_kh, 0);
-        jg(kh_loop_label);
+        jg(kh_loop_label, T_NEAR);
     }
 
     /* Comeback pointers */
-    sub(reg_tmp_filter, jcp.kh * jcp.kw * ch_offset * sizeof(float));
+    sub(reg_tmp_filter, jcp.kh * jcp.kw * ch_offset * jcp.typesize_out);
 
     L(skip_zeroing_label);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_step(
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_h_step(
         int unroll_w, int l_pad, int pad_offset, int ow_block) {
 
     const int ch_offset = jcp.ch_block;
@@ -733,11 +709,11 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_step(
         compute_ow_step_unroll(unroll_w, l_pad, pad_offset, ow_block);
         store_filter();
 
-        add(reg_tmp_filter, jcp.kw * ch_offset * sizeof(float));
-        add(reg_tmp_input, jcp.iw * ch_offset * sizeof(float));
+        add(reg_tmp_filter, jcp.kw * ch_offset * jcp.typesize_out);
+        add(reg_tmp_input, jcp.iw * ch_offset * jcp.typesize_in);
         dec(reg_kh);
         cmp(reg_kh, 0);
-        jg(kh_loop_label);
+        jg(kh_loop_label, T_NEAR);
     }
 
     /* Comeback pointers */
@@ -745,8 +721,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_step(
     mov(reg_kh, reg_kh_count);
     L(kh_comeback_label);
     {
-        sub(reg_tmp_input, jcp.iw * ch_offset * sizeof(float));
-        sub(reg_tmp_filter, jcp.kw * ch_offset * sizeof(float));
+        sub(reg_tmp_input, jcp.iw * ch_offset * jcp.typesize_in);
+        sub(reg_tmp_filter, jcp.kw * ch_offset * jcp.typesize_out);
         dec(reg_kh);
         cmp(reg_kh, 0);
         jg(kh_comeback_label, T_NEAR);
@@ -755,8 +731,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_step(
     L(skip_loop_label);
 }
 
-template <cpu_isa_t isa>
-inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_h_loop(
         int unroll_w, int l_pad, int pad_offset, int ow_block) {
 
     const size_t io_overlap = jcp.ih / jcp.stride_h < jcp.oh ?
@@ -784,7 +759,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
 
         compute_h_step(unroll_w, l_pad, pad_offset, ow_block);
 
-        add(reg_tmp_output, jcp.ow * ch_offset * sizeof(float));
+        add(reg_tmp_output, jcp.ow * ch_offset * jcp.typesize_in);
 
         /* If within the top_pad region */
         if (jcp.t_pad > 0) {
@@ -797,13 +772,13 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
 
             add(reg_kh_count, t_overlap_off);
             sub(reg_tmp_filter,
-                    t_overlap_off * jcp.kw * ch_offset * sizeof(float));
+                    t_overlap_off * jcp.kw * ch_offset * jcp.typesize_out);
 
             /* kernel has moved beyond padding (adjust for stride effects) */
             if (jcp.t_pad % jcp.stride_h != 0) {
                 int inp_corr = jcp.stride_h - jcp.t_pad % jcp.stride_h;
                 add(reg_tmp_input,
-                        inp_corr * jcp.iw * ch_offset * sizeof(float));
+                        inp_corr * jcp.iw * ch_offset * jcp.typesize_in);
             }
             jmp(tpad_loop_label, T_NEAR);
         }
@@ -815,7 +790,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
         sub(reg_kh_count, b_overlap_off);
 
         L(skip_bpad_label);
-        add(reg_tmp_input, jcp.stride_h * jcp.iw * ch_offset * sizeof(float));
+        add(reg_tmp_input, jcp.stride_h * jcp.iw * ch_offset * jcp.typesize_in);
 
         L(tpad_loop_label);
 
@@ -830,9 +805,7 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_h_loop(
     L(end_h_loop_label);
 }
 
-template <cpu_isa_t isa>
-inline void
-jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
+inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_block_unroll() {
 
     const int ch_offset = jcp.ch_block;
     int ow = jcp.ow;
@@ -886,7 +859,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
                 ptr[this->param1 + offsetof(jit_dw_conv_call_s, exec_flags)]);
         and_(reg_exec_flags, FLAG_ZERO_BIAS);
         test(reg_exec_flags, reg_exec_flags);
-        jne(skip_load_bias);
+        jne(skip_load_bias, T_NEAR);
 
         load_bias();
 
@@ -905,9 +878,9 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     /* compute left padded block */
     if (l_pad) {
         compute_h_loop(unroll_w, l_pad, 0, 0);
-        add(reg_output_baddr, unroll_w * ch_offset * sizeof(float));
+        add(reg_output_baddr, unroll_w * ch_offset * jcp.typesize_in);
         add(reg_input_baddr,
-                unroll_w * jcp.stride_w * ch_offset * sizeof(float));
+                unroll_w * jcp.stride_w * ch_offset * jcp.typesize_in);
         unroll_w_trips--;
         pad_offset = l_pad;
         l_pad = 0;
@@ -925,9 +898,9 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     }
     if (unroll_w_trips > 0) {
         compute_h_loop(unroll_w, l_pad, pad_offset, 0);
-        add(reg_output_baddr, unroll_w * ch_offset * sizeof(float));
+        add(reg_output_baddr, unroll_w * ch_offset * jcp.typesize_in);
         add(reg_input_baddr,
-                unroll_w * jcp.stride_w * ch_offset * sizeof(float));
+                unroll_w * jcp.stride_w * ch_offset * jcp.typesize_in);
     }
     if (do_ow_blk_loop) {
         dec(iter_ow_blk);
@@ -941,8 +914,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     }
 }
 
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
+void jit_avx512_dw_conv_bwd_weights_kernel_bf16::generate() {
     preamble();
 
     mov(reg_input_baddr,
@@ -956,11 +928,6 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
 
     this->postamble();
 }
-
-
-template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;
-template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx2>;
-template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sse42>;
 
 }
 }

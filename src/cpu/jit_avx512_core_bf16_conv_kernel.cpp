@@ -677,7 +677,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::store_output(int ur_w)
     if (!jcp.is_cpx)
         bf16_emu_->init_vcvtneps2bf16();
 
-    if (jcp.dst_dt == data_type::f32) {
+    if (jcp.dsrc_dt == data_type::f32) {
         for (int k = 0; k < jcp.nb_ic_blocking; k++)
             for (int j = 0; j < ur_w; j++) {
                 Zmm zmm = zmm_out(j, k);
@@ -687,7 +687,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::store_output(int ur_w)
 
                 vmovups(addr, zmm);
             }
-    } else if (jcp.dst_dt == data_type::bf16) {
+    } else if (jcp.dsrc_dt == data_type::bf16) {
         if (jcp.is_cpx) {
             int store_idx = 0;
             const int max_regs = 32;
@@ -968,7 +968,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
-    jcp.dst_dt = cd.diff_src_desc.data_type;
+    jcp.dsrc_dt = cd.diff_src_desc.data_type;
 
     /* Dilated convolutions supported with unit strides only */
     if ((jcp.dilate_w != 0 && jcp.stride_w != 1)
@@ -1888,7 +1888,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         && diff_weights_d.format() == (wei_format);
     if (!ok)
         return status::unimplemented;
-    jcp.wei_dt = diff_weights_d.data_type();
+    jcp.dwei_dt = diff_weights_d.data_type();
 
     jcp.ic_block = simd_w;
     if (ok_to_pad_channels)
@@ -1994,12 +1994,12 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
 #endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 #endif // BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
-    if (jcp.nthr_mb > 1 || jcp.wei_dt == data_type::bf16) {
+    if (jcp.nthr_mb > 1 || jcp.dwei_dt == data_type::bf16) {
         const size_t wei_size = jcp.ngroups * jcp.oc * jcp.ic
             * jcp.kh * jcp.kw * jcp.kd;
         const size_t bia_size = jcp.ngroups * jcp.oc;
 
-        const int num_wei_buffers = jcp.wei_dt == data_type::bf16
+        const int num_wei_buffers = jcp.dwei_dt == data_type::bf16
             ? jcp.nthr_mb
             : jcp.nthr_mb - 1;
 
@@ -2008,7 +2008,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         scratchpad.book(key_conv_wei_bia_reduction,
                 jcp.typesize_out * wei_bia_reduction_size * num_wei_buffers);
         // TODO: don't use barrier for case
-        // jcp.wei_dt == data_type::bf16 && nthr_mb_ == 1
+        // jcp.dwei_dt == data_type::bf16 && nthr_mb_ == 1
         scratchpad.book(key_conv_wei_bia_reduction_bctx,
                 sizeof(simple_barrier::ctx_t));
     }
