@@ -67,10 +67,10 @@ const _dt_conf_t conf_f32_wino = {
 };
 
 const _dt_conf_t conf_bf16bf16f32 = {
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
     {mkldnn_f32,},
 };
 
@@ -78,26 +78,26 @@ const _dt_conf_t conf_bf16bf16bf16 = {
     /* eps is 1e-2 because of loss in precision of
      * output when converted from fp32 to bf16.
      * MKL-DNN output is compared against reference computed in fp32.*/
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 1e-2},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 1e-2},
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 1e-2},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 1e-2},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
     {mkldnn_f32,},
 };
 
 const _dt_conf_t conf_f32bf16bf16 = {
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
     {mkldnn_f32,},
 };
 
 const _dt_conf_t conf_bf16f32bf16 = {
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_f32,  -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32,  64, 0, 1, .25, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_f32,  -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
     {mkldnn_f32,},
 };
 
