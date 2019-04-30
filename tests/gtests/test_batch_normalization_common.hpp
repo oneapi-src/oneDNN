@@ -299,6 +299,9 @@ protected:
         auto padded_c = src_d.data.padded_dims[1];
 
         mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+            if (is_current_test_failed())
+                return;
+
             float ref_mean = calculate_stats ? float(0) : mean_data[c];
             float ref_variance = calculate_stats ? float(0) :
                     variance_data[c];
@@ -430,6 +433,9 @@ protected:
         auto padded_c = src_d.data.padded_dims[1];
 
         mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+            if (is_current_test_failed())
+                return;
+
             float ref_diff_gamma = float(0);
             float ref_diff_beta = float(0);
 

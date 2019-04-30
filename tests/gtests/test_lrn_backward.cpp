@@ -178,6 +178,9 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
 
     mkldnn::impl::parallel_nd(MB, C, H, W,
         [&](memory::dim mb, memory::dim c, memory::dim h, memory::dim w) {
+        if (is_current_test_failed())
+            return;
+
         ker(&ref_diff_src_ptr[diff_src_mdw.off_l(off(mb, c, h, w), true)], mb, c, h, w);
         auto A = ref_diff_src_ptr[diff_src_mdw.off_l(off(mb, c, h, w), true)];
         auto B = diff_src_ptr[diff_src_mdw.off_l(off(mb, c, h, w), true)];

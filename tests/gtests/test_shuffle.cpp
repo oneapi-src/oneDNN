@@ -69,6 +69,9 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
 
     mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
            [&](memory::dim ou, memory::dim a, memory::dim in) {
+        if (is_current_test_failed())
+            return;
+
         data_t refout = in_ptr[input_mdw.off_l(ou*dim +
                                  rev_transpose(a)*inner_size + in, true)];
         data_t out = out_ptr[output_mdw.off_l(ou*dim + a*inner_size + in, true)];

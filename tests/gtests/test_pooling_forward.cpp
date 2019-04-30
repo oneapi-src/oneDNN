@@ -72,6 +72,9 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
         [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
             memory::dim ow) {
+            if (is_current_test_failed())
+                return;
+
             memory::dim oidx = n * padded_c * pd.od * pd.oh * pd.ow
                     + c * pd.od * pd.oh * pd.ow
                     + od * pd.oh * pd.ow

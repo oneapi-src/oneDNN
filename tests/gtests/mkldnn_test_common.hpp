@@ -53,6 +53,7 @@ using mkldnn::impl::f16_support::float16_t;
 
 using memory = mkldnn::memory;
 
+bool is_current_test_failed();
 mkldnn::engine::kind get_test_engine_kind();
 
 template <typename data_t> struct data_traits { };
@@ -290,6 +291,9 @@ static void compare_data(
     auto dst_data = map_memory<data_t>(dst);
 
     mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
+        if (is_current_test_failed())
+            return;
+
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
         data_t got = dst_data[mdw_dst.off_l(i, true)];
 

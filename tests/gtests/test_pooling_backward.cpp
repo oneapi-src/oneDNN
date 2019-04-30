@@ -61,6 +61,9 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
         [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
             memory::dim ow) {
+            if (is_current_test_failed())
+                return;
+
             memory::dim oidx = n * padded_c * pd.od * pd.oh * pd.ow
                     + c * pd.od * pd.oh * pd.ow
                     + od * pd.oh * pd.ow + oh * pd.ow + ow;
@@ -217,6 +220,9 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
 
     mkldnn::impl::parallel_nd(pd.mb * pd.c * pd.id * pd.ih * pd.iw,
         [&](memory::dim i) {
+            if (is_current_test_failed())
+                return;
+
             EXPECT_NEAR(ref_diff_src[i],
                     diff_src_data[diff_src_mdw.off_l( i, true)], 1e-5f);
         }

@@ -337,6 +337,9 @@ void compare(const test_params &p, const test_memory &c_mem,
     auto c = map_memory<c_dt>(c_mem);
     auto c_ref = map_memory<c_dt>(c_ref_mem);
     mkldnn::impl::parallel_nd(p.N, p.ldc, [&](int64_t i, int64_t j) {
+        if (is_current_test_failed())
+            return;
+
         c_dt ref = c_ref[p.off.c + i * p.ldc + j];
         c_dt got = c[p.off.c + i * p.ldc + j];
         c_dt diff = got - ref;

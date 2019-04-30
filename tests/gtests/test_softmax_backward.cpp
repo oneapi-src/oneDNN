@@ -48,6 +48,9 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     for (int d = axis + 1; d < ndims; ++d) IN *= diff_dst_pd.data.dims[d];
 
     mkldnn::impl::parallel_nd(OU, IN, [&](memory::dim ou, memory::dim in) {
+        if (is_current_test_failed())
+            return;
+
         const memory::dim idx_start = ou * C * IN + in;
 
         float sbr = 0.0;

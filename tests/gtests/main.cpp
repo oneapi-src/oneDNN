@@ -17,9 +17,33 @@
 #include "gtest/gtest.h"
 
 #include <assert.h>
+#include <atomic>
 #include <string>
 
 #include "mkldnn_test_common.hpp"
+
+#include "gtest/gtest.h"
+
+using namespace testing;
+
+static std::atomic<bool> g_is_current_test_failed(false);
+bool is_current_test_failed() {
+    return g_is_current_test_failed;
+}
+
+class assert_fail_handler_t : public EmptyTestEventListener
+{
+protected:
+    virtual void OnTestStart(const TestInfo &test_info) override {
+        g_is_current_test_failed = false;
+    }
+    virtual void OnTestPartResult(
+            const testing::TestPartResult &part_result) override {
+        if (part_result.type() == testing::TestPartResult::kFatalFailure) {
+            g_is_current_test_failed = true;
+        }
+    }
+};
 
 static void test_init(int argc, char *argv[]);
 
@@ -31,6 +55,11 @@ int main( int argc, char* argv[ ] )
 
         // Parse MKL-DNN command line arguments
         test_init(argc, argv);
+
+        TestEventListeners &listeners = UnitTest::GetInstance()->listeners();
+
+        auto *fail_handler = new assert_fail_handler_t();
+        listeners.Append(fail_handler);
 
 #if _WIN32
         // Safety cleanup.
