@@ -23,6 +23,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 #include "jit_generator.hpp"
+#include "jit_uni_eltwise.hpp"
+#include "ref_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -36,12 +38,18 @@ class pp_kernel_t : jit_generator
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd);
+    ~pp_kernel_t() {
+        if (do_eltwise_) {
+            delete eltwise_injector_;
+            delete ref_eltwise_;
+        }
+    }
 
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float nslope, size_t start, size_t end);
+            const float *scales, size_t start, size_t end);
 
 private:
     void generate();
@@ -56,6 +64,8 @@ private:
         size_t oc_offset;
     };
     void (*ker_)(const ker_args *args);
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    ref_eltwise_scalar_fwd_t *ref_eltwise_;
 
     size_t OC_;
     data_type_t bias_data_type_;
@@ -63,7 +73,8 @@ private:
     size_t scale_idx_mult_;
     round_mode_t rmode_;
     bool do_bias_;
-    bool do_relu_;
+    bool do_eltwise_;
+    post_ops_t::entry_t::eltwise_t eltwise_;
 };
 
 }

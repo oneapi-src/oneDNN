@@ -45,9 +45,6 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() const {
              hwio, dhwio, io);
 
     const float *scales = pd()->attr()->output_scales_.scales_;
-    const auto &post_ops = pd()->attr()->post_ops_;
-    const bool do_relu = post_ops.len_ == 1;
-    const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
 
     float alpha = 1.0, beta = 0.0;
     extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha, weights,
@@ -58,7 +55,7 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward() const {
         parallel(0, [&](int ithr, int nthr) {
             size_t start = 0, end = 0;
             balance211((size_t)OC * MB, nthr, ithr, start, end);
-            (*pp_kernel_)(dst, dst, (char *)bias, scales, nslope, start, end);
+            (*pp_kernel_)(dst, dst, (char *)bias, scales, start, end);
         });
     }
 }

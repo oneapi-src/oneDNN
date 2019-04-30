@@ -66,7 +66,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                             u8))
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_,
-                        attr()->post_ops_.entry_[0].is_relu(true, false))
+                        attr()->post_ops_.entry_[0].is_eltwise())
                 && dense_gemm_consitency_check(src_pd(), weights_pd(),
                         dst_pd());
             if (!ok) return status::unimplemented;
