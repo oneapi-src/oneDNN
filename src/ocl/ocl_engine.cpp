@@ -32,7 +32,7 @@
 #include "ocl/ref_pooling.hpp"
 #include "ocl/ref_rnn.hpp"
 #include "ocl/ref_softmax.hpp"
-
+#include "ocl/ref_deconvolution.hpp"
 #include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
@@ -92,6 +92,8 @@ static const pd_create_f ocl_impl_list[] = {
     /*eltwise*/
     INSTANCE(ref_eltwise_fwd_t),
     INSTANCE(ref_eltwise_bwd_t),
+    /*deconv*/
+    INSTANCE(ref_deconvolution_fwd_t),
     /*conv*/
     INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),

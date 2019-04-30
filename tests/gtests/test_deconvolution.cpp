@@ -146,7 +146,6 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_convolution_sizes_t dd = p.sizes;
-        p.formats.bias_format = memory::format_tag::undef;
         with_bias = p.formats.bias_format != memory::format_tag::undef;
 
         memory::dims src_dims = {dd.mb, dd.ic, dd.ih, dd.iw};
@@ -189,8 +188,10 @@ protected:
             right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)
         };
         Forward();
-        BackwardData();
-        BackwardWeights();
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            BackwardData();
+            BackwardWeights();
+        }
     }
     void Forward() {
         auto aprop_kind =  prop_kind::forward;
@@ -407,6 +408,9 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
 
 #define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, deconvolution_test_float, ::testing::Values(__VA_ARGS__))
+#define GPU_INST_TEST_CASE(str, ...) GPU_INSTANTIATE_TEST_SUITE_P( \
+        str, deconvolution_test_float, ::testing::Values(__VA_ARGS__))
+
 
 #define FMT_BIAS x
 #define FMT_DATA_BLOCKED nChw8c
@@ -445,6 +449,29 @@ CPU_INST_TEST_CASE(SimpleSmall_Blocked,
         2, 1, 48, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 48, 11, 11, 32, 13, 13, 3, 3, 0, 0, 1, 1)
+);
+
+//TODO: Need to merge these test-cases with CPU
+//SimpleSmall_NCHW after GPU convolution is fixed
+
+GPU_INST_TEST_CASE(SimpleSmall_NCHW,
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 2, 2, 1, 2, 2, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 3, 3, 1, 3, 3, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 1, 4, 4, 16, 4, 4, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 6, 5, 5, 1, 5, 5, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 6, 2, 2, 1, 1, 1, 2, 2, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 6, 3, 3, 1, 3, 3, 2, 2, 1, 1, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 4, 4, 6, 3, 3, 2, 2, 0, 0, 1, 1),
+    PARAMS(nhwc, hwio, x, nhwc,
+        2, 1, 6, 5, 5, 1, 5, 5, 2, 2, 1, 1, 1, 1)
+
 );
 
 
