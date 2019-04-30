@@ -48,7 +48,7 @@ using mkldnn::impl::f16_support::float16_t;
 #define MKLDNN_CHECK(f)               \
     do {                              \
         mkldnn_status_t s = (f);      \
-        EXPECT_EQ(s, mkldnn_success); \
+        ASSERT_EQ(s, mkldnn_success); \
     } while (0)
 
 using memory = mkldnn::memory;
@@ -179,7 +179,7 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
             if (set_zero_flag) {
                 src_data[blk_off] = 0.0;
             } else {
-                EXPECT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
+                ASSERT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
                 << "off = " << off;
             }
         }
@@ -305,10 +305,10 @@ static void compare_data(
             const float diff_f32 = got_f32 - ref_f32;
             const float e = (std::abs(ref_f32) > threshold_f32)
                 ? diff_f32 / ref_f32 : diff_f32;
-            EXPECT_NEAR(e, 0.0, threshold_f32)
+            ASSERT_NEAR(e, 0.0, threshold_f32)
                 << "Index: " << i << " Total: " << num;
         } else {
-            EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
+            ASSERT_EQ(ref, got) << "Index: " << i << " Total: " << num;
         }
     });
 }

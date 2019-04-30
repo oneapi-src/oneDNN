@@ -62,7 +62,7 @@ protected:
         check_zero_tail<data_t>(1, mem0);
 
         for (memory::dim i = 0; i < phys_size; ++i)
-            EXPECT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i;
+            ASSERT_NEAR(mem0_ptr[i], mem1_vec[i], 1e-7) << i;
     }
 };
 

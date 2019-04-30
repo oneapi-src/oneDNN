@@ -116,7 +116,7 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
                 p.aalgorithm == algorithm::pooling_avg_exclude_padding) {
                 out_ref /= num_summands;
             }
-            EXPECT_NEAR(out, out_ref, 1e-6f);
+            ASSERT_NEAR(out, out_ref, 1e-6f);
         }
     );
 }
@@ -223,7 +223,7 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
             if (is_current_test_failed())
                 return;
 
-            EXPECT_NEAR(ref_diff_src[i],
+            ASSERT_NEAR(ref_diff_src[i],
                     diff_src_data[diff_src_mdw.off_l( i, true)], 1e-5f);
         }
     );

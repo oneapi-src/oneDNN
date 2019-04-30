@@ -64,7 +64,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
             auto off_d = dst_mdw.off_l(idx_start + c * IN);
             auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN);
             data_t diff_src_ref = dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
-            EXPECT_NEAR(diff_src_ptr[off_dd], diff_src_ref, eps);
+            ASSERT_NEAR(diff_src_ptr[off_dd], diff_src_ref, eps);
         }
     });
 }

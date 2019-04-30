@@ -79,7 +79,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
                     + DST_D*DST_H*DST_W*adj_dst_dim(1, c)
                     + DST_C_PADDED*DST_D*DST_H*DST_W*adj_dst_dim(0, n);
                 if (ndims == 5) dst_idx += DST_H*DST_W*adj_dst_dim(2, d);
-                EXPECT_NEAR(src_data[src_mdw.off_l(src_idx, true)],
+                ASSERT_NEAR(src_data[src_mdw.off_l(src_idx, true)],
                             dst_data[dst_mdw.off_l(dst_idx, true)],
                             1e-7);
             }

@@ -23,9 +23,9 @@ namespace mkldnn {
 
 TEST(test_parallel, Test) {
     impl::parallel(0, [&](int ithr, int nthr) {
-        EXPECT_LE(0, ithr);
-        EXPECT_LT(ithr, nthr);
-        EXPECT_LE(nthr, mkldnn_get_max_threads());
+        ASSERT_LE(0, ithr);
+        ASSERT_LT(ithr, nthr);
+        ASSERT_LE(nthr, mkldnn_get_max_threads());
     });
 }
 
@@ -47,7 +47,7 @@ protected:
 
     void CheckID() {
         for (ptrdiff_t i = 0; i < size; ++i)
-            EXPECT_EQ(data[i], i);
+            ASSERT_EQ(data[i], i);
     }
 
     nd_params_t p;

@@ -148,10 +148,10 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             }
 
             const data_t out_ref = (data_t)acc_ref;
-            EXPECT_NEAR(out, out_ref, 1e-6);
+            ASSERT_NEAR(out, out_ref, 1e-6);
             if(p.aalgorithm == algorithm::pooling_max
                 && p.aprop_kind == prop_kind::forward_training) {
-                EXPECT_EQ(out_index, out_ref_index) << " n = " << n
+                ASSERT_EQ(out_index, out_ref_index) << " n = " << n
                 << " c = " << c << " od = " << od << " oh = " << oh
                 << " ow = " << ow;
             }

@@ -54,7 +54,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim c = 0; c < C; ++c) {
                     result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*C);
+                ASSERT_NEAR(result, 1.0, eps*C);
             }
         }
         else if (axis == 0) {
@@ -64,7 +64,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim n = 0; n < MB; ++n) {
                     result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*MB);
+                ASSERT_NEAR(result, 1.0, eps*MB);
             }
         }
     } else {
@@ -85,7 +85,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim n = 0; n < MB; ++n) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*MB);
+                ASSERT_NEAR(result, 1.0, eps*MB);
             }
         } else if (axis == 1) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -97,7 +97,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim c = 0; c < C; ++c) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*C);
+                ASSERT_NEAR(result, 1.0, eps*C);
             }
         } else if (axis == 2) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -109,7 +109,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim h = 0; h < H; ++h) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*H);
+                ASSERT_NEAR(result, 1.0, eps*H);
             }
         } else if (axis == 3) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -121,7 +121,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim w = 0; w < W; ++w) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*W);
+                ASSERT_NEAR(result, 1.0, eps*W);
             }
         }
     }

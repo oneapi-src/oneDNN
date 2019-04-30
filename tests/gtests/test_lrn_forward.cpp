@@ -81,7 +81,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
         data_t out = d[0];
         data_t norm_max = std::max(fabs(out), fabs(ref_out));
         if (norm_max < eps) norm_max = 1.;
-        EXPECT_NEAR(out, ref_out, eps*norm_max);
+        ASSERT_NEAR(out, ref_out, eps*norm_max);
     };
 
     const memory::dim N = ld.mb;

@@ -71,7 +71,7 @@ TEST_P(memory_map_test_c, MapNullMemory) {
 
     void *mapped_ptr;
     MKLDNN_CHECK(mkldnn_memory_map_data(mem, &mapped_ptr));
-    EXPECT_EQ(mapped_ptr, nullptr);
+    ASSERT_EQ(mapped_ptr, nullptr);
 
     MKLDNN_CHECK(mkldnn_memory_unmap_data(mem, mapped_ptr));
     MKLDNN_CHECK(mkldnn_memory_destroy(mem));

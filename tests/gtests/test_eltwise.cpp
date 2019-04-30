@@ -225,7 +225,7 @@ void check_eltwise_bwd(const eltwise_test_params &p,
 
         const data_t diff = diff_src_data[diff_data_mdw.off_l(i)] - ref_ds;
         const data_t error = (std::abs(ref_ds) > eps) ? diff / ref_ds : diff;
-        EXPECT_NEAR(error, 0.0, eps);
+        ASSERT_NEAR(error, 0.0, eps);
     }
 }
 

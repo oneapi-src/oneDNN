@@ -75,7 +75,7 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
         data_t refout = in_ptr[input_mdw.off_l(ou*dim +
                                  rev_transpose(a)*inner_size + in, true)];
         data_t out = out_ptr[output_mdw.off_l(ou*dim + a*inner_size + in, true)];
-        EXPECT_NEAR(out, refout, 0);
+        ASSERT_NEAR(out, refout, 0);
     });
 }
 

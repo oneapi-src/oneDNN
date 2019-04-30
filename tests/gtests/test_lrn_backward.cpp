@@ -92,7 +92,7 @@ void check_lrn_fwd(const lrn_test_params &p, const memory &src, const memory &ds
         data_t out = d[0];
         data_t norm_max = std::max(fabs(out), fabs(ref_out));
         if (norm_max < eps) norm_max = 1.;
-        EXPECT_NEAR(out, ref_out, eps*norm_max);
+        ASSERT_NEAR(out, ref_out, eps*norm_max);
     };
 
     const memory::dim N = p.test_ld.mb;
@@ -188,7 +188,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
             + (2*local_size + 3) + 9) );
         data_t norm_max = std::max(fabs(A), fabs(B));
         if (norm_max < eps) norm_max = 1.;
-        EXPECT_NEAR(A, B, eps*norm_max);
+        ASSERT_NEAR(A, B, eps*norm_max);
     });
 
     delete [] ref_diff_src_ptr;

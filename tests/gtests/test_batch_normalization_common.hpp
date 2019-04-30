@@ -320,7 +320,7 @@ protected:
                         std::max(std::abs(mean_data[c]), std::abs(ref_mean));
                     if (mean_norm_max < eps)
                         mean_norm_max = float(1);
-                    EXPECT_NEAR((mean_data[c] - ref_mean) / mean_norm_max,
+                    ASSERT_NEAR((mean_data[c] - ref_mean) / mean_norm_max,
                         0., eps);
                 }
 
@@ -339,7 +339,7 @@ protected:
                             std::abs(variance_data[c]), std::abs(ref_variance));
                     if (variance_norm_max < eps)
                         variance_norm_max = float(1);
-                    EXPECT_NEAR((variance_data[c] - ref_variance) /
+                    ASSERT_NEAR((variance_data[c] - ref_variance) /
                             variance_norm_max, 0., eps);
                 }
             }
@@ -376,7 +376,7 @@ protected:
                 float norm_max = std::max(std::abs(out), std::abs(ref_dst));
                 if (norm_max < 1e-2 || isS8(data_type))
                     norm_max = 1.;
-                EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
+                ASSERT_NEAR((out - ref_dst) / norm_max, 0., eps);
             }
         });
     }
@@ -420,8 +420,8 @@ protected:
                 for (memory::dim c = 0; c < bp.c; ++c) {
                     auto dg = diff_weights_data[diff_weights_mdw.off_l(c, true)];
                     auto db = diff_weights_data[diff_weights_mdw.off_l(bp.c + c, true)];
-                    EXPECT_NEAR(dg, 0., 1e-7);
-                    EXPECT_NEAR(db, 0., 1e-7);
+                    ASSERT_NEAR(dg, 0., 1e-7);
+                    ASSERT_NEAR(db, 0., 1e-7);
                 }
             }
             return;
@@ -465,7 +465,7 @@ protected:
                     std::max(std::abs(diff_gamma), std::abs(ref_diff_gamma));
                 if (norm_max < 1e-2)
                     norm_max = float(1);
-                EXPECT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
+                ASSERT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
 
                 auto diff_beta =
                     diff_weights_data[diff_weights_mdw.off_l(bp.c + c, true)];
@@ -473,7 +473,7 @@ protected:
                     std::max(std::abs(diff_beta), std::abs(ref_diff_beta));
                 if (norm_max < 1e-2)
                     norm_max = float(1);
-                EXPECT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
+                ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
             for (memory::dim n = 0; n < bp.mb; n++)
@@ -496,7 +496,7 @@ protected:
                     std::max(std::abs(out_diff_src), std::abs(ref_diff_src));
                 if (norm_max < eps)
                     norm_max = float(1);
-                EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
+                ASSERT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
         });
     }

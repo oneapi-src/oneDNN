@@ -378,7 +378,7 @@ protected:
 
         strm.wait();
 
-        EXPECT_EQ(ref_pool_fwd<data_t>(
+        ASSERT_EQ(ref_pool_fwd<data_t>(
                           p, p_src_dev_test, p_dst_dev_test, p_workspace),
                 0);
 

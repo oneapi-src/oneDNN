@@ -84,7 +84,7 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
             auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, false)];
             auto e = (std::abs(src_sum) > 1e-4) ? diff / src_sum : diff;
-            EXPECT_NEAR(e, 0.0, 1.2e-7);
+            ASSERT_NEAR(e, 0.0, 1.2e-7);
             }
         );
     }
