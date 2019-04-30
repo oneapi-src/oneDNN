@@ -136,7 +136,7 @@ struct jit_uni_pooling_bwd_t: public cpu_primitive_t {
 
         format_tag_t desired_fmt_tag() {
             using namespace format_tag;
-            return ndims()
+            return ndims() == 4
                 ? isa == avx512_common ? nChw16c : nChw8c
                 : isa == avx512_common ? nCdhw16c : nCdhw8c;
         }

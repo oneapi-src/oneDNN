@@ -35,7 +35,7 @@ struct nchw_pooling_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("nchw_pooling:any", nchw_pooling_fwd_t);
+        DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_fwd_t);
 
         status_t init() {
             const format_tag_t desired_fmt_tag =
@@ -81,7 +81,7 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("nchw:any", nchw_pooling_bwd_t);
+        DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_bwd_t);
 
         status_t init() {
             const format_tag_t desired_fmt_tag =
