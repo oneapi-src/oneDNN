@@ -502,4 +502,16 @@ inline std::string to_string(mkldnn_engine_kind_t engine_kind) {
     return ss.str();
 }
 
+inline std::string to_string(mkldnn_stream_flags_t stream_flags) {
+    std::stringstream ss;
+    if (stream_flags & mkldnn_stream_default_flags)
+        ss << "default";
+    else if (stream_flags & mkldnn_stream_in_order)
+        ss << "in_order";
+    else if (stream_flags & mkldnn_stream_out_of_order)
+        ss << "out_of_order";
+
+    return ss.str();
+}
+
 #endif
