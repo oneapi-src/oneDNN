@@ -7,3 +7,7 @@
 # relu
 --reset --dir=FWD_B --mb=2 --attr=post_ops='relu'
 --batch=ip_all
+
+# relu no bias (relu may be fused with gemm)
+--reset --dir=FWD_D --mb=2 --attr=post_ops='relu'
+--batch=ip_all
