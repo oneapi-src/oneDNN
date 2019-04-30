@@ -88,16 +88,6 @@ struct dnn_mem_t {
         return OK;
     }
 
-    int64_t N() { return md_.dims[0]; }
-    int64_t with_G() { return md_.ndims == 5; }
-    int64_t G() { return md_.ndims == 5 ? md_.dims[0] : 1; }
-
-    int64_t C() { return md_.ndims == 1 ? md_.dims[0] : md_.dims[1]; }
-    int64_t OC() { return md_.dims[with_G() + 0]; }
-    int64_t IC() { return md_.dims[with_G() + 1]; }
-    int64_t H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
-    int64_t W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
-
     size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
     int64_t nelems(bool with_padded_dims = false) const {
