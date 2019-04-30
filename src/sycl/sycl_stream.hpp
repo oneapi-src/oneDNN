@@ -108,7 +108,11 @@ struct sycl_stream_t : public ocl::cl_stream_t {
             }
             return status;
         };
-        return execute_func();
+        status_t status = execute_func();
+        // Emulate in-order behavior
+        if (flags() & stream_flags::in_order)
+            wait();
+        return status;
     }
 
 private:
@@ -123,6 +127,8 @@ private:
         *flags = 0;
         if (generic_flags & stream_flags::default_order)
             *flags |= stream_flags::out_of_order;
+        else
+            *flags |= generic_flags;
         return status::success;
     }
 

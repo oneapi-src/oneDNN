@@ -29,7 +29,8 @@ namespace impl {
 namespace sycl {
 
 status_t sycl_stream_t::init() {
-    if ((flags() & stream_flags::out_of_order) == 0)
+    if ((flags() & stream_flags::in_order) == 0
+            && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
 
     // If queue_ is not set then construct it

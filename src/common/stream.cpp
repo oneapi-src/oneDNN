@@ -36,9 +36,7 @@ status_t stream_t::enqueue_primitive(const primitive_t *primitive, const exec_ct
 
 status_t mkldnn_stream_create(stream_t **stream, engine_t *engine,
         unsigned flags) {
-    bool args_ok = true
-        && !utils::any_null(stream, engine)
-        && flags == stream_flags::default_flags;
+    bool args_ok = !utils::any_null(stream, engine);
     if (!args_ok)
         return invalid_arguments;
 
