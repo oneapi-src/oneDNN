@@ -261,8 +261,9 @@ static void compare_data(
         const memory &ref, const memory &dst, data_t threshold = (data_t)1e-4) {
     using data_type = memory::data_type;
 
-    ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
-            data_traits<data_t>::data_type == data_type::s32);
+    ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32
+            || data_traits<data_t>::data_type == data_type::f16
+            || data_traits<data_t>::data_type == data_type::s32);
 
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();
@@ -292,10 +293,15 @@ static void compare_data(
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
         data_t got = dst_data[mdw_dst.off_l(i, true)];
 
-        if (data_traits<data_t>::data_type == data_type::f32) {
-            data_t diff = got - ref;
-            data_t e = (std::abs(ref) > threshold) ? diff / ref : diff;
-            EXPECT_NEAR(e, (data_t)0.0, threshold)
+        if (data_traits<data_t>::data_type == data_type::f32
+                || data_traits<data_t>::data_type == data_type::f16) {
+            const float threshold_f32 = static_cast<float>(threshold);
+            const float ref_f32 = static_cast<float>(ref);
+            const float got_f32 = static_cast<float>(got);
+            const float diff_f32 = got_f32 - ref_f32;
+            const float e = (std::abs(ref_f32) > threshold_f32)
+                ? diff_f32 / ref_f32 : diff_f32;
+            EXPECT_NEAR(e, 0.0, threshold_f32)
                 << "Index: " << i << " Total: " << num;
         } else {
             EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
