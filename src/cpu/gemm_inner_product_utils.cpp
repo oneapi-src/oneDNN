@@ -18,6 +18,7 @@
 #include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
 #include "gemm_inner_product_utils.hpp"
+#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -25,35 +26,51 @@ namespace cpu {
 
 namespace inner_product_utils {
 
+using namespace alg_kind;
 using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         const cpu_inner_product_fwd_pd_t *pd)
-    : ker_(nullptr), OC_(pd->OC())
-    , bias_data_type_(data_type::undef), bias_data_type_size_(0)
-    , scale_idx_mult_(0), do_bias_(false), do_relu_(false)
-{
+    : ker_(nullptr)
+    , eltwise_injector_(nullptr)
+    , ref_eltwise_(nullptr)
+    , OC_(pd->OC())
+    , do_bias_(pd->with_bias())
+    , bias_data_type_(data_type::undef)
+    , bias_data_type_size_(0)
+    , scale_idx_mult_(0)
+    , do_eltwise_(false) {
     using namespace types;
 
     scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
 
-    auto &post_ops = pd->attr()->post_ops_;
-    do_relu_ = post_ops.len_ == 1;
-    do_bias_ = pd->with_bias();
+    auto &p = pd->attr()->post_ops_;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    do_eltwise_ = eltwise_ind != -1;
+    if (do_eltwise_)
+        eltwise_ = p.entry_[eltwise_ind].eltwise;
+
     bias_data_type_ = pd->desc()->bias_desc.data_type;
     if (do_bias_) {
         assert(bias_data_type_ != data_type::undef);
         bias_data_type_size_ = data_type_size(bias_data_type_);
     }
 
-    if (!mayiuse(avx512_core))
+    if (!mayiuse(avx512_core)) {
         // use fallback code for older CPUs since they do not have optimized
         // x8s8s32 GEMM anyways. The configuration variables above are used by
         // the fallback code.
+        if (do_eltwise_)
+            ref_eltwise_ =  new ref_eltwise_scalar_fwd_t(
+                    eltwise_.alg, eltwise_.alpha, eltwise_.beta);
         return;
-    else
+    } else {
+        if (do_eltwise_)
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, eltwise_, true, Xbyak::util::rax, Xbyak::Opmask(2));
         generate();
+    }
 }
 
 template<data_type_t acc_type, data_type_t dst_type>
@@ -74,13 +91,11 @@ void pp_kernel_t<acc_type, dst_type>::generate()
     Reg64 reg_oc_offset = r9;
     Reg64 reg_rem_mask = r10;
     Opmask kreg_rem_mask = k1;
-    Opmask kreg_relu_cmp = k2;
 
     const size_t vlen = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
 
     Zmm vreg_zero = Zmm(0);
     Zmm vreg_scale = Zmm(1);
-    Zmm vreg_nslope = Zmm(2);
 
     auto vreg_dst = [&](int idx) { return Zmm(3 + idx * 2 + 0); };
     auto vreg_bias = [&](int idx) { return Zmm(3 + idx * 2 + 1); };
@@ -94,16 +109,15 @@ void pp_kernel_t<acc_type, dst_type>::generate()
     mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
-    vbroadcastss(vreg_nslope, ptr[reg_param + PARAM_OFF(nslope)]);
     if (scale_idx_mult_ == 0)
         vbroadcastss(vreg_scale, dword[reg_scales]);
 #undef PARAM_OFF
 
-    if (do_relu_ || dst_type == data_type::u8)
+    if (dst_type == data_type::u8)
         vxorps(vreg_zero, vreg_zero, vreg_zero);
 
     // Load accumulated value, convert to float, apply bias (if any), scaling,
-    // and relu (if any); then convert to destination type and store
+    // and eltwise (if any); then convert to destination type and store
     auto compute = [&](size_t offset, int idx, bool apply_mask) {
         auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
 
@@ -150,10 +164,8 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         }
 
         vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
-        if (do_relu_) {
-            vcmpps(kreg_relu_cmp, vreg_dst(idx), vreg_zero, _cmp_lt_os);
-            vmulps(vreg_dst(idx) | kreg_relu_cmp, vreg_dst(idx), vreg_nslope);
-        }
+        if (do_eltwise_)
+            eltwise_injector_->compute_vector(vreg_dst(idx).getIdx());
 
         if (dst_type == data_type::u8)
             vmaxps(vreg_dst(idx), vreg_dst(idx), vreg_zero);
@@ -352,15 +364,16 @@ void pp_kernel_t<acc_type, dst_type>::generate()
 
     postamble();
 
+    if (do_eltwise_)
+        eltwise_injector_->prepare_table();
+
     ker_ = getCode<decltype(ker_)>();
 }
 
-template<data_type_t acc_type, data_type_t dst_type>
-void pp_kernel_t<acc_type, dst_type>::operator ()(
-        dst_data_t *dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float nslope,
-        size_t start, size_t end)
-{
+template <data_type_t acc_type, data_type_t dst_type>
+void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
+        const acc_data_t *acc, const char *bias, const float *scales,
+        size_t start, size_t end) {
     using math::get_bias;
 
     if (end <= start)
@@ -374,7 +387,6 @@ void pp_kernel_t<acc_type, dst_type>::operator ()(
         args.acc = acc + start;
         args.bias = bias + oc_offset * bias_data_type_size_;
         args.scales = scales + scale_idx_mult_ * oc_offset;
-        args.nslope = nslope;
         args.len = end - start;
         args.oc_offset = oc_offset;
         ker_(&args);
@@ -386,8 +398,8 @@ void pp_kernel_t<acc_type, dst_type>::operator ()(
             float b = get_bias(bias, oc, bias_data_type_);
             d = d + b;
             d *= scales[oc * scale_idx_mult_];
-            if (do_relu_ && d < 0)
-                d *= nslope;
+            if (do_eltwise_)
+                d = ref_eltwise_->compute_scalar(d);
             dst[i] = qz_a1b0<float, dst_data_t>()(d);
             oc = (oc == OC_ - 1) ? 0 : oc + 1;
         }

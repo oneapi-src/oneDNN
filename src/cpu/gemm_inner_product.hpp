@@ -54,7 +54,7 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                         with_bias() ? weights_md(1)->data_type : data_type)
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_ == 1,
-                        attr()->post_ops_.entry_[0].is_relu(true, false))
+                        attr()->post_ops_.entry_[0].is_eltwise())
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             return ok ? status::success : status::unimplemented;
@@ -64,9 +64,9 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
     gemm_inner_product_fwd_t(const pd_t *apd)
         : cpu_primitive_t(apd), pp_kernel_(nullptr), postops_in_ip_(false) {
         bool has_bias = pd()->with_bias(),
-             has_relu = pd()->attr()->post_ops_.len_ == 1,
-             has_scales = !pd()->attr()->output_scales_.has_default_values();
-        postops_in_ip_ = has_bias || has_relu || has_scales;
+             has_eltwise = pd()->attr()->post_ops_.len_ == 1,
+             has_scale = !pd()->attr()->output_scales_.has_default_values();
+        postops_in_ip_ = has_bias || has_eltwise || has_scale;
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type, data_type>(
                 apd);
     }
