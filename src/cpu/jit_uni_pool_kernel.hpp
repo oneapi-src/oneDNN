@@ -15,8 +15,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_POOL_KERNEL_F32_HPP
-#define CPU_JIT_UNI_POOL_KERNEL_F32_HPP
+#ifndef CPU_JIT_UNI_POOL_KERNEL_HPP
+#define CPU_JIT_UNI_POOL_KERNEL_HPP
 
 #include <cfloat>
 
@@ -25,6 +25,7 @@
 #include "type_helpers.hpp"
 
 #include "jit_primitive_conf.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,16 +34,25 @@ namespace cpu {
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
-struct jit_uni_pool_kernel_f32: public jit_generator {
-    jit_uni_pool_kernel_f32(jit_pool_conf_t ajpp): jpp(ajpp)
+struct jit_uni_pool_kernel: public jit_generator {
+    jit_uni_pool_kernel(jit_pool_conf_t ajpp):
+        jpp(ajpp), bf16_emu_(nullptr)
     {
+        if (jpp.is_bf16 && !jpp.is_cpx)
+            bf16_emu_ = new bf16_emulation_t(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2,
+                    bf16_emu_reserv_3, bf16_emu_reserv_4,
+                    bf16_emu_reserv_5, bf16_emu_reserv_5);
+
         this->generate();
         jit_ker = (decltype(jit_ker))this->getCode();
     }
 
+    ~jit_uni_pool_kernel() { delete bf16_emu_; }
+
     jit_pool_conf_t jpp;
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel)
 
     void operator()(jit_pool_call_s *arg) { jit_ker(arg); }
     static status_t init_conf(jit_pool_conf_t &jbp,
@@ -54,12 +64,16 @@ private:
                                              Ymm, Zmm>::type;
     Xmm xreg(int idx) { return Xmm((isa == avx512_common ? 31 : 15) - idx); }
     Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
+    Zmm zreg(int idx) { return Zmm(xreg(idx).getIdx()); }
     Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
     const AddressFrame &vmmword = (isa == sse42) ? xword :
                                   (isa == avx) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
+    Ymm ymm_tmp_1 = Ymm(0);
+    Vmm vmm_tmp_1 = Vmm(0);
+
     Xmm xmm_ker_area_h = Xmm(2);
     Xmm xmm_one = Xmm(2);
     Xmm xmm_tmp = Xmm(3);
@@ -67,11 +81,26 @@ private:
     Vmm vmm_ker_area_h = Vmm(2);
     Vmm vmm_one = Vmm(2);
     Vmm vmm_tmp = Vmm(3);
+    Ymm ymm_tmp = Ymm(3);
 
     Vmm vmm_k_offset = Vmm(1);
 
+    inline Vmm vmm_idx() {
+        if (!jpp.is_backward) {
+            return (jpp.is_training) ? Vmm(4) : Vmm(1);
+        } else
+            return Vmm(4);
+    }
+
+    Zmm bf16_emu_reserv_1 = Zmm(5);
+    Zmm bf16_emu_reserv_2 = Zmm(6);
+    Zmm bf16_emu_reserv_3 = Zmm(7);
+    Reg64 bf16_emu_reserv_4 = r11;
+    Zmm bf16_emu_reserv_5 = Zmm(8);
+
     Opmask k_index_mask = Opmask(6);
     Opmask k_store_mask = Opmask(7);
+    Opmask k_mask_cvt = Opmask(5);
 
     // Here be some (tame) dragons. This kernel does not follow the regular
     // OS-agnostic ABI pattern because when isa is sse42 it uses maskmovdqu
@@ -113,6 +142,17 @@ private:
     void max_step_bwd(int ur_w, int pad_l, int pad_r);
 
     void maybe_zero_diff_src();
+
+    void load(int idx, reg64_t reg_ptr, int offset) {
+        if (jpp.is_bf16) {
+            /*TODO: maybe use vpmovzxwd + vpslld,
+             * in order to free up vmm_idx() register */
+            vmovups(yreg(idx), ptr[reg_ptr + offset]);
+            vpermw(vreg(idx) | k_mask_cvt | T_z, vmm_idx(), vreg(idx));
+        } else {
+            uni_vmovups(vreg(idx), ptr[reg_ptr + offset]);
+        }
+    };
 
     void step(int ur_w, int pad_l, int pad_r) {
         if (jpp.alg == alg_kind::pooling_max) {
@@ -182,6 +222,8 @@ private:
         assert(false /*function should not be used*/);
         pcmpeqd(x0, x1);
     }
+
+    bf16_emulation_t *bf16_emu_;
 };
 
 }

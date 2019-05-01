@@ -17,6 +17,7 @@
 #ifndef BFLOAT16_UTILS_HPP
 #define BFLOAT16_UTILS_HPP
 
+#include "nstl.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 
 namespace mkldnn {
@@ -99,6 +100,16 @@ inline void add_floats_and_cvt_to_bfloat16(mkldnn_bfloat16_t *out,
     p_.out = (void *)out;
     p_.size = size;
     add_cvt_ps_to_bf16_.jit_ker(&p_);
+}
+
+inline mkldnn_bfloat16_t approx_bfloat16_lowest() {
+    /* jit fails to convert FLT_MIN to bfloat16.
+     * It converst FLT_MIN to -INF. Truncate FLT_MIN
+     * to bfloat16 to get a value close to minimum bfloat16*/
+    f32_bf16_t f_raw = {0};
+    f_raw.vfloat = nstl::numeric_limits<float>::lowest();
+    f_raw.vbfloat[0] = 0;
+    return f_raw.vbfloat[1];
 }
 
 inline bool is_float_representable_in_bfloat16(float x) {

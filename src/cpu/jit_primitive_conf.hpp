@@ -469,14 +469,19 @@ struct jit_pool_conf_t {
     size_t tail[4];
     data_type_t src_dt;
     data_type_t dst_dt;
+
+    bool is_bf16;
+    int dt_size;
+
+    bool is_cpx;
 };
 
 struct jit_pool_call_s {
-    const float *src;
-    const float *dst;
+    const void *src;
+    const void *dst;
     const void *indices;
-    const float *src_prf;
-    const float *dst_prf;
+    const void *src_prf;
+    const void *dst_prf;
     const void *indices_prf;
     size_t oh;
     size_t kd_padding;
@@ -484,7 +489,7 @@ struct jit_pool_call_s {
     size_t kh_padding_shift;
     size_t kd_padding_shift;
     size_t kw_padding;
-    const float* init_value;
+    const void *init_value;
     float ker_area_h;
 };
 
