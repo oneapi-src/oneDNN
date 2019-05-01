@@ -19,3 +19,8 @@
 --tag=ncw,nwc 2x8x8 # special 8x8 kernel
 --tag=nchw,nhwc,nChw8c,nChw16c 2x64x3x3
 --tag=oihw,hwio 2x64x3x3
+
+# simple nChw{8,16}c impl
+--both-dir-tag=true
+--itag=nChw8c --otag=nChw16c
+2x71x16x16 2x72x16x16 2x73x16x16

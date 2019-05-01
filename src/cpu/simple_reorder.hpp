@@ -416,6 +416,9 @@ typename utils::enable_if<false
         const auto &pdims = order_keep ? output_d.padded_dims()
                                        : input_d.padded_dims();
 
+        const auto &nchw8c_d = order_keep ? input_d : output_d;
+        const auto stride_C_in_8c = nchw8c_d.blocking_desc().strides[1];
+
         const int C = dims[1];
         const int D = is_3d ? dims[2] : 1;
         const int H = is_1d ? 1 : dims[2 + is_3d];
@@ -426,8 +429,10 @@ typename utils::enable_if<false
             const int nb = (block_16 - 1) / blksize_8 + 1;
             if (alpha == 1.0 && beta == 0.0) {
                 for (int b = 0; b < nb; ++b) {
-                    const ptrdiff_t i_off = order_keep ? b : b * blksize_8;
-                    const ptrdiff_t o_off = order_keep ? b * blksize_8 : b;
+                    const ptrdiff_t i_off = b
+                        * (order_keep ? stride_C_in_8c : blksize_8);
+                    const ptrdiff_t o_off = b
+                        * (order_keep ? blksize_8 : stride_C_in_8c);
                     const int block_8 = nstl::min(blksize_8,
                                                   block_16 - b * blksize_8);
                     for (int c = 0; c < block_8; ++c) {
@@ -437,8 +442,10 @@ typename utils::enable_if<false
                 }
             } else {
                 for (int b = 0; b < nb; ++b) {
-                    const ptrdiff_t i_off = order_keep ? b : b * blksize_8;
-                    const ptrdiff_t o_off = order_keep ? b * blksize_8 : b;
+                    const ptrdiff_t i_off = b
+                        * (order_keep ? stride_C_in_8c : blksize_8);
+                    const ptrdiff_t o_off = b
+                        * (order_keep ? blksize_8 : stride_C_in_8c);
                     const int block_8 = nstl::min(blksize_8,
                                                   block_16 - b * blksize_8);
                     for (int c = 0; c < block_8; ++c) {
