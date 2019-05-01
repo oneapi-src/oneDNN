@@ -663,6 +663,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.ic_block = jcp.oc_block = simd_w;
     jcp.transpose_src = false;
+    jcp.use_vmovntps = false;
 
     if (everyone_is(data_type::f32, src_d.data_type(),
                             weights_d.data_type(), dst_d.data_type()))
@@ -837,14 +838,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                 reduce_blocking = nstl::min(jcp.reduce_dim, 512);
             else
                 reduce_blocking = nstl::min(jcp.reduce_dim, 256);
-
-            if ((jcp.mb > 28 && spatial >= 28)
-                    || (jcp.mb > 112 && spatial >= 17))
-                jcp.use_vmovntps = true;
-            else
-                jcp.use_vmovntps = false;
         } else {
-
             reduce_blocking = nb_reduce;
             if (spatial <= SMALL_SPATIAL && jcp.reduce_dim >= BIG_REDUCE_DIM)
                 reduce_blocking = 16;
@@ -879,7 +873,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
 
         if (reduce_blocking < jcp.reduce_dim) {
-            jcp.use_vmovntps = false;
             if (jcp.prop_kind == backward_data)
                 jcp.loop_order = reduce_src ? loop_lbr : loop_rlb;
             else
@@ -1010,7 +1003,6 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     } else if (jcp.prop_kind == backward_weights) {
 
-        jcp.use_vmovntps = false;
         if (jcp.is > SMALL_SPATIAL * SMALL_SPATIAL && jcp.ver == ver_4fma)
             jcp.use_vmovntps = true;
 
