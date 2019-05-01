@@ -104,7 +104,9 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad.get<src_data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<src_data_t>(key_conv_rtus_space)
+            : NULL;
 
     const int ndims = src_d.ndims();
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
@@ -295,8 +297,9 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad(ctx).template get<diff_src_data_t>(
-            key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad(ctx).template get<diff_src_data_t>(key_conv_rtus_space)
+            : NULL;
 
     const int ndims = diff_src_d.ndims();
 
@@ -462,7 +465,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto scratchpad = this->scratchpad(ctx);
 
-    auto rtus_space = scratchpad.get<data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<data_t>(key_conv_rtus_space)
+            : NULL;
     data_t *diff_bias = pd()->wants_padded_bias()
         ? scratchpad.get<data_t>(key_conv_padded_bias) : diff_bias_in;
     auto wei_reduction = scratchpad.get<data_t>(key_conv_wei_reduction);

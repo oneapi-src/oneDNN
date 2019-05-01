@@ -98,7 +98,10 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad.get<src_data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<src_data_t>(key_conv_rtus_space)
+            : NULL;
+
     auto local_scales = scratchpad.get<float>(key_conv_adjusted_scales);
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
