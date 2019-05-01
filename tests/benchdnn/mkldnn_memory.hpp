@@ -207,7 +207,7 @@ private:
         if (backend_kind_ == mkldnn_backend_native) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
-            const size_t alignment = 1024 * 1024 * 2;
+            const size_t alignment = 1024 * 1024 * 16;
             size_t sz = mkldnn_memory_desc_get_size(&md_);
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
