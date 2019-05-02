@@ -176,11 +176,11 @@ protected:
             ? convolution_forward::desc(aprop_kind, p.aalgorithm,
                     c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                     { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero)
+                    { cd.padh, cd.padw }, padR)
             : convolution_forward::desc(aprop_kind, p.aalgorithm,
                     c_src_desc, c_weights_desc, c_dst_desc,
                     { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                    { cd.padh, cd.padw }, padR, padding_kind::zero);
+                    { cd.padh, cd.padw }, padR);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, attr.mkl_attr, eng);

@@ -89,8 +89,7 @@ void simple_net_int8() {
     /* create a convolution */
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
             algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
-            conv_dst_md, conv_strides, conv_padding, conv_padding,
-            padding_kind::zero);
+            conv_dst_md, conv_strides, conv_padding, conv_padding);
 
     /* define the convolution attributes */
     primitive_attr conv_attr;

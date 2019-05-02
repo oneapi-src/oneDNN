@@ -291,8 +291,7 @@ protected:
 
     void Forward() {
         auto pool_desc = pooling_forward::desc(prop_kind::forward_training,
-                p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l, pad_r,
-                padding_kind::zero);
+                p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l, pad_r);
         pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
         auto p_workspace_desc = pool_prim_desc.workspace_desc();
@@ -318,7 +317,7 @@ protected:
 
     void Backward() {
         auto pool_bwd_desc = pooling_backward::desc(p.aalgorithm, *src_desc,
-                *dst_desc, strides, ker, pad_l, pad_r, padding_kind::zero);
+                *dst_desc, strides, ker, pad_l, pad_r);
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_desc, eng, pool_prim_desc);
 

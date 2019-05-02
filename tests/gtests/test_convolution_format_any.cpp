@@ -66,8 +66,7 @@ protected:
         auto conv_desc = convolution_forward::desc(
                 p.aprop_kind, p.aalgorithm,
                 c_src_desc, c_weights_desc, c_dst_desc,
-                {cd.strh, cd.strw}, {cd.padh, cd.padw}, {cd.padh, cd.padw},
-                padding_kind::zero);
+                {cd.strh, cd.strw}, {cd.padh, cd.padw}, {cd.padh, cd.padw});
 
         auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 

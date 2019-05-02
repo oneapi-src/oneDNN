@@ -199,7 +199,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_convolution_forward_desc_init(&conv_any_desc, mkldnn_forward,
             mkldnn_convolution_direct, &conv_src_md, &conv_weights_md,
             &conv_bias_md, &conv_dst_md, conv_strides, conv_padding,
-            conv_padding, mkldnn_padding_zero));
+            conv_padding));
 
     mkldnn_primitive_desc_t conv_pd;
     CHECK(mkldnn_primitive_desc_create(
@@ -356,7 +356,7 @@ mkldnn_status_t simple_net() {
     mkldnn_pooling_desc_t pool_desc;
     CHECK(mkldnn_pooling_forward_desc_init(&pool_desc, mkldnn_forward,
             mkldnn_pooling_max, pool_src_md, &pool_dst_any_md, pool_strides,
-            pool_kernel, pool_padding, pool_padding, mkldnn_padding_zero));
+            pool_kernel, pool_padding, pool_padding));
 
     mkldnn_primitive_desc_t pool_pd;
     CHECK(mkldnn_primitive_desc_create(

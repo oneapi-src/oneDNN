@@ -68,7 +68,7 @@ auto conv1_src_md = memory::desc({conv1_src_tz},
 auto conv1_desc = convolution_forward::desc(
     prop_kind::forward_inference, algorithm::convolution_direct,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
-    conv1_strides, conv1_padding, padding_kind::zero);
+    conv1_strides, conv1_padding);
 ~~~
 
 7. Create a descriptor of the convolution primitive. Once created, this

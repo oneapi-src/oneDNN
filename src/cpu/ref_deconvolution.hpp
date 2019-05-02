@@ -108,7 +108,7 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
     return conv_desc_init(cd, prop_kind, alg_kind, src_md, &c_weights_d,
             prop_kind != backward_weights ? &dd->bias_desc : nullptr,
             dst_md, dd->strides, dd->dilates,
-            dd->padding[0], dd->padding[1], dd->padding_kind);
+            dd->padding[0], dd->padding[1]);
 }
 
 struct ref_deconvolution_fwd_t: public cpu_primitive_t {

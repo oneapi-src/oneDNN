@@ -33,13 +33,12 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const dims_t padding_l,
-        const dims_t padding_r, padding_kind_t padding_kind) {
+        const dims_t padding_r) {
     bool args_ok = true
         && !any_null(pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
         && one_of(alg_kind, pooling_max,
                 pooling_avg_include_padding,
-                pooling_avg_exclude_padding)
-        && one_of(padding_kind, padding_kind::padding_zero);
+                pooling_avg_exclude_padding);
     if (!args_ok) return invalid_arguments;
 
     if (padding_r == nullptr) padding_r = padding_l;
@@ -64,7 +63,6 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     utils::array_copy(pd.padding[0], padding_l, sp_dims);
     utils::array_copy(pd.padding[1], padding_r, sp_dims);
 
-    pd.padding_kind = padding_kind;
     if (one_of(alg_kind, pooling_max, pooling_avg_include_padding,
                 pooling_avg_exclude_padding)) {
         pd.accum_data_type = types::default_accum_data_type(
@@ -94,21 +92,20 @@ status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const dims_t padding_l,
-        const dims_t padding_r, padding_kind_t padding_kind) {
+        const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc,
-            dst_desc, strides, kernel, padding_l, padding_r, padding_kind);
+            dst_desc, strides, kernel, padding_l, padding_r);
 }
 
 status_t mkldnn_pooling_backward_desc_init(pooling_desc_t *pool_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t kernel, const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t kernel, const dims_t padding_l, const dims_t padding_r) {
     return pooling_desc_init(pool_desc, prop_kind::backward_data, alg_kind,
             diff_src_desc, diff_dst_desc, strides, kernel, padding_l,
-            padding_r, padding_kind);
+            padding_r);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -31,8 +31,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t dilates,
-        const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind);
+        const dims_t padding_l, const dims_t padding_r);
 
 memory_desc_t *conv_prop_invariant_src_d(convolution_desc_t *desc);
 memory_desc_t *conv_prop_invariant_wei_d(convolution_desc_t *desc);

@@ -254,8 +254,7 @@ descriptors as parameters.
 ~~~cpp
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
             convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
-            conv_dst_md, conv_strides, conv_padding, conv_padding,
-            padding_kind::zero);
+            conv_dst_md, conv_strides, conv_padding, conv_padding);
 ~~~
 
 6. Configuring int8-specific parameters in an int8 primitive is done

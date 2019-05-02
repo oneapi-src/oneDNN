@@ -227,7 +227,7 @@ mkldnn_status_t simple_net() {
         CHECK(mkldnn_convolution_forward_desc_init(&conv_any_desc,
                 mkldnn_forward, mkldnn_convolution_direct, &conv_src_md,
                 &conv_weights_md, &conv_bias_md, &conv_dst_md, conv_strides,
-                conv_padding, conv_padding, mkldnn_padding_zero));
+                conv_padding, conv_padding));
 
         CHECK(mkldnn_primitive_desc_create(
                 &conv_pd, &conv_any_desc, NULL, engine, NULL));
@@ -396,7 +396,7 @@ mkldnn_status_t simple_net() {
         mkldnn_pooling_desc_t pool_desc;
         CHECK(mkldnn_pooling_forward_desc_init(&pool_desc, mkldnn_forward,
                 mkldnn_pooling_max, pool_src_md, &pool_dst_md, pool_strides,
-                pool_kernel, pool_padding, pool_padding, mkldnn_padding_zero));
+                pool_kernel, pool_padding, pool_padding));
 
         CHECK(mkldnn_primitive_desc_create(
                 &pool_pd, &pool_desc, NULL, engine, NULL));
@@ -465,7 +465,7 @@ mkldnn_status_t simple_net() {
     mkldnn_pooling_desc_t pool_bwd_desc;
     CHECK(mkldnn_pooling_backward_desc_init(&pool_bwd_desc, mkldnn_pooling_max,
             pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
-            pool_padding, pool_padding, mkldnn_padding_zero));
+            pool_padding, pool_padding));
 
     /* backward primitive descriptor needs to hint forward descriptor*/
     mkldnn_primitive_desc_t pool_bwd_pd;
@@ -603,8 +603,7 @@ mkldnn_status_t simple_net() {
         CHECK(mkldnn_convolution_backward_weights_desc_init(
                 &conv_bwd_weights_desc, mkldnn_convolution_direct,
                 &conv_diff_src_md, &conv_diff_weights_md, &conv_diff_bias_md,
-                &conv_diff_dst_md, conv_strides, conv_padding, conv_padding,
-                mkldnn_padding_zero));
+                &conv_diff_dst_md, conv_strides, conv_padding, conv_padding));
 
         CHECK(mkldnn_primitive_desc_create(&conv_bwd_weights_pd,
                 &conv_bwd_weights_desc, NULL, engine, conv_pd));

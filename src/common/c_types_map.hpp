@@ -388,11 +388,6 @@ namespace memory_extra_flags {
     const memory_extra_flags_t scale_adjust = mkldnn_memory_extra_flag_scale_adjust;
 }
 
-using padding_kind_t = mkldnn_padding_kind_t;
-namespace padding_kind {
-    const padding_kind_t padding_zero = mkldnn_padding_zero;
-}
-
 using engine_kind_t = mkldnn_engine_kind_t;
 namespace engine_kind {
     const engine_kind_t any_engine = mkldnn_any_engine;

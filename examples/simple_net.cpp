@@ -87,8 +87,7 @@ void simple_net(int times = 100) {
     /* create a convolution */
     auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv1_src_md, conv1_weights_md, conv1_bias_md,
-            conv1_dst_md, conv1_strides, conv1_padding, conv1_padding,
-            padding_kind::zero);
+            conv1_dst_md, conv1_strides, conv1_padding, conv1_padding);
     auto conv1_prim_desc = convolution_forward::primitive_desc(conv1_desc, eng);
 
     /* create reorders for data and weights if layout requested by
@@ -170,8 +169,7 @@ void simple_net(int times = 100) {
     /* create a pooling */
     auto pool1_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, lrn1_dst_memory.get_desc(), pool1_dst_md,
-            pool1_strides, pool1_kernel, pool_padding, pool_padding,
-            padding_kind::zero);
+            pool1_strides, pool1_kernel, pool_padding, pool_padding);
     auto pool1_pd = pooling_forward::primitive_desc(pool1_desc, eng);
     auto pool1_dst_memory = memory(pool1_pd.dst_desc(), eng);
 
@@ -212,8 +210,7 @@ void simple_net(int times = 100) {
     /* create a convolution */
     auto conv2_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv2_src_md, conv2_weights_md, conv2_bias_md,
-            conv2_dst_md, conv2_strides, conv2_padding, conv2_padding,
-            padding_kind::zero);
+            conv2_dst_md, conv2_strides, conv2_padding, conv2_padding);
     auto conv2_prim_desc = convolution_forward::primitive_desc(conv2_desc, eng);
 
     auto conv2_src_memory = pool1_dst_memory;
@@ -294,8 +291,7 @@ void simple_net(int times = 100) {
     /* create a pooling */
     auto pool2_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, lrn2_dst_memory.get_desc(), pool2_dst_md,
-            pool2_strides, pool2_kernel, pool2_padding, pool2_padding,
-            padding_kind::zero);
+            pool2_strides, pool2_kernel, pool2_padding, pool2_padding);
     auto pool2_pd = pooling_forward::primitive_desc(pool2_desc, eng);
     auto pool2_dst_memory = memory(pool2_pd.dst_desc(), eng);
 
@@ -337,8 +333,7 @@ void simple_net(int times = 100) {
     /* create a convolution */
     auto conv3_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv3_src_md, conv3_weights_md, conv3_bias_md,
-            conv3_dst_md, conv3_strides, conv3_padding, conv3_padding,
-            padding_kind::zero);
+            conv3_dst_md, conv3_strides, conv3_padding, conv3_padding);
     auto conv3_prim_desc = convolution_forward::primitive_desc(conv3_desc, eng);
 
     auto conv3_src_memory = pool2_dst_memory;
@@ -414,8 +409,7 @@ void simple_net(int times = 100) {
     /* create a convolution */
     auto conv4_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv4_src_md, conv4_weights_md, conv4_bias_md,
-            conv4_dst_md, conv4_strides, conv4_padding, conv4_padding,
-            padding_kind::zero);
+            conv4_dst_md, conv4_strides, conv4_padding, conv4_padding);
     auto conv4_prim_desc = convolution_forward::primitive_desc(conv4_desc, eng);
 
     auto conv4_src_memory = conv3_dst_memory;
@@ -490,8 +484,7 @@ void simple_net(int times = 100) {
     /* create a convolution */
     auto conv5_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv5_src_md, conv5_weights_md, conv5_bias_md,
-            conv5_dst_md, conv5_strides, conv5_padding, conv5_padding,
-            padding_kind::zero);
+            conv5_dst_md, conv5_strides, conv5_padding, conv5_padding);
     auto conv5_prim_desc = convolution_forward::primitive_desc(conv5_desc, eng);
 
     auto conv5_src_memory = conv4_dst_memory;
@@ -552,8 +545,7 @@ void simple_net(int times = 100) {
     /* create a pooling */
     auto pool5_desc = pooling_forward::desc(prop_kind::forward_inference,
             algorithm::pooling_max, conv5_dst_memory.get_desc(), pool5_dst_md,
-            pool5_strides, pool5_kernel, pool5_padding, pool5_padding,
-            padding_kind::zero);
+            pool5_strides, pool5_kernel, pool5_padding, pool5_padding);
     auto pool5_pd = pooling_forward::primitive_desc(pool5_desc, eng);
 
     auto pool5_dst_memory = memory(pool5_pd.dst_desc(), eng);

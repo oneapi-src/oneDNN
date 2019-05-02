@@ -531,12 +531,6 @@ typedef enum {
     mkldnn_Goidhw16g = mkldnn_Abcdef16a,
 } mkldnn_format_tag_t;
 
-/// Kinds of padding. Define how to interpret the data in padding regions.
-typedef enum {
-    /// The data in padding regions is zero.
-    mkldnn_padding_zero,
-} mkldnn_padding_kind_t;
-
 /// Kinds of propagation.
 typedef enum {
     // TODO: suggest renames
@@ -920,8 +914,6 @@ typedef struct {
     /// beginning (@p padding_l), padding[1] is a padding in the end (@p
     /// padding_r).
     mkldnn_dims_t padding[2];
-    /// The kind of padding to use.
-    mkldnn_padding_kind_t padding_kind;
     /// The accumulator data type. Initialized automatically.
     mkldnn_data_type_t accum_data_type;
 } mkldnn_convolution_desc_t;
@@ -1024,8 +1016,6 @@ typedef struct {
     /// beginning (@p padding_l), padding[1] is a padding in the end (@p
     /// padding_r).
     mkldnn_dims_t padding[2];
-    /// The kind of padding to use.
-    mkldnn_padding_kind_t padding_kind;
     /// The accumulator data type. Initialized automatically.
     mkldnn_data_type_t accum_data_type;
 } mkldnn_pooling_desc_t;

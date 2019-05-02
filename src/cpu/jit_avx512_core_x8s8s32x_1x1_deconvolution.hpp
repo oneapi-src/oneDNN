@@ -62,8 +62,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             status = conv_desc_init(&cd, prop_kind::forward_training,
                     alg_kind::convolution_direct, &(dd->src_desc),
                     &(dd->weights_desc), &(dd->bias_desc), &(dd->dst_desc),
-                    dd->strides, dd->dilates, dd->padding[0], dd->padding[1],
-                    dd->padding_kind);
+                    dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 
             if (status == status::success) {
                 status = mkldnn_primitive_desc::create<conv_pd_t>(

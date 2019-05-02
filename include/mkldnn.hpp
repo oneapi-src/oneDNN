@@ -229,14 +229,6 @@ inline mkldnn_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
     return static_cast<mkldnn_scratchpad_mode_t>(mode);
 }
 
-enum class padding_kind {
-    zero = mkldnn_padding_zero
-};
-
-inline mkldnn_padding_kind_t convert_to_c(padding_kind kind) {
-    return static_cast<mkldnn_padding_kind_t>(kind);
-}
-
 /// Propagation kind
 enum class prop_kind {
     forward_training = mkldnn_forward_training,
@@ -1655,8 +1647,8 @@ struct convolution_forward: public primitive {
         /// Initializes a descriptor for convolution forward propagation without
         /// bias using @p aprop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference),
-        /// @p aalgorithm, memory descriptors, @p strides, @p padding_l,
-        /// @p padding_r, and @p apadding_kind.
+        /// @p aalgorithm, memory descriptors, @p strides, @p padding_l, and
+        /// @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1667,24 +1659,23 @@ struct convolution_forward: public primitive {
                 const memory::desc &dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_convolution_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, &bias_desc.data,
-                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &dst_desc.data, &strides[0], &padding_l[0],
+                        &padding_r[0]),
                     "could not create a convolution forward descriptor");
         }
 
         /// Initializes a descriptor for convolution forward propagation with
         /// bias using @p prop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
-        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
-        /// padding_r, and @p apadding_kind.
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, and @p
+        /// padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1694,16 +1685,15 @@ struct convolution_forward: public primitive {
                 const memory::desc &dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_convolution_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, nullptr,
-                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &dst_desc.data, &strides[0], &padding_l[0],
+                        &padding_r[0]),
                     "could not create a convolution forward descriptor");
         }
 
@@ -1711,7 +1701,7 @@ struct convolution_forward: public primitive {
         /// without bias using @p prop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference),
         /// @p aalgorithm, memory descriptors, @p strides, @p dilates,
-        /// @p padding_l, @p padding_r, and @p apadding_kind.
+        /// @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1723,8 +1713,7 @@ struct convolution_forward: public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -1734,8 +1723,7 @@ struct convolution_forward: public primitive {
                     mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, &bias_desc.data,
                         &dst_desc.data, &strides[0], &dilates[0],
-                        &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &padding_l[0], &padding_r[0]),
                     "could not create a dilated convolution forward descriptor");
         }
 
@@ -1743,7 +1731,7 @@ struct convolution_forward: public primitive {
         /// with bias using @p prop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference),
         /// @p aalgorithm, memory descriptors, @p strides, @p dilates,
-        /// @p padding_l, @p padding_r, and @p apadding_kind.
+        /// @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1754,8 +1742,7 @@ struct convolution_forward: public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -1765,8 +1752,7 @@ struct convolution_forward: public primitive {
                     mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, nullptr,
                         &dst_desc.data, &strides[0], &dilates[0],
-                        &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &padding_l[0], &padding_r[0]),
                     "could not create a dilated convolution forward descriptor");
         }
     };
@@ -1811,7 +1797,7 @@ struct convolution_backward_data : public primitive {
 
         /// Initializes a descriptor for convolution backward propagation
         /// using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1821,22 +1807,20 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_convolution_backward_data_desc_init(
                         &data, convert_to_c(aalgorithm), &diff_src_desc.data,
                         &weights_desc.data, &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a convolution backward data descriptor");
         }
 
         /// Initializes a descriptor for dilated convolution backward
         /// propagation using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1847,8 +1831,7 @@ struct convolution_backward_data : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -1857,8 +1840,7 @@ struct convolution_backward_data : public primitive {
                 mkldnn_dilated_convolution_backward_data_desc_init(
                     &data, convert_to_c(aalgorithm), &diff_src_desc.data,
                     &weights_desc.data, &diff_dst_desc.data,
-                    &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
-                    mkldnn::convert_to_c(apadding_kind)),
+                    &strides[0], &dilates[0], &padding_l[0], &padding_r[0]),
                     "could not create a convolution backward data descriptor");
         }
     };
@@ -1904,7 +1886,7 @@ struct convolution_backward_weights : public primitive {
 
         /// Initializes a descriptor for convolution weight update with bias
         /// using @p aalgorithm, memory descriptors, @p strides, @p padding_l,
-        /// @p padding_r, and @p apadding_kind.
+        /// and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1915,8 +1897,7 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -1924,14 +1905,13 @@ struct convolution_backward_weights : public primitive {
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, &diff_bias_desc.data,
                         &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a convolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for convolution weight update without
         /// bias using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1941,22 +1921,20 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_convolution_backward_weights_desc_init(
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a convolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for dilated convolution weight update
         /// with bias using @p aalgorithm, memory descriptors, @p strides,
-        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        /// @p dilates @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1968,8 +1946,7 @@ struct convolution_backward_weights : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -1978,14 +1955,13 @@ struct convolution_backward_weights : public primitive {
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, &diff_bias_desc.data,
                         &diff_dst_desc.data,
-                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0]),
                     "could not create a convolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for dilated convolution weight update
         /// without bias using @p aalgorithm, memory descriptors, @p strides,
-        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        /// @p dilates @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -1996,8 +1972,7 @@ struct convolution_backward_weights : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2005,8 +1980,8 @@ struct convolution_backward_weights : public primitive {
             error::wrap_c_api(mkldnn_dilated_convolution_backward_weights_desc_init(
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
-                        &strides[0], &dilates[0],  &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &dilates[0],  &padding_l[0],
+                        &padding_r[0]),
                     "could not create a convolution backward weights descriptor");
         }
 
@@ -2062,8 +2037,8 @@ struct deconvolution_forward: public primitive {
         /// Initializes a descriptor for deconvolution forward propagation
         /// with bias using @p prop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
-        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
-        /// padding_r, and @p apadding_kind.
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, and @p
+        /// padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2074,24 +2049,23 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_deconvolution_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, &bias_desc.data,
-                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &dst_desc.data, &strides[0], &padding_l[0],
+                        &padding_r[0]),
                     "could not create a deconvolution forward descriptor");
         }
 
         /// Initializes a descriptor for deconvolution forward propagation
         /// without bias using @p prop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
-        /// aalgorithm, memory descriptors, @p strides, @p padding_l, @p
-        /// padding_r, and @p apadding_kind.
+        /// aalgorithm, memory descriptors, @p strides, @p padding_l, and @p
+        /// padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2101,16 +2075,15 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_deconvolution_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, nullptr,
-                        &dst_desc.data, &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &dst_desc.data, &strides[0], &padding_l[0],
+                        &padding_r[0]),
                     "could not create a deconvolution forward descriptor");
         }
 
@@ -2118,7 +2091,7 @@ struct deconvolution_forward: public primitive {
         /// propagation with bias using @p aprop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
         /// aalgorithm memory descriptors, @p strides, @p dilates, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2130,8 +2103,7 @@ struct deconvolution_forward: public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2140,7 +2112,7 @@ struct deconvolution_forward: public primitive {
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, &bias_desc.data,
                         &dst_desc.data, &strides[0], &dilates[0], &padding_l[0],
-                        &padding_r[0], mkldnn::convert_to_c(apadding_kind)),
+                        &padding_r[0]),
                     "could not create a dilated deconvolution forward descriptor");
         }
 
@@ -2148,7 +2120,7 @@ struct deconvolution_forward: public primitive {
         /// propagation without bias using @p aprop_kind (possible values are
         /// #mkldnn::forward_training and #mkldnn::forward_inference), @p
         /// aalgorithm, memory descriptors, @p strides, @p dilates, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2159,8 +2131,7 @@ struct deconvolution_forward: public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2169,7 +2140,7 @@ struct deconvolution_forward: public primitive {
                         mkldnn::convert_to_c(aprop_kind), convert_to_c(aalgorithm),
                         &src_desc.data, &weights_desc.data, nullptr,
                         &dst_desc.data, &strides[0], &dilates[0], &padding_l[0],
-                        &padding_r[0], mkldnn::convert_to_c(apadding_kind)),
+                        &padding_r[0]),
                     "could not create a dilated deconvolution forward descriptor");
         }
     };
@@ -2214,7 +2185,7 @@ struct deconvolution_backward_data : public primitive {
 
         /// Initializes a descriptor for deconvolution backward propagation
         /// using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2224,22 +2195,20 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_deconvolution_backward_data_desc_init(
                         &data, convert_to_c(aalgorithm), &diff_src_desc.data,
                         &weights_desc.data, &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a deconvolution backward data descriptor");
         }
 
         /// Initializes descriptor for dilated deconvolution backward propagation
         /// using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2250,8 +2219,7 @@ struct deconvolution_backward_data : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2259,8 +2227,7 @@ struct deconvolution_backward_data : public primitive {
             error::wrap_c_api(mkldnn_dilated_deconvolution_backward_data_desc_init(
                         &data, convert_to_c(aalgorithm), &diff_src_desc.data,
                         &weights_desc.data, &diff_dst_desc.data,
-                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0]),
                     "could not create a dilated deconvolution backward data descriptor");
         }
     };
@@ -2306,7 +2273,7 @@ struct deconvolution_backward_weights : public primitive {
 
         /// Initializes a descriptor for deconvolution weight update with bias
         /// using @p aalgorithm, memory descriptors, @p strides, @p padding_l,
-        /// @p padding_r, and @p apadding_kind.
+        /// and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2317,8 +2284,7 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2326,14 +2292,13 @@ struct deconvolution_backward_weights : public primitive {
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, &diff_bias_desc.data,
                         &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a deconvolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for deconvolution weight update without
         /// bias using @p aalgorithm, memory descriptors, @p strides, @p
-        /// padding_l, @p padding_r, and @p apadding_kind.
+        /// padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2343,22 +2308,20 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc,
                 const memory::dims strides,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
             error::wrap_c_api(mkldnn_deconvolution_backward_weights_desc_init(
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
-                        &strides[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &padding_l[0], &padding_r[0]),
                     "could not create a deconvolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for dilated deconvolution weight update
         /// with bias using @p aalgorithm, memory descriptors, @p strides, @p
-        /// dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        /// dilates @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2370,8 +2333,7 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2380,14 +2342,13 @@ struct deconvolution_backward_weights : public primitive {
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, &diff_bias_desc.data,
                         &diff_dst_desc.data,
-                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0]),
                     "could not create a dilated  deconvolution backward weights descriptor");
         }
 
         /// Initializes a descriptor for dilated deconvolution weight update
         /// without bias using @p aalgorithm, memory descriptors, @p strides,
-        /// @p dilates @p padding_l, @p padding_r, and @p apadding_kind.
+        /// @p dilates @p padding_l, and @p padding_r.
         ///
         /// @note Memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
@@ -2398,8 +2359,7 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::dims strides,
                 const memory::dims dilates,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2407,8 +2367,7 @@ struct deconvolution_backward_weights : public primitive {
             error::wrap_c_api(mkldnn_dilated_deconvolution_backward_weights_desc_init(
                         &data, convert_to_c(aalgorithm), &src_desc.data,
                         &diff_weights_desc.data, nullptr, &diff_dst_desc.data,
-                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &strides[0], &dilates[0], &padding_l[0], &padding_r[0]),
                     "could not create a dilated deconvolution backward weights descriptor");
         }
     };
@@ -2564,15 +2523,14 @@ struct pooling_forward : public primitive {
         /// aprop_kind (possible values are #mkldnn::forward_training and
         /// #mkldnn::forward_inference), @p aalgorithm, memory descriptors, and
         /// pooling parameters in the spatial domain: @p strides, @p kernel
-        /// sizes, @p padding_l, @p padding_r, and @p apadding_kind.
+        /// sizes, @p padding_l, and @p padding_r.
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &dst_desc,
                 const memory::dims strides,
                 const memory::dims kernel,
                 const memory::dims padding_l,
-                const memory::dims padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(kernel);
             memory::validate_dims(padding_l);
@@ -2582,8 +2540,7 @@ struct pooling_forward : public primitive {
                         convert_to_c(aalgorithm),
                         &src_desc.data, &dst_desc.data,
                         &strides[0], &kernel[0],
-                        &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &padding_l[0], &padding_r[0]),
                     "could not init a forward pooling descriptor");
         }
     };
@@ -2617,16 +2574,14 @@ struct pooling_backward : public primitive {
 
         /// Initializes a pooling descriptor for backward propagation using @p
         /// aalgorithm, memory descriptors, and pooling parameters in the spatial
-        /// domain: @p strides, @p kernel sizes, @p padding_l, @p padding_r,
-        /// and @p apadding_kind.
+        /// domain: @p strides, @p kernel sizes, @p padding_l, and @p padding_r.
         desc(algorithm aalgorithm,
                 const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc,
                 const memory::dims &strides,
                 const memory::dims &kernel,
                 const memory::dims &padding_l,
-                const memory::dims &padding_r,
-                const padding_kind apadding_kind) {
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(kernel);
             memory::validate_dims(padding_l);
@@ -2635,8 +2590,7 @@ struct pooling_backward : public primitive {
                         convert_to_c(aalgorithm),
                         &diff_src_desc.data, &diff_dst_desc.data,
                         &strides[0], &kernel[0],
-                        &padding_l[0], &padding_r[0],
-                        mkldnn::convert_to_c(apadding_kind)),
+                        &padding_l[0], &padding_r[0]),
                     "could not init a backward pooling descriptor");
         }
     };

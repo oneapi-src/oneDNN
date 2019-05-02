@@ -215,8 +215,7 @@ protected:
         }
 
         auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r,
-                padding_kind::zero);
+                p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r);
         auto pool_prim_desc
             = pooling_forward::primitive_desc(pool_desc, eng);
 

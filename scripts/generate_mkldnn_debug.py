@@ -107,7 +107,6 @@ def source(body):
 
 def maybe_skip(enum):
     return enum in (
-        'mkldnn_padding_kind_t',
         'mkldnn_batch_normalization_flag_t',
         'mkldnn_memory_extra_flags_t',
         'mkldnn_wino_memory_format_t',

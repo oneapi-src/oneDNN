@@ -146,14 +146,14 @@ protected:
                 prop_kind::forward_training, p.aalgorithm, c_src_desc_f,
                 c_weights_desc, c_dst_desc_f,
                 { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                { cd.padh, cd.padw }, padR, padding_kind::zero);
+                { cd.padh, cd.padw }, padR);
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, eng);
 
         auto conv_bwd_data_desc = convolution_backward_data::desc(
                 p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
                 { cd.strh, cd.strw }, { cd.dilh, cd.dilw },
-                { cd.padh, cd.padw }, padR, padding_kind::zero);
+                { cd.padh, cd.padw }, padR);
         auto conv_bwd_data_primitive_desc
             = convolution_backward_data::primitive_desc(
                     conv_bwd_data_desc, eng, conv_primitive_desc);

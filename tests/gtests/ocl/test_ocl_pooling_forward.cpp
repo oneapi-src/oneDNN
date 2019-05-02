@@ -304,11 +304,10 @@ protected:
                 ? pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
                           p_dst_desc, { pd.strd, pd.strh, pd.strw },
                           { pd.kd, pd.kh, pd.kw },
-                          { pd.padf, pd.padt, pd.padl }, padR_3d,
-                          padding_kind::zero)
+                          { pd.padf, pd.padt, pd.padl }, padR_3d)
                 : pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
                           p_dst_desc, { pd.strh, pd.strw }, { pd.kh, pd.kw },
-                          { pd.padt, pd.padl }, padR_2d, padding_kind::zero);
+                          { pd.padt, pd.padl }, padR_2d);
 
         auto pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 

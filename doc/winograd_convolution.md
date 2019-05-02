@@ -19,7 +19,7 @@ The rest of the steps for creating convolution are exactly the same as shown in 
 auto conv1_desc = convolution_forward::desc(
     prop_kind::forward_inference, algorithm::convolution_winograd,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
-    conv1_strides, conv1_padding, padding_kind::zero);
+    conv1_strides, conv1_padding);
 ~~~
 
 ## Auto dispatching of convolution algorithm
@@ -30,7 +30,7 @@ Creating a convolution by using `convolution_auto` allows MKLDNN to dispatch the
 auto conv1_desc = convolution_forward::desc(
     prop_kind::forward_inference, algorithm::convolution_auto,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
-    conv1_strides, conv1_padding, padding_kind::zero);
+    conv1_strides, conv1_padding);
 ~~~
 
 MKLDNN would choose the algorithm which will potentially give *best performance* based on

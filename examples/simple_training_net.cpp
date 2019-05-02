@@ -90,8 +90,7 @@ void simple_net() {
     /* create a convolution primitive descriptor */
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
             algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
-            conv_dst_md, conv_strides, conv_padding, conv_padding,
-            padding_kind::zero);
+            conv_dst_md, conv_strides, conv_padding, conv_padding);
     auto conv_pd = convolution_forward::primitive_desc(conv_desc, cpu_engine);
 
     /* create reorder primitives between user input and conv src if needed */
@@ -192,7 +191,7 @@ void simple_net() {
     /* create a pooling primitive descriptor */
     auto pool_desc = pooling_forward::desc(prop_kind::forward, algorithm::pooling_max,
             lrn_dst_memory.get_desc(), pool_dst_md, pool_strides, pool_kernel,
-            pool_padding, pool_padding, padding_kind::zero);
+            pool_padding, pool_padding);
     auto pool_pd = pooling_forward::primitive_desc(pool_desc, cpu_engine);
 
     /* create pooling workspace memory if training */
@@ -239,7 +238,7 @@ void simple_net() {
     /* create backward pooling descriptor*/
     auto pool_bwd_desc = pooling_backward::desc(algorithm::pooling_max, pool_diff_src_md,
             pool_diff_dst_md, pool_strides, pool_kernel, pool_padding,
-            pool_padding, padding_kind::zero);
+            pool_padding);
     /* backward primitive descriptor needs to hint forward descriptor */
     auto pool_bwd_pd = pooling_backward::primitive_desc(
             pool_bwd_desc, cpu_engine, pool_pd);
@@ -325,7 +324,7 @@ void simple_net() {
     auto conv_bwd_weights_desc = convolution_backward_weights::desc(
             algorithm::convolution_direct, conv_bwd_src_md, conv_diff_weights_md,
             conv_diff_bias_md, conv_diff_dst_md, conv_strides, conv_padding,
-            conv_padding, padding_kind::zero);
+            conv_padding);
     auto conv_bwd_weights_pd = convolution_backward_weights::primitive_desc(
             conv_bwd_weights_desc, cpu_engine, conv_pd);
 
