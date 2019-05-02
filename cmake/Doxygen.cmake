@@ -41,9 +41,12 @@ if(DOXYGEN_FOUND)
     file(GLOB_RECURSE DOX
         ${PROJECT_SOURCE_DIR}/doc/*
         )
+    file(GLOB_RECURSE EXAMPLES
+        ${PROJECT_SOURCE_DIR}/examples/*
+        )
     add_custom_command(
         OUTPUT ${DOXYGEN_STAMP_FILE}
-        DEPENDS ${HEADERS} ${DOX}
+        DEPENDS ${HEADERS} ${DOX} ${EXAMPLES}
         COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
         COMMAND cmake -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
