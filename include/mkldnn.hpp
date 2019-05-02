@@ -284,32 +284,55 @@ enum class batch_normalization_flags : unsigned {
     fuse_bn_relu = mkldnn_fuse_bn_relu
 };
 
-inline batch_normalization_flags operator|(
-        batch_normalization_flags lhs, batch_normalization_flags rhs) {
-    return static_cast<batch_normalization_flags>(
-            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
-}
-
-inline batch_normalization_flags operator&(
-        batch_normalization_flags lhs, batch_normalization_flags rhs) {
-    return static_cast<batch_normalization_flags>(
-            static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
-}
-
-inline batch_normalization_flags operator^(
-        batch_normalization_flags lhs, batch_normalization_flags rhs) {
-    return static_cast<batch_normalization_flags>(
-            static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));
-}
-
-inline batch_normalization_flags operator~(batch_normalization_flags rhs) {
-    return static_cast<batch_normalization_flags>(~static_cast<unsigned>(rhs));
-}
-
 inline mkldnn_batch_normalization_flags_t convert_to_c(
         batch_normalization_flags aflag) {
     return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
 }
+
+
+}
+
+#define MKLDNN_DEFINE_BITMASK_OPS(enum_name)                            \
+inline enum_name operator|(enum_name lhs, enum_name rhs) {              \
+    return static_cast<enum_name>(                                      \
+        static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));       \
+}                                                                       \
+                                                                        \
+inline enum_name operator&(enum_name lhs, enum_name rhs) {              \
+    return static_cast<enum_name>(                                      \
+        static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));       \
+}                                                                       \
+                                                                        \
+inline enum_name operator^(enum_name lhs, enum_name rhs) {              \
+    return static_cast<enum_name>(                                      \
+        static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));       \
+}                                                                       \
+                                                                        \
+inline enum_name& operator|=(enum_name &lhs, enum_name rhs) {           \
+    lhs = static_cast<enum_name>(                                       \
+        static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));       \
+    return lhs;                                                         \
+}                                                                       \
+                                                                        \
+inline enum_name& operator&=(enum_name &lhs, enum_name rhs) {           \
+    lhs = static_cast<enum_name>(                                       \
+        static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));       \
+    return lhs;                                                         \
+}                                                                       \
+                                                                        \
+inline enum_name& operator^=(enum_name &lhs, enum_name rhs) {           \
+    lhs = static_cast<enum_name>(                                       \
+        static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));       \
+    return lhs;                                                         \
+}                                                                       \
+                                                                        \
+inline enum_name operator~(enum_name rhs) {                             \
+    return static_cast<enum_name>(~static_cast<unsigned>(rhs));         \
+}                                                                       \
+
+MKLDNN_DEFINE_BITMASK_OPS(batch_normalization_flags)
+
+#undef MKLDNN_DEFINE_BITMASK_OPS
 
 enum class rnn_direction {
     unidirectional_left2right = mkldnn_unidirectional_left2right,
