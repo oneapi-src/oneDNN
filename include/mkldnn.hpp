@@ -615,7 +615,6 @@ template <> struct handle_traits<mkldnn_engine_t> {
 /// An execution engine.
 struct engine: public handle<mkldnn_engine_t> {
     friend class primitive;
-    // gcc bug??? using handle::handle;
 
     /// Kinds of engines.
     enum class kind {
@@ -626,6 +625,8 @@ struct engine: public handle<mkldnn_engine_t> {
         /// GPU engine
         gpu = mkldnn_gpu,
     };
+
+    engine() = default;
 
     /// Returns the number of engines of a certain kind.
     ///
@@ -743,6 +744,8 @@ struct stream: public handle<mkldnn_stream_t> {
         out_of_order = mkldnn_stream_out_of_order,
         default_flags = mkldnn_stream_default_flags,
     };
+
+    stream() = default;
 
     /// Constructs a stream.
     stream(const engine &aengine,
@@ -1147,6 +1150,8 @@ struct memory: public handle<mkldnn_memory_t> {
         bool operator!=(const desc &other) const { return !operator==(other); }
     };
 
+    memory() = default;
+
     /// Constructs a memory.
     ///
     /// @param md Memory descriptor.
@@ -1286,6 +1291,8 @@ inline bool operator!=(memory::format_tag a, mkldnn_format_tag_t b) {
 /// memory, and an @p attr attribute.
 struct reorder : public primitive {
     struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+        primitive_desc() = default;
+
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
                 const engine &dst_engine, const memory::desc &dst_md,
                 const primitive_attr &aattr = primitive_attr()) {
@@ -1330,6 +1337,8 @@ struct reorder : public primitive {
         engine get_engine() { return engine::query(*this); }
     };
 
+    reorder() = default;
+
     reorder(const primitive_desc &pd): primitive(pd.get()) {}
 
     reorder(const memory &src, const memory &dst):
@@ -1366,6 +1375,8 @@ struct concat : public primitive {
             for (const auto &s : srcs) c_api_srcs.push_back(s.data);
             return c_api_srcs;
         }
+
+        primitive_desc() = default;
 
         primitive_desc(const memory::desc &dst, int concat_dimension,
                 const std::vector<memory::desc> &srcs, const engine &aengine,
@@ -1415,6 +1426,8 @@ struct concat : public primitive {
         engine get_engine() { return engine::query(*this); }
     };
 
+    concat() = default;
+
     concat(const primitive_desc &pd): primitive(pd.get()) {}
 };
 
@@ -1441,6 +1454,8 @@ struct sum : public primitive {
             for (const auto &s : srcs) c_api_srcs.push_back(s.data);
             return c_api_srcs;
         }
+
+        primitive_desc() = default;
 
         primitive_desc(const memory::desc &dst,
                 const std::vector<float> &scales,
@@ -1496,6 +1511,8 @@ struct sum : public primitive {
         engine get_engine() { return engine::query(*this); }
     };
 
+    sum() = default;
+
     sum(const primitive_desc &pd): primitive(pd.get()) {}
 };
 
@@ -1511,6 +1528,7 @@ struct sum : public primitive {
 
 /// A base class for all primitive descriptors.
 struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
+    primitive_desc() = default;
 
     /// Creates a primitive descriptor from given @p op_desc, @p attr, @p
     /// engine, and optionally a hint primitive descriptor from forward
@@ -1747,6 +1765,7 @@ struct convolution_forward: public primitive {
 
     /// Primitive descriptor for convolution forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for convolution forward
         /// propagation.
@@ -1764,6 +1783,8 @@ struct convolution_forward: public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    convolution_forward() = default;
 
     /// Creates a convolution forward propagation primitive from the
     /// corresponding primitive descriptor.
@@ -1836,6 +1857,7 @@ struct convolution_backward_data : public primitive {
 
     /// Primitive descriptor for convolution backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes primitive descriptor for convolution backward
         /// propagation.
@@ -1854,6 +1876,8 @@ struct convolution_backward_data : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    convolution_backward_data() = default;
 
     /// Creates a convolution backward propagation primitive from the
     /// corresponding primitive descriptor.
@@ -1982,6 +2006,7 @@ struct convolution_backward_weights : public primitive {
 
     /// Primitive descriptor for convolution weight update.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for convolution weight update.
         primitive_desc(const desc &desc, const engine &e,
@@ -2000,6 +2025,8 @@ struct convolution_backward_weights : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    convolution_backward_weights() = default;
 
     /// Creates convolution weight update primitive from corresponding
     /// primitive descriptor.
@@ -2141,6 +2168,7 @@ struct deconvolution_forward: public primitive {
 
      /// Primitive descriptor for deconvolution forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for deconvolution forward
         /// propagation.
@@ -2158,6 +2186,8 @@ struct deconvolution_forward: public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    deconvolution_forward() = default;
 
     /// Creates a deconvolution forward propagation primitive from the
     /// corresponding primitive descriptor.
@@ -2229,6 +2259,7 @@ struct deconvolution_backward_data : public primitive {
 
     /// Primitive descriptor for deconvolution backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for deconvolution backward
         /// propagation.
@@ -2247,6 +2278,8 @@ struct deconvolution_backward_data : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    deconvolution_backward_data() = default;
 
     /// Creates a deconvolution backward propagation primitive from the
     /// corresponding primitive descriptor.
@@ -2374,6 +2407,7 @@ struct deconvolution_backward_weights : public primitive {
 
     /// Primitive descriptor for deconvolution weight update.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for deconvolution weight update.
         primitive_desc(const desc &desc, const engine &e,
@@ -2392,6 +2426,8 @@ struct deconvolution_backward_weights : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    deconvolution_backward_weights() = default;
 
     /// Creates a deconvolution weight update primitive from the corresponding
     /// primitive descriptor.
@@ -2434,6 +2470,8 @@ struct lrn_forward : public primitive {
     /// Primitive descriptor for local response normalization forward
     /// propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -2445,6 +2483,8 @@ struct lrn_forward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    lrn_forward() = default;
 
     lrn_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2474,6 +2514,8 @@ struct lrn_backward : public primitive {
     /// Primitive descriptor for local response normalization backward
     /// propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const lrn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -2487,6 +2529,8 @@ struct lrn_backward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    lrn_backward() = default;
 
     lrn_backward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2538,6 +2582,8 @@ struct pooling_forward : public primitive {
 
     /// Primitive descriptor for pooling forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -2549,6 +2595,8 @@ struct pooling_forward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    pooling_forward() = default;
 
     pooling_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2587,6 +2635,8 @@ struct pooling_backward : public primitive {
 
     /// Primitive descriptor for pooling backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const pooling_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -2600,6 +2650,8 @@ struct pooling_backward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    pooling_backward() = default;
 
     pooling_backward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2647,6 +2699,8 @@ struct eltwise_forward : public primitive {
 
     /// Primitive descriptor for eltwise forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -2658,6 +2712,8 @@ struct eltwise_forward : public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    eltwise_forward() = default;
 
     eltwise_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2685,6 +2741,8 @@ struct eltwise_backward : public primitive {
 
     /// Primitive descriptor for eltwise backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const eltwise_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -2698,6 +2756,8 @@ struct eltwise_backward : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    eltwise_backward() = default;
 
     eltwise_backward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2733,6 +2793,8 @@ struct softmax_forward : public primitive {
 
     /// Primitive descriptor for softmax forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -2743,6 +2805,8 @@ struct softmax_forward : public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    softmax_forward() = default;
 
     softmax_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2767,6 +2831,8 @@ struct softmax_backward : public primitive {
 
     /// Primitive descriptor for softmax backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const softmax_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -2781,6 +2847,8 @@ struct softmax_backward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    softmax_backward() = default;
 
     softmax_backward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2835,6 +2903,7 @@ struct batch_normalization_forward : public primitive {
 
     /// Primitive descriptor for batch normalization forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for batch normalization forward
         /// propagation.
@@ -2867,6 +2936,8 @@ struct batch_normalization_forward : public primitive {
                     kind);
         }
     };
+
+    batch_normalization_forward() = default;
 
     batch_normalization_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2903,6 +2974,7 @@ struct batch_normalization_backward : public primitive {
 
     /// Primitive descriptor for batch normalization backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
 
         /// Initializes a primitive descriptor for batch normalization backward
         /// propagation.
@@ -2928,6 +3000,8 @@ struct batch_normalization_backward : public primitive {
         REG_QUERY_MD(diff_weights, diff_weights, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    batch_normalization_backward() = default;
 
     batch_normalization_backward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -2980,6 +3054,8 @@ struct inner_product_forward: public primitive {
 
     /// Primitive descriptor for inner product forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -2992,6 +3068,8 @@ struct inner_product_forward: public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    inner_product_forward() = default;
 
     inner_product_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3021,6 +3099,8 @@ struct inner_product_backward_data: public primitive {
     /// Primitive descriptor for inner product backward propagation with
     /// respect to data.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -3034,6 +3114,8 @@ struct inner_product_backward_data: public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    inner_product_backward_data() = default;
 
     inner_product_backward_data(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3073,6 +3155,8 @@ struct inner_product_backward_weights: public primitive {
     /// Primitive descriptor for inner product backward propagation with
     /// respect to weights.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -3087,6 +3171,8 @@ struct inner_product_backward_weights: public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    inner_product_backward_weights() = default;
 
     inner_product_backward_weights(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3197,6 +3283,8 @@ struct rnn_forward : public primitive {
 
     /// Primitive descriptor for RNN forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
@@ -3213,6 +3301,8 @@ struct rnn_forward : public primitive {
         REG_QUERY_MD(workspace, workspace, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    rnn_forward() = default;
 
     rnn_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3270,6 +3360,8 @@ struct rnn_backward : public primitive {
 
     /// Primitive descriptor for RNN backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const rnn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -3296,6 +3388,8 @@ struct rnn_backward : public primitive {
         REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    rnn_backward() = default;
 
     // With last iteration (with and without input src_iter)
     rnn_backward(const primitive_desc &pd): primitive(pd) {}
@@ -3332,6 +3426,8 @@ struct shuffle_forward : public primitive {
 
     /// Primitive descriptor for shuffle forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const primitive_attr &aattr = primitive_attr())
             : mkldnn::primitive_desc(&desc.data, &aattr, e, nullptr) {}
@@ -3340,6 +3436,8 @@ struct shuffle_forward : public primitive {
         REG_QUERY_MD(dst, dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    shuffle_forward() = default;
 
     shuffle_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3363,6 +3461,8 @@ struct shuffle_backward : public primitive {
 
     // Primitive descriptor for shuffle backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const shuffle_forward::primitive_desc &hint_fwd_pd,
                 const primitive_attr &aattr = primitive_attr())
@@ -3373,6 +3473,8 @@ struct shuffle_backward : public primitive {
         REG_QUERY_MD(diff_dst, diff_dst, 0);
         REG_QUERY_MD(scratchpad, scratchpad, 0);
     };
+
+    shuffle_backward() = default;
 
     shuffle_backward(const primitive_desc &pd): primitive(pd) {}
 };
