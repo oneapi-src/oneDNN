@@ -105,9 +105,20 @@ public:
     /// Constructs a C handle wrapper.
     /// @param t The C handle to wrap.
     /// @param weak A flag to specify whether to construct a weak wrapper.
-    handle(T t = 0, bool weak = false): _data(0) {
+    handle(T t, bool weak = false): _data(0) {
         reset(t, weak);
     }
+
+    /// Empty constructor.
+    ///
+    /// Allows declaring an object before actual initialization
+    /// (mostly for convenience).
+    ///
+    /// @warning
+    ///     Uninitialized object cannot be used in any library calls.
+    ///     Any attempt to use its methods or passing it to the other library
+    ///     function will lead to a thrown exception.
+    handle(): handle((T)0, true) {}
 
     handle(const handle &other): _data(other._data) {}
     handle &operator=(const handle &other) {
