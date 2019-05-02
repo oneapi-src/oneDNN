@@ -133,7 +133,15 @@ public:
     }
 
     /// Returns the value of the underlying C handle.
-    T get() const { return _data.get(); }
+    T get(bool allow_emtpy = false) const {
+        T result = _data.get();
+
+        if (allow_emtpy == false && result == nullptr)
+            throw mkldnn::error(mkldnn_invalid_arguments,
+                    "attempt to use uninitialized object");
+
+        return result;
+    }
 
     bool operator==(const handle &other) const { return other._data.get() == _data.get(); }
     bool operator!=(const handle &other) const { return !(*this == other); }
