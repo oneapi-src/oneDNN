@@ -46,6 +46,35 @@ namespace mkldnn {
 /// @addtogroup cpp_api_utils Utils
 /// @{
 
+/// Intel(R) MKL-DNN exception class.
+///
+/// This class captures the status returned by the failed C API function, error
+/// message, and, optionally, handle of the primitive that caused the error.
+struct error: public std::exception {
+    mkldnn_status_t status;
+    const char *message;
+
+    /// Constructs an error instance.
+    ///
+    /// @param astatus The error status returned by the C API.
+    /// @param amessage The error message.
+    error(mkldnn_status_t astatus, const char *amessage)
+        : status(astatus), message(amessage) {}
+
+    /// Returns the explanatory string.
+    const char *what() const noexcept override { return message; }
+
+    /// A convenience function for wrapping calls to the C API. Checks the
+    /// return status and throws an #error in case of failure.
+    ///
+    /// @param status The error status returned by the C API.
+    /// @param message The error message.
+    static void wrap_c_api(mkldnn_status_t status, const char *message) {
+        if (status != mkldnn_success)
+            throw error(status, message);
+    }
+};
+
 /// A class that provides the destructor for an Intel(R) MKL-DNN C handle
 template <typename T> class handle_traits {};
 
@@ -158,34 +187,6 @@ public:
 inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
     return static_cast<mkldnn_primitive_kind_t>(akind);
 }
-/// Intel(R) MKL-DNN exception class.
-///
-/// This class captures the status returned by the failed C API function, error
-/// message, and, optionally, handle of the primitive that caused the error.
-struct error: public std::exception {
-    mkldnn_status_t status;
-    const char *message;
-
-    /// Constructs an error instance.
-    ///
-    /// @param astatus The error status returned by the C API.
-    /// @param amessage The error message.
-    error(mkldnn_status_t astatus, const char *amessage)
-        : status(astatus), message(amessage) {}
-
-    /// Returns the explanatory string.
-    const char *what() const noexcept override { return message; }
-
-    /// A convenience function for wrapping calls to the C API. Checks the
-    /// return status and throws an #error in case of failure.
-    ///
-    /// @param status The error status returned by the C API.
-    /// @param message The error message.
-    static void wrap_c_api(mkldnn_status_t status, const char *message) {
-        if (status != mkldnn_success)
-            throw error(status, message);
-    }
-};
 
 const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
     const_mkldnn_primitive_desc_t pd;
