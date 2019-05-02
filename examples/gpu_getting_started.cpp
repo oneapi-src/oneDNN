@@ -14,6 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @example gpu_getting_started.cpp
+/// @copydoc gpu_getting_started_cpp
+///
+/// @page gpu_getting_started_cpp Getting started on GPU
+///
+/// This C++ API example demonstrates programming for Intel(R) Processor
+/// Graphics with Intel MKL-DNN
+/// - How to create Intel MKL-DNN memory objects.
+///   - How to get data from user's buffer into an Intel MKL-DNN
+///     memory object.
+///   - How tensor's logical dimensions and memory object formats relate.
+/// - How to create Intel MKL-DNN primitives.
+/// - How to execute the primitives.
+///
+/// @include gpu_getting_started.cpp
+/// @page gpu_getting_started_cpp
+
 #include <iostream>
 
 #include "mkldnn.hpp"

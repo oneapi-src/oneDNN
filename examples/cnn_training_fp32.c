@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,18 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+/// @example cnn_training_fp32.c
+/// @copydoc cnn_training_fp32_c
+///
+/// @page cnn_training_fp32_c CNN fp32 training example
+///
+/// This C API example demonstrates how to build an AlexNet model training.
+///
+/// The example implements the AlexNet layers
+/// as numbered primitives (for example, conv1, pool1, conv2).
+///
+/// @include cnn_training_fp32.c
 
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L
@@ -108,16 +120,15 @@ static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
     CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
 }
 
-mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /** in */
-        const mkldnn_memory_desc_t *prim_memory_md, /** in */
-        mkldnn_engine_t prim_engine, /** in: primitive's engine */
-        int dir_is_user_to_prim, /** in: user -> prim or prim -> user */
-        mkldnn_memory_t *prim_memory, /** out: primitive's memory created */
-        mkldnn_primitive_t *reorder, /** out: reorder primitive created */
+mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /// in
+        const mkldnn_memory_desc_t *prim_memory_md, /// in
+        mkldnn_engine_t prim_engine, /// in: primitive's engine
+        int dir_is_user_to_prim, /// in: user -> prim or prim -> user
+        mkldnn_memory_t *prim_memory, /// out: primitive's memory created
+        mkldnn_primitive_t *reorder, /// out: reorder primitive created
         uint32_t *
-                net_index, /** primitive index in net (inc if reorder created)
-                            */
-        mkldnn_primitive_t *net, args_t *net_args /** net params */) {
+                net_index, /// primitive index in net (inc if reorder created)
+        mkldnn_primitive_t *net, args_t *net_args) {
     const mkldnn_memory_desc_t *user_memory_md;
     mkldnn_memory_get_memory_desc(*user_memory, &user_memory_md);
 
@@ -149,8 +160,8 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /** in */
                 dir_is_user_to_prim ? *prim_memory : *user_memory);
         (*net_index)++;
     } else {
-        *prim_memory = NULL;
-        *reorder = NULL;
+       *prim_memory = NULL;
+       *reorder = NULL;
     }
 
     return mkldnn_success;
@@ -158,9 +169,9 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /** in */
 
 mkldnn_status_t simple_net() {
     mkldnn_engine_t engine;
-    CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0 /* idx */));
+    CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0)); // idx
 
-    /* build a simple net */
+    // build a simple net
     uint32_t n_fwd = 0, n_bwd = 0;
     mkldnn_primitive_t net_fwd[10], net_bwd[10];
     args_t net_fwd_args[10], net_bwd_args[10];
@@ -174,13 +185,12 @@ mkldnn_status_t simple_net() {
     init_net_data(net_src, 4, net_src_sizes);
     memset(net_dst, 0, product(net_dst_sizes, 4) * sizeof(float));
 
-    /*----------------------------------------------------------------------*/
-    /*----------------- Forward Stream -------------------------------------*/
-    /* AlexNet: conv
-     * {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, 11, 11} ->
-     * {BATCH, OC, CONV_OH, CONV_OW}
-     * strides: {CONV_STRIDE, CONV_STRIDE}
-     */
+    //----------------------------------------------------------------------
+    //----------------- Forward Stream -------------------------------------
+    // AlexNet: conv
+    // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, 11, 11} ->
+    // {BATCH, OC, CONV_OH, CONV_OW}
+    // strides: {CONV_STRIDE, CONV_STRIDE}
     mkldnn_dim_t *conv_user_src_sizes = net_src_sizes;
     mkldnn_dim_t conv_user_weights_sizes[4] = { OC, IC, 11, 11 };
     mkldnn_dim_t conv_bias_sizes[4] = { OC };
@@ -197,7 +207,7 @@ mkldnn_status_t simple_net() {
     init_net_data(conv_weights, 4, conv_user_weights_sizes);
     init_net_data(conv_bias, 1, conv_bias_sizes);
 
-    /* create memory for user data */
+    // create memory for user data
     mkldnn_memory_t conv_user_src_memory, conv_user_weights_memory,
             conv_user_bias_memory;
     init_data_memory(4, conv_user_src_sizes, mkldnn_nchw, mkldnn_f32, engine,
@@ -207,11 +217,11 @@ mkldnn_status_t simple_net() {
     init_data_memory(1, conv_bias_sizes, mkldnn_x, mkldnn_f32, engine,
             conv_bias, &conv_user_bias_memory);
 
-    /* create a convolution */
+    // create a convolution
     mkldnn_primitive_desc_t conv_pd;
 
     {
-        /* create data descriptors for convolution w/ no specified format */
+        // create data descriptors for convolution w/ no specified format
         mkldnn_memory_desc_t conv_src_md, conv_weights_md, conv_bias_md,
                 conv_dst_md;
         CHECK(mkldnn_memory_desc_init_by_tag(&conv_src_md, 4,
@@ -236,14 +246,14 @@ mkldnn_status_t simple_net() {
     mkldnn_memory_t conv_internal_src_memory, conv_internal_weights_memory,
             conv_internal_dst_memory;
 
-    /* create memory for dst data, we don't need to reorder it to user data */
+    // create memory for dst data, we don't need to reorder it to user data
     const mkldnn_memory_desc_t *conv_dst_md
             = mkldnn_primitive_desc_query_md(conv_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(&conv_internal_dst_memory, conv_dst_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* create reorder primitives between user data and convolution srcs
-     * if required */
+    // create reorder primitives between user data and convolution srcs
+    // if required
     mkldnn_primitive_t conv_reorder_src, conv_reorder_weights;
 
     const mkldnn_memory_desc_t *conv_src_md
@@ -266,7 +276,7 @@ mkldnn_status_t simple_net() {
             conv_internal_weights_memory :
             conv_user_weights_memory;
 
-    /* finally create a convolution primitive */
+    // finally create a convolution primitive
     mkldnn_primitive_t conv;
     CHECK(mkldnn_primitive_create(&conv, conv_pd));
     net_fwd[n_fwd] = conv;
@@ -280,16 +290,16 @@ mkldnn_status_t simple_net() {
             conv_internal_dst_memory);
     n_fwd++;
 
-    /* AlexNet: relu
-     * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
-     */
+    // AlexNet: relu
+    // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
+
     float negative_slope = 1.0f;
 
-    /* keep memory format of source same as the format of convolution
-     * output in order to avoid reorder */
+    // keep memory format of source same as the format of convolution
+    // output in order to avoid reorder
     const mkldnn_memory_desc_t *relu_src_md = conv_dst_md;
 
-    /* create a relu primitive descriptor */
+    // create a relu primitive descriptor
     mkldnn_eltwise_desc_t relu_desc;
     CHECK(mkldnn_eltwise_forward_desc_init(&relu_desc, mkldnn_forward,
             mkldnn_eltwise_relu, relu_src_md, negative_slope, 0));
@@ -298,14 +308,14 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_primitive_desc_create(
             &relu_pd, &relu_desc, NULL, engine, NULL));
 
-    /* create relu dst memory */
+    // create relu dst memory
     mkldnn_memory_t relu_dst_memory;
     const mkldnn_memory_desc_t *relu_dst_md
             = mkldnn_primitive_desc_query_md(relu_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(&relu_dst_memory, relu_dst_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* finally create a relu primitive */
+    // finally create a relu primitive
     mkldnn_primitive_t relu;
     CHECK(mkldnn_primitive_create(&relu, relu_pd));
     net_fwd[n_fwd] = relu;
@@ -315,23 +325,22 @@ mkldnn_status_t simple_net() {
     set_arg(&net_fwd_args[n_fwd].args[1], MKLDNN_ARG_DST, relu_dst_memory);
     n_fwd++;
 
-    /* AlexNet: lrn
-     * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
-     * local size: 5
-     * alpha: 0.0001
-     * beta: 0.75
-     * k: 1.0
-     */
+    // AlexNet: lrn
+    // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
+    // local size: 5
+    // alpha: 0.0001
+    // beta: 0.75
+    // k: 1.0
     uint32_t local_size = 5;
     float alpha = 0.0001f;
     float beta = 0.75f;
     float k = 1.0f;
 
-    /* create lrn src memory descriptor using dst memory descriptor
-     *  from previous primitive */
+    // create lrn src memory descriptor using dst memory descriptor
+    //  from previous primitive
     const mkldnn_memory_desc_t *lrn_src_md = relu_dst_md;
 
-    /* create a lrn primitive descriptor */
+    // create a lrn primitive descriptor
     mkldnn_lrn_desc_t lrn_desc;
     CHECK(mkldnn_lrn_forward_desc_init(&lrn_desc, mkldnn_forward,
             mkldnn_lrn_across_channels, lrn_src_md, local_size, alpha, beta,
@@ -340,7 +349,7 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_desc_t lrn_pd;
     CHECK(mkldnn_primitive_desc_create(&lrn_pd, &lrn_desc, NULL, engine, NULL));
 
-    /* create primitives for lrn dst and workspace memory */
+    // create primitives for lrn dst and workspace memory
     mkldnn_memory_t lrn_dst_memory, lrn_ws_memory;
 
     const mkldnn_memory_desc_t *lrn_dst_md
@@ -348,14 +357,14 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_create(&lrn_dst_memory, lrn_dst_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* create workspace only in training and only for forward primitive*/
-    /* query lrn_pd for workspace, this memory will be shared with forward lrn*/
+    // create workspace only in training and only for forward primitive
+    // query lrn_pd for workspace, this memory will be shared with forward lrn
     const mkldnn_memory_desc_t *lrn_ws_md = mkldnn_primitive_desc_query_md(
             lrn_pd, mkldnn_query_workspace_md, 0);
     CHECK(mkldnn_memory_create(
             &lrn_ws_memory, lrn_ws_md, engine, MKLDNN_MEMORY_ALLOCATE));
 
-    /* finally create a lrn primitive */
+    // finally create a lrn primitive
     mkldnn_primitive_t lrn;
     CHECK(mkldnn_primitive_create(&lrn, lrn_pd));
     net_fwd[n_fwd] = lrn;
@@ -365,30 +374,29 @@ mkldnn_status_t simple_net() {
     set_arg(&net_fwd_args[n_fwd].args[2], MKLDNN_ARG_WORKSPACE, lrn_ws_memory);
     n_fwd++;
 
-    /* AlexNet: pool
-     * {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
-     * kernel: {3, 3}
-     * strides: {POOL_STRIDE, POOL_STRIDE}
-     */
+    // AlexNet: pool
+    // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
+    // kernel: {3, 3}
+    // strides: {POOL_STRIDE, POOL_STRIDE}
     mkldnn_dim_t *pool_dst_sizes = net_dst_sizes;
     mkldnn_dim_t pool_kernel[2] = { 3, 3 };
     mkldnn_dim_t pool_strides[2] = { POOL_STRIDE, POOL_STRIDE };
     mkldnn_dim_t pool_padding[2] = { POOL_PAD, POOL_PAD };
 
-    /* create memory for user dst data */
+    // create memory for user dst data
     mkldnn_memory_t pool_user_dst_memory;
     init_data_memory(4, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
             net_dst, &pool_user_dst_memory);
 
-    /* create a pooling primitive descriptor */
+    // create a pooling primitive descriptor
     mkldnn_primitive_desc_t pool_pd;
 
     {
-        /* create pooling src memory descriptor using dst descriptor
-         *  from previous primitive */
+        // create pooling src memory descriptor using dst descriptor
+        //  from previous primitive
         const mkldnn_memory_desc_t *pool_src_md = lrn_dst_md;
 
-        /* create descriptors for dst pooling data */
+        // create descriptors for dst pooling data
         mkldnn_memory_desc_t pool_dst_md;
         CHECK(mkldnn_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes,
                 mkldnn_f32, mkldnn_format_tag_any));
@@ -402,21 +410,21 @@ mkldnn_status_t simple_net() {
                 &pool_pd, &pool_desc, NULL, engine, NULL));
     }
 
-    /* create memory for workspace */
+    // create memory for workspace
     mkldnn_memory_t pool_ws_memory;
     const mkldnn_memory_desc_t *pool_ws_md = mkldnn_primitive_desc_query_md(
             pool_pd, mkldnn_query_workspace_md, 0);
     CHECK(mkldnn_memory_create(&pool_ws_memory, pool_ws_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* create reorder primitives between pooling dsts and user format dst
-     * if required */
+    // create reorder primitives between pooling dsts and user format dst
+    // if required
     mkldnn_primitive_t pool_reorder_dst;
     mkldnn_memory_t pool_internal_dst_memory;
     const mkldnn_memory_desc_t *pool_dst_md
             = mkldnn_primitive_desc_query_md(pool_pd, mkldnn_query_dst_md, 0);
-    n_fwd += 1; /* tentative workaround: preserve space for pooling that should
-                                         happen before the reorder */
+    n_fwd += 1; // tentative workaround: preserve space for pooling that should
+                // happen before the reorder
     CHECK(prepare_reorder(&pool_user_dst_memory, pool_dst_md, engine, 0,
             &pool_internal_dst_memory, &pool_reorder_dst, &n_fwd, net_fwd,
             net_fwd_args));
@@ -426,7 +434,7 @@ mkldnn_status_t simple_net() {
             pool_internal_dst_memory :
             pool_user_dst_memory;
 
-    /* finally create a pooling primitive */
+    // finally create a pooling primitive
     mkldnn_primitive_t pool;
     CHECK(mkldnn_primitive_create(&pool, pool_pd));
     net_fwd[n_fwd] = pool;
@@ -439,41 +447,41 @@ mkldnn_status_t simple_net() {
     if (pool_reorder_dst)
         n_fwd += 1;
 
-    /*-----------------------------------------------------------------------*/
-    /*----------------- Backward Stream -------------------------------------*/
-    /*-----------------------------------------------------------------------*/
+    //-----------------------------------------------------------------------
+    //----------------- Backward Stream -------------------------------------
+    //-----------------------------------------------------------------------
 
-    /* ... user diff_data ...*/
+    // ... user diff_data ...
     float *net_diff_dst
             = (float *)malloc(product(pool_dst_sizes, 4) * sizeof(float));
 
     init_net_data(net_diff_dst, 4, pool_dst_sizes);
 
-    /* create memory for user diff dst data*/
+    // create memory for user diff dst data
     mkldnn_memory_t pool_user_diff_dst_memory;
     init_data_memory(4, pool_dst_sizes, mkldnn_nchw, mkldnn_f32, engine,
             net_diff_dst, &pool_user_diff_dst_memory);
 
-    /* Pooling Backward */
-    /* pooling diff src memory descriptor */
+    // Pooling Backward
+    // pooling diff src memory descriptor
     const mkldnn_memory_desc_t *pool_diff_src_md = lrn_dst_md;
 
-    /* pooling diff dst memory descriptor */
+    // pooling diff dst memory descriptor
     const mkldnn_memory_desc_t *pool_diff_dst_md = pool_dst_md;
 
-    /* create backward pooling descriptor */
+    // create backward pooling descriptor
     mkldnn_pooling_desc_t pool_bwd_desc;
     CHECK(mkldnn_pooling_backward_desc_init(&pool_bwd_desc, mkldnn_pooling_max,
             pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
             pool_padding, pool_padding));
 
-    /* backward primitive descriptor needs to hint forward descriptor*/
+    // backward primitive descriptor needs to hint forward descriptor
     mkldnn_primitive_desc_t pool_bwd_pd;
     CHECK(mkldnn_primitive_desc_create(
             &pool_bwd_pd, &pool_bwd_desc, NULL, engine, pool_pd));
 
-    /* create reorder primitive between user diff dst and pool diff dst
-     * if required*/
+    // create reorder primitive between user diff dst and pool diff dst
+    // if required
     mkldnn_memory_t pool_diff_dst_memory, pool_internal_diff_dst_memory;
     mkldnn_primitive_t pool_reorder_diff_dst;
     CHECK(prepare_reorder(&pool_user_diff_dst_memory, pool_diff_dst_md, engine,
@@ -484,12 +492,12 @@ mkldnn_status_t simple_net() {
             pool_internal_diff_dst_memory :
             pool_user_diff_dst_memory;
 
-    /* create memory for pool diff src data */
+    // create memory for pool diff src data
     mkldnn_memory_t pool_diff_src_memory;
     CHECK(mkldnn_memory_create(&pool_diff_src_memory, pool_diff_src_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* finally create backward pooling primitive */
+    // finally create backward pooling primitive
     mkldnn_primitive_t pool_bwd;
     CHECK(mkldnn_primitive_create(&pool_bwd, pool_bwd_pd));
     net_bwd[n_bwd] = pool_bwd;
@@ -501,10 +509,10 @@ mkldnn_status_t simple_net() {
             pool_diff_src_memory);
     n_bwd++;
 
-    /* Backward lrn */
+    // Backward lrn
     const mkldnn_memory_desc_t *lrn_diff_dst_md = pool_diff_src_md;
 
-    /* create backward lrn descriptor */
+    // create backward lrn descriptor
     mkldnn_lrn_desc_t lrn_bwd_desc;
     CHECK(mkldnn_lrn_backward_desc_init(&lrn_bwd_desc,
             mkldnn_lrn_across_channels, lrn_src_md, lrn_diff_dst_md, local_size,
@@ -514,7 +522,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_primitive_desc_create(
             &lrn_bwd_pd, &lrn_bwd_desc, NULL, engine, lrn_pd));
 
-    /* create memory for lrn diff src */
+    // create memory for lrn diff src
     mkldnn_memory_t lrn_diff_src_memory;
     const mkldnn_memory_desc_t *lrn_diff_src_md
             = mkldnn_primitive_desc_query_md(
@@ -522,7 +530,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_create(&lrn_diff_src_memory, lrn_diff_src_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* finally create backward lrn primitive */
+    // finally create backward lrn primitive
     mkldnn_primitive_t lrn_bwd;
     CHECK(mkldnn_primitive_create(&lrn_bwd, lrn_bwd_pd));
     net_bwd[n_bwd] = lrn_bwd;
@@ -535,10 +543,10 @@ mkldnn_status_t simple_net() {
             lrn_diff_src_memory);
     n_bwd++;
 
-    /* Backward relu */
+    // Backward relu
     const mkldnn_memory_desc_t *relu_diff_dst_md = lrn_diff_src_md;
 
-    /* create backward relu descriptor */
+    // create backward relu descriptor
     mkldnn_eltwise_desc_t relu_bwd_desc;
     CHECK(mkldnn_eltwise_backward_desc_init(&relu_bwd_desc, mkldnn_eltwise_relu,
             relu_diff_dst_md, relu_src_md, negative_slope, 0));
@@ -547,7 +555,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_primitive_desc_create(
             &relu_bwd_pd, &relu_bwd_desc, NULL, engine, relu_pd));
 
-    /* create memory for relu diff src */
+    // create memory for relu diff src
     mkldnn_memory_t relu_diff_src_memory;
     const mkldnn_memory_desc_t *relu_diff_src_md
             = mkldnn_primitive_desc_query_md(
@@ -555,7 +563,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_create(&relu_diff_src_memory, relu_diff_src_md, engine,
             MKLDNN_MEMORY_ALLOCATE));
 
-    /* finally create backward relu primitive */
+    // finally create backward relu primitive
     mkldnn_primitive_t relu_bwd;
     CHECK(mkldnn_primitive_create(&relu_bwd, relu_bwd_pd));
     net_bwd[n_bwd] = relu_bwd;
@@ -568,25 +576,25 @@ mkldnn_status_t simple_net() {
             relu_diff_src_memory);
     n_bwd++;
 
-    /* Backward convolution with respect to weights */
+    // Backward convolution with respect to weights
     float *conv_diff_bias_buffer
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
     float *conv_user_diff_weights_buffer = (float *)malloc(
             product(conv_user_weights_sizes, 4) * sizeof(float));
 
-    /* initialize memory for diff weights in user format */
+    // initialize memory for diff weights in user format
     mkldnn_memory_t conv_user_diff_weights_memory;
     init_data_memory(4, conv_user_weights_sizes, mkldnn_oihw, mkldnn_f32,
             engine, conv_user_diff_weights_buffer,
             &conv_user_diff_weights_memory);
 
-    /* create backward convolution primitive descriptor */
+    // create backward convolution primitive descriptor
     mkldnn_primitive_desc_t conv_bwd_weights_pd;
 
     {
-        /* memory descriptors should be in format `any` to allow backward
-         * convolution for
-         * weights to chose the format it prefers for best performance */
+        // memory descriptors should be in format `any` to allow backward
+        // convolution for
+        // weights to chose the format it prefers for best performance
         mkldnn_memory_desc_t conv_diff_src_md, conv_diff_weights_md,
                 conv_diff_bias_md, conv_diff_dst_md;
         CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_src_md, 4,
@@ -598,7 +606,7 @@ mkldnn_status_t simple_net() {
         CHECK(mkldnn_memory_desc_init_by_tag(&conv_diff_dst_md, 4,
                 conv_user_dst_sizes, mkldnn_f32, mkldnn_format_tag_any));
 
-        /* create backward convolution descriptor */
+        // create backward convolution descriptor
         mkldnn_convolution_desc_t conv_bwd_weights_desc;
         CHECK(mkldnn_convolution_backward_weights_desc_init(
                 &conv_bwd_weights_desc, mkldnn_convolution_direct,
@@ -609,12 +617,12 @@ mkldnn_status_t simple_net() {
                 &conv_bwd_weights_desc, NULL, engine, conv_pd));
     }
 
-    /* for best performance convolution backward might chose
-     * different memory format for src and diff_dst
-     * than the memory formats preferred by forward convolution
-     * for src and dst respectively */
-    /* create reorder primitives for src from forward convolution to the
-     * format chosen by backward convolution */
+    // for best performance convolution backward might chose
+    // different memory format for src and diff_dst
+    // than the memory formats preferred by forward convolution
+    // for src and dst respectively
+    // create reorder primitives for src from forward convolution to the
+    // format chosen by backward convolution
     mkldnn_primitive_t conv_bwd_reorder_src;
     mkldnn_memory_t conv_bwd_internal_src_memory;
     const mkldnn_memory_desc_t *conv_diff_src_md
@@ -628,8 +636,8 @@ mkldnn_status_t simple_net() {
             conv_bwd_internal_src_memory :
             conv_src_memory;
 
-    /* create reorder primitives for diff_dst between diff_src from relu_bwd
-     * and format preferred by conv_diff_weights */
+    // create reorder primitives for diff_dst between diff_src from relu_bwd
+    // and format preferred by conv_diff_weights
     mkldnn_primitive_t conv_reorder_diff_dst;
     mkldnn_memory_t conv_internal_diff_dst_memory;
     const mkldnn_memory_desc_t *conv_diff_dst_md
@@ -644,15 +652,15 @@ mkldnn_status_t simple_net() {
             conv_internal_diff_dst_memory :
             relu_diff_src_memory;
 
-    /* create reorder primitives for conv diff weights memory */
+    // create reorder primitives for conv diff weights memory
     mkldnn_primitive_t conv_reorder_diff_weights;
     mkldnn_memory_t conv_internal_diff_weights_memory;
     const mkldnn_memory_desc_t *conv_diff_weights_md
             = mkldnn_primitive_desc_query_md(
                     conv_bwd_weights_pd, mkldnn_query_diff_weights_md, 0);
-    n_bwd += 1; /* tentative workaround: preserve space for conv_bwd_weights
-                                         that should happen before the reorder
-                 */
+    n_bwd += 1; // tentative workaround: preserve space for conv_bwd_weights
+                // that should happen before the reorder
+
     CHECK(prepare_reorder(&conv_user_diff_weights_memory, conv_diff_weights_md,
             engine, 0, &conv_internal_diff_weights_memory,
             &conv_reorder_diff_weights, &n_bwd, net_bwd, net_bwd_args));
@@ -663,7 +671,7 @@ mkldnn_status_t simple_net() {
             conv_internal_diff_weights_memory :
             conv_user_diff_weights_memory;
 
-    /* create memory for diff bias memory */
+    // create memory for diff bias memory
     mkldnn_memory_t conv_diff_bias_memory;
     const mkldnn_memory_desc_t *conv_diff_bias_md
             = mkldnn_primitive_desc_query_md(
@@ -673,7 +681,7 @@ mkldnn_status_t simple_net() {
     CHECK(mkldnn_memory_set_data_handle(
             conv_diff_bias_memory, conv_diff_bias_buffer));
 
-    /* finally created backward convolution weights primitive */
+    // finally created backward convolution weights primitive
     mkldnn_primitive_t conv_bwd_weights;
     CHECK(mkldnn_primitive_create(&conv_bwd_weights, conv_bwd_weights_pd));
     net_bwd[n_bwd] = conv_bwd_weights;
@@ -698,29 +706,29 @@ mkldnn_status_t simple_net() {
     int n_iter = 10; // number of iterations for training.
     mkldnn_stream_t stream;
     CHECK(mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
-    /* Execute the net */
+    // Execute the net
     for (int i = 0; i < n_iter; i++) {
         for (uint32_t i = 0; i < n_fwd; ++i)
             CHECK(mkldnn_primitive_execute(net_fwd[i], stream,
                     net_fwd_args[i].nargs, net_fwd_args[i].args));
 
-        /* Update net_diff_dst */
+        // Update net_diff_dst
         void *net_output = NULL; // output from forward stream:
         CHECK(mkldnn_memory_get_data_handle(pool_user_dst_memory, &net_output));
-        /*...user updates net_diff_dst using net_output...*/
+        // ...user updates net_diff_dst using net_output...
         // some user defined func update_diff_dst(net_diff_dst, net_output)
 
-        /* Backward pass */
+        // Backward pass
         for (uint32_t i = 0; i < n_bwd; ++i)
             CHECK(mkldnn_primitive_execute(net_bwd[i], stream,
                     net_bwd_args[i].nargs, net_bwd_args[i].args));
 
-        /*... update weights ... */
+        // ... update weights ...
         CHECK(mkldnn_memory_get_data_handle(
                 conv_user_diff_weights_memory, &net_diff_weights));
         CHECK(mkldnn_memory_get_data_handle(
                 conv_diff_bias_memory, &net_diff_bias));
-        /* ...user updates weights and bias using diff weights and bias...*/
+        // ...user updates weights and bias using diff weights and bias...
         // some user defined func update_weights(conv_user_weights_memory,
         // conv_bias_memory,
         //      net_diff_weights, net_diff_bias);
@@ -729,13 +737,13 @@ mkldnn_status_t simple_net() {
 
     mkldnn_stream_destroy(stream);
 
-    /* clean up nets */
+    // clean up nets
     for (uint32_t i = 0; i < n_fwd; ++i)
         free_arg_node(&net_fwd_args[i]);
     for (uint32_t i = 0; i < n_bwd; ++i)
         free_arg_node(&net_bwd_args[i]);
 
-    /* Cleanup forward */
+    // Cleanup forward
     CHECK(mkldnn_primitive_desc_destroy(pool_pd));
     CHECK(mkldnn_primitive_desc_destroy(lrn_pd));
     CHECK(mkldnn_primitive_desc_destroy(relu_pd));
@@ -770,7 +778,7 @@ mkldnn_status_t simple_net() {
     mkldnn_primitive_destroy(pool_reorder_dst);
     mkldnn_primitive_destroy(pool);
 
-    /* Cleanup backward */
+    // Cleanup backward
     CHECK(mkldnn_primitive_desc_destroy(pool_bwd_pd));
     CHECK(mkldnn_primitive_desc_destroy(lrn_bwd_pd));
     CHECK(mkldnn_primitive_desc_destroy(relu_bwd_pd));
