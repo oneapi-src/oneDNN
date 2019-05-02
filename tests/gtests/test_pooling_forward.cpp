@@ -221,16 +221,15 @@ protected:
             = pooling_forward::primitive_desc(pool_desc, eng);
 
         auto workspace_desc = pool_prim_desc.workspace_desc();
-        std::shared_ptr<memory> p_workspace;
-        p_workspace.reset(new memory(workspace_desc, eng));
+        memory workspace(workspace_desc, eng);
 
         pooling_forward(pool_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, p_src},
                 {MKLDNN_ARG_DST, p_dst},
-                {MKLDNN_ARG_WORKSPACE, *p_workspace}});
+                {MKLDNN_ARG_WORKSPACE, workspace}});
         strm.wait();
 
-        check_pool_fwd<data_t>(p, p_src, p_dst, *p_workspace);
+        check_pool_fwd<data_t>(p, p_src, p_dst, workspace);
         check_zero_tail<data_t>(0, p_dst);
     }
 };

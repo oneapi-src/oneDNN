@@ -198,17 +198,16 @@ private:
     std::shared_ptr<test_memory> dst;
     std::shared_ptr<test_memory> diff_src;
     std::shared_ptr<test_memory> diff_dst;
-    std::shared_ptr<memory> workspace;
+    memory workspace;
     std::shared_ptr<memory::desc> src_desc;
     std::shared_ptr<memory::desc> dst_desc;
     std::shared_ptr<memory::desc> diff_src_desc;
     std::shared_ptr<memory::desc> diff_dst_desc;
-    std::shared_ptr<lrn_forward::primitive_desc> lrn_fwd_prim_desc;
-    std::shared_ptr<lrn_forward::primitive_desc> lrn_bwd_prim_desc;
+    lrn_forward::primitive_desc lrn_fwd_prim_desc;
     lrn_test_params p;
     memory::dims padR;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
     bool is_training;
 
@@ -222,8 +221,8 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -249,10 +248,10 @@ protected:
         auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm, *src_desc,
                 p.test_ld.local_size, p.test_ld.alpha, p.test_ld.beta,
                 p.test_ld.k);
-        lrn_fwd_prim_desc.reset(new lrn_forward::primitive_desc(lrn_desc, *eng));
+        lrn_fwd_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
-        src.reset(new test_memory(*src_desc, *eng));
-        dst.reset(new test_memory(*dst_desc, *eng));
+        src.reset(new test_memory(*src_desc, eng));
+        dst.reset(new test_memory(*dst_desc, eng));
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
                 src->get());
@@ -262,18 +261,18 @@ protected:
         check_zero_tail<data_t>(1, dst->get());
 
         // Execute
-        auto l = lrn_forward(*lrn_fwd_prim_desc);
+        auto l = lrn_forward(lrn_fwd_prim_desc);
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, src->get()},
             {MKLDNN_ARG_DST, dst->get()}
         };
         if (is_training) {
-            auto workspace_md = lrn_fwd_prim_desc->workspace_desc();
-            workspace.reset(new memory(workspace_md, *eng));
-            args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
+            auto workspace_md = lrn_fwd_prim_desc.workspace_desc();
+            workspace = memory(workspace_md, eng);
+            args.insert({MKLDNN_ARG_WORKSPACE, workspace});
         }
-        l.execute(*strm, args);
-        strm->wait();
+        l.execute(strm, args);
+        strm.wait();
 
         check_zero_tail<data_t>(0, dst->get());
 
@@ -286,12 +285,12 @@ protected:
                 *src_desc, *diff_dst_desc, p.test_ld.local_size,
                 p.test_ld.alpha, p.test_ld.beta, p.test_ld.k);
 
-        src.reset(new test_memory(*src_desc, *eng));
-        diff_src.reset(new test_memory(*diff_src_desc, *eng));
-        diff_dst.reset(new test_memory(*diff_dst_desc, *eng));
+        src.reset(new test_memory(*src_desc, eng));
+        diff_src.reset(new test_memory(*diff_src_desc, eng));
+        diff_dst.reset(new test_memory(*diff_dst_desc, eng));
 
-        auto lrn_prim_desc = lrn_backward::primitive_desc(lrn_desc, *eng,
-                *lrn_fwd_prim_desc);
+        auto lrn_prim_desc = lrn_backward::primitive_desc(lrn_desc, eng,
+                lrn_fwd_prim_desc);
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
                 src->get());
@@ -306,12 +305,12 @@ protected:
         check_zero_tail<data_t>(1, diff_src->get());
 
         // Execute
-        lrn_backward(lrn_prim_desc).execute(*strm, {
+        lrn_backward(lrn_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, src->get()},
                 {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                {MKLDNN_ARG_WORKSPACE, *workspace},
+                {MKLDNN_ARG_WORKSPACE, workspace},
                 {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
-        strm->wait();
+        strm.wait();
 
         check_zero_tail<data_t>(0, diff_src->get());
 

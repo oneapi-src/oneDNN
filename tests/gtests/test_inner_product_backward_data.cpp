@@ -112,8 +112,6 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
-        std::shared_ptr<memory> ip_diff_src, ip_diff_dst, ip_weights, diff_src_ref;
-
         auto ip_diff_src_desc = has_spatial ? p.ndims == 5
             ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
                     data_type, p.diff_src_format)
@@ -142,32 +140,32 @@ protected:
         auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
 
-        ip_diff_src.reset(new memory(ip_primitive_desc.diff_src_desc(), eng));
-        ip_weights.reset(new memory(ip_primitive_desc.weights_desc(), eng));
-        ip_diff_dst.reset(new memory(ip_primitive_desc.diff_dst_desc(), eng));
-        diff_src_ref.reset(new memory(ip_primitive_desc.diff_src_desc(), eng));
+        memory ip_diff_src(ip_primitive_desc.diff_src_desc(), eng);
+        memory ip_weights(ip_primitive_desc.weights_desc(), eng);
+        memory ip_diff_dst(ip_primitive_desc.diff_dst_desc(), eng);
+        memory diff_src_ref(ip_primitive_desc.diff_src_desc(), eng);
 
         fill_data<data_t>(
-                ip_diff_dst->get_desc().get_size() / sizeof(data_t),
-                *ip_diff_dst);
+                ip_diff_dst.get_desc().get_size() / sizeof(data_t),
+                ip_diff_dst);
         fill_data<data_t>(
-                ip_weights->get_desc().get_size() / sizeof(data_t),
-                *ip_weights);
+                ip_weights.get_desc().get_size() / sizeof(data_t),
+                ip_weights);
 
-        check_zero_tail<data_t>(1,*ip_diff_dst);
-        check_zero_tail<data_t>(1,*ip_weights);
+        check_zero_tail<data_t>(1, ip_diff_dst);
+        check_zero_tail<data_t>(1, ip_weights);
 
         inner_product_backward_data(ip_primitive_desc).execute(strm, {
-                {MKLDNN_ARG_DIFF_DST, *ip_diff_dst},
-                {MKLDNN_ARG_WEIGHTS, *ip_weights},
-                {MKLDNN_ARG_DIFF_SRC, *ip_diff_src}});
+                {MKLDNN_ARG_DIFF_DST, ip_diff_dst},
+                {MKLDNN_ARG_WEIGHTS, ip_weights},
+                {MKLDNN_ARG_DIFF_SRC, ip_diff_src}});
         strm.wait();
 
-        compute_ref_inner_product_bwd_data<data_t>(p.ndims == 5, ipd, *ip_diff_dst,
-                *ip_weights, *diff_src_ref);
-        check_zero_tail<data_t>(1,*diff_src_ref);
-        compare_data<data_t>(*diff_src_ref, *ip_diff_src);
-        check_zero_tail<data_t>(0,*ip_diff_src);
+        compute_ref_inner_product_bwd_data<data_t>(p.ndims == 5, ipd,
+                ip_diff_dst, ip_weights, diff_src_ref);
+        check_zero_tail<data_t>(1, diff_src_ref);
+        compare_data<data_t>(diff_src_ref, ip_diff_src);
+        check_zero_tail<data_t>(0, ip_diff_src);
     }
 };
 

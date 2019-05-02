@@ -119,41 +119,39 @@ protected:
             srcs.push_back(src_memory);
         }
 
-        std::shared_ptr<memory> dst;
-        std::shared_ptr<sum::primitive_desc> sum_pd;
+        memory dst;
+        sum::primitive_desc sum_pd;
 
         if (p.is_output_omitted) {
-            ASSERT_NO_THROW(sum_pd.reset(
-                new sum::primitive_desc(p.scale, srcs_md, eng)));
+            ASSERT_NO_THROW(sum_pd = sum::primitive_desc(p.scale, srcs_md, eng));
         } else {
             auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
-            sum_pd.reset(
-                new sum::primitive_desc(dst_desc, p.scale, srcs_md, eng));
+            sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_md, eng);
 
-            ASSERT_EQ(sum_pd->dst_desc().data.ndims, dst_desc.data.ndims);
+            ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
         }
-        ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_desc(), eng)));
+        ASSERT_NO_THROW(dst = memory(sum_pd.dst_desc(), eng));
 
         {
-            auto dst_data = map_memory<data_t>(*dst);
+            auto dst_data = map_memory<data_t>(dst);
             const size_t sz =
-                dst->get_desc().get_size() / sizeof(data_t);
+                dst.get_desc().get_size() / sizeof(data_t);
             // overwriting dst to prevent false positives for test cases.
             mkldnn::impl::parallel_nd((ptrdiff_t)sz,
                 [&](ptrdiff_t i) { dst_data[i] = -32; }
             );
         }
 
-        sum c(*sum_pd);
+        sum c(sum_pd);
         std::unordered_map<int, memory> args = {
-            {MKLDNN_ARG_DST, *dst}};
+            {MKLDNN_ARG_DST, dst}};
         for (int i = 0; i < (int)num_srcs; i++) {
             args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
         c.execute(strm, args);
         strm.wait();
 
-        check_data(srcs, p.scale, *dst);
+        check_data(srcs, p.scale, dst);
     }
 };
 

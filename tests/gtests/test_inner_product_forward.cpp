@@ -123,8 +123,6 @@ protected:
         auto ip_dst_desc = create_md({ ipd.mb, ipd.oc }, data_type,
             p.dst_format);
 
-        std::shared_ptr<memory> ip_src, ip_weights, ip_dst, ip_bias, dst_ref;
-
         auto ip_desc = with_bias
             ? inner_product_forward::desc(p.aprop_kind, ip_src_desc,
                     ip_weights_desc, ip_bias_desc, ip_dst_desc)
@@ -134,39 +132,39 @@ protected:
         auto ip_primitive_desc = inner_product_forward::primitive_desc(
                 ip_desc, eng);
 
-        ip_src.reset(new memory(ip_primitive_desc.src_desc(), eng));
-        ip_weights.reset(new memory(ip_primitive_desc.weights_desc(), eng));
-        ip_bias.reset(new memory(ip_primitive_desc.bias_desc(), eng));
-        ip_dst.reset(new memory(ip_primitive_desc.dst_desc(), eng));
-        dst_ref.reset(new memory(ip_primitive_desc.dst_desc(), eng));
+        memory ip_src(ip_primitive_desc.src_desc(), eng);
+        memory ip_weights(ip_primitive_desc.weights_desc(), eng);
+        memory ip_bias(ip_primitive_desc.bias_desc(), eng);
+        memory ip_dst(ip_primitive_desc.dst_desc(), eng);
+        memory dst_ref(ip_primitive_desc.dst_desc(), eng);
 
         fill_data<data_t>(
-                ip_src->get_desc().get_size() / sizeof(data_t),
-                *ip_src);
+                ip_src.get_desc().get_size() / sizeof(data_t),
+                ip_src);
         fill_data<data_t>(
-                ip_weights->get_desc().get_size() / sizeof(data_t),
-                *ip_weights);
+                ip_weights.get_desc().get_size() / sizeof(data_t),
+                ip_weights);
         if (with_bias) {
             fill_data<data_t>(
-                    ip_bias->get_desc().get_size() / sizeof(data_t),
-                    *ip_bias);
+                    ip_bias.get_desc().get_size() / sizeof(data_t),
+                    ip_bias);
         }
-        check_zero_tail<data_t>(1, *ip_src);
-        check_zero_tail<data_t>(1, *ip_weights);
+        check_zero_tail<data_t>(1, ip_src);
+        check_zero_tail<data_t>(1, ip_weights);
 
         inner_product_forward(ip_primitive_desc).execute(strm, {
-                {MKLDNN_ARG_SRC, *ip_src},
-                {MKLDNN_ARG_WEIGHTS, *ip_weights},
-                {MKLDNN_ARG_BIAS, *ip_bias},
-                {MKLDNN_ARG_DST, *ip_dst}});
+                {MKLDNN_ARG_SRC, ip_src},
+                {MKLDNN_ARG_WEIGHTS, ip_weights},
+                {MKLDNN_ARG_BIAS, ip_bias},
+                {MKLDNN_ARG_DST, ip_dst}});
         strm.wait();
 
-        compute_ref_inner_product_fwd<data_t>(ipd, *ip_src, *ip_weights,
-                *ip_bias, *dst_ref);
-        check_zero_tail<data_t>(1, *dst_ref);
-        compare_data<data_t>(*dst_ref, *ip_dst);
+        compute_ref_inner_product_fwd<data_t>(ipd, ip_src, ip_weights,
+                ip_bias, dst_ref);
+        check_zero_tail<data_t>(1, dst_ref);
+        compare_data<data_t>(dst_ref, ip_dst);
 
-        check_zero_tail<data_t>(0, *ip_dst);
+        check_zero_tail<data_t>(0, ip_dst);
     }
 };
 

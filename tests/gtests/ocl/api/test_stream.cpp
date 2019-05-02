@@ -55,13 +55,13 @@ protected:
             return;
         }
 
-        eng.reset(new engine(engine::kind::gpu, 0));
+        eng = engine(engine::kind::gpu, 0);
 
-        ocl_ctx = eng->get_ocl_context();
-        ocl_dev = eng->get_ocl_device();
+        ocl_ctx = eng.get_ocl_context();
+        ocl_dev = eng.get_ocl_device();
     }
 
-    std::shared_ptr<engine> eng;
+    engine eng;
     cl_context ocl_ctx = nullptr;
     cl_device_id ocl_dev = nullptr;
 };
@@ -94,7 +94,7 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
-    stream s(*eng);
+    stream s(eng);
     cl_command_queue ocl_queue = s.get_ocl_command_queue();
 
     cl_device_id ocl_queue_dev;
@@ -150,7 +150,7 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     OCL_CHECK(err);
 
     {
-        stream s(*eng, interop_ocl_queue);
+        stream s(eng, interop_ocl_queue);
 
         cl_uint ref_count;
         OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
@@ -212,7 +212,7 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
     OCL_CHECK(err);
 
-    catch_expected_failures([&] { stream s(*eng, cpu_ocl_queue); }, true,
+    catch_expected_failures([&] { stream s(eng, cpu_ocl_queue); }, true,
             mkldnn_invalid_arguments);
 
     OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));

@@ -229,18 +229,12 @@ void check_eltwise_bwd(const eltwise_test_params &p,
 template <typename data_t>
 class eltwise_test : public ::testing::TestWithParam<eltwise_test_params> {
 private:
-    std::shared_ptr<memory> src;
-    std::shared_ptr<memory> diff_src;
-    std::shared_ptr<memory> dst;
-    std::shared_ptr<memory> ref_dst;
-    std::shared_ptr<memory> diff_dst;
-    std::shared_ptr<memory> workspace;
+    memory src;
     std::shared_ptr<memory::desc> data_desc;
-    std::shared_ptr<memory::desc> diff_data_desc;
-    std::shared_ptr<eltwise_forward::primitive_desc> eltwise_prim_desc;
+    eltwise_forward::primitive_desc eltwise_prim_desc;
     eltwise_test_params p;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
 
 protected:
@@ -258,8 +252,8 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
 
         Forward();
         Backward();
@@ -268,59 +262,56 @@ protected:
     void Forward() {
         data_desc.reset(new memory::desc(p.dims, data_type,
             p.data_format));
-        diff_data_desc.reset(new memory::desc(p.dims, data_type,
-            p.diff_format));
-        src.reset(new memory(*data_desc, *eng));
-        dst.reset(new memory(*data_desc, *eng));
-        ref_dst.reset(new memory(*data_desc, *eng));
+        src = memory(*data_desc, eng);
+        memory dst(*data_desc, eng);
+        memory ref_dst(*data_desc, eng);
 
         data_t data_median = data_t(0);
         data_t data_deviation
                 = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(*data_desc), *src,
-                data_median, data_deviation);
-        check_zero_tail<data_t>(1, *src);
+        fill_data<data_t>(n_elems(*data_desc), src, data_median, data_deviation);
+        check_zero_tail<data_t>(1, src);
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
                 p.alg_kind, *data_desc, p.alpha, p.beta);
-        eltwise_prim_desc.reset(
-                new eltwise_forward::primitive_desc(eltwise_desc, *eng));
-        eltwise_forward(*eltwise_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DST, *dst}});
-        strm->wait();
+        eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
+        eltwise_forward(eltwise_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src},
+                {MKLDNN_ARG_DST, dst}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *dst);
-        check_eltwise_fwd<data_t>(p, *data_desc, *src, *ref_dst);
-        check_zero_tail<data_t>(1, *ref_dst);
-        compare_eltwise_fwd<data_t>(p, *data_desc, *dst, *ref_dst);
+        check_zero_tail<data_t>(0, dst);
+        check_eltwise_fwd<data_t>(p, *data_desc, src, ref_dst);
+        check_zero_tail<data_t>(1, ref_dst);
+        compare_eltwise_fwd<data_t>(p, *data_desc, dst, ref_dst);
     }
 
     void Backward() {
-        diff_src.reset(new memory(*diff_data_desc, *eng));
-        diff_dst.reset(new memory(*diff_data_desc, *eng));
+        memory::desc diff_data_desc(p.dims, data_type, p.diff_format);
+        memory diff_src(diff_data_desc, eng);
+        memory diff_dst(diff_data_desc, eng);
 
         data_t data_median = data_t(0);
         data_t data_deviation
                 = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(*diff_data_desc),
-                *diff_dst, data_median,
+        fill_data<data_t>(n_elems(diff_data_desc),
+                diff_dst, data_median,
                 data_deviation);
-        check_zero_tail<data_t>(1, *diff_dst);
+        check_zero_tail<data_t>(1, diff_dst);
 
         auto eltwise_bwd_desc = eltwise_backward::desc(p.alg_kind,
-                *diff_data_desc, *data_desc, p.alpha, p.beta);
+                diff_data_desc, *data_desc, p.alpha, p.beta);
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
-                eltwise_bwd_desc, *eng, *eltwise_prim_desc);
+                eltwise_bwd_desc, eng, eltwise_prim_desc);
 
-        eltwise_backward(eltwise_bwd_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DIFF_DST, *diff_dst},
-                {MKLDNN_ARG_DIFF_SRC, *diff_src}});
-        strm->wait();
+        eltwise_backward(eltwise_bwd_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src},
+                {MKLDNN_ARG_DIFF_DST, diff_dst},
+                {MKLDNN_ARG_DIFF_SRC, diff_src}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *diff_src);
-        check_eltwise_bwd<data_t>(p, *data_desc, *src, *diff_dst, *diff_src);
+        check_zero_tail<data_t>(0, diff_src);
+        check_eltwise_bwd<data_t>(p, *data_desc, src, diff_dst, diff_src);
     }
 };
 

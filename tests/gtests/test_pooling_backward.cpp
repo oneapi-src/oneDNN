@@ -228,12 +228,12 @@ class pooling_bwd_test : public ::testing::TestWithParam<pool_bwd_test_params> {
 private:
     std::shared_ptr<memory::desc> src_desc;
     std::shared_ptr<memory::desc> dst_desc;
-    std::shared_ptr<memory> workspace;
-    std::shared_ptr<pooling_forward::primitive_desc> pool_prim_desc;
+    memory workspace;
+    pooling_forward::primitive_desc pool_prim_desc;
     pool_bwd_test_params p;
     memory::dims strides, ker, pad_l, pad_r;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
 
 protected:
@@ -246,8 +246,8 @@ protected:
     void Test() {
         test_pool_bwd_desc_t pd = p.test_pd;
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
@@ -289,72 +289,55 @@ protected:
         Backward();
     }
 
-    void Forward()
-    {
-        std::shared_ptr<memory> src;
-        std::shared_ptr<memory> dst;
-
+    void Forward() {
         auto pool_desc = pooling_forward::desc(prop_kind::forward_training,
                 p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l, pad_r,
                 padding_kind::zero);
-        pool_prim_desc.reset(
-                new pooling_forward::primitive_desc(pool_desc, *eng));
+        pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
-        auto p_workspace_desc = pool_prim_desc->workspace_desc();
+        auto p_workspace_desc = pool_prim_desc.workspace_desc();
 
-        src.reset(new memory({*src_desc, *eng}));
-        workspace.reset(new memory(p_workspace_desc, *eng));
-        dst.reset(new memory({*dst_desc, *eng}));
+        memory src(*src_desc, eng);
+        memory dst(*dst_desc, eng);
+        workspace = memory(p_workspace_desc, eng);
 
-        fill_data<data_t>(
-                src->get_desc().get_size() / sizeof(data_t),
-                *src);
-        fill_data<data_t>(
-                dst->get_desc().get_size() / sizeof(data_t),
-                *dst);
-        check_zero_tail<data_t>(1, *src);
-        check_zero_tail<data_t>(1, *dst);
+        fill_data<data_t>(src.get_desc().get_size() / sizeof(data_t), src);
+        fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
+        check_zero_tail<data_t>(1, src);
+        check_zero_tail<data_t>(1, dst);
 
-        pooling_forward(*pool_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DST, *dst},
-                {MKLDNN_ARG_WORKSPACE, *workspace}});
-        strm->wait();
+        pooling_forward(pool_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src},
+                {MKLDNN_ARG_DST, dst},
+                {MKLDNN_ARG_WORKSPACE, workspace}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *dst);
-        check_pool_fwd<data_t>(p, *src, *dst);
+        check_zero_tail<data_t>(0, dst);
+        check_pool_fwd<data_t>(p, src, dst);
     }
 
-    void Backward()
-    {
-        std::shared_ptr<memory> diff_src;
-        std::shared_ptr<memory> diff_dst;
-
+    void Backward() {
         auto pool_bwd_desc = pooling_backward::desc(p.aalgorithm, *src_desc,
                 *dst_desc, strides, ker, pad_l, pad_r, padding_kind::zero);
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
-                pool_bwd_desc, *eng, *pool_prim_desc);
+                pool_bwd_desc, eng, pool_prim_desc);
 
-        diff_src.reset(new memory({*src_desc, *eng}));
-        diff_dst.reset(new memory({*dst_desc, *eng}));
+        memory diff_src(*src_desc, eng);
+        memory diff_dst(*dst_desc, eng);
 
-        fill_data<data_t>(
-                diff_dst->get_desc().get_size()/ sizeof(data_t),
-                *diff_dst);
-        fill_data<data_t>(
-                diff_src->get_desc().get_size()/ sizeof(data_t),
-                *diff_src);
-        check_zero_tail<data_t>(1, *diff_dst);
-        check_zero_tail<data_t>(1, *diff_src);
+        fill_data<data_t>(diff_dst.get_desc().get_size()/ sizeof(data_t), diff_dst);
+        fill_data<data_t>(diff_src.get_desc().get_size()/ sizeof(data_t), diff_src);
+        check_zero_tail<data_t>(1, diff_dst);
+        check_zero_tail<data_t>(1, diff_src);
 
-        pooling_backward(pool_bwd_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_DIFF_DST, *diff_dst},
-                {MKLDNN_ARG_DIFF_SRC, *diff_src},
-                {MKLDNN_ARG_WORKSPACE, *workspace}});
-        strm->wait();
+        pooling_backward(pool_bwd_prim_desc).execute(strm, {
+                {MKLDNN_ARG_DIFF_DST, diff_dst},
+                {MKLDNN_ARG_DIFF_SRC, diff_src},
+                {MKLDNN_ARG_WORKSPACE, workspace}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *diff_src);
-        check_pool_bwd<data_t>(p, *diff_src, *diff_dst, *workspace);
+        check_zero_tail<data_t>(0, diff_src);
+        check_pool_bwd<data_t>(p, diff_src, diff_dst, workspace);
     }
 };
 

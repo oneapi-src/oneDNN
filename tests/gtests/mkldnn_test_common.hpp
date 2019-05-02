@@ -469,18 +469,18 @@ public:
         size_ = d.get_size();
         if (e.get_backend_kind() == mkldnn::backend_kind::native) {
             data_.reset(test_malloc(size_), test_free);
-            mem_.reset(new memory(d, e, data_.get()));
+            mem_ = memory(d, e, data_.get());
         } else {
-            mem_.reset(new memory(d, e));
+            mem_ = memory(d, e);
         }
     }
     size_t get_size() const { return size_; }
-    const memory &get() const { return *mem_; }
+    const memory &get() const { return mem_; }
 
-    operator bool() const { return (bool)mem_; }
+    operator bool() const { return mem_.get(true) != nullptr; }
 
 private:
-    std::shared_ptr<memory> mem_;
+    memory mem_;
     std::shared_ptr<char> data_;
     size_t size_;
 };
