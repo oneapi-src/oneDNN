@@ -1361,6 +1361,9 @@ struct reorder : public primitive {
             reset(result);
         }
 
+        /// Queries scratchpad memory descriptor.
+        ///
+        /// @sa @ref dev_guide_attributes_scratchpad
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
@@ -1451,6 +1454,7 @@ struct concat : public primitive {
             reset(result);
         }
 
+        /// Queries destination memory descriptor.
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
@@ -1460,6 +1464,9 @@ struct concat : public primitive {
             return memory::desc(*cdesc);
         }
 
+        /// Queries scratchpad memory descriptor.
+        ///
+        /// @sa @ref dev_guide_attributes_scratchpad
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
@@ -1536,6 +1543,7 @@ struct sum : public primitive {
             reset(result);
         }
 
+        /// Queries destination memory descriptor.
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
@@ -1545,6 +1553,9 @@ struct sum : public primitive {
             return memory::desc(*cdesc);
         }
 
+        /// Queries scratchpad memory descriptor.
+        ///
+        /// @sa @ref dev_guide_attributes_scratchpad
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
@@ -1654,9 +1665,12 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
         return memory::desc(*cdesc);
     }
 
-    // register specialized queries, e.g. src_desc()
-#   define REG_QUERY_MD(name, what, idx) \
-    memory::desc name ## _desc() const { return query_md(query::what ## _md, idx); }
+    /// Queries scratchpad memory descriptor.
+    ///
+    /// @sa @ref dev_guide_attributes_scratchpad
+    memory::desc scratchpad_desc() const {
+        return query_md(query::scratchpad_md, 0);
+    }
 
   private:
     handle<mkldnn_primitive_desc_iterator_t> pd_iterator;
@@ -1816,11 +1830,25 @@ struct convolution_forward: public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(bias, weights, 1);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     convolution_forward() = default;
@@ -1906,10 +1934,20 @@ struct convolution_backward_data : public primitive {
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source gradient memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     convolution_backward_data() = default;
@@ -2047,11 +2085,25 @@ struct convolution_backward_weights : public primitive {
                 const convolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(diff_weights, diff_weights, 0);
-        REG_QUERY_MD(diff_bias, diff_weights, 1);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries diff weights memory descriptor.
+        memory::desc diff_weights_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     convolution_backward_weights() = default;
@@ -2204,11 +2256,25 @@ struct deconvolution_forward: public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(bias, weights, 1);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     deconvolution_forward() = default;
@@ -2293,10 +2359,20 @@ struct deconvolution_backward_data : public primitive {
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source gradient memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     deconvolution_backward_data() = default;
@@ -2432,11 +2508,25 @@ struct deconvolution_backward_weights : public primitive {
                 const deconvolution_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(diff_weights, diff_weights, 0);
-        REG_QUERY_MD(diff_bias, diff_weights, 1);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries diff weights memory descriptor.
+        memory::desc diff_weights_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     deconvolution_backward_weights() = default;
@@ -2490,10 +2580,20 @@ struct lrn_forward : public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
 
     lrn_forward() = default;
@@ -2536,10 +2636,20 @@ struct lrn_backward : public primitive {
                 const lrn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
 
     lrn_backward() = default;
@@ -2600,10 +2710,20 @@ struct pooling_forward : public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
 
     pooling_forward() = default;
@@ -2652,10 +2772,20 @@ struct pooling_backward : public primitive {
                 const pooling_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
 
     pooling_backward() = default;
@@ -2715,9 +2845,15 @@ struct eltwise_forward : public primitive {
                 const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     eltwise_forward() = default;
@@ -2758,10 +2894,20 @@ struct eltwise_backward : public primitive {
                 const eltwise_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries diff source memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     eltwise_backward() = default;
@@ -2808,9 +2954,15 @@ struct softmax_forward : public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     softmax_forward() = default;
@@ -2848,11 +3000,20 @@ struct softmax_backward : public primitive {
                 const softmax_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries diff source memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     softmax_backward() = default;
@@ -2922,14 +3083,35 @@ struct batch_normalization_forward : public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        memory::desc mean_desc() const { return stat_desc(mean); }
-        memory::desc variance_desc() const { return stat_desc(var); }
+        /// Queries weights (scale and shift) memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+        /// Queries mean memory descriptor.
+        memory::desc mean_desc() const {
+            return stat_desc(mean);
+        }
+
+        /// Queries variance memory descriptor.
+        memory::desc variance_desc() const {
+            return stat_desc(var);
+        }
 
     private:
         enum { mean = 1, var = 2, };
@@ -2995,17 +3177,50 @@ struct batch_normalization_backward : public primitive {
                 const batch_normalization_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(mean, src, 1);
-        REG_QUERY_MD(variance, src, 2);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(workspace, workspace, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_weights, diff_weights, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries mean memory descriptor.
+        memory::desc mean_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries variance memory descriptor.
+        memory::desc variance_desc() const {
+            return query_md(query::src_md, 2);
+        }
+
+        /// Queries weights (scale and shift) memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+        /// Queries diff source memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff weights (scale and shift) memory descriptor.
+        memory::desc diff_weights_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
     };
 
     batch_normalization_backward() = default;
@@ -3069,11 +3284,25 @@ struct inner_product_forward: public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(bias, weights, 1);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     inner_product_forward() = default;
@@ -3116,10 +3345,20 @@ struct inner_product_backward_data: public primitive {
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(weights, weights, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source gradient memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     inner_product_backward_data() = default;
@@ -3172,11 +3411,25 @@ struct inner_product_backward_weights: public primitive {
                 const inner_product_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(diff_weights, diff_weights, 0);
-        REG_QUERY_MD(diff_bias, diff_weights, 1);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries diff weights memory descriptor.
+        memory::desc diff_weights_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     inner_product_backward_weights() = default;
@@ -3254,15 +3507,45 @@ struct rnn_forward : public primitive {
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
 
     rnn_forward() = default;
@@ -3342,23 +3625,82 @@ struct rnn_backward : public primitive {
                 const rnn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        REG_QUERY_MD(diff_src_layer, diff_src, 0);
-        REG_QUERY_MD(diff_src_iter, diff_src, 1);
-        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
-        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
-        REG_QUERY_MD(diff_bias, diff_weights, 2);
-        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
-        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+
+        /// Queries diff source layer memory descriptor.
+        memory::desc diff_src_layer_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff source iteration memory descriptor.
+        memory::desc diff_src_iter_desc() const {
+            return query_md(query::diff_src_md, 1);
+        }
+
+        /// Queries diff weights layer memory descriptor.
+        memory::desc diff_weights_layer_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff weights iteration memory descriptor.
+        memory::desc diff_weights_iter_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 2);
+        }
+
+        /// Queries diff destination layer memory descriptor.
+        memory::desc diff_dst_layer_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries diff destination iteration memory descriptor.
+        memory::desc diff_dst_iter_desc() const {
+            return query_md(query::diff_dst_md, 1);
+        }
+
     };
 
     rnn_backward() = default;
@@ -3874,9 +4216,15 @@ struct shuffle_forward : public primitive {
                 const primitive_attr &aattr = primitive_attr())
             : mkldnn::primitive_desc(&desc.data, &aattr, e, nullptr) {}
 
-        REG_QUERY_MD(src, src, 0);
-        REG_QUERY_MD(dst, dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const {
+            return query_md(query::dst_md, 0);
+        }
     };
 
     shuffle_forward() = default;
@@ -3911,9 +4259,15 @@ struct shuffle_backward : public primitive {
             : mkldnn::primitive_desc(
                       &desc.data, &aattr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(diff_src, diff_src, 0);
-        REG_QUERY_MD(diff_dst, diff_dst, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries diff source gradient memory descriptor.
+        memory::desc diff_src_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff destination memory descriptor.
+        memory::desc diff_dst_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
     };
 
     shuffle_backward() = default;
