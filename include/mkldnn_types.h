@@ -86,12 +86,13 @@ typedef enum {
 
 /// Memory format kind
 typedef enum {
-    /// Undefined memory format, used for empty memory descriptors.
+    /// Undefined memory format kind, used for empty memory descriptors.
     mkldnn_format_kind_undef = 0,
-    /// Unspecified format. The primitive selects a format automatically.
+    /// Unspecified format kind.
+    /// The primitive selects a format automatically.
     mkldnn_format_kind_any,
     /// A tensor in a generic format described by the stride and blocking
-    /// values in each dimension. See #mkldnn_blocking_desc_t for more
+    /// values in each dimension. See @ref mkldnn_blocking_desc_t for more
     /// information.
     mkldnn_blocked,
     /// Weights format used in 8bit Winograd convolution
@@ -167,7 +168,7 @@ typedef enum {
 /// followed by the spatial height and width, and finally followed by 8-element
 /// channel blocks.
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 typedef enum {
     /// Undefined memory format tag
     mkldnn_format_tag_undef = 0,
@@ -243,6 +244,7 @@ typedef enum {
     mkldnn_aBcd8b,
     mkldnn_ABcd8b16a2b,
     mkldnn_aBCd8b16c2b,
+    /// 4D tensor blocked by 1st and 2nd dimension with block size 8
     mkldnn_ABcd8b8a,
     mkldnn_aBCd8b8c,
     mkldnn_aBCd8c16b2c,
@@ -332,7 +334,7 @@ typedef enum {
     mkldnn_ncw = mkldnn_abc,
     /// 3D CNN activations tensor, an alias to #mkldnn_acb
     mkldnn_nwc = mkldnn_acb,
-    /// 3D CNN activations tensor, an alias to #mkldnn_abcd
+    /// 4D CNN activations tensor, an alias to #mkldnn_abcd
     mkldnn_nchw = mkldnn_abcd,
     /// 4D CNN activations tensor, an alias to #mkldnn_acdb
     mkldnn_nhwc = mkldnn_acdb,
@@ -343,20 +345,36 @@ typedef enum {
     /// 5D CNN activations tensor, an alias to #mkldnn_acdeb
     mkldnn_ndhwc = mkldnn_acdeb,
 
+    /// 2D CNN weights tensor, an alias to #mkldnn_ab
     mkldnn_oi = mkldnn_ab,
+    /// 2D CNN weights tensor, an alias to #mkldnn_ba
     mkldnn_io = mkldnn_ba,
+    /// 3D CNN weights tensor, an alias to #mkldnn_abc
     mkldnn_oiw = mkldnn_abc,
+    /// 3D CNN weights tensor, an alias to #mkldnn_cba
     mkldnn_wio = mkldnn_cba,
+    /// 4D CNN weights tensor, an alias to #mkldnn_abcd
     mkldnn_oihw = mkldnn_abcd,
+    /// 4D CNN weights tensor, an alias to #mkldnn_cdba
     mkldnn_hwio = mkldnn_cdba,
+    /// 4D CNN weights tensor, an alias to #mkldnn_bcda
     mkldnn_ihwo = mkldnn_bcda,
+    /// 4D CNN weights tensor, an alias to #mkldnn_bacd
     mkldnn_iohw = mkldnn_bacd,
+    /// 5D CNN weights tensor, an alias to #mkldnn_abcde
     mkldnn_oidhw = mkldnn_abcde,
+    /// 5D CNN weights tensor, an alias to #mkldnn_cdeba
     mkldnn_dhwio = mkldnn_cdeba,
+
+    /// 4D CNN weights tensor (incl. groups), an alias to #mkldnn_abcd
     mkldnn_goiw = mkldnn_abcd,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_abcde
     mkldnn_goihw = mkldnn_abcde,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_decab
     mkldnn_hwigo = mkldnn_decab,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_acbde
     mkldnn_giohw = mkldnn_acbde,
+    /// 6D CNN weights tensor (incl. groups), an alias to #mkldnn_abcdef
     mkldnn_goidhw = mkldnn_abcdef,
 
     /// 3D RNN data tensor in the format (seq_length, batch, input channels).
@@ -652,7 +670,7 @@ typedef enum {
     mkldnn_lbr_gru = 0x4fff,
 } mkldnn_alg_kind_t;
 
-/// Flags for batch-normalization primititve.
+/// Flags for batch-normalization primitive.
 typedef enum {
     /// Use global statistics
     ///
@@ -708,7 +726,7 @@ typedef mkldnn_dim_t mkldnn_dims_t[MKLDNN_MAX_NDIMS];
 
 /// Generic description of blocked data layout for most memory formats.
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 typedef struct {
     /// The strides between the outermost blocks.
     /// In case of plain (non-blocked) formats the strides between dimensions.
@@ -1130,8 +1148,7 @@ typedef struct {
     /// #mkldnn_forward_inference, and #mkldnn_backward.
     mkldnn_prop_kind_t prop_kind;
     /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
-    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
-    /// or #mkldnn_gru_linear_before_reset.
+    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru, or #mkldnn_lbr_gru.
     mkldnn_alg_kind_t cell_kind;
     /// The direction of RNN primitive execution.
     mkldnn_rnn_direction_t direction;

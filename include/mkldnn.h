@@ -303,7 +303,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_destroy(mkldnn_post_ops_t post_ops);
 /// Returns the @p length of post operations for given @p post_ops.
 int MKLDNN_API mkldnn_post_ops_len(const_mkldnn_post_ops_t post_ops);
 
-/// Returns the type of post operation with index @p index in given
+/// Returns the kind of post operation with index @p index in given
 /// @p post_ops. In case of error, returns #mkldnn_undefined_primitive.
 mkldnn_primitive_kind_t MKLDNN_API mkldnn_post_ops_get_kind(
         const_mkldnn_post_ops_t post_ops, int index);
@@ -381,15 +381,15 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///      functions, or by directly filling the mkldnn_memory_desc_t structure.
 ///      The latter requires deep knowledge of how the physical data
 ///      representation is mapped to the structure.
-///      The @ref understanding_memory_formats topic should shed some light on
-///      that.
+///      The @ref dev_guide_understanding_memory_formats topic should shed some
+///      light on that.
 ///      For the fully defined memory descriptors (i.e. where the format kind is
 ///      not equal to #mkldnn_format_kind_any) a user can the size, using the
 ///      mkldnn_memory_desc_get_size() function. As described in
-///      @ref understanding_memory_formats, the size of data sometimes cannot
-///      be computed as the product of dimensions times the size of the data
-///      type. So users are encouraged to use this function for better code
-///      portability.
+///      @ref dev_guide_understanding_memory_formats, the size of data sometimes
+///      cannot be computed as the product of dimensions times the size
+///      of the data type. So users are encouraged to use this function
+///      for better code portability.
 ///      Two memory descriptors can be compared with mkldnn_memory_desc_equal().
 ///      The comparison is especially useful when checking whether a primitive
 ///      requires reorder from the user's data format to the primitive's format.
@@ -400,7 +400,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///      mkldnn_memory_set_data_handle(). The latter function always sets the
 ///      memory in the padding region to zero, which is the invariant maintained
 ///      by all the primitives in Intel MKL-DNN.
-///      See @ref understanding_memory_formats for more details.
+///      See @ref dev_guide_understanding_memory_formats for more details.
 ///      A memory can be created using mkldnn_memory_create() function.
 ///      A memory can also be queried for the underlying memory descriptor and
 ///      engine using mkldnn_memory_get_memory_desc() and
@@ -435,7 +435,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///  Data handle of *zero-volume* memory is never accessed and hence can be
 ///  unset (NULL in case of CPU engine).
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 /// @{
 
 /// Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p

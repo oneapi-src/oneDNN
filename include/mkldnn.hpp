@@ -165,6 +165,8 @@ template <> struct handle_traits<mkldnn_primitive_desc_iterator_t> {
 };
 #endif
 
+struct stream;
+struct error;
 struct memory;
 struct primitive_desc;
 
@@ -174,21 +176,36 @@ class primitive: public handle<mkldnn_primitive_t> {
     friend struct stream;
     using handle::handle;
 public:
-    /// A proxy to C primitive kind enum
+    /// Kinds of primitives. Used to implement a way to extend the library with
+    /// new primitives without changing the ABI.
     enum class kind {
+        /// Undefined primitive
         undef = mkldnn_undefined_primitive,
+        /// A reorder primitive.
         reorder = mkldnn_reorder,
-        concat = mkldnn_concat,
-        sum = mkldnn_sum,
-        convolution = mkldnn_convolution,
-        deconvolution = mkldnn_deconvolution,
+        /// A shuffle primitive.
         shuffle = mkldnn_shuffle,
+        /// A (out-of-place) concat primitive.
+        concat = mkldnn_concat,
+        /// A sum primitive.
+        sum = mkldnn_sum,
+        /// A convolution primitive.
+        convolution = mkldnn_convolution,
+        /// A deconvolution primitive.
+        deconvolution = mkldnn_deconvolution,
+        /// An element-wise primitive.
         eltwise = mkldnn_eltwise,
+        /// A softmax primitive.
         softmax = mkldnn_softmax,
+        /// A pooling primitive.
         pooling = mkldnn_pooling,
+        /// An LRN primitive.
         lrn = mkldnn_lrn,
+        /// An batch normalization primitive.
         batch_normalization = mkldnn_batch_normalization,
+        /// An inner product primitive.
         inner_product = mkldnn_inner_product,
+        /// A rnn primitive.
         rnn = mkldnn_rnn,
     };
 
@@ -199,7 +216,7 @@ public:
     inline const_mkldnn_primitive_desc_t get_primitive_desc() const;
     // TODO: use the C++ API wrapper structure.
 
-    void execute(struct stream &astream,
+    void execute(stream &astream,
             const std::unordered_map<int, memory> &args) const;
 };
 
@@ -220,8 +237,11 @@ const_mkldnn_primitive_desc_t primitive::get_primitive_desc() const {
 ///
 /// @{
 
+/// Scratchpad mode
 enum class scratchpad_mode {
+    /// The library manages scratchpad (default)
     library = mkldnn_scratchpad_mode_library,
+    /// A user shall query and provide the scratchpad memory to primitives
     user = mkldnn_scratchpad_mode_user,
 };
 
@@ -231,13 +251,26 @@ inline mkldnn_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
 
 /// Propagation kind
 enum class prop_kind {
+    /// Forward data propagation (training mode). In this mode primitives
+    /// perform computations necessary for subsequent backward propagation.
     forward_training = mkldnn_forward_training,
-    forward_scoring = mkldnn_forward_scoring,
+    /// Forward data propagation (inference mode). In this mode primitives
+    /// perform only computations that are necessary for inference and omit
+    /// computations that are necessary only for backward propagation.
     forward_inference = mkldnn_forward_inference,
+    /// Forward data propagation,
+    /// alias for #mkldnn::prop_kind::forward_inference
+    forward_scoring = mkldnn_forward_scoring,
+    /// Forward data propagation,
+    /// alias for #mkldnn::prop_kind::forward_training
     forward = mkldnn_forward,
+    /// Backward propagation (with respect to all parameters).
     backward = mkldnn_backward,
+    /// Backward data propagation.
     backward_data = mkldnn_backward_data,
+    /// Backward weights propagation.
     backward_weights = mkldnn_backward_weights,
+    /// Backward bias propagation.
     backward_bias = mkldnn_backward_bias
 };
 
@@ -245,42 +278,109 @@ inline mkldnn_prop_kind_t convert_to_c(prop_kind kind) {
     return static_cast<mkldnn_prop_kind_t>(kind);
 }
 
+/// Kinds of algorithms.
 enum class algorithm {
     undef = mkldnn_alg_kind_undef,
+    /// Convolution algorithm(either direct or Winograd) is chosen just in time
     convolution_auto = mkldnn_convolution_auto,
+    /// Direct convolution
     convolution_direct = mkldnn_convolution_direct,
+    /// Winograd convolution
     convolution_winograd = mkldnn_convolution_winograd,
+    /// Direct deconvolution
     deconvolution_direct = mkldnn_deconvolution_direct,
+    /// Winograd deconvolution
     deconvolution_winograd = mkldnn_deconvolution_winograd,
+    /// Eltwise: ReLU
     eltwise_relu = mkldnn_eltwise_relu,
+    /// Eltwise: hyperbolic tangent non-linearity (tanh)
     eltwise_tanh = mkldnn_eltwise_tanh,
+    /// Eltwise: parametric exponential linear unit (elu)
     eltwise_elu = mkldnn_eltwise_elu,
+    /// Eltwise: square
     eltwise_square = mkldnn_eltwise_square,
+    /// Eltwise: abs
     eltwise_abs = mkldnn_eltwise_abs,
+    /// Eltwise: square root
     eltwise_sqrt = mkldnn_eltwise_sqrt,
+    /// Eltwise: linear
     eltwise_linear = mkldnn_eltwise_linear,
+    /// Eltwise: bounded_relu
     eltwise_bounded_relu = mkldnn_eltwise_bounded_relu,
+    /// Eltwise: soft_relu
     eltwise_soft_relu = mkldnn_eltwise_soft_relu,
+    /// Eltwise: logistic
     eltwise_logistic = mkldnn_eltwise_logistic,
+    /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = mkldnn_lrn_across_channels,
+    /// LRN within a single channel
     lrn_within_channel  = mkldnn_lrn_within_channel,
+    /// Max pooling
     pooling_max = mkldnn_pooling_max,
+    /// Average pooling exclude padding,
+    /// alias for #mkldnn::algorithm::pooling_avg_include_padding
     pooling_avg = mkldnn_pooling_avg,
+    /// Average pooling include padding
     pooling_avg_include_padding = mkldnn_pooling_avg_include_padding,
+    /// Average pooling exclude padding
     pooling_avg_exclude_padding = mkldnn_pooling_avg_exclude_padding,
+    /// RNN cell
     vanilla_rnn = mkldnn_vanilla_rnn,
+    /// LSTM cell
     vanilla_lstm = mkldnn_vanilla_lstm,
+    /// GRU cell
     vanilla_gru = mkldnn_vanilla_gru,
-    lbr_gru = mkldnn_lbr_gru
+    /// GRU cell with linear before reset
+    ///
+    /// Modification of original GRU cell. Differs from #mkldnn_vanilla_gru
+    /// in how the new memory gate is calculated:
+    /// \f[ c_t = tanh(W_c*x_t + b_{c_x} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
+    /// Primitive expects 4 biases on input:
+    /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
+    lbr_gru = mkldnn_lbr_gru,
 };
 
 inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<mkldnn_alg_kind_t>(aalgorithm);
 }
 
+/// Flags for batch-normalization primititve.
 enum class batch_normalization_flags : unsigned {
+    /// Use global statistics
+    ///
+    /// If specified
+    ///  - on forward propagation use mean and variance provided by user (input)
+    ///  - on backward propagation reduces the amount of computations, since
+    ///    mean and variance are considered as constants
+    ///
+    ///  If not specified:
+    ///   - on forward propagation mean and variance are computed and stored in
+    ///     output
+    ///   - on backward propagation compute full derivative wrt to data
     use_global_stats = mkldnn_use_global_stats,
+
+    /// Use scale and shift parameters
+    ///
+    /// If specified:
+    ///  - on forward propagation use scale and shift (aka scale and bias) for
+    ///    the batch normalization results
+    ///  - on backward propagation
+    ///    (for prop_kind == #mkldnn::prop_kind::backward) compute
+    ///    diff wrt to scale and shift (hence one extra output used)
+    ///
+    /// If not specified:
+    ///  - on backward propagation
+    ///    prop_kind == #mkldnn::prop_kind::backward_data has the
+    ///    same behavior as prop_kind == #mkldnn::prop_kind::backward
     use_scale_shift = mkldnn_use_scaleshift,
+
+    /// Fuse with ReLU
+    ///
+    /// If specified:
+    ///  - on inference this option behaves the same as if the primitive were
+    ///    fused with ReLU via post ops API
+    ///  - on training primitive requires workspace (required to be able to
+    ///    perform backward pass)
     fuse_bn_relu = mkldnn_fuse_bn_relu
 };
 
@@ -353,41 +453,82 @@ inline mkldnn_rnn_direction_t convert_to_c(rnn_direction adir) {
     return static_cast<mkldnn_rnn_direction_t>(adir);
 }
 
+/// Primitive descriptor query specification
+///
+/// In general should be used from C++ API since required queries are directly
+/// implemented as class members (for instance, a query for source memory
+/// descriptor).
+///
+/// For more information see @ref mkldnn_query_t.
 enum class query {
+    /// no query
     undef = mkldnn_query_undef,
 
+    /// execution engine
     engine = mkldnn_query_engine,
+    /// primitive kind
     primitive_kind = mkldnn_query_primitive_kind,
 
+    /// number of inputs expected
     num_of_inputs_s32 = mkldnn_query_num_of_inputs_s32,
+    /// number of outputs expected
     num_of_outputs_s32 = mkldnn_query_num_of_outputs_s32,
 
+    /// runtime estimation (seconds), unimplemented
     time_estimate_f64 = mkldnn_query_time_estimate_f64,
+    /// memory consumption (bytes)
+    ///
+    /// extra (scratch) memory, additional to all inputs and outputs memory
+    ///
+    /// @sa @ref dev_guide_attributes_scratchpad
     memory_consumption_s64 = mkldnn_query_memory_consumption_s64,
 
+    /// scratchpad engine
+    ///
+    /// engine to be used for creating scratchpad memory
     scratchpad_engine = mkldnn_query_scratchpad_engine,
 
+    /// implementation name
     impl_info_str = mkldnn_query_impl_info_str,
 
+    /// op descriptor
     op_d = mkldnn_query_op_d,
+    /// convolution descriptor
     convolution_d = mkldnn_query_convolution_d,
+    /// deconvolution descriptor
     deconvolution_d = mkldnn_query_deconvolution_d,
+    /// shuffle descriptor
     shuffle_d = mkldnn_query_shuffle_d,
+    /// eltwise descriptor
     eltwise_d = mkldnn_query_eltwise_d,
+    /// softmax descriptor
     softmax_d = mkldnn_query_softmax_d,
+    /// pooling descriptor
     pooling_d = mkldnn_query_pooling_d,
+    /// lrn descriptor
     lrn_d = mkldnn_query_lrn_d,
+    /// batch normalization descriptor
     batch_normalization_d = mkldnn_query_batch_normalization_d,
+    /// inner product descriptor
     inner_product_d = mkldnn_query_inner_product_d,
+    /// rnn descriptor
     rnn_d = mkldnn_query_rnn_d,
 
+    /// source memory desc
     src_md = mkldnn_query_src_md,
+    /// source gradient memory desc
     diff_src_md = mkldnn_query_diff_src_md,
+    /// weights memory descriptor desc
     weights_md = mkldnn_query_weights_md,
+    /// weights grad. memory desc
     diff_weights_md = mkldnn_query_diff_weights_md,
+    /// destination memory desc
     dst_md = mkldnn_query_dst_md,
+    /// destination grad. memory desc
     diff_dst_md = mkldnn_query_diff_dst_md,
+    /// workspace memory desc
     workspace_md = mkldnn_query_workspace_md,
+    /// scratchpad memory desc
     scratchpad_md = mkldnn_query_scratchpad_md,
 };
 
@@ -422,8 +563,9 @@ template <> struct handle_traits<mkldnn_post_ops_t> {
 #endif
 
 /// Post operations
+///
+/// @sa @ref dev_guide_attributes_post_ops
 struct post_ops: public handle<mkldnn_post_ops_t> {
-
     /// Creates an empty sequence of post operations.
     post_ops() {
         mkldnn_post_ops_t result;
@@ -432,8 +574,10 @@ struct post_ops: public handle<mkldnn_post_ops_t> {
         reset(result);
     }
 
+    /// Returns the length of post operations
     int len() const { return mkldnn_post_ops_len(get()); }
 
+    /// Returns the kind of post operation with index @p index.
     primitive::kind kind(int index) const {
         error::wrap_c_api(
                 index < len() ? mkldnn_success : mkldnn_invalid_arguments,
@@ -507,7 +651,10 @@ template <> struct handle_traits<mkldnn_primitive_attr_t> {
 #endif
 
 /// Primitive attributes
+///
+/// @sa @ref dev_guide_attributes
 struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
+    /// Creates a default primitive attribute.
     primitive_attr() {
         mkldnn_primitive_attr_t result;
         error::wrap_c_api(mkldnn_primitive_attr_create(&result),
@@ -515,6 +662,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         reset(result);
     }
 
+    /// Returns the scratchpad mode.
     scratchpad_mode get_scratchpad_mode() const {
         mkldnn_scratchpad_mode_t result;
         error::wrap_c_api(mkldnn_primitive_attr_get_scratchpad_mode(
@@ -522,6 +670,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
         return scratchpad_mode(result);
     }
 
+    /// Sets scratchpad mode.
     void set_scratchpad_mode(scratchpad_mode mode) {
         error::wrap_c_api(mkldnn_primitive_attr_set_scratchpad_mode(
                     get(), mkldnn::convert_to_c(mode)),
@@ -530,8 +679,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
 
     /// Gets correspondence scale @p mask and a constant floating point vector
     /// of output @p scales previously set by set_output_scales.
-    void get_output_scales(int &mask, std::vector<float> &scales) const
-    {
+    void get_output_scales(int &mask, std::vector<float> &scales) const {
         mkldnn_dim_t count;
         int c_mask;
         const float *c_scales;
@@ -560,8 +708,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
     ///       - 2D dimensional data the order of dimensions is always: (n, c)
     ///       - 4D dimensional data the order is always: (n, c, h, w)
     ///       - 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
-    void set_output_scales(int mask, const std::vector<float> &scales)
-    {
+    void set_output_scales(int mask, const std::vector<float> &scales) {
         error::wrap_c_api(mkldnn_primitive_attr_set_output_scales(get(),
                     (mkldnn_dim_t)scales.size(), mask, &scales[0]),
                 "could not set int output scales");
@@ -591,8 +738,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
     /// @note
     ///     Quantization scale and shift are common for src_layer, src_iter,
     ///     dst_iter, and dst_layer.
-    void set_rnn_data_qparams(const float scale, const float shift)
-    {
+    void set_rnn_data_qparams(float scale, float shift) {
         error::wrap_c_api(mkldnn_primitive_attr_set_rnn_data_qparams(get(),
                     scale, shift), "could not set rnn data int scale/shift");
     }
@@ -620,8 +766,7 @@ struct primitive_attr: public handle<mkldnn_primitive_attr_t> {
     ///     hold:
     ///
     ///      \f[count = \prod\limits_{d \in mask} output.dims[d]\f]
-    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales)
-    {
+    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
         error::wrap_c_api(mkldnn_primitive_attr_set_rnn_weights_qparams(get(),
                     (int)scales.size(), mask, &scales[0]),
                 "could not set rnn weights int scales");
@@ -768,10 +913,16 @@ template <> struct handle_traits<mkldnn_stream_t> {
 struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
+    /// @brief Stream flags.
     enum class flags : unsigned {
+        /// Default order execution. Either in-order or out-of-order depending
+        /// on the backend.
         default_order = mkldnn_stream_default_order,
+        /// In-order execution.
         in_order = mkldnn_stream_default_order,
+        /// Out-of-order execution.
         out_of_order = mkldnn_stream_out_of_order,
+        /// Default stream configuration.
         default_flags = mkldnn_stream_default_flags,
     };
 
@@ -844,7 +995,6 @@ inline stream::flags operator~(stream::flags rhs) {
 
 /// Memory that describes the data.
 struct memory: public handle<mkldnn_memory_t> {
-    public:
     typedef mkldnn_dim_t dim;
     typedef std::vector<dim> dims;
 
@@ -853,43 +1003,79 @@ struct memory: public handle<mkldnn_memory_t> {
             throw error(mkldnn_invalid_arguments, "invalid dimensions");
     }
 
-    /// Data type specification. See #mkldnn_data_type_t for a detailed
-    /// description.
+    /// Data type specification
     enum class data_type {
+        /// Undefined data type, used for empty memory descriptors.
         undef = mkldnn_data_type_undef,
+        /// 16-bit/half-precision floating point.
         f16 = mkldnn_f16,
+        /// 32-bit/single-precision floating point.
         f32 = mkldnn_f32,
+        /// 32-bit signed integer.
         s32 = mkldnn_s32,
+        /// 8-bit signed integer.
         s8 = mkldnn_s8,
+        /// 8-bit unsigned integer.
         u8 = mkldnn_u8,
     };
 
-    /// Memory format tag specification. See #mkldnn_format_tag_t for a
+    /// Memory format kind
+    enum class format_kind {
+        /// Undefined memory format kind, used for empty memory descriptors.
+        undef = mkldnn_format_kind_undef,
+        /// Unspecified format kind.
+        /// The primitive selects a format automatically.
+        any = mkldnn_format_kind_any,
+        /// A tensor in a generic format described by the stride and blocking
+        /// values in each dimension. See @ref mkldnn_blocking_desc_t for more
+        /// information.
+        blocked = mkldnn_blocked,
+        /// Weights format used in 8bit Winograd convolution
+        wino = mkldnn_format_kind_wino,
+        /// Packed weights format used in RNN
+        packed = mkldnn_format_kind_rnn_packed,
+    };
+
+    /// Memory format tag specification. See @ref mkldnn_format_tag_t for a
     /// detailed description.
     enum class format_tag {
+        /// Undefined memory format tag
         undef = mkldnn_format_tag_undef,
         /// Placeholder memory format tag. The primitive selects a format
         /// automatically.
         any = mkldnn_format_tag_any,
-        a = mkldnn_a,
-        ab = mkldnn_ab,
-        abc = mkldnn_abc,
-        abcd = mkldnn_abcd,
-        abcde = mkldnn_abcde,
-        abcdef = mkldnn_abcdef,
-        abdec = mkldnn_abdec,
-        acb = mkldnn_acb,
-        acbde = mkldnn_acbde,
-        acdb = mkldnn_acdb,
-        acdeb = mkldnn_acdeb,
-        ba = mkldnn_ba,
-        bac = mkldnn_bac,
-        bacd = mkldnn_bacd,
-        bcda = mkldnn_bcda,
-        cba = mkldnn_cba,
-        cdba = mkldnn_cdba,
-        cdeba = mkldnn_cdeba,
-        decab = mkldnn_decab,
+
+        // Semantic agnostic section
+        // The physical order of dimensions is defined by the permutation of the
+        // characters, assuming that ab..z defines the natural order.
+
+        // Plain formats
+
+        a = mkldnn_a, ///< plain 1D tensor
+        ab = mkldnn_ab, ///< plain 2D tensor
+        abc = mkldnn_abc, ///< plain 3D tensor
+        abcd = mkldnn_abcd, ///< plain 4D tensor
+        abcde = mkldnn_abcde, ///< plain 5D tensor
+        abcdef = mkldnn_abcdef, ///< plain 6D tensor
+
+        // Permuted plain formats
+
+        abdec = mkldnn_abdec, ///< permuted 5D tensor
+        acb = mkldnn_acb, ///< permuted 3D tensor
+        acbde = mkldnn_acbde, ///< permuted 5D tensor
+        acdb = mkldnn_acdb, ///< permuted 4D tensor
+        acdeb = mkldnn_acdeb, ///< permuted 5D tensor
+        ba = mkldnn_ba, ///< permuted 2D tensor
+        bac = mkldnn_bac, ///< permuted 3D tensor
+        bacd = mkldnn_bacd, ///< permuted 4D tensor
+        bcda = mkldnn_bcda, ///< permuted 4D tensor
+        cba = mkldnn_cba, ///< permuted 3D tensor
+        cdba = mkldnn_cdba, ///< permuted 4D tensor
+        cdeba = mkldnn_cdeba, ///< permuted 5D tensor
+        decab = mkldnn_decab, ///< permuted 5D tensor
+
+        // Opaque blocked formats
+
         Abc16a = mkldnn_Abc16a,
         ABc16a16b = mkldnn_ABc16a16b,
         aBc16b = mkldnn_aBc16b,
@@ -917,9 +1103,11 @@ struct memory: public handle<mkldnn_memory_t> {
         aBCd4c4b = mkldnn_aBCd4c4b,
         ABcd8a16b2a = mkldnn_ABcd8a16b2a,
         ABcd8a8b = mkldnn_ABcd8a8b,
+        /// 4D tensor blocked by 2nd dimension with block size 8
         aBcd8b = mkldnn_aBcd8b,
         ABcd8b16a2b = mkldnn_ABcd8b16a2b,
         aBCd8b16c2b = mkldnn_aBCd8b16c2b,
+        /// 4D tensor blocked by 1st and 2nd dimension with block size 8
         ABcd8b8a = mkldnn_ABcd8b8a,
         aBCd8b8c = mkldnn_aBCd8b8c,
         aBCd8c16b2c = mkldnn_aBCd8c16b2c,
@@ -992,12 +1180,20 @@ struct memory: public handle<mkldnn_memory_t> {
         format_tag_last = mkldnn_format_tag_last,
 
         x = mkldnn_x,
+        /// 2D CNN activations tensor,
+        /// an alias to #mkldnn::memory::format_tag::ab
         nc = mkldnn_nc,
         cn = mkldnn_cn,
         ncw = mkldnn_ncw,
         nwc = mkldnn_nwc,
+        /// 4D CNN activations tensor,
+        /// an alias to #mkldnn::memory::format_tag::abcd
         nchw = mkldnn_nchw,
+        /// 4D CNN activations tensor,
+        /// an alias to #mkldnn::memory::format_tag::acdb
         nhwc = mkldnn_nhwc,
+        /// 4D CNN activations tensor,
+        /// an alias to #mkldnn::memory::format_tag::bcda
         chwn = mkldnn_chwn,
         ncdhw = mkldnn_ncdhw,
         ndhwc = mkldnn_ndhwc,
@@ -1391,6 +1587,8 @@ struct reorder : public primitive {
 
     reorder(const memory &src, const memory &dst):
         primitive(primitive_desc(src, dst).get()) {}
+
+    using primitive::execute;
 
     void execute(stream astream, memory &src, memory &dst) {
         primitive::execute(astream,
@@ -3242,10 +3440,10 @@ struct batch_normalization_backward : public primitive {
 struct inner_product_forward: public primitive {
 
     /// Initializes an inner product descriptor for forward propagation using
-    /// @p prop_kind (possible values are #mkldnn::forward_training and
-    /// #mkldnn::forward_inference) and memory descriptors. In order to create
-    /// an inner product without bias, @p bias_desc should refer to a
-    /// descriptor with memory format kind set to
+    /// @p prop_kind (possible values are #mkldnn::prop_kind::forward_training
+    /// and #mkldnn::prop_kind::forward_inference) and memory descriptors. In
+    /// order to create an inner product without bias, @p bias_desc should
+    /// refer to a descriptor with memory format kind set to
     /// #mkldnn::memory::format_tag::undef.
     ///
     /// @note Memory descriptors are allowed to be initialized with
@@ -3700,12 +3898,10 @@ struct rnn_backward : public primitive {
         memory::desc diff_dst_iter_desc() const {
             return query_md(query::diff_dst_md, 1);
         }
-
     };
 
     rnn_backward() = default;
 
-    // With last iteration (with and without input src_iter)
     rnn_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
@@ -3756,22 +3952,56 @@ struct lstm_forward : public primitive {
 
     /// Primitive descriptor for LSTM forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
+
+    lstm_forward() = default;
 
     lstm_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3834,6 +4064,8 @@ struct lstm_backward : public primitive {
 
     /// Primitive descriptor for LSTM backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const lstm_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -3842,24 +4074,84 @@ struct lstm_backward : public primitive {
                 const lstm_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        REG_QUERY_MD(diff_src_layer, diff_src, 0);
-        REG_QUERY_MD(diff_src_iter, diff_src, 1);
-        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
-        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
-        REG_QUERY_MD(diff_bias, diff_weights, 2);
-        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
-        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+
+        /// Queries diff source layer memory descriptor.
+        memory::desc diff_src_layer_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff source iteration memory descriptor.
+        memory::desc diff_src_iter_desc() const {
+            return query_md(query::diff_src_md, 1);
+        }
+
+        /// Queries diff weights layer memory descriptor.
+        memory::desc diff_weights_layer_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff weights iteration memory descriptor.
+        memory::desc diff_weights_iter_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 2);
+        }
+
+        /// Queries diff destination layer memory descriptor.
+        memory::desc diff_dst_layer_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries diff destination iteration memory descriptor.
+        memory::desc diff_dst_iter_desc() const {
+            return query_md(query::diff_dst_md, 1);
+        }
     };
+
+    lstm_backward() = default;
 
     // With last iteration (with and without input src_iter)
     lstm_backward(const primitive_desc &pd): primitive(pd) {}
@@ -3913,22 +4205,56 @@ struct gru_forward : public primitive {
 
     /// Primitive descriptor for GRU forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
+
+    gru_forward() = default;
 
     gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -3991,6 +4317,8 @@ struct gru_backward : public primitive {
 
     /// Primitive descriptor for GRU backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const gru_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -3999,24 +4327,84 @@ struct gru_backward : public primitive {
                 const gru_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        REG_QUERY_MD(diff_src_layer, diff_src, 0);
-        REG_QUERY_MD(diff_src_iter, diff_src, 1);
-        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
-        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
-        REG_QUERY_MD(diff_bias, diff_weights, 2);
-        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
-        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+
+        /// Queries diff source layer memory descriptor.
+        memory::desc diff_src_layer_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff source iteration memory descriptor.
+        memory::desc diff_src_iter_desc() const {
+            return query_md(query::diff_src_md, 1);
+        }
+
+        /// Queries diff weights layer memory descriptor.
+        memory::desc diff_weights_layer_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff weights iteration memory descriptor.
+        memory::desc diff_weights_iter_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 2);
+        }
+
+        /// Queries diff destination layer memory descriptor.
+        memory::desc diff_dst_layer_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries diff destination iteration memory descriptor.
+        memory::desc diff_dst_iter_desc() const {
+            return query_md(query::diff_dst_md, 1);
+        }
     };
+
+    gru_backward() = default;
 
     // With last iteration (with and without input src_iter)
     gru_backward(const primitive_desc &pd): primitive(pd) {}
@@ -4070,22 +4458,56 @@ struct lbr_gru_forward : public primitive {
 
     /// Primitive descriptor for LBR_GRU forward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, nullptr) {}
 
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e)
             : mkldnn::primitive_desc(&desc.data, &attr, e, nullptr) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
+
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
     };
+
+    lbr_gru_forward() = default;
 
     lbr_gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
@@ -4148,6 +4570,8 @@ struct lbr_gru_backward : public primitive {
 
     /// Primitive descriptor for LBR_GRU backward propagation.
     struct primitive_desc : public mkldnn::primitive_desc {
+        primitive_desc() = default;
+
         primitive_desc(const desc &desc, const engine &e,
                 const lbr_gru_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
@@ -4156,26 +4580,85 @@ struct lbr_gru_backward : public primitive {
                 const lbr_gru_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
-        REG_QUERY_MD(src_layer, src, 0);
-        REG_QUERY_MD(src_iter, src, 1);
-        REG_QUERY_MD(weights_layer, weights, 0);
-        REG_QUERY_MD(weights_iter, weights, 1);
-        REG_QUERY_MD(bias, weights, 2);
-        REG_QUERY_MD(dst_layer, dst, 0);
-        REG_QUERY_MD(dst_iter, dst, 1);
-        REG_QUERY_MD(workspace, workspace, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_layer_desc() const {
+            return query_md(query::src_md, 0);
+        }
 
-        REG_QUERY_MD(diff_src_layer, diff_src, 0);
-        REG_QUERY_MD(diff_src_iter, diff_src, 1);
-        REG_QUERY_MD(diff_weights_layer, diff_weights, 0);
-        REG_QUERY_MD(diff_weights_iter, diff_weights, 1);
-        REG_QUERY_MD(diff_bias, diff_weights, 2);
-        REG_QUERY_MD(diff_dst_layer, diff_dst, 0);
-        REG_QUERY_MD(diff_dst_iter, diff_dst, 1);
-        REG_QUERY_MD(scratchpad, scratchpad, 0);
+        /// Queries source layer memory descriptor.
+        memory::desc src_iter_desc() const {
+            return query_md(query::src_md, 1);
+        }
+
+        /// Queries weights layer memory descriptor.
+        memory::desc weights_layer_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries weights iteration memory descriptor.
+        memory::desc weights_iter_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 2);
+        }
+
+        /// Queries destination layer memory descriptor.
+        memory::desc dst_layer_desc() const {
+            return query_md(query::dst_md, 0);
+        }
+
+        /// Queries destination iteration memory descriptor.
+        memory::desc dst_iter_desc() const {
+            return query_md(query::dst_md, 1);
+        }
+
+        /// Queries workspace memory descriptor.
+        memory::desc workspace_desc() const {
+            return query_md(query::workspace_md, 0);
+        }
+
+
+        /// Queries diff source layer memory descriptor.
+        memory::desc diff_src_layer_desc() const {
+            return query_md(query::diff_src_md, 0);
+        }
+
+        /// Queries diff source iteration memory descriptor.
+        memory::desc diff_src_iter_desc() const {
+            return query_md(query::diff_src_md, 1);
+        }
+
+        /// Queries diff weights layer memory descriptor.
+        memory::desc diff_weights_layer_desc() const {
+            return query_md(query::diff_weights_md, 0);
+        }
+
+        /// Queries diff weights iteration memory descriptor.
+        memory::desc diff_weights_iter_desc() const {
+            return query_md(query::diff_weights_md, 1);
+        }
+
+        /// Queries diff bias memory descriptor.
+        memory::desc diff_bias_desc() const {
+            return query_md(query::diff_weights_md, 2);
+        }
+
+        /// Queries diff destination layer memory descriptor.
+        memory::desc diff_dst_layer_desc() const {
+            return query_md(query::diff_dst_md, 0);
+        }
+
+        /// Queries diff destination iteration memory descriptor.
+        memory::desc diff_dst_iter_desc() const {
+            return query_md(query::diff_dst_md, 1);
+        }
     };
 
-    // With last iteration (with and without input src_iter)
+    lbr_gru_backward() = default;
+
     lbr_gru_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
@@ -4281,8 +4764,6 @@ struct shuffle_backward : public primitive {
 
 /// @} C++ API
 
-#undef REG_QUERY_MD
-
 // implementation section
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
@@ -4304,7 +4785,7 @@ inline void primitive::execute(stream &astream,
 
     error::wrap_c_api(mkldnn_primitive_execute(get(), astream.get(),
                 (int)c_args.size(), c_args.data()),
-            "primitive execution fail");
+            "could not execute a primitive");
 }
 #endif // DOXYGEN_SHOULD_SKIP_THIS
 
