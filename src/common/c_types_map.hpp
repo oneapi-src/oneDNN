@@ -28,7 +28,7 @@ namespace impl {
 using dim_t = mkldnn_dim_t;
 using dims_t = mkldnn_dims_t;
 using stride_t = mkldnn_dim_t;
-using strides_t = mkldnn_strides_t;
+using strides_t = mkldnn_dims_t;
 
 using status_t = mkldnn_status_t;
 namespace status {

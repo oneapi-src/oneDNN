@@ -706,9 +706,6 @@ typedef int64_t mkldnn_dim_t;
 /// A type to describe tensor dimensions.
 typedef mkldnn_dim_t mkldnn_dims_t[MKLDNN_MAX_NDIMS];
 
-/// A type to describe strides within a tensor.
-typedef mkldnn_dim_t mkldnn_strides_t[MKLDNN_MAX_NDIMS];
-
 /// Generic description of blocked data layout for most memory formats.
 ///
 /// @sa @ref understanding_memory_formats
