@@ -52,7 +52,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Vmm vreg(int idx) const { return Vmm(xreg(idx).getIdx()); }
 
     // In case of avx2 with data type i8 we need to use
-    // maskmovdqu instruction which has its destination hardcoded in rdi.
+    // maskmovdqu and maskmovq instructions which has its destination hardcoded in rdi.
     // Windows ABI: abi_param1 is rcx - nothing to do else
     // Unix ABI: abi_param1 is rdi - copy it to rcx and use it as abi_param1
     Reg64 reg_param      = rcx; // Our "unified abi_param1"
@@ -85,11 +85,11 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Vmm vreg_zeros = vreg(1);
 
     // only in case of <isa> == avx2
-    Vmm vreg_mask    = vreg(2); // full byte-mask
-    Xmm xreg_mask_lo = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
-    Xmm xreg_mask_hi = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
-    Xmm xreg_mask_q  = xreg(3); // "avg" - 1/4 part of the mask for s8/u8 operations
-    Vmm vreg_mask_q  = vreg(3); // "avg" - 1/4 part for non-zero tails
+    Vmm vreg_mask     = vreg(2); // full byte-mask
+    Xmm xreg_mask_lo  = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
+    Xmm xreg_mask_hi  = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
+    Vmm vreg_mask_q   = vreg(3); // "avg" - 1/4 part for non-zero tails
+    Mmx mmx_dst_i8    = Mmx(0);  // "avg" - Mmx reg for masked store results of s8/u8 operations
 
     enum:int {vidx_base = isa == avx2 ? 4 : 2};
     Vmm base_vr(int idx) const { return vreg(vidx_base + idx); }
@@ -108,11 +108,13 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     enum:int {
         s32_to_i8_ratio = sizeof(typename prec_traits<avg_proc_dt>::type)
                 / sizeof(typename prec_traits<data_type::u8>::type),
-        max_num_ll =  s32_to_i8_ratio
+        max_num_ll =  s32_to_i8_ratio,
+        mmx_msk_base_reg = 1
     };
     Vmm vreg_src_s32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 0*max_num_ll); }  // ll: 0..4 [0..3]
     Vmm vreg_dst_s32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 1*max_num_ll); }  // ll: 0..4 [4..7]
     Vmm vreg_dst_f32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 2*max_num_ll); }  // ll: 0..4 [8..11]
+    Mmx mmx_mask(int ll)             { return Mmx(mmx_msk_base_reg + ll); };                   // ll: 0..4 [Mmx(1)...Mmx(4)]
 
     void (*ker_)(const call_params_t *);
     jit_pool_conf_t jpp;
@@ -381,15 +383,17 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
         // Conversion s32 -> s8/u8
         s32_to_i8(is_signed, vr_dst);
 
-        // Need to use mask of tail?
-        if (is_masked) {
-            // load ll-th part of mask into vreg_mask_q
-            load_vreg_mask_q(ll);
-        }
-
         // store 8 bytes
         lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
-        maskmovdqu(vr_dst, xreg_mask_q);
+
+        // Need to use mmx 8-bytes operation to avoid memory violations.
+        // NOTICE: it was discovered that SSE/AVX instruction maskmovdqu/vmaskmovdqu
+        //         with low 8-bytes mask throws exception if high 8-bytes belongs write-protected page.
+        movdq2q(mmx_dst_i8, vr_dst);
+
+        // 0-th - mask for all 8 bytes in zero-tail case
+        // ll-th - mask of tail in non-zero-tail case
+        maskmovq(mmx_dst_i8, mmx_mask(is_masked ? ll : 0));
     };
 
     switch (jpp.dst_dt) {
@@ -661,7 +665,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
     using cpu_isa = cpu_isa_traits<avx2>;
 
     // AVX2 mask initialization: mask stored in Ymm-regs
-    auto init = [&](uint64_t bit_mask, bool init_mask_q) {
+    auto init = [&](uint64_t bit_mask, bool need_ymm_mask = true, bool need_mmx_mask = false) {
         const size_t QW_PER_VREG = cpu_isa::vlen / sizeof(uint64_t);
 
         uint64_t vmask[QW_PER_VREG];
@@ -679,36 +683,45 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
             vmask[i] = qw_vmask;
         }
 
-        // Put QWORDS with target mask into xmm regs
-        const int xdst_i[QW_PER_VREG] = {
-                xreg_mask_lo.getIdx(),
-                xreg_mask_lo.getIdx(),
-                xreg_mask_hi.getIdx(),
-                xreg_mask_hi.getIdx()
-        };
-        const int xsrc_i[QW_PER_VREG] = {
-                vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
-                xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
-                vreg_zeros.getIdx(),
-                xreg_mask_hi.getIdx()
-        };
-        const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
+        // Need mask in Ymm regs ?
+        if (need_ymm_mask) {
 
-        for (size_t i = 0; i < QW_PER_VREG; i++) {
-            mov(reg_mask, vmask[i]);
-            vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
+            // Put QWORDS with target mask into xmm regs
+            const int xdst_i[QW_PER_VREG] = {
+                    xreg_mask_lo.getIdx(),
+                    xreg_mask_lo.getIdx(),
+                    xreg_mask_hi.getIdx(),
+                    xreg_mask_hi.getIdx()
+            };
+            const int xsrc_i[QW_PER_VREG] = {
+                    vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
+                    xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
+                    vreg_zeros.getIdx(),
+                    xreg_mask_hi.getIdx()
+            };
+            const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
+
+            for (size_t i = 0; i < QW_PER_VREG; i++) {
+                mov(reg_mask, vmask[i]);
+                vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
+
+                // Need mask MMX regs ?
+                if (need_mmx_mask)
+                    movq(mmx_mask(i), reg_mask);
+            }
+
+            // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
+            // and High (xreg_mask_hi) into full vreg_mask
+            // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
+            vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
         }
 
-        // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
-        // and High (xreg_mask_hi) into full vreg_mask
-        // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
-        vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
-
-        // Keep only low qword of mask in xreg_mask_q
-        if (init_mask_q) {
-            mov(reg_mask, vmask[0]);
-            vpinsrq(xreg_mask_q, Xmm(vreg_zeros.getIdx()), reg_mask, 0);
-        }
+        // Need mask only in MMX regs ?
+        if (!need_ymm_mask && need_mmx_mask)
+            for (size_t i = 0; i < QW_PER_VREG; i++) {
+                mov(reg_mask, vmask[i]);
+                movq(mmx_mask(i), reg_mask);
+            }
     };
 
     uint64_t tail_mask = (1ULL << jpp.c_tail) - 1;
@@ -716,21 +729,22 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
         case pooling_max:
             // For "max" we need mask only in case of non-zero tail
             if (tail_mask)
-                init(tail_mask, false);
+                init(tail_mask);
             break;
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
             // For "avg" we need mask:
             // - s32   - in case of the non-zero tail
-            // - s8/u8 - irrespective of the tail
+            // - s8/u8 - irrespective of the tail in MMX regs (always store by mask)
+            //         - for non-zero tail in Ymm regs (for load)
             switch (jpp.src_dt) {
                 case s32:
                     if (tail_mask)
-                        init(tail_mask, false);
+                        init(tail_mask);
                     break;
                 case s8:
                 case u8:
-                    init(tail_mask ? tail_mask : ~0ULL, tail_mask == 0);
+                    init(tail_mask ? tail_mask : ~0ULL, tail_mask!=0, true);
                     break;
                 default: assert(!"unsupported src data type");
             }
@@ -790,7 +804,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 
 #if !defined(_WIN32)
     // Always use rcx as abi_param1 -
-    // see the note about maskmovdqu near reg_param.
+    // see the note about maskmovdqu/maskmovq near reg_param.
     mov(rcx, rdi);
 #endif
 
@@ -811,6 +825,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 
     compute_c_block();
 
+    emms();
     postamble();
 }
 
