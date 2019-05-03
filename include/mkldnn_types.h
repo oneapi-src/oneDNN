@@ -305,6 +305,7 @@ typedef enum {
     mkldnn_Acb4a,
     mkldnn_Acb8a,
     mkldnn_aCBd16b16c,
+    mkldnn_aCBd16c16b,
     mkldnn_aCBde16b16c,
     mkldnn_aCBde16c16b,
     mkldnn_Acdb16a,
@@ -315,6 +316,7 @@ typedef enum {
     mkldnn_Acdeb4a,
     mkldnn_Acdeb8a,
     mkldnn_BAc16a16b,
+    mkldnn_BAc16b16a,
     mkldnn_BAcd16a16b,
     mkldnn_BAcd16b16a,
 
@@ -443,12 +445,14 @@ typedef enum {
     /// 3D CNN activations tensor blocked by channels with block size 8,
     /// an alias to #mkldnn_aBc8b
     mkldnn_nCw8c = mkldnn_aBc8b,
+    mkldnn_NCw16n16c = mkldnn_ABc16a16b,
     mkldnn_NCdhw16n16c = mkldnn_ABcde16a16b,
     mkldnn_NChw16n16c = mkldnn_ABcd16a16b,
     mkldnn_NChw32n32c = mkldnn_ABcd32a32b,
 
     // weights, 3D
     mkldnn_IOw16o16i = mkldnn_BAc16a16b,
+    mkldnn_IOw16i16o = mkldnn_BAc16b16a,
     mkldnn_OIw16i16o = mkldnn_ABc16b16a,
     mkldnn_OIw16o16i = mkldnn_ABc16a16b,
     mkldnn_Oiw16o = mkldnn_Abc16a,
@@ -498,6 +502,7 @@ typedef enum {
     // weights w/ groups, 3D
     mkldnn_Goiw16g = mkldnn_Abcd16a,
     mkldnn_gIOw16o16i = mkldnn_aCBd16b16c,
+    mkldnn_gIOw16i16o = mkldnn_aCBd16c16b,
     mkldnn_gOIw16i16o = mkldnn_aBCd16c16b,
     mkldnn_gOIw16o16i = mkldnn_aBCd16b16c,
     mkldnn_gOiw16o = mkldnn_aBcd16b,

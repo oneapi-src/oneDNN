@@ -164,6 +164,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_Acb4a) return "Acb4a";
     if (v == mkldnn_Acb8a) return "Acb8a";
     if (v == mkldnn_aCBd16b16c) return "aCBd16b16c";
+    if (v == mkldnn_aCBd16c16b) return "aCBd16c16b";
     if (v == mkldnn_aCBde16b16c) return "aCBde16b16c";
     if (v == mkldnn_aCBde16c16b) return "aCBde16c16b";
     if (v == mkldnn_Acdb16a) return "Acdb16a";
@@ -176,6 +177,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_BAc16a16b) return "BAc16a16b";
     if (v == mkldnn_BAcd16a16b) return "BAcd16a16b";
     if (v == mkldnn_BAcd16b16a) return "BAcd16b16a";
+    if (v == mkldnn_BAc16b16a) return "BAc16b16a";
     if (v == mkldnn_format_tag_last) return "format_tag_last";
     if (v == mkldnn_x) return "x";
     if (v == mkldnn_nc) return "nc";
@@ -217,10 +219,13 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_nCw16c) return "nCw16c";
     if (v == mkldnn_nCw4c) return "nCw4c";
     if (v == mkldnn_nCw8c) return "nCw8c";
+    if (v == mkldnn_NCw16n16c) return "NCw16n16c";
     if (v == mkldnn_NCdhw16n16c) return "NCdhw16n16c";
     if (v == mkldnn_NChw16n16c) return "NChw16n16c";
     if (v == mkldnn_NChw32n32c) return "NChw32n32c";
     if (v == mkldnn_IOw16o16i) return "IOw16o16i";
+    if (v == mkldnn_IOw16i16o) return "IOw16i16o";
+    if (v == mkldnn_gIOw16i16o) return "gIOw16i16o";
     if (v == mkldnn_OIw16i16o) return "OIw16i16o";
     if (v == mkldnn_OIw16o16i) return "OIw16o16i";
     if (v == mkldnn_Oiw16o) return "Oiw16o";

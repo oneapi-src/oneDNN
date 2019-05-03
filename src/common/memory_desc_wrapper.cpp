@@ -249,9 +249,11 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc,
     C(aBdec32b, {0, 1, 3, 4, 2}, {32}, {1});
     C(aCBdef16c16b, {0, 2, 1, 3, 4, 5}, {16, 16}, {2, 1});
     C(Abcdef16a, {0, 1, 2, 3, 4, 5}, {16}, {0});
+    C(aCBd16c16b, {0, 2, 1, 3}, {16, 16}, {2, 1});
     C(aCBde16c16b, {0, 2, 1, 3, 4}, {16, 16}, {2, 1});
     C(Acdb32a, {0, 2, 3, 1}, {32}, {0});
     C(BAcd16b16a, {1, 0, 2, 3}, {16, 16}, {1, 0});
+    C(BAc16b16a, {1, 0, 2}, {16, 16}, {1, 0});
     default: break;
     }
 
