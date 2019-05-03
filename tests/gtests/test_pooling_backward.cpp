@@ -383,7 +383,6 @@ protected:
 };
 
 using pooling_bwd_test_float = pooling_bwd_test<float>;
-using pool_bwd_test_params_float = pool_bwd_test_params;
 
 class pooling_bwd_test_bfloat16 : public pooling_bwd_test<mkldnn_bfloat16_t> {
     std::shared_ptr<memory::desc> src_desc_f32, dst_desc_f32;
@@ -458,28 +457,28 @@ TEST_P(pooling_bwd_test_bfloat16, TestsPoolingBackwardBF16) {}
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardZeroDim, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardEF, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, -4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( -2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             eltwise_square, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments}
@@ -487,213 +486,213 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling_nChw16c_padded, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17,  6,  6,  7,  7, 2, 2, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 23, 60, 60, 31, 31, 3, 4, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 14, 60, 60, 31, 31, 3, 2, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 14, 60, 60, 31, 31, 2, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling_nChw8c_padded, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 5,  6,  6,  7,  7, 2, 2, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 23, 60, 60, 31, 31, 3, 4, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 14, 60, 60, 31, 31, 3, 2, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 14, 60, 60, 31, 31, 2, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxKernelSlipsToPadding, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nhwc,
             memory::format::nhwc, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw16c, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 30, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 31, 30, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_ncdhw, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 30, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 31, 30, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_ndhwc, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 30, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 31, 30, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw8c, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 30, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 30, 31, 30, 4, 2, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 30, 30, 30, 30, 30, 30, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMax3DunetNCDHW, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 64,  64, 64, 64, 64, 64, 64, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMax3DunetNDHWC, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(1, 64,  64, 64, 64, 64, 64, 64, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2, 0, 0, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxAlexNetNCHW, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 16, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 16, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxCIFAR10NCHW, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 32, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 32, 16, 16, 8, 8, 3, 3, 0, 0, 2, 2 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMax, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 1, 1, 2, 2, 1, 1, 2, 2, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 2, 2, 2, 1, 1, 2, 2, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nchw,
             memory::format::nchw, EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ) }
             ));
@@ -702,92 +701,92 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxBlocked, pooling_bwd_test_float, ::testing::Values(
 
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 1, 8, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 8, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 13, 13, 12, 12, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 4, 4, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardAvgBlocked, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 8, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 8, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 2, 2, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 2, 2, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 5, 5, 2, 2, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 32, 5, 5, 2, 2, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 8, 3, 2, 2, 2, 3, 3, 1, 1, 2, 1 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 2, 8, 3, 2, 2, 2, 3, 3, 1, 1, 2, 1 ) }
 
@@ -796,92 +795,92 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxBlocked16, pooling_bwd_test_float, ::testing::Values(
 
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 1, 16, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 16, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 13, 13, 12, 12, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 4, 4, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardAvgBlocked16, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 16, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 16, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 2, 2, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 4, 4, 4, 4, 2, 2, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 3, 3, 1, 1, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 0, 0, 1, 1 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 5, 5, 2, 2, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 32, 5, 5, 2, 2, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 16, 3, 2, 2, 2, 3, 3, 1, 1, 2, 1 ) }
-            , pool_bwd_test_params_float{engine::kind::cpu,
+            , pool_bwd_test_params{engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 2, 16, 3, 2, 2, 2, 3, 3, 1, 1, 2, 1 ) }
 
@@ -889,97 +888,97 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxBlockedPerf, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardAvgBlockedPerf, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardMaxBlocked16Perf, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardAvgBlocked16Perf, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{ engine::kind::cpu,
+            pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
-            , pool_bwd_test_params_float{ engine::kind::cpu,
+            , pool_bwd_test_params{ engine::kind::cpu,
             pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingBackwardAsymmPadding, pooling_bwd_test_float, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) }
 
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) }
 
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) }
 
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 3, 102, 1, 52, 3, 3, 0, 1, 1, 2) }
 
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 9, 103, 7, 52, 3, 3, 0, 1, 1, 2) }
 
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
-            ,pool_bwd_test_params_float{
+            ,pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c, EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
 
@@ -1050,28 +1049,28 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardZeroDim, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 0, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
             memory::format::nhwc,  EXPAND_SIZES_2D( 0, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 )},
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingForwardEF, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, -4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( -1, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments},
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::eltwise_square, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1 ),
             true, mkldnn_invalid_arguments}
@@ -1079,64 +1078,64 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw16c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw8c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nCdhw8c,
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_ndhwc, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ndhwc,
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling3D_ncdhw, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::ncdhw,
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
@@ -1144,104 +1143,104 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling2D_nChw16c_with_padded, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17,  6,  6,  7,  7, 2, 2, 1, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 23, 60, 60, 31, 31, 3, 4, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 14, 60, 60, 31, 31, 3, 2, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMax2D_nChw16c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 32, 13, 13, 12, 12, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 32, 3, 3, 4, 4, 3, 3, 1, 1, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 32, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) },
             /* resnet_50 */
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
             /* googlenet v1*/
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvg2D_nChw16c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) },
             /* resnet_50 */
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
             /* googlenet v1*/
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nChw16c,
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling2D_nchw, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
             ));
@@ -1249,13 +1248,13 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPooling2D_nhwc, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
             memory::format::nhwc,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nhwc,
             memory::format::nhwc,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nhwc,
             memory::format::nhwc,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
             ));
@@ -1263,99 +1262,99 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingMax2D_nChw8c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 32, 13, 13, 12, 12, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 32, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) },
             /* resnet_50 */
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
             /* googlenet v1*/
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAvg2D_nChw8c, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 122, 32, 32, 2, 32, 2, 3, 3, 1, 1, 1, 1 ) },
             /* resnet_50 */
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) },
             /* googlenet v1*/
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 512, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding, memory::format::nChw8c,
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
 INSTANTIATE_TEST_CASE_P(
         TestPoolingAsymmPadding, pooling_bwd_test_bfloat16, ::testing::Values(
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 4, 1, 5, 3, 3, 0, 1, 1, 1) },
 
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 8, 3, 14, 1, 8, 3, 3, 0, 1, 1, 2) },
 
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 3, 100, 1, 51, 3, 3, 0, 1, 1, 2) },
 
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_max,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) },
-            pool_bwd_test_params_float{
+            pool_bwd_test_params{
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
             memory::format::nChw16c, memory::format::nChw16c,
             EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }

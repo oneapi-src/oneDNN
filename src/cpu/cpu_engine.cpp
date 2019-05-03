@@ -280,7 +280,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_fwd_t<f32>),
     INSTANCE(ref_pooling_fwd_t<bf16, f32>),
     INSTANCE(ref_pooling_bwd_t<f32>),
-    INSTANCE(ref_pooling_bwd_t<bf16,f32>),
+    INSTANCE(ref_pooling_bwd_t<bf16>),
 
     /* pool (int) */
     INSTANCE(jit_uni_i8i8_pooling_fwd_t<avx512_core>),
@@ -290,7 +290,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_fwd_t<s8, s32>),
     INSTANCE(ref_pooling_fwd_t<u8, s32>),
     INSTANCE(ref_pooling_bwd_t<s32>),
-    INSTANCE(ref_pooling_bwd_t<s16, s32>),
+    INSTANCE(ref_pooling_bwd_t<s16>),
 
     /* lrn */
     INSTANCE(jit_avx512_common_lrn_fwd_t),
