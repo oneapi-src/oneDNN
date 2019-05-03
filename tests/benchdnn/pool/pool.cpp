@@ -317,7 +317,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
-    } else {
+    } else if (p->dir & FLAG_BWD) {
         SAFE(fill_dst(p, diff_dst_dt, diff_dst_fp, r), WARN);
 
         args_bwd.set(MKLDNN_ARG_DIFF_DST, diff_dst_dt.m_);
@@ -339,7 +339,7 @@ int doit(const prb_t *p, res_t *r) {
         auto &t = r->timer;
         t.reset();
         while (true) {
-            mkldnn_primitive_t pl = p->dir & FLAG_FWD ? pf : pb;
+            mkldnn_primitive_t pl = p->dir & FLAG_BWD ? pb : pf;
             args_t args = p->dir & FLAG_FWD ? args_fwd : args_bwd;
             DNN_SAFE(execute_and_wait(pl, stream_tgt, args.size(), args), WARN);
             t.stamp();
