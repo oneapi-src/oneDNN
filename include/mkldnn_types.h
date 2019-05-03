@@ -351,12 +351,16 @@ typedef enum {
     mkldnn_io = mkldnn_ba,
     /// 3D CNN weights tensor, an alias to #mkldnn_abc
     mkldnn_oiw = mkldnn_abc,
+    /// 3D CNN weights tensor, an alias to #mkldnn_acb
+    mkldnn_owi = mkldnn_acb,
     /// 3D CNN weights tensor, an alias to #mkldnn_cba
     mkldnn_wio = mkldnn_cba,
     /// 4D CNN weights tensor, an alias to #mkldnn_abcd
     mkldnn_oihw = mkldnn_abcd,
     /// 4D CNN weights tensor, an alias to #mkldnn_cdba
     mkldnn_hwio = mkldnn_cdba,
+    /// 4D CNN weights tensor, an alias to #mkldnn_acdb
+    mkldnn_ohwi = mkldnn_acdb,
     /// 4D CNN weights tensor, an alias to #mkldnn_bcda
     mkldnn_ihwo = mkldnn_bcda,
     /// 4D CNN weights tensor, an alias to #mkldnn_bacd
@@ -365,6 +369,8 @@ typedef enum {
     mkldnn_oidhw = mkldnn_abcde,
     /// 5D CNN weights tensor, an alias to #mkldnn_cdeba
     mkldnn_dhwio = mkldnn_cdeba,
+    /// 5D CNN weights tensor, an alias to #mkldnn_acdeb
+    mkldnn_odhwi = mkldnn_acdeb,
 
     /// 4D CNN weights tensor (incl. groups), an alias to #mkldnn_abcd
     mkldnn_goiw = mkldnn_abcd,

@@ -256,12 +256,15 @@ namespace format_tag {
     const format_tag_t io = mkldnn_io;
     const format_tag_t oiw = mkldnn_oiw;
     const format_tag_t wio = mkldnn_wio;
+    const format_tag_t owi = mkldnn_owi;
     const format_tag_t oihw = mkldnn_oihw;
     const format_tag_t hwio = mkldnn_hwio;
+    const format_tag_t ohwi = mkldnn_ohwi;
     const format_tag_t ihwo = mkldnn_ihwo;
     const format_tag_t iohw = mkldnn_iohw;
     const format_tag_t oidhw = mkldnn_oidhw;
     const format_tag_t dhwio = mkldnn_dhwio;
+    const format_tag_t odhwi = mkldnn_odhwi;
     const format_tag_t goiw = mkldnn_goiw;
     const format_tag_t goihw = mkldnn_goihw;
     const format_tag_t hwigo = mkldnn_hwigo;
