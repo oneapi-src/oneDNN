@@ -31,6 +31,8 @@ find_path(OpenCL_INCLUDE_DIR
     PATHS
         ${OPENCLROOT}
         $ENV{OPENCLROOT}
+        ${SYCL_BUNDLE_ROOT}
+        $ENV{SYCL_BUNDLE_ROOT}
         $ENV{INTELOPENCLSDK}
         $ENV{INTELOCLSDKROOT}
     PATH_SUFFIXES
@@ -41,6 +43,8 @@ find_library(OpenCL_LIBRARY
     PATHS
         ${OPENCLROOT}
         $ENV{OPENCLROOT}
+        ${SYCL_BUNDLE_ROOT}
+        $ENV{SYCL_BUNDLE_ROOT}
         $ENV{INTELOPENCLSDK}
         $ENV{INTELOCLSDKROOT}
     PATH_SUFFIXES
