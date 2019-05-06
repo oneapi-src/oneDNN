@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
 ///
 /// ~~~sh
 /// $ MKLDNN_VERBOSE=1 ./memory_format_propagation
-/// mkldnn_verbose,info,Intel(R) MKL-DNN <ver> (Git Hash <hash> Advanced Vector Extensions 2 (Intel(R) AVX2)
+/// mkldnn_verbose,info,Intel(R) MKL-DNN <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
 /// mkldnn_verbose,exec,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,num:1,1x256x14x14,1.03101
 /// mkldnn_verbose,exec,reorder,jit:uni,undef,
