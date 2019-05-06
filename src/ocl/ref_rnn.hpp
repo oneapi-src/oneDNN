@@ -112,7 +112,7 @@ struct _ref_rnn_common_t : public primitive_t {
                 = utils::downcast<const ocl_engine_t *>(this->engine());
 
 
-            const alg_kind_t cell_kind = this->desc()->cell_desc.cell_kind;
+            const alg_kind_t cell_kind = this->desc()->cell_kind;
 
             data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
             data_type_t weights_iter_dt
