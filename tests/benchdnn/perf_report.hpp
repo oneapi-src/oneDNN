@@ -209,10 +209,13 @@ struct base_perf_report_t {
             char opt_dump[max_dump_len] = "", *dump = opt_dump;
 
             handle_option(dump, pt, r, prb_str);
-            pt = strchr(pt, '%') + 1;
 
             int l = snprintf(buf, rem_buf_len, "%s", opt_dump);
             buf += l; rem_buf_len -= l;
+
+            if ((pt = strchr(pt, '%')) == NULL) // check for KW
+                break;
+            pt++;
         }
 
         *buf = '\0';
