@@ -108,7 +108,7 @@ static inline void add_results(const dim_t m, const dim_t n,
     }
 }
 
-// TODO Find a better place for those functions.
+// TODO Find a better place for this function.
 template <typename T>
 static inline dim_t ld_padd(const dim_t x) {
     return ((x + ((2048 / sizeof(T)) - 1)) / (2048 / sizeof(T)))
@@ -651,11 +651,11 @@ static inline int nocopy_checker(const int nthr, const int transa,
     if (mayiuse(avx512_core)) {
         return nocopy_checker_avx512(nthr, transa, transb, m, n, k, lda, ldb,
                 ldc);
-    } else if (mayiuse(avx2)) {
+    } else if (mayiuse(avx)) {
         return nocopy_checker_avx2(nthr, transa, transb, m, n, k, lda, ldb,
                 ldc);
     } else {
-        return 1;
+        return 0;
     }
 }
 
@@ -720,6 +720,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     if (isInteger) {
         condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
     } else {
+        // TODO We need to decide what to do with AVX and SSE41 or change the comment.
         // If m is large and n is small then do 1D partitioning for AVX2.
         if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
             condition_2D_bsrc = 0;
@@ -738,6 +739,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
+        // TODO We need to decide what to do with AVX and SSE41 or change the comment.
     } else { // AVX2 code path
         if (m >= 1000 && n >= 4000) {
             condition_2D_bsrc = 0;
@@ -779,6 +781,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         int veclen = 0;
         if (mayiuse(avx512_core)) {
             veclen = cpu_isa_traits<avx512_core>::vlen / sizeof(c_type);
+        // TODO We need to decide what to do with AVX and SSE41 or change the comment.
         } else {
             veclen = cpu_isa_traits<avx2>::vlen / sizeof(c_type);
         }
@@ -1326,7 +1329,7 @@ static mkldnn_status_t gemm_threading_driver(
                 arg->c, arg->co, arg);
     }
 
-    if ((data_traits<a_type>::data_type == data_type::f32) &&
+    if (data_traits<a_type>::data_type == data_type::f32 &&
             nocopy_checker(nthr, arg->transa, arg->transb, arg->m, arg->n,
                 arg->k, arg->lda, arg->ldb, arg->ldc))
         return call_no_copy_sgemm(arg->transa, arg->transb,
@@ -1434,13 +1437,20 @@ mkldnn_status_t gemm_driver(
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
-    // gemm_driver supports 8-bit integer and for avx512_vnni and avx512_core.
+    // gemm_driver supports 8-bit integer gemm for avx512_vnni and avx512_core.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
                 mayiuse(avx512_core)));
 
-    // gemm_driver supports sgemm for avx512_core, avx2 and avx.
+    // gemm_driver supports sgemm for avx512_core, avx2, avx and sse41.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
-            mayiuse(avx)));
+            mayiuse(sse41)));
+
+    // 8-bit integer gemm doesn't support nocopy kernels.
+    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
+                !force_nocopy));
+
+    // gemm_driver can only dispatch nocopy for avx and above.
+    assert(IMPLICATION(force_nocopy, mayiuse(avx)));
 
     gemm_info_t<a_type, b_type, c_type> args(transA, transB, offsetC, m, n, k,
             alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc, force_nocopy);

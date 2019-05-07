@@ -135,20 +135,20 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     else
 #endif
     {
-    if (mayiuse(avx512_mic)) {
-        status = jit_avx512_common_gemm_f32(transa, transb,
-                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-    } else if (mayiuse(avx)) {
-        float *dummy_ao = NULL;
-        float *dummy_bo = NULL;
+        if (mayiuse(avx512_mic)) {
+            status = jit_avx512_common_gemm_f32(transa, transb,
+                    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+        } else if (mayiuse(sse41)) {
+            float *dummy_ao = NULL;
+            float *dummy_bo = NULL;
 
-        status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
-                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
-                force_jit_nocopy_gemm);
-    } else {
-        status = ref_gemm<float>(transa, transb,
-                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-    }
+            status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K,
+                    alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc,
+                    bias, force_jit_nocopy_gemm);
+        } else {
+            status = ref_gemm<float>(transa, transb,
+                    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+        }
     }
 
 
