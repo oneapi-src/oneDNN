@@ -102,7 +102,6 @@ struct _ref_rnn_common_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
         status_t init() {
-            DPRINT("%s(%d) --->\n",__FUNCTION__,__LINE__);
             using namespace prop_kind;
             using namespace utils;
             using namespace format_tag;
@@ -146,26 +145,19 @@ struct _ref_rnn_common_t : public primitive_t {
             ok = ok && utils::one_of(cell_kind, alg_kind::vanilla_rnn,
                                alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
                                alg_kind::lbr_gru);
-            DPRINT("%s(%d) ok=%d\n",__FUNCTION__,__LINE__,(int)ok);
 
             ok = ok && this->with_bias();
-            DPRINT("%s(%d) ok=%d\n",__FUNCTION__,__LINE__,(int)ok);
             switch (aprop) {
             case (prop_kind::forward):
-                DPRINT("%s(%d) prop_kind::forward\n",__FUNCTION__,__LINE__);
                 ok = ok && utils::one_of(this->desc()->prop_kind,
                                    forward_training, forward_inference);
-                DPRINT("%s(%d) ok=%d\n",__FUNCTION__,__LINE__,(int)ok);
                 ok = ok
                     && memory_desc_matches_one_of_tag(
                             this->weights_layer_md_, ldigo)
                     && memory_desc_matches_one_of_tag(
                             this->weights_iter_md_, ldigo);
-
-                DPRINT("%s(%d) ok=%d\n",__FUNCTION__,__LINE__,(int)ok);
                 break;
             case (prop_kind::backward):
-                DPRINT("%s(%d) prop_kind::backward\n",__FUNCTION__,__LINE__);
                 ok = ok && utils::one_of(this->desc()->prop_kind, backward);
                 ok = ok
                     && memory_desc_matches_one_of_tag(
@@ -176,7 +168,6 @@ struct _ref_rnn_common_t : public primitive_t {
             default: ok = false;
             }
             if (!ok) {
-                DPRINT("%s(%d) unimplemented\n",__FUNCTION__,__LINE__);
                 return status::unimplemented;
             }
 
@@ -190,7 +181,6 @@ struct _ref_rnn_common_t : public primitive_t {
                                || (this->L() == 1))
                     && (this->SIC() == this->DIC() || (this->T() == 1));
             if (!ok) {
-                DPRINT("%s(%d) unimplemented\n",__FUNCTION__,__LINE__);
                 return status::unimplemented;
             }
 
@@ -204,13 +194,10 @@ struct _ref_rnn_common_t : public primitive_t {
 #if !EMULATED_SCRATCHPAD
             auto scratchpad_sz = rnn_utils::get_scratchpad_size(*this);
             init_scratchpad(scratchpad_sz);
-            DPRINT("%s(%d) init real scratchpad\n",__FUNCTION__,__LINE__);
 #endif
 
             status_t status = init_base<aprop>(jrnn_, this, this->jit_off_);
             if (status != status::success) {
-                DPRINT("%s(%d) status != status::success\n",
-                        __FUNCTION__,__LINE__);
                 return status;
             }
 
@@ -274,10 +261,8 @@ struct _ref_rnn_common_t : public primitive_t {
             }
 
             if (!gemm_ok) {
-                DPRINT("%s(%d) unimplemented\n",__FUNCTION__,__LINE__);
                 return status::unimplemented;
             }
-            DPRINT("%s(%d) <---\n",__FUNCTION__,__LINE__);
 
             return status::success;
         }
@@ -290,13 +275,9 @@ struct _ref_rnn_common_t : public primitive_t {
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
-            DPRINT("hpp:  %s(%d) >>>>>>\n",__FUNCTION__, __LINE__);
-
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
-
-            DPRINT("hpp:  %s(%d) <<<<<<\n",__FUNCTION__, __LINE__);
         }
 
     };  // struct pd_t : public base_pd_t
@@ -356,8 +337,6 @@ struct _ref_rnn_common_t : public primitive_t {
             auto scratchpad_sz = rnn_utils::get_scratchpad_size(*this->pd());
             engine()->create_memory_storage(&scratchpad_,
                     scratchpad_sz * sizeof(src_data_t));
-            DPRINT("%s(%d) created scratchpad %p\n",__FUNCTION__,__LINE__,
-                    scratchpad_);
         }
 #endif
         return status::success;
