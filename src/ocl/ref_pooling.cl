@@ -195,6 +195,10 @@ __kernel void ref_pooling_fwd_kernel(
                         }
                     }
                 dst[dst_off] = d;
+#            if POOLING_MAX == 1 && IS_TRAINING == 1
+                if (ws[dst_off] < 0)
+                    ws[dst_off] = 0;
+#            endif
 #        else
                 const int id_start = max(od * SD - PD, 0);
                 const int ih_start = max(oh * SH - PH, 0);
