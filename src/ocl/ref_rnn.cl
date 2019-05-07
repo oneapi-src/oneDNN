@@ -164,26 +164,36 @@ DATA_T tanh_bwd(DATA_T dd, DATA_T s) {
     return dd * (1 - th) * (1 + th);
 }
 DATA_T activation_fwd(DATA_T s, DATA_T alpha, DATA_T cliping) {
-#if ACTIVATION_KIND == ELTWISE_RELU
-        return relu_fwd(s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_TANH
-        return tanh_fwd(s);
-#elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-        return logistic_fwd(s);
+#if CELL_KIND == VANILLA_LSTM
+// LSTM doesn't use activation function
+    return CONVERT_DATA_T(0.0f);
 #else
-#error "Unsupported activation_kind"
+#    if ACTIVATION_KIND == ELTWISE_RELU
+    return relu_fwd(s, alpha);
+#    elif ACTIVATION_KIND == ELTWISE_TANH
+    return tanh_fwd(s);
+#    elif ACTIVATION_KIND == ELTWISE_LOGISTIC
+    return logistic_fwd(s);
+#    else
+#    error "Unsupported activation_kind"
+#    endif
 #endif
 }
 
 DATA_T activation_bwd(DATA_T dd, DATA_T s, DATA_T alpha, DATA_T cliping) {
-#if ACTIVATION_KIND == ELTWISE_RELU
-        return relu_bwd(dd, s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_TANH
-        return tanh_bwd(dd, s);
-#elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-        return logistic_bwd(dd, s);
+#if CELL_KIND == VANILLA_LSTM
+// LSTM doesn't use activation function
+    return CONVERT_DATA_T(0.0f);
 #else
-#error "Unsupported activation_kind"
+#    if ACTIVATION_KIND == ELTWISE_RELU
+    return relu_bwd(dd, s, alpha);
+#    elif ACTIVATION_KIND == ELTWISE_TANH
+    return tanh_bwd(dd, s);
+#    elif ACTIVATION_KIND == ELTWISE_LOGISTIC
+    return logistic_bwd(dd, s);
+#    else
+#    error "Unsupported activation_kind"
+#    endif
 #endif
 }
 
