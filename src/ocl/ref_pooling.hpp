@@ -57,8 +57,6 @@ struct ref_pooling_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                                pooling_avg_include_padding,
                                pooling_avg_exclude_padding)
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md())
                     && utils::everyone_is(data_type, src_md()->data_type,
                                dst_md()->data_type)
                     && IMPLICATION(data_type == data_type::f16,

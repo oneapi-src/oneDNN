@@ -620,7 +620,7 @@ INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::nChw8c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxKernelSlipsToPadding, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             algorithm::pooling_max, memory::format_tag::nchw,
