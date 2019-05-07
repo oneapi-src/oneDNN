@@ -148,7 +148,7 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
 
 int doit(const prb_t *p, res_t *res);
 
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 }
 
 #endif

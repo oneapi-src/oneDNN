@@ -192,18 +192,7 @@ const char *bool2str(bool value);
 bool match_regex(const char *str, const char *pattern);
 bool maybe_skip(const char *skip_impl, const char *impl_str);
 
-template <typename B, typename F>
-void read_csv(const char *csv, B b, F f, const char *delim = ",") {
-    char csv_copy[128];
-    strncpy(csv_copy, csv, sizeof(csv_copy) - 1);
-    csv_copy[sizeof(csv_copy) - 1] = '\0';
-
-    b();
-    const char *s = strtok(csv_copy, delim);
-    for (; s && *s; s = strtok(NULL, delim)) f(s);
-}
-
-typedef int (*bench_f)(int argc, char **argv, bool main_bench);
+typedef int (*bench_f)(int argc, char **argv);
 int batch(const char *fname, bench_f bench);
 
 /* returns 1 with given probability */

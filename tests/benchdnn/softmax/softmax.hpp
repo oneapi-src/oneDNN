@@ -97,8 +97,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
 
 int doit(const prb_t *p, res_t *res);
-
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 
 }
 

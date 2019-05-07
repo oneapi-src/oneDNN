@@ -101,12 +101,12 @@ struct base_perf_report_t {
     // That big due to dump prb_str of max_prb_len size.
     static constexpr size_t max_dump_len = max_prb_len;
 
-    void dprint(char *buf, const char *content) const {
-        snprintf(buf, max_dump_len, "%s", content);
+    void dprint(char *buf, const char *str) const {
+        snprintf(buf, max_dump_len, "%s", str);
     }
 
-    void dprint(char *buf, double content) const {
-        snprintf(buf, max_dump_len, "%g", content);
+    void dprint(char *buf, double val) const {
+        snprintf(buf, max_dump_len, "%g", val);
     }
 
     void handle_option(char *buf, const char *option, const res_t *r,

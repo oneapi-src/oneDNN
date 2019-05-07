@@ -150,7 +150,7 @@ private:
 };
 
 int doit(const prb_t *p, res_t *res);
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 
 }
 

@@ -209,7 +209,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
 int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
 
 int doit(const prb_t *p, res_t *res);
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 
 }
 

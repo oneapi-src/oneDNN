@@ -40,8 +40,8 @@ activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
 
-mkldnn_prop_kind_t str2prop(const char *str);
 const char *prop2str(mkldnn_prop_kind_t prop);
+mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
 
 mkldnn_rnn_direction_t str2direction(const char *str);
 const char *direction2str(mkldnn_rnn_direction_t direction);
@@ -427,9 +427,11 @@ inline void inv_tnc_off_f(
     assert(off == 0);
 }
 
+void check_case_validity(const dt_conf_t *cfg, policy_t policy);
+
 int doit(const prb_t *p, res_t *res);
-void check(desc_t *p);
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
+
 } // namespace rnn
 
 #endif

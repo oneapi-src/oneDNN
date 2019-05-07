@@ -53,7 +53,7 @@ void common();
 void conv();
 void bnorm();
 
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 
 }
 

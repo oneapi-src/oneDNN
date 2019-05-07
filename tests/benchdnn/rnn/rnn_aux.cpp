@@ -112,13 +112,13 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     return alg_kind;
 }
 
-mkldnn_prop_kind_t str2prop(const char *str) {
-    if (!strcasecmp("FWD_D", str))
+mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
+    if (dir == FWD_D)
         return mkldnn_forward;
-    if (!strcasecmp("BWD_D", str))
+    if (dir == BWD_DW)
         return mkldnn_backward;
-    assert(!"unknown propagation");
-    return mkldnn_forward;
+    assert(!"unknown dir");
+    return mkldnn_prop_kind_undef;
 }
 
 const char *prop2str(mkldnn_prop_kind_t prop) {
@@ -155,6 +155,15 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
         return "sum";
     assert(!"unknown direction");
     return "unknown direction";
+}
+
+void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
+    if (cfg != conf_f32 && cfg != conf_f16 && policy == NONE) {
+        fprintf(stderr, "rnn driver: configuration `%s` requires scale policy "
+                "to be COMMON or PER_OC, exiting...\n",
+                cfg2str(cfg));
+        exit(2);
+    }
 }
 
 int str2desc(desc_t *desc, const char *str) {

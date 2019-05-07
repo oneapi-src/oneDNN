@@ -143,7 +143,7 @@ void prb2str(const prb_t *p, char *buffer, bool canonical) {
          flags_str[32] = "", attr_str[max_attr_len] = "",
          desc_str[max_desc_len] = "";
 
-    if (p->dir != FWD_B)
+    if (p->dir != FWD_D)
         snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
     if (p->dt != mkldnn_f32)
         snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));

@@ -14,24 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <vector>
 #include <string.h>
 
 #include "mkldnn.h"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "parser.hpp"
 
 #include "reorder.hpp"
 
 namespace reorder {
 
-/* global driver parameters */
+std::vector<mkldnn_data_type_t> idt {mkldnn_f32}, odt {mkldnn_f32};
+std::vector<mkldnn_format_tag_t> itag {mkldnn_nchw}, otag {mkldnn_nchw};
+std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
+std::vector<flag_t> oflag {FLAG_NONE};
+
+dims_t dims;
 alg_t alg = ALG_REF;
 attr_t attr;
-flag_t oflag = FLAG_NONE;
 bool allow_unimpl = false;
-bool both_dir_dt = false;
-bool both_dir_tag = false;
 const char *perf_template_csv =
     "perf,%engine%,%dt%,%tag%,%alg%,%flags%,%attr%,%DESC%,"
     "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
@@ -39,141 +41,78 @@ const char *perf_template_def =
     "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template = perf_template_def;
 
-std::vector<mkldnn_data_type_t> v_idt, v_odt;
-std::vector<mkldnn_format_tag_t> v_itag, v_otag;
-std::vector<dims_t> v_dims;
-std::vector<float> v_def_scale;
-
 void reset_parameters() {
+    idt = {mkldnn_f32};
+    odt = {mkldnn_f32};
+    itag = {mkldnn_nchw};
+    otag = {mkldnn_nchw};
+    def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
+    oflag = {FLAG_NONE};
     alg = ALG_REF;
     attr = attr_t();
     allow_unimpl = false;
-    both_dir_dt = false;
-    both_dir_tag = false;
-    oflag = FLAG_NONE;
-
-    v_def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
 }
 
-void check(const prb_t *p) {
-    char pstr[max_prb_len];
-    prb2str(p, pstr);
+void check_correctness() {
+    for (const auto &i_idt: idt)
+    for (const auto &i_odt: odt)
+    for (const auto &i_itag: itag)
+    for (const auto &i_otag: otag)
+    for (const auto &i_oflag: oflag) {
+        reorder_conf_t reorder_conf{dims, i_itag, i_otag};
+        dt_conf_t iconf = dt2cfg(i_idt);
+        dt_conf_t oconf = dt2cfg(i_odt);
 
-    res_t res{};
-    int status = reorder::doit(p, &res);
+        std::vector<float> attr_scale = {attr.oscale.scale};
+        auto &scale = attr.oscale.scale == 0 ? def_scale : attr_scale;
 
-    bool want_perf_report = false;
-    parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        for (const auto &i_scale: scale) {
+            const prb_t p(reorder_conf, iconf, oconf, attr, alg, i_oflag,
+                    i_scale);
+            char pstr[max_prb_len];
+            prb2str(&p, pstr);
 
-    if (want_perf_report && bench_mode & PERF) {
-        perf_report_t pr(perf_template);
-        pr.report(p, &res, pstr);
-    }
+            res_t res{};
+            int status = doit(&p, &res);
 
-    benchdnn_stat.tests++;
-}
+            bool want_perf_report = false;
+            parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-void run() {
-    for (auto &idt: v_idt)
-    for (auto &odt: v_odt)
-    for (int swap_dt = 0; swap_dt < (both_dir_dt && idt != odt ? 2 : 1); ++swap_dt)
-    for (auto &itag: v_itag)
-    for (auto &otag: v_otag)
-    for (int swap_tag = 0; swap_tag < (both_dir_tag && itag != otag ? 2 : 1); ++swap_tag)
-    for (auto &dims: v_dims)
-    {
-        reorder_conf_t reorder_conf{dims,
-            swap_tag ? otag : itag,
-            swap_tag ? itag : otag};
-
-        dt_conf_t iconf = dt2cfg(swap_dt ? odt : idt);
-        dt_conf_t oconf = dt2cfg(swap_dt ? idt : odt);
-
-        std::vector<float> v_attr_scale = {attr.oscale.scale};
-        auto &v_scale = attr.oscale.scale == 0 ? v_def_scale : v_attr_scale;
-
-        for (auto &scale: v_scale) {
-            const prb_t p(reorder_conf, iconf, oconf, attr, alg, oflag, scale);
-            check(&p);
-        }
-    }
-}
-
-int bench(int argc, char **argv, bool main_bench) {
-    if (main_bench)
-        reset_parameters();
-
-    for (int arg = 0; arg < argc; ++arg) {
-        if (!strncmp("--batch=", argv[arg], 8))
-            SAFE(batch(argv[arg] + 8, bench), CRIT);
-        else if (!strncmp("--alg=", argv[arg], 6))
-            alg = str2alg(argv[arg] + 6);
-        else if (!strncmp("--oflag=", argv[arg], 8))
-            oflag = str2flag(argv[arg] + 8);
-        else if (!strncmp("--idt=", argv[arg], 6))
-            read_csv(argv[arg] + 6, [&]() { v_idt.clear(); },
-                    [&](const char *str) { v_idt.push_back(str2dt(str)); });
-        else if (!strncmp("--odt=", argv[arg], 6))
-            read_csv(argv[arg] + 6, [&]() { v_odt.clear(); },
-                    [&](const char *str) { v_odt.push_back(str2dt(str)); });
-        else if (!strncmp("--dt=", argv[arg], 5))
-            read_csv(argv[arg] + 5, [&]() { v_idt.clear(); v_odt.clear(); },
-                    [&](const char *str) {
-                    v_idt.push_back(str2dt(str));
-                    v_odt.push_back(str2dt(str));
-                    });
-        else if (!strncmp("--itag=", argv[arg], 7))
-            read_csv(argv[arg] + 7, [&]() { v_itag.clear(); },
-                    [&](const char *str) { v_itag.push_back(str2tag(str)); });
-        else if (!strncmp("--otag=", argv[arg], 7))
-            read_csv(argv[arg] + 7, [&]() { v_otag.clear(); },
-                    [&](const char *str) { v_otag.push_back(str2tag(str)); });
-        else if (!strncmp("--tag=", argv[arg], 6))
-            read_csv(argv[arg] + 6, [&]() { v_itag.clear(); v_otag.clear(); },
-                    [&](const char *str) {
-                    v_itag.push_back(str2tag(str));
-                    v_otag.push_back(str2tag(str));
-                    });
-        else if (!strncmp("--def-scales=", argv[arg], 13))
-            read_csv(argv[arg] + 13, [&]() { v_def_scale.clear(); },
-                    [&](const char *str) { v_def_scale.push_back(atof(str)); });
-        else if (!strncmp("--attr=", argv[arg], 7))
-            SAFE(str2attr(&attr, argv[arg] + 7), CRIT);
-        else if (!strncmp("--both-dir-dt=", argv[arg], 14))
-            both_dir_dt = str2bool(argv[arg] + 14);
-        else if (!strncmp("--both-dir-tag=", argv[arg], 14))
-            both_dir_tag = str2bool(argv[arg] + 15);
-        else if (!strncmp("--allow-unimpl=", argv[arg], 15))
-            allow_unimpl = str2bool(argv[arg] + 15);
-        else if (!strcmp("--run", argv[arg]))
-            run();
-        else if (!strncmp("--perf-template=", argv[arg], 16)) {
-            if (!strcmp("def", argv[arg] + 16))
-                perf_template = perf_template_def;
-            else if (!strcmp("csv", argv[arg] + 16))
-                perf_template = perf_template_csv;
-            else
-                perf_template = argv[arg] + 16;
-        }
-        else if (!strcmp("--reset", argv[arg]))
-            reset_parameters();
-        else if (!strncmp("--mode=", argv[arg], 7))
-            bench_mode = str2bench_mode(argv[arg] + 7);
-        else if (!strncmp("-v", argv[arg], 2))
-            verbose = atoi(argv[arg] + 2);
-        else if (!strncmp("--verbose=", argv[arg], 10))
-            verbose = atoi(argv[arg] + 10);
-        else {
-            if (!strncmp("--", argv[arg], 2)) {
-                fprintf(stderr, "driver: unknown option: `%s`, exiting...\n",
-                        argv[arg]);
-                exit(2);
+            if (want_perf_report && bench_mode & PERF) {
+                perf_report_t pr(perf_template);
+                pr.report(&p, &res, pstr);
             }
-            read_csv(argv[arg], [&]() { v_dims.clear(); },
-                    [&](const char *str) { v_dims.push_back(str2dims(str)); });
-            run();
+
+            benchdnn_stat.tests++;
         }
     }
+}
+
+int bench(int argc, char **argv) {
+    using namespace parser;
+    for (; argc > 0; --argc, ++argv) {
+        if (parse_bench_settings(argv[0]));
+        else if (parse_batch(bench, argv[0]));
+        else if (parse_dt(idt, argv[0], "idt"));
+        else if (parse_dt(odt, argv[0], "odt"));
+        else if (parse_tag(itag, argv[0], "itag"));
+        else if (parse_tag(otag, argv[0], "otag"));
+        else if (parse_attr(attr, argv[0]));
+        else if (parse_vector_option(oflag, str2flag, argv[0], "oflag"));
+        else if (parse_vector_option(def_scale, atof, argv[0], "def-scales"));
+        else if (parse_single_value_option(alg, str2alg, argv[0], "alg"));
+        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
+        else if (parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0]));
+        else if (parse_reset(reset_parameters, argv[0]));
+        else {
+            catch_unknown_options(argv[0], "reorder");
+
+            dims = str2dims(argv[0]);
+            check_correctness();
+        }
+    }
+
 
     return OK;
 }
