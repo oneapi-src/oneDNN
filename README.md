@@ -65,14 +65,11 @@ software includes the following third-party components:
 [3-clause BSD license](src/cpu/jit_utils/jitprofiling/LICENSE.BSD)
 
 ## Documentation
-* [Introduction](https://intel.github.io/mkl-dnn) explains the programming model and
-  basic concepts
-* [API reference](https://intel.github.io/mkl-dnn/modules.html) provides detailed
-  functionality descriptions
-* [Examples](https://github.com/intel/mkl-dnn/tree/master/examples) demonstrate the use of
-  C and C++ APIs in simple topologies
-* [Tutorial](https://software.intel.com/en-us/articles/intel-mkl-dnn-part-1-library-overview-and-installation)
-  provides step-by-step installation instructions and an example walkthrough
+* [Developer guide](https://intel.github.io/mkl-dnn) explains programming
+model, supported functionality, details of primitives implementations and
+includes annotated examples.
+* [API reference](https://intel.github.io/mkl-dnn/modules.html) provides
+comprehensive reference of the library API.
 
 ## Support
 Please submit your questions, feature requests, and bug reports on the
