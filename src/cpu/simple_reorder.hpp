@@ -423,8 +423,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
-    && format_traits<fmt_o>::blk_fmt == bf::_16c>::type>
+typename utils::enable_if<true
+        && (format_traits<fmt_i>::blk_fmt == bf::_4c
+                || format_traits<fmt_i>::blk_fmt == bf::_8c)
+        && format_traits<fmt_o>::blk_fmt == bf::_16c>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
@@ -439,16 +441,16 @@ typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
 
         constexpr int is_1d = format_traits<fmt_o>::ndims_sp == 1;
         constexpr int is_3d = format_traits<fmt_o>::ndims_sp == 3;
-        constexpr int blksize_16 = format_traits<fmt_o>::blk_size;
-        constexpr int blksize_8 = format_traits<fmt_i>::blk_size;
+        constexpr int blksize_fmt_o = format_traits<fmt_o>::blk_size;
+        constexpr int blksize_fmt_i = format_traits<fmt_i>::blk_size;
         constexpr int ic_mult = order_keep ? 2 : 1;
         constexpr int oc_mult = order_keep ? 1 : 2;
 
-        const auto &nchw8c_d = order_keep ? input_d : output_d;
+        const auto &fmt_i_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep ? output_d.blocking_desc().padding_dims
                                        : input_d.blocking_desc().padding_dims;
-        const auto stride_8c = nchw8c_d.blocking_desc().strides[0];
+        const auto stride_fmt_i = fmt_i_d.blocking_desc().strides[0];
 
         const int C = dims[1];
         const int D = is_3d ? dims[2] : 1;
@@ -456,30 +458,30 @@ typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
         const int W = dims[3 + is_3d - is_1d];
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
-            const int block_16) {
-            const int nb = (block_16 - 1) / blksize_8 + 1;
+            const int block_fmt_o) {
+            const int nb = (block_fmt_o - 1) / blksize_fmt_i + 1;
             if (alpha == 1.0 && beta == 0.0) {
                 for (int b = 0; b < nb; ++b) {
-                    const ptrdiff_t i_off = order_keep ? b * stride_8c[1]
-                                                       : b * blksize_8;
-                    const ptrdiff_t o_off = order_keep ? b * blksize_8
-                                                       : b * stride_8c[1];
-                    const int block_8 = nstl::min(blksize_8,
-                                                  block_16 - b * blksize_8);
-                    for (int c = 0; c < block_8; ++c) {
+                    const ptrdiff_t i_off = order_keep ? b * stride_fmt_i[1]
+                                                       : b * blksize_fmt_i;
+                    const ptrdiff_t o_off = order_keep ? b * blksize_fmt_i
+                                                       : b * stride_fmt_i[1];
+                    const int block_fmt_i = nstl::min(blksize_fmt_i,
+                                                  block_fmt_o - b * blksize_fmt_i);
+                    for (int c = 0; c < block_fmt_i; ++c) {
                         o[o_off + c] = _qz_a1b0<type_i, type_o>()(
                                 i[i_off + c], rmode);
                     }
                 }
             } else {
                 for (int b = 0; b < nb; ++b) {
-                    const ptrdiff_t i_off = order_keep ? b * stride_8c[1]
-                                                       : b * blksize_8;
-                    const ptrdiff_t o_off = order_keep ? b * blksize_8
-                                                       : b * stride_8c[1];
-                    const int block_8 = nstl::min(blksize_8,
-                                                  block_16 - b * blksize_8);
-                    for (int c = 0; c < block_8; ++c) {
+                    const ptrdiff_t i_off = order_keep ? b * stride_fmt_i[1]
+                                                       : b * blksize_fmt_i;
+                    const ptrdiff_t o_off = order_keep ? b * blksize_fmt_i
+                                                       : b * stride_fmt_i[1];
+                    const int block_fmt_i = nstl::min(blksize_fmt_i,
+                                                  block_fmt_o - b * blksize_fmt_i);
+                    for (int c = 0; c < block_fmt_i; ++c) {
                         o[o_off + c] = _qz<type_i, type_o>()(i[i_off + c],
                                 o[o_off + c], alpha, beta, rmode);
                     }
@@ -491,12 +493,12 @@ typename utils::enable_if<format_traits<fmt_i>::blk_fmt == bf::_8c
         ( is_1d ? (md).blk_off(n, c, w) \
           : is_3d ? (md).blk_off(n, c, d, h, w) : (md).blk_off(n, c, h, w))
 
-        parallel_nd(dims[0], pdims[1] / blksize_16, D, H, W,
+        parallel_nd(dims[0], pdims[1] / blksize_fmt_o, D, H, W,
             [&](int n, int nb_c, int d, int h, int w) {
             auto i = &input[data_blk_off(input_d, n, ic_mult * nb_c, d, h, w)];
             auto o = &output[data_blk_off(output_d, n, oc_mult * nb_c, d, h, w)];
-            const int block_16 = nstl::min(blksize_16, C - nb_c * blksize_16);
-            ker(i, o, block_16);
+            const int block_fmt_o = nstl::min(blksize_fmt_o, C - nb_c * blksize_fmt_o);
+            ker(i, o, block_fmt_o);
         });
 
 #       undef data_blk_off
