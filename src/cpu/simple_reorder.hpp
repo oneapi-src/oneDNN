@@ -581,9 +581,9 @@ typename utils::enable_if<
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<false
-    || (tag_i == nCdhw8c && tag_o == nCdhw16c)
-    || (tag_i == nChw8c && tag_o == nChw16c)
-    || (tag_i == nCw8c && tag_o == nCw16c)
+    || (utils::one_of(tag_i, nCdhw4c, nCdhw8c) && tag_o == nCdhw16c)
+    || (utils::one_of(tag_i, nChw4c, nChw8c)   && tag_o == nChw16c)
+    || (utils::one_of(tag_i, nCw4c, nCw8c)     && tag_o == nCw16c)
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -600,19 +600,22 @@ typename utils::enable_if<false
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr int is_1d = tag_i == nCw8c;
-        constexpr int is_3d = tag_i == nCdhw8c;
+        constexpr int is_1d = utils::one_of(tag_i, nCw4c, nCw8c);
+        constexpr int is_3d = utils::one_of(tag_i, nCdhw4c, nCdhw8c);
+
+        constexpr int blksize_i =
+            tag_traits<tag_i>::inner_blks == ib::_4b ? 4 : 8;
         constexpr int blksize_16 = 16;
-        constexpr int blksize_8 = 8;
-        constexpr int ic_mult = order_keep ? 2 : 1;
-        constexpr int oc_mult = order_keep ? 1 : 2;
+
+        constexpr int ic_mult = order_keep ? blksize_16 / blksize_i : 1;
+        constexpr int oc_mult = order_keep ? 1 : blksize_16 / blksize_i;
 
         const auto &dims = input_d.dims();
         const auto &pdims = order_keep ? output_d.padded_dims()
                                        : input_d.padded_dims();
 
-        const auto &nchw8c_d = order_keep ? input_d : output_d;
-        const auto stride_C_in_8c = nchw8c_d.blocking_desc().strides[1];
+        const auto &d_i = order_keep ? input_d : output_d;
+        const auto stride_C_in_blk_i = d_i.blocking_desc().strides[1];
 
         const int C = dims[1];
         const int D = is_3d ? dims[2] : 1;
@@ -620,17 +623,17 @@ typename utils::enable_if<false
         const int W = dims[3 + is_3d - is_1d];
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
-            const int block_16) {
-            const int nb = (block_16 - 1) / blksize_8 + 1;
+            const int block) {
+            const int nb = utils::div_up(block, blksize_i);
             if (alpha == 1.0 && beta == 0.0) {
                 for (int b = 0; b < nb; ++b) {
                     const ptrdiff_t i_off = b
-                        * (order_keep ? stride_C_in_8c : blksize_8);
+                        * (order_keep ? stride_C_in_blk_i : blksize_i);
                     const ptrdiff_t o_off = b
-                        * (order_keep ? blksize_8 : stride_C_in_8c);
-                    const int block_8 = nstl::min(blksize_8,
-                                                  block_16 - b * blksize_8);
-                    for (int c = 0; c < block_8; ++c) {
+                        * (order_keep ? blksize_i : stride_C_in_blk_i);
+                    const int block_i = nstl::min(blksize_i,
+                                                  block - b * blksize_i);
+                    for (int c = 0; c < block_i; ++c) {
                         o[o_off + c] = _qz_a1b0<type_i, type_o>()(
                                 i[i_off + c]);
                     }
@@ -638,12 +641,12 @@ typename utils::enable_if<false
             } else {
                 for (int b = 0; b < nb; ++b) {
                     const ptrdiff_t i_off = b
-                        * (order_keep ? stride_C_in_8c : blksize_8);
+                        * (order_keep ? stride_C_in_blk_i : blksize_i);
                     const ptrdiff_t o_off = b
-                        * (order_keep ? blksize_8 : stride_C_in_8c);
-                    const int block_8 = nstl::min(blksize_8,
-                                                  block_16 - b * blksize_8);
-                    for (int c = 0; c < block_8; ++c) {
+                        * (order_keep ? blksize_i : stride_C_in_blk_i);
+                    const int block_i = nstl::min(blksize_i,
+                                                  block - b * blksize_i);
+                    for (int c = 0; c < block_i; ++c) {
                         o[o_off + c] = _qz<type_i, type_o>()(i[i_off + c],
                                 o[o_off + c], alpha, beta);
                     }
@@ -659,8 +662,8 @@ typename utils::enable_if<false
             [&](int n, int nb_c, int d, int h, int w) {
             auto i = &input[data_blk_off(input_d, n, ic_mult * nb_c, d, h, w)];
             auto o = &output[data_blk_off(output_d, n, oc_mult * nb_c, d, h, w)];
-            const int block_16 = nstl::min(blksize_16, C - nb_c * blksize_16);
-            ker(i, o, block_16);
+            const int block = nstl::min(blksize_16, C - nb_c * blksize_16);
+            ker(i, o, block);
         });
 
 #       undef data_blk_off
