@@ -90,6 +90,8 @@ struct ref_shuffle_t : public cpu_primitive_t {
         case nChw16c:  execute_<nChw16c>(ctx); break;
         case nCdhw8c:  execute_<nCdhw8c>(ctx); break;
         case nChw8c:   execute_<nChw8c>(ctx); break;
+        case nCdhw4c:  execute_<nCdhw4c>(ctx); break;
+        case nChw4c:   execute_<nChw4c>(ctx); break;
         case ncdhw:    execute_<ncdhw>(ctx); break;
         case nchw:     execute_<nchw>(ctx); break;
         case ndhwc:    execute_<ndhwc>(ctx); break;
