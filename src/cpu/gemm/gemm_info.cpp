@@ -87,13 +87,9 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     }
 
     bool is_sgemm = data_traits<a_type>::data_type == data_type::f32;
-    bool has_bias = (is_sgemm && this->co && this->offsetc == COL_OFFSET);
 
-    // Copy-based sgemm doesn't support bias or force-nocopy for sse41.
-    this->force_nocopy = is_sgemm && (force_nocopy || has_bias) && mayiuse(avx);
-
-    // TODO We need to figure out an way to support bias for sse41. A threaded
-    // saxpy could be the answer.
+    // Copy-based sgemm doesn't support force-nocopy for ISAs older than avx.
+    this->force_nocopy = is_sgemm && force_nocopy && mayiuse(avx);
 
     if (!this->force_nocopy) {
         this->jit_init();
