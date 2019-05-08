@@ -90,6 +90,7 @@ using data_type_t = mkldnn_data_type_t;
 namespace data_type {
     const data_type_t undef = mkldnn_data_type_undef;
     const data_type_t f16 = mkldnn_f16;
+    const data_type_t bf16 = mkldnn_bf16;
     const data_type_t f32 = mkldnn_f32;
     const data_type_t s32 = mkldnn_s32;
     const data_type_t s8 = mkldnn_s8;

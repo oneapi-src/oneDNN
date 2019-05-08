@@ -38,6 +38,7 @@ const char *mkldnn_status2str(mkldnn_status_t v) {
 const char *mkldnn_dt2str(mkldnn_data_type_t v) {
     if (v == mkldnn_data_type_undef) return "undef";
     if (v == mkldnn_f16) return "f16";
+    if (v == mkldnn_bf16) return "bf16";
     if (v == mkldnn_f32) return "f32";
     if (v == mkldnn_s32) return "s32";
     if (v == mkldnn_s8) return "s8";

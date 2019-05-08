@@ -24,6 +24,7 @@
 #include <vector>
 #include <map>
 
+#include "bfloat16.hpp"
 #include "z_magic.hpp"
 
 namespace mkldnn {
@@ -96,6 +97,15 @@ template<> struct numeric_limits<int8_t> {
 template<> struct numeric_limits<uint8_t> {
     static constexpr uint8_t lowest() { return 0; }
     static constexpr uint8_t max() { return UINT8_MAX; }
+};
+
+template <> struct numeric_limits<bfloat16_t> {
+    static constexpr bfloat16_t lowest() {
+        return bfloat16_t(0xff7f, true);
+    }
+    static constexpr bfloat16_t max() {
+        return bfloat16_t(0x7f7f, true);
+    }
 };
 
 template<typename T> struct is_integral
