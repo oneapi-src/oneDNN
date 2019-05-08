@@ -494,7 +494,7 @@ kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
         a = vload4(0, A);
 
         // Load B
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < 4; i++)
             b[i] = as_float2(intel_sub_group_block_read2(
                 (global uint *) B_rows[i]));
 
