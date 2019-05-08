@@ -158,6 +158,7 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 
  /* fp32: blocked <-> blocked with tail */
     REG_SR_BIDIR(f32, nCw8c, f32, nCw16c),
+    REG_SR_BIDIR(f32, nChw4c, f32, nChw16c),
     REG_SR_BIDIR(f32, nChw8c, f32, nChw16c),
     REG_SR_BIDIR(f32, nCdhw8c, f32, nCdhw16c),
 
