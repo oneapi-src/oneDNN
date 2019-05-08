@@ -114,7 +114,7 @@ The library is optimized for the systems based on
 
 The software dependencies are:
 * [Cmake](https://cmake.org/download/) 2.8.0 or later
-* [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html#srcbin) 1.8.5 or later
+* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
 * C++ compiler with C++11 standard support
 * Optional dependencies:
   * GNU\* OpenMP\*, LLVM OpenMP, or Intel OpenMP
