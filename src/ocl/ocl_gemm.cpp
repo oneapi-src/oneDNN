@@ -37,8 +37,8 @@ using namespace mkldnn::impl::ocl;
 namespace {
 
 template <data_type_t data_type>
-mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
-        transpose_t transb, dim_t m, dim_t n, dim_t k, cl_float alpha, cl_mem a,
+mkldnn_status_t gemm_generic(cl_command_queue queue, const char *transa,
+        const char *transb, dim_t m, dim_t n, dim_t k, cl_float alpha, cl_mem a,
         dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b, dim_t ldb,
         cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
 
@@ -47,9 +47,8 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
     status_t status;
 
     // Check inputs
-    const char transa_c = (transa == transpose::notrans) ? 'n' : 't';
-    const char transb_c = (transb == transpose::notrans) ? 'n' : 't';
-    status = check_gemm_input(transa_c, transb_c, m, n, k, lda, ldb, ldc, alpha, beta);
+    status = check_gemm_input(
+            *transa, *transb, m, n, k, lda, ldb, ldc, alpha, beta);
     if (status != mkldnn_success)
         return status;
 
@@ -84,9 +83,10 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
 
     gemm_desc_t op_desc;
     op_desc.primitive_kind = mkldnn_gemm;
-    op_desc.transa = transa;
-    op_desc.transb = transb;
-
+    op_desc.transa = (*transa == 'n' || *transa == 'N') ? transpose::notrans
+                                                        : transpose::trans;
+    op_desc.transb = (*transb == 'n' || *transb == 'N') ? transpose::notrans
+                                                        : transpose::trans;
     op_desc.m = m;
     op_desc.n = n;
     op_desc.k = k;
@@ -156,18 +156,22 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, transpose_t transa,
 
 } // namespace
 
-mkldnn_status_t mkldnn_ocl_sgemm(cl_command_queue queue, transpose_t transa,
-        transpose_t transb, dim_t m, dim_t n, dim_t k, cl_float alpha, cl_mem a,
-        dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b, dim_t ldb,
-        cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
+extern "C" {
+mkldnn_status_t MKLDNN_API mkldnn_ocl_sgemm(cl_command_queue queue,
+        const char *transa, const char *transb, dim_t m, dim_t n, dim_t k,
+        cl_float alpha, cl_mem a, dim_t offset_a, dim_t lda, cl_mem b,
+        dim_t offset_b, dim_t ldb, cl_float beta, cl_mem c, dim_t offset_c,
+        dim_t ldc) {
     return gemm_generic<data_type::f32>(queue, transa, transb, m, n, k, alpha,
             a, offset_a, lda, b, offset_b, ldb, beta, c, offset_c, ldc);
 }
 
-mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, transpose_t transa,
-        transpose_t transb, dim_t m, dim_t n, dim_t k, cl_float alpha, cl_mem a,
-        dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b, dim_t ldb,
-        cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
+mkldnn_status_t MKLDNN_API mkldnn_ocl_hgemm(cl_command_queue queue,
+        const char *transa, const char *transb, dim_t m, dim_t n, dim_t k,
+        cl_float alpha, cl_mem a, dim_t offset_a, dim_t lda, cl_mem b,
+        dim_t offset_b, dim_t ldb, cl_float beta, cl_mem c, dim_t offset_c,
+        dim_t ldc) {
     return gemm_generic<data_type::f16>(queue, transa, transb, m, n, k, alpha,
             a, offset_a, lda, b, offset_b, ldb, beta, c, offset_c, ldc);
+}
 }

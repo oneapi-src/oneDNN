@@ -399,13 +399,6 @@ const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
     return "unknown rnn_direction";
 }
 
-const char *mkldnn_mkldnn_transpose_t2str(mkldnn_transpose_t v) {
-    if (v == mkldnn_notrans) return "notrans";
-    if (v == mkldnn_trans) return "trans";
-    assert(!"unknown mkldnn_transpose_t");
-    return "unknown mkldnn_transpose_t";
-}
-
 const char *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v) {
     if (v == mkldnn_scratchpad_mode_library) return "scratchpad_mode_library";
     if (v == mkldnn_scratchpad_mode_user) return "scratchpad_mode_user";

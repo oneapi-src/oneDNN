@@ -22,15 +22,25 @@
 namespace mkldnn {
 namespace impl {
 
+enum transpose_t {
+    mkldnn_notrans,
+    mkldnn_trans
+};
+
+namespace transpose {
+    const transpose_t notrans = mkldnn_notrans;
+    const transpose_t trans = mkldnn_trans;
+}
+
 /** A descriptor for a matrix multiplication (gemm) operation */
 typedef struct {
     /** The kind of primitive. Used for self identifying the primitive
      * descriptor. Must be #mkldnn_gemm. */
     mkldnn_primitive_kind_t primitive_kind;
     /** Flag for transposing matrix A. */
-    mkldnn_transpose_t transa;
+    transpose_t transa;
     /** Flag for transposing matrix B. */
-    mkldnn_transpose_t transb;
+    transpose_t transb;
     /** Number of rows of C. */
     mkldnn_dim_t m;
     /** Number of columns of C. */

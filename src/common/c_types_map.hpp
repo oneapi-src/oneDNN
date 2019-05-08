@@ -556,12 +556,6 @@ namespace stream_flags {
 }
 using stream_t = mkldnn_stream;
 
-using transpose_t = mkldnn_transpose_t;
-namespace transpose {
-    const transpose_t notrans = mkldnn_notrans;
-    const transpose_t trans = mkldnn_trans;
-}
-
 /* forward declaration of the internal primitive_desc types */
 struct batch_normalization_bwd_pd_t;
 struct batch_normalization_fwd_pd_t;

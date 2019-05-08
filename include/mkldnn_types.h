@@ -1211,14 +1211,6 @@ typedef struct {
 
 } mkldnn_rnn_desc_t;
 
-/// Transposition settings for GEMM operation
-typedef enum {
-    /// Do not transpose matrix.
-    mkldnn_notrans,
-    /// Transpose matrix.
-    mkldnn_trans,
-} mkldnn_transpose_t;
-
 /// @}
 
 /// @addtogroup c_api_engine_types Engine

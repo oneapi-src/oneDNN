@@ -41,6 +41,24 @@
 #define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(str,TEST_CASE_NAME_PREFIX), __VA_ARGS__)
 
+#if MKLDNN_WITH_OPENCL
+
+// Declare OpenCL GEMM interfaces for testing
+extern "C" {
+mkldnn_status_t mkldnn_ocl_sgemm(cl_command_queue queue, const char *transa,
+        const char *transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
+        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
+        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
+        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+
+mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, const char *transa,
+        const char *transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
+        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
+        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
+        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+}
+#endif
+
 namespace mkldnn {
 
 struct test_igemm_params {
@@ -438,16 +456,10 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
             engine eng(get_test_engine_kind(), 0);
             stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
-            mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            mkldnn_transpose_t transb = (p.transB == 'n' || p.transB == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            auto status = mkldnn_ocl_hgemm(q, transa, transb, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+            auto status = mkldnn_ocl_hgemm(q, &p.transA, &p.transB, p.M, p.N,
+                    p.K, p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a,
+                    p.lda, b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    p.beta, c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -466,16 +478,10 @@ struct mkldnn_gemm<float, float, float> {
             engine eng = a_mem.get().get_engine();
             stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
-            mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            mkldnn_transpose_t transb = (p.transB == 'n' || p.transB == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            auto status = mkldnn_ocl_sgemm(q, transa, transb, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+            auto status = mkldnn_ocl_sgemm(q, &p.transA, &p.transB, p.M, p.N,
+                    p.K, p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a,
+                    p.lda, b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    p.beta, c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -582,13 +588,6 @@ protected:
         bool is_f16 = (data_traits<c_dt>::data_type == memory::data_type::f16);
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
-
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transA != 'n'
-                        && p.transA != 'N' && p.transA != 't' && p.transA != 'T',
-                "GPU interfaces take transA as enum.");
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transB != 'n'
-                        && p.transB != 'N' && p.transB != 't' && p.transB != 'T',
-                "GPU interfaces take transB as enum.");
 
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
