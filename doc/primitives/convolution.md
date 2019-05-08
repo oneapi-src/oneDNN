@@ -366,7 +366,6 @@ the convolution.)
      Intel(R) AVX512-DL Boost instruction sets
 
 3. **GPU**
-    - No support for 1D cases
     - No support for Winograd algorithm
     - No deconvolution support
 
