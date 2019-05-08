@@ -331,7 +331,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
             if (jcp.im2col_sz) {
                 if (jcp.id == 1)
                     jit_gemm_convolution_utils::im2col<src_data_t>(
-                            jcp, _src, _col, oh, h_step, ow, w_step);
+                            jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                 else
                     jit_gemm_convolution_utils::im2col_3d<src_data_t>(
                             jcp, _src, _col, od);
@@ -571,7 +571,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                     if (jcp.im2col_sz) {
                         if (jcp.id == 1)
                             jit_gemm_convolution_utils::im2col<src_data_t>(
-                                    jcp, _src, _col, 0, jcp.oh, 0, jcp.ow);
+                                    jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                         else
                             jit_gemm_convolution_utils::im2col_3d<src_data_t>(
                                 jcp, _src, _col, od);
