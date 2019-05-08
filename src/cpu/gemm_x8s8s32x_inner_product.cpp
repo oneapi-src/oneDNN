@@ -39,7 +39,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type
     const int OC = pd()->OC();
 
     bool wei_tr = utils::one_of(pd()->weights_pd()->desc()->format,
-             oiw, oihw, oidhw, oi);
+            oi, oiw, owi, oihw, ohwi, oidhw, odhwi);
 
     const int M = OC;
     const int N = MB;

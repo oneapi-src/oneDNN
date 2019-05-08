@@ -85,25 +85,18 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
 
             if (this->src_pd_.desc()->format == any) {
-                switch (ndims()) {
-                case 0: // XXX: temp fix
-                case 2: CHECK(this->src_pd_.set_format(nc)); break;
-                case 3: CHECK(this->src_pd_.set_format(nwc)); break;
-                case 4: CHECK(this->src_pd_.set_format(nhwc)); break;
-                case 5: CHECK(this->src_pd_.set_format(ndhwc)); break;
-                default: assert(!"unsupported ndims format");
-                }
+                CHECK(this->src_pd_.set_format(
+                        utils::pick(ndims() - 2, nc, nwc, nhwc, ndhwc)));
             }
             if (this->dst_pd_.desc()->format == any)
                 CHECK(this->dst_pd_.set_format(nc));
             if (this->weights_pd_.desc()->format == any) {
-                switch (ndims()) {
-                case 0: // XXX: temp fix
-                case 2: CHECK(this->weights_pd_.set_format(io)); break;
-                case 3: CHECK(this->weights_pd_.set_format(wio)); break;
-                case 4: CHECK(this->weights_pd_.set_format(hwio)); break;
-                case 5: CHECK(this->weights_pd_.set_format(dhwio)); break;
-                default: assert(!"unsupported ndims format");
+                if (MB() > 1) {
+                    CHECK(this->weights_pd_.set_format(
+                        utils::pick(ndims() - 2, io, wio, hwio, dhwio)));
+                } else {
+                    CHECK(this->weights_pd_.set_format(
+                        utils::pick(ndims() - 2, oi, owi, ohwi, odhwi)));
                 }
             }
             if (this->bias_pd_.desc()->format == any)

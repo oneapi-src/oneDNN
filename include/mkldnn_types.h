@@ -188,6 +188,9 @@ typedef enum {
     /** 3D weights tensor with physical layout @c oiw.
      * Logical dimensions come in the order: (o, i, w) */
     mkldnn_oiw,
+    /** 3D weights tensor with physical layout @c owi.
+     * Logical dimensions come in the order: (o, i, w) */
+    mkldnn_owi,
     /** 3D weights tensor with physical layout @c wio.
      * Logical dimensions come in the order: (o, i, w) */
     mkldnn_wio,
@@ -197,6 +200,9 @@ typedef enum {
     /** 4D weights tensor with physical layout @c hwio, used in TensorFlow.
      * Logical dimensions come in the order: (o, i, h, w) */
     mkldnn_hwio,
+    /** 4D weights tensor with physical layout @c ohwi.
+     * Logical dimensions come in the order: (o, i, h, w) */
+    mkldnn_ohwi,
     /** 4D weights tensor with physical layout @c ihwo.
      * Logical dimensions come in the order: (o, i, h, w) */
     mkldnn_ihwo,
@@ -209,6 +215,9 @@ typedef enum {
     /** 5D weights tensor with physical layout @c dhwio, used in TensorFlow.
      * Logical dimensions come in the order: (o, i, d, h, w) */
     mkldnn_dhwio,
+    /** 5D weights tensor with physical layout @c odhwi.
+     * Logical dimensions come in the order: (o, i, d, h, w) */
+    mkldnn_odhwi,
     /** 4D grouped weights tensor with the physical layout @c goiw.
      * Logical dimensions come in the order: (g, o, i, w) */
     mkldnn_goiw,
