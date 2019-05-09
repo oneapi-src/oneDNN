@@ -5,7 +5,7 @@
 --odt=f32,s32,s8,u8
 
 --attr=oscale=per_dim_1:0.
---itag=nchw,nhwc,nChw8c,nChw16c
+--itag=nchw,nhwc,nChw4c,nChw8c,nChw16c
 --otag=nchw,nhwc,nChw8c,nChw16c
 2x64x3x3
 
@@ -19,16 +19,16 @@
 --otag=goihw,gOIhw16i16o
 3x32x32x2x2
 
---itag=nChw8c  --otag=nChw16c 2x40x3x3  # blocked with tail
---itag=nChw16c --otag=nChw8c  2x40x3x3  # blocked with tail
+--itag=nChw4c,nChw8c --otag=nChw16c 2x40x3x3   # blocked with tail
+--itag=nChw16c --otag=nChw8c  2x40x3x3         # blocked with tail
 
 --attr=oscale=common:0.
 --itag=ncw,nwc
 --otag=ncw,nwc
 2x8x8 # special 8x8 kernel
 
---itag=nchw,nhwc,nChw8c,nChw16c
---otag=nchw,nhwc,nChw8c,nChw16c
+--itag=nchw,nhwc,nChw4c,nChw8c,nChw16c
+--otag=nchw,nhwc,nChw4c,nChw8c,nChw16c
 2x64x3x3
 
 --itag=oihw,hwio
@@ -36,7 +36,7 @@
 2x64x3x3
 
 # simple nChw{8,16}c impl
---itag=nChw8c  --otag=nChw16c 2x71x16x16 2x72x16x16 2x73x16x16
+--itag=nChw4c,nChw8c --otag=nChw16c 2x71x16x16 2x72x16x16 2x73x16x16
 --itag=nChw16c --otag=nChw8c  2x71x16x16 2x72x16x16 2x73x16x16
 
 #

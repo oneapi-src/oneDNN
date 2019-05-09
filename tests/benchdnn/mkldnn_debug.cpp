@@ -70,12 +70,14 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(ab);
     CASE(abc);
     CASE(acb);
+    CASE(aBc4b);
     CASE(aBc8b);
     CASE(aBc16b);
     CASE(abcd);
     CASE(acdb);
     CASE(bcda);
     CASE(cdba);
+    CASE(aBcd4b);
     CASE(aBcd8b);
     CASE(aBcd16b);
     CASE(ABcd16a16b);
@@ -85,6 +87,7 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(acdeb);
     CASE(cdeba);
     CASE(decab);
+    CASE(aBcde4b);
     CASE(aBcde8b);
     CASE(aBcde16b);
     CASE(aBCde4b4c);
