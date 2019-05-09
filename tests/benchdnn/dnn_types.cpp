@@ -82,16 +82,21 @@ data_kind_t fmt2data_kind(mkldnn_memory_format_t fmt) {
 
     case mkldnn_ncw:
     case mkldnn_nwc:
+    case mkldnn_nCw4c:
+    case mkldnn_nCw8c:
     case mkldnn_nCw16c:
 
     case mkldnn_nchw:
     case mkldnn_nhwc:
     case mkldnn_chwn:
+    case mkldnn_nChw4c:
     case mkldnn_nChw8c:
     case mkldnn_nChw16c:
 
     case mkldnn_ncdhw:
     case mkldnn_ndhwc:
+    case mkldnn_nCdhw4c:
+    case mkldnn_nCdhw8c:
     case mkldnn_nCdhw16c:
         return DATA;
 
