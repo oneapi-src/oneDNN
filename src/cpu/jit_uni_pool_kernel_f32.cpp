@@ -75,6 +75,14 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.t_pad = pd.padding[0][ndims-4];
     jpp.l_pad = pd.padding[0][ndims-3];
 
+    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1 - (jpp.iw + jpp.l_pad - 1);
+    int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1 - (jpp.ih + jpp.t_pad - 1);
+    int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd - 1 - (jpp.id + jpp.f_pad - 1);
+
+    if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
+         || back_pad >= jpp.kd || bottom_pad >= jpp.kh || right_pad >= jpp.kw)
+        return status::unimplemented;
+
     jpp.alg = pd.alg_kind;
 
     jpp.is_training = pd.prop_kind == prop_kind::forward_training;
@@ -164,7 +172,7 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
     L(kh_label);
     {
         for (int ki = 0; ki < kw; ki++) {
-            int jj_start = nstl::max(0, pad_l - ki);
+            int jj_start = nstl::max(0, utils::div_up(pad_l - ki, stride_w));
             int jj_end = ur_w
                 - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
@@ -248,7 +256,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
     L(kh_label);
     {
         for (int ki = 0; ki < kw; ki++) {
-            int jj_start = nstl::max(0, pad_l - ki);
+            int jj_start = nstl::max(0, utils::div_up(pad_l - ki, stride_w));
             int jj_end = ur_w
                 - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
@@ -417,7 +425,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     L(kh_label);
     {
         for (int ki = 0; ki < kw; ki++) {
-            int jj_start = nstl::max(0, pad_l - ki);
+            int jj_start = nstl::max(0, utils::div_up(pad_l - ki, stride_w));
             int jj_end = ur_w
                 - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {

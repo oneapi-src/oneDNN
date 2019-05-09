@@ -75,7 +75,8 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
                 + (size_t)OW * oh
                 + (size_t)ow;
             if (ws_dt == data_type::u8) {
-                assert(0 <= value && value <= 255);
+                assert(0 <= value && value <= nstl::numeric_limits<
+                    typename prec_traits<data_type::u8>::type>::max());
                 ws[ws_offset] = value;
             } else
                 reinterpret_cast<int *>(ws)[ws_offset] = value;
@@ -276,15 +277,27 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
         }
     };
 
+    int ow_start = nstl::max(0, utils::div_up(padL - KW + 1, SW));
+    int ow_end = nstl::min(OW, 1 + (padL + IW - 1) / SW);
+
+    int oh_start = nstl::max(0, utils::div_up(padT - KH + 1, SH));
+    int oh_end = nstl::min(OH, 1 + (padT + IH - 1) / SH);
+
+    int od_start = nstl::max(0, utils::div_up(padF - KD + 1, SD));
+    int od_end = nstl::min(OD, 1 + (padF + ID - 1) / SD);
+
     if (pd()->desc()->alg_kind == pooling_max) {
         parallel_nd(MB, C, [&](int mb, int c) {
-            size_t diff_dst_offset = (size_t)mb*C*OD*OH*OW
+            size_t diff_dst_offset_b = (size_t)mb*C*OD*OH*OW 
                 + (size_t)c*OD*OH*OW;
             ker_zero(mb, c);
-            for (int od = 0; od < OD; ++od) {
-                for (int oh = 0; oh < OH; ++oh) {
-                    for (int ow = 0; ow < OW; ++ow) {
-                        const data_t *d = &diff_dst[diff_dst_offset++];
+            for (int od = od_start; od < od_end; ++od) {
+                for (int oh = oh_start; oh < oh_end; ++oh) {
+                    size_t diff_dst_offset = diff_dst_offset_b 
+                        + (size_t) od*OH*OW + (size_t) oh*OW;
+                    for (int ow = ow_start; ow < ow_end; ++ow) {
+                                                            
+                        const data_t *d = &diff_dst[diff_dst_offset + ow];
                         ker_max(d, mb, c, od, oh, ow);
                     }
                 }
@@ -292,13 +305,15 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
         });
     } else {
         parallel_nd(MB, C, [&](int mb, int c) {
-            size_t diff_dst_offset = (size_t)mb*C*OD*OH*OW
+            size_t diff_dst_offset_b = (size_t)mb*C*OD*OH*OW 
                 + (size_t)c*OD*OH*OW;
             ker_zero(mb, c);
-            for (int od = 0; od < OD; ++od) {
-                for (int oh = 0; oh < OH; ++oh) {
-                    for (int ow = 0; ow < OW; ++ow) {
-                        const data_t *d = &diff_dst[diff_dst_offset++];
+            for (int od = od_start; od < od_end; ++od) {
+                for (int oh = oh_start; oh < oh_end; ++oh) {
+                    size_t diff_dst_offset = diff_dst_offset_b 
+                        + (size_t) od*OH*OW + (size_t) oh*OW;
+                    for (int ow = ow_start; ow < ow_end; ++ow) {
+                        const data_t *d = &diff_dst[diff_dst_offset + ow];
                         ker_avg(d, mb, c, od, oh, ow);
                     }
                 }
