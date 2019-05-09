@@ -18,7 +18,7 @@
 #define CPU_REF_ELTWISE_HPP
 
 #include <assert.h>
-
+#include "cpu_isa_traits.hpp"
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -75,6 +75,9 @@ struct ref_eltwise_fwd_t: public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && everyone_is(data_type, desc()->data_desc.data_type)
+                /*bf16<->f32 cvt operators don't work on non-avx512_core*/
+                && IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
+                        mayiuse(avx512_core))
                 && IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5))
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -120,6 +123,9 @@ struct ref_eltwise_bwd_t: public cpu_primitive_t {
                 && everyone_is(data_type,
                         desc()->data_desc.data_type,
                         desc()->diff_data_desc.data_type)
+                /*bf16<->f32 cvt operators don't work on non-avx512_core*/
+                && IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
+                        mayiuse(avx512_core))
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

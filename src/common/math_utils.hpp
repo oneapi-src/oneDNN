@@ -175,24 +175,24 @@ inline U square_bwd(T dd, T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U abs_fwd(T s) {
-    return s > 0 ? s : -s;
+    return s > 0 ? s : (U)-s;
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U abs_bwd(T dd, T s) {
-    return s > 0 ? dd : s < 0 ? -dd : 0;
+    return s > 0 ? dd : s < 0 ? (U)-dd : (U)0;
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_fwd(T s) {
-    return s > 0 ? (U)(::sqrtf((float)(s))) : 0;
+    return s > 0 ? (U)(::sqrtf((float)(s))) : (U)0;
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_bwd(T dd, T s) {
     return s > 0
         ? (U)(dd / (2 * ::sqrtf((float)(s))))
-        : 0;
+        : (U)0;
 }
 
 template <typename T, typename A,
@@ -212,7 +212,7 @@ inline U linear_bwd(T dd, T s, A alpha, A beta) {
 template <typename T, typename A,
          typename U = typename utils::remove_reference<T>::type>
 inline U bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : 0;
+    s = s > 0 ? s : (U)0;
     return s > alpha ? (U)(alpha) : s;
 }
 

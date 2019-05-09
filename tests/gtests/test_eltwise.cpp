@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "mkldnn_test_common.hpp"
 
 #include "mkldnn.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 
@@ -167,7 +168,8 @@ template <typename data_t>
 void compare_eltwise_fwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &dst, const memory &ref_dst)
 {
-    data_t eps = (data_traits<data_t>::data_type == memory::data_type::f16)
+    const data_t eps = (data_traits<data_t>::data_type == memory::data_type::f16
+            || data_traits<data_t>::data_type == memory::data_type::bf16)
             ? 5e-2
             : (p.alg_kind == algorithm::eltwise_elu)
                 ? 2e-5
@@ -182,8 +184,6 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &src, const memory &diff_dst,
         const memory &diff_src)
 {
-    ASSERT_TRUE(data_traits<data_t>::data_type == memory::data_type::f32);
-
     auto src_data = map_memory<data_t>(src);
     auto diff_dst_data = map_memory<data_t>(diff_dst);
     auto diff_src_data = map_memory<data_t>(diff_src);
@@ -224,7 +224,9 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         }
 
         const data_t diff = diff_src_data[diff_data_mdw.off_l(i)] - ref_ds;
-        const data_t error = (std::abs(ref_ds) > eps) ? diff / ref_ds : diff;
+        const data_t error = (std::abs(ref_ds) > eps)
+            ? static_cast<data_t>(diff / ref_ds)
+            : diff;
         ASSERT_NEAR(error, 0.0, eps);
     }
 }
@@ -247,6 +249,12 @@ protected:
         SKIP_IF(data_type == memory::data_type::f16
                 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
+        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support bf16 data type.");
+        SKIP_IF(data_type == memory::data_type::bf16
+                && !impl::cpu::mayiuse(impl::cpu::avx512_core),
+                "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
@@ -320,21 +328,24 @@ protected:
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src);
-        /* XXX: Backward pass supports f32 only */
-        check_eltwise_bwd<float>(p, *data_desc, src, diff_dst, diff_src);
+        check_eltwise_bwd<data_t>(p, *data_desc, src, diff_dst, diff_src);
     }
 };
 
 using eltwise_test_half = eltwise_test<float16_t>;
 using eltwise_test_float = eltwise_test<float>;
+using eltwise_test_bfloat16 = eltwise_test<bfloat16_t>;
 
 TEST_P(eltwise_test_half, TestsEltwise)
 {
 }
-
 TEST_P(eltwise_test_float, TestsEltwise)
 {
 }
+TEST_P(eltwise_test_bfloat16, TestsEltwise)
+{
+}
+
 #define EXPAND(args) args
 
 #define EXPAND_FORMATS(data) memory::format_tag::data
@@ -359,14 +370,19 @@ TEST_P(eltwise_test_float, TestsEltwise)
     EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
-#define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
-        str, eltwise_test_float, ::testing::Values(__VA_ARGS__))
+#define CPU_INST_TEST_CASE(str, ...) \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+        TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__)); \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+        TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) \
     GPU_INSTANTIATE_TEST_SUITE_P_( \
         TEST_CONCAT(str, _f16), eltwise_test_half, ::testing::Values(__VA_ARGS__)); \
     INSTANTIATE_TEST_SUITE_P_( \
-        TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__))
+        TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__)); \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
+        TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
 
 CPU_INST_TEST_CASE(SimpleZeroDim,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),

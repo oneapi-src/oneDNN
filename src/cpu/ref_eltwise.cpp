@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,11 +283,13 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
 }
 
 template struct ref_eltwise_fwd_t<data_type::f32>;
+template struct ref_eltwise_fwd_t<data_type::bf16>;
 template struct ref_eltwise_fwd_t<data_type::s32>;
 template struct ref_eltwise_fwd_t<data_type::s8>;
 template struct ref_eltwise_fwd_t<data_type::u8>;
 
 template struct ref_eltwise_bwd_t<data_type::f32>;
+template struct ref_eltwise_bwd_t<data_type::bf16>;
 template struct ref_eltwise_bwd_t<data_type::s32>;
 
 }

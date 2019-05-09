@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 #include "utils.hpp"
 
 #include "jit_uni_eltwise.hpp"
+#include "bfloat16.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 #define GET_OFF(field) offsetof(jit_args, field)
 
@@ -184,7 +186,7 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(const Vmm &vmm_src)
         h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
         h->vcmpgtps(vmm_mask, vmm_aux1, table_val(zero_off));
         h->vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
-    } else if (isa == avx512_common) {
+    } else if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
         h->vcmpps(k_mask, vmm_aux1, table_val(zero_off), _cmp_nle_us);
         h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
@@ -218,7 +220,7 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
     } else if (isa == avx2) {
         h->uni_vcmpgtps(vmm_mask, vmm_aux2, table_val(zero_off));
         h->uni_vblendvps(vmm_src, vmm_src, vmm_aux2, vmm_mask);
-    } else if (isa == avx512_common) {
+    } else if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vcmpps(k_mask, vmm_aux2, table_val(zero_off), _cmp_nle_us);
         h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux2);
     }
@@ -256,7 +258,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
     auto test_exit =[&](Xbyak::Address threshold){
         // is not necessary for >AVX, but should not matter on perf
         h->uni_vmovups(vmm_aux0, vmm_src);
-        if (isa == avx512_common){
+        if (utils::one_of(isa, avx512_common, avx512_core)){
             h->vcmpps(k_mask, vmm_aux0, threshold, 0x5);
             h->kortestw(k_mask, k_mask);
         } else {
@@ -267,7 +269,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
     };
 
     auto blend_results=[&](Vmm vmm_partial_res){
-        if (isa == avx512_common)
+        if (utils::one_of(isa, avx512_common, avx512_core))
             h->vblendmps(vmm_aux1 | k_mask, vmm_aux1, vmm_partial_res);
         else
             h->uni_vblendvps(vmm_aux1, vmm_aux1, vmm_partial_res, vmm_aux0);
@@ -308,12 +310,13 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
     // Compute exp(2x)
     // We need to save kmask, vmm_aux0, vmm_aux1 and vmm_src as exp can use them
     // vmm_src is not more read afterwards, so we do not have to save it
-    auto stack_size = 3 * vlen + (isa == avx512_common) * 4;
+    auto stack_size
+            = 3 * vlen + utils::one_of(isa, avx512_common, avx512_core) * 4;
     h->sub(h->rsp, stack_size);
     h->uni_vmovups(h->ptr[h->rsp + 0 * vlen], vmm_aux0);
     h->uni_vmovups(h->ptr[h->rsp + 1 * vlen], vmm_aux1);
     h->uni_vmovups(h->ptr[h->rsp + 2 * vlen], vmm_src);
-    if (isa == avx512_common)
+    if (utils::one_of(isa, avx512_common, avx512_core))
         h->kmovw(h->ptr[h->rsp + 3 * vlen], k_mask);
 
     exp_compute_vector(vmm_aux3);
@@ -321,7 +324,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
     h->uni_vmovups(vmm_aux0, h->ptr[h->rsp + 0 * vlen]);
     h->uni_vmovups(vmm_aux1, h->ptr[h->rsp + 1 * vlen]);
     h->uni_vmovups(vmm_src, h->ptr[h->rsp + 2 * vlen]);
-    if (isa == avx512_common)
+    if (utils::one_of(isa, avx512_common, avx512_core))
         h->kmovw(k_mask, h->ptr[h->rsp + 3 * vlen]);
     h->add(h->rsp, stack_size);
 
@@ -338,7 +341,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
 
     // finally, we saturate to 1 if needed
     // TODO: maybe move that up if most inputs saturate in practice
-    if (isa == avx512_common)
+    if (utils::one_of(isa, avx512_common, avx512_core))
         h->vcmpps(k_mask, vmm_aux0, table_val(15), 0x5);
     else {
         h->uni_vmovups(vmm_aux0, vmm_src);
@@ -370,7 +373,7 @@ void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector(const Vmm &vmm_src) {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector(const Vmm &vmm_src)
 {
-    if (isa == avx512_common) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vcmpps(k_mask, vmm_src, table_val(0), _cmp_nle_us);
         h->uni_vsqrtps(vmm_aux1, vmm_src);
         h->uni_vmovups(vmm_src, table_val(0));
@@ -437,7 +440,7 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
     h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(17));
 
     // compute 2^(-n)
-    if (isa == avx512_common) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vmulps(vmm_aux1, vmm_src, table_val(23));
         h->vcvtps2dq(vmm_aux1, vmm_aux1);
     } else {
@@ -487,7 +490,7 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
 
     // get vmm_mask = src > max logf
     h->uni_vmovups(vmm_mask, vmm_aux2);
-    if (isa == avx512_common) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
         // y = (x < max log f) ? soft_relu(x) : x
         h->vcmpps(k_mask, vmm_mask, table_val(24), _cmp_nle_us);
         h->vblendmps(vmm_aux1 | k_mask, vmm_aux1, vmm_aux2);
@@ -521,7 +524,7 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
     // Now we have to apply the "symmetry" based on original sign
     h->uni_vmovups(vmm_aux3, table_val(0));
     h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src);
-    if (isa == avx512_common) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vptestmd(k_mask, vmm_aux2, vmm_aux2);
         h->vblendmps(vmm_aux3 | k_mask, vmm_aux3, vmm_src);
     } else {
@@ -719,52 +722,150 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
 }
 
 template struct jit_uni_eltwise_injector_f32<avx512_common>;
+template struct jit_uni_eltwise_injector_f32<avx512_core>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
 template struct jit_uni_eltwise_injector_f32<sse41>;
 
 
 struct jit_args {
-    const float *from;
-    const float *for_comparison;
-    const float *to;
+    const void *from;
+    const void *for_comparison;
+    const void *to;
     size_t work_amount;
 };
 
-struct jit_uni_eltwise_kernel_f32 : public c_compatible {
+struct jit_uni_eltwise_kernel : public c_compatible {
     const eltwise_desc_t &desc_;
 
     void (*ker_)(const jit_args *);
     void operator()(const jit_args *args) { assert(ker_); ker_(args); }
 
-    jit_uni_eltwise_kernel_f32(const eltwise_desc_t &desc)
-        : desc_(desc), ker_(nullptr) {}
-    virtual ~jit_uni_eltwise_kernel_f32() {}
+    jit_uni_eltwise_kernel(const eltwise_desc_t &desc)
+        : desc_(desc), ker_(nullptr) {
+        }
+    virtual ~jit_uni_eltwise_kernel() {}
 
 protected:
     bool is_bwd() const { return desc_.prop_kind == prop_kind::backward_data; }
+    bool is_bf16() const {
+        return desc_.data_desc.data_type == data_type::bf16;
+    }
+    int dtype_size() const {
+        return types::data_type_size(desc_.data_desc.data_type);
+    }
 };
 
 /* jit kernels */
 namespace {
+using namespace Xbyak;
+struct jit_bf16_eltwise_injector {
+    jit_bf16_eltwise_injector(jit_generator *host,
+            Zmm zmm_idx,
+            Opmask k_mask_cvt,
+            Opmask k_tail_mask,
+            Opmask k_full_mask,
+            bf16_emulation_t *emu)
+        : h(host)
+        , emu_(emu)
+        , zmm_idx_(zmm_idx)
+        , k_mask_cvt_(k_mask_cvt)
+        , k_tail_mask_(k_tail_mask)
+        , k_full_mask_(k_full_mask) {}
+
+    void write_idx_table() {
+        h->align(64);
+        h->L(idx_table_);
+        const uint16_t _idx[] = { 0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,
+                                  9,9,10,10,11,11,12,12,13,13,14,14,15,15 };
+        for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
+            h->dw(_idx[i]);
+    }
+    void load_idx_table() {
+        Reg64 p_idx_table = Xbyak::util::r13;
+        h->push(p_idx_table);
+        h->mov(p_idx_table, idx_table_);
+        h->vmovups(zmm_idx_, h->ptr[p_idx_table]);
+        h->pop(p_idx_table);
+    }
+    void prepare_cvt_mask() {
+        Reg64 mask_reg = Xbyak::util::r14;
+        h->push(mask_reg);
+        h->mov(mask_reg.cvt32(), 0xAAAAAAAA);
+        h->kmovd(k_mask_cvt_, mask_reg.cvt32());
+
+        h->mov(mask_reg.cvt32(), 0x1);
+        h->kmovd(k_tail_mask_, mask_reg.cvt32());
+
+        h->mov(mask_reg.cvt32(), 0xffff);
+        h->kmovd(k_full_mask_, mask_reg.cvt32());
+        h->pop(mask_reg);
+    }
+    void load_f32_cvt_to_bf16(size_t idx, Reg64 reg_from,
+            bool is_tail = false, size_t offset = 0) {
+        Ymm ymm_bf16 = Ymm(idx);
+        Zmm zmm_f32 = Zmm(idx);
+        if (!is_tail)
+            h->vmovups(ymm_bf16, h->ptr[reg_from]);
+        else
+            h->vmovdqu16(ymm_bf16 | k_tail_mask_, h->ptr[reg_from + offset]);
+        h->vpermw(zmm_f32 | k_mask_cvt_ | Xbyak::util::T_z, zmm_idx_, zmm_f32);
+    }
+    void cvt_f32_to_bf16_store(size_t idx, Reg64 reg_to,
+            bool is_tail = false, size_t offset = 0) {
+        Ymm ymm_bf16 = Ymm(idx);
+        Zmm zmm_f32 = Zmm(idx);
+        if (emu_)
+            emu_->vcvtneps2bf16(ymm_bf16, zmm_f32);
+        else
+            h->vcvtneps2bf16(ymm_bf16, zmm_f32);
+        if (!is_tail)
+            h->vmovdqu16(h->ptr[reg_to + offset] | k_full_mask_, ymm_bf16);
+        else
+            h->vmovdqu16(h->ptr[reg_to + offset] | k_tail_mask_, ymm_bf16);
+    }
+
+private:
+    jit_generator * const h;
+    bf16_emulation_t * const emu_;
+    Xbyak::Label idx_table_;
+    Xbyak::Zmm zmm_idx_;
+    Xbyak::Opmask k_mask_cvt_, k_tail_mask_, k_full_mask_;
+};
 
 template <cpu_isa_t isa>
-struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
-    public jit_generator
-{
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_relu_kernel_f32)
+struct jit_uni_relu_kernel : public jit_uni_eltwise_kernel,
+                             public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_relu_kernel)
 
     void compute_step(bool vectorize, const int uf, const int shift) {
-        for (int i = 0; i < uf; i++) {
-            if (vectorize) {
-                uni_vmovups(Vmm(i + 1), ptr[reg_from + i * shift]);
-                if (is_bwd())
-                    uni_vmovups(Vmm(uf + i + 1),
-                                ptr[reg_for_comparison + i * shift]);
+        auto load_vec = [=](int idx, Reg64 reg_addr, int offset) {
+            if (is_bf16()) {
+                bf16_injector_->load_f32_cvt_to_bf16(idx, reg_addr, false, offset);
             } else {
-                movss(Xmm(i + 1), ptr[reg_from + i * shift]);
-                if (is_bwd())
-                    movss(Xmm(uf + i + 1),
-                          ptr[reg_for_comparison + i * shift]);
+                uni_vmovups(Vmm(idx), ptr[reg_addr + offset]);
+            }
+        };
+
+        auto load_elem = [=](int idx, Reg64 reg_addr, int offset) {
+            if (is_bf16()) {
+                bf16_injector_->load_f32_cvt_to_bf16(idx, reg_addr, true, offset);
+            } else {
+                movss(Xmm(idx), ptr[reg_addr + offset]);
+            }
+        };
+
+        for (int i = 0; i < uf; i++) {
+            int offset = i * shift;
+            if (vectorize) {
+                load_vec(i + 1, reg_from, offset);
+                if (is_bwd()) {
+                    load_vec(uf + i + 1, reg_for_comparison, offset);
+                }
+            } else {
+                load_elem(i + 1, reg_from, offset);
+                if (is_bwd()) {
+                    load_elem(uf + i + 1, reg_for_comparison, offset);
+                }
             }
         }
 
@@ -807,28 +908,61 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
         }
 
         for (int i = 0; i < uf; i++) {
-            if (vectorize) {
-                uni_vmovups(ptr[reg_to + i * shift], Vmm(2 * uf + i + 1));
-            } else {
-                movss(ptr[reg_to + i * shift], Xmm(2 * uf + i + 1));
-            }
+            size_t idx = 2 * uf + i + 1;
+            size_t offset = i * shift;
+            if (vectorize)
+                if(is_bf16())
+                    bf16_injector_->cvt_f32_to_bf16_store(idx, reg_to, false, i * shift);  
+                else
+                    uni_vmovups(ptr[reg_to + offset], Vmm(idx));
+            else
+                if (is_bf16())
+                    bf16_injector_->cvt_f32_to_bf16_store(idx, reg_to,  true, offset);  
+                else
+                    movss(ptr[reg_to + offset], Xmm(idx));
         }
     }
 
-    jit_uni_relu_kernel_f32(const eltwise_desc_t &desc)
-        : jit_uni_eltwise_kernel_f32(desc), jit_generator() {
+    ~jit_uni_relu_kernel() {
+        delete bf16_injector_;
+        delete bf16_emu_;
+    }
+
+    jit_uni_relu_kernel(const eltwise_desc_t &desc)
+        : jit_uni_eltwise_kernel(desc)
+        , jit_generator()
+        , bf16_injector_(nullptr)
+        , bf16_emu_(nullptr) {
         assert(desc.alg_kind == alg_kind::eltwise_relu);
-        assert(isa == sse41 || isa == avx2 || isa == avx512_common);
+        assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
 
         Reg64 param = abi_param1;
 
-        const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
-        const int loop_dec[] = {simd_w, 1};
+        if (is_bf16()) {
+            if (!mayiuse(avx512_core_bf16))
+                bf16_emu_ = new bf16_emulation_t(this,
+                        bf16_emu_reserv_1, bf16_emu_reserv_2,
+                        bf16_emu_reserv_3, bf16_emu_scratch,
+                        bf16_emu_reserv_4);
+            bf16_injector_ = new jit_bf16_eltwise_injector(this,
+                    zmm_idx, k_mask_cvt, k_tail_mask, k_full_mask,
+                    bf16_emu_);
+        }
+
+        const int loop_dec[] = {simd_w(), 1};
         const int uf[] = {1, 1};
-        const int shift[] = {cpu_isa_traits<isa>::vlen, sizeof(float)};
+
+        const int shift[] = {vlen(), dtype_size()};
         const bool loop_vectorize[] = {true, false};
 
-        this->preamble();
+        preamble();
+
+        if (is_bf16()) {
+            bf16_injector_->load_idx_table();
+            bf16_injector_->prepare_cvt_mask();
+            if (!mayiuse(avx512_core_bf16))
+                bf16_emu_->init_vcvtneps2bf16();
+        }
 
         mov(reg_from, ptr[param + GET_OFF(from)]);
         if (is_bwd())
@@ -861,7 +995,10 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
         }
 
         L(loop_label[2]);
-        this->postamble();
+        postamble();
+
+        if (is_bf16())
+            bf16_injector_->write_idx_table();
 
         ker_ = (decltype(ker_))this->getCode();
     }
@@ -869,6 +1006,13 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xmm,
                                              isa == avx2, Ymm, Zmm>::type;
+    using opmask_t = const Xbyak::Opmask;
+
+    int vlen() {
+        int vlen = cpu_isa_traits<isa>::vlen;
+        return is_bf16() ? vlen / 2 : vlen;
+    }
+    int simd_w() { return vlen() / dtype_size(); }
 
     Reg64 reg_from = rax;
     Reg64 reg_for_comparison = is_bwd() ? rdx : reg_from;
@@ -878,20 +1022,51 @@ private:
 
     Xmm xmm_ns = Xmm(14);
 
-    Vmm vmm_ns = Vmm(isa == avx512_common ? 30 : 14);
-    Vmm vmm_zero = Vmm(isa == avx512_common ? 31 : 15);
+    Vmm vmm_ns =
+        Vmm(utils::one_of(isa, avx512_common, avx512_core) ? 28 : 14);
+    Vmm vmm_zero
+            = Vmm(utils::one_of(isa, avx512_common, avx512_core) ? 29 : 15);
+    Vmm vmm_mask
+            = Vmm(utils::one_of(isa, avx512_common, avx512_core) ? 30 : 12);
 
-    Vmm vmm_mask = Vmm(isa == avx512_common ? 28 : 12);
-    Opmask k_mask = Opmask(1);
+    opmask_t k_mask = k1;
+
+    /* bf16 support */
+    Zmm bf16_emu_reserv_1 = Zmm(24);
+    Zmm bf16_emu_reserv_2 = Zmm(25);
+    Zmm bf16_emu_reserv_3 = Zmm(26);
+    Reg64 bf16_emu_scratch = r14;
+    Zmm bf16_emu_reserv_4 = Zmm(27);
+
+    Zmm zmm_idx = Zmm(31);
+    opmask_t k_mask_cvt = k7;
+    opmask_t k_tail_mask = k6;
+    opmask_t k_full_mask = k5;
+
+    jit_bf16_eltwise_injector *bf16_injector_;
+    bf16_emulation_t *bf16_emu_;
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
-    public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel_fwd_f32)
+struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
+                            public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel_fwd)
 
-    jit_uni_kernel_fwd_f32(const eltwise_desc_t &desc)
-        : jit_uni_eltwise_kernel_f32(desc), jit_generator() {
+    jit_uni_kernel_fwd(const eltwise_desc_t &desc)
+        : jit_uni_eltwise_kernel(desc)
+        , jit_generator()
+        , bf16_injector_(nullptr)
+        , bf16_emu_(nullptr) {
+        if (is_bf16()) {
+            if (!mayiuse(avx512_core_bf16))
+                bf16_emu_ = new bf16_emulation_t(this,
+                        bf16_emu_reserv_1, bf16_emu_reserv_2,
+                        bf16_emu_reserv_3, bf16_emu_scratch,
+                        bf16_emu_reserv_5);
+            bf16_injector_ = new jit_bf16_eltwise_injector(this,
+                    zmm_idx, k_mask_cvt, k_tail_mask, k_full_mask,
+                    bf16_emu_);
+        }
 
         eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
                 desc.alg_kind, desc.alpha, desc.beta, false, r9, Opmask(1));
@@ -905,6 +1080,13 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         preamble();
 
+        if (is_bf16()) {
+            bf16_injector_->load_idx_table();
+            bf16_injector_->prepare_cvt_mask();
+            if (!mayiuse(avx512_core_bf16))
+                bf16_emu_->init_vcvtneps2bf16();
+        }
+
         Reg64 param = abi_param1;
         mov(reg_from, ptr[param + GET_OFF(from)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
@@ -914,20 +1096,26 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         Label reminder_loop_start, reminder_loop_end;
         Label vectorized_loop_start, vectorized_loop_end;
 
-        cmp(reg_work_amount, simd_w);
+        cmp(reg_work_amount, simd_w());
         jl(reminder_loop_start, T_NEAR);
 
         L(vectorized_loop_start);
 
-        uni_vmovups(vmm_src, ptr[reg_from]);
-        eltwise_injector_->compute_vector(vmm_src.getIdx());
-        uni_vmovups(ptr[reg_to], vmm_src);
+        if (is_bf16()) {
+            bf16_injector_->load_f32_cvt_to_bf16(vmm_src.getIdx(), reg_from);
+            eltwise_injector_->compute_vector(vmm_src.getIdx());
+            bf16_injector_->cvt_f32_to_bf16_store(vmm_src.getIdx(), reg_to);
+        } else {
+            uni_vmovups(vmm_src, ptr[reg_from]);
+            eltwise_injector_->compute_vector(vmm_src.getIdx());
+            uni_vmovups(ptr[reg_to], vmm_src);
+        }
+        auto shift = vlen();
+        add(reg_from, shift);
+        add(reg_to, shift);
 
-        add(reg_from, vlen);
-        add(reg_to, vlen);
-
-        sub(reg_work_amount, simd_w);
-        cmp(reg_work_amount, simd_w);
+        sub(reg_work_amount, simd_w());
+        cmp(reg_work_amount, simd_w());
         jge(vectorized_loop_start, T_NEAR);
 
         L(vectorized_loop_end);
@@ -936,13 +1124,19 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         cmp(reg_work_amount, 0);
         jle(reminder_loop_end, T_NEAR);
-
-        movss(xmm_src, ptr[reg_from]);
-        eltwise_injector_->compute_vector(xmm_src.getIdx());
-        movss(ptr[reg_to], xmm_src);
-
-        add(reg_from, sizeof(float));
-        add(reg_to, sizeof(float));
+        if (is_bf16()) {
+            bf16_injector_->load_f32_cvt_to_bf16(
+                    vmm_src.getIdx(), reg_from, true);
+            eltwise_injector_->compute_vector(vmm_src.getIdx());
+            bf16_injector_->cvt_f32_to_bf16_store(
+                    vmm_src.getIdx(), reg_to, true);
+        } else {
+            movss(xmm_src, ptr[reg_from]);
+            eltwise_injector_->compute_vector(xmm_src.getIdx());
+            movss(ptr[reg_to], xmm_src);
+        }
+        add(reg_from, dtype_size());
+        add(reg_to, dtype_size());
 
         dec(reg_work_amount);
         jmp(reminder_loop_start, T_NEAR);
@@ -951,19 +1145,30 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
 
         postamble();
 
+        if (is_bf16())
+            bf16_injector_->write_idx_table();
+
         eltwise_injector_->prepare_table();
 
         ker_ = (decltype(ker_))this->getCode();
     }
 
-    ~jit_uni_kernel_fwd_f32() { delete eltwise_injector_; }
+    ~jit_uni_kernel_fwd() {
+        delete eltwise_injector_;
+        delete bf16_injector_;
+        delete bf16_emu_;
+    }
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xmm,
                 isa == avx2, Ymm, Zmm>::type;
+    using opmask_t = const Xbyak::Opmask;
 
-    const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
-    const int vlen   = cpu_isa_traits<isa>::vlen;
+    int vlen() {
+        int vlen = cpu_isa_traits<isa>::vlen;
+        return is_bf16() ? vlen / 2 : vlen;
+    }
+    int simd_w() { return vlen() / dtype_size(); }
 
     Reg64 reg_from = rax;
     Reg64 reg_to = r8;
@@ -972,20 +1177,36 @@ private:
 
     Xmm xmm_src = Xmm(1);
     Vmm vmm_src = Vmm(1);
-
     jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+
+    /* bf16 support */
+    Zmm bf16_emu_reserv_1 = Zmm(26);
+    Zmm bf16_emu_reserv_2 = Zmm(27);
+    Zmm bf16_emu_reserv_3 = Zmm(28);
+    Reg64 bf16_emu_scratch = r14;
+    Zmm bf16_emu_reserv_5 = Zmm(29);
+
+    Zmm zmm_idx = Zmm(31);
+    opmask_t k_mask_cvt = k7;
+    opmask_t k_tail_mask = k6;
+    opmask_t k_full_mask = k5;
+
+    jit_bf16_eltwise_injector *bf16_injector_;
+    bf16_emulation_t *bf16_emu_;
 };
 
 } /* namespace */
 
-template <cpu_isa_t isa>
-status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
     using namespace alg_kind;
 
     bool ok = true
         && mayiuse(isa)
         && is_fwd()
-        && utils::everyone_is(data_type::f32, desc()->data_desc.data_type)
+        && desc()->data_desc.data_type == d_type
+        && IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
+                mayiuse(avx512_core))
         && !has_zero_dim_memory()
         && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
                 eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
@@ -999,24 +1220,25 @@ status_t jit_uni_eltwise_fwd_t<isa>::pd_t::init() {
     return ok ? status::success : status::unimplemented;
 }
 
-template <cpu_isa_t isa>
-jit_uni_eltwise_fwd_t<isa>::jit_uni_eltwise_fwd_t(const pd_t *apd)
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_eltwise_fwd_t<isa, d_type>::jit_uni_eltwise_fwd_t(const pd_t *apd)
     : cpu_primitive_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
-        kernel_ = new jit_uni_relu_kernel_f32<isa>(desc); break;
+        kernel_ = new jit_uni_relu_kernel<isa>(desc); break;
     default:
-        kernel_ = new jit_uni_kernel_fwd_f32<isa>(desc);
+        kernel_ = new jit_uni_kernel_fwd<isa>(desc);
     }
 }
 
-template <cpu_isa_t isa>
-jit_uni_eltwise_fwd_t<isa>::~jit_uni_eltwise_fwd_t()
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_eltwise_fwd_t<isa, d_type>::~jit_uni_eltwise_fwd_t()
 { delete kernel_; }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa, impl::data_type_t d_type>
+void jit_uni_eltwise_fwd_t<isa, d_type>::execute_forward(
+        const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
@@ -1027,31 +1249,32 @@ void jit_uni_eltwise_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     src += data_d.offset0();
     dst += data_d.offset0();
 
+    const int cache_line = 16;
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start{0}, end{0};
-
-        const int cache_line = 16;
 
         balance211(utils::div_up(nelems, cache_line), nthr, ithr, start, end);
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
         auto arg = jit_args();
-        arg.from = &src[start];
-        arg.for_comparison = &src[start];
-        arg.to = &dst[start];
+        arg.from = (const void*)&src[start];
+        arg.for_comparison = (const void*)&src[start];
+        arg.to = (const void*)&dst[start];
         arg.work_amount = end - start;
         if (arg.work_amount)
             (*kernel_)(&arg);
     });
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init() {
     bool ok = true
         && !is_fwd()
         && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu)
-        && src_md()->data_type == data_type::f32
+        && src_md()->data_type == d_type
+        && IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
+                mayiuse(avx512_core))
         && !has_zero_dim_memory()
         && mayiuse(isa)
         && memory_desc_wrapper(src_md()).is_dense()
@@ -1061,23 +1284,24 @@ status_t jit_uni_eltwise_bwd_t<isa>::pd_t::init() {
     return ok ? status::success : status::unimplemented;
 }
 
-template <cpu_isa_t isa>
-jit_uni_eltwise_bwd_t<isa>::jit_uni_eltwise_bwd_t(const pd_t *apd)
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_eltwise_bwd_t<isa, d_type>::jit_uni_eltwise_bwd_t(const pd_t *apd)
     : cpu_primitive_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
     case alg_kind::eltwise_relu:
-        kernel_ = new jit_uni_relu_kernel_f32<isa>(desc); break;
+        kernel_ = new jit_uni_relu_kernel<isa>(desc); break;
     default: assert(!"unknown eltwise alg_kind");
     }
 }
 
-template <cpu_isa_t isa>
-jit_uni_eltwise_bwd_t<isa>::~jit_uni_eltwise_bwd_t()
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_eltwise_bwd_t<isa, d_type>::~jit_uni_eltwise_bwd_t()
 { delete kernel_; }
 
-template <cpu_isa_t isa>
-void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_eltwise_bwd_t<isa, d_type>::execute_backward(
+        const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
@@ -1101,21 +1325,23 @@ void jit_uni_eltwise_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
         end = nstl::min(nelems, end * cache_line);
 
         auto arg = jit_args();
-        arg.from = &diff_dst[start];
-        arg.to = &diff_src[start];
-        arg.for_comparison = &src[start];
+        arg.from = (const void*)&diff_dst[start];
+        arg.to = (const void*)&diff_src[start];
+        arg.for_comparison = (const void*)&src[start];
         arg.work_amount = end - start;
         if (arg.work_amount)
             (*kernel_)(&arg);
     });
 }
 
-template struct jit_uni_eltwise_fwd_t<sse41>;
-template struct jit_uni_eltwise_bwd_t<sse41>;
-template struct jit_uni_eltwise_fwd_t<avx2>;
-template struct jit_uni_eltwise_bwd_t<avx2>;
-template struct jit_uni_eltwise_fwd_t<avx512_common>;
-template struct jit_uni_eltwise_bwd_t<avx512_common>;
+template struct jit_uni_eltwise_fwd_t<sse41, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<sse41, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx2, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<avx2, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx512_common, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
+template struct jit_uni_eltwise_bwd_t<avx512_common, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;
 
 }
 }
