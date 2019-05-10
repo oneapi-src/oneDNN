@@ -391,9 +391,9 @@ typedef enum {
     mkldnn_tnc = mkldnn_abc,
     /// 3D RNN data tensor in the format (batch, seq_length, input channels).
     mkldnn_ntc = mkldnn_bac,
-    /// 5D RNN states tensor in the format (num_layers, num_directions,
-    /// num_states, batch, state channels).
-    mkldnn_ldsnc = mkldnn_abcde,
+    /// 4D RNN states tensor in the format (num_layers, num_directions,
+    /// batch, state channels).
+    mkldnn_ldnc = mkldnn_abcd,
     /// 5D RNN weights tensor in the format (num_layers, num_directions,
     ///  input_channels, num_gates, output_channels).
     ///
@@ -1170,8 +1170,10 @@ typedef struct {
     mkldnn_rnn_direction_t direction;
     /// Source layer memory descriptor.
     mkldnn_memory_desc_t src_layer_desc;
-    /// Source iteration memory descriptor.
+    /// Source iteration memory descriptor for hidden state.
     mkldnn_memory_desc_t src_iter_desc;
+    /// Source iteration memory descriptor for cell state.
+    mkldnn_memory_desc_t src_iter_c_desc;
     /// Weights layer memory descriptor.
     mkldnn_memory_desc_t weights_layer_desc;
     /// Weights iteration memory descriptor.
@@ -1180,16 +1182,20 @@ typedef struct {
     mkldnn_memory_desc_t bias_desc;
     /// Destination layer memory descriptor.
     mkldnn_memory_desc_t dst_layer_desc;
-    /// Destination iter memory descriptor.
+    /// Destination iter memory descriptor for hidden state.
     mkldnn_memory_desc_t dst_iter_desc;
+    /// Destination iter memory descriptor for cell state.
+    mkldnn_memory_desc_t dst_iter_c_desc;
     /// Placeholders
     mkldnn_memory_desc_t placeholder_desc;
     mkldnn_memory_desc_t placeholder2_desc;
 
     /// Source gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_src_layer_desc;
-    /// Source gradient iter memory descriptor.
+    /// Source gradient iter memory descriptor for hidden state.
     mkldnn_memory_desc_t diff_src_iter_desc;
+    /// Source gradient iter memory descriptor for cell state.
+    mkldnn_memory_desc_t diff_src_iter_c_desc;
     /// Weights gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_weights_layer_desc;
     /// Weights gradient iter memory descriptor.
@@ -1198,8 +1204,10 @@ typedef struct {
     mkldnn_memory_desc_t diff_bias_desc;
     /// Destination gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_dst_layer_desc;
-    /// Destination gradient iteration memory descriptor.
+    /// Destination gradient iteration memory descriptor for hidden state.
     mkldnn_memory_desc_t diff_dst_iter_desc;
+    /// Destination gradient iteration memory descriptor for cell state.
+    mkldnn_memory_desc_t diff_dst_iter_c_desc;
     /// Placeholders
     mkldnn_memory_desc_t diff_placeholder_desc;
     mkldnn_memory_desc_t diff_placeholder2_desc;
@@ -1349,6 +1357,9 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 #define MKLDNN_ARG_SRC_1                2
 #define MKLDNN_ARG_SRC_ITER             MKLDNN_ARG_SRC_1
 
+#define MKLDNN_ARG_SRC_2                3
+#define MKLDNN_ARG_SRC_ITER_C           MKLDNN_ARG_SRC_2
+
 #define MKLDNN_ARG_DST_0                17
 #define MKLDNN_ARG_DST                  MKLDNN_ARG_DST_0
 #define MKLDNN_ARG_TO                   MKLDNN_ARG_DST_0
@@ -1356,6 +1367,9 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 
 #define MKLDNN_ARG_DST_1                18
 #define MKLDNN_ARG_DST_ITER             MKLDNN_ARG_DST_1
+
+#define MKLDNN_ARG_DST_2                19
+#define MKLDNN_ARG_DST_ITER_C           MKLDNN_ARG_DST_2
 
 #define MKLDNN_ARG_WEIGHTS_0            33
 #define MKLDNN_ARG_WEIGHTS              MKLDNN_ARG_WEIGHTS_0
@@ -1380,12 +1394,18 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 #define MKLDNN_ARG_DIFF_SRC_1           130
 #define MKLDNN_ARG_DIFF_SRC_ITER        MKLDNN_ARG_DIFF_SRC_1
 
+#define MKLDNN_ARG_DIFF_SRC_2           131
+#define MKLDNN_ARG_DIFF_SRC_ITER_C      MKLDNN_ARG_DIFF_SRC_2
+
 #define MKLDNN_ARG_DIFF_DST_0           145
 #define MKLDNN_ARG_DIFF_DST             MKLDNN_ARG_DIFF_DST_0
 #define MKLDNN_ARG_DIFF_DST_LAYER       MKLDNN_ARG_DIFF_DST_0
 
 #define MKLDNN_ARG_DIFF_DST_1           146
 #define MKLDNN_ARG_DIFF_DST_ITER        MKLDNN_ARG_DIFF_DST_1
+
+#define MKLDNN_ARG_DIFF_DST_2           147
+#define MKLDNN_ARG_DIFF_DST_ITER_C      MKLDNN_ARG_DIFF_DST_2
 
 #define MKLDNN_ARG_DIFF_WEIGHTS_0       161
 #define MKLDNN_ARG_DIFF_WEIGHTS         MKLDNN_ARG_DIFF_WEIGHTS_0

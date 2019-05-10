@@ -492,17 +492,21 @@ private:
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     void copy_init_iter(const stream_t *s, int n_layer, int n_direction,
-            int n_states, int batch, int sic, int dic,
+            int batch, int sic, int dic,
             const memory_storage_t &ws, const memory_storage_t &firstit_states,
-            const memory_storage_t &diff_dst_iter) const;
+            const memory_storage_t &firstit_c_states,
+            const memory_storage_t &diff_dst_iter,
+            const memory_storage_t &diff_dst_iter_c) const;
     void copy_res_layer(const stream_t *s, bool lr, bool rl, int n_iter,
             int batch, int slc, int dlc, const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
             const memory_storage_t &ws) const;
     void copy_res_iter(const stream_t *s, int n_layer, int n_direction,
-            int n_states, int batch, int sic, int dic,
+            int batch, int sic, int dic,
             const memory_storage_t &dst_last_iter,
+            const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
+            const memory_storage_t &diff_src_iter_c,
             const memory_storage_t &ws) const;
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dic, int batch, const memory_storage_t &gates,

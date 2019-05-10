@@ -62,7 +62,7 @@ const dim_t enc_unidir_n_layers = 7;
 const dim_t dec_n_layers = 8;
 
 const int lstm_n_gates = 4;
-const int lstm_n_states = 2;
+
 std::vector<int32_t> weighted_src_layer(batch *feature_size, 1);
 std::vector<float> alignment_model(
         src_seq_length_max *batch *feature_size, 1.0f);
@@ -197,7 +197,7 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
                                   / dec_src_layer_scale);
 }
 
-void copy_context(float *src_iter, dim_t n_layers, dim_t n_states, dim_t batch,
+void copy_context(float *src_iter, dim_t n_layers, dim_t batch,
         dim_t feature_size) {
 // we copy the context from the first layer to all other layers
 #ifdef _OPENMP
@@ -206,7 +206,7 @@ void copy_context(float *src_iter, dim_t n_layers, dim_t n_states, dim_t batch,
     for (dim_t k = 1; k < n_layers; k++)
         for (dim_t j = 0; j < batch; j++)
             for (dim_t i = 0; i < feature_size; i++)
-                src_iter[(k * n_states * batch + j)
+                src_iter[(k * batch + j)
                                 * (feature_size + feature_size)
                         + i]
                         = src_iter[j * (feature_size + feature_size) + i];
@@ -344,8 +344,9 @@ void simple_net() {
     try {
         lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
                 rnn_direction::bidirectional_concat, enc_bidir_src_layer_md,
-                memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
-                user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc());
+                memory::desc(), memory::desc(), enc_bidir_wei_layer_md,
+                enc_bidir_wei_iter_md, user_enc_bidir_bias_md,
+                enc_bidir_dst_layer_md, memory::desc(), memory::desc());
     } catch (error &e) {
         if (e.status == mkldnn_unimplemented) {
             std::cerr
@@ -362,8 +363,8 @@ void simple_net() {
     //[create rnn desc]
     lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
             rnn_direction::bidirectional_concat, enc_bidir_src_layer_md,
-            memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
-            user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc());
+            memory::desc(), memory::desc(), enc_bidir_wei_layer_md, enc_bidir_wei_iter_md,
+            user_enc_bidir_bias_md, enc_bidir_dst_layer_md, memory::desc(), memory::desc());
     //[create rnn desc]
 
     ///
@@ -490,9 +491,9 @@ void simple_net() {
 
     lstm_forward::desc enc_uni_first_layer_desc(prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right,
-            enc_bidir_dst_layer_md, memory::desc(), enc_uni_first_wei_layer_md,
+            enc_bidir_dst_layer_md, memory::desc(), memory::desc(), enc_uni_first_wei_layer_md,
             enc_uni_first_wei_iter_md, user_enc_uni_first_bias_md,
-            enc_uni_first_dst_layer_md, memory::desc());
+            enc_uni_first_dst_layer_md, memory::desc(), memory::desc());
 
     auto enc_uni_first_prim_desc = lstm_forward::primitive_desc(
             enc_uni_first_layer_desc, attr, cpu_engine);
@@ -581,9 +582,9 @@ void simple_net() {
 
     lstm_forward::desc enc_uni_layer_desc(prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right,
-            enc_uni_first_dst_layer_md, memory::desc(), enc_uni_wei_layer_md,
+            enc_uni_first_dst_layer_md, memory::desc(), memory::desc(), enc_uni_wei_layer_md,
             enc_uni_wei_iter_md, user_enc_uni_bias_md, enc_dst_layer_md,
-            memory::desc());
+            memory::desc(), memory::desc());
     auto enc_uni_prim_desc
             = lstm_forward::primitive_desc(enc_uni_layer_desc, attr, cpu_engine);
     //[create uni rnn]
@@ -654,6 +655,8 @@ void simple_net() {
             = { dec_n_layers, 1, lstm_n_gates, feature_size };
     memory::dims dec_src_layer_dims = { 1, batch, feature_size };
     memory::dims dec_dst_layer_dims = { 1, batch, feature_size };
+    memory::dims dec_dst_iter_c_dims = { dec_n_layers, 1, batch,
+        feature_size };
     //[dec mem dim]
 
     // We will use the same memory for dec_src_iter and dec_dst_iter
@@ -667,10 +670,10 @@ void simple_net() {
     // access those.
     /// @snippet cpu_rnn_inference_int8.cpp noctx mem dim
     //[noctx mem dim]
-    memory::dims dec_dst_iter_dims = { dec_n_layers, 1, lstm_n_states, batch,
+    memory::dims dec_dst_iter_dims = { dec_n_layers, 1, batch,
         feature_size + feature_size };
     memory::dims dec_dst_iter_noctx_dims
-            = { dec_n_layers, 1, lstm_n_states, batch, feature_size };
+            = { dec_n_layers, 1, batch, feature_size };
     //[noctx mem dim]
 
     ///
@@ -690,7 +693,9 @@ void simple_net() {
     auto dec_dst_layer_md = memory::desc({ dec_dst_layer_dims },
             memory::data_type::u8, memory::format_tag::tnc);
     auto dec_dst_iter_md = memory::desc({ dec_dst_iter_dims },
-            memory::data_type::f32, memory::format_tag::ldsnc);
+            memory::data_type::f32, memory::format_tag::ldnc);
+    auto dec_dst_iter_c_md = memory::desc({ dec_dst_iter_c_dims },
+            memory::data_type::f32, memory::format_tag::ldnc);
     //[dec mem desc]
 
     ///
@@ -707,6 +712,7 @@ void simple_net() {
     auto dec_src_layer_memory = memory(dec_src_layer_md, cpu_engine);
     auto dec_dst_layer_memory
             = memory(dec_dst_layer_md, cpu_engine, dec_dst.data());
+    auto dec_dst_iter_c_memory = memory(dec_dst_iter_c_md, cpu_engine);
     //[create dec memory]
 
     // Create memory descriptors for RNN data w/o specified layout
@@ -727,8 +733,9 @@ void simple_net() {
 
     lstm_forward::desc dec_ctx_desc(prop_kind::forward_inference,
             rnn_direction::unidirectional_left2right, dec_src_layer_md,
-            dec_dst_iter_md, dec_wei_layer_md, dec_wei_iter_md,
-            user_dec_bias_md, dec_dst_layer_md, dec_dst_iter_noctx_md);
+            dec_dst_iter_md, dec_dst_iter_c_md, dec_wei_layer_md,
+            dec_wei_iter_md, user_dec_bias_md, dec_dst_layer_md,
+            dec_dst_iter_noctx_md, dec_dst_iter_c_md);
     auto dec_ctx_prim_desc
             = lstm_forward::primitive_desc(dec_ctx_desc, attr, cpu_engine);
 
@@ -756,11 +763,13 @@ void simple_net() {
     decoder_net.push_back(lstm_forward(dec_ctx_prim_desc));
     decoder_net_args.push_back({ { MKLDNN_ARG_SRC_LAYER, dec_src_layer_memory },
             { MKLDNN_ARG_SRC_ITER, dec_dst_iter_memory },
+            { MKLDNN_ARG_SRC_ITER_C, dec_dst_iter_c_memory },
             { MKLDNN_ARG_WEIGHTS_LAYER, dec_wei_layer_memory },
             { MKLDNN_ARG_WEIGHTS_ITER, dec_wei_iter_memory },
             { MKLDNN_ARG_BIAS, user_dec_bias_memory },
             { MKLDNN_ARG_DST_LAYER, dec_dst_layer_memory },
-            { MKLDNN_ARG_DST_ITER, dec_dst_iter_memory } });
+            { MKLDNN_ARG_DST_ITER, dec_dst_iter_memory },
+            { MKLDNN_ARG_DST_ITER_C, dec_dst_iter_c_memory } });
 
     // Allocating temporary buffers for attention mechanism
     std::vector<float> weighted_annotations(
@@ -841,8 +850,8 @@ void simple_net() {
             /// @snippet cpu_rnn_inference_int8.cpp cp ctx
             ///
             //[cp ctx]
-            copy_context(src_att_iter_handle, dec_n_layers, lstm_n_states,
-                    batch, feature_size);
+            copy_context(src_att_iter_handle, dec_n_layers, batch,
+                    feature_size);
             //[cp ctx]
 
             assert(decoder_net.size() == decoder_net_args.size()

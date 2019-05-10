@@ -163,7 +163,7 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(gOdhwi16o);
     CASE(ntc);
     CASE(tnc);
-    CASE(ldsnc);
+    CASE(ldnc);
     CASE(ldigo);
     CASE(ldgoi);
     CASE(ldgo);

@@ -275,7 +275,7 @@ namespace format_tag {
     const format_tag_t goidhw = mkldnn_goidhw;
     const format_tag_t tnc = mkldnn_tnc;
     const format_tag_t ntc = mkldnn_ntc;
-    const format_tag_t ldsnc = mkldnn_ldsnc;
+    const format_tag_t ldnc = mkldnn_ldnc;
     const format_tag_t ldigo = mkldnn_ldigo;
     const format_tag_t ldgoi = mkldnn_ldgoi;
     const format_tag_t ldgo = mkldnn_ldgo;

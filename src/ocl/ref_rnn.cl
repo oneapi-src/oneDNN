@@ -70,22 +70,30 @@
     ((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 + \
     ((x1) % SRC_L_B1) * SRC_L_SB1 + ((x1) / SRC_L_B1) * SRC_L_S1 + \
     ((x2) % SRC_L_B2) * SRC_L_SB2 + ((x2) / SRC_L_B2) * SRC_L_S2)
-#define SRC_I_OFF(x0, x1, x2, x3, x4) ( \
+#define SRC_I_OFF(x0, x1, x2, x3) ( \
     ((x0) % SRC_I_B0) * SRC_I_SB0 + ((x0) / SRC_I_B0) * SRC_I_S0 + \
     ((x1) % SRC_I_B1) * SRC_I_SB1 + ((x1) / SRC_I_B1) * SRC_I_S1 + \
     ((x2) % SRC_I_B2) * SRC_I_SB2 + ((x2) / SRC_I_B2) * SRC_I_S2 + \
-    ((x3) % SRC_I_B3) * SRC_I_SB3 + ((x3) / SRC_I_B3) * SRC_I_S3 + \
-    ((x4) % SRC_I_B4) * SRC_I_SB4 + ((x4) / SRC_I_B4) * SRC_I_S4)
+    ((x3) % SRC_I_B3) * SRC_I_SB3 + ((x3) / SRC_I_B3) * SRC_I_S3)
+#define SRC_I_C_OFF(x0, x1, x2, x3) ( \
+    ((x0) % SRC_I_C_B0) * SRC_I_C_SB0 + ((x0) / SRC_I_C_B0) * SRC_I_C_S0 + \
+    ((x1) % SRC_I_C_B1) * SRC_I_C_SB1 + ((x1) / SRC_I_C_B1) * SRC_I_C_S1 + \
+    ((x2) % SRC_I_C_B2) * SRC_I_C_SB2 + ((x2) / SRC_I_C_B2) * SRC_I_C_S2 + \
+    ((x3) % SRC_I_C_B3) * SRC_I_C_SB3 + ((x3) / SRC_I_C_B3) * SRC_I_C_S3)
 #define DST_L_OFF(x0, x1, x2) ( \
     ((x0) % DST_L_B0) * DST_L_SB0 + ((x0) / DST_L_B0) * DST_L_S0 + \
     ((x1) % DST_L_B1) * DST_L_SB1 + ((x1) / DST_L_B1) * DST_L_S1 + \
     ((x2) % DST_L_B2) * DST_L_SB2 + ((x2) / DST_L_B2) * DST_L_S2)
-#define DST_I_OFF(x0, x1, x2, x3, x4) ( \
+#define DST_I_OFF(x0, x1, x2, x3) ( \
     ((x0) % DST_I_B0) * DST_I_SB0 + ((x0) / DST_I_B0) * DST_I_S0 + \
     ((x1) % DST_I_B1) * DST_I_SB1 + ((x1) / DST_I_B1) * DST_I_S1 + \
     ((x2) % DST_I_B2) * DST_I_SB2 + ((x2) / DST_I_B2) * DST_I_S2 + \
-    ((x3) % DST_I_B3) * DST_I_SB3 + ((x3) / DST_I_B3) * DST_I_S3 + \
-    ((x4) % DST_I_B4) * DST_I_SB4 + ((x4) / DST_I_B4) * DST_I_S4)
+    ((x3) % DST_I_B3) * DST_I_SB3 + ((x3) / DST_I_B3) * DST_I_S3)
+#define DST_I_C_OFF(x0, x1, x2, x3) ( \
+    ((x0) % DST_I_C_B0) * DST_I_C_SB0 + ((x0) / DST_I_C_B0) * DST_I_C_S0 + \
+    ((x1) % DST_I_C_B1) * DST_I_C_SB1 + ((x1) / DST_I_C_B1) * DST_I_C_S1 + \
+    ((x2) % DST_I_C_B2) * DST_I_C_SB2 + ((x2) / DST_I_C_B2) * DST_I_C_S2 + \
+    ((x3) % DST_I_C_B3) * DST_I_C_SB3 + ((x3) / DST_I_C_B3) * DST_I_C_S3)
 #define BIAS_OFF(x0, x1, x2, x3) ( \
     ((x0) % BIAS_B0) * BIAS_SB0 + ((x0) / BIAS_B0) * BIAS_S0 + \
     ((x1) % BIAS_B1) * BIAS_SB1 + ((x1) / BIAS_B1) * BIAS_S1 + \
@@ -106,7 +114,7 @@
     + ((x1) / DIFF_DST_L_B1) * DIFF_DST_L_S1 + \
     ((x2) % DIFF_DST_L_B2) * DIFF_DST_L_SB2 \
     + ((x2) / DIFF_DST_L_B2) * DIFF_DST_L_S2)
-#define DIFF_SRC_I_OFF(x0, x1, x2, x3, x4) ( \
+#define DIFF_SRC_I_OFF(x0, x1, x2, x3) ( \
     ((x0) % DIFF_SRC_I_B0) * DIFF_SRC_I_SB0 \
     + ((x0) / DIFF_SRC_I_B0) * DIFF_SRC_I_S0 + \
     ((x1) % DIFF_SRC_I_B1) * DIFF_SRC_I_SB1 \
@@ -114,10 +122,8 @@
     ((x2) % DIFF_SRC_I_B2) * DIFF_SRC_I_SB2 \
     + ((x2) / DIFF_SRC_I_B2) * DIFF_SRC_I_S2 + \
     ((x3) % DIFF_SRC_I_B3) * DIFF_SRC_I_SB3 \
-    + ((x3) / DIFF_SRC_I_B3) * DIFF_SRC_I_S3 + \
-    ((x4) % DIFF_SRC_I_B4) * DIFF_SRC_I_SB4 \
-    + ((x4) / DIFF_SRC_I_B4) * DIFF_SRC_I_S4)
-#define DIFF_DST_I_OFF(x0, x1, x2, x3, x4) ( \
+    + ((x3) / DIFF_SRC_I_B3) * DIFF_SRC_I_S3)
+#define DIFF_DST_I_OFF(x0, x1, x2, x3) ( \
     ((x0) % DIFF_DST_I_B0) * DIFF_DST_I_SB0 \
     + ((x0) / DIFF_DST_I_B0) * DIFF_DST_I_S0 + \
     ((x1) % DIFF_DST_I_B1) * DIFF_DST_I_SB1 \
@@ -125,9 +131,25 @@
     ((x2) % DIFF_DST_I_B2) * DIFF_DST_I_SB2 \
     + ((x2) / DIFF_DST_I_B2) * DIFF_DST_I_S2 + \
     ((x3) % DIFF_DST_I_B3) * DIFF_DST_I_SB3 \
-    + ((x3) / DIFF_DST_I_B3) * DIFF_DST_I_S3 + \
-    ((x4) % DIFF_DST_I_B4) * DIFF_DST_I_SB4 \
-    + ((x4) / DIFF_DST_I_B4) * DIFF_DST_I_S4)
+    + ((x3) / DIFF_DST_I_B3) * DIFF_DST_I_S3)
+#define DIFF_SRC_I_C_OFF(x0, x1, x2, x3) ( \
+    ((x0) % DIFF_SRC_I_C_B0) * DIFF_SRC_I_C_SB0 \
+    + ((x0) / DIFF_SRC_I_C_B0) * DIFF_SRC_I_C_S0 + \
+    ((x1) % DIFF_SRC_I_C_B1) * DIFF_SRC_I_C_SB1 \
+    + ((x1) / DIFF_SRC_I_C_B1) * DIFF_SRC_I_C_S1 + \
+    ((x2) % DIFF_SRC_I_C_B2) * DIFF_SRC_I_C_SB2 \
+    + ((x2) / DIFF_SRC_I_C_B2) * DIFF_SRC_I_C_S2 + \
+    ((x3) % DIFF_SRC_I_C_B3) * DIFF_SRC_I_C_SB3 \
+    + ((x3) / DIFF_SRC_I_C_B3) * DIFF_SRC_I_C_S3)
+#define DIFF_DST_I_C_OFF(x0, x1, x2, x3) ( \
+    ((x0) % DIFF_DST_I_C_B0) * DIFF_DST_I_C_SB0 \
+    + ((x0) / DIFF_DST_I_C_B0) * DIFF_DST_I_C_S0 + \
+    ((x1) % DIFF_DST_I_C_B1) * DIFF_DST_I_C_SB1 \
+    + ((x1) / DIFF_DST_I_C_B1) * DIFF_DST_I_C_S1 + \
+    ((x2) % DIFF_DST_I_C_B2) * DIFF_DST_I_C_SB2 \
+    + ((x2) / DIFF_DST_I_C_B2) * DIFF_DST_I_C_S2 + \
+    ((x3) % DIFF_DST_I_C_B3) * DIFF_DST_I_C_SB3 \
+    + ((x3) / DIFF_DST_I_C_B3) * DIFF_DST_I_C_S3)
 #define DIFF_BIAS_OFF(x0, x1, x2, x3) ( \
     ((x0) % DIFF_BIAS_B0) * DIFF_BIAS_SB0 \
     + ((x0) / DIFF_BIAS_B0) * DIFF_BIAS_S0 + \
@@ -253,23 +275,36 @@ __kernel void ref_rnn_copy_init_layer_kernel(__global DATA_T *ws,
 }
 
 __kernel void ref_rnn_copy_init_iter_kernel(__global DATA_T *ws,
-        __global DATA_T *src_base) {
+        __global DATA_T *src_base,__global DATA_T *src_c_base) {
     const int s = get_global_id(0);
+    const int b = get_global_id(1);
     const int lay = get_global_id(2) / N_DIR;
     const int dir = get_global_id(2) % N_DIR;
-    const int state = get_global_id(1) / BATCH;
-    const int b = get_global_id(1) % BATCH;
 
 #if IS_FWD
     __global DATA_T *dst = ws + WS_STATES_OFFSET;
-    dst[OFF_WS_STATES(lay + 1, dir, 0, state, b, s)] = src_base
-        ? src_base[SRC_I_OFF(lay, dir, state, b, s)]
-        : 0.0;
+    if (s < SIC)
+        dst[OFF_WS_STATES(lay + 1, dir, 0, 0, b, s)] = src_base
+            ? src_base[SRC_I_OFF(lay, dir, b, s)]
+            : 0.0f;
+#if WITH_SRC_ITER_C
+    if (s < DIC)
+        dst[OFF_WS_STATES(lay + 1, dir, 0, 1, b, s)] = src_c_base
+            ? src_c_base[SRC_I_C_OFF(lay, dir, b, s)]
+            : 0.0f;
+#endif
 #else
     __global DATA_T *dst = ws + WS_DIFF_STATES_OFFSET;
-    dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, state, b, s)] = src_base
-        ? src_base[DIFF_DST_I_OFF(lay, dir, state, b, s)]
-        : 0.0;
+    if (s < DIC)
+        dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, 0, b, s)] = src_base
+            ? src_base[DIFF_DST_I_OFF(lay, dir, b, s)]
+            : 0.0f;
+#if WITH_DST_ITER_C
+    if (s < DIC)
+        dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, 1, b, s)] = src_c_base
+            ? src_c_base[DIFF_DST_I_C_OFF(lay, dir, b, s)]
+            : 0.0f;
+#endif
 #endif
 }
 
@@ -316,25 +351,36 @@ __kernel void ref_rnn_copy_res_layer_kernel(__global DATA_T *ws,
 }
 
 __kernel void ref_rnn_copy_res_iter_kernel(__global DATA_T *ws,
-        __global DATA_T *dst_base) {
+        __global DATA_T *dst_base, __global DATA_T *dst_c_base) {
     const int s = get_global_id(0);
+    const int b = get_global_id(1);
     const int lay = get_global_id(2) / N_DIR;
     const int dir = get_global_id(2) % N_DIR;
-    const int state = get_global_id(1) / BATCH;
-    const int b = get_global_id(1) % BATCH;
 
 #if IS_FWD
     __global DATA_T *src_base = ws + WS_STATES_OFFSET;
-    if (dst_base) {
-        dst_base[DST_I_OFF(lay, dir, state, b, s)] =
-            src_base[OFF_WS_STATES(lay + 1, dir, N_ITER, state, b, s)];
+    if (dst_base && s < DIC) {
+        dst_base[DST_I_OFF(lay, dir, b, s)] =
+            src_base[OFF_WS_STATES(lay + 1, dir, N_ITER, 0, b, s)];
     }
+#if WITH_DST_ITER_C
+    if (dst_c_base && s < DIC) {
+        dst_c_base[DST_I_C_OFF(lay, dir, b, s)] =
+            src_base[OFF_WS_STATES(lay + 1, dir, N_ITER, 1, b, s)];
+    }
+#endif
 #else
     __global DATA_T *src_base = ws + WS_DIFF_STATES_OFFSET;
-    if (dst_base) {
-       dst_base[DIFF_SRC_I_OFF(lay, dir, state, b, s)] =
-                src_base[OFF_WS_DIFF_STATES(lay, dir, 0, state, b, s)];
+    if (dst_base && s < SIC) {
+       dst_base[DIFF_SRC_I_OFF(lay, dir, b, s)] =
+                src_base[OFF_WS_DIFF_STATES(lay, dir, 0, 0, b, s)];
     }
+#if WITH_SRC_ITER_C
+    if (dst_base && s < DIC) {
+       dst_c_base[DIFF_SRC_I_C_OFF(lay, dir, b, s)] =
+                src_base[OFF_WS_DIFF_STATES(lay, dir, 0, 1, b, s)];
+    }
+#endif
 #endif
 }
 

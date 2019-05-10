@@ -45,7 +45,7 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
-                    && id.matches_one_of_tag(format_tag::tnc, format_tag::ldsnc)
+                    && id.matches_one_of_tag(format_tag::tnc, format_tag::ldnc)
                     && od == id;
             if (!args_ok) return status::invalid_arguments;
 

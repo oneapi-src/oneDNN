@@ -42,11 +42,15 @@ protected:
 
         // Optional parameters
         if (with_src_iter() && src_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+        if (with_src_iter_c() && src_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+        if (with_dst_iter_c() && dst_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
 
         return status::success;
     }
@@ -64,9 +68,13 @@ protected:
         ok = ok && is_blocked(src_layer_md_, 3)
                 && is_blocked(dst_layer_md_, 3);
         ok = ok && IMPLICATION(!is_zero_md(&src_iter_md_),
-                           is_blocked(src_iter_md_, 5))
+                           is_blocked(src_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&src_iter_c_md_),
+                           is_blocked(src_iter_c_md_, 4))
                 && IMPLICATION(!is_zero_md(&dst_iter_md_),
-                           is_blocked(dst_iter_md_, 5));
+                           is_blocked(dst_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&dst_iter_c_md_),
+                           is_blocked(dst_iter_c_md_, 4));
 
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok && (weights_layer_md_.format_desc.rnn_packed_desc.format
@@ -123,18 +131,26 @@ protected:
 
         // Optional parameters
         if (with_src_iter() && src_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+        if (with_src_iter_c() && src_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+        if (with_dst_iter_c() && dst_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
 
         if (with_src_iter() && diff_src_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(diff_src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(diff_src_iter_md_, ldnc));
+        if (with_src_iter_c() && diff_src_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_src_iter_c_md_, ldnc));
         if (with_bias() && diff_bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_bias_md_, ldgo));
         if (with_dst_iter() && diff_dst_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(diff_dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(diff_dst_iter_md_, ldnc));
+        if (with_dst_iter_c() && diff_dst_iter_c_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_dst_iter_c_md_, ldnc));
 
         return status::success;
     }
@@ -151,9 +167,13 @@ protected:
         ok = ok && is_blocked(src_layer_md_, 3)
                 && is_blocked(dst_layer_md_, 3);
         ok = ok && IMPLICATION(!is_zero_md(&src_iter_md_),
-                           is_blocked(src_iter_md_, 5))
+                           is_blocked(src_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&src_iter_c_md_),
+                           is_blocked(src_iter_c_md_, 4))
                 && IMPLICATION(!is_zero_md(&dst_iter_md_),
-                           is_blocked(dst_iter_md_, 5));
+                           is_blocked(dst_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&dst_iter_c_md_),
+                           is_blocked(dst_iter_c_md_, 4));
 
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok && (weights_layer_md_.format_desc.rnn_packed_desc.format
@@ -173,9 +193,13 @@ protected:
         ok = ok && is_blocked(diff_src_layer_md_, 3)
                 && is_blocked(diff_dst_layer_md_, 3);
         ok = ok && IMPLICATION(!is_zero_md(&diff_src_iter_md_),
-                           is_blocked(diff_src_iter_md_, 5))
+                           is_blocked(diff_src_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&diff_src_iter_c_md_),
+                           is_blocked(diff_src_iter_c_md_, 4))
                 && IMPLICATION(!is_zero_md(&diff_dst_iter_md_),
-                           is_blocked(diff_dst_iter_md_, 5));
+                           is_blocked(diff_dst_iter_md_, 4))
+                && IMPLICATION(!is_zero_md(&diff_dst_iter_c_md_),
+                           is_blocked(diff_dst_iter_c_md_, 4));
 
         ok = ok && rnn_utils::is_ldigo(&diff_weights_layer_md_)
                 && rnn_utils::is_ldigo(&diff_weights_iter_md_);

@@ -45,13 +45,19 @@ struct ocl_rnn_fwd_pd_t : public rnn_fwd_pd_t {
         // Optional parameters
         if ((!types::is_zero_md(&src_iter_md_))
                 && (src_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+        if ((!types::is_zero_md(&src_iter_c_md_))
+                && (src_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
         if ((!types::is_zero_md(&bias_md_))
                 && (bias_md_.format_kind == format_kind::any))
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if ((!types::is_zero_md(&dst_iter_md_))
                 && (dst_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+        if ((!types::is_zero_md(&dst_iter_c_md_))
+                && (dst_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
 
         return status::success;
     }
@@ -85,23 +91,35 @@ protected:
         // Optional parameters
         if ((!types::is_zero_md(&src_iter_md_))
                 && (src_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+        if ((!types::is_zero_md(&src_iter_c_md_))
+                && (src_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
         if ((!types::is_zero_md(&bias_md_))
                 && (bias_md_.format_kind == format_kind::any))
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if ((!types::is_zero_md(&dst_iter_md_))
                 && (dst_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+        if ((!types::is_zero_md(&dst_iter_c_md_))
+                && (dst_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
 
         if ((!types::is_zero_md(&diff_src_iter_md_))
                 && (diff_src_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(diff_src_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(diff_src_iter_md_, ldnc));
+        if ((!types::is_zero_md(&diff_src_iter_c_md_))
+                && (diff_src_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(diff_src_iter_c_md_, ldnc));
         if ((!types::is_zero_md(&diff_bias_md_))
                 && (diff_bias_md_.format_kind == format_kind::any))
             CHECK(memory_desc_init_by_tag(diff_bias_md_, ldgo));
         if ((!types::is_zero_md(&diff_dst_iter_md_))
                 && (diff_dst_iter_md_.format_kind == format_kind::any))
-            CHECK(memory_desc_init_by_tag(diff_dst_iter_md_, ldsnc));
+            CHECK(memory_desc_init_by_tag(diff_dst_iter_md_, ldnc));
+        if ((!types::is_zero_md(&diff_dst_iter_c_md_))
+                && (diff_dst_iter_c_md_.format_kind == format_kind::any))
+            CHECK(memory_desc_init_by_tag(diff_dst_iter_c_md_, ldnc));
 
         return status::success;
     }

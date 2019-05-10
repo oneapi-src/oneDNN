@@ -1537,6 +1537,7 @@ mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_backward_desc_init(
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
 ///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - src_iter_c (#mkldnn_query_src_md, 2), if used
 ///  - weights_layer (#mkldnn_query_weights_md, 0)
 ///  - weights_iter (#mkldnn_query_weights_md, 1)
 ///  - bias (#mkldnn_query_weights_md, 2), if used
@@ -1544,6 +1545,7 @@ mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_backward_desc_init(
 /// Outputs:
 ///  - dst_layer (#mkldnn_query_dst_md, 0)
 ///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - dst_iter_c (#mkldnn_query_dst_md, 2), if used
 ///  - workspace (#mkldnn_query_workspace_md, 0),
 ///      if @p prop_kind equals #mkldnn_forward_training
 mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
@@ -1551,11 +1553,13 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         unsigned flags);
 
 /// Initializes an LSTM descriptor @p rnn_desc for backward propagation
@@ -1576,18 +1580,22 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
 ///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - src_iter_c (#mkldnn_query_src_md, 2), if used
 ///  - weights_layer (#mkldnn_query_weights_md, 0)
 ///  - weights_iter (#mkldnn_query_weights_md, 1)
 ///  - bias (#mkldnn_query_weights_md, 2), if used
 ///  - dst_layer (#mkldnn_query_dst_md, 0)
 ///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - dst_iter_c (#mkldnn_query_dst_md, 2), if used
 ///  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
 ///  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+///  - diff_dst_iter_c (#mkldnn_query_diff_dst_md, 2), if used
 ///  - workspace (#mkldnn_query_workspace_md, 0)
 ///
 /// Outputs:
 ///  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
 ///  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+///  - diff_src_iter_c (#mkldnn_query_diff_src_md, 2), if used
 ///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
 ///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
 ///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
@@ -1596,18 +1604,22 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_backward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         const mkldnn_memory_desc_t *diff_src_layer_desc,
         const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
         const mkldnn_memory_desc_t *diff_weights_layer_desc,
         const mkldnn_memory_desc_t *diff_weights_iter_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_c_desc,
         unsigned flags);
 
 /// Initializes a GRU descriptor @p rnn_desc for forward propagation

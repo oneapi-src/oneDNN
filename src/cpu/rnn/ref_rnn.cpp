@@ -320,7 +320,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
         const rnn_conf_t &rnn, src_data_t *__restrict ws_states_,
         float *__restrict ws_c_states_, float *__restrict ws_diff_states_,
         const input_data_t *__restrict firstit_states_,
-        const float *__restrict diff_dst_iter_) const {
+        const float *__restrict firstit_c_states_,
+        const float *__restrict diff_dst_iter_,
+        const float *__restrict diff_dst_iter_c_) const {
     AOC<src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     AOC<float, 5> ws_c_states(ws_c_states_, rnn.n_layer + 1, rnn.n_dir,
@@ -339,35 +341,28 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
             return (src_data_t)f;
     };
 
-    const bool dequantize = pd()->with_src_iter()
-        && pd()->src_md(1)->data_type == data_type::u8;
-    auto maybe_deq = [&](input_data_t s) {
-        if (dequantize)
-            return (((float)s - data_shift) / data_scale);
-        else
-            return (float)s;
-    };
     auto firstit_states_d = memory_desc_wrapper(pd()->src_md(1));
+    auto firstit_c_states_d = memory_desc_wrapper(pd()->src_md(2));
     if (firstit_states_) {
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
                     for (int s = 0; s < rnn.sic; s++)
                         ws_states(lay + 1, dir, 0, b, s) = maybe_q(
                                 firstit_states_[firstit_states_d.blk_off(
-                                        lay, dir, 0, b, s)]);
+                                        lay, dir, b, s)]);
                     if (pd()->cell_kind() == alg_kind::vanilla_lstm)
-                        for (int s = 0; s < rnn.sic; s++)
-                            ws_c_states(lay + 1, dir, 0, b, s) = maybe_deq(
-                                    firstit_states_[firstit_states_d.blk_off(
-                                            lay, dir, 1, b, s)]);
+                        for (int s = 0; s < rnn.dic; s++)
+                            ws_c_states(lay + 1, dir, 0, b, s) =
+                                    firstit_c_states_[firstit_c_states_d.blk_off(
+                                            lay, dir, b, s)];
                 });
     } else {
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
-                    for (int j = 0; j < rnn.sic; j++) {
+                    for (int j = 0; j < rnn.sic; j++)
                         ws_states(lay + 1, dir, 0, b, j) = (src_data_t)0;
-                        ws_c_states(lay + 1, dir, 0, b, j) = 0.0f;
-                    }
+                    for (int j = 0; j < rnn.dic; j++)
+                        ws_c_states(lay + 1, dir, 1, b, j) = 0.0f;
         });
     }
 }
@@ -376,19 +371,27 @@ template <>
 template <typename input_data_t>
 void ref_rnn_bwd_f32_t::copy_init_iter(const rnn_conf_t &rnn,
         src_data_t *ws_states_, float *ws_c_states_, float *ws_diff_states_,
-        const input_data_t *firstit_states_,
-        const float *diff_dst_iter_) const {
+        const input_data_t *firstit_states_,const float *firstit_states_c_,
+        const float *diff_dst_iter_, const float *diff_dst_iter_c_) const {
     AOC<float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_states + 1, rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     auto diff_dst_iter_d = memory_desc_wrapper(pd()->diff_dst_md(1));
+    auto diff_dst_iter_c_d = memory_desc_wrapper(pd()->diff_dst_md(2));
     if (diff_dst_iter_) {
-        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
-                [&](int lay, int dir, int state, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](int lay, int dir, int b) {
                     array_copy(&(ws_diff_states(
-                                       lay, dir, state, rnn.n_iter, b, 0)),
+                                       lay, dir, 0, rnn.n_iter, b, 0)),
                             diff_dst_iter_
                                     + diff_dst_iter_d.blk_off(
-                                              lay, dir, state, b),
+                                              lay, dir, b),
+                            rnn.dic);
+                    if (pd()->cell_kind() == alg_kind::vanilla_lstm)
+                        array_copy(&(ws_diff_states(
+                                             lay, dir, 1, rnn.n_iter, b, 0)),
+                                    diff_dst_iter_c_
+                                        + diff_dst_iter_c_d.blk_off(
+                                                  lay, dir, b),
                             rnn.dic);
                 });
     } else {
@@ -476,27 +479,18 @@ void ref_rnn_bwd_f32_t::copy_res_layer(
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 template <typename output_data_t>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
-        const rnn_conf_t &rnn, output_data_t *dst_iter_, float *diff_src_iter_,
-        const src_data_t *ws_states_, float *ws_c_states_,
-        const float *ws_diff_states_) const {
+        const rnn_conf_t &rnn, output_data_t *dst_iter_,
+        float *dst_iter_c_, float *diff_src_iter_,
+        float *diff_src_iter_c_, const src_data_t *ws_states_,
+        float *ws_c_states_, const float *ws_diff_states_) const {
     auto dst_iter_d = memory_desc_wrapper(pd()->dst_md(1));
+    auto dst_iter_c_d = memory_desc_wrapper(pd()->dst_md(2));
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     AOC<const float, 5> ws_c_states(ws_c_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
-
-    const bool quantize = pd()->with_dst_iter()
-        && pd()->dst_md(1)->data_type == data_type::u8
-        && rnn.dt_conf != all_f32;
-    auto maybe_q = [&](float f) {
-        if (quantize) {
-            float qf = f * data_scale + data_shift;
-            return qz_a1b0<float, output_data_t>()(qf);
-        } else
-            return (output_data_t)f;
-    };
 
     const bool dequantize = pd()->with_dst_iter()
         && pd()->dst_md(1)->data_type == data_type::f32
@@ -511,14 +505,13 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
         parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
                 [&](int lay, int dir, int b) {
             for (int s = 0; s < rnn.dic; s++) {
-                dst_iter_[dst_iter_d.blk_off(lay, dir, 0, b, s)]
+                dst_iter_[dst_iter_d.blk_off(lay, dir, b, s)]
                         = maybe_deq(ws_states(lay + 1, dir, rnn.n_iter, b, s));
             }
             if (pd()->cell_kind() == alg_kind::vanilla_lstm)
                     for (int s = 0; s < rnn.dic; s++) {
-                        dst_iter_[dst_iter_d.blk_off(lay, dir, 1, b, s)]
-                                = maybe_q(ws_c_states(
-                                        lay + 1, dir, rnn.n_iter, b, s));
+                        dst_iter_c_[dst_iter_c_d.blk_off(lay, dir, b, s)]
+                                = ws_c_states(lay + 1, dir, rnn.n_iter, b, s);
                     }
             });
     }
@@ -527,20 +520,28 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
 template <>
 template <typename output_data_t>
 void ref_rnn_bwd_f32_t::copy_res_iter(
-        const rnn_conf_t &rnn, output_data_t *dst_iter_, float *diff_src_iter_,
+        const rnn_conf_t &rnn, output_data_t *dst_iter_, float *dst_iter_c_,
+        float *diff_src_iter_, float *diff_src_iter_c_,
         const src_data_t *ws_states_, float *ws_c_states_,
         const float *ws_diff_states_) const {
     auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_md(1));
+    auto diff_src_iter_c_d = memory_desc_wrapper(pd()->diff_src_md(2));
     AOC<const float, 6> ws_diff_states(ws_diff_states_, rnn.n_layer + 1,
             rnn.n_dir, rnn.n_states + 1, rnn.n_iter + 1, rnn.mb,
             rnn.states_ws_ld);
     if (diff_src_iter_) {
-        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.n_states, rnn.mb,
-                [&](int lay, int dir, int state, int b) {
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](int lay, int dir, int b) {
                     for (int s = 0; s < rnn.sic; s++) {
                         diff_src_iter_[diff_src_iter_d.blk_off(
-                                lay, dir, state, b, s)]
-                                = ws_diff_states(lay, dir, state, 0, b, s);
+                                lay, dir, b, s)]
+                                = ws_diff_states(lay, dir, 0, 0, b, s);
+                    }
+                    if (pd()->cell_kind() == alg_kind::vanilla_lstm)
+                        for (int s = 0; s < rnn.dic; s++) {
+                            diff_src_iter_c_[diff_src_iter_c_d.blk_off(
+                                    lay, dir, b, s)]
+                                = ws_diff_states(lay, dir, 1, 0, b, s);
                     }
                 });
     }
@@ -641,6 +642,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto input = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC_LAYER);
     auto states = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC_ITER);
+    auto c_states = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC_ITER_C);
     auto layer_weights_n_comp = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_LAYER);
     auto iter_weights_n_comp = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_ITER);
     auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
@@ -651,9 +653,13 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto dst_last_iter = rnn.is_fwd
         ? CTX_OUT_MEM(char *, MKLDNN_ARG_DST_ITER)
         : const_cast<char *>(CTX_IN_MEM(const char *, MKLDNN_ARG_DST_ITER));
+    auto dst_last_iter_c = rnn.is_fwd
+        ? CTX_OUT_MEM(float *, MKLDNN_ARG_DST_ITER_C)
+        : const_cast<float *>(CTX_IN_MEM(const float *, MKLDNN_ARG_DST_ITER_C));
 
     auto diff_dst_layer = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_LAYER);
     auto diff_dst_iter = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_ITER);
+    auto diff_dst_iter_c = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_ITER_C);
 
     auto w_layer = reinterpret_cast<const weights_data_t *>(layer_weights_n_comp);
     auto w_iter = reinterpret_cast<const weights_data_t *>(iter_weights_n_comp);
@@ -690,6 +696,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     auto diff_src_layer = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_LAYER);
     auto diff_src_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_ITER);
+    auto diff_src_iter_c = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_ITER_C);
 
     auto diff_weights_layer = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
     auto diff_weights_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_ITER);
@@ -724,10 +731,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     if (rnn.dt_conf == f32u8f32u8 || rnn.dt_conf == f32u8f32f32
             || rnn.dt_conf == all_f32)
         copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const float *)states, diff_dst_iter);
+                (const float *)states, c_states, diff_dst_iter,
+                diff_dst_iter_c);
     else if (rnn.dt_conf == u8u8u8u8 || rnn.dt_conf == u8u8u8f32)
         copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const uint8_t *)states, diff_dst_iter);
+                (const uint8_t *)states, c_states, diff_dst_iter,
+                diff_dst_iter_c);
     else
         assert(!"unimplemented");
 
@@ -749,10 +758,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     if (rnn.dt_conf == f32u8f32u8 || rnn.dt_conf == f32u8f32f32
             || rnn.dt_conf == all_f32)
-        copy_res_iter(rnn, (float *)dst_last_iter, diff_src_iter, ws_states,
+        copy_res_iter(rnn, (float *)dst_last_iter, dst_last_iter_c,
+                diff_src_iter, diff_src_iter_c, ws_states,
                 ws_c_states, ws_diff_states);
     else if (rnn.dt_conf == u8u8u8u8 || rnn.dt_conf == u8u8u8f32)
-        copy_res_iter(rnn, (uint8_t *)dst_last_iter, diff_src_iter, ws_states,
+        copy_res_iter(rnn, (uint8_t *)dst_last_iter, dst_last_iter_c,
+                diff_src_iter, diff_src_iter_c, ws_states,
                 ws_c_states, ws_diff_states);
     else
         assert(!"unimplemented");

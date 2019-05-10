@@ -36,17 +36,6 @@ int get_gates_count(mkldnn_alg_kind_t cell_kind) {
     return 0;
 }
 
-int get_states_count(mkldnn_alg_kind_t cell_kind) {
-    switch (cell_kind) {
-    case mkldnn::impl::alg_kind::vanilla_rnn: return 1;
-    case mkldnn::impl::alg_kind::vanilla_gru: return 1;
-    case mkldnn::impl::alg_kind::lbr_gru: return 1;
-    case mkldnn::impl::alg_kind::vanilla_lstm: return 2;
-    default: assert(!"unknown cell kind"); return 0;
-    }
-    return 0;
-}
-
 }
 }
 }
@@ -82,16 +71,21 @@ rnn_desc_t zero_rnn_desc() {
 
 status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
         prop_kind_t prop_kind, const memory_desc_t *src_layer_desc,
-        const memory_desc_t *src_iter_desc,
+        const memory_desc_t *src_iter_desc, const memory_desc_t *src_iter_c_desc,
         const memory_desc_t *weights_layer_desc,
         const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_layer_desc,
-        const memory_desc_t *dst_iter_desc) {
+        const memory_desc_t *dst_iter_desc, const memory_desc_t *dst_iter_c_desc) {
     using namespace data_type;
     data_type_t src_layer_dt = src_layer_desc->data_type;
     data_type_t dst_layer_dt = dst_layer_desc->data_type;
     data_type_t weights_iter_dt = weights_iter_desc->data_type;
     data_type_t weights_layer_dt = weights_layer_desc->data_type;
+
+    bool cell_state_check = IMPLICATION(!is_zero_md(src_iter_c_desc),
+                                    src_iter_c_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(dst_iter_c_desc),
+                       dst_iter_c_desc->data_type == f32);
 
     bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt, weights_iter_dt,
                           weights_layer_dt)
@@ -113,8 +107,12 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
     bool is_u8u8u8 = src_layer_dt == u8
             && IMPLICATION(!is_zero_md(src_iter_desc),
                              src_iter_desc->data_type == u8)
+            && IMPLICATION(!is_zero_md(src_iter_c_desc),
+                             src_iter_c_desc->data_type == f32)
             && IMPLICATION(!is_zero_md(dst_iter_desc),
                              dst_iter_desc->data_type == u8)
+            && IMPLICATION(!is_zero_md(dst_iter_c_desc),
+                             dst_iter_c_desc->data_type == f32)
             && one_of(dst_layer_dt, u8, f32)
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
@@ -131,23 +129,23 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
     bool is_inference = prop_kind == prop_kind::forward_inference;
     bool is_lstm = cell_kind == mkldnn_vanilla_lstm;
 
-    return (is_f32 || is_f16
+    return cell_state_check && (is_f32 || is_f16
             || ((is_u8u8u8 || is_f32u8f32) && is_lstm && is_inference))
             ? success
             : unimplemented;
 #else
-    return (is_f32 || is_f16) ? success : unimplemented;
+    return cell_state_check && (is_f32 || is_f16) ? success : unimplemented;
 #endif
 }
 
 status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
-        rnn_direction_t direction, int L, int D, int T, int N, int S, int G,
+        rnn_direction_t direction, int L, int D, int T, int N, int G,
         int SLC, int SIC, int DLC, int DIC, const memory_desc_t *src_layer_desc,
-        const memory_desc_t *src_iter_desc,
+        const memory_desc_t *src_iter_desc, const memory_desc_t *src_iter_c_desc,
         const memory_desc_t *weights_layer_desc,
         const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_layer_desc,
-        const memory_desc_t *dst_iter_desc) {
+        const memory_desc_t *dst_iter_desc, const memory_desc_t *dst_iter_c_desc) {
     bool args_ok;
 
     // * algorithm specific
@@ -164,7 +162,9 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
         && L == weights_iter_desc->dims[0]
         && IMPLICATION(!is_zero_md(bias_desc), L == bias_desc->dims[0])
         && IMPLICATION(!is_zero_md(src_iter_desc), L == src_iter_desc->dims[0])
-        && IMPLICATION(!is_zero_md(dst_iter_desc), L == dst_iter_desc->dims[0]);
+        && IMPLICATION(!is_zero_md(src_iter_c_desc), L == src_iter_c_desc->dims[0])
+        && IMPLICATION(!is_zero_md(dst_iter_desc), L == dst_iter_desc->dims[0])
+        && IMPLICATION(!is_zero_md(dst_iter_c_desc), L == dst_iter_c_desc->dims[0]);
     if (!args_ok) return invalid_arguments;
 
     // * on num directions
@@ -173,7 +173,9 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
         && D == weights_iter_desc->dims[1]
         && IMPLICATION(!is_zero_md(bias_desc), D == bias_desc->dims[1])
         && IMPLICATION(!is_zero_md(src_iter_desc), D == src_iter_desc->dims[1])
-        && IMPLICATION(!is_zero_md(dst_iter_desc), D == dst_iter_desc->dims[1]);
+        && IMPLICATION(!is_zero_md(src_iter_c_desc), D == src_iter_c_desc->dims[1])
+        && IMPLICATION(!is_zero_md(dst_iter_desc), D == dst_iter_desc->dims[1])
+        && IMPLICATION(!is_zero_md(dst_iter_c_desc), D == dst_iter_c_desc->dims[1]);
     if (!args_ok) return invalid_arguments;
 
     // * on num iterations
@@ -186,8 +188,10 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
     args_ok = true
         && N == src_layer_desc->dims[1]
         && N == dst_layer_desc->dims[1]
-        && IMPLICATION(!is_zero_md(src_iter_desc), N == src_iter_desc->dims[3])
-        && IMPLICATION(!is_zero_md(dst_iter_desc), N == dst_iter_desc->dims[3]);
+        && IMPLICATION(!is_zero_md(src_iter_desc), N == src_iter_desc->dims[2])
+        && IMPLICATION(!is_zero_md(src_iter_c_desc), N == src_iter_c_desc->dims[2])
+        && IMPLICATION(!is_zero_md(dst_iter_desc), N == dst_iter_desc->dims[2])
+        && IMPLICATION(!is_zero_md(dst_iter_c_desc), N == dst_iter_c_desc->dims[2]);
     if (!args_ok) return invalid_arguments;
 
     // * on num gates
@@ -197,13 +201,6 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
         && G == weights_iter_desc->dims[3]
         && IMPLICATION(!is_zero_md(bias_desc),
                 G + extra_bias == bias_desc->dims[2]);
-    if (!args_ok) return invalid_arguments;
-
-    // * on num states
-    args_ok = true
-        && S == mkldnn::impl::rnn::get_states_count(cell_kind)
-        && IMPLICATION(!is_zero_md(src_iter_desc), S == src_iter_desc->dims[2])
-        && IMPLICATION(!is_zero_md(dst_iter_desc), S == dst_iter_desc->dims[2]);
     if (!args_ok) return invalid_arguments;
 
     // * on slc
@@ -216,7 +213,7 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
     args_ok = true
         && SIC == weights_iter_desc->dims[2]
         && IMPLICATION(!is_zero_md(src_iter_desc),
-                SIC == src_iter_desc->dims[4]);
+                SIC == src_iter_desc->dims[3]);
     if (!args_ok) return invalid_arguments;
 
     // * on dlc
@@ -231,8 +228,12 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
         && DIC == weights_layer_desc->dims[4]
         && DIC == weights_iter_desc->dims[4]
         && IMPLICATION(!is_zero_md(bias_desc), DIC == bias_desc->dims[3])
+        && IMPLICATION(!is_zero_md(src_iter_c_desc),
+                DIC == src_iter_c_desc->dims[3])
         && IMPLICATION(!is_zero_md(dst_iter_desc),
-                DIC == dst_iter_desc->dims[4]);
+                DIC == dst_iter_desc->dims[3])
+        && IMPLICATION(!is_zero_md(dst_iter_c_desc),
+                DIC == dst_iter_c_desc->dims[3]);
     if (!args_ok) return invalid_arguments;
 
     // * unrolling/fusion conditions
@@ -248,11 +249,11 @@ status_t rnn_common_fwd_desc_init(
         mkldnn_rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
         mkldnn_alg_kind_t cell_kind, const rnn_direction_t direction,
         const memory_desc_t *src_layer_desc,
-        const memory_desc_t *src_iter_desc,
+        const memory_desc_t *src_iter_desc, const memory_desc_t *src_iter_c_desc,
         const memory_desc_t *weights_layer_desc,
         const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_layer_desc,
-        const memory_desc_t *dst_iter_desc,
+        const memory_desc_t *dst_iter_desc, const memory_desc_t *dst_iter_c_desc,
         unsigned flags, mkldnn_alg_kind_t activation = mkldnn_alg_kind_undef,
         float alpha = 0.0f, float beta = 0.0f ) {
 
@@ -268,6 +269,16 @@ status_t rnn_common_fwd_desc_init(
                        dst_layer_desc);
     if (!args_ok) return invalid_arguments;
 
+    // check that optional parameters are passed properly, namely:
+    // - if lstm and XXX_iter is provided, XXX_iter_c should be provided too
+    auto xnor_md = [=](const memory_desc_t *a_md, const memory_desc_t *b_md) {
+        return is_zero_md(a_md) == is_zero_md(b_md);
+    };
+
+    args_ok = args_ok && IMPLICATION(cell_kind == mkldnn_vanilla_lstm,
+                                 xnor_md(src_iter_desc, src_iter_c_desc)
+                                 && xnor_md(dst_iter_desc, dst_iter_c_desc));
+
     //check dimensions consistency
     int L = weights_layer_desc->dims[0];
     int T = src_layer_desc->dims[0];
@@ -277,20 +288,20 @@ status_t rnn_common_fwd_desc_init(
             1 :
             2;
     int G = mkldnn::impl::rnn::get_gates_count(cell_kind);
-    int S = mkldnn::impl::rnn::get_states_count(cell_kind);
     int SLC = src_layer_desc->dims[2];
     int SIC = weights_iter_desc->dims[2];
     int DLC = dst_layer_desc->dims[2];
     int DIC = weights_layer_desc->dims[4];
 
-    CHECK(check_dim_consistency(cell_kind, direction, L, D, T, N, S,
+    CHECK(check_dim_consistency(cell_kind, direction, L, D, T, N,
             G, SLC, SIC, DLC, DIC, src_layer_desc, src_iter_desc,
-            weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
-            dst_iter_desc));
+            src_iter_c_desc, weights_layer_desc, weights_iter_desc, bias_desc,
+            dst_layer_desc, dst_iter_desc, dst_iter_c_desc));
 
     CHECK(check_data_type_consistency_fwd(cell_kind, prop_kind,
-            src_layer_desc, src_iter_desc, weights_layer_desc,
-            weights_iter_desc, bias_desc, dst_layer_desc, dst_iter_desc));
+            src_layer_desc, src_iter_desc, src_iter_c_desc, weights_layer_desc,
+            weights_iter_desc, bias_desc, dst_layer_desc, dst_iter_desc,
+            dst_iter_c_desc));
 
     // Create the descriptor
     mkldnn_rnn_desc_t rd = zero_rnn_desc();
@@ -301,11 +312,13 @@ status_t rnn_common_fwd_desc_init(
     rd.direction = direction;
     rd.src_layer_desc = copy_maybe_null(src_layer_desc);
     rd.src_iter_desc = copy_maybe_null(src_iter_desc);
+    rd.src_iter_c_desc = copy_maybe_null(src_iter_c_desc);
     rd.weights_layer_desc = copy_maybe_null(weights_layer_desc);
     rd.weights_iter_desc = copy_maybe_null(weights_iter_desc);
     rd.bias_desc = copy_maybe_null(bias_desc);
     rd.dst_layer_desc = copy_maybe_null(dst_layer_desc);
     rd.dst_iter_desc = copy_maybe_null(dst_iter_desc);
+    rd.dst_iter_c_desc = copy_maybe_null(dst_iter_c_desc);
 
     rd.flags = flags;
     rd.activation_kind = activation;
@@ -323,18 +336,22 @@ status_t rnn_common_bwd_desc_init(
         const mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         const mkldnn_memory_desc_t *diff_src_layer_desc,
         const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
         const mkldnn_memory_desc_t *diff_weights_layer_desc,
         const mkldnn_memory_desc_t *diff_weights_iter_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_c_desc,
         unsigned flags,  mkldnn_alg_kind_t activation = mkldnn_alg_kind_undef,
         float alpha = 0.0f, float beta = 0.0f) {
 
@@ -353,13 +370,22 @@ status_t rnn_common_bwd_desc_init(
     if (!args_ok)
         return invalid_arguments;
 
+    // check that optional parameters are passed properly, namely:
+    // - if lstm and XXX_iter is provided, XXX_iter_c should be provided too
+    // - if XXX_iter is provided, diff_XXX_iter should be provided too
     auto xnor_md = [=](const memory_desc_t *a_md, const memory_desc_t *b_md) {
         return is_zero_md(a_md) == is_zero_md(b_md);
     };
 
+    args_ok = args_ok && IMPLICATION(cell_kind == mkldnn_vanilla_lstm,
+                                 xnor_md(src_iter_desc, src_iter_c_desc)
+                                 && xnor_md(dst_iter_desc, dst_iter_c_desc));
+
     args_ok = args_ok && xnor_md(bias_desc, diff_bias_desc)
+            && xnor_md(src_iter_desc, diff_src_iter_desc)
+            && xnor_md(src_iter_c_desc, src_iter_c_desc)
             && xnor_md(dst_iter_desc, diff_dst_iter_desc)
-            && xnor_md(src_iter_desc, diff_src_iter_desc);
+            && xnor_md(dst_iter_c_desc, diff_dst_iter_c_desc);
     if (!args_ok)
         return invalid_arguments;
 
@@ -372,22 +398,22 @@ status_t rnn_common_bwd_desc_init(
             1 :
             2;
     int G = mkldnn::impl::rnn::get_gates_count(cell_kind);
-    int S = mkldnn::impl::rnn::get_states_count(cell_kind);
     int SLC = src_layer_desc->dims[2];
     int SIC = weights_iter_desc->dims[2];
     int DLC = dst_layer_desc->dims[2];
     int DIC = weights_layer_desc->dims[4];
 
-    status_t st = check_dim_consistency(cell_kind, direction, L, D, T, N, S,
-            G, SLC, SIC, DLC, DIC, src_layer_desc, src_iter_desc,
+    status_t st = check_dim_consistency(cell_kind, direction, L, D, T, N,
+            G, SLC, SIC, DLC, DIC, src_layer_desc, src_iter_desc, src_iter_c_desc,
             weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
-            dst_iter_desc);
+            dst_iter_desc, dst_iter_c_desc);
     if (st != success) return st;
 
-    st = check_dim_consistency(cell_kind, direction, L, D, T, N, S,
+    st = check_dim_consistency(cell_kind, direction, L, D, T, N,
             G, SLC, SIC, DLC, DIC, diff_src_layer_desc, diff_src_iter_desc,
-            diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
-            diff_dst_layer_desc, diff_dst_iter_desc);
+            diff_src_iter_c_desc, diff_weights_layer_desc,
+            diff_weights_iter_desc, diff_bias_desc, diff_dst_layer_desc,
+            diff_dst_iter_desc, diff_dst_iter_c_desc);
     if (st != success) return st;
 
     mkldnn_rnn_desc_t rd = zero_rnn_desc();
@@ -399,18 +425,22 @@ status_t rnn_common_bwd_desc_init(
 
     rd.src_layer_desc = copy_maybe_null(src_layer_desc);
     rd.src_iter_desc = copy_maybe_null(src_iter_desc);
+    rd.src_iter_c_desc = copy_maybe_null(src_iter_c_desc);
     rd.weights_layer_desc = copy_maybe_null(weights_layer_desc);
     rd.weights_iter_desc = copy_maybe_null(weights_iter_desc);
     rd.bias_desc = copy_maybe_null(bias_desc);
     rd.dst_layer_desc = copy_maybe_null(dst_layer_desc);
     rd.dst_iter_desc = copy_maybe_null(dst_iter_desc);
+    rd.dst_iter_c_desc = copy_maybe_null(dst_iter_c_desc);
     rd.diff_src_layer_desc = copy_maybe_null(diff_src_layer_desc);
     rd.diff_src_iter_desc = copy_maybe_null(diff_src_iter_desc);
+    rd.diff_src_iter_c_desc = copy_maybe_null(diff_src_iter_c_desc);
     rd.diff_weights_layer_desc = copy_maybe_null(diff_weights_layer_desc);
     rd.diff_weights_iter_desc = copy_maybe_null(diff_weights_iter_desc);
     rd.diff_bias_desc = copy_maybe_null(diff_bias_desc);
     rd.diff_dst_layer_desc = copy_maybe_null(diff_dst_layer_desc);
     rd.diff_dst_iter_desc = copy_maybe_null(diff_dst_iter_desc);
+    rd.diff_dst_iter_c_desc = copy_maybe_null(diff_dst_iter_c_desc);
 
     rd.flags = flags;
     rd.activation_kind = activation;
@@ -439,12 +469,11 @@ status_t mkldnn_vanilla_rnn_forward_desc_init(
         const mkldnn_memory_desc_t *dst_iter_desc,
         unsigned flags,
         float alpha, float beta) {
-
     status_t st = rnn_common_fwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_rnn, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
         flags, activation, alpha, beta);
     return st;
 }
@@ -454,18 +483,20 @@ status_t mkldnn_lstm_forward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         unsigned flags) {
 
     status_t st = rnn_common_fwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_lstm, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
+        dst_layer_desc, dst_iter_desc, dst_iter_c_desc,
         flags);
     return st;
 }
@@ -481,12 +512,11 @@ status_t mkldnn_gru_forward_desc_init(
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
         unsigned flags) {
-
     status_t st = rnn_common_fwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_gru, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
         flags);
     return st;
 }
@@ -502,12 +532,11 @@ status_t mkldnn_lbr_gru_forward_desc_init(
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
         unsigned flags) {
-
     status_t st = rnn_common_fwd_desc_init(
         rnn_desc, prop_kind, mkldnn_lbr_gru, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
         flags);
     return st;
 }
@@ -532,15 +561,14 @@ status_t mkldnn_vanilla_rnn_backward_desc_init(
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
         unsigned flags,
         float alpha, float beta) {
-
     status_t st = rnn_common_bwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_rnn, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
-        diff_src_layer_desc, diff_src_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
+        diff_src_layer_desc, diff_src_iter_desc, &glob_zero_md,
         diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
-        diff_dst_layer_desc, diff_dst_iter_desc,
+        diff_dst_layer_desc, diff_dst_iter_desc, &glob_zero_md,
         flags, activation, alpha, beta);
     return st;
 }
@@ -550,28 +578,32 @@ status_t mkldnn_lstm_backward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         const mkldnn_memory_desc_t *diff_src_layer_desc,
         const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
         const mkldnn_memory_desc_t *diff_weights_layer_desc,
         const mkldnn_memory_desc_t *diff_weights_iter_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_c_desc,
         unsigned flags) {
 
     status_t st = rnn_common_bwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_lstm, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
-        diff_src_layer_desc, diff_src_iter_desc,
+        dst_layer_desc, dst_iter_desc, dst_iter_c_desc,
+        diff_src_layer_desc, diff_src_iter_desc, diff_src_iter_c_desc,
         diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
-        diff_dst_layer_desc, diff_dst_iter_desc,
+        diff_dst_layer_desc, diff_dst_iter_desc, diff_dst_iter_c_desc,
         flags);
     return st;
 }
@@ -594,15 +626,14 @@ status_t mkldnn_gru_backward_desc_init(
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
         unsigned flags) {
-
     status_t st = rnn_common_bwd_desc_init(
         rnn_desc, prop_kind, mkldnn_vanilla_gru, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
-        diff_src_layer_desc, diff_src_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
+        diff_src_layer_desc, diff_src_iter_desc, &glob_zero_md,
         diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
-        diff_dst_layer_desc, diff_dst_iter_desc,
+        diff_dst_layer_desc, diff_dst_iter_desc, &glob_zero_md,
         flags);
     return st;
 }
@@ -625,15 +656,14 @@ status_t mkldnn_lbr_gru_backward_desc_init(
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
         unsigned flags) {
-
     status_t st = rnn_common_bwd_desc_init(
         rnn_desc, prop_kind, mkldnn_lbr_gru, direction,
-        src_layer_desc, src_iter_desc,
+        src_layer_desc, src_iter_desc, &glob_zero_md,
         weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc,
-        diff_src_layer_desc, diff_src_iter_desc,
+        dst_layer_desc, dst_iter_desc, &glob_zero_md,
+        diff_src_layer_desc, diff_src_iter_desc, &glob_zero_md,
         diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
-        diff_dst_layer_desc, diff_dst_iter_desc,
+        diff_dst_layer_desc, diff_dst_iter_desc, &glob_zero_md,
         flags);
     return st;
 }

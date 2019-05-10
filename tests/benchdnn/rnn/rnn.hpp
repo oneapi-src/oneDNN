@@ -102,17 +102,21 @@ int str2desc(desc_t *desc, const char *str);
 enum rnn_data_kind_t {
     input,
     states,
+    c_states,
     weights_input,
     weights_states,
     bias,
     dst_last_iteration,
+    dst_c_last_iteration,
     dst_last_layer,
     dst_diff_input,
     dst_diff_states,
+    dst_diff_c_states,
     dst_diff_weights_input,
     dst_diff_weights_states,
     dst_diff_bias,
     diff_last_iteration,
+    diff_c_last_iteration,
     diff_last_layer,
     data_kind_total // should be last to provide the total number of data kinds
 };
@@ -126,6 +130,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
     case bias: return "BIAS";
     case dst_last_layer: return "DST_LAST_LAYER";
     case dst_last_iteration: return "DST_LAST_ITERATION";
+    case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
     default:
         assert(!"incorrect rnn data kind");
         return "incorrect rnn data kind";
@@ -182,6 +187,8 @@ struct prb_t : public desc_t {
         , direction(direction)
         , flags(flags)
         , activation(activation)
+        , alpha(alpha)
+        , beta(beta)
         , attr(attr)
         , scale_policy(scale_policy)
         , ops(0.0) {
@@ -276,17 +283,19 @@ private:
 };
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &input_m,
-        dnn_mem_t &states_m, dnn_mem_t &weights_input_m,
+        dnn_mem_t &states_m, dnn_mem_t &c_states_m, dnn_mem_t &weights_input_m,
         dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,
         dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        mkldnn_rnn_direction_t direction);
+        dnn_mem_t &dst_c_last_iteration_m, mkldnn_rnn_direction_t direction);
 
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &input_m,
-        dnn_mem_t &states_m, dnn_mem_t &diff_last_layer_m,
-        dnn_mem_t &diff_last_iteration_m, dnn_mem_t &weights_input_m,
+        dnn_mem_t &states_m, dnn_mem_t &c_states_m,
+        dnn_mem_t &diff_last_layer_m, dnn_mem_t &diff_last_iteration_m,
+        dnn_mem_t &diff_c_last_iteration_m, dnn_mem_t &weights_input_m,
         dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,
         dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        dnn_mem_t &dst_diff_input_m, dnn_mem_t &dst_diff_states_m,
+        dnn_mem_t &dst_c_last_iteration_m, dnn_mem_t &dst_diff_input_m,
+        dnn_mem_t &dst_diff_states_m, dnn_mem_t &dst_diff_c_states_m,
         dnn_mem_t &dst_diff_weights_input_m,
         dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m,
         mkldnn_rnn_direction_t direction);
@@ -307,21 +316,19 @@ inline void inv_ntc_off_f(const prb_t *p,
     assert(off == 0);
 }
 
-// mkldnn_ldsnc
-inline size_t ldsnc_off_f(const prb_t *p,
-        int64_t l, int64_t d, int64_t s, int64_t n, int64_t c) {
-    return (((l * p->n_directions() + d) * p->n_states() + s) * p->mb + n)
+// mkldnn_ldnc
+inline size_t ldnc_off_f(const prb_t *p,
+        int64_t l, int64_t d, int64_t n, int64_t c) {
+    return ((l * p->n_directions() + d) * p->mb + n)
             * p->sic + c;
 }
 
-inline void inv_ldsnc_off_f(const prb_t *p, size_t off,
-        int64_t &l, int64_t &d, int64_t &s, int64_t &n, int64_t &c) {
+inline void inv_ldnc_off_f(const prb_t *p, size_t off,
+        int64_t &l, int64_t &d, int64_t &n, int64_t &c) {
     c = off % p->sic;
     off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
-    s = off % p->n_states();
-    off /= p->n_states();
     d = off % p->n_directions();
     off /= p->n_directions();
     l = off % p->n_layer;
@@ -393,21 +400,18 @@ inline void inv_ldgo_off_f(const prb_t *p, size_t off,
 }
 
 // dst_last_layer: mkldnn_tnc
-inline size_t tnc_off_f(const prb_t *p,
-        int64_t s, int64_t t, int64_t n, int64_t c) {
-    return ((s * p->n_iter + t) * p->mb + n) * p->sic + c;
+inline size_t tnc_off_f(const prb_t *p, int64_t t, int64_t n, int64_t c) {
+    return (t * p->mb + n) * p->sic + c;
 }
 
 inline void inv_tnc_off_f(
-        const prb_t *p, size_t off, int64_t &s, int64_t &t, int64_t &n, int64_t &c) {
+        const prb_t *p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
     c = off % p->sic;
     off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
     t = off % p->n_iter;
     off /= p->n_iter;
-    s = off % p->n_states();
-    off /= p->n_states();
     assert(off == 0);
 }
 

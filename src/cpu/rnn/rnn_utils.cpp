@@ -96,7 +96,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.n_iter = src_layer_d.dims()[0];
     rnn.n_dir = weights_layer_d.dims()[1];
     rnn.n_gates = weights_layer_d.dims()[3];
-    rnn.n_states = mkldnn::impl::rnn::get_states_count(rd.cell_kind);
+    rnn.n_states = rd.cell_kind == mkldnn_vanilla_lstm ? 2 : 1;
     rnn.n_bias = rnn.n_gates + rnn.is_lbr;
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];

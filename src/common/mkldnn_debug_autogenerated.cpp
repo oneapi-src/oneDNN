@@ -207,7 +207,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_goidhw) return "goidhw";
     if (v == mkldnn_tnc) return "tnc";
     if (v == mkldnn_ntc) return "ntc";
-    if (v == mkldnn_ldsnc) return "ldsnc";
+    if (v == mkldnn_ldnc) return "ldnc";
     if (v == mkldnn_ldigo) return "ldigo";
     if (v == mkldnn_ldgoi) return "ldgoi";
     if (v == mkldnn_ldgo) return "ldgo";

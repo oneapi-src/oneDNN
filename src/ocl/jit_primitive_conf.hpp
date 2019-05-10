@@ -40,18 +40,22 @@ struct jit_offsets {
 struct jit_rnn_offsets {
     int src_layer_off[3][MAX_NDIMS];
     int src_iter_off[3][MAX_NDIMS];
+    int src_iter_c_off[3][MAX_NDIMS];
     int weights_layer_off[3][MAX_NDIMS];
     int weights_iter_off[3][MAX_NDIMS];
     int bias_off[3][MAX_NDIMS];
     int dst_layer_off[3][MAX_NDIMS];
     int dst_iter_off[3][MAX_NDIMS];
+    int dst_iter_c_off[3][MAX_NDIMS];
     int diff_src_layer_off[3][MAX_NDIMS];
     int diff_src_iter_off[3][MAX_NDIMS];
+    int diff_src_iter_c_off[3][MAX_NDIMS];
     int diff_weights_layer_off[3][MAX_NDIMS];
     int diff_weights_iter_off[3][MAX_NDIMS];
     int diff_bias_off[3][MAX_NDIMS];
     int diff_dst_layer_off[3][MAX_NDIMS];
     int diff_dst_iter_off[3][MAX_NDIMS];
+    int diff_dst_iter_c_off[3][MAX_NDIMS];
     int ws_off[3][MAX_NDIMS];
 };
 
@@ -139,7 +143,9 @@ struct jit_rnn_conf_t {
     int direction_kind;
     bool with_bias;
     bool with_src_iter;
+    bool with_src_iter_c;
     bool with_dst_iter;
+    bool with_dst_iter_c;
     bool is_lbr;
     bool is_forward;
     data_type_t src_dt;
@@ -163,17 +169,21 @@ struct jit_rnn_conf_t {
     int n_parts_wei_st, n_parts_wei_i;
     int src_layer_ndims;
     int src_iter_ndims;
+    int src_iter_c_ndims;
     int weights_layer_ndims;
     int weights_iter_ndims;
     int dst_layer_ndims;
     int dst_iter_ndims;
+    int dst_iter_c_ndims;
     int bias_ndims;
     int diff_src_layer_ndims;
     int diff_src_iter_ndims;
+    int diff_src_iter_c_ndims;
     int diff_weights_layer_ndims;
     int diff_weights_iter_ndims;
     int diff_dst_layer_ndims;
     int diff_dst_iter_ndims;
+    int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
 
     size_t ws_gates_offset;
