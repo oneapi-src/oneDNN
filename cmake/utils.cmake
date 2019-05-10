@@ -25,7 +25,7 @@ include("cmake/options.cmake")
 
 # Common configuration for tests / test cases on Windows
 function(maybe_configure_windows_test name kind)
-    if(WIN32 OR MINGW)
+    if((WIN32 OR MINGW) AND (NOT MKLDNN_BUILD_FOR_CI))
         string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
         set_property(${kind} ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
         configure_file(${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user

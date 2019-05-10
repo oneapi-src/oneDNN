@@ -45,6 +45,7 @@ set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether Intel(R) MKL-DNN library should be SHARED or STATIC")
 option(MKLDNN_BUILD_EXAMPLES "builds examples"  ON)
 option(MKLDNN_BUILD_TESTS "builds tests" ON)
+option(MKLDNN_BUILD_FOR_CI "specifies whether Intel(R) MKL-DNN library should be built for CI" OFF)
 option(MKLDNN_WERROR "treat warnings as errors" ON)
 
 set(MKLDNN_INSTALL_MODE "DEFAULT" CACHE STRING
