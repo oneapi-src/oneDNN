@@ -486,11 +486,16 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr, int scale_cnt,
 
 mkldnn_memory_format_t get_default_format(int ndims, data_kind_t kind) {
     switch(kind) {
+    case BIA: return mkldnn_x;
+    case SRC:
+    case DST:
     case DATA: return (ndims == 5)
         ? mkldnn_ncdhw
         : (ndims == 4)
         ? mkldnn_nchw
-        : mkldnn_ncw;
+        : (ndims == 3)
+        ? mkldnn_ncw
+        : mkldnn_nc;
     case GWEI: return (ndims == 6)
         ? mkldnn_goidhw
         : (ndims == 5)
