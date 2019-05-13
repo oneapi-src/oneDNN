@@ -74,6 +74,7 @@ namespace alg_kind {
     const alg_kind_t eltwise_bounded_relu = mkldnn_eltwise_bounded_relu;
     const alg_kind_t eltwise_soft_relu = mkldnn_eltwise_soft_relu;
     const alg_kind_t eltwise_logistic = mkldnn_eltwise_logistic;
+    const alg_kind_t eltwise_exp = mkldnn_eltwise_exp;
     const alg_kind_t pooling_max = mkldnn_pooling_max;
     const alg_kind_t pooling_avg = mkldnn_pooling_avg;
     const alg_kind_t pooling_avg_include_padding = mkldnn_pooling_avg_include_padding;

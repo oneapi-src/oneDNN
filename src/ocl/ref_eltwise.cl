@@ -97,6 +97,13 @@ DATA_T elu_bwd(DATA_T dd, DATA_T s, DATA_T alpha){
     return  dd * (s > 0 ? 1 : alpha * exp(s));
 }
 
+DATA_T exp_fwd(DATA_T s) {
+    return exp(s);
+}
+DATA_T exp_bwd(DATA_T dd, DATA_T s) {
+    return dd * exp_fwd(s);
+}
+
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
     const int i = get_global_id(0);
@@ -135,6 +142,7 @@ __kernel void ref_eltwise_fwd(
     case SQUARE: dst[off] = square_fwd(src[off]); break;
     case SQRT: dst[off] = sqrt_fwd(src[off]); break;
     case ABS: dst[off] = abs_fwd(src[off]); break;
+    case EXP: dst[off] = exp_fwd(src[off]); break;
     default: return;
     }
 }
@@ -176,6 +184,7 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     case SQUARE: diff_src[off] = square_bwd(diff_dst[off], src[off]); break;
     case SQRT: diff_src[off] = sqrt_bwd(diff_dst[off], src[off]); break;
     case ABS: diff_src[off] = abs_bwd(diff_dst[off], src[off]); break;
+    case EXP: diff_src[off] = exp_bwd(diff_dst[off], src[off]); break;
     default: return;
     }
 }

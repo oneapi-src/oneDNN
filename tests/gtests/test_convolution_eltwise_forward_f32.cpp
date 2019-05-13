@@ -55,6 +55,8 @@ TEST_P(convolution_test, TestConvolutionEltwise)
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_logistic, __VA_ARGS__))
+//  Not testing due to not scaled output
+//  EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_exp, __VA_ARGS__))
 
 #define ELTWISE_ALPHA 0.5f
 #define ELTWISE_BETA 1.5f

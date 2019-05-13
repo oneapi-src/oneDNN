@@ -20,6 +20,7 @@ The following operations are supported:
 | abs          | #mkldnn_eltwise_abs          | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha -x & \text{if}\ x \leq 0 \end{cases} \f$
 | bounded_relu | #mkldnn_eltwise_bounded_relu | \f$ x = \begin{cases} \alpha & \text{if}\ x > \alpha \\ \alpha x & \text{if}\ x \leq \alpha \end{cases} \f$
 | elu          | #mkldnn_eltwise_elu          | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
+| exp          | #mkldnn_eltwise_exp          | \f$ x = e^x \f$
 | linear       | #mkldnn_eltwise_linear       | \f$ x = \alpha x + \beta \f$
 | logistic     | #mkldnn_eltwise_logistic     | \f$ x = \frac{1}{1+e^{-x}} \f$
 | relu         | #mkldnn_eltwise_relu         | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$

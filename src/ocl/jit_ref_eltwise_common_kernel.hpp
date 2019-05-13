@@ -66,6 +66,7 @@ struct jit_ref_eltwise_common_kernel {
         jit.define_int("SQUARE", alg_kind::eltwise_square);
         jit.define_int("SQRT", alg_kind::eltwise_sqrt);
         jit.define_int("ABS", alg_kind::eltwise_abs);
+        jit.define_int("EXP", alg_kind::eltwise_exp);
         jit.define_int("ALG_KIND", jel.alg);
 
         jit.define_int("NDIMS", jel.ndims);
