@@ -24,6 +24,8 @@
 #include "cpu_engine.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_generator.hpp"
+#include "jit_uni_eltwise.hpp"
+#include "ref_eltwise.hpp"
 #include "gemm_convolution_utils.hpp"
 
 #include "gemm/gemm.hpp"
@@ -106,13 +108,14 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
         virtual bool is_gemm_conv_format() const {
             using namespace mkldnn::impl::primitive_kind;
             auto const &po = this->attr()->post_ops_;
-            auto is_relu = [&](int idx) {
-                return po.entry_[idx].is_relu(true, false); };
+            auto is_eltwise = [&](int idx) { return po.entry_[idx].is_eltwise(); };
 
             switch (po.len_) {
             case 0: return true;
-            case 1: return is_relu(0) || po.contain(sum, 0);
-            case 2: return po.contain(sum, 0) && is_relu(1);
+            case 1: return is_eltwise(0) || po.contain(sum, 0);
+            case 2:
+                return (po.contain(sum, 0) && is_eltwise(1))
+                        || (po.contain(sum, 1) && is_eltwise(0));
             default: return false;
             }
             return false;
@@ -149,6 +152,13 @@ private:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(
         _gemm_x8s8s32x_convolution_fwd_t::pp_kernel);
         pp_ker_t(const pd_t *pd);
+        ~pp_ker_t() {
+            if (eltwise_injector_)
+                delete eltwise_injector_;
+            if (eltwise_)
+                delete eltwise_;
+        }
+
 
         void operator()(dst_data_t *dst, const acc_data_t *acc,
             const char *bias, const float *scales,
@@ -181,10 +191,13 @@ private:
         size_t scale_idx_mult_;
         round_mode_t rmode_;
         bool do_bias_;
-        bool do_relu_;
+        bool do_eltwise_;
         bool do_sum_;
         bool do_signed_scaling_;
         size_t vlen_;
+        jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+        ref_eltwise_scalar_fwd_t *eltwise_;
+
     };
 
 
