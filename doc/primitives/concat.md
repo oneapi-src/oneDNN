@@ -35,8 +35,10 @@ operation.
 
 ### Data Types Support
 
-The concat primitive supports arbitrary data types for all sources and
-destination according to the @ref dev_guide_data_types page.
+The concat primitive supports arbitrary data types for source and destination
+tensors according to the @ref dev_guide_data_types page. However, it is
+required that all source tensors are of the same data type (but not necessarily
+matching the data type of the destination tensor).
 
 ### Data Representation
 
@@ -59,11 +61,12 @@ The concat primitive doesn't support any post-ops or attributes.
 1. Whenever possible, avoid specifying the destination memory format so that the
    primitive is able to choose the most appropriate one.
 
-2. The concat primitive is highly optimized for the cases in which all sources
-   have the same memory format and data type. For other cases, more general but
-   slower code is working. This probably can be treated as a library gap/bug.
-   However, if a quick workaround is required consider reordering sources to
-   the same data format before using the concat primitive.
+2. The concat primitive is highly optimized for the cases in which all source
+   tensors have same memory format and data type matches the destination tensor
+   data type. For other cases, more general but slower code is working.
+   Consider reordering sources to the same data format before using the concat
+   primitive.
+
 
 --------
 
