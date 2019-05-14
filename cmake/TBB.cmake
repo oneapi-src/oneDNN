@@ -56,7 +56,7 @@ macro(handle_tbb_target)
     append_to_windows_path_list(CTESTCONFIG_PATH "${_tbb_redist_dir}")
 endmacro()
 
-if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
+if(NOT "${DNNL_CPU_THREADING_RUNTIME}" MATCHES "^(TBB|TBB_AUTO)$")
     return()
 endif()
 

@@ -198,7 +198,7 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     To use Threading Building Blocks (TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.")
-if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(NONE|OMP|TBB|SEQ|THREADPOOL|DPCPP|SYCL)$")
+if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(NONE|OMP|TBB|TBB_AUTO|SEQ|THREADPOOL|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
 endif()
 

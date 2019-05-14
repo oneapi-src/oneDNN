@@ -3125,6 +3125,9 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 /// TBB runtime (CPU only)
 #define DNNL_RUNTIME_TBB 4u
 
+/// TBB runtime with auto partitioning(CPU only)
+#define DNNL_RUNTIME_TBB_AUTO 5u
+
 /// Threadpool runtime (CPU only)
 #define DNNL_RUNTIME_THREADPOOL 8u
 
