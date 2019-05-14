@@ -36,6 +36,7 @@ std::vector<int> axis {1};
 std::vector<int64_t> mb {0};
 
 dims_t dims;
+const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv =
     "perf,%engine%,%dir%,%dt%,%tag%,%axis%,%DESC%,%-time%,%0time%";
@@ -48,6 +49,7 @@ void reset_parameters() {
     tag = {mkldnn_nchw};
     axis = {1};
     mb = {0};
+    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -88,6 +90,7 @@ int bench(int argc, char **argv) {
         else if (parse_tag(tag, argv[0]));
         else if (parse_axis(axis, argv[0]));
         else if (parse_mb(mb, argv[0]));
+        else if (parse_skip_impl(skip_impl, argv[0]));
         else if (parse_allow_unimpl(allow_unimpl, argv[0]));
         else if (parse_perf_template(perf_template, perf_template_def,
                     perf_template_csv, argv[0]));

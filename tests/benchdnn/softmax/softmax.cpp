@@ -57,6 +57,15 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
     mkldnn_status_t init_status = mkldnn_primitive_desc_create(&spd, &sd,
             NULL, engine_tgt, NULL);
 
+    const char *impl_str = query_impl_info(spd);
+    if (maybe_skip(skip_impl, impl_str)) {
+        print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(spd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        print(5, "mkldnn implementation: %s\n", impl_str);
+    }
+
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
@@ -112,7 +121,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             || (verbose >= 50 && i < 30);
         if (dump) {
             print(0, "[%4lu][" IFMT "," IFMT "," IFMT"] "
-                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    "fp:%12g dt:%12g diff:%12g rdiff:%12g\n",
                     (unsigned long)i, n, c, sp, fp, dt, diff, rel_diff);
         }
     }
