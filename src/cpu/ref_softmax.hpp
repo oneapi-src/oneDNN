@@ -52,31 +52,26 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
 
     private:
         void init_scratchpad() {
-            const int inner_size = utils::array_product(
-                    desc()->data_desc.dims + desc()->softmax_axis + 1,
-                    desc()->data_desc.ndims - desc()->softmax_axis - 1);
+            const dim_t in_s = inner_size();
+            const dim_t ou_s = outer_size();
 
-            if (inner_size > 1) {
+            if (in_s > 1) {
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(memory_tracking::names::key_softmax_reduction,
-                        sizeof(data_t) * 2 * inner_size);
+                        sizeof(data_t) * 2 * in_s * ou_s);
             }
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
-    {
-        auto ndims = pd()->desc()->data_desc.ndims;
-        auto dims = pd()->desc()->data_desc.dims;
-        auto axis = pd()->desc()->softmax_axis;
-
-        outer_size_ = utils::array_product(dims, axis);
-        channels_ = dims[axis];
-        inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
+    ref_softmax_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {
+        outer_size_ = pd()->outer_size();
+        channels_ = pd()->axis_size();
+        inner_size_ = pd()->inner_size();
 
         const memory_desc_wrapper data_d(pd()->src_md());
         const auto &bd = data_d.blocking_desc();
 
+        auto axis = pd()->axis();
         dim_t axis_blk_size = 1;
         for (int iblk = 0; iblk < bd.inner_nblks; ++iblk)
             if (bd.inner_idxs[iblk] == axis)
@@ -136,18 +131,15 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
     };
 
     ref_softmax_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {
-        auto dims = pd()->desc()->diff_desc.dims;
-        auto axis = pd()->desc()->softmax_axis;
-        auto ndims = pd()->desc()->diff_desc.ndims;
-
-        outer_size_ = utils::array_product(dims, axis);
-        channels_ = dims[axis];
-        inner_size_ = utils::array_product(dims + axis + 1, ndims - axis - 1);
+        outer_size_ = pd()->outer_size();
+        channels_ = pd()->axis_size();
+        inner_size_ = pd()->inner_size();
 
         const memory_desc_wrapper data_d(pd()->dst_md());
         const memory_desc_wrapper diff_d(pd()->diff_dst_md());
         const auto &bd = diff_d.blocking_desc();
 
+        auto axis = pd()->axis();
         dim_t axis_blk_size = 1;
         for (int iblk = 0; iblk < bd.inner_nblks; ++iblk)
             if (bd.inner_idxs[iblk] == axis)

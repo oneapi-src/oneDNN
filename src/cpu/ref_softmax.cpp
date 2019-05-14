@@ -40,10 +40,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const int axis = pd()->desc()->softmax_axis;
-    const memory_desc_wrapper data_d(pd()->src_md());
-    const size_t ou_stride = axis > 0
-        ? data_d.blocking_desc().strides[axis - 1] : 1u;
+    const auto ou_stride = pd()->outer_stride();
 
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
@@ -64,18 +61,19 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    data_t space_max_val = 0, space_denom_val = 0;
-    data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
-    if (inner_size_ > 1) {
-        using namespace memory_tracking::names;
-        space_max = scratchpad(ctx).template get<data_t>(key_softmax_reduction);
-        space_denom = space_max + inner_size_;
-    }
-
     const memory_desc_wrapper data_d(pd()->src_md());
     const size_t dim = channels_ * inner_size_;
 
-    for (int ou = 0; ou < outer_size_; ou++) {
+    parallel_nd(outer_size_, [&](int ou) {
+        data_t space_max_val = 0, space_denom_val = 0;
+        data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
+        if (inner_size_ > 1) {
+            using namespace memory_tracking::names;
+            space_max = scratchpad(ctx).template get<data_t>(
+                key_softmax_reduction) + ou * 2 * inner_size_;
+            space_denom = space_max + inner_size_;
+        }
+
         utils::array_set(space_max, -FLT_MAX, inner_size_);
         utils::array_set(space_denom, 0, inner_size_);
 
@@ -99,7 +97,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
                 dst[off] /= space_denom[in];
             }
         }
-    }
+    });
 }
 
 template <impl::data_type_t data_type>
@@ -220,10 +218,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const int axis = pd()->desc()->softmax_axis;
-    const memory_desc_wrapper diff_d(pd()->diff_dst_md());
-    const size_t ou_stride = axis > 0
-        ? diff_d.blocking_desc().strides[axis - 1] : 1u;
+    const auto ou_stride = pd()->outer_stride();
 
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = 0;
@@ -235,7 +230,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
             diff_src[loff] = ldata;
         }
 
-        for(int c = 0; c < channels_; ++c) {
+        for (int c = 0; c < channels_; ++c) {
             size_t loff = off + c;
             diff_src[loff] *= (diff_dst[loff] - sbr);
         }
@@ -254,20 +249,18 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
 
     const size_t dim = channels_ * inner_size_;
 
-    parallel_nd(outer_size_, [&](int ou) {
-        for (int in = 0; in < inner_size_; in++) {
-            data_t sbr = 0;
-            for (int c = 0; c < channels_; c++) {
-                size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
-                size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
-                sbr += diff_dst[off_diff] * dst[off_data];
-            }
+    parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
+        data_t sbr = 0;
+        for (int c = 0; c < channels_; ++c) {
+            size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+            size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
+            sbr += diff_dst[off_diff] * dst[off_data];
+        }
 
-            for(int c=0; c < channels_ ; ++c) {
-              size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
-              size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
-              diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
-            }
+        for (int c = 0; c < channels_ ; ++c) {
+            size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+            size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
+            diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
         }
     });
 }
