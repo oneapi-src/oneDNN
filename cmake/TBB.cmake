@@ -59,7 +59,7 @@ macro(handle_tbb_target)
     add_definitions(-DTBB_PREVIEW_TASK_ARENA_CONSTRAINTS_EXTENSION=1)
 endmacro()
 
-if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
+if(NOT "${DNNL_CPU_THREADING_RUNTIME}" MATCHES "^(TBB|TBB_AUTO)$")
     return()
 endif()
 

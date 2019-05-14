@@ -75,7 +75,7 @@ inline void dnnl_thr_barrier() {
 #pragma omp barrier
 }
 
-#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+#elif (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB_AUTO)
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
 #define DNNL_THR_SYNC 0
@@ -665,6 +665,7 @@ void parallel_nd_in_omp(Args &&...args) {
     for_nd(omp_get_thread_num(), omp_get_num_threads(),
             utils::forward<Args>(args)...);
 #elif (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB \
+        || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB_AUTO \
         || DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL)
     assert(!"parallel_nd_in_omp() is not supported by this DNNL_CPU_RUNTIME");
 #endif

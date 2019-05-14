@@ -266,7 +266,7 @@ if(UNIX AND DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
 endif()
 
 # Install custom find modules for transitive dependencies
-if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
+if("${DNNL_CPU_THREADING_RUNTIME}" MATCHES "^(TBB|TBB_AUTO)$")
     if(WIN32)
         install(FILES "../cmake/win/TBBConfig.cmake" RENAME "FindTBB.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR})

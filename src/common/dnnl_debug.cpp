@@ -33,6 +33,7 @@ const char *dnnl_runtime2str(unsigned runtime) {
         case DNNL_RUNTIME_SEQ: return "sequential";
         case DNNL_RUNTIME_OMP: return "OpenMP";
         case DNNL_RUNTIME_TBB: return "TBB";
+        case DNNL_RUNTIME_TBB_AUTO: return "TBB_AUTO";
         case DNNL_RUNTIME_OCL: return "OpenCL";
         case DNNL_RUNTIME_THREADPOOL: return "threadpool";
 #ifdef DNNL_WITH_SYCL
