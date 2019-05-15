@@ -102,10 +102,9 @@ void simple_concat_t<data_type>::execute() const {
                 ptri += sizeof(uint32_t);
             }
             for (size_t e = 0; e < tail_part; ++e) {
-                *(reinterpret_cast<data_t *>(ptro))
-                    = *(reinterpret_cast<const data_t *>(ptri));
-                ptro += sizeof(data_t);
-                ptri += sizeof(data_t);
+                *ptro = *ptri;
+                ++ptro;
+                ++ptri;
             }
 #else
             PRAGMA_OMP_SIMD()
