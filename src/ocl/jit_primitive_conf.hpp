@@ -270,8 +270,11 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         jcp.ngroups = utils::rnd_up(jcp.ngroups, 16);
 
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
     jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
+    jcp.b_pad = (ndims == 3) ? 0 : cd.padding[1][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.r_pad = cd.padding[1][ndims - 3];
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];

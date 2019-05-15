@@ -434,6 +434,9 @@ struct jit_gen9_common_conv_fwd_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);
@@ -663,6 +666,9 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);
@@ -745,8 +751,11 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             jcp.ver = ver_8ow16c;
         if (is_1stconv && is_16oc)
             jcp.ver = ver_1stconv;
-        if (jcp.ndims == 3)
-            jcp.ver = ver_ref;
+
+        if (jcp.ver == ver_ref) {
+            jcp.ic = jcp.ic_without_padding;
+            jcp.oc = jcp.oc_without_padding;
+        }
 
         status_t status = status::success;
 
@@ -866,8 +875,8 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             wei_tag = jcp.is_depthwise
                     ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
                     : (jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, gOIw16i16o, gIOhw16i16o, gIOdhw16i16o)
-                        : utils::pick(jcp.ndims - 3, OIw16i16o, IOhw16i16o, IOdhw16i16o));
+                        ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                        : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o));
             break;
         default: status = status::unimplemented;
         }
@@ -904,6 +913,9 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);
