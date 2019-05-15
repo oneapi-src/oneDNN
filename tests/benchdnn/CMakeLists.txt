@@ -71,6 +71,7 @@ register_benchdnn_test(test_benchdnn_reorder "benchdnn --reorder --batch=inputs/
 register_benchdnn_test(test_benchdnn_bnorm "benchdnn --bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_bnorm_bf16 "benchdnn --bnorm  --batch=inputs/bnorm/test_bnorm_bfloat16")
 register_benchdnn_test(test_benchdnn_ip "benchdnn --ip --batch=inputs/ip/test_ip_all")
+register_benchdnn_test(test_benchdnn_ip_bf16 "benchdnn --ip --batch=inputs/ip/test_ip_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     "benchdnn --conv --batch=inputs/test_conv_regression"
     "benchdnn --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
