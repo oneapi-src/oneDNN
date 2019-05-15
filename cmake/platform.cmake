@@ -57,6 +57,8 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
         # disable: unknown pragma
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:3180")
+        # disable: foo has been targeted for automatic cpu dispatch
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15009")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
@@ -129,6 +131,8 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15552")
         # disable `was not vectorized: vectorization seems inefficient` remark
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15335")
+        # disable: foo has been targeted for automatic cpu dispatch
+        append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15009")
     endif()
 endif()
 
