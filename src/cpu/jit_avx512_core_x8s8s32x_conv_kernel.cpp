@@ -1071,8 +1071,11 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     int max_threading_nb_oc_chunk = 4;
     // Performance improvements for googlenet_v3 and resnet_50 with mb = 1;
     // TODO: generalize this condition and rewrite it in appropriate manner
+    int ncores_per_socket =
+        (int)cpu.getNumCores(Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
     if (jcp.ver == ver_vnni && jcp.mb == 1 && jcp.kh == 3 && jcp.kw == 3
-            && jcp.stride_w == 1 && jcp.ic % 64 == 0)
+            && jcp.stride_w == 1 && jcp.ic % 64 == 0
+            && nthreads <= ncores_per_socket)
         max_threading_nb_oc_chunk = 2;
     jcp.nb_oc_blocking_thr_chunk =
         nstl::min(max_threading_nb_oc_chunk, jcp.nb_oc);
@@ -1083,11 +1086,12 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     // choose oc blocking for computational kernel
     jcp.nb_oc_blocking = jcp.nb_oc_blocking_thr_chunk;
+
     // Performance improvements for googlenet_v3 with mb = 1;
     // TODO: generalize this condition and rewrite it in appropriate manner
     const int size_treshold_for_nb_oc_blocking_reduction = 17;
     if (jcp.mb == 1 && jcp.ow <= size_treshold_for_nb_oc_blocking_reduction
-            && jcp.stride_w == 1
+            && jcp.stride_w == 1 &&  nthreads <= ncores_per_socket
             && !(jcp.kh == 1 && jcp.kw == 3)
             && !(jcp.kh >= 7 && jcp.oc % 64 == 0)) {
         const int max_nb_oc_blocking = 2;
