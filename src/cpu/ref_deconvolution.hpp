@@ -144,13 +144,15 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
                 &(this->attr_), nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
-                conv_supports_bias_ = static_cast<cpu_convolution_bwd_data_pd_t *>
-                    (conv_pd_)->support_bias();
+                conv_supports_bias_
+                        = static_cast<cpu_convolution_bwd_data_pd_t *>(conv_pd_)
+                                  ->support_bias();
                 bool bias_supported = true
                         && desc()->accum_data_type == data_type::f32
                         && utils::one_of(desc()->dst_desc.data_type,
                                            data_type::f32, data_type::bf16);
-                auto wei_fmt = format_normalize(conv_pd_->weights_pd()->desc()->format);
+                auto wei_fmt = format_normalize(
+                        conv_pd_->weights_pd()->desc()->format);
                 auto src_fmt = conv_pd_->diff_dst_pd()->desc()->format;
 
                 bool ok = true
@@ -394,8 +396,7 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                 conv_pd_ = *it;
                 auto wei_fmt = conv_pd_->diff_weights_pd()->desc()->format;
                 auto diff_dst_fmt = conv_pd_->src_pd()->desc()->format;
-                bool ok = true
-                        && format_normalize(wei_fmt) == blocked
+                bool ok = true && format_normalize(wei_fmt) == blocked
                         && !is_format_double_blocked(wei_fmt)
                         && IMPLICATION(
                                 desc()->src_desc.data_type == data_type::bf16,

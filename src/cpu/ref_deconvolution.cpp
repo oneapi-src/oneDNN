@@ -57,8 +57,6 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() const {
     auto bias = reinterpret_cast<const f32_data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<f32_data_t *>(this->memory());
 
-    const memory_desc_wrapper dst_d(pd()->dst_pd());
-
     const int MB = pd()->MB();
     const int OC = pd()->OC();
     const int SP = pd()->OW()*pd()->OH()*pd()->OD();
@@ -171,8 +169,6 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias() const {
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() const {
     auto diff_dst = reinterpret_cast<const f32_data_t *>(this->input_memory(1));
     auto diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
-
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
 
     const int OC = pd()->OC();
     const int MB = pd()->MB();
