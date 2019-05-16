@@ -24,9 +24,13 @@
 
 #include "bfloat16_utils.hpp"
 
+#include "memory_tracking.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+using namespace mkldnn::impl::memory_tracking::names;
 
 void ref_deconvolution_fwd_t::compute_fwd_bias() const {
     auto bias = reinterpret_cast<const f32_data_t *>(this->input_memory(2));
@@ -67,6 +71,35 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw() const {
             auto offset = (size_t)(mb * OC + oc) * SP + sp;
             dst[offset] += bias[oc];
         }
+    });
+}
+
+void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw_bf16() const {
+    auto bias = reinterpret_cast<const f32_data_t *>(this->input_memory(2));
+    auto dst = reinterpret_cast<bf16_data_t *>(this->memory());
+
+    auto dst_f32 = scratchpad().template get<f32_data_t>(
+            key_deconv_dst_bf16_convert_wsp);
+
+    const int MB = pd()->MB();
+    const int OC = pd()->OC();
+    const int SP = pd()->OW() * pd()->OH() * pd()->OD();
+
+    parallel_nd(MB, OC, [&](int mb, int oc) {
+
+        const int ithr = mkldnn_get_thread_num();
+        auto offset = (size_t)(mb * OC + oc) * SP;
+
+        bf16_cvt_utils::cvt_bfloat16_to_float(
+                &dst_f32[SP * ithr], &dst[offset], SP);
+
+        PRAGMA_OMP_SIMD()
+        for (int sp = 0; sp < SP; ++sp) {
+            dst_f32[SP * ithr + sp] += bias[oc];
+        }
+
+        bf16_cvt_utils::cvt_float_to_bfloat16(
+                &dst[offset], &dst_f32[SP * ithr], SP);
     });
 }
 
@@ -181,6 +214,35 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw() const {
             for (int sp = 0; sp < SP; ++sp) {
                 auto offset = (size_t)(mb * OC + oc) * SP + sp;
                 db += diff_dst[offset];
+            }
+        }
+        diff_bias[oc] = db;
+    });
+}
+
+void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw_bf16() const {
+    auto diff_dst
+            = reinterpret_cast<const bf16_data_t *>(this->input_memory(1));
+    auto diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
+    auto diff_dst_f32 = scratchpad().template get<f32_data_t>(
+            key_deconv_dst_bf16_convert_wsp);
+
+    const int OC = pd()->OC();
+    const int MB = pd()->MB();
+    const int SP = pd()->OH() * pd()->OW() * pd()->OD();
+
+    parallel_nd(OC, [&](int oc) {
+        const int ithr = mkldnn_get_thread_num();
+        f32_data_t db = 0;
+        for (int mb = 0; mb < MB; ++mb) {
+
+            auto offset = (size_t)(mb * OC + oc) * SP;
+            bf16_cvt_utils::cvt_bfloat16_to_float(
+                    &diff_dst_f32[SP * ithr], &diff_dst[offset], SP);
+
+            PRAGMA_OMP_SIMD()
+            for (int sp = 0; sp < SP; ++sp) {
+                db += diff_dst_f32[SP * ithr + sp];
             }
         }
         diff_bias[oc] = db;
