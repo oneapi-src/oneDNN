@@ -137,7 +137,3 @@ prim.execute(stream, {
         ...,
         {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
 ~~~
-
---------
-
-[Legal information](@ref legal_information)

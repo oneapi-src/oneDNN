@@ -76,7 +76,3 @@ Data manipulation:
 |                    |          | @ref rnn_inference_int8_cpp  |                            |
 | training           | CPU      | @ref cnn_training_fp32_cpp   | @ref cnn_training_fp32_c   |
 |                    | CPU      | @ref rnn_training_fp32_cpp   |                            |
-
---------
-
-[Legal information](@ref legal_information)

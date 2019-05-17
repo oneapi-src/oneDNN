@@ -87,7 +87,3 @@ Run unit tests:
 ~~~sh
 ctest
 ~~~
-
---------
-
-[Legal information](@ref legal_information)

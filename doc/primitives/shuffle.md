@@ -111,7 +111,3 @@ The LRN primitive doesn't support any post-ops or attributes.
 ## Performance Tips
 
 N/A
-
---------
-
-[Legal information](@ref legal_information)

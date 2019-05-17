@@ -214,7 +214,3 @@ int main() {
     return 0;
 }
 ~~~
-
----
-
-[Legal information](@ref legal_information)

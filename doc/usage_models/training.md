@@ -10,8 +10,3 @@ NEW_CONTENT_GOES_HERE
 ## bfp16 Training
 
 NEW_CONTENT_GOES_HERE
-
-
---------
-
-[Legal information](@ref legal_information)

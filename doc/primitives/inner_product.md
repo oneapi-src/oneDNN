@@ -109,7 +109,3 @@ The following post-ops are supported by inner product primitives:
 - Use #mkldnn::memory::format_tag::any for source, weights,
   and destinations memory format tags when create an inner product primitive
   to allow the library to choose the most appropriate memory format.
-
---------
-
-[Legal information](@ref legal_information)

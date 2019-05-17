@@ -244,8 +244,3 @@ primitive_backward.execute(stream, {
     (no matter what propagation kind is) to perform an operation. It is used
     only during the primitive execution and should not be preserved across the
     calls.
-
-
---------
-
-[Legal information](@ref legal_information)

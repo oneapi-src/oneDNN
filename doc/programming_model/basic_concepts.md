@@ -115,7 +115,3 @@ The sequence of actions to create a primitive is:
    engine handle.
 
 3. Create a primitive based on the primitive descriptor obtained in step 2.
-
---------
-
-[Legal information](@ref legal_information)

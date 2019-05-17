@@ -63,8 +63,3 @@ meaning associated with any logical dimensions.
    have same memory format and data type matches the destination tensor data
    type. For other cases more general but slower code is working. Consider
    reordering sources to the same data format before the sum primitive.
-
-
---------
-
-[Legal information](@ref legal_information)

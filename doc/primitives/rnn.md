@@ -242,8 +242,3 @@ once again by another forward pass.
 
 2. **GPU**
     - No support for GRU
-
-
---------
-
-[Legal information](@ref legal_information)

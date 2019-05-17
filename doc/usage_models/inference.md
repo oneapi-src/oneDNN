@@ -190,6 +190,3 @@ Intel MKL-DNN in order to use int8 inference:
 Please see the dedicated [section](@ref dev_guide_inference_int8) on low
 precision computations in Intel MKL-DNN for a detailed discussion, including how
 to calculate the scaling factors.
-
---------
-[Legal information](@ref legal_information)

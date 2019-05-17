@@ -375,7 +375,3 @@ the convolution.)
 - Use #mkldnn::memory::format_tag::any for source, weights, and destinations
   memory format tags when create a convolution primitive to allow the library
   to choose the most appropriate memory format.
-
---------
-
-[Legal information](@ref legal_information)

@@ -100,7 +100,3 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
    - Non-optimized: 4D case, tensor \f$A \times B\f$,
                     softmax axis 2 (C), format tag #mkldnn_acdb, and
                     and \f$D \cdot B \ne 1\f$
-
---------
-
-[Legal information](@ref legal_information)

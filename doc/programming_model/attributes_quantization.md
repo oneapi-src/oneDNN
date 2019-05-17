@@ -352,8 +352,3 @@ As you can see:
   i.e. no division by \f$scale_{dst}\f$;
 - And the post ops scale for \f$\tanh\f$ is set to
   \f$scale\_tanh\_post\_op = \frac{1}{scale_{dst}}\f$.
-
-
---------
-
-[Legal information](@ref legal_information)

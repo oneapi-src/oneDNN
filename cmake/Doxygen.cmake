@@ -34,6 +34,10 @@ if(DOXYGEN_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/doc/header.html.in
         ${CMAKE_CURRENT_BINARY_DIR}/header.html
         @ONLY)
+    file(COPY
+        ${CMAKE_CURRENT_SOURCE_DIR}/doc/footer.html
+        DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+        )
     file(GLOB_RECURSE HEADERS
         ${PROJECT_SOURCE_DIR}/include/*.h
         ${PROJECT_SOURCE_DIR}/include/*.hpp

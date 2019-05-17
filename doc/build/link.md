@@ -87,7 +87,3 @@ Applications linked dynamically will resolve the dependencies at runtime.
 Make sure that the dependencies are available in the standard locations
 defined by the operating system or in the locations listed in the `PATH`
 environment variable.
-
---------
-
-[Legal information](@ref legal_information)

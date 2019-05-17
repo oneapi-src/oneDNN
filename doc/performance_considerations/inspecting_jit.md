@@ -37,6 +37,3 @@ Use any disassembler to view the code. For example:
 
 [XED](https://github.com/intelxed/xed) is a decoder tool available as part as
 [Intel(R) Software Development Emulator (Intel(R) SDE)](https://software.intel.com/en-us/articles/intel-software-development-emulator).
-
-
-[Legal information](@ref legal_information)

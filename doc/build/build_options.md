@@ -139,7 +139,3 @@ If the library is built with TBB threading, the user is expected to set the
 order to force Intel MKL to use Intel TBB for parallelization or to be
 sequential, respectively.  Without this setting, Intel MKL (the `mkl_rt`
 library) uses the OpenMP threading by default.
-
---------
-
-[Legal information](@ref legal_information)

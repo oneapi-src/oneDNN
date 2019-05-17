@@ -395,7 +395,3 @@ Relevant Intel MKL-DNN code:
 
     assert(expect_true);
 ~~~
-
----
-
-[Legal information](@ref legal_information)
