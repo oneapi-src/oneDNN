@@ -62,13 +62,30 @@ struct softmax_pd_t: public primitive_desc_t {
     dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
     dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
 
-    int axis() const { return desc_.softmax_axis; }
+    dim_t outer_size() const {
+        return utils::array_product(data_desc().dims, axis());
+    }
+    dim_t axis_size() const { return data_desc().dims[axis()]; }
+    dim_t inner_size() const {
+        return utils::array_product(data_desc().dims + axis() + 1,
+                ndims() - 1 - axis());
+    }
 
+    dim_t outer_stride() const {
+        const memory_desc_wrapper data_d(data_desc());
+        return axis() > 0 ? data_d.blocking_desc().strides[axis() - 1] : 1;
+    }
+
+    int axis() const { return desc_.softmax_axis; }
     int ndims() const { return data_desc().ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);
+    }
+
+    bool has_zero_dim_memory() const {
+        return memory_desc_wrapper(data_desc()).has_zero_dim();
     }
 
 protected:
