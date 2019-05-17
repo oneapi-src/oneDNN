@@ -14,18 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example memory_format_propagation.cpp
-/// Annotated version: @ref memory_format_propagation_cpp
+/// @example cpu_memory_format_propagation.cpp
+/// Annotated version: @ref cpu_memory_format_propagation_cpp
 
 #include <iostream>
 #include <sstream>
 #include <string>
 
-/// @page memory_format_propagation_cpp Memory format propagation
+/// @page cpu_memory_format_propagation_cpp Memory format propagation
 ///
-/// Full example text: @ref memory_format_propagation.cpp
+/// Full example text: @ref cpu_memory_format_propagation.cpp
 ///
-/// @section memory_format_propagation_general General notes
+/// @section cpu_memory_format_propagation_general General notes
 ///
 /// Format propagation is one of the central notions that needs to be
 /// well-understood to use Intel MKL-DNN correctly.
@@ -52,7 +52,7 @@
 /// as well as the concepts used in the library, please refer to @ref
 /// dev_guide_understanding_memory_formats.
 ///
-/// @section memory_format_propagation_intro Introduction to the tutorial
+/// @section cpu_memory_format_propagation_intro Introduction to the tutorial
 ///
 /// This C++ API example demonstrates how to use optimized memory formats
 /// supported by Intel MKL-DNN:
@@ -73,7 +73,7 @@
 ///    optimized memory format.
 /// 4. Create memory objects; and necessary primitives and execute them.
 ///
-/// These steps are implemented in the @ref memory_format_propagation_tutorial
+/// These steps are implemented in the @ref cpu_memory_format_propagation_tutorial
 /// which in turn is called from `main()` which is also responsible for error
 /// handling.
 
@@ -81,24 +81,24 @@
 #include "mkldnn_debug.h"
 using namespace mkldnn;
 
-/// @page memory_format_propagation_cpp
-/// @section memory_format_propagation_tutorial memory_format_propagation() function
-/// @page memory_format_propagation_cpp
-void memory_format_propagation_tutorial() {
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub1 Initialization
+/// @page cpu_memory_format_propagation_cpp
+/// @section cpu_memory_format_propagation_tutorial cpu_memory_format_propagation() function
+/// @page cpu_memory_format_propagation_cpp
+void cpu_memory_format_propagation_tutorial() {
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub1 Initialization
     ///
     /// We start by creating a CPU engine and a stream that we will use when
     /// creating primitive descriptors and executing primitives.
     ///
-    /// @snippet memory_format_propagation.cpp Initialize engine and stream
+    /// @snippet cpu_memory_format_propagation.cpp Initialize engine and stream
     // [Initialize engine and stream]
     engine cpu_engine(engine::kind::cpu, 0);
     stream cpu_stream(cpu_engine);
     // [Initialize engine and stream]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub2 Create convolution and pooling primitives
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub2 Create convolution and pooling primitives
     ///
     /// To specify that a primitive should pick an optimized format for the
     /// specified computation parameters, we create memory descriptors with
@@ -109,7 +109,7 @@ void memory_format_propagation_tutorial() {
     /// can be specified for destination memory descriptors which implies that
     /// destination will have the same memory format as the source.
     ///
-    /// @snippet memory_format_propagation.cpp Create placeholder memory descriptors
+    /// @snippet cpu_memory_format_propagation.cpp Create placeholder memory descriptors
     // [Create placeholder memory descriptors]
     // Tensor and kernel dimensions. We use the same 3x3 kernel with padding=1
     // for both convolution and pooling primitives, which means that the
@@ -127,12 +127,12 @@ void memory_format_propagation_tutorial() {
     auto pool_dst_md = conv_dst_md; // shape does not change
     // [Create placeholder memory descriptors]
 
-    /// @page memory_format_propagation_cpp
+    /// @page cpu_memory_format_propagation_cpp
     ///
     /// Next, we pass the memory descriptors to primitive descriptors
     /// constructors.
     ///
-    // @snippet memory_format_propagation.cpp Create convolution and pooling primitive descriptors
+    // @snippet cpu_memory_format_propagation.cpp Create convolution and pooling primitive descriptors
     // [Create convolution and pooling primitive descriptors]
     auto conv_pd = convolution_forward::primitive_desc({
             prop_kind::forward_inference, algorithm::convolution_auto,
@@ -148,15 +148,15 @@ void memory_format_propagation_tutorial() {
             cpu_engine);
     // [Create convolution and pooling primitive descriptors]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub3 Create source and destination memory objects
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub3 Create source and destination memory objects
     ///
     /// We assume that the 'user' source and destination memory format is
     /// NHWC. Since there is no result validation in this tutorial, we do not
     /// bother with filling the data with some values and let the Intel
     /// MKL-DNN library to allocate the memory.
     ///
-    /// @snippet memory_format_propagation.cpp Create source and destination memory objects
+    /// @snippet cpu_memory_format_propagation.cpp Create source and destination memory objects
     // [Create source and destination memory objects]
     auto src_mem = memory({{N, IC, H, W},
             memory::data_type::f32, memory::format_tag::nchw},
@@ -169,20 +169,20 @@ void memory_format_propagation_tutorial() {
             cpu_engine);
     // [Create source and destination memory objects]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub4 Determine if source and destination need to be reordered
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub4 Determine if source and destination need to be reordered
     ///
     /// The idiomatic way to check if a reorder is necessary between the memory
     /// format expected a primitive (the convolution in our case) and the
     /// available memory format is to compare the corresponding memory
     /// descriptors.
     ///
-    /// @snippet memory_format_propagation.cpp Determine if source needs to be reordered
+    /// @snippet cpu_memory_format_propagation.cpp Determine if source needs to be reordered
     // [Determine if source needs to be reordered]
     bool need_reorder_src = conv_pd.src_desc() != src_mem.get_desc();
     // [Determine if source needs to be reordered]
 
-    /// @page memory_format_propagation_cpp
+    /// @page cpu_memory_format_propagation_cpp
     ///
     /// @warning It is by design that it is not possible to just compare
     /// memory tags. The reason behind this is that a memory format tags only
@@ -193,14 +193,14 @@ void memory_format_propagation_tutorial() {
     /// We repeat the process for the weights and destination memory format
     /// descriptors as well.
     ///
-    /// @snippet memory_format_propagation.cpp Determine if weights and destination need to be reordered
+    /// @snippet cpu_memory_format_propagation.cpp Determine if weights and destination need to be reordered
     // [Determine if weights and destination need to be reordered]
     bool need_reorder_weights = conv_pd.weights_desc() != weights_mem.get_desc();
     bool need_reorder_dst = conv_pd.dst_desc() != dst_mem.get_desc();
     // [Determine if weights and destination need to be reordered]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub45 Allocate intermediate buffers if necessary
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub45 Allocate intermediate buffers if necessary
     ///
     /// Based on the flags computed before, we can now decide if we need extra
     /// intermediate buffers to hold the source and weights data for the
@@ -210,7 +210,7 @@ void memory_format_propagation_tutorial() {
     /// memory descriptors obtained from the primitive descriptors to ensure
     /// consistency.
     ///
-    /// @snippet memory_format_propagation.cpp Allocate intermediate buffers if necessary
+    /// @snippet cpu_memory_format_propagation.cpp Allocate intermediate buffers if necessary
     // [Allocate intermediate buffers if necessary]
     auto conv_src_mem = need_reorder_src
         ? memory(conv_pd.src_desc(), cpu_engine)
@@ -224,8 +224,8 @@ void memory_format_propagation_tutorial() {
         : dst_mem;
     // [Allocate intermediate buffers if necessary]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub5 Perform reorders for source data if necessary
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub5 Perform reorders for source data if necessary
     ///
     /// Now we get to the part where we actually start executing things. We
     /// check if reorders are necessary based on the flags computed before and
@@ -235,7 +235,7 @@ void memory_format_propagation_tutorial() {
     /// get out of scope and destroyed to accommodate for potentially
     /// asynchronous execution.
     ///
-    /// @snippet memory_format_propagation.cpp Perform reorders for source data if necessary
+    /// @snippet cpu_memory_format_propagation.cpp Perform reorders for source data if necessary
     // [Perform reorders for source data if necessary]
     if (need_reorder_src) {
         auto reorder_src = reorder(src_mem, conv_src_mem);
@@ -256,13 +256,13 @@ void memory_format_propagation_tutorial() {
     }
     // [Perform reorders for source data if necessary]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub6 Create and execute convolution and pooling primitives
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub6 Create and execute convolution and pooling primitives
     ///
     /// After the reorders, we are now ready to compute convolution and
     /// pooling.
     ///
-    /// @snippet memory_format_propagation.cpp Create and execute convolution and pooling primitives
+    /// @snippet cpu_memory_format_propagation.cpp Create and execute convolution and pooling primitives
     // [Create and execute convolution and pooling primitives]
     auto conv_scratchpad_mem = memory(conv_pd.scratchpad_desc(), cpu_engine);
     auto conv = convolution_forward(conv_pd);
@@ -280,15 +280,15 @@ void memory_format_propagation_tutorial() {
     cpu_stream.wait();
     // [Create and execute convolution and pooling primitives]
 
-    /// @page memory_format_propagation_cpp
-    /// @subsection memory_format_propagation_sub7 Reorder destination data if necessary
+    /// @page cpu_memory_format_propagation_cpp
+    /// @subsection cpu_memory_format_propagation_sub7 Reorder destination data if necessary
     ///
     /// The only potentially remaining operation is a reorder from the pooling
     /// destination memory object to the users's one.  Similarly to the
     /// reorders for the source and weights memory objects, it is performed
     /// depending on the value of the previously computed flag.
     ///
-    /// @snippet memory_format_propagation.cpp Reorder destination data if necessary
+    /// @snippet cpu_memory_format_propagation.cpp Reorder destination data if necessary
     // [Reorder destination data if necessary]
     if (need_reorder_dst) {
         auto reorder_dst = reorder(pool_dst_mem, dst_mem);
@@ -303,7 +303,7 @@ void memory_format_propagation_tutorial() {
 
 int main(int argc, char **argv) {
     try {
-        memory_format_propagation_tutorial();
+        cpu_memory_format_propagation_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
             << "Error status: " << mkldnn_status2str(e.status) << std::endl;
@@ -329,7 +329,7 @@ int main(int argc, char **argv) {
 /// AVX2-capable processor (line breaks added for readability):
 ///
 /// ~~~sh
-/// $ MKLDNN_VERBOSE=1 ./memory_format_propagation
+/// $ MKLDNN_VERBOSE=1 ./cpu_memory_format_propagation
 /// mkldnn_verbose,info,Intel(R) MKL-DNN <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
 /// mkldnn_verbose,exec,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,num:1,1x256x14x14,1.03101
@@ -359,4 +359,4 @@ int main(int argc, char **argv) {
 ///   and input (B) channel dimensions blocked by 8) which we also had to
 ///   reorder the initial weights to since they are in the OIHW memory format.
 ///
-/// @page memory_format_propagation_cpp
+/// @page cpu_memory_format_propagation_cpp

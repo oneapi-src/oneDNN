@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example rnn_inference_int8.cpp
-/// @copydoc rnn_inference_int8_cpp
+/// @example cpu_rnn_inference_int8.cpp
+/// @copydoc cpu_rnn_inference_int8_cpp
 ///
-/// @page rnn_inference_int8_cpp RNN int8 inference example
+/// @page cpu_rnn_inference_int8_cpp RNN int8 inference example
 ///
 /// This C++ API example demonstrates how to build an GNMT model inference
 /// For the encoder we use:
@@ -30,7 +30,7 @@
 ///  - the attention mechanism is implemented separately as there is no support
 ///    for the context vectors in MKL-DNN yet
 ///
-/// @include rnn_inference_int8.cpp
+/// @include cpu_rnn_inference_int8.cpp
 
 #include <assert.h>
 
@@ -216,7 +216,7 @@ void simple_net() {
 ///
 /// Initialize a CPU engine and stream. The last parameter in the call represents
 /// the index of the engine.
-/// @snippet rnn_inference_int8.cpp Initialize engine and stream
+/// @snippet cpu_rnn_inference_int8.cpp Initialize engine and stream
 ///
 //[Initialize engine and stream]
     auto cpu_engine = engine(engine::kind::cpu, 0);
@@ -225,7 +225,7 @@ void simple_net() {
 
 ///
 /// Declare encoder net and decoder net
-/// @snippet rnn_inference_int8.cpp declare net
+/// @snippet cpu_rnn_inference_int8.cpp declare net
 ///
 //[declare net]
     std::vector<primitive> encoder_net, decoder_net;
@@ -240,7 +240,7 @@ void simple_net() {
 
     ///
     /// Quantization factors for fp32 data
-    /// @snippet rnn_inference_int8.cpp quantize
+    /// @snippet cpu_rnn_inference_int8.cpp quantize
     ///
     const float data_shift = 64.;
     const float data_scale = 63.;
@@ -260,7 +260,7 @@ void simple_net() {
     ///
     ///
     /// Initialize Encoder Memory
-    /// @snippet rnn_inference_int8.cpp Initialize encoder memory
+    /// @snippet cpu_rnn_inference_int8.cpp Initialize encoder memory
     ///
     //[Initialize encoder memory]
     memory::dims enc_bidir_src_layer_tz
@@ -292,7 +292,7 @@ void simple_net() {
 
     ///
     /// Create the memory for user data
-    /// @snippet rnn_inference_int8.cpp data memory creation
+    /// @snippet cpu_rnn_inference_int8.cpp data memory creation
     ///
     //[data memory creation]
     auto user_enc_bidir_src_layer_md = memory::desc({ enc_bidir_src_layer_tz },
@@ -321,7 +321,7 @@ void simple_net() {
 
     ///
     /// Create memory descriptors for RNN data w/o specified layout
-    /// @snippet rnn_inference_int8.cpp memory desc for RNN data
+    /// @snippet cpu_rnn_inference_int8.cpp memory desc for RNN data
     ///
     //[memory desc for RNN data]
     auto enc_bidir_src_layer_md = memory::desc({ enc_bidir_src_layer_tz },
@@ -357,7 +357,7 @@ void simple_net() {
     }
 
     ///
-    /// @snippet rnn_inference_int8.cpp create rnn desc
+    /// @snippet cpu_rnn_inference_int8.cpp create rnn desc
     ///
     //[create rnn desc]
     lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
@@ -368,7 +368,7 @@ void simple_net() {
 
     ///
     /// Define RNN attributes that store quantization parameters
-    /// @snippet rnn_inference_int8.cpp RNN attri
+    /// @snippet cpu_rnn_inference_int8.cpp RNN attri
     ///
     //[RNN attri]
     primitive_attr attr;
@@ -382,7 +382,7 @@ void simple_net() {
     ///
     /// Create memory for input data and use reorders to quantize values to int8
     /// NOTE: same attributes are used when creating RNN primitive and reorders
-    /// @snippet rnn_inference_int8.cpp reorder input data
+    /// @snippet cpu_rnn_inference_int8.cpp reorder input data
     ///
     //[reorder input data]
     auto enc_bidir_src_layer_memory
@@ -416,7 +416,7 @@ void simple_net() {
 
     ///
     /// Encoder : add the bidirectional rnn primitive with related arguments into encoder_net
-    /// @snippet rnn_inference_int8.cpp push bi rnn to encoder net
+    /// @snippet cpu_rnn_inference_int8.cpp push bi rnn to encoder net
     ///
     //[push bi rnn to encoder net]
     encoder_net.push_back(lstm_forward(enc_bidir_prim_desc));
@@ -434,7 +434,7 @@ void simple_net() {
     ///
     /// First unidirectinal layer scales 2 * feature_size output of bidirectional
     /// layer to feature_size output
-    /// @snippet rnn_inference_int8.cpp first uni layer
+    /// @snippet cpu_rnn_inference_int8.cpp first uni layer
     ///
     //[first uni layer]
     std::vector<float> user_enc_uni_first_wei_layer(
@@ -484,7 +484,7 @@ void simple_net() {
 
     ///
     /// Encoder : Create unidirection RNN for first cell
-    /// @snippet rnn_inference_int8.cpp create uni first
+    /// @snippet cpu_rnn_inference_int8.cpp create uni first
     ///
     //[create uni first]
 
@@ -515,7 +515,7 @@ void simple_net() {
 
     ///
     /// Encoder : add the first unidirectional rnn primitive with related arguments into encoder_net
-    /// @snippet rnn_inference_int8.cpp push first uni rnn to encoder net
+    /// @snippet cpu_rnn_inference_int8.cpp push first uni rnn to encoder net
     ///
     //[push first uni rnn to encoder net]
     encoder_net.push_back(lstm_forward(enc_uni_first_prim_desc));
@@ -529,7 +529,7 @@ void simple_net() {
 
     ///
     /// Encoder : Remaining unidirectional layers
-    /// @snippet rnn_inference_int8.cpp remaining uni layers
+    /// @snippet cpu_rnn_inference_int8.cpp remaining uni layers
     ///
     //[remaining uni layers]
     std::vector<float> user_enc_uni_wei_layer((enc_unidir_n_layers - 1) * 1
@@ -575,7 +575,7 @@ void simple_net() {
 
     ///
     /// Encoder : Create unidirection RNN cell
-    /// @snippet rnn_inference_int8.cpp create uni rnn
+    /// @snippet cpu_rnn_inference_int8.cpp create uni rnn
     ///
     //[create uni rnn]
 
@@ -608,7 +608,7 @@ void simple_net() {
 
     ///
     /// Encoder : add the unidirectional rnn primitive with related arguments into encoder_net
-    /// @snippet rnn_inference_int8.cpp push uni rnn to encoder net
+    /// @snippet cpu_rnn_inference_int8.cpp push uni rnn to encoder net
     ///
     //[push uni rnn to encoder net]
     encoder_net.push_back(lstm_forward(enc_uni_prim_desc));
@@ -625,7 +625,7 @@ void simple_net() {
     ///
     ///
     /// Decoder : declare memory dimensions
-    /// @snippet rnn_inference_int8.cpp dec mem dim
+    /// @snippet cpu_rnn_inference_int8.cpp dec mem dim
     ///
     //[dec mem dim]
     std::vector<float> user_dec_wei_layer(
@@ -665,7 +665,7 @@ void simple_net() {
     // Note that the cell state will be padded by
     // feature_size values. However, we do not compute or
     // access those.
-    /// @snippet rnn_inference_int8.cpp noctx mem dim
+    /// @snippet cpu_rnn_inference_int8.cpp noctx mem dim
     //[noctx mem dim]
     memory::dims dec_dst_iter_dims = { dec_n_layers, 1, lstm_n_states, batch,
         feature_size + feature_size };
@@ -676,7 +676,7 @@ void simple_net() {
     ///
     /// Decoder : create memory description
     /// Create memory descriptors for RNN data w/o specified layout
-    /// @snippet rnn_inference_int8.cpp dec mem desc
+    /// @snippet cpu_rnn_inference_int8.cpp dec mem desc
     ///
     //[dec mem desc]
     auto user_dec_wei_layer_md = memory::desc({ user_dec_wei_layer_dims },
@@ -695,7 +695,7 @@ void simple_net() {
 
     ///
     /// Decoder : Create memory
-    /// @snippet rnn_inference_int8.cpp create dec memory
+    /// @snippet cpu_rnn_inference_int8.cpp create dec memory
     ///
     //[create dec memory]
     auto user_dec_wei_layer_memory = memory(
@@ -717,7 +717,7 @@ void simple_net() {
 
     ///
     /// Decoder : As mentioned above, we create a view without context out of the memory with context.
-    /// @snippet rnn_inference_int8.cpp create noctx mem
+    /// @snippet cpu_rnn_inference_int8.cpp create noctx mem
     ///
     //[create noctx mem]
     auto dec_dst_iter_memory = memory(dec_dst_iter_md, cpu_engine);
@@ -735,7 +735,7 @@ void simple_net() {
     ///
     /// Decoder : Create memory for input data and use reorders to quantize values
     /// to int8
-    /// @snippet rnn_inference_int8.cpp dec reorder
+    /// @snippet cpu_rnn_inference_int8.cpp dec reorder
     ///
     //[dec reorder]
     auto dec_wei_layer_memory
@@ -776,7 +776,7 @@ void simple_net() {
                 && "something is missing");
         ///
         /// run encoder (1 stream)
-        /// @snippet rnn_inference_int8.cpp run enc
+        /// @snippet cpu_rnn_inference_int8.cpp run enc
         ///
         //[run enc]
         for (size_t p = 0; p < encoder_net.size(); ++p)
@@ -786,7 +786,7 @@ void simple_net() {
         // compute the weighted annotations once before the decoder
         ///
         /// we compute the weighted annotations once before the decoder
-        /// @snippet rnn_inference_int8.cpp weight ano
+        /// @snippet cpu_rnn_inference_int8.cpp weight ano
         ///
         //[weight ano]
         compute_weighted_annotations(weighted_annotations.data(),
@@ -796,7 +796,7 @@ void simple_net() {
         //[weight ano]
         ///
         /// precompute compensation for s8u8s32 gemm in compute attention
-        /// @snippet rnn_inference_int8.cpp s8u8s32
+        /// @snippet cpu_rnn_inference_int8.cpp s8u8s32
         ///
         //[s8u8s32]
         compute_sum_of_rows(user_weights_attention_src_layer.data(),
@@ -806,7 +806,7 @@ void simple_net() {
         ///
         /// We initialize src_layer to the embedding of the end of
         /// sequence character, which are assumed to be 0 here
-        /// @snippet rnn_inference_int8.cpp init src_layer
+        /// @snippet cpu_rnn_inference_int8.cpp init src_layer
         ///
         //[init src_layer]
         memset(dec_src_layer_memory.get_data_handle(), 0,
@@ -824,7 +824,7 @@ void simple_net() {
 
             ///
             /// Compute attention context vector into the first layer src_iter
-            /// @snippet rnn_inference_int8.cpp att ctx
+            /// @snippet cpu_rnn_inference_int8.cpp att ctx
             ///
             //[att ctx]
             compute_attention(src_att_iter_handle, src_seq_length_max, batch,
@@ -838,7 +838,7 @@ void simple_net() {
 
             ///
             /// copy the context vectors to all layers of src_iter
-            /// @snippet rnn_inference_int8.cpp cp ctx
+            /// @snippet cpu_rnn_inference_int8.cpp cp ctx
             ///
             //[cp ctx]
             copy_context(src_att_iter_handle, dec_n_layers, lstm_n_states,
@@ -849,7 +849,7 @@ void simple_net() {
                     && "something is missing");
             ///
             /// run the decoder iteration
-            /// @snippet rnn_inference_int8.cpp run dec iter
+            /// @snippet cpu_rnn_inference_int8.cpp run dec iter
             ///
             //[run dec iter]
             for (size_t p = 0; p < decoder_net.size(); ++p)
@@ -858,7 +858,7 @@ void simple_net() {
 
             ///
             /// Move the handle on the src/dst layer to the next iteration
-            /// @snippet rnn_inference_int8.cpp set handle
+            /// @snippet cpu_rnn_inference_int8.cpp set handle
             ///
             //[set handle]
             auto dst_layer_handle
@@ -871,7 +871,7 @@ void simple_net() {
 
     };
 
-/// @page rnn_inference_int8_cpp
+/// @page cpu_rnn_inference_int8_cpp
 ///
     execute();
     s.wait();

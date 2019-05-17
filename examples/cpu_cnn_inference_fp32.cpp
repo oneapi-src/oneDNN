@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cnn_inference_fp32.cpp
-/// Annotated version: @ref cnn_inference_fp32_cpp
+/// @example cpu_cnn_inference_fp32.cpp
+/// Annotated version: @ref cpu_cnn_inference_fp32_cpp
 ///
-/// @page cnn_inference_fp32_cpp CNN fp32 inference example
-/// Full example text: @ref cnn_inference_fp32.cpp
+/// @page cpu_cnn_inference_fp32_cpp CNN fp32 inference example
+/// Full example text: @ref cpu_cnn_inference_fp32.cpp
 ///
 /// This C++ API example demonstrates how to build an AlexNet neural
 /// network topology for forward-pass inference. Some key take-aways
@@ -62,7 +62,7 @@ void simple_net(int times = 100) {
 
 /// Initialize a CPU engine and stream. The last parameter in the call represents
 /// the index of the engine.
-/// @snippet cnn_inference_fp32.cpp Initialize engine and stream
+/// @snippet cpu_cnn_inference_fp32.cpp Initialize engine and stream
 //[Initialize engine and stream]
     engine eng(engine::kind::cpu, 0);
     stream s(eng);
@@ -70,7 +70,7 @@ void simple_net(int times = 100) {
 
 /// Create a vector for the primitives and a vector to hold memory
 /// that will be used as arguments.
-/// @snippet cnn_inference_fp32.cpp Create network
+/// @snippet cpu_cnn_inference_fp32.cpp Create network
 //[Create network]
     std::vector<primitive> net;
     std::vector<std::unordered_map<int, memory>> net_args;
@@ -89,7 +89,7 @@ void simple_net(int times = 100) {
     memory::dims conv1_padding = { 0, 0 };
 
 /// Allocate buffers for input and output data, weights, and bias.
-/// @snippet cnn_inference_fp32.cpp Allocate buffers
+/// @snippet cpu_cnn_inference_fp32.cpp Allocate buffers
 //[Allocate buffers]
     std::vector<float> user_src(batch * 3 * 227 * 227);
     std::vector<float> user_dst(batch * 1000);
@@ -100,7 +100,7 @@ void simple_net(int times = 100) {
 /// Create memory that describes data layout in the buffers. This example uses
 /// tag::nchw (batch-channels-height-width) for input data and tag::oihw
 /// for weights.
-/// @snippet cnn_inference_fp32.cpp Create user memory
+/// @snippet cpu_cnn_inference_fp32.cpp Create user memory
 //[Create user memory]
     auto user_src_memory = memory(
             { { conv1_src_tz }, dt::f32, tag::nchw }, eng, user_src.data());
@@ -117,7 +117,7 @@ void simple_net(int times = 100) {
 /// sizes, strides, padding, and so on). If the resulting format is different
 /// from `nchw`, the user data must be transformed to the format required for
 /// the convolution (as explained below).
-/// @snippet cnn_inference_fp32.cpp Create convolution memory descriptors
+/// @snippet cpu_cnn_inference_fp32.cpp Create convolution memory descriptors
 //[Create convolution memory descriptors]
     auto conv1_src_md = memory::desc({ conv1_src_tz }, dt::f32, tag::any);
     auto conv1_bias_md = memory::desc({ conv1_bias_tz }, dt::f32, tag::any);
@@ -132,7 +132,7 @@ void simple_net(int times = 100) {
 /// padding, and kind of padding. Propagation kind is set to
 /// prop_kind::forward_inference to optimize for inference execution and omit
 /// computations that are necessary only for backward propagation.
-/// @snippet cnn_inference_fp32.cpp Create convolution descriptor
+/// @snippet cpu_cnn_inference_fp32.cpp Create convolution descriptor
 //[Create convolution descriptor]
     auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv1_src_md, conv1_weights_md, conv1_bias_md,
@@ -142,7 +142,7 @@ void simple_net(int times = 100) {
 /// Create a convolution primitive descriptor. Once created, this
 /// descriptor has specific formats instead of the `any` format specified
 /// in the convolution descriptor.
-/// @snippet cnn_inference_fp32.cpp Create convolution primitive descriptor
+/// @snippet cpu_cnn_inference_fp32.cpp Create convolution primitive descriptor
 //[Create convolution primitive descriptor]
     auto conv1_prim_desc = convolution_forward::primitive_desc(conv1_desc, eng);
 //[Create convolution primitive descriptor]
@@ -151,7 +151,7 @@ void simple_net(int times = 100) {
 /// Check whether data and weights formats required by convolution is different
 /// from the user format. In case it is different change the layout using
 /// reorder primitive.
-/// @snippet cnn_inference_fp32.cpp Reorder data and weights
+/// @snippet cpu_cnn_inference_fp32.cpp Reorder data and weights
 //[Reorder data and weights]
     auto conv1_src_memory = user_src_memory;
     if (conv1_prim_desc.src_desc() != user_src_memory.get_desc()) {
@@ -170,13 +170,13 @@ void simple_net(int times = 100) {
 //[Reorder data and weights]
 
 /// Create a memory primitive for output.
-/// @snippet cnn_inference_fp32.cpp Create memory for output
+/// @snippet cpu_cnn_inference_fp32.cpp Create memory for output
 //[Create memory for output]
     auto conv1_dst_memory = memory(conv1_prim_desc.dst_desc(), eng);
 //[Create memory for output]
 
 /// Create a convolution primitive and add it to the net.
-/// @snippet cnn_inference_fp32.cpp Create memory for output
+/// @snippet cpu_cnn_inference_fp32.cpp Create memory for output
 //[Create convolution primitive]
     net.push_back(convolution_forward(conv1_prim_desc));
     net_args.push_back({ { MKLDNN_ARG_SRC, conv1_src_memory },
@@ -194,7 +194,7 @@ void simple_net(int times = 100) {
 /// format for ReLU (as well as for other operation primitives until another
 /// convolution or inner product is encountered) the same as the one chosen
 /// for convolution. Also note that ReLU is done in-place by using conv1 memory.
-/// @snippet cnn_inference_fp32.cpp Create relu primitive
+/// @snippet cpu_cnn_inference_fp32.cpp Create relu primitive
 //[Create relu primitive]
     auto relu1_desc = eltwise_forward::desc(prop_kind::forward_inference,
             algorithm::eltwise_relu, conv1_dst_memory.get_desc(),
@@ -241,7 +241,7 @@ void simple_net(int times = 100) {
 /// For training execution, pooling requires a private workspace memory
 /// to perform the backward pass. However, pooling should not use 'workspace'
 /// for inference, because this is detrimental to performance.
-/// @snippet cnn_inference_fp32.cpp Create pooling primitive
+/// @snippet cpu_cnn_inference_fp32.cpp Create pooling primitive
 ///
 /// The example continues to create more layers according
 /// to the AlexNet topology.
@@ -761,10 +761,10 @@ void simple_net(int times = 100) {
                 { MKLDNN_ARG_TO, user_dst_memory } });
     }
 
-/// @page cnn_inference_fp32_cpp
+/// @page cpu_cnn_inference_fp32_cpp
 /// Finally, execute the primitives. For this example, the net is executed
 /// multiple times and each execution is timed individually.
-/// @snippet cnn_inference_fp32.cpp Execute model
+/// @snippet cpu_cnn_inference_fp32.cpp Execute model
 //[Execute model]
     for (int j = 0; j < times; ++j) {
         assert(net.size() == net_args.size() && "something is missing");
