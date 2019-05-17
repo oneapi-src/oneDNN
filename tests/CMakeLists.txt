@@ -67,7 +67,7 @@ append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
 register_exe(api-c api.c "test")
 
-if(UNIX OR MINGW)
+if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (UNIX OR MINGW))
     get_directory_property(include_dirs INCLUDE_DIRECTORIES)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_custom_command(

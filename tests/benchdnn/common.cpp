@@ -18,6 +18,12 @@
 #include <limits.h>
 #include <assert.h>
 
+#ifdef __linux__
+#include <fstream>
+#include <string>
+#include <unistd.h>
+#endif
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -179,6 +185,38 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
             bs.ms[mode] += res.timer.ms((bt::mode_t)mode);
     }
+
+#ifdef __linux__
+    // XXX: work around for memory leak in SYCL
+    // Exit when memory consumption is high
+    {
+        size_t page_size_bytes = sysconf(_SC_PAGE_SIZE);
+
+        // size_t vm_pages;
+        // size_t resident_pages;
+        // std::ifstream in_statm("/proc/self/statm");
+        // in_statm >> vm_pages >> resident_pages;
+        // size_t vm = page_size_bytes * vm_pages;
+
+        size_t avail_kb;
+        std::ifstream in_meminfo("/proc/meminfo");
+        std::string dummy;
+        in_meminfo >> dummy >> dummy >> dummy;
+        in_meminfo >> dummy >> dummy >> dummy;
+        in_meminfo >> dummy >> avail_kb;
+
+        size_t avail = 1024 * avail_kb;
+        double mb = 1 << 20;
+
+        // printf("--------> %f / %f\n", vm / mb, avail / mb);
+
+        if (avail / mb < 1000) {
+            printf("MEMORY CONSUMPTION IS HIGH: %f MB LEFT. EXITING..........................",
+                    avail / mb);
+            exit(!!benchdnn_stat.failed);
+        }
+    }
+#endif
 }
 
 /* misc */
