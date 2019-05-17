@@ -93,12 +93,12 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     // The final criterion picks the max of these numbers.
     // BWD
     // We have sum over axis dim, the worst case for error is amount of elements
-    // times machine eps.
+    // times machine eps and additional subtract.
     const float num_significant_values =
         MAX2(div_up(p->dims[p->axis], global_fill_range),
                 log2f(p->dims[p->axis]));
     const float trh = 1e-7 * (p->dir & FLAG_FWD
-        ? num_significant_values : p->dims[p->axis]);
+        ? num_significant_values : (p->dims[p->axis] + 1));
 
     r->errors = 0;
     r->total = dt_mem.nelems();
@@ -155,12 +155,13 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
 }
 
 int fill_data_bwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const float f_min = -1.0;
     const int64_t nelems = src.nelems();
 
+    // keep all values negative to have sum and sub of same sign, avoiding
+    // cancellation error.
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             const float gen = ((11 * i) + 37) % global_fill_range;
-            const float value = f_min + 2 * gen / global_fill_range;
+            const float value = -gen / global_fill_range;
             ((float *)src)[i] = value;
         }
     );
