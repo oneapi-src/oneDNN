@@ -238,6 +238,7 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_deconvolution_fwd_t),
     /* shuffle */
     INSTANCE(ref_shuffle_t<4>), /* f32 or s32 */
+    INSTANCE(ref_shuffle_t<2>), /* bf16 */
     INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
     /* eltwise */
     INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, f32>),
