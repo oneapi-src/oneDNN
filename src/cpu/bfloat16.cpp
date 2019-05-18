@@ -69,5 +69,19 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp,
     cvt_bf16_to_ps.jit_ker(&p_);
 }
 
+void add_floats_and_cvt_to_bfloat16(bfloat16_t *out,
+        const float *inp0,
+        const float *inp1,
+        size_t size) {
+    assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
+    jit_call_t p_;
+    p_.inp = (void *)inp0;
+    p_.add = (void *)inp1;
+    p_.out = (void *)out;
+    p_.size = size;
+    static const cpu::jit_avx512_core_add_cvt_ps_to_bf16_t add_cvt_ps_to_bf16;
+    add_cvt_ps_to_bf16.jit_ker(&p_);
+}
+
 } //namespace impl
 }  // namespace mkldnn

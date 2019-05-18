@@ -409,6 +409,112 @@ private:
     Xbyak::Reg32 reg32_mask = r8d;
 };
 
+// performs element-by-element sum of inp and add float arrays and stores
+// result to bfloat16 out array with downconversion
+struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_add_cvt_ps_to_bf16)
+
+    jit_avx512_core_add_cvt_ps_to_bf16_t() : simd_w_(16) {
+        bf16_emu_ = new bf16_emulation_t(this, one, even,
+                selector, scratch, fp32_tmp, fp32_tmp);
+
+        generate();
+        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+    }
+
+    ~jit_avx512_core_add_cvt_ps_to_bf16_t() { delete bf16_emu_; }
+
+    void generate() {
+        preamble();
+
+        bool use_bf16_emu = !mayiuse(avx512_core_bf16);
+
+        auto add_cvt = [&](size_t idx, Xbyak::Opmask ktail_mask) {
+            vmovups(fp32_inp | ktail_mask | T_z, ptr[reg_inp + sizeof(float) * (idx)]);
+            vaddps(fp32_inp | ktail_mask | T_z, fp32_inp, ptr[reg_add + sizeof(float) * (idx)]);
+            if (use_bf16_emu)
+                bf16_emu_->vcvtneps2bf16(bf16_out, fp32_inp);
+            else
+                vcvtneps2bf16(bf16_out, fp32_inp);
+
+            vmovdqu16(
+                    yword[reg_out + sizeof(bfloat16_t) * (idx)] | ktail_mask,
+                    bf16_out);
+        };
+
+        mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
+        mov(reg_add, ptr[abi_param1 + GET_OFF(add)]);
+        mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
+        mov(reg_size, ptr[abi_param1 + GET_OFF(size)]);
+
+        if (use_bf16_emu)
+            bf16_emu_->init_vcvtneps2bf16();
+
+        mov(reg32_tail, 0xffff);
+        kmovw(ktail_mask, reg32_tail);
+
+        constexpr int n_unroll = 2; // unroll by powers of 2 from 2^n to 2^0
+        Xbyak::Label l_simd_loop[n_unroll + 2], l_simd_notail;
+        for (int i = n_unroll; i >= 0; i--) {
+            const int unroll = 1 << i; // 4, 2, 1
+            L(l_simd_loop[i + 1]); {
+                cmp(reg_size, simd_w_ * unroll);
+                jl(l_simd_loop[i], T_NEAR);
+                for (int j = 0; j < simd_w_ * unroll; j += simd_w_) {
+                    add_cvt(j, ktail_mask);
+                }
+                add(reg_inp, simd_w_ * unroll * sizeof(float));
+                add(reg_add, simd_w_ * unroll * sizeof(float));
+                add(reg_out, simd_w_ * unroll * sizeof(bfloat16_t));
+
+                sub(reg_size, simd_w_ * unroll);
+                jmp(l_simd_loop[i + 1], T_NEAR);
+            }
+        }
+        L(l_simd_loop[0]);
+        test(reg_size, reg_size);
+        jz(l_simd_notail);
+        // JIT of `tail_mask_ = (1 << (size_ % simd_w_)) - 1;`
+        mov(reg32_mask, 1);
+        mov(reg64_tail, reg_size);
+        shl(reg32_mask, reg8_mask_shift);
+        sub(reg32_mask, 1);
+        kmovd(ktail_mask, reg32_mask);
+        add_cvt(0, ktail_mask);
+        L(l_simd_notail);
+
+        postamble();
+    }
+
+    void (*jit_ker)(bf16_support::jit_call_t *);
+
+private:
+    int simd_w_;
+
+    bf16_emulation_t *bf16_emu_;
+
+    Xbyak::Opmask ktail_mask = k2;
+    Xbyak::Zmm fp32_inp = Xbyak::Zmm(0);
+    Xbyak::Zmm fp32_tmp = Xbyak::Zmm(1);
+
+    Xbyak::Zmm one = Xbyak::Zmm(2);
+    Xbyak::Zmm even = Xbyak::Zmm(3);
+    Xbyak::Zmm selector = Xbyak::Zmm(4);
+    Xbyak::Reg64 scratch = r15;
+
+    Xbyak::Ymm bf16_out = Xbyak::Ymm(5);
+
+    Xbyak::Reg64 reg_inp = rax;
+    Xbyak::Reg64 reg_out = rbx;
+    Xbyak::Reg64 reg_add = r11;
+    Xbyak::Reg64 reg_size = rdx;
+
+    Xbyak::Reg64 reg64_tail = rcx;
+    Xbyak::Reg32 reg32_tail = ecx;
+    Xbyak::Reg8 reg8_mask_shift = cl;
+    Xbyak::Reg32 reg32_mask = r8d;
+};
+
 #undef GET_OFF
 }
 }
