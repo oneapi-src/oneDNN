@@ -30,6 +30,11 @@ struct dnn_mem_t {
         : active_(initialize(ndims, dims, dt, tag, engine) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
+            mkldnn_engine_t engine)
+        : active_(initialize(ndims, dims, dt, tag, extra, engine) == OK) {}
+
+    dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
             const mkldnn_dims_t strides, mkldnn_engine_t engine)
         : active_(initialize(ndims, dims, dt, strides, engine) == OK) {}
 
@@ -235,6 +240,16 @@ private:
             mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        SAFE(initialize(xmd, engine), CRIT);
+        return OK;
+    }
+
+    int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
+            mkldnn_engine_t engine) {
+        mkldnn_memory_desc_t xmd;
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        xmd.extra = extra;
         SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }

@@ -275,18 +275,40 @@ int check_reorder(const prb_t *p, res_t *res) {
     const int64_t *dims = &r.dims[0];
 
     /* Step 1: create memory */
+
+    /* check for extra flags on output format, and create extra information
+     * descriptor for output memory. */
+    mkldnn_memory_extra_desc_t mem_extra_dt_out_fmt_out;
+    mkldnn_memory_extra_desc_t mem_extra_test_dt_out_fmt_out;
+
+    mem_extra_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
+    mem_extra_test_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
+
+    if (p->alg == ALG_BOOT
+            && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
+        int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
+        auto set_oflags = [=](mkldnn_memory_extra_desc_t &extra) {
+            extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
+            extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
+        };
+        set_oflags(mem_extra_dt_out_fmt_out);
+        set_oflags(mem_extra_test_dt_out_fmt_out);
+    }
+
     dnn_mem_t mem_dt_in_fmt_ref(
             ndims, dims, p->conf_in->dt, nullptr, engine_ref);
     dnn_mem_t mem_dt_in_fmt_in(
             ndims, dims, p->conf_in->dt, r.tag_in, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_out(
-            ndims, dims, p->conf_out->dt, r.tag_out, engine_tgt);
+            ndims, dims, p->conf_out->dt, r.tag_out,
+            mem_extra_dt_out_fmt_out, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_ref(
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
     dnn_mem_t mem_test_dt_out_fmt_ref(
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
     dnn_mem_t mem_test_dt_out_fmt_out(
-            ndims, dims, p->conf_out->dt, r.tag_out, engine_tgt);
+            ndims, dims, p->conf_out->dt, r.tag_out,
+            mem_extra_test_dt_out_fmt_out, engine_tgt);
 
     /* Step 2: fill scales */
     int64_t count = 0;
@@ -302,18 +324,6 @@ int check_reorder(const prb_t *p, res_t *res) {
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
     auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
-
-    /* check for extra flags on output format, and set them */
-    if (p->alg == ALG_BOOT
-            && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
-        int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
-        auto set_oflags = [=](dnn_mem_t &m) {
-            m.md_.extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
-            m.md_.extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
-        };
-        set_oflags(mem_dt_out_fmt_out);
-        set_oflags(mem_test_dt_out_fmt_out);
-    }
 
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
