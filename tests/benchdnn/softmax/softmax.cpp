@@ -90,13 +90,15 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     // When axis_size is small, significant values are coming not only from the
     // biggest input, but also from some smaller. For this case we estimate the
     // amount of such number by log2f(axis_size).
+    // TODO: sse41 exp has lower accuracy, so for now we take max(log2(x), 10).
+    // 10 is taken empirically considering it's close to log2 value.
     // The final criterion picks the max of these numbers.
     // BWD
     // We have sum over axis dim, the worst case for error is amount of elements
     // times machine eps and additional subtract.
     const float num_significant_values =
         MAX2(div_up(p->dims[p->axis], global_fill_range),
-                log2f(p->dims[p->axis]));
+                MAX2(log2f(p->dims[p->axis]), 10));
     const float trh = 1e-7 * (p->dir & FLAG_FWD
         ? num_significant_values : (p->dims[p->axis] + 1));
 
