@@ -64,8 +64,9 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
                 && this->desc()->src_desc.data_type == data_type::bf16
                 && this->desc()->dst_desc.data_type == dst_type
                 && this->desc()->weights_desc.data_type == data_type::bf16
-                && IMPLICATION(this->with_bias(),
-                            data_type::f32 == this->desc()->bias_desc.data_type);
+                && IMPLICATION(this->with_bias(), utils::one_of(
+                        this->desc()->bias_desc.data_type, data_type::f32,
+                        data_type::bf16));
 
             if (!ok) return status::unimplemented;
 
@@ -75,7 +76,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
 
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *this->weights_pd_.desc(),
-                    *this->dst_pd_.desc(), *this->attr(),
+                    *this->dst_pd_.desc(), *this->bias_pd_.desc(), *this->attr(),
                     mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
@@ -144,7 +145,7 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
     void execute_forward() const;
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights,
-            const float *bias, dst_data_t *dst,
+            const char *bias, dst_data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
@@ -195,7 +196,8 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_,
                             *conv_d, *diff_src_d,
                             *this->weights_pd_.desc(),
-                            *this->diff_dst_pd_.desc(), *this->attr(),
+                            *this->diff_dst_pd_.desc(), *this->bias_pd_.desc(),
+                            *this->attr(),
                             mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
@@ -306,17 +308,17 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public cpu_primitiv
                 && this->desc()->src_desc.data_type == data_type::bf16
                 && this->desc()->diff_weights_desc.data_type == diff_weights_type
                 && this->desc()->diff_dst_desc.data_type == data_type::bf16
-                && IMPLICATION(this->with_bias(),
-                        data_type::f32 == desc()->diff_bias_desc.data_type);
+                && IMPLICATION(this->with_bias(), utils::one_of(
+                    this->desc()->diff_bias_desc.data_type, data_type::f32,
+                        data_type::bf16));
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = this->desc();
             const memory_desc_t *src_d = this->src_pd_.desc();
             rtus_prepare(this, conv_d, src_d, this->diff_dst_pd_.desc());
-
             status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                     jcp_, *conv_d, *src_d, *this->diff_weights_pd_.desc(),
-                    *this->diff_dst_pd_.desc(), *this->attr(),
+                    *this->diff_dst_pd_.desc(), *this->diff_bias_pd_.desc(), *this->attr(),
                     mkldnn_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 

@@ -41,21 +41,27 @@ using jit_conv_ker_t = void (*)(jit_conv_call_s *);
 
 template <data_type_t dst_type>
 void _jit_avx512_core_bf16_convolution_fwd_t<dst_type>::
-prepare_padded_bias(const float *&bias) const {
+prepare_padded_bias(const char *&bias) const {
     if (!pd()->wants_padded_bias()) return;
-    auto padded_bias = scratchpad().template get<float>(
+    auto padded_bias = scratchpad().template get<char>(
             memory_tracking::names::key_conv_padded_bias);
-    utils::array_copy(padded_bias, bias, pd()->jcp_.oc_without_padding);
-    utils::array_set(padded_bias + pd()->jcp_.oc_without_padding,
-            (dst_data_t)0, pd()->jcp_.oc - pd()->jcp_.oc_without_padding);
+    utils::array_copy(padded_bias, bias,
+        pd()->jcp_.typesize_bia * pd()->jcp_.oc_without_padding);
+    utils::array_set(padded_bias
+        + pd()->jcp_.typesize_bia * pd()->jcp_.oc_without_padding, 0,
+          pd()->jcp_.typesize_bia *
+                (pd()->jcp_.oc - pd()->jcp_.oc_without_padding));
     bias = padded_bias;
 }
 template <data_type_t dst_type>
 void _jit_avx512_core_bf16_convolution_fwd_t<dst_type>::execute_forward() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const float *>(this->input_memory(2));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
+
+    const size_t bia_dt_size = pd()->with_bias()
+        ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
 
     prepare_padded_bias(bias);
 
@@ -107,7 +113,7 @@ void _jit_avx512_core_bf16_convolution_fwd_t<dst_type>::execute_forward() const 
             int ow_s =  owb * jcp.ow_block;
             int iw_s =  ow_s * jcp.stride_w;
 
-            auto bias_w = bias ? bias + g_oc : nullptr;
+            auto bias_w = bias ? bias + g_oc * bia_dt_size : nullptr;
 
             auto dst_w = dst + dst_d.blk_off(n, g_ocb, oh_s, ow_s);
             auto src_w = src + src_d.blk_off(n, g_icb, ih_s, iw_s);
@@ -332,15 +338,20 @@ struct _jit_avx512_core_bf16_convolution_bwd_weights_t<diff_weights_type>
 
     thread_info_t(const _jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             int ithr): scratchpad(self->scratchpad()), ithr(ithr) {
+        const auto &jcp = self->kernel_->jcp;
+
         src = reinterpret_cast<const src_data_t *>(self->input_memory(0));
         diff_dst = reinterpret_cast<const diff_dst_data_t *>(
             self->input_memory(1));
         diff_weights = reinterpret_cast<diff_weights_data_t *>(self->memory(0));
-        diff_bias = self->pd()->wants_padded_bias()
-            ? scratchpad.template get<float>(
-                    key_conv_padded_bias)
-            : reinterpret_cast<float *>(self->memory(1));
-
+        if (jcp.bia_dt == data_type::bf16) {
+            diff_bias = scratchpad.template get<float>(key_conv_bias_bf16_convert_wsp);
+        } else {
+            diff_bias = self->pd()->wants_padded_bias()
+                ? scratchpad.template get<float>(
+                        key_conv_padded_bias)
+                : reinterpret_cast<float *>(self->memory(1));
+        }
 #ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
         tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
         tr_diff_dst = scratchpad.template get<diff_dst_data_t>(
@@ -369,8 +380,6 @@ struct _jit_avx512_core_bf16_convolution_bwd_weights_t<diff_weights_type>
 
         ithr_but_ic = (ithr_mb * self->nthr_g_ + ithr_g) * self->nthr_oc_b_
             + ithr_oc_b;
-
-        const auto &jcp = self->kernel_->jcp;
 
         /* reduction dimension */
         balance211(jcp.mb*jcp.od, self->nthr_mb_, ithr_mb, img_start, img_end);
@@ -800,14 +809,25 @@ void _jit_avx512_core_bf16_convolution_bwd_weights_t<diff_weights_type>
         }
     });
 
-    /* TODO: put that into compute_diff_bias() */
-    if (pd()->wants_padded_bias()) {
-        auto diff_bias = scratchpad().template get<const float>(
-                key_conv_padded_bias);
-        auto diff_bias_in
-            = reinterpret_cast<float *>(this->memory(1));
-        for (int oc = 0; oc < pd()->jcp_.oc_without_padding; ++oc)
-            diff_bias_in[oc] = diff_bias[oc];
+    if (pd()->jcp_.bia_dt == data_type::bf16) {
+        auto diff_bias_f32 =
+            scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+        auto diff_bias_in =
+            reinterpret_cast<mkldnn_bfloat16_t *>(this->memory(1));
+        bf16_cvt_utils::cvt_float_to_bfloat16(diff_bias_in, diff_bias_f32,
+                            pd()->jcp_.oc_without_padding * pd()->jcp_.ngroups);
+
+    } else {
+        /* TODO: put that into compute_diff_bias() */
+        if (pd()->wants_padded_bias()) {
+            auto diff_bias = scratchpad().template get<const float>(
+                    key_conv_padded_bias);
+            auto diff_bias_in
+                = reinterpret_cast<float *>(this->memory(1));
+            int bias_size = pd()->jcp_.oc_without_padding * pd()->jcp_.ngroups;
+            for (int oc = 0; oc < bias_size; ++oc)
+                diff_bias_in[oc] = diff_bias[oc];
+        }
     }
 }
 

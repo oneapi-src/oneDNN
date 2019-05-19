@@ -65,8 +65,9 @@ struct _jit_avx512_core_bf16_convolution_fwd_t : public cpu_primitive_t {
                     && this->desc()->src_desc.data_type == data_type::bf16
                     && this->desc()->weights_desc.data_type == data_type::bf16
                     && this->desc()->dst_desc.data_type == dst_type
-                    && IMPLICATION(this->with_bias(),
-                        data_type::f32 == this->desc()->bias_desc.data_type);
+                    && IMPLICATION(this->with_bias(), utils::one_of(
+                        this->desc()->bias_desc.data_type, data_type::f32,
+                        data_type::bf16));
             if (!ok)
                 return status::unimplemented;
 
@@ -90,12 +91,12 @@ struct _jit_avx512_core_bf16_convolution_fwd_t : public cpu_primitive_t {
         jit_conv_conf_t jcp_;
 
         private:
-
             void init_scratchpad() {
                 using namespace memory_tracking::names;
                 auto scratchpad = scratchpad_registry().registrar();
                 if (jcp_.with_bias && jcp_.oc != jcp_.oc_without_padding)
-                    scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp_.oc);
+                    scratchpad.book(key_conv_padded_bias,
+                        jcp_.typesize_bia * jcp_.oc);
             }
     };
 
@@ -119,7 +120,7 @@ struct _jit_avx512_core_bf16_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward() const;
-    void prepare_padded_bias(const float *&bias) const;
+    void prepare_padded_bias(const char *&bias) const;
     jit_avx512_core_bf16_fwd_kernel *kernel_;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
@@ -256,8 +257,9 @@ struct _jit_avx512_core_bf16_convolution_bwd_weights_t: public cpu_primitive_t {
                 && this->desc()->diff_dst_desc.data_type == data_type::bf16
                 && this->desc()->diff_weights_desc.data_type
                     == diff_weights_type
-                && IMPLICATION(this->with_bias(),
-                        data_type::f32 == this->desc()->diff_bias_desc.data_type);
+                && IMPLICATION(this->with_bias(), utils::one_of(
+                    this->desc()->diff_bias_desc.data_type, data_type::f32,
+                        data_type::bf16));
            if (!ok) return status::unimplemented;
 
             status_t status =

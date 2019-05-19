@@ -105,7 +105,6 @@ private:
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
-
     reg64_t reg_out_long_offt = r14;
 
     Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
@@ -131,13 +130,11 @@ private:
         assert(idx < 31);
         return Xbyak::Ymm(idx);
     }
-
     Xbyak::Reg64 imm_addr64 = r15;
-    Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
-    Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_wei = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
 
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);

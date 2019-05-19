@@ -84,7 +84,6 @@ void jit_avx512_core_bf16_fwd_kernel::store_output(int ur_w)
     Label store_label;
     if (!jcp.bf16_ISA())
         bf16_emu_->init_vcvtneps2bf16();
-
     if (jcp.with_sum) {
         for (int k = 0; k < jcp.nb_oc_blocking; k++) {
             for (int j = 0; j < ur_w; j++) {
@@ -106,10 +105,16 @@ void jit_avx512_core_bf16_fwd_kernel::store_output(int ur_w)
     if (jcp.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
         for (int k = 0; k < jcp.nb_oc_blocking; k++) {
-            int bias_offset = sizeof(float) * k * jcp.oc_block;
+            int bias_offset = jcp.typesize_bia * k * jcp.oc_block;
             for (int j = 0; j < ur_w; j++) {
                 Zmm zmm = zmm_out(j, k);
-                vaddps(zmm, EVEX_compress_addr(reg_bias, bias_offset));
+                if (jcp.bia_dt == data_type::bf16) {
+                    vpmovzxwd(zmm_bias, EVEX_compress_addr(reg_bias, bias_offset));
+                    vpslld(zmm_bias, zmm_bias, 0x10);
+                    vaddps(zmm, zmm_bias);
+                } else {
+                    vaddps(zmm, EVEX_compress_addr(reg_bias, bias_offset));
+                }
             }
         }
     }
@@ -591,11 +596,15 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
         if (bias_d.format() != x)
             return status::unimplemented;
     }
+    jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
     jcp.ver = ver_vnni;
     jcp.typesize_in = sizeof(mkldnn_bfloat16_t);
     jcp.typesize_out = (dst_d.data_type() == data_type::f32)
         ? sizeof(float) : sizeof(mkldnn_bfloat16_t);
+    jcp.typesize_bia = jcp.with_bias
+        ? types::data_type_size(bias_d.data_type())
+        : 0;
 
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
@@ -1863,6 +1872,10 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         if (diff_bias_d.format() != x)
             return status::unimplemented;
     }
+    jcp.bia_dt = jcp.with_bias ? cd.diff_bias_desc.data_type : data_type::undef;
+    jcp.typesize_bia = jcp.with_bias
+        ? types::data_type_size(diff_bias_d.data_type())
+        : 0;
 
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
@@ -2013,10 +2026,15 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         const size_t dst_f32_size = (size_t)jcp.od * jcp.oh * jcp.ow
              * jcp.oc_block * jcp.typesize_out;
         scratchpad.book(key_conv_dst_bf16_convert_wsp, jcp.nthr * dst_f32_size);
+        if (jcp.bia_dt == data_type::bf16) {
+            scratchpad.book(key_conv_bias_bf16_convert_wsp,
+                sizeof(float) * jcp.oc * jcp.ngroups);
+        } else if (jcp.oc != jcp.oc_without_padding) {
+            scratchpad.book(key_conv_padded_bias,
+                jcp.typesize_out * jcp.oc * jcp.ngroups);
+        }
     }
 
-    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
 }
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
