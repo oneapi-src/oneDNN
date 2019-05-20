@@ -88,7 +88,8 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
 
     bool is_sgemm = data_traits<a_type>::data_type == data_type::f32;
 
-    // Copy-based sgemm doesn't support force-nocopy for ISAs older than avx.
+    // Copy-based sgemm doesn't support force-nocopy for ISAs older
+    // than Intel AVX.
     this->force_nocopy = is_sgemm && force_nocopy && mayiuse(avx);
 
     if (!this->force_nocopy) {
@@ -360,8 +361,8 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
 // Check if copy algorithm kernels were generated on supported ISAs.
 // Copy algorithm supported for:
-//      s8  : avx512_core, avx512_vnni
-//      f32 : sse41, avx, avx2, avx512_core
+//      s8  : Intel AVX512, Intel DL Boost
+//      f32 : Intel SSE4.1, Intel AVX, Intel AVX2, Intel AVX512
 template <typename a_type, typename b_type, typename c_type>
 bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
     switch (data_traits<a_type>::data_type) {

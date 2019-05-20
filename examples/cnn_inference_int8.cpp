@@ -165,9 +165,9 @@ void simple_net_int8() {
                 conv_desc, conv_attr, cpu_engine);
     } catch (error &e) {
         if (e.status == mkldnn_unimplemented) {
-            std::cerr << "AVX512-BW support or Intel(R) MKL dependency is "
-                         "required for int8 convolution"
-                      << std::endl;
+            std::cerr << "Intel MKL-DNN does not have int8 convolution "
+            "implementation that supports this system. Please refer to "
+            "the developer guide for details." << std::endl;
         }
         throw;
     }

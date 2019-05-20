@@ -1437,11 +1437,12 @@ mkldnn_status_t gemm_driver(
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
-    // gemm_driver supports 8-bit integer gemm for avx512_vnni and avx512_core.
+    // gemm_driver supports 8-bit integer Intel AVX512 and Intel DL Boost.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
                 mayiuse(avx512_core)));
 
-    // gemm_driver supports sgemm for avx512_core, avx2, avx and sse41.
+    // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,
+    // and Intel SSE4.1
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
             mayiuse(sse41)));
 
