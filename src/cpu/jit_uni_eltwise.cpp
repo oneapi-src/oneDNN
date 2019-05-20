@@ -139,7 +139,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
         h->vcmpps(k_mask, vmm_src, table_val(11), _cmp_lt_os);
     else if (isa == avx2)
         h->vcmpltps(vmm_mask, vmm_src, table_val(11));
-    else if (isa == sse41) {
+    else if (isa == sse42) {
         h->uni_vmovups(vmm_mask, vmm_src);
         h->cmpltps(vmm_mask, table_val(11));
     }
