@@ -1245,14 +1245,6 @@ typedef struct mkldnn_engine *mkldnn_engine_t;
 typedef const struct mkldnn_engine *const_mkldnn_engine_t;
 #endif
 
-/// @brief Kinds of engine backends.
-typedef enum {
-    /// Native backend.
-    mkldnn_backend_native,
-    /// OpenCL backend.
-    mkldnn_backend_ocl,
-} mkldnn_backend_kind_t;
-
 /// @}
 
 /// @addtogroup c_api_primitive_desc_iterators Primitive descriptor iterators

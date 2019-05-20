@@ -536,18 +536,6 @@ inline mkldnn_query_t convert_to_c(query aquery) {
     return static_cast<mkldnn_query_t>(aquery);
 }
 
-/// Backend kinds
-enum class backend_kind {
-    /// Native backend
-    native = mkldnn_backend_native,
-    /// OpenCL backend
-    ocl = mkldnn_backend_ocl,
-};
-
-inline mkldnn_backend_kind_t convert_to_c(backend_kind akind) {
-    return static_cast<mkldnn_backend_kind_t>(akind);
-}
-
 /// @}
 
 /// @addtogroup cpp_api_attr Attributes
@@ -852,13 +840,6 @@ struct engine: public handle<mkldnn_engine_t> {
         error::wrap_c_api(mkldnn_engine_get_kind(get(), &akind),
                 "could not get the engine kind");
         return static_cast<engine::kind>(akind);
-    }
-
-    backend_kind get_backend_kind() const {
-        mkldnn_backend_kind_t abackend_kind;
-        error::wrap_c_api(mkldnn_engine_get_backend_kind(get(), &abackend_kind),
-                "could not get the backend kind of the engine");
-        return static_cast<backend_kind>(abackend_kind);
     }
 
 #if MKLDNN_WITH_OPENCL

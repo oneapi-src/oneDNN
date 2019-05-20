@@ -406,13 +406,6 @@ const char *mkldnn_mkldnn_transpose_t2str(mkldnn_transpose_t v) {
     return "unknown mkldnn_transpose_t";
 }
 
-const char *mkldnn_mkldnn_backend_kind_t2str(mkldnn_backend_kind_t v) {
-    if (v == mkldnn_backend_native) return "backend_native";
-    if (v == mkldnn_backend_ocl) return "backend_ocl";
-    assert(!"unknown mkldnn_backend_kind_t");
-    return "unknown mkldnn_backend_kind_t";
-}
-
 const char *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v) {
     if (v == mkldnn_scratchpad_mode_library) return "scratchpad_mode_library";
     if (v == mkldnn_scratchpad_mode_user) return "scratchpad_mode_user";

@@ -403,7 +403,11 @@ namespace engine_kind {
     const engine_kind_t gpu = mkldnn_gpu;
 }
 
-using backend_kind_t = mkldnn_backend_kind_t;
+enum backend_kind_t {
+    mkldnn_backend_native,
+    mkldnn_backend_ocl,
+};
+
 namespace backend_kind {
     const backend_kind_t native = mkldnn_backend_native;
     const backend_kind_t ocl = mkldnn_backend_ocl;

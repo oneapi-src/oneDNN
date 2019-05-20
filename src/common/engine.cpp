@@ -78,12 +78,12 @@ status_t mkldnn_engine_create(engine_t **engine,
     return ef->engine_create(engine, index);
 }
 
-status_t mkldnn_engine_create_with_backend(engine_t **engine,
-        engine_kind_t kind, backend_kind_t backend_kind, size_t index) {
+extern "C" status_t MKLDNN_API mkldnn_engine_create_with_backend(
+        engine_t **engine, engine_kind_t kind, int backend_kind, size_t index) {
     if (engine == nullptr)
         return invalid_arguments;
 
-    auto ef = get_engine_factory(kind, backend_kind);
+    auto ef = get_engine_factory(kind, (backend_kind_t)backend_kind);
     if (ef == nullptr || index >= ef->count())
         return invalid_arguments;
 

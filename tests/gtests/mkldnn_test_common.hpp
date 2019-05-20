@@ -485,7 +485,9 @@ class test_memory {
 public:
     test_memory(const memory::desc &d, const mkldnn::engine &e) {
         size_ = d.get_size();
-        if (e.get_backend_kind() == mkldnn::backend_kind::native) {
+        bool is_cpu_native = (e.get_kind() == mkldnn::engine::kind::cpu)
+                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
+        if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
             mem_ = memory(d, e, data_.get());
         } else {

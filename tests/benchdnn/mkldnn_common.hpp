@@ -84,9 +84,13 @@ extern mkldnn_engine_t engine_tgt;
 extern mkldnn_stream_t stream_ref;
 extern mkldnn_stream_t stream_tgt;
 
+extern "C" mkldnn_status_t mkldnn_engine_create_with_backend(
+        mkldnn_engine_t *engine, mkldnn_engine_kind_t kind, int backend_kind,
+        size_t index);
+
 inline int init() {
-    DNN_SAFE(mkldnn_engine_create_with_backend(
-                     &engine_ref, mkldnn_cpu, mkldnn_backend_native, 0),
+    /* Create engine with CPU native backend: backend_kind == 0 */
+    DNN_SAFE(mkldnn_engine_create_with_backend(&engine_ref, mkldnn_cpu, 0, 0),
             CRIT);
     DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
 
