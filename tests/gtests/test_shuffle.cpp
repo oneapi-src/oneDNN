@@ -69,30 +69,24 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
 
     mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
            [&](memory::dim ou, memory::dim a, memory::dim in) {
+        if (is_current_test_failed())
+            return;
+
         data_t refout = in_ptr[input_mdw.off_l(ou*dim +
                                  rev_transpose(a)*inner_size + in, true)];
         data_t out = out_ptr[output_mdw.off_l(ou*dim + a*inner_size + in, true)];
-        EXPECT_NEAR(out, refout, 0);
+        ASSERT_NEAR(out, refout, 0);
     });
 }
 
 template <typename data_t>
 class shuffle_test : public ::testing::TestWithParam<shuffle_test_params> {
 private:
-    std::shared_ptr<test_memory> src;
-    std::shared_ptr<test_memory> dst;
-    std::shared_ptr<test_memory> diff_dst;
-    std::shared_ptr<test_memory> diff_src;
-    std::shared_ptr<memory::desc> src_desc;
-    std::shared_ptr<memory::desc> dst_desc;
-    std::shared_ptr<memory::desc> diff_dst_desc;
-    std::shared_ptr<memory::desc> diff_src_desc;
-    std::shared_ptr<shuffle_forward::primitive_desc> shuffle_fwd_prim_desc;
-    std::shared_ptr<shuffle_forward::primitive_desc> shuffle_bwd_prim_desc;
+    shuffle_forward::primitive_desc shuffle_fwd_prim_desc;
     shuffle_test_params p;
     memory::dims padR;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
 
 protected:
@@ -105,14 +99,9 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
         data_type = data_traits<data_t>::data_type;
-
-        src_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
-        dst_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
-        diff_dst_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
-        diff_src_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
 
         bool is_training = p.aprop_kind == prop_kind::forward_training;
 
@@ -122,51 +111,55 @@ protected:
     }
 
     void Forward() {
-        auto shuffle_desc = shuffle_forward::desc(p.aprop_kind, *src_desc,
+        memory::desc src_desc(p.dims, data_type, p.data_format);
+        memory::desc dst_desc(p.dims, data_type, p.data_format);
+
+        auto shuffle_desc = shuffle_forward::desc(p.aprop_kind, src_desc,
                  p.axis, p.group_size);
-        shuffle_fwd_prim_desc.reset(new shuffle_forward::
-                 primitive_desc(shuffle_desc, *eng));
+        shuffle_fwd_prim_desc =
+            shuffle_forward::primitive_desc(shuffle_desc, eng);
 
-        src.reset(new test_memory(*src_desc, *eng));
-        dst.reset(new test_memory(*dst_desc, *eng));
+        test_memory src(src_desc, eng);
+        test_memory dst(dst_desc, eng);
 
-        fill_data<data_t>(src->get_size() / sizeof(data_t),
-                src->get());
-        check_zero_tail<data_t>(1, src->get());
-        check_zero_tail<data_t>(1, dst->get());
+        fill_data<data_t>(src.get_size() / sizeof(data_t), src.get());
+        check_zero_tail<data_t>(1, src.get());
+        check_zero_tail<data_t>(1, dst.get());
 
-        shuffle_forward(*shuffle_fwd_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DST, dst->get()}});
-        strm->wait();
+        shuffle_forward(shuffle_fwd_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src.get()},
+                {MKLDNN_ARG_DST, dst.get()}});
+        strm.wait();
 
-        check_shuffle<data_t>(p, src->get(), dst->get(), p.group_size);
+        check_shuffle<data_t>(p, src.get(), dst.get(), p.group_size);
     }
 
-    void Backward()
-    {
-        auto shuffle_desc = shuffle_backward::desc(*diff_dst_desc, p.axis,
+    void Backward() {
+        memory::desc diff_dst_desc(p.dims, data_type, p.data_format);
+        memory::desc diff_src_desc(p.dims, data_type, p.data_format);
+
+        auto shuffle_desc = shuffle_backward::desc(diff_dst_desc, p.axis,
                p.group_size);
-        diff_dst.reset(new test_memory(*diff_dst_desc, *eng));
-        diff_src.reset(new test_memory(*diff_src_desc, *eng));
+
+        test_memory diff_dst(diff_dst_desc, eng);
+        test_memory diff_src(diff_src_desc, eng);
 
         auto shuffle_prim_desc = shuffle_backward::primitive_desc(shuffle_desc,
-                *eng, *shuffle_fwd_prim_desc);
+                eng, shuffle_fwd_prim_desc);
 
-        fill_data<data_t>(diff_dst->get_size() / sizeof(data_t),
-                diff_dst->get());
+        fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
 
-        check_zero_tail<data_t>(1, diff_dst->get());
-        check_zero_tail<data_t>(1, diff_src->get());
+        check_zero_tail<data_t>(1, diff_dst.get());
+        check_zero_tail<data_t>(1, diff_src.get());
 
         // Execute
-        shuffle_backward(shuffle_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
-        strm->wait();
+        shuffle_backward(shuffle_prim_desc).execute(strm, {
+                {MKLDNN_ARG_DIFF_DST, diff_dst.get()},
+                {MKLDNN_ARG_DIFF_SRC, diff_src.get()}});
+        strm.wait();
 
-        const int axis_size = diff_dst_desc->data.dims[p.axis];
-        check_shuffle<data_t>(p, diff_dst->get(), diff_src->get(),
+        const int axis_size = diff_dst_desc.data.dims[p.axis];
+        check_shuffle<data_t>(p, diff_dst.get(), diff_src.get(),
             axis_size / p.group_size);
     }
 };

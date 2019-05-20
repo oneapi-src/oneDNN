@@ -26,6 +26,7 @@
 
 #include "gemm/gemm.hpp"
 #include "jit_generator.hpp"
+#include "gemm_inner_product_utils.hpp"
 
 #include "cpu_inner_product_pd.hpp"
 #include "cpu_primitive.hpp"
@@ -58,7 +59,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                             weights_md(1)->data_type, f32, s32, s8, u8))
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_,
-                        attr()->post_ops_.entry_[0].is_relu(true, false))
+                        attr()->post_ops_.entry_[0].is_eltwise())
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             if (!ok) return status::unimplemented;
@@ -82,8 +83,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             if (dst_md_.format_kind == format_kind::any)
                 CHECK(memory_desc_init_by_tag(dst_md_, nc));
             if (weights_md_.format_kind == format_kind::any) {
-                CHECK(memory_desc_init_by_tag(weights_md_,
+                if (MB() > 1) {
+                    CHECK(memory_desc_init_by_tag(weights_md_,
                             utils::pick(ndims() - 2, io, wio, hwio, dhwio)));
+                } else {
+                    CHECK(memory_desc_init_by_tag(weights_md_,
+                            utils::pick(ndims() - 2, oi, owi, ohwi, odhwi)));
+                }
             }
             return inner_product_fwd_pd_t::set_default_params();
         }
@@ -100,8 +106,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     };
 
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true)
-    { pp_kernel_ = new pp_kernel_t(apd, pd()->dst_is_acc_); }
+        : cpu_primitive_t(apd, true) {
+        pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
+                dst_type>(apd);
+    }
     ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_type>::type data_t;
@@ -117,44 +125,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     }
 
 private:
-    // XXX: this is throwaway code that will become unnecessary when we have a
-    // sufficiently advanced igemm jit generator that supports quantization,
-    // relu, and whatnot
-    class pp_kernel_t: jit_generator {
-    public:
-        DECLARE_CPU_JIT_AUX_FUNCTIONS(
-                gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
-        pp_kernel_t(const pd_t *pd, bool dst_is_acc);
-
-        void operator()(dst_data_t *dst, const acc_data_t *acc,
-                const char *bias, const float *scales, float nslope,
-                size_t start, size_t end);
-    private:
-        void generate();
-
-        struct ker_args {
-            dst_data_t *dst;
-            const acc_data_t *acc;
-            const char *bias;
-            const float *scales;
-            float nslope;
-            size_t len;
-            size_t oc_offset;
-        };
-        void (*ker_)(const ker_args *args);
-
-        size_t OC_;
-        data_type_t bias_data_type_;
-        size_t bias_data_type_size_;
-        size_t scale_idx_mult_;
-        bool do_bias_;
-        bool do_relu_;
-    };
-
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    pp_kernel_t *pp_kernel_;
+    inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
 };
 
 }

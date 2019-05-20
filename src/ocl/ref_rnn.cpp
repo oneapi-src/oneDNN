@@ -514,8 +514,6 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     const exec_ctx_t &ctx) const {
 
-    DPRINT("%s(%d) ===========================>>>>\n",__FUNCTION__,__LINE__);
-
     auto rnn = this->pd();
 
     int n_layer = rnn->L();
@@ -687,6 +685,8 @@ template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;
 template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
+template
+struct _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
 }
 }
 }

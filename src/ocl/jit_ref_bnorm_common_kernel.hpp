@@ -76,7 +76,10 @@ struct jit_ref_bnorm_common_kernel {
         jbn.mb_chunk = 1;
         jbn.sp_chunk = 1;
         jbn.mb_block = 1;
-        if (data_mdw.matches_one_of_tag(
+
+        const bool has_padding = !data_mdw.is_dense();
+        if (!has_padding
+                && data_mdw.matches_one_of_tag(
                     NChw16n16c, nChw16c, NCdhw16n16c, nCdhw16c)) {
             jbn.mb_block = data_mdw.matches_one_of_tag(NChw16n16c, NCdhw16n16c)
                     ? 16

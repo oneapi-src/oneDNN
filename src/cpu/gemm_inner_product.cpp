@@ -45,19 +45,18 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
     bool wei_tr = !memory_desc_matches_one_of_tag(
             *pd()->weights_md(), hwio, dhwio, io);
 
-    const auto &post_ops = pd()->attr()->post_ops_;
-    const bool do_relu = post_ops.len_ == 1;
+    const float *scales = pd()->attr()->output_scales_.scales_;
 
     float alpha = 1.0, beta = 0.0;
     extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha, weights,
-            wei_tr ? &IC : &OC, src, &IC, &beta, dst, &OC, bias);
+            wei_tr ? &IC : &OC, src, &IC, &beta, dst, &OC,
+            postops_in_ip_ ? nullptr : bias);
 
-    if (do_relu) {
-        float nslope = post_ops.entry_[0].eltwise.alpha;
-        parallel_nd(MB, OC, [&](int mb, int oc) {
-            size_t dst_off = mb * OC + oc;
-            if (dst[dst_off] < 0)
-                dst[dst_off] *= nslope;
+    if (postops_in_ip_) {
+        parallel(0, [&](int ithr, int nthr) {
+            size_t start, end;
+            balance211((size_t)OC * MB, nthr, ithr, start, end);
+            (*pp_kernel_)(dst, dst, (char *)bias, scales, start, end);
         });
     }
 }

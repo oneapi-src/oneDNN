@@ -1,37 +1,14 @@
 # f32
+--reset
 
+--prop=FWD_D
+--activation=LOGISTIC
 # RNN
---reset --alg=VANILLA_RNN
+--direction=left2right,concat,sum
+--alg=VANILLA_RNN          --batch=rnn_inference
+
+# LSTM, GRU
 --direction=left2right
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_inference
-
---reset
---direction=concat
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_inference
-
-# sum
---reset
---direction=sum
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_inference
-
-# LSTM
---reset --alg=VANILLA_LSTM
---direction=left2right
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_inference
-
-# GRU
---reset --alg=VANILLA_GRU
---direction=left2right
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_gru
-
-# LBR_GRU
---reset --alg=LBR_GRU
---direction=left2right
---activation=LOGISTIC
---prop=FWD_D --batch=rnn_inference
+--alg=VANILLA_LSTM,LBR_GRU --batch=rnn_inference
+--alg=VANILLA_GRU          --batch=rnn_gru
 

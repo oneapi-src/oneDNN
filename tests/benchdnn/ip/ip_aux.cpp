@@ -127,23 +127,23 @@ void desc2str(const desc_t *d, char *buffer, bool canonical) {
 
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char desc_buf[max_desc_len], attr_buf[max_attr_len];
-    char dir_str[32] = {0}, cfg_str[32] = {0};
-    desc2str(p, desc_buf, canonical);
-    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
-    bool is_attr_def = p->attr.is_def();
-    if (!is_attr_def) {
+    char dir_str[32] = "", cfg_str[32] = "", attr_buf[max_attr_len] = "",
+         desc_buf[max_desc_len] = "";
+
+    if (p->dir != FWD_B)
+        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    if (p->cfg != conf_f32)
+        snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
+    if (!p->attr.is_def()) {
         int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
         SAFE_V(len >= 0 ? OK : FAIL);
         attr2str(&p->attr, attr_buf + len);
         len = (int)strnlen(attr_buf, max_attr_len);
         snprintf(attr_buf + len, max_attr_len - len, "\" ");
     }
-    snprintf(buffer, max_prb_len, "%s%s%s%s",
-            p->dir == FWD_B ? "" : dir_str,
-            p->cfg == conf_f32 ? "" : cfg_str,
-            is_attr_def ? "" : attr_buf,
+    desc2str(p, desc_buf, canonical);
+
+    snprintf(buffer, max_prb_len, "%s%s%s%s", dir_str, cfg_str, attr_buf,
             desc_buf);
 }
 

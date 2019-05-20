@@ -44,6 +44,9 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
 
+        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
+            return status::unimplemented;
+
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -326,80 +329,73 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         switch (jcp.ver) {
         case ver_ref:
-            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
-                                       : (jcp.with_groups) ? goihw : oihw;
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, goiw, goihw, goidhw)
+                    : utils::pick(jcp.ndims - 3, oiw, oihw, oidhw);
             break;
         case ver_1stconv:
             if (utils::one_of(src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = (jcp.ndims == 5) ? ncdhw : chwn;
+                src_tag = utils::pick(jcp.ndims - 3, ncw, chwn, ncdhw);
                 dst_tag = jcp.mb % 16 == 0
-                        ? (jcp.ndims == 5) ? ncdhw : NChw32n32c
-                        : (jcp.ndims == 5) ? ncdhw : nChw16c;
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? goidhw : oidhw
-                        : (jcp.with_groups) ? gOhwi32o : Ohwi32o;
+                        ? utils::pick(jcp.ndims - 3, ncw, NChw32n32c, ncdhw)
+                        : utils::pick(jcp.ndims - 3, ncw, nChw16c, ncdhw);
+                wei_tag = jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, goiw, gOhwi32o, goidhw)
+                        : utils::pick(jcp.ndims - 3, oiw, Ohwi32o, oidhw);
             } else {
-                src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
+                src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
                 dst_tag = jcp.mb % 16 == 0
-                        ? (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c
-                        : (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gOdhwi16o : Odhwi16o
-                        : (jcp.with_groups) ? gOhwi16o : Ohwi16o;
+                        ? utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
+                        : utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+                wei_tag = jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                        : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             }
             break;
         case ver_16mb16c:
             if (utils::one_of(src_mdw.data_type(), mkldnn_f16)) {
                 if (jcp.mb % 32 == 0) {
-                    src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-                    dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-                    if (jcp.is_depthwise) {
-                        wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-                    } else {
-                        wei_tag = (jcp.ndims == 5)
-                                ? (jcp.with_groups) ? gOIdhw8i16o2i
-                                                    : OIdhw8i16o2i
-                                : (jcp.with_groups) ? gOIhw8i16o2i
-                                                    : OIhw8i16o2i;
-                    }
+                    src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+                    dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+                    wei_tag = jcp.is_depthwise
+                            ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                            : (jcp.with_groups
+                                ? utils::pick(jcp.ndims - 3, gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)
+                                : utils::pick(jcp.ndims - 3, OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i));
                 } else {
-                    src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-                    dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-                    wei_tag = (jcp.ndims == 5)
-                            ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
-                            : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
+                    src_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+                    dst_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+                    wei_tag = jcp.with_groups
+                            ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                            : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o);
                 }
             } else if (utils::one_of(
                                src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = (jcp.ndims == 5) ? ncdhw : NChw32n32c;
-                dst_tag = (jcp.ndims == 5) ? ncdhw : NChw32n32c;
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gOidhw16o : Oidhw16o
-                        : (jcp.with_groups) ? gOIhw4o8i8o4i : OIhw4o8i8o4i;
+                src_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
+                dst_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
+                wei_tag = jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gOiw16o, gOIhw4o8i8o4i, gOidhw16o)
+                        : utils::pick(jcp.ndims - 3, Oiw16o, OIhw4o8i8o4i, Oidhw16o);
             } else {
-                src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-                dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-                if (jcp.is_depthwise) {
-                    wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-                } else {
-                    wei_tag = (jcp.ndims == 5)
-                            ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
-                            : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
-                }
+                src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+                dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+                wei_tag = jcp.is_depthwise
+                        ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                        : (jcp.with_groups
+                            ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                            : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o));
             }
             break;
         case ver_8ow16c:
-            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            if (jcp.is_depthwise) {
-                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-            } else {
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gOIdhw16i16o : OIdhw16i16o
-                        : (jcp.with_groups) ? gOIhw16i16o : OIhw16i16o;
-            }
+            src_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            dst_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            wei_tag = jcp.is_depthwise
+                    ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                    : (jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
+                        : utils::pick(jcp.ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o));
             break;
         default: status = status::unimplemented;
         }
@@ -410,8 +406,8 @@ struct jit_gen9_common_conv_fwd_kernel {
         jcp.wei_tag = wei_tag;
         jcp.dst_tag = dst_tag;
 
-        jcp.is_nchw = utils::one_of(src_tag, nchw, ncdhw);
-        jcp.is_nhwc = utils::one_of(src_tag, nhwc, ndhwc);
+        jcp.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+        jcp.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
         return status;
     };
@@ -421,11 +417,11 @@ struct jit_gen9_common_conv_fwd_kernel {
         jit.define_int("FWD_DATA", 1);
         jit.define_int("G", jcp.ngroups);
         jit.define_int("MB", jcp.mb);
-        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("IC", jcp.ic);
         jit.define_int("ID", jcp.id);
         jit.define_int("IH", jcp.ih);
         jit.define_int("IW", jcp.iw);
-        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OC", jcp.oc);
         jit.define_int("OD", jcp.od);
         jit.define_int("OH", jcp.oh);
         jit.define_int("OW", jcp.ow);
@@ -438,6 +434,9 @@ struct jit_gen9_common_conv_fwd_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);
@@ -521,6 +520,9 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
         set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
 
+        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
+            return status::unimplemented;
+
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -603,32 +605,29 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         switch (jcp.ver) {
         case ver_1stconv:
         case ver_ref:
-            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
-                                       : (jcp.with_groups) ? goihw : oihw;
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, goiw, goihw, goidhw)
+                    : utils::pick(jcp.ndims - 3, oiw, oihw, oidhw);
             break;
         case ver_16mb16c:
-            src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-            dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-            if (jcp.is_depthwise) {
-                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-            } else {
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gOIdhw16o16i : OIdhw16o16i
-                        : (jcp.with_groups) ? gOIhw16o16i : OIhw16o16i;
-            }
+            src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+            dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+            wei_tag = jcp.is_depthwise
+                    ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                    : (jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
+                        : utils::pick(jcp.ndims - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i));
             break;
         case ver_8ow16c:
-            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            if (jcp.is_depthwise) {
-                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-            } else {
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gOIdhw16o16i : OIdhw16o16i
-                        : (jcp.with_groups) ? gOIhw16o16i : OIhw16o16i;
-            }
+            src_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            dst_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+                wei_tag = jcp.is_depthwise
+                        ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                        : (jcp.with_groups
+                            ? utils::pick(jcp.ndims - 3, gOIw16o16i, gOIhw16o16i, gOIdhw16o16i)
+                            : utils::pick(jcp.ndims - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i));
             break;
         default: status = status::unimplemented;
         }
@@ -639,8 +638,8 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jcp.wei_tag = wei_tag;
         jcp.dst_tag = dst_tag;
 
-        jcp.is_nchw = utils::one_of(src_tag, nchw, ncdhw);
-        jcp.is_nhwc = utils::one_of(src_tag, nhwc, ndhwc);
+        jcp.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+        jcp.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
         return status::success;
     };
@@ -650,11 +649,11 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jit.define_int("BWD_DATA", 1);
         jit.define_int("G", jcp.ngroups);
         jit.define_int("MB", jcp.mb);
-        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("IC", jcp.ic);
         jit.define_int("ID", jcp.id);
         jit.define_int("IH", jcp.ih);
         jit.define_int("IW", jcp.iw);
-        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OC", jcp.oc);
         jit.define_int("OD", jcp.od);
         jit.define_int("OH", jcp.oh);
         jit.define_int("OW", jcp.ow);
@@ -667,6 +666,9 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);
@@ -722,6 +724,9 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
         set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
 
+        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
+            return status::unimplemented;
+
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -746,6 +751,11 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             jcp.ver = ver_8ow16c;
         if (is_1stconv && is_16oc)
             jcp.ver = ver_1stconv;
+
+        if (jcp.ver == ver_ref) {
+            jcp.ic = jcp.ic_without_padding;
+            jcp.oc = jcp.oc_without_padding;
+        }
 
         status_t status = status::success;
 
@@ -836,40 +846,37 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
         switch (jcp.ver) {
         case ver_ref:
-            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            dst_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            wei_tag = (jcp.ndims == 5) ? (jcp.with_groups) ? goidhw : oidhw
-                                       : (jcp.with_groups) ? goihw : oihw;
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, goiw, goihw, goidhw)
+                    : utils::pick(jcp.ndims - 3, oiw, oihw, oidhw);
             break;
         case ver_1stconv:
             assert(!jcp.is_depthwise);
-            src_tag = (jcp.ndims == 5) ? ncdhw : nchw;
-            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            wei_tag = (jcp.ndims == 5)
-                    ? (jcp.with_groups) ? gOdhwi16o : Odhwi16o
-                    : (jcp.with_groups) ? gOhwi16o : Ohwi16o;
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                    : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             break;
         case ver_16mb16c:
-            src_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-            dst_tag = (jcp.ndims == 5) ? NCdhw16n16c : NChw16n16c;
-            if (jcp.is_depthwise) {
-                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-            } else {
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
-                        : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
-            }
+            src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+            dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
+            wei_tag = jcp.is_depthwise
+                    ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                    : (jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                        : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o));
             break;
         case ver_8ow16c:
-            src_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            dst_tag = (jcp.ndims == 5) ? nCdhw16c : nChw16c;
-            if (jcp.is_depthwise) {
-                wei_tag = (jcp.ndims == 5) ? Goidhw16g : Goihw16g;
-            } else {
-                wei_tag = (jcp.ndims == 5)
-                        ? (jcp.with_groups) ? gIOdhw16i16o : IOdhw16i16o
-                        : (jcp.with_groups) ? gIOhw16i16o : IOhw16i16o;
-            }
+            src_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            dst_tag = utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            wei_tag = jcp.is_depthwise
+                    ? utils::pick(jcp.ndims - 3, Goiw16g, Goihw16g, Goidhw16g)
+                    : (jcp.with_groups
+                        ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                        : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o));
             break;
         default: status = status::unimplemented;
         }
@@ -889,11 +896,11 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         jit.define_int("BWD_WEIGHTS", 1);
         jit.define_int("G", jcp.ngroups);
         jit.define_int("MB", jcp.mb);
-        jit.define_int("IC", jcp.ic_without_padding);
+        jit.define_int("IC", jcp.ic);
         jit.define_int("ID", jcp.id);
         jit.define_int("IH", jcp.ih);
         jit.define_int("IW", jcp.iw);
-        jit.define_int("OC", jcp.oc_without_padding);
+        jit.define_int("OC", jcp.oc);
         jit.define_int("OD", jcp.od);
         jit.define_int("OH", jcp.oh);
         jit.define_int("OW", jcp.ow);
@@ -906,6 +913,9 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         jit.define_int("PD", jcp.f_pad);
         jit.define_int("PH", jcp.t_pad);
         jit.define_int("PW", jcp.l_pad);
+        jit.define_int("PD_R", jcp.back_pad);
+        jit.define_int("PH_R", jcp.b_pad);
+        jit.define_int("PW_R", jcp.r_pad);
         jit.define_int("DD", jcp.dilate_d);
         jit.define_int("DH", jcp.dilate_h);
         jit.define_int("DW", jcp.dilate_w);

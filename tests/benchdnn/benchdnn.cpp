@@ -25,6 +25,7 @@
 #include "common.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "parser.hpp"
 
 #include "self/self.hpp"
 #include "conv/conv.hpp"
@@ -35,6 +36,7 @@
 #include "bnorm/bnorm.hpp"
 #include "rnn/rnn.hpp"
 #include "softmax/softmax.hpp"
+#include "pool/pool.hpp"
 
 int verbose {0};
 bench_mode_t bench_mode {CORR};
@@ -45,11 +47,14 @@ int min_times_per_prb {5};
 int fix_times_per_prb {0};
 
 int main(int argc, char **argv) {
+    using namespace parser;
+
     prim_t prim = DEF;
     --argc; ++argv;
 
-    while (argc > 0) {
-        if (!strcmp("--self", argv[0])) prim = SELF;
+    for (; argc > 0; --argc, ++argv) {
+        if (parse_bench_settings(argv[0]));
+        else if (!strcmp("--self", argv[0])) prim = SELF;
         else if (!strcmp("--conv", argv[0])) prim = CONV;
         else if (!strcmp("--deconv", argv[0])) prim = DECONV;
         else if (!strcmp("--ip", argv[0])) prim = IP;
@@ -58,24 +63,9 @@ int main(int argc, char **argv) {
         else if (!strcmp("--bnorm", argv[0])) prim = BNORM;
         else if (!strcmp("--rnn", argv[0])) prim = RNN;
         else if (!strcmp("--softmax", argv[0])) prim = SOFTMAX;
-        else if (!strncmp("--mode=", argv[0], 7))
-            bench_mode = str2bench_mode(argv[0] + 7);
-        else if (!strncmp("--max-ms-per-prb=", argv[0], 17))
-            sscanf(argv[0] + 17, "%lf", &max_ms_per_prb);
-        else if (!strncmp("-v", argv[0], 2))
-            verbose = atoi(argv[0] + 2);
-        else if (!strncmp("--verbose=", argv[0], 10))
-            verbose = atoi(argv[0] + 10);
-        else if (!strncmp("--engine=", argv[0], 9))
-            engine_tgt_kind = str2engine_kind(argv[0] + 9);
+        else if (!strcmp("--pool", argv[0])) prim = POOL;
         else break;
-
-        --argc;
-        ++argv;
     }
-
-    if (max_ms_per_prb < 100 || max_ms_per_prb > 60e3)
-        max_ms_per_prb = 3e3;
 
     init_fp_mode();
     init();
@@ -90,6 +80,7 @@ int main(int argc, char **argv) {
     case BNORM: bnorm::bench(argc, argv); break;
     case RNN: rnn::bench(argc, argv); break;
     case SOFTMAX: softmax::bench(argc, argv); break;
+    case POOL: pool::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
     }
 

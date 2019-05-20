@@ -48,6 +48,9 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
     for (int d = axis + 1; d < ndims; ++d) IN *= diff_dst_pd.data.dims[d];
 
     mkldnn::impl::parallel_nd(OU, IN, [&](memory::dim ou, memory::dim in) {
+        if (is_current_test_failed())
+            return;
+
         const memory::dim idx_start = ou * C * IN + in;
 
         float sbr = 0.0;
@@ -61,7 +64,7 @@ void check_softmax_bwd(memory& dst, memory& diff_dst, memory &diff_src, int axis
             auto off_d = dst_mdw.off_l(idx_start + c * IN);
             auto off_dd = diff_dst_mdw.off_l(idx_start + c * IN);
             data_t diff_src_ref = dst_ptr[off_d] * (diff_dst_ptr[off_dd] - sbr);
-            EXPECT_NEAR(diff_src_ptr[off_dd], diff_src_ref, eps);
+            ASSERT_NEAR(diff_src_ptr[off_dd], diff_src_ref, eps);
         }
     });
 }
@@ -151,7 +154,7 @@ using softmax_backward_test_float = softmax_test<float>;
 using softmax_bwd_test_params_float = softmax_test_params<float>;
 
 TEST_P(softmax_backward_test_float, TestsSoftmax) { }
-CPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxBackward, softmax_backward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestSoftmaxBackward, softmax_backward_test_float,
         ::testing::Values(
             softmax_bwd_test_params_float{ memory::format_tag::nchw, memory::format_tag::nchw, {2, -2, 128, 256}, 0, true, mkldnn_invalid_arguments},
             softmax_bwd_test_params_float{ memory::format_tag::nchw, memory::format_tag::nchw, {2, 19, 128, 256}, 5, true, mkldnn_invalid_arguments},

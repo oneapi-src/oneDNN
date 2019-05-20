@@ -14,15 +14,10 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "mkldnn.h"
+
 #include "rnn/rnn_aux.hpp"
 #include "norm.hpp"
-
-#define DPRINT(...)                                     \
-    do {                                                \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l;                                    \
-        rem_len -= l;                                   \
-    } while (0)
 
 namespace rnn {
 
@@ -78,7 +73,7 @@ mkldnn_alg_kind_t alg2kind(alg_t alg) {
     if (alg == VANILLA_GRU)
         return mkldnn_vanilla_gru;
     if (alg == LBR_GRU)
-        return mkldnn_gru_linear_before_reset;
+        return mkldnn_lbr_gru;
     assert(!"unknown algorithm");
     return mkldnn_alg_kind_undef;
 }
@@ -117,13 +112,13 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     return alg_kind;
 }
 
-mkldnn_prop_kind_t str2prop(const char *str) {
-    if (!strcasecmp("FWD_D", str))
+mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
+    if (dir == FWD_D)
         return mkldnn_forward;
-    if (!strcasecmp("BWD_D", str))
+    if (dir == BWD_DW)
         return mkldnn_backward;
-    assert(!"unknown propagation");
-    return mkldnn_forward;
+    assert(!"unknown dir");
+    return mkldnn_prop_kind_undef;
 }
 
 const char *prop2str(mkldnn_prop_kind_t prop) {
@@ -162,8 +157,17 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
     return "unknown direction";
 }
 
-int str2desc(rnn_desc_t *desc, const char *str) {
-    rnn_desc_t d{0};
+void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
+    if (cfg != conf_f32 && cfg != conf_f16 && policy == NONE) {
+        fprintf(stderr, "rnn driver: configuration `%s` requires scale policy "
+                "to be COMMON or PER_OC, exiting...\n",
+                cfg2str(cfg));
+        exit(2);
+    }
+}
+
+int str2desc(desc_t *desc, const char *str) {
+    desc_t d{0};
 
     /* canonical form:
      * lXtXmXsicXslcXdicXdlc
@@ -218,8 +222,14 @@ int str2desc(rnn_desc_t *desc, const char *str) {
     return OK;
 }
 
+#define DPRINT(...)                                     \
+    do {                                                \
+        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
+        buffer += l;                                    \
+        rem_len -= l;                                   \
+    } while (0)
 
-void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
+void prb2str(const prb_t *p, char *buffer) {
     int rem_len = max_prb_len;
 
     DPRINT("--prop=%s --alg=%s --activation=%s --direction=%s --cfg=%s "
@@ -235,6 +245,100 @@ void prb2str(const rnn_prb_t *p, const res_t *res, char *buffer) {
     DPRINT("dic" IFMT "", p->dic);
     DPRINT("dlc" IFMT "", p->dlc);
     DPRINT("n\"%s\"", p->name);
+}
+
+#undef DPRINT
+
+mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p->alg);
+    mkldnn_alg_kind_t f = activation2kind(p->activation);
+
+    mkldnn_status_t init_status;
+    switch (kind) {
+    case mkldnn_vanilla_rnn:
+        init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind,
+                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags,
+                p->alpha, p->beta);
+        break;
+    case mkldnn_vanilla_lstm:
+        init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    case mkldnn_vanilla_gru:
+        init_status = mkldnn_gru_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    case mkldnn_lbr_gru:
+        init_status = mkldnn_lbr_gru_forward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        break;
+    default:
+        init_status = mkldnn_unimplemented;
+    }
+    return init_status;
+}
+
+mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
+       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *diff_src_layer_d,
+       mkldnn_memory_desc_t *diff_src_iter_d,
+       mkldnn_memory_desc_t *diff_weights_layer_d,
+       mkldnn_memory_desc_t *diff_weights_iter_d,
+       mkldnn_memory_desc_t *diff_bias_d,
+       mkldnn_memory_desc_t *diff_dst_layer_d,
+       mkldnn_memory_desc_t *diff_dst_iter_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p->alg);
+    mkldnn_alg_kind_t f = activation2kind(p->activation);
+
+    mkldnn_status_t init_status;
+    switch (kind) {
+    case mkldnn_vanilla_rnn:
+        init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind,
+                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags, p->alpha, p->beta);
+        break;
+    case mkldnn_vanilla_lstm:
+        init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    case mkldnn_vanilla_gru:
+        init_status = mkldnn_gru_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    case mkldnn_lbr_gru:
+        init_status = mkldnn_lbr_gru_backward_desc_init(rd, prop_kind,
+                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                p->flags);
+        break;
+    default:
+        init_status = mkldnn_unimplemented;
+    }
+    return init_status;
 }
 
 void init_buffer(float *buf, int64_t size, float value) {
@@ -268,7 +372,7 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     size_t nelems = mem_dt.nelems();
 
@@ -435,36 +539,36 @@ int compare_dat(const rnn_prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int compare_input(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_input(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_states(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_states(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_input(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_input(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_states(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_weights_states(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_bias(const rnn_prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_bias(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, bias, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_layer(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_layer, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_iteration(const rnn_prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_iteration, mem_dt, mem_fp, r, final_compare);
 }
 
-void rnn_prb_t::set_qparams(float fp_min, float fp_max) {
+void prb_t::set_qparams(float fp_min, float fp_max) {
     if (cfg == conf_f32 || cfg == conf_f16) {
         data_shift = 0.;
         data_scale = 1.;

@@ -48,11 +48,12 @@ using mkldnn::impl::f16_support::float16_t;
 #define MKLDNN_CHECK(f)               \
     do {                              \
         mkldnn_status_t s = (f);      \
-        EXPECT_EQ(s, mkldnn_success); \
+        ASSERT_EQ(s, mkldnn_success); \
     } while (0)
 
 using memory = mkldnn::memory;
 
+bool is_current_test_failed();
 mkldnn::engine::kind get_test_engine_kind();
 
 template <typename data_t> struct data_traits { };
@@ -178,7 +179,7 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
             if (set_zero_flag) {
                 src_data[blk_off] = 0.0;
             } else {
-                EXPECT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
+                ASSERT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
                 << "off = " << off;
             }
         }
@@ -211,9 +212,9 @@ static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
             : data_t{0};
     } else if (data_traits<data_t>::data_type == memory::data_type::s32
         || data_traits<data_t>::data_type == memory::data_type::s8) {
-        return data_t(rand() % 21 - 10);
+        return data_t(index * 13 % 21 - 10);
     } else if (data_traits<data_t>::data_type == memory::data_type::u8) {
-        return data_t(rand() % 17);
+        return data_t(index * 13 % 17);
     }
     assert(!"not expected");
     return data_t(0);
@@ -261,8 +262,9 @@ static void compare_data(
         const memory &ref, const memory &dst, data_t threshold = (data_t)1e-4) {
     using data_type = memory::data_type;
 
-    ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32 ||
-            data_traits<data_t>::data_type == data_type::s32);
+    ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32
+            || data_traits<data_t>::data_type == data_type::f16
+            || data_traits<data_t>::data_type == data_type::s32);
 
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();
@@ -289,16 +291,24 @@ static void compare_data(
     auto dst_data = map_memory<data_t>(dst);
 
     mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
+        if (is_current_test_failed())
+            return;
+
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
         data_t got = dst_data[mdw_dst.off_l(i, true)];
 
-        if (data_traits<data_t>::data_type == data_type::f32) {
-            data_t diff = got - ref;
-            data_t e = (std::abs(ref) > threshold) ? diff / ref : diff;
-            EXPECT_NEAR(e, (data_t)0.0, threshold)
+        if (data_traits<data_t>::data_type == data_type::f32
+                || data_traits<data_t>::data_type == data_type::f16) {
+            const float threshold_f32 = static_cast<float>(threshold);
+            const float ref_f32 = static_cast<float>(ref);
+            const float got_f32 = static_cast<float>(got);
+            const float diff_f32 = got_f32 - ref_f32;
+            const float e = (std::abs(ref_f32) > threshold_f32)
+                ? diff_f32 / ref_f32 : diff_f32;
+            ASSERT_NEAR(e, 0.0, threshold_f32)
                 << "Index: " << i << " Total: " << num;
         } else {
-            EXPECT_EQ(ref, got) << "Index: " << i << " Total: " << num;
+            ASSERT_EQ(ref, got) << "Index: " << i << " Total: " << num;
         }
     });
 }
@@ -469,18 +479,18 @@ public:
         size_ = d.get_size();
         if (e.get_backend_kind() == mkldnn::backend_kind::native) {
             data_.reset(test_malloc(size_), test_free);
-            mem_.reset(new memory(d, e, data_.get()));
+            mem_ = memory(d, e, data_.get());
         } else {
-            mem_.reset(new memory(d, e));
+            mem_ = memory(d, e);
         }
     }
     size_t get_size() const { return size_; }
-    const memory &get() const { return *mem_; }
+    const memory &get() const { return mem_; }
 
-    operator bool() const { return (bool)mem_; }
+    operator bool() const { return mem_.get(true) != nullptr; }
 
 private:
-    std::shared_ptr<memory> mem_;
+    memory mem_;
     std::shared_ptr<char> data_;
     size_t size_;
 };

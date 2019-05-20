@@ -32,7 +32,7 @@
 #include "ocl/ref_pooling.hpp"
 #include "ocl/ref_rnn.hpp"
 #include "ocl/ref_softmax.hpp"
-
+#include "ocl/ref_deconvolution.hpp"
 #include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
@@ -92,6 +92,8 @@ static const pd_create_f ocl_impl_list[] = {
     /*eltwise*/
     INSTANCE(ref_eltwise_fwd_t),
     INSTANCE(ref_eltwise_bwd_t),
+    /*deconv*/
+    INSTANCE(ref_deconvolution_fwd_t),
     /*conv*/
     INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),
@@ -102,6 +104,7 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_batch_normalization_fwd_t<f32>),
     INSTANCE(ref_batch_normalization_bwd_t<f32>),
     /*pool*/
+    INSTANCE(ref_pooling_fwd_t<u8, s32>),
     INSTANCE(ref_pooling_fwd_t<s8, s32>),
     INSTANCE(ref_pooling_fwd_t<f16>),
     INSTANCE(ref_pooling_fwd_t<f32>),
@@ -120,13 +123,16 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<f32>),
     /*softmax*/
-    INSTANCE(ref_softmax_fwd_t),
+    INSTANCE(ref_softmax_fwd_t<f16>),
+    INSTANCE(ref_softmax_fwd_t<f32>),
+    INSTANCE(ref_softmax_bwd_t<f32>),
     /* gemm */
     INSTANCE(jit_gen9_gemm_t<f16>),
     INSTANCE(jit_gen9_gemm_t<f32>),
     /*rnn*/
     INSTANCE(ref_rnn_fwd_f16_t),
     INSTANCE(ref_rnn_fwd_f32_t),
+    INSTANCE(ref_rnn_bwd_f32_t),
     nullptr,
 };
 

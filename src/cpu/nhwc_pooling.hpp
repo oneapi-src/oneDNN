@@ -42,7 +42,7 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("nhwc_pooling:any", nhwc_pooling_fwd_t);
+        DECLARE_COMMON_PD_T("simple_nhwc:any", nhwc_pooling_fwd_t);
 
         status_t init() {
             const format_tag_t desired_fmt_tag =
@@ -158,11 +158,11 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("nhwc:any", nhwc_pooling_bwd_t);
+        DECLARE_COMMON_PD_T("simple_nhwc:any", nhwc_pooling_bwd_t);
 
         status_t init() {
             const format_tag_t desired_fmt_tag =
-                ndims() == 4 ? format_tag::nchw : format_tag::ncdhw;
+                ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
 
             bool ok = true
                 && set_default_params() == status::success

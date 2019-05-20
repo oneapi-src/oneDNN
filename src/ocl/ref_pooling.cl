@@ -38,124 +38,124 @@ __kernel void ref_pooling_fwd_kernel(
     const int oc = get_group_id(1) * 16;
     const int sp = get_global_id(0);
 #        if NDIMS == 5
-    const int od = sp / (OW * OH);
-    const int ohw = sp % (OW * OH);
+    const int od = sp / OH;
+    const int ohw = sp % OH;
 #        else
     const int od = 0;
     const int ohw = sp;
 #        endif
-    const int oh = ohw / OW;
-    const int ow = ohw % OW;
+    const int oh = ohw;
+    for (int ow = 0; ow < OW; ++ow) {
+        const int id = od * SD - PD;
+        const int ih = oh * SH - PH;
+        const int iw = ow * SW - PW;
 
-    const int id = od * SD - PD;
-    const int ih = oh * SH - PH;
-    const int iw = ow * SW - PW;
-
-    src += SRC_OFF(mb, oc, id, ih, iw);
-    dst += DST_OFF(mb, oc, od, oh, ow);
+        __global DATA_T *src_ = src + SRC_OFF(mb, oc, id, ih, iw);
+        __global DATA_T *dst_ = dst + DST_OFF(mb, oc, od, oh, ow);
 
 #        if POOLING_MAX == 1
 #            if IS_TRAINING == 1
-    ws += DST_OFF(mb, oc, od, oh, ow);
-    VECT_INT_T blockWS0 = 0;
+        __global DATA_T *ws_ = ws + DST_OFF(mb, oc, od, oh, ow);
+        VECT_INT_T blockWS0 = 0;
 #                ifdef MB16
-    VECT_INT_T blockWS1 = 0;
+        VECT_INT_T blockWS1 = 0;
 #                endif
 #            endif // IS_TRAINING
-    VECT_DATA_T blockD0 = DATA_MIN;
+        VECT_DATA_T blockD0 = DATA_MIN;
 #            ifdef MB16
-    VECT_DATA_T blockD1 = DATA_MIN;
+        VECT_DATA_T blockD1 = DATA_MIN;
 #            endif
 #        else // POOLING_MAX
-    VECT_ACC_DATA_T blockD0 = DATA_ZERO;
+        VECT_ACC_DATA_T blockD0 = DATA_ZERO;
 #            ifdef MB16
-    VECT_ACC_DATA_T blockD1 = DATA_ZERO;
+        VECT_ACC_DATA_T blockD1 = DATA_ZERO;
 #            endif
 #        endif // POOLING_MAX
-    for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh) {
-            for (int kw = 0; kw < KW; ++kw) {
+        for (int kd = 0; kd < KD; ++kd)
+            for (int kh = 0; kh < KH; ++kh) {
+                for (int kw = 0; kw < KW; ++kw) {
 
-                if (id + kd < 0 || id + kd >= ID)
-                    continue;
-                if (ih + kh < 0 || ih + kh >= IH)
-                    continue;
-                if (iw + kw < 0 || iw + kw >= IW)
-                    continue;
+                    if (id + kd < 0 || id + kd >= ID)
+                        continue;
+                    if (ih + kh < 0 || ih + kh >= IH)
+                        continue;
+                    if (iw + kw < 0 || iw + kw >= IW)
+                        continue;
 
-                const int src_off = kd * IH * IW * MB_BLOCK * 16
-                        + kh * IW * MB_BLOCK * 16 + kw * MB_BLOCK * 16;
+                    const int src_off = kd * IH * IW * MB_BLOCK * 16
+                            + kh * IW * MB_BLOCK * 16 + kw * MB_BLOCK * 16;
 
-                VECT_DATA_T blockS0 = AS_VECT_DATA_T(VECT_BLOCK_READ(
-                        (const __global VECT_BLOCK_DATA_T *)&src[src_off]));
+                    VECT_DATA_T blockS0 = AS_VECT_DATA_T(VECT_BLOCK_READ(
+                            (const __global VECT_BLOCK_DATA_T *)&src_[src_off]));
 #        ifdef MB16
-                VECT_DATA_T blockS1 = AS_VECT_DATA_T(
-                        VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T
-                                        *)&src[src_off + 8 * 16]));
+                    VECT_DATA_T blockS1 = AS_VECT_DATA_T(
+                            VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T
+                                            *)&src_[src_off + 8 * 16]));
 #        endif
 #        if POOLING_MAX == 1
 #            if IS_TRAINING == 1
-                VECT_INT_T blockCMP0 = isless(blockD0, blockS0);
-                blockWS0 = select(blockWS0,
-                        (VECT_INT_T)(kd * KH * KW + kh * KW + kw), blockCMP0);
-                blockD0 = select(blockD0, blockS0, blockCMP0);
+                    VECT_INT_T blockCMP0 = isless(blockD0, blockS0);
+                    blockWS0 = select(blockWS0,
+                            (VECT_INT_T)(kd * KH * KW + kh * KW + kw), blockCMP0);
+                    blockD0 = select(blockD0, blockS0, blockCMP0);
 #                ifdef MB16
-                VECT_INT_T blockCMP1 = isless(blockD1, blockS1);
-                blockWS1 = select(blockWS1,
-                        (VECT_INT_T)(kd * KH * KW + kh * KW + kw), blockCMP1);
-                blockD1 = select(blockD1, blockS1, blockCMP1);
+                    VECT_INT_T blockCMP1 = isless(blockD1, blockS1);
+                    blockWS1 = select(blockWS1,
+                            (VECT_INT_T)(kd * KH * KW + kh * KW + kw), blockCMP1);
+                    blockD1 = select(blockD1, blockS1, blockCMP1);
 #                endif
 #            else // TRAINING
-                blockD0 = max(blockD0, blockS0);
+                    blockD0 = max(blockD0, blockS0);
 #                ifdef MB16
-                blockD1 = max(blockD1, blockS1);
+                    blockD1 = max(blockD1, blockS1);
 #                endif
 #            endif // TRAINING
 #        else // POOLING_MAX
-                blockD0 += blockS0;
+                    blockD0 += blockS0;
 #            ifdef MB16
-                blockD1 += blockS1;
+                    blockD1 += blockS1;
 #            endif
 #        endif // POOLING_MAX
+                }
             }
-        }
 
 #        ifdef POOLING_AVG_INCLUDE_PADDING
-    blockD0 = ROUND((VECT_FLOAT_T)blockD0 / (KD * KH * KW));
+        blockD0 = ROUND((VECT_FLOAT_T)blockD0 / (KD * KH * KW));
 #            ifdef MB16
-    blockD1 = ROUND((VECT_FLOAT_T)blockD1 / (KD * KH * KW));
+        blockD1 = ROUND((VECT_FLOAT_T)blockD1 / (KD * KH * KW));
 #            endif
 #        endif // POOLING_AVG_INCLUDE_PADDING
 
 #        ifdef POOLING_AVG_EXCLUDE_PADDING
-    const int id_start = max(od * SD - PD, 0);
-    const int ih_start = max(oh * SH - PH, 0);
-    const int iw_start = max(ow * SW - PW, 0);
-    const int id_end = min(od * SD - PD + KD, ID);
-    const int ih_end = min(oh * SH - PH + KH, IH);
-    const int iw_end = min(ow * SW - PW + KW, IW);
-    const ACC_DATA_T num_summands
-            = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
-    blockD0 = ROUND((VECT_FLOAT_T)blockD0 / num_summands);
+        const int id_start = max(od * SD - PD, 0);
+        const int ih_start = max(oh * SH - PH, 0);
+        const int iw_start = max(ow * SW - PW, 0);
+        const int id_end = min(od * SD - PD + KD, ID);
+        const int ih_end = min(oh * SH - PH + KH, IH);
+        const int iw_end = min(ow * SW - PW + KW, IW);
+        const ACC_DATA_T num_summands
+                = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
+        blockD0 = ROUND((VECT_FLOAT_T)blockD0 / num_summands);
 #            ifdef MB16
-    blockD1 = ROUND((VECT_FLOAT_T)blockD1 / num_summands);
+        blockD1 = ROUND((VECT_FLOAT_T)blockD1 / num_summands);
 #            endif
 #        endif // POOLING_AVG_EXCLUDE_PADDING
 
-    VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&dst[0],
-            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
+        VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&dst_[0],
+                AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
 #        ifdef MB16
-    VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&dst[8 * 16],
-            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
+        VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&dst_[8 * 16],
+                AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
 #        endif
 #        if POOLING_MAX == 1 && IS_TRAINING == 1
-    VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&ws[0],
-            AS_VECT_BLOCK_DATA_T(blockWS0));
+        VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&ws_[0],
+                AS_VECT_BLOCK_DATA_T(blockWS0));
 #            ifdef MB16
-    VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&ws[8 * 16],
-            AS_VECT_BLOCK_DATA_T(blockWS1));
+        VECT_BLOCK_WRITE((__global VECT_BLOCK_DATA_T *)&ws_[8 * 16],
+                AS_VECT_BLOCK_DATA_T(blockWS1));
 #            endif
 #        endif // POOLING_MAX && IS_TRAINING
+    }
 
 #    else // USE_16C_UNROLL == 0
     const int mb = get_global_id(0);
@@ -166,10 +166,10 @@ __kernel void ref_pooling_fwd_kernel(
             for (int ow = 0; ow < OW; ++ow) {
                 const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
 #        if POOLING_MAX == 1 && IS_TRAINING == 1
-                ws[dst_off] = 0;
+                ws[dst_off] = -1;
 #        endif
 #        if POOLING_MAX == 1
-                DATA_T d = -DATA_MAX;
+                DATA_T d = DATA_MIN;
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh) {
                         for (int kw = 0; kw < KW; ++kw) {
@@ -184,8 +184,10 @@ __kernel void ref_pooling_fwd_kernel(
                             if (iw < 0 || iw >= IW)
                                 continue;
 
+                            if (ws[dst_off] < 0)
+                                ws[dst_off] = kd * KH * KW + kh * KW + kw;
                             int src_off = SRC_OFF(mb, oc, id, ih, iw);
-                            float s = src[src_off];
+                            DATA_T s = src[src_off];
                             if (s > d) {
                                 d = s;
 #            if POOLING_MAX == 1 && IS_TRAINING == 1

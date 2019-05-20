@@ -1,39 +1,11 @@
---reset --dt=f32
---dir=FWD_D
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
+--reset
 
---attr=post_ops='relu'
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
---attr=
-
---dir=BWD_DW
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---dir=BWD_D
---flags=   --batch=bnorm_topo
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
 
 --mb=48
 --tag=NChw16n16c
-
---dir=FWD_D
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---attr=post_ops='relu'
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
---attr=
-
---dir=BWD_DW
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---dir=BWD_D
---flags=   --batch=bnorm_topo
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo

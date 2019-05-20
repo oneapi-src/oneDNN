@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
+#include "rnn.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -106,7 +107,7 @@ struct rnn_pd_t : public primitive_desc_t {
 
     dim_t DLC() const { return desc_.dst_layer_desc.dims[2]; }
 
-    int S() const { return mkldnn_rnn_cell_get_states_count(&desc_.cell_desc); }
+    int S() const { return mkldnn::impl::rnn::get_states_count(desc_.cell_kind); }
 
     bool with_bias() const
     { return !memory_desc_wrapper(desc_.bias_desc).is_zero(); }
@@ -118,12 +119,12 @@ struct rnn_pd_t : public primitive_desc_t {
     { return !memory_desc_wrapper(desc_.dst_iter_desc).is_zero(); }
 
     mkldnn::impl::alg_kind_t cell_kind() const
-    { return desc_.cell_desc.cell_kind; }
+    { return desc_.cell_kind; }
     mkldnn::impl::alg_kind_t activation_kind() const
-    { return desc_.cell_desc.activation_kind; }
+    { return desc_.activation_kind; }
 
     bool is_lbr() const
-    { return cell_kind() == mkldnn_gru_linear_before_reset; }
+    { return cell_kind() == mkldnn_lbr_gru; }
 
     mkldnn_rnn_direction_t direction() const { return desc_.direction; }
 

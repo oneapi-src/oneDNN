@@ -363,7 +363,7 @@ int batch(const char *fname, bench_f bench) {
             l += offset;
         }
     }
-    bench(n_opts, opts, false);
+    bench(n_opts, opts);
 
     for (int n = 0; n < n_opts; ++n)
         free(opts[n]);

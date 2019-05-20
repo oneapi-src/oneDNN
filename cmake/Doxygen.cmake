@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2018 Intel Corporation
+# Copyright 2016-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,11 +41,15 @@ if(DOXYGEN_FOUND)
     file(GLOB_RECURSE DOX
         ${PROJECT_SOURCE_DIR}/doc/*
         )
+    file(GLOB_RECURSE EXAMPLES
+        ${PROJECT_SOURCE_DIR}/examples/*
+        )
     add_custom_command(
         OUTPUT ${DOXYGEN_STAMP_FILE}
-        DEPENDS ${HEADERS} ${DOX}
+        DEPENDS ${HEADERS} ${DOX} ${EXAMPLES}
         COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile
-        COMMAND cmake -E touch ${DOXYGEN_STAMP_FILE}
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/doc/assets ${DOXYGEN_OUTPUT_DIR}/html/assets
+        COMMAND ${CMAKE_COMMAND} -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
     add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
@@ -53,5 +57,3 @@ if(DOXYGEN_FOUND)
         DIRECTORY ${DOXYGEN_OUTPUT_DIR}
         DESTINATION share/doc/${LIB_NAME} OPTIONAL)
 endif(DOXYGEN_FOUND)
-
-

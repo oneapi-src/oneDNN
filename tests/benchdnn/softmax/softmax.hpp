@@ -22,12 +22,11 @@
 #include "common.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
+#include "perf_report.hpp"
 
 namespace softmax {
 
 using dims_t = std::vector<int64_t>;
-
-const size_t max_desc_len = 196;
 
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
@@ -44,14 +43,44 @@ struct prb_t {
     int axis;
 };
 
-const size_t max_dims_len = 20;
 dims_t str2dims(const char *str);
 void dims2str(const dims_t &dims, char *buffer);
-const size_t max_prb_len = max_desc_len + 196;
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
-extern const char *perf_template; /* performance output template */
-void perf_report(const prb_t *p, const res_t *r, const char *pstr);
+struct perf_report_t: public base_perf_report_t {
+    perf_report_t(const char *perf_template) :
+        base_perf_report_t(perf_template) {}
+
+    virtual ~perf_report_t() {}
+
+    void report(const prb_t *p, const res_t *r, const char *prb_str) {
+        p_ = p;
+        base_report(r, prb_str);
+    }
+
+    virtual void dump_axis(char *buf) const override {
+        dprint(buf, p_->axis);
+    }
+
+    virtual void dump_data_type(char *buf) const override {
+        dprint(buf, dt2str(p_->dt));
+    }
+
+    virtual void dump_descriptor_csv(char *buf) const override {
+        dims2str(p_->dims, buf);
+    }
+
+    virtual void dump_direction(char *buf) const override {
+        dprint(buf, dir2str(p_->dir));
+    }
+
+    virtual void dump_tag(char *buf) const override {
+        dprint(buf, tag2str(p_->tag));
+    }
+
+private:
+    const prb_t *p_;
+};
 
 inline void map_off_to_mb_ic(const prb_t *p, int64_t off, int64_t &mb,
         int64_t &ic) {
@@ -68,8 +97,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
 
 int doit(const prb_t *p, res_t *res);
-
-int bench(int argc, char **argv, bool main_bench = true);
+int bench(int argc, char **argv);
 
 }
 

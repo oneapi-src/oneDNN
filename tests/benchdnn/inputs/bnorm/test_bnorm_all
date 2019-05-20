@@ -2,76 +2,18 @@
 --reset --dt=f32
 --skip-impl=ref
 
---tag=nChw8c # sse4.1 and avx2
+--tag=nChw8c,nChw16c
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
 
---dir=FWD_D
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---attr=post_ops='relu'
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
---attr=
-
---dir=BWD_DW
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---dir=BWD_D
---flags=   --batch=bnorm_topo
-
---tag=nChw16c # avx512
-
---dir=FWD_D
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---attr=post_ops='relu'
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
---attr=
-
---dir=BWD_DW
---flags=SR --batch=bnorm_topo
---flags=GS --batch=bnorm_topo
---flags=S  --batch=bnorm_topo
-
---dir=BWD_D
---flags=   --batch=bnorm_topo
-
---tag=nCdhw16c # 3D avx512
-
---dir=FWD_D
---flags=SR --batch=bnorm_3d
---flags=GS --batch=bnorm_3d
---flags=S  --batch=bnorm_3d
-
---attr=post_ops='relu'
---flags=GS --batch=bnorm_3d
---flags=S  --batch=bnorm_3d
---attr=
-
---dir=BWD_DW
---flags=SR --batch=bnorm_3d
---flags=GS --batch=bnorm_3d
---flags=S  --batch=bnorm_3d
-
---dir=BWD_D
---flags=   --batch=bnorm_3d
+--tag=nCdhw16c
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_3d
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_3d
 
 # i8
---reset --dt=s8
---skip-impl=ref
+--dt=s8
 
---tag=nhwc
---dir=FWD_I
---flags=G   --batch=bnorm_topo
---flags=GSR --batch=bnorm_topo
-
---tag=ndhwc
---dir=FWD_I
---flags=G   --batch=bnorm_3d
---flags=GSR --batch=bnorm_3d
+--tag=nhwc  --dir=FWD_I --flags=G,GSR --batch=bnorm_topo
+--tag=ndhwc --dir=FWD_I --flags=G,GSR --batch=bnorm_3d

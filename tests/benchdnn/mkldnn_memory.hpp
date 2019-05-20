@@ -30,6 +30,11 @@ struct dnn_mem_t {
         : active_(initialize(ndims, dims, dt, tag, engine) == OK) {}
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
+            mkldnn_engine_t engine)
+        : active_(initialize(ndims, dims, dt, tag, extra, engine) == OK) {}
+
+    dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
             const mkldnn_dims_t strides, mkldnn_engine_t engine)
         : active_(initialize(ndims, dims, dt, strides, engine) == OK) {}
 
@@ -87,16 +92,6 @@ struct dnn_mem_t {
 
         return OK;
     }
-
-    int64_t N() { return md_.dims[0]; }
-    int64_t with_G() { return md_.ndims == 5; }
-    int64_t G() { return md_.ndims == 5 ? md_.dims[0] : 1; }
-
-    int64_t C() { return md_.ndims == 1 ? md_.dims[0] : md_.dims[1]; }
-    int64_t OC() { return md_.dims[with_G() + 0]; }
-    int64_t IC() { return md_.dims[with_G() + 1]; }
-    int64_t H() { return md_.dims[with_G() + 2]; } // works for both IH and KH
-    int64_t W() { return md_.dims[with_G() + 3]; } // works for both IW and KW
 
     size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
@@ -217,7 +212,7 @@ private:
         if (backend_kind_ == mkldnn_backend_native) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
-            const size_t alignment = 1024 * 1024 * 2;
+            const size_t alignment = 1024 * 1024 * 16;
             size_t sz = mkldnn_memory_desc_get_size(&md_);
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
@@ -245,6 +240,16 @@ private:
             mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        SAFE(initialize(xmd, engine), CRIT);
+        return OK;
+    }
+
+    int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
+            mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
+            mkldnn_engine_t engine) {
+        mkldnn_memory_desc_t xmd;
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        xmd.extra = extra;
         SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }

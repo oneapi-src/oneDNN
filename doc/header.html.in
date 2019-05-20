@@ -12,7 +12,7 @@
 <script type="text/javascript" src="$relpath^dynsections.js"></script>
 $treeview
 $search
-$mathjax
+<script src="assets/mathjax/MathJax.js?config=TeX-AMS_CHTML"></script>
 <link href="$relpath^$stylesheet" rel="stylesheet" type="text/css" />
 $extrastylesheet
 </head>

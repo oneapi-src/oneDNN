@@ -88,12 +88,13 @@ typedef enum {
 
 /// Memory format kind
 typedef enum {
-    /// Undefined memory format, used for empty memory descriptors.
+    /// Undefined memory format kind, used for empty memory descriptors.
     mkldnn_format_kind_undef = 0,
-    /// Unspecified format. The primitive selects a format automatically.
+    /// Unspecified format kind.
+    /// The primitive selects a format automatically.
     mkldnn_format_kind_any,
     /// A tensor in a generic format described by the stride and blocking
-    /// values in each dimension. See #mkldnn_blocking_desc_t for more
+    /// values in each dimension. See @ref mkldnn_blocking_desc_t for more
     /// information.
     mkldnn_blocked,
     /// Weights format used in 8bit Winograd convolution
@@ -169,7 +170,7 @@ typedef enum {
 /// followed by the spatial height and width, and finally followed by 8-element
 /// channel blocks.
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 typedef enum {
     /// Undefined memory format tag
     mkldnn_format_tag_undef = 0,
@@ -245,6 +246,7 @@ typedef enum {
     mkldnn_aBcd8b,
     mkldnn_ABcd8b16a2b,
     mkldnn_aBCd8b16c2b,
+    /// 4D tensor blocked by 1st and 2nd dimension with block size 8
     mkldnn_ABcd8b8a,
     mkldnn_aBCd8b8c,
     mkldnn_aBCd8c16b2c,
@@ -305,6 +307,7 @@ typedef enum {
     mkldnn_Acb4a,
     mkldnn_Acb8a,
     mkldnn_aCBd16b16c,
+    mkldnn_aCBd16c16b,
     mkldnn_aCBde16b16c,
     mkldnn_aCBde16c16b,
     mkldnn_Acdb16a,
@@ -315,6 +318,7 @@ typedef enum {
     mkldnn_Acdeb4a,
     mkldnn_Acdeb8a,
     mkldnn_BAc16a16b,
+    mkldnn_BAc16b16a,
     mkldnn_BAcd16a16b,
     mkldnn_BAcd16b16a,
 
@@ -334,7 +338,7 @@ typedef enum {
     mkldnn_ncw = mkldnn_abc,
     /// 3D CNN activations tensor, an alias to #mkldnn_acb
     mkldnn_nwc = mkldnn_acb,
-    /// 3D CNN activations tensor, an alias to #mkldnn_abcd
+    /// 4D CNN activations tensor, an alias to #mkldnn_abcd
     mkldnn_nchw = mkldnn_abcd,
     /// 4D CNN activations tensor, an alias to #mkldnn_acdb
     mkldnn_nhwc = mkldnn_acdb,
@@ -345,20 +349,42 @@ typedef enum {
     /// 5D CNN activations tensor, an alias to #mkldnn_acdeb
     mkldnn_ndhwc = mkldnn_acdeb,
 
+    /// 2D CNN weights tensor, an alias to #mkldnn_ab
     mkldnn_oi = mkldnn_ab,
+    /// 2D CNN weights tensor, an alias to #mkldnn_ba
     mkldnn_io = mkldnn_ba,
+    /// 3D CNN weights tensor, an alias to #mkldnn_abc
     mkldnn_oiw = mkldnn_abc,
+    /// 3D CNN weights tensor, an alias to #mkldnn_acb
+    mkldnn_owi = mkldnn_acb,
+    /// 3D CNN weights tensor, an alias to #mkldnn_cba
     mkldnn_wio = mkldnn_cba,
+    /// 4D CNN weights tensor, an alias to #mkldnn_abcd
     mkldnn_oihw = mkldnn_abcd,
+    /// 4D CNN weights tensor, an alias to #mkldnn_cdba
     mkldnn_hwio = mkldnn_cdba,
+    /// 4D CNN weights tensor, an alias to #mkldnn_acdb
+    mkldnn_ohwi = mkldnn_acdb,
+    /// 4D CNN weights tensor, an alias to #mkldnn_bcda
     mkldnn_ihwo = mkldnn_bcda,
+    /// 4D CNN weights tensor, an alias to #mkldnn_bacd
     mkldnn_iohw = mkldnn_bacd,
+    /// 5D CNN weights tensor, an alias to #mkldnn_abcde
     mkldnn_oidhw = mkldnn_abcde,
+    /// 5D CNN weights tensor, an alias to #mkldnn_cdeba
     mkldnn_dhwio = mkldnn_cdeba,
+    /// 5D CNN weights tensor, an alias to #mkldnn_acdeb
+    mkldnn_odhwi = mkldnn_acdeb,
+
+    /// 4D CNN weights tensor (incl. groups), an alias to #mkldnn_abcd
     mkldnn_goiw = mkldnn_abcd,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_abcde
     mkldnn_goihw = mkldnn_abcde,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_decab
     mkldnn_hwigo = mkldnn_decab,
+    /// 5D CNN weights tensor (incl. groups), an alias to #mkldnn_acbde
     mkldnn_giohw = mkldnn_acbde,
+    /// 6D CNN weights tensor (incl. groups), an alias to #mkldnn_abcdef
     mkldnn_goidhw = mkldnn_abcdef,
 
     /// 3D RNN data tensor in the format (seq_length, batch, input channels).
@@ -421,12 +447,14 @@ typedef enum {
     /// 3D CNN activations tensor blocked by channels with block size 8,
     /// an alias to #mkldnn_aBc8b
     mkldnn_nCw8c = mkldnn_aBc8b,
+    mkldnn_NCw16n16c = mkldnn_ABc16a16b,
     mkldnn_NCdhw16n16c = mkldnn_ABcde16a16b,
     mkldnn_NChw16n16c = mkldnn_ABcd16a16b,
     mkldnn_NChw32n32c = mkldnn_ABcd32a32b,
 
     // weights, 3D
     mkldnn_IOw16o16i = mkldnn_BAc16a16b,
+    mkldnn_IOw16i16o = mkldnn_BAc16b16a,
     mkldnn_OIw16i16o = mkldnn_ABc16b16a,
     mkldnn_OIw16o16i = mkldnn_ABc16a16b,
     mkldnn_Oiw16o = mkldnn_Abc16a,
@@ -476,6 +504,7 @@ typedef enum {
     // weights w/ groups, 3D
     mkldnn_Goiw16g = mkldnn_Abcd16a,
     mkldnn_gIOw16o16i = mkldnn_aCBd16b16c,
+    mkldnn_gIOw16i16o = mkldnn_aCBd16c16b,
     mkldnn_gOIw16i16o = mkldnn_aBCd16c16b,
     mkldnn_gOIw16o16i = mkldnn_aBCd16b16c,
     mkldnn_gOiw16o = mkldnn_aBcd16b,
@@ -532,12 +561,6 @@ typedef enum {
     mkldnn_gOIdhw8o8i = mkldnn_aBCdef8b8c,
     mkldnn_Goidhw16g = mkldnn_Abcdef16a,
 } mkldnn_format_tag_t;
-
-/// Kinds of padding. Define how to interpret the data in padding regions.
-typedef enum {
-    /// The data in padding regions is zero.
-    mkldnn_padding_zero,
-} mkldnn_padding_kind_t;
 
 /// Kinds of propagation.
 typedef enum {
@@ -657,10 +680,10 @@ typedef enum {
     /// \f[ c_t = tanh(W_c*x_t + b_{c_x} + r_t*(U_c*h_{t-1}+b_{c_h})) \f]
     /// Primitive expects 4 biases on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
-    mkldnn_gru_linear_before_reset = 0x4fff,
+    mkldnn_lbr_gru = 0x4fff,
 } mkldnn_alg_kind_t;
 
-/// Flags for batch-normalization primititve.
+/// Flags for batch-normalization primitive.
 typedef enum {
     /// Use global statistics
     ///
@@ -714,12 +737,9 @@ typedef int64_t mkldnn_dim_t;
 /// A type to describe tensor dimensions.
 typedef mkldnn_dim_t mkldnn_dims_t[MKLDNN_MAX_NDIMS];
 
-/// A type to describe strides within a tensor.
-typedef mkldnn_dim_t mkldnn_strides_t[MKLDNN_MAX_NDIMS];
-
 /// Generic description of blocked data layout for most memory formats.
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 typedef struct {
     /// The strides between the outermost blocks.
     /// In case of plain (non-blocked) formats the strides between dimensions.
@@ -922,8 +942,6 @@ typedef struct {
     /// beginning (@p padding_l), padding[1] is a padding in the end (@p
     /// padding_r).
     mkldnn_dims_t padding[2];
-    /// The kind of padding to use.
-    mkldnn_padding_kind_t padding_kind;
     /// The accumulator data type. Initialized automatically.
     mkldnn_data_type_t accum_data_type;
 } mkldnn_convolution_desc_t;
@@ -1026,8 +1044,6 @@ typedef struct {
     /// beginning (@p padding_l), padding[1] is a padding in the end (@p
     /// padding_r).
     mkldnn_dims_t padding[2];
-    /// The kind of padding to use.
-    mkldnn_padding_kind_t padding_kind;
     /// The accumulator data type. Initialized automatically.
     mkldnn_data_type_t accum_data_type;
 } mkldnn_pooling_desc_t;
@@ -1118,27 +1134,8 @@ typedef struct {
 
 /// Flags for RNN cell.
 typedef enum {
-    mkldnn_rnn_cell_with_relu = 0x1U,
-    mkldnn_rnn_cell_with_clipping = 0x2U,
-} mkldnn_rnn_cell_flags_t;
-
-typedef struct {
-    /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
-    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru,
-    /// or #mkldnn_gru_linear_before_reset.
-    mkldnn_alg_kind_t cell_kind;
-    /// Activation function used. Must be either #mkldnn_eltwise_relu or
-    /// #mkldnn_eltwise_tanh.
-    mkldnn_alg_kind_t activation_kind;
-    /// RNN cell flags
-    unsigned int flags;
-    /// @c alpha is a negative slope parameter (used only if
-    /// `(flags & #mkldnn_rnn_cell_with_relu) != 0`)
-    float alpha;
-    /// clipping parameter (used only if
-    /// `(flags & #mkldnn_rnn_cell_with_clipping) != 0`)
-    float clipping;
-} mkldnn_rnn_cell_desc_t;
+    mkldnn_rnn_flags_undef = 0x0
+} mkldnn_rnn_flags_t;
 
 /// A direction of RNN primitive execution.
 typedef enum {
@@ -1163,8 +1160,9 @@ typedef struct {
     /// The kind of propagation. Possible values: #mkldnn_forward_training,
     /// #mkldnn_forward_inference, and #mkldnn_backward.
     mkldnn_prop_kind_t prop_kind;
-    /// The RNN cell desc.
-    mkldnn_rnn_cell_desc_t cell_desc;
+    /// RNN cell kind. Must be one of #mkldnn_vanilla_rnn,
+    /// #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru, or #mkldnn_lbr_gru.
+    mkldnn_alg_kind_t cell_kind;
     /// The direction of RNN primitive execution.
     mkldnn_rnn_direction_t direction;
     /// Source layer memory descriptor.
@@ -1181,6 +1179,10 @@ typedef struct {
     mkldnn_memory_desc_t dst_layer_desc;
     /// Destination iter memory descriptor.
     mkldnn_memory_desc_t dst_iter_desc;
+    /// Placeholders
+    mkldnn_memory_desc_t placeholder_desc;
+    mkldnn_memory_desc_t placeholder2_desc;
+
     /// Source gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_src_layer_desc;
     /// Source gradient iter memory descriptor.
@@ -1195,6 +1197,18 @@ typedef struct {
     mkldnn_memory_desc_t diff_dst_layer_desc;
     /// Destination gradient iteration memory descriptor.
     mkldnn_memory_desc_t diff_dst_iter_desc;
+    /// Placeholders
+    mkldnn_memory_desc_t diff_placeholder_desc;
+    mkldnn_memory_desc_t diff_placeholder2_desc;
+
+    /// RNN cell flags
+    unsigned int flags;
+    /// Activation function used for vanilla_rnn cell kind.
+    /// Must be either #mkldnn_eltwise_relu or #mkldnn_eltwise_tanh.
+    mkldnn_alg_kind_t activation_kind;
+    float alpha;
+    float beta;
+
 } mkldnn_rnn_desc_t;
 
 /// Transposition settings for GEMM operation

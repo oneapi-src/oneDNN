@@ -66,7 +66,7 @@ protected:
             auto mem0_ptr = map_memory<data_t>(mem0);
             auto mem1_ptr = map_memory<data_t>(mem1);
             for (memory::dim i = 0; i < phys_size; ++i)
-                EXPECT_NEAR(mem0_ptr[i], mem1_ptr[i], 1e-7) << i;
+                ASSERT_NEAR(mem0_ptr[i], mem1_ptr[i], 1e-7) << i;
         }
     }
 };

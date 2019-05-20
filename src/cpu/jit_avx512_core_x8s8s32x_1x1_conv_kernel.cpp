@@ -787,8 +787,10 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.nb_load_chunk = 1;
     // peformance improvements for googlenet_v3, mb=1;
     // TODO: generalize this condition and rewrite it in appropriate manner
+    int ncores_per_socket =
+        (int)cpu.getNumCores(Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
     if (jcp.mb == 1 && jcp.nb_load % 4 == 0 && jcp.ic / jcp.oc >= 4
-            && jcp.ic * jcp.oc <= L2_size) {
+            && jcp.ic * jcp.oc <= L2_size && nthreads <= ncores_per_socket) {
         jcp.nb_load_chunk = 4;
         jcp.load_grp_count = nstl::max(jcp.nb_load / 4, jcp.load_grp_count);
     }

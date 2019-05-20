@@ -31,29 +31,6 @@ using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
-namespace {
-template <typename T, typename U>
-void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
-    T nx, T &nx_start, T &nx_end, T nx_divider)
-{
-    const T grp_size = utils::div_up(nthr, nx_divider);
-    const T grp_count = utils::div_up(nthr, grp_size);
-
-    T grp = ithr / grp_size;
-    T grp_ithr = ithr % grp_size;
-    T grp_nthr = grp_size;
-    T first_grps = nthr % grp_count;
-    if (first_grps > 0 && grp >= first_grps) {
-        ithr -= first_grps * grp_size;
-        grp_nthr--;
-        grp = ithr / grp_nthr + first_grps;
-        grp_ithr = ithr % grp_nthr;
-    }
-    balance211(nx, grp_count, grp, nx_start, nx_end);
-    balance211(ny, grp_nthr, grp_ithr, ny_start, ny_end);
-}
-}
-
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>::
@@ -98,7 +75,10 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad.get<src_data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<src_data_t>(key_conv_rtus_space)
+            : NULL;
+
     auto local_scales = scratchpad.get<float>(key_conv_adjusted_scales);
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;

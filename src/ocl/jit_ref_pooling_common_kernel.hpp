@@ -38,17 +38,19 @@ struct jit_ref_pooling_fwd_kernel {
             jit_offsets &jit_off) {
 
         const int ndims = src_d.ndims();
+        const auto &src_dims = src_d.padded_dims();
+        const auto &dst_dims = dst_d.padded_dims();
 
         jpp.ndims = ndims;
-        jpp.mb = src_d.dims()[0];
+        jpp.mb = src_dims[0];
 
-        jpp.c = src_d.dims()[1];
-        jpp.id = (ndims == 5) ? src_d.dims()[2] : 1;
-        jpp.ih = src_d.dims()[ndims - 2];
-        jpp.iw = src_d.dims()[ndims - 1];
-        jpp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-        jpp.oh = dst_d.dims()[ndims - 2];
-        jpp.ow = dst_d.dims()[ndims - 1];
+        jpp.c = src_dims[1];
+        jpp.id = (ndims == 5) ? src_dims[2] : 1;
+        jpp.ih = src_dims[ndims - 2];
+        jpp.iw = src_dims[ndims - 1];
+        jpp.od = (ndims == 5) ? dst_dims[2] : 1;
+        jpp.oh = dst_dims[ndims - 2];
+        jpp.ow = dst_dims[ndims - 1];
 
         jpp.stride_d = (ndims == 5) ? pd.strides[0] : 1;
         jpp.stride_h = pd.strides[ndims - 4];
@@ -98,7 +100,7 @@ struct jit_ref_pooling_fwd_kernel {
             jpp.lws_d[1] = 16;
             jpp.lws_d[2] = 1;
             jpp.gws_d[0] = jpp.is_backward ? jpp.id * jpp.ih * jpp.iw
-                                           : jpp.od * jpp.oh * jpp.ow;
+                                           : jpp.od * jpp.oh;
             jpp.gws_d[1] = jpp.c;
             jpp.gws_d[2] = jpp.use_16mb_unroll ? jpp.mb / 16 : jpp.mb;
         }

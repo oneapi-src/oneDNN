@@ -96,7 +96,7 @@ TEST_P(ocl_engine_test, BasicInteropC) {
     mkldnn_status_t s
             = mkldnn_engine_create_ocl(&eng, mkldnn_gpu, ocl_dev, ocl_ctx);
 
-    EXPECT_EQ(s, p.expected_status);
+    ASSERT_EQ(s, p.expected_status);
 
     if (s == mkldnn_success) {
 
@@ -106,21 +106,21 @@ TEST_P(ocl_engine_test, BasicInteropC) {
         MKLDNN_CHECK(mkldnn_engine_get_ocl_device(eng, &dev));
         MKLDNN_CHECK(mkldnn_engine_get_ocl_context(eng, &ctx));
 
-        EXPECT_EQ(dev, ocl_dev);
-        EXPECT_EQ(ctx, ocl_ctx);
+        ASSERT_EQ(dev, ocl_dev);
+        ASSERT_EQ(ctx, ocl_ctx);
 
         cl_uint ref_count;
         OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
                 sizeof(ref_count), &ref_count, nullptr));
         int i_ref_count = int(ref_count);
-        EXPECT_EQ(i_ref_count, 2);
+        ASSERT_EQ(i_ref_count, 2);
 
         MKLDNN_CHECK(mkldnn_engine_destroy(eng));
 
         OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
                 sizeof(ref_count), &ref_count, nullptr));
         i_ref_count = int(ref_count);
-        EXPECT_EQ(i_ref_count, 1);
+        ASSERT_EQ(i_ref_count, 1);
     }
 }
 
@@ -153,22 +153,22 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
 
                     cl_device_id dev = eng.get_ocl_device();
                     cl_context ctx = eng.get_ocl_context();
-                    EXPECT_EQ(dev, ocl_dev);
-                    EXPECT_EQ(ctx, ocl_ctx);
+                    ASSERT_EQ(dev, ocl_dev);
+                    ASSERT_EQ(ctx, ocl_ctx);
 
                     cl_uint ref_count;
                     OCL_CHECK(clGetContextInfo(ocl_ctx,
                             CL_CONTEXT_REFERENCE_COUNT, sizeof(ref_count),
                             &ref_count, nullptr));
                     int i_ref_count = int(ref_count);
-                    EXPECT_EQ(i_ref_count, 2);
+                    ASSERT_EQ(i_ref_count, 2);
                 }
 
                 cl_uint ref_count;
                 OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
                         sizeof(ref_count), &ref_count, nullptr));
                 int i_ref_count = int(ref_count);
-                EXPECT_EQ(i_ref_count, 1);
+                ASSERT_EQ(i_ref_count, 1);
             },
             p.expected_status != mkldnn_success, p.expected_status);
 }

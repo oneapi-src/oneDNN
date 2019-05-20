@@ -29,9 +29,6 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     const memory::desc dst_pd = dst.get_desc();
     const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
 
-    ASSERT_EQ(dst_mdw.data_type(),
-            memory::data_type::f32); // TODO: type assert
-
     float result = 0.0f;
     // Worst case error bound on naive summation
     // algorithm is on the order of n*machine_precision.
@@ -39,7 +36,11 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
     //     SIAM Publications, Philadelphia, 2nd edition, 2002.
     // So below tests will use error bound dependent
     // on the number of elements in reduction.
-    const float eps = std::numeric_limits<float>::epsilon();
+    float eps = 0.0f;
+    if(data_traits<data_t>::data_type == memory::data_type::f16)
+        eps = 0.000977f;
+    else
+        eps = std::numeric_limits<float>::epsilon();
 
     memory::dim MB = dst_pd.data.dims[0];
     memory::dim C = dst_pd.data.dims[1];
@@ -53,7 +54,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim c = 0; c < C; ++c) {
                     result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*C);
+                ASSERT_NEAR(result, 1.0, eps*C);
             }
         }
         else if (axis == 0) {
@@ -63,7 +64,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim n = 0; n < MB; ++n) {
                     result += dst_ptr[dst_mdw.off_l(n * C + c)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*MB);
+                ASSERT_NEAR(result, 1.0, eps*MB);
             }
         }
     } else {
@@ -84,7 +85,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim n = 0; n < MB; ++n) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*MB);
+                ASSERT_NEAR(result, 1.0, eps*MB);
             }
         } else if (axis == 1) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -96,7 +97,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim c = 0; c < C; ++c) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*C);
+                ASSERT_NEAR(result, 1.0, eps*C);
             }
         } else if (axis == 2) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -108,7 +109,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim h = 0; h < H; ++h) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*H);
+                ASSERT_NEAR(result, 1.0, eps*H);
             }
         } else if (axis == 3) {
             for (memory::dim n = 0; n < MB; ++n)
@@ -120,7 +121,7 @@ void check_softmax_fwd(prop_kind aprop_kind, memory &src, memory &dst, int axis)
                 for (memory::dim w = 0; w < W; ++w) {
                     result += dst_ptr[off(n, c, h, w)];
                 }
-                EXPECT_NEAR(result, 1.0, eps*W);
+                ASSERT_NEAR(result, 1.0, eps*W);
             }
         }
     }
@@ -185,7 +186,9 @@ protected:
 };
 
 using softmax_forward_test_float = softmax_test<float>;
+using softmax_forward_test_half = softmax_test<float16_t>;
 using softmax_fwd_test_params_float = softmax_test_params<float>;
+using softmax_fwd_test_params_half = softmax_test_params<float16_t>;
 
 TEST_P(softmax_forward_test_float, TestsSoftmax) { }
 INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
@@ -226,4 +229,24 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxForward, softmax_forward_test_float,
             memory::format_tag::nChw8c, {64, 1011, 1, 1}, 1},
             softmax_fwd_test_params_float{prop_kind::forward_scoring,
             memory::format_tag::nChw8c, {2, 1000, 32, 1}, 2}));
+
+TEST_P(softmax_forward_test_half, TestsSoftmax) { }
+GPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardHalf, softmax_forward_test_half,
+    ::testing::Values(
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 2, 0, 128, 256 }, 0},
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 2, 19, 128, 256 }, 0 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 2, 19, 128, 256 }, 1 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 2, 19, 128, 256 }, 2 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 1, 8, 1024, 16 }, 2 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nchw,{ 2, 19, 128, 256 }, 3 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nc,{ 2, 1000 }, 0 },
+        softmax_fwd_test_params_half{ prop_kind::forward_scoring,
+        memory::format_tag::nc,{ 2, 1000 }, 1 }));
 }

@@ -81,7 +81,7 @@ void check_lrn_fwd(const test_lrn_desc_t &ld,
         data_t out = d[0];
         data_t norm_max = std::max(fabs(out), fabs(ref_out));
         if (norm_max < eps) norm_max = 1.;
-        EXPECT_NEAR(out, ref_out, eps*norm_max);
+        ASSERT_NEAR(out, ref_out, eps*norm_max);
     };
 
     const memory::dim N = ld.mb;
@@ -143,7 +143,7 @@ protected:
                 l_src_desc, ld.local_size, ld.alpha, ld.beta, ld.k);
         auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
 
-        std::shared_ptr<memory> workspace;
+        memory workspace;
 
         // Execute
         auto l = lrn_forward(lrn_prim_desc);
@@ -153,8 +153,8 @@ protected:
         };
         if (with_workspace) {
             auto workspace_md = lrn_prim_desc.workspace_desc();
-            workspace.reset(new memory(workspace_md, eng));
-            args.insert({MKLDNN_ARG_WORKSPACE, *workspace});
+            workspace = memory(workspace_md, eng);
+            args.insert({MKLDNN_ARG_WORKSPACE, workspace});
         }
         l.execute(strm, args);
         strm.wait();

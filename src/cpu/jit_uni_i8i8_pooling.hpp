@@ -38,7 +38,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                JIT_IMPL_NAME_HELPER("jit_int:", isa, ""),
                 jit_uni_i8i8_pooling_fwd_t<isa>);
 
         status_t init() {

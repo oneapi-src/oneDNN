@@ -35,35 +35,6 @@ using namespace mkldnn::impl::utils;
     ((ndims == 3) \
     ? (f).blk_off(n, c, w) \
     : (f).blk_off(n, c, h, w))
-
-
-namespace {
-template <typename T, typename U>
-void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end,
-    T nx, T &nx_start, T &nx_end, T nx_divider)
-{
-    const int grp_count = nstl::min(nx_divider, nthr);
-    const int grp_size_big = nthr / grp_count + 1;
-    const int grp_size_small = nthr / grp_count;
-    const int n_grp_big = nthr % grp_count;
-    const int threads_in_big_groups = n_grp_big * grp_size_big;
-
-    const int ithr_bound_distance = ithr - threads_in_big_groups;
-    T grp, grp_ithr, grp_nthr;
-    if (ithr_bound_distance < 0) { // ithr in first groups
-        grp = ithr / grp_size_big;
-        grp_ithr = ithr % grp_size_big;
-        grp_nthr = grp_size_big;
-    } else { // ithr in last groups
-        grp = n_grp_big + ithr_bound_distance / grp_size_small;
-        grp_ithr = ithr_bound_distance % grp_size_small;
-        grp_nthr = grp_size_small;
-    }
-
-    balance211(nx, grp_count, grp, nx_start, nx_end);
-    balance211(ny, grp_nthr, grp_ithr, ny_start, ny_end);
-}
-}
 /* convolution forward */
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
@@ -104,7 +75,9 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad.get<src_data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<src_data_t>(key_conv_rtus_space)
+            : NULL;
 
     const int ndims = src_d.ndims();
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
@@ -295,8 +268,9 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const auto &jcp = kernel_->jcp;
-    auto rtus_space = scratchpad(ctx).template get<diff_src_data_t>(
-            key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad(ctx).template get<diff_src_data_t>(key_conv_rtus_space)
+            : NULL;
 
     const int ndims = diff_src_d.ndims();
 
@@ -462,7 +436,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto scratchpad = this->scratchpad(ctx);
 
-    auto rtus_space = scratchpad.get<data_t>(key_conv_rtus_space);
+    auto rtus_space = pd()->rtus_.reduce_src_
+            ? scratchpad.get<data_t>(key_conv_rtus_space)
+            : NULL;
     data_t *diff_bias = pd()->wants_padded_bias()
         ? scratchpad.get<data_t>(key_conv_padded_bias) : diff_bias_in;
     auto wei_reduction = scratchpad.get<data_t>(key_conv_wei_reduction);

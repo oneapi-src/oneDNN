@@ -20,7 +20,9 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
+template <impl::data_type_t data_type>
+status_t ref_softmax_fwd_t<data_type>::execute_generic(
+        const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
 
@@ -34,6 +36,29 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 
     return status;
 }
+
+template <impl::data_type_t data_type>
+status_t ref_softmax_bwd_t<data_type>::execute_generic(
+        const exec_ctx_t &ctx) const {
+    auto &dst = CTX_IN_STORAGE(MKLDNN_ARG_DST);
+    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
+    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+
+    kernel_.set_arg(0, dst);
+    kernel_.set_arg(1, diff_src);
+    kernel_.set_arg(2, diff_dst);
+
+    auto nd_range = cl_nd_range_t(pd()->gws.size(), pd()->gws.data());
+    auto &executor
+            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
+    status_t status = executor.parallel_for(nd_range, kernel_);
+
+    return status;
+}
+
+template struct ref_softmax_fwd_t<data_type::f16>;
+template struct ref_softmax_fwd_t<data_type::f32>;
+template struct ref_softmax_bwd_t<data_type::f32>;
 
 } // namespace ocl
 } // namespace impl

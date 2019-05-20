@@ -110,6 +110,36 @@
 #    define BLOCK_DATA8_T uchar8
 #    define AS_BLOCK_DATA_T as_uchar
 #    define AS_BLOCK_DATA8_T as_uchar8
+#elif DT_U8 == 1
+#    define DATA_T uchar
+#    define DATA8_T uchar8
+#    define DATA_MAX UCHAR_MAX
+#    define DATA_MIN 0
+#    define DATA_ZERO 0
+#    define DATA_ONE 1
+#    define ACC_DATA_T int
+#    define ACC_DATA8_T int8
+#    define FLOAT_T float
+#    define FLOAT8_T float8
+#    define TO_DATA_T(v) (uchar)(v)
+#    define CONVERT_DATA_T convert_uchar
+#    define CONVERT_DATA8_T convert_uchar8
+#    define ROUND rint
+
+#    define BLOCK_READ intel_sub_group_block_read_uc
+#    define BLOCK_WRITE intel_sub_group_block_write_uc
+#    define BLOCK_READ8 intel_sub_group_block_read_uc8
+#    define BLOCK_WRITE8 intel_sub_group_block_write_uc8
+#    define AS_DATA_T as_uchar
+#    define AS_DATA8_T as_uchar8
+
+#    define AS_UINT_T as_uchar
+#    define AS_UINT8_T as_uchar8
+
+#    define BLOCK_DATA_T uchar
+#    define BLOCK_DATA8_T uchar8
+#    define AS_BLOCK_DATA_T as_uchar
+#    define AS_BLOCK_DATA8_T as_uchar8
 #else
 #    error "Unexpected data type"
 #endif

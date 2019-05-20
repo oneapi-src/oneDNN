@@ -92,7 +92,7 @@ TEST_P(stream_test_c, Create) {
 TEST(stream_test_c, WaitNullStream) {
     mkldnn_stream_t stream = nullptr;
     mkldnn_status_t status = mkldnn_stream_wait(stream);
-    EXPECT_EQ(status, mkldnn_invalid_arguments);
+    ASSERT_EQ(status, mkldnn_invalid_arguments);
 }
 
 TEST_P(stream_test_c, Wait) {

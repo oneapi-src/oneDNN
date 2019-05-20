@@ -108,7 +108,7 @@ static inline void add_results(const dim_t m, const dim_t n,
     }
 }
 
-// TODO Find a better place for those functions.
+// TODO Find a better place for this function.
 template <typename T>
 static inline dim_t ld_padd(const dim_t x) {
     return ((x + ((2048 / sizeof(T)) - 1)) / (2048 / sizeof(T)))
@@ -224,6 +224,17 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
      */
     arg->kernel[isBeta0][isColOffset][isRowOffset](&m, &n, &k, &alpha, a, b,
             c, ldc, col_offset, row_offset);
+
+    // sgemm kernels don't support bias yet.
+    if (data_traits<a_type>::data_type == data_type::f32) {
+        if (co && offsetc == COL_OFFSET) {
+            for (dim_t j = 0; j < n; j++) {
+                for (dim_t i = 0; i < m; i++) {
+                    c[i + j * ldc] += co[i];
+                }
+            }
+        }
+    }
 }
 
 static inline void *align(void *ptr, size_t alignment) {
@@ -372,7 +383,7 @@ static mkldnn_status_t gemm_kernel_driver(const dim_t m, const dim_t n,
 
             // Apply C offset when to the last k-block of the partial sum.
             int offsetc = NO_OFFSET;
-            if (Bk + sizeK == k && isInteger)
+            if (Bk + sizeK == k)
                 offsetc = arg->offsetc;
 
             dim_t sizeN = 0;
@@ -418,14 +429,12 @@ static mkldnn_status_t gemm_kernel_driver(const dim_t m, const dim_t n,
 
                     c_type *c_block = c + (Bm + Um) + Bn * ldc;
                     dim_t co_stride = 0;
-                    if (isInteger) {
-                        if (offsetc == FIX_OFFSET) {
-                            co_stride = 0;
-                        } else if (offsetc == ROW_OFFSET) {
-                            co_stride = Bn;
-                        } else if (offsetc == COL_OFFSET) {
-                            co_stride = Bm + Um;
-                        }
+                    if (offsetc == FIX_OFFSET) {
+                        co_stride = 0;
+                    } else if (offsetc == ROW_OFFSET) {
+                        co_stride = Bn;
+                    } else if (offsetc == COL_OFFSET) {
+                        co_stride = Bm + Um;
                     }
                     if (need_c_buffer) {
                         gemm_kernel(sizeUM, sizeN, sizeK, 1.0f,
@@ -541,14 +550,12 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(const dim_t m,
                 b_col_sum);
 
         dim_t co_stride = 0;
-        if (isInteger) {
-            if (offsetc == FIX_OFFSET) {
-                co_stride = 0;
-            } else if (offsetc == ROW_OFFSET) {
-                co_stride = Bn;
-            } else if (offsetc == COL_OFFSET) {
-                co_stride = 0;
-            }
+        if (offsetc == FIX_OFFSET) {
+            co_stride = 0;
+        } else if (offsetc == ROW_OFFSET) {
+            co_stride = Bn;
+        } else if (offsetc == COL_OFFSET) {
+            co_stride = 0;
         }
 
         c_type *c_block = c + Bn * ldc;
@@ -658,11 +665,11 @@ static inline int nocopy_checker(const int nthr, const int transa,
     if (mayiuse(avx512_core)) {
         return nocopy_checker_avx512(nthr, transa, transb, m, n, k, lda, ldb,
                 ldc);
-    } else if (mayiuse(avx2)) {
+    } else if (mayiuse(avx)) {
         return nocopy_checker_avx2(nthr, transa, transb, m, n, k, lda, ldb,
                 ldc);
     } else {
-        return 1;
+        return 0;
     }
 }
 
@@ -727,7 +734,6 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     if (isInteger) {
         condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
     } else {
-        // If m is large and n is small then do 1D partitioning for AVX2.
         if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
             condition_2D_bsrc = 0;
         } else {
@@ -745,7 +751,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
-    } else { // AVX2 code path
+    } else {
         if (m >= 1000 && n >= 4000) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
@@ -786,8 +792,10 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         int veclen = 0;
         if (mayiuse(avx512_core)) {
             veclen = cpu_isa_traits<avx512_core>::vlen / sizeof(c_type);
+        } else if (mayiuse(avx)) {
+            veclen = cpu_isa_traits<avx>::vlen / sizeof(c_type);
         } else {
-            veclen = cpu_isa_traits<avx2>::vlen / sizeof(c_type);
+            veclen = cpu_isa_traits<sse41>::vlen / sizeof(c_type);
         }
 
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
@@ -923,8 +931,6 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
     dim_t strideBn = (arg->transb != no_trans)? 1 : arg->ldb;
     int offsetc = arg->offsetc;
 
-    bool isInteger = data_traits<a_type>::data_type == data_type::s8;
-
     switch (thread_info->partition) {
     case PARTITION_1D_ROW:
         {
@@ -946,17 +952,16 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             *c = arg->c + offset;
 
             // Set offset vector for C matrix.
-            if (isInteger) {
-                dim_t co_stride = 0;
-                if (offsetc == FIX_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == ROW_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == COL_OFFSET) {
-                    co_stride = offset;
-                }
-                *co = arg->co + co_stride;
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = offset;
             }
+            *co = arg->co + co_stride;
+
             break;
         }
 
@@ -980,17 +985,16 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             *c = arg->c + offset * arg->ldc;
 
             // Set offset vector for C matrix
-            if (isInteger) {
-                dim_t co_stride = 0;
-                if (offsetc == FIX_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == ROW_OFFSET) {
-                    co_stride = offset;
-                } else if (offsetc == COL_OFFSET) {
-                    co_stride = 0;
-                }
-                *co = arg->co + co_stride;
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = offset;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = 0;
             }
+            *co = arg->co + co_stride;
+
             break;
         }
 
@@ -1023,17 +1027,16 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             *c = arg->c + m_disp + n_disp * arg->ldc;
 
             // Set offset vector for C matrix
-            if (isInteger) {
-                dim_t co_stride = 0;
-                if (offsetc == FIX_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == ROW_OFFSET) {
-                    co_stride = n_disp;
-                } else if (offsetc == COL_OFFSET) {
-                    co_stride = m_disp;
-                }
-                *co = arg->co + co_stride;
+            dim_t co_stride = 0;
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = n_disp;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = m_disp;
             }
+            *co = arg->co + co_stride;
+
             break;
         }
     }
@@ -1130,7 +1133,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 
         // Apply C offset for the last k-block of the partial sum.
         int offsetc = NO_OFFSET;
-        if (Bk + sizeK == k && isInteger)
+        if (Bk + sizeK == k)
             offsetc = arg->offsetc;
 
         dim_t sizeM = 0;
@@ -1175,14 +1178,12 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
             c_type *c_block = c + Bm;
 
             dim_t co_stride = 0;
-            if (isInteger) {
-                if (offsetc == FIX_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == ROW_OFFSET) {
-                    co_stride = 0;
-                } else if (offsetc == COL_OFFSET) {
-                    co_stride = Bm;
-                }
+            if (offsetc == FIX_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == ROW_OFFSET) {
+                co_stride = 0;
+            } else if (offsetc == COL_OFFSET) {
+                co_stride = Bm;
             }
 
             result = kernel_driver_parallel_acopiedbcopy(sizeM, n, sizeK,
@@ -1212,8 +1213,10 @@ static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k,
     int veclen = 0;
     if (mayiuse(avx512_core)) {
         veclen = cpu_isa_traits<avx512_core>::vlen / sizeof(T);
+    } else if (mayiuse(avx)) {
+        veclen = cpu_isa_traits<avx>::vlen / sizeof(T);
     } else {
-        veclen = cpu_isa_traits<avx2>::vlen / sizeof(T);
+        veclen = cpu_isa_traits<sse41>::vlen / sizeof(T);
     }
     const double fp_per_cycle = 2.0 * 2.0 * veclen;
 
@@ -1333,14 +1336,14 @@ static mkldnn_status_t gemm_threading_driver(
                 arg->c, arg->co, arg);
     }
 
-    if ((data_traits<a_type>::data_type == data_type::f32) &&
+    if (data_traits<a_type>::data_type == data_type::f32 &&
             nocopy_checker(nthr, arg->transa, arg->transb, arg->m, arg->n,
                 arg->k, arg->lda, arg->ldb, arg->ldc))
         return call_no_copy_sgemm(arg->transa, arg->transb,
                 arg->m, arg->n, arg->k, arg->alpha,
                 (float *) arg->a, arg->lda,
                 (float *) arg->b, arg->ldb,
-                arg->beta, (float *) arg->c, arg->ldc, NULL);
+                arg->beta, (float *) arg->c, arg->ldc, (float *) arg->co);
 
     mkldnn_status_t *results = (mkldnn_status_t *) malloc(
             sizeof(*results) * nthr * CACHE_LINE_SIZE, PAGE_4K);
@@ -1441,13 +1444,20 @@ mkldnn_status_t gemm_driver(
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
-    // gemm_driver supports 8-bit integer and for avx512_vnni and avx512_core.
+    // gemm_driver supports 8-bit integer gemm for avx512_vnni and avx512_core.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
                 mayiuse(avx512_core)));
 
-    // gemm_driver supports sgemm for avx512_core, avx2 and avx.
+    // gemm_driver supports sgemm for avx512_core, avx2, avx and sse41.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
-            mayiuse(avx)));
+            mayiuse(sse41)));
+
+    // 8-bit integer gemm doesn't support nocopy kernels.
+    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
+                !force_nocopy));
+
+    // gemm_driver can only dispatch nocopy for avx and above.
+    assert(IMPLICATION(force_nocopy, mayiuse(avx)));
 
     gemm_info_t<a_type, b_type, c_type> args(transA, transB, offsetC, m, n, k,
             alpha, a, lda, oa, b, ldb, ob, beta, c, ldc, oc, force_nocopy);

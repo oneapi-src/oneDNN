@@ -31,10 +31,10 @@ namespace ocl {
 #define MAX_NDIMS 6
 
 struct jit_offsets {
-    int src_off[3][MAX_NDIMS];
-    int wht_off[3][MAX_NDIMS];
-    int dst_off[3][MAX_NDIMS];
-    int bias_off[3][MAX_NDIMS];
+    int src_off[4][MAX_NDIMS];
+    int wht_off[4][MAX_NDIMS];
+    int dst_off[4][MAX_NDIMS];
+    int bias_off[4][MAX_NDIMS];
 };
 
 struct jit_rnn_offsets {
@@ -204,12 +204,21 @@ struct jit_simple_sum_conf_t {
 
 /* simple reorder */
 struct jit_reorder_conf_t {
-    bool do_reorder, is_alpha_beta, with_group;
+    bool do_reorder, is_alpha_beta, with_group, has_padding;
     int ndims, par_dims, ker_dims, last_dims;
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];
     int sub_group_size;
+};
+
+/* eltwise */
+struct jit_eltwise_conf_t {
+    int ndims;
+    data_type_t data_type;
+    alg_kind_t alg;
+    bool is_forward;
+    size_t gws_d[3];
 };
 
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
@@ -229,30 +238,49 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_mdw.dims()[0] : 1;
     jcp.mb = src_mdw.dims()[0];
-    jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
-    jcp.oc_without_padding = jcp.oc;
-    jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
-    jcp.ic_without_padding = jcp.ic;
+    jcp.oc_without_padding = dst_mdw.dims()[1] / jcp.ngroups;
+    jcp.ic_without_padding = src_mdw.dims()[1] / jcp.ngroups;
     jcp.id = (ndims == 5) ? src_mdw.dims()[2] : 1;
-    jcp.ih = src_mdw.dims()[ndims - 2];
+    jcp.ih = (ndims == 3) ? 1 : src_mdw.dims()[ndims - 2];
     jcp.iw = src_mdw.dims()[ndims - 1];
     jcp.od = (ndims == 5) ? dst_mdw.dims()[2] : 1;
-    jcp.oh = dst_mdw.dims()[ndims - 2];
+    jcp.oh = (ndims == 3) ? 1 : dst_mdw.dims()[ndims - 2];
     jcp.ow = dst_mdw.dims()[ndims - 1];
     jcp.kd = (ndims == 5) ? weights_mdw.dims()[with_groups + 2] : 1;
-    jcp.kh = weights_mdw.dims()[with_groups + ndims - 2];
+    jcp.kh = (ndims == 3) ? 1 : weights_mdw.dims()[with_groups + ndims - 2];
     jcp.kw = weights_mdw.dims()[with_groups + ndims - 1];
+
+    jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
+    jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
+
+    const bool is_1stconv = jcp.ic_without_padding == 3;
+    const bool is_depthwise = with_groups && (jcp.ic_without_padding == 1)
+            && (jcp.oc_without_padding == 1);
+    jcp.is_depthwise = is_depthwise;
+
+    if (is_1stconv || with_groups) {
+        jcp.ic = jcp.ic_without_padding;
+        jcp.oc = jcp.oc_without_padding;
+    } else {
+        jcp.ic = utils::rnd_up(jcp.ic_without_padding, 16);
+        jcp.oc = utils::rnd_up(jcp.oc_without_padding, 16);
+    }
+
+    if (is_depthwise)
+        jcp.ngroups = utils::rnd_up(jcp.ngroups, 16);
+
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.t_pad = cd.padding[0][ndims - 4];
+    jcp.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
+    jcp.b_pad = (ndims == 3) ? 0 : cd.padding[1][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.r_pad = cd.padding[1][ndims - 3];
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = cd.strides[ndims - 4];
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = cd.dilates[ndims - 4];
+    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
-
-    jcp.is_depthwise = with_groups && (jcp.ic == 1) && (jcp.oc == 1);
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
@@ -322,6 +350,7 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
+    const dims_t &dims = md.dims();
 
     for (int d = 0; d < md.ndims(); ++d) {
         const int block = block_dims[d];
@@ -329,10 +358,11 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
         offs[0][d] = block;
         offs[1][d] = strides_compat[0][d];
         offs[2][d] = strides_compat[1][d];
+        offs[3][d] = dims[d];
     }
 }
 
-inline void def_offsets(const int offs[3][MAX_NDIMS], ocl_jit_t &jit,
+inline void def_offsets(const int offs[4][MAX_NDIMS], ocl_jit_t &jit,
         const char *str, const int ndims) {
 
     for (int d = 0; d < ndims; d++) {
@@ -345,6 +375,23 @@ inline void def_offsets(const int offs[3][MAX_NDIMS], ocl_jit_t &jit,
 
         snprintf(tempstr, 32, " %s_SB%d", str, d);
         jit.define_int(tempstr, offs[2][d]);
+
+        snprintf(tempstr, 32, " %s_D%d", str, d);
+        jit.define_int(tempstr, offs[3][d]);
+    }
+    for (int d = ndims; d < 6; ++d) {
+        char tempstr[32];
+        snprintf(tempstr, 32, " %s_B%d", str, d);
+        jit.define_int(tempstr, 1);
+
+        snprintf(tempstr, 32, " %s_S%d", str, d);
+        jit.define_int(tempstr, 0);
+
+        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        jit.define_int(tempstr, 0);
+
+        snprintf(tempstr, 32, " %s_D%d", str, d);
+        jit.define_int(tempstr, 0);
     }
 }
 

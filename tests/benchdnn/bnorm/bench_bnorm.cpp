@@ -25,31 +25,36 @@
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "parser.hpp"
 
 #include "bnorm/bnorm.hpp"
 
 namespace bnorm {
 
-/* global driver parameters */
+std::vector<dir_t> dir {FWD_D};
+std::vector<mkldnn_data_type_t> dt {mkldnn_f32};
+std::vector<mkldnn_format_tag_t> tag {mkldnn_nchw};
+std::vector<flags_t> flags {0};
+std::vector<int64_t> mb {0};
+
 check_alg_t check_alg = ALG_AUTO;
-int64_t mb = 0;
-dir_t dir = FWD_D;
-mkldnn_data_type_t dt = mkldnn_f32;
-mkldnn_format_tag_t tag = mkldnn_nchw;
-flags_t flags = (flags_t)0;
 attr_t attr;
 const char *pattern = NULL;
 const char *skip_impl = "";
 bool allow_unimpl = false;
-const char *perf_template = "perf,%n,%z,%F,%q,%f,%D,%-t,%0t";
+const char *perf_template_csv =
+    "perf,%engine%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%DESC%,"
+    "%-time%,%0time%";
+const char *perf_template_def = "perf,%engine%,%name%,%desc%,%-time%,%0time%";
+const char *perf_template = perf_template_def;
 
 void reset_parameters() {
+    dir = {FWD_D};
+    dt = {mkldnn_f32};
+    tag = {mkldnn_nchw};
+    flags = {0};
+    mb = {0};
     check_alg = ALG_AUTO;
-    mb = 0;
-    dir = FWD_B;
-    dt = mkldnn_f32;
-    tag = mkldnn_nchw;
-    flags = (flags_t)0;
     attr = attr_t();
     pattern = NULL;
     skip_impl = "";
@@ -57,67 +62,58 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    const prb_t p(*c, mb, dir, dt, tag, flags, attr, check_alg);
-    char pstr[max_prb_len];
-    prb2str(&p, pstr);
+    for (const auto &i_dir: dir)
+    for (const auto &i_dt: dt)
+    for (const auto &i_tag: tag)
+    for (const auto &i_flags: flags)
+    for (const auto &i_mb: mb) {
+        const prb_t p(*c, i_mb, i_dir, i_dt, i_tag, i_flags, attr, check_alg);
+        char pstr[max_prb_len];
+        prb2str(&p, pstr);
 
-    if (pattern && !match_regex(pstr, pattern))
-        return;
-    print(1, "run: %s\n", pstr);
+        if (pattern && !match_regex(pstr, pattern))
+            return;
+        print(1, "run: %s\n", pstr);
 
-    res_t res{};
-    const int status = bnorm::doit(&p, &res);
+        res_t res{};
+        const int status = doit(&p, &res);
 
-    bool want_perf_report = false;
-    parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        bool want_perf_report = false;
+        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
 
-    if (want_perf_report && bench_mode & PERF)
-        perf_report(&p, &res, pstr);
+        if (want_perf_report && bench_mode & PERF) {
+            perf_report_t pr(perf_template);
+            pr.report(&p, &res, pstr);
+        }
 
-    benchdnn_stat.tests++;
+        benchdnn_stat.tests++;
+    }
 }
 
-int bench(int argc, char **argv, bool main_bench) {
-    for (int arg = 0; arg < argc; ++arg) {
-        if (!strncmp("--batch=", argv[arg], 8))
-            SAFE(batch(argv[arg] + 8, bench), CRIT);
-        else if (!strncmp("--check-alg=", argv[arg], 12))
-            check_alg = str2check_alg(argv[arg] + 12);
-        else if (!strncmp("--mb=", argv[arg], 5))
-            mb = atoi(argv[arg] + 5);
-        else if (!strncmp("--dir=", argv[arg], 6))
-            dir = str2dir(argv[arg] + 6);
-        else if (!strncmp("--dt=", argv[arg], 5))
-            dt = str2dt(argv[arg] + 5);
-        else if (!strncmp("--tag=", argv[arg], 6))
-            tag = str2tag(argv[arg] + 6);
-        else if (!strncmp("--flags=", argv[arg], 8))
-            flags = str2flags(argv[arg] + 8);
-        else if (!strncmp("--attr=", argv[arg], 7))
-            SAFE(str2attr(&attr, argv[arg] + 7), CRIT);
-        else if (!strncmp("--match=", argv[arg], 8))
-            pattern = argv[arg] + 8;
-        else if (!strncmp("--skip-impl=", argv[arg], 12))
-            skip_impl = argv[arg] + 12;
-        else if (!strncmp("--allow-unimpl=", argv[arg], 15))
-            allow_unimpl = str2bool(argv[arg] + 15);
-        else if (!strncmp("--perf-template=", argv[arg], 16))
-            perf_template = argv[arg] + 16;
-        else if (!strcmp("--reset", argv[arg]))
-            reset_parameters();
-        else if (!strncmp("--mode=", argv[arg], 7))
-            bench_mode = str2bench_mode(argv[arg] + 7);
-        else if (!strncmp("-v", argv[arg], 2))
-            verbose = atoi(argv[arg] + 2);
-        else if (!strncmp("--verbose=", argv[arg], 10))
-            verbose = atoi(argv[arg] + 10);
+int bench(int argc, char **argv) {
+    using namespace parser;
+    for (; argc > 0; --argc, ++argv) {
+        if (parse_bench_settings(argv[0]));
+        else if (parse_batch(bench, argv[0]));
+        else if (parse_dt(dt, argv[0]));
+        else if (parse_tag(tag, argv[0]));
+        else if (parse_mb(mb, argv[0]));
+        else if (parse_dir(dir, argv[0]));
+        else if (parse_attr(attr, argv[0]));
+        else if (parse_vector_option(flags, str2flags, argv[0], "flags"));
+        else if (parse_single_value_option(check_alg, str2check_alg, argv[0],
+                    "check-alg"));
+        else if (parse_test_pattern_match(pattern, argv[0]));
+        else if (parse_skip_impl(skip_impl, argv[0]));
+        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
+        else if (parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0]));
+        else if (parse_reset(reset_parameters, argv[0]));
         else {
+            catch_unknown_options(argv[0], "bnorm");
+
             desc_t c;
-            if (str2desc(&c, argv[arg]) == FAIL) {
-                fprintf(stderr, "driver: unknown option: `%s`, exiting...\n",
-                        argv[arg]);
-                exit(2);
-            }
+            SAFE_V(str2desc(&c, argv[0]));
             check_correctness(&c);
         }
     }

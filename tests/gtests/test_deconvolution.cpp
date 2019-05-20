@@ -125,8 +125,8 @@ private:
    std::shared_ptr<memory::desc> con_dst_desc;
    std::shared_ptr<memory::desc> con_weights_desc;
 
-   std::shared_ptr<engine> eng;
-   std::shared_ptr<stream> strm;
+   engine eng;
+   stream strm;
    bool with_bias;
    memory::dims padR;
 protected:
@@ -139,14 +139,13 @@ protected:
     void Test() {
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
 
         ASSERT_EQ(p.aalgorithm, algorithm::deconvolution_direct);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_convolution_sizes_t dd = p.sizes;
-        p.formats.bias_format = memory::format_tag::undef;
         with_bias = p.formats.bias_format != memory::format_tag::undef;
 
         memory::dims src_dims = {dd.mb, dd.ic, dd.ih, dd.iw};
@@ -179,24 +178,26 @@ protected:
         con_weights_desc.reset(new memory::desc(c_weights_dims, data_type,
             p.formats.weights_format));
 
-        src.reset(new test_memory(*dec_src_desc, *eng));
-        weights.reset(new test_memory(*dec_weights_desc, *eng));
-        bias.reset(new test_memory(*dec_bias_desc, *eng));
-        dst.reset(new test_memory(*dec_dst_desc, *eng));
+        src.reset(new test_memory(*dec_src_desc, eng));
+        weights.reset(new test_memory(*dec_weights_desc, eng));
+        bias.reset(new test_memory(*dec_bias_desc, eng));
+        dst.reset(new test_memory(*dec_dst_desc, eng));
 
         padR = {
             right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
             right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)
         };
         Forward();
-        BackwardData();
-        BackwardWeights();
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            BackwardData();
+            BackwardWeights();
+        }
     }
     void Forward() {
         auto aprop_kind =  prop_kind::forward;
         deconvolution_test_params p =
             ::testing::TestWithParam<deconvolution_test_params>::GetParam();
-        auto conv_src = test_memory(*con_src_desc, *eng);
+        auto conv_src = test_memory(*con_src_desc, eng);
         auto conv_dst = src;
         test_convolution_sizes_t dd = p.sizes;
 
@@ -210,53 +211,50 @@ protected:
                     bias->get());
         }
 
-        auto weights_tr = memory(*con_weights_desc, *eng);
+        auto weights_tr = memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
         auto deconv_desc = with_bias ?
             deconvolution_forward::desc(aprop_kind,
                     algorithm::deconvolution_direct, *dec_src_desc,
                     *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                    { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                    padding_kind::zero) :
+                    { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR) :
                 deconvolution_forward::desc(aprop_kind,
                         algorithm::deconvolution_direct, *dec_src_desc,
                         *dec_weights_desc, *dec_dst_desc, { dd.strh, dd.strw },
-                        { dd.padh, dd.padw }, padR, padding_kind::zero);
+                        { dd.padh, dd.padw }, padR);
 
         auto deconv_primitive_desc = deconvolution_forward::primitive_desc(
-                deconv_desc, *eng);
+                deconv_desc, eng);
 
-        deconvolution_forward(deconv_primitive_desc).execute(*strm, {
+        deconvolution_forward(deconv_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, src->get()},
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
                 {MKLDNN_ARG_BIAS, bias->get()},
                 {MKLDNN_ARG_DST, dst->get()}});
-        strm->wait();
+        strm.wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
                 *con_src_desc, *con_weights_desc, *con_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
-                conv_desc, *eng);
+                conv_desc, eng);
 
         auto conv_bwd_data_desc = convolution_backward_data::desc(
                 algorithm::convolution_direct, *con_src_desc,
                 *con_weights_desc, *con_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
 
         auto conv_bwd_data_primitive_desc
             = convolution_backward_data::primitive_desc(
-                    conv_bwd_data_desc, *eng, conv_primitive_desc);
+                    conv_bwd_data_desc, eng, conv_primitive_desc);
 
-        convolution_backward_data(conv_bwd_data_primitive_desc).execute(*strm, {
+        convolution_backward_data(conv_bwd_data_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
                 {MKLDNN_ARG_DIFF_SRC, conv_src.get()}});
-        strm->wait();
+        strm.wait();
 
         if(with_bias) compute_bias_fwd<data_t>(dd, conv_src.get(), bias->get());
         compare_data<data_t>(conv_src.get(), dst->get());
@@ -265,7 +263,7 @@ protected:
     void BackwardData() {
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();
         auto conv_src = dst;
-        auto conv_dst = test_memory(*con_dst_desc, *eng);
+        auto conv_dst = test_memory(*con_dst_desc, eng);
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(weights->get_size() / sizeof(data_t),
@@ -274,47 +272,45 @@ protected:
         fill_data<data_t>(dst->get_size() / sizeof(data_t),
                 dst->get());
 
-        auto weights_tr = memory(*con_weights_desc, *eng);
+        auto weights_tr = memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_training,
                 algorithm::deconvolution_direct, *dec_src_desc,
                 *dec_weights_desc, *dec_dst_desc, { dd.strh, dd.strw },
-                { dd.padh, dd.padw }, padR, padding_kind::zero);
+                { dd.padh, dd.padw }, padR);
 
         auto deconv_primitive_desc = deconvolution_forward::primitive_desc(
-                deconv_desc, *eng);
+                deconv_desc, eng);
 
         auto deconv_bwd_data_desc = deconvolution_backward_data::desc(
                 algorithm::deconvolution_direct, *dec_src_desc,
                 *dec_weights_desc, *dec_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
         auto deconv_bwd_data_primitive_desc
             = deconvolution_backward_data::primitive_desc(
-                    deconv_bwd_data_desc, *eng, deconv_primitive_desc);
+                    deconv_bwd_data_desc, eng, deconv_primitive_desc);
 
         deconvolution_backward_data(deconv_bwd_data_primitive_desc).execute(
-                *strm, {
+                strm, {
                 {MKLDNN_ARG_DIFF_DST, dst->get()},
                 {MKLDNN_ARG_WEIGHTS, weights->get()},
                 {MKLDNN_ARG_DIFF_SRC, src->get()}});
-        strm->wait();
+        strm.wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
                 *con_src_desc, *con_weights_desc, *con_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
-                conv_desc, *eng);
+                conv_desc, eng);
 
-        convolution_forward(conv_primitive_desc).execute(*strm, {
+        convolution_forward(conv_primitive_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_WEIGHTS, weights_tr},
                 {MKLDNN_ARG_DST, conv_dst.get()}});
-        strm->wait();
+        strm.wait();
 
         compare_data<data_t>(conv_dst.get(), src->get());
     }
@@ -323,7 +319,7 @@ protected:
         auto p = ::testing::TestWithParam<deconvolution_test_params>::GetParam();
         auto conv_src = dst;
         auto conv_dst = src;
-        auto conv_weights = memory(*con_weights_desc, *eng);
+        auto conv_weights = memory(*con_weights_desc, eng);
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(src->get_size() / sizeof(data_t),
@@ -335,60 +331,58 @@ protected:
         auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_training,
                 algorithm::deconvolution_direct, *dec_src_desc,
                 *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR, padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
 
         auto deconv_primitive_desc = deconvolution_forward::primitive_desc(
-                deconv_desc, *eng);
+                deconv_desc, eng);
 
         auto deconv_bwd_weights_desc = deconvolution_backward_weights::desc(
                 algorithm::deconvolution_direct, *dec_src_desc,
                 *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
         auto deconv_bwd_weights_primitive_desc
             = deconvolution_backward_weights::primitive_desc(
-                    deconv_bwd_weights_desc, *eng, deconv_primitive_desc);
+                    deconv_bwd_weights_desc, eng, deconv_primitive_desc);
 
         deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
-            .execute(*strm, {
+            .execute(strm, {
                     {MKLDNN_ARG_DIFF_DST, dst->get()},
                     {MKLDNN_ARG_SRC, src->get()},
                     {MKLDNN_ARG_DIFF_WEIGHTS, weights->get()},
                     {MKLDNN_ARG_DIFF_BIAS, bias->get()}});
-        strm->wait();
+        strm.wait();
 
         auto conv_desc = convolution_forward::desc(
                 prop_kind::forward_training, algorithm::convolution_direct,
                 *con_src_desc, *con_weights_desc, *con_dst_desc,
-                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR,
-                padding_kind::zero);
+                { dd.strh, dd.strw }, { dd.padh, dd.padw }, padR);
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
-                conv_desc, *eng);
+                conv_desc, eng);
 
         auto conv_bwd_weights_desc = convolution_backward_weights::desc(
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
                 *con_dst_desc, { dd.strh, dd.strw }, { dd.padh, dd.padw },
-                padR, padding_kind::zero);
+                padR);
 
         auto conv_bwd_weights_primitive_desc =
             convolution_backward_weights::primitive_desc(
-                    conv_bwd_weights_desc, *eng, conv_primitive_desc);
+                    conv_bwd_weights_desc, eng, conv_primitive_desc);
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc).execute(
-                *strm, {
+                strm, {
                 {MKLDNN_ARG_DIFF_DST, conv_dst->get()},
                 {MKLDNN_ARG_SRC, conv_src->get()},
                 {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
-        strm->wait();
+        strm.wait();
 
-        auto weights_tr = memory(*con_weights_desc, *eng);
+        auto weights_tr = memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         compare_data<data_t>(weights_tr, conv_weights);
 
         if (with_bias) {
-            auto ref_bias = memory(*dec_bias_desc, *eng);
+            auto ref_bias = memory(*dec_bias_desc, eng);
             compute_bias_bwd<data_t>(dd, dst->get(), ref_bias);
             compare_data<data_t>(ref_bias, bias->get());
         }
@@ -414,6 +408,9 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
 
 #define CPU_INST_TEST_CASE(str, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
         str, deconvolution_test_float, ::testing::Values(__VA_ARGS__))
+#define GPU_INST_TEST_CASE(str, ...) GPU_INSTANTIATE_TEST_SUITE_P( \
+        str, deconvolution_test_float, ::testing::Values(__VA_ARGS__))
+
 
 #define FMT_BIAS x
 #define FMT_DATA_BLOCKED nChw8c
@@ -452,6 +449,29 @@ CPU_INST_TEST_CASE(SimpleSmall_Blocked,
         2, 1, 48, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 1),
     PARAMS(FMT_DATA_BLOCKED, FMT_WEIGHTS_BLOCKED, FMT_BIAS, FMT_DATA_BLOCKED,
         2, 1, 48, 11, 11, 32, 13, 13, 3, 3, 0, 0, 1, 1)
+);
+
+//TODO: Need to merge these test-cases with CPU
+//SimpleSmall_NCHW after GPU convolution is fixed
+
+GPU_INST_TEST_CASE(SimpleSmall_NCHW,
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 2, 2, 1, 2, 2, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 3, 3, 1, 3, 3, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 1, 4, 4, 16, 4, 4, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 6, 5, 5, 1, 5, 5, 1, 1, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 6, 2, 2, 1, 1, 1, 2, 2, 0, 0, 1, 1),
+    PARAMS(nchw, hwio, x, nchw,
+        2, 1, 6, 3, 3, 1, 3, 3, 2, 2, 1, 1, 1, 1),
+    PARAMS(nchw, oihw, x, nchw,
+        2, 1, 1, 4, 4, 6, 3, 3, 2, 2, 0, 0, 1, 1),
+    PARAMS(nhwc, hwio, x, nhwc,
+        2, 1, 6, 5, 5, 1, 5, 5, 2, 2, 1, 1, 1, 1)
+
 );
 
 

@@ -20,6 +20,7 @@
 #include "jit_generator.hpp"
 
 #define F32_COPY_KERNEL_CODE_SIZE          (4096L * 5)
+#define F32_COMPUTE_KERNEL_CODE_SIZE       (4096L * 32)
 
 namespace mkldnn {
 namespace impl {
@@ -79,6 +80,90 @@ class jit_avx2_f32_copy_bt_kern : public jit_generator {
 
     public:
         jit_avx2_f32_copy_bt_kern();
+};
+
+class jit_avx_f32_copy_an_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_an_kern);
+
+    public:
+        jit_avx_f32_copy_an_kern();
+};
+
+class jit_avx_f32_copy_at_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_at_kern);
+
+    public:
+        jit_avx_f32_copy_at_kern();
+};
+
+class jit_avx_f32_copy_bn_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_bn_kern);
+
+    public:
+        jit_avx_f32_copy_bn_kern();
+};
+
+class jit_avx_f32_copy_bt_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_bt_kern);
+
+    public:
+        jit_avx_f32_copy_bt_kern();
+};
+
+class jit_avx_kernel_b0_sgemm_kern: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_kernel_b0_sgemm_kern);
+
+    public:
+        jit_avx_kernel_b0_sgemm_kern();
+};
+
+class jit_avx_kernel_sgemm_kern: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_kernel_sgemm_kern);
+
+    public:
+        jit_avx_kernel_sgemm_kern();
+};
+
+class jit_sse41_f32_copy_an_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_an_kern);
+
+    public:
+        jit_sse41_f32_copy_an_kern();
+};
+
+class jit_sse41_f32_copy_at_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_at_kern);
+
+    public:
+        jit_sse41_f32_copy_at_kern();
+};
+
+class jit_sse41_f32_copy_bn_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_bn_kern);
+
+    public:
+        jit_sse41_f32_copy_bn_kern();
+};
+
+class jit_sse41_f32_copy_bt_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_bt_kern);
+
+    public:
+        jit_sse41_f32_copy_bt_kern();
+};
+
+class jit_sse41_kernel_b0_sgemm_kern: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_kernel_b0_sgemm_kern);
+
+    public:
+        jit_sse41_kernel_b0_sgemm_kern();
+};
+
+class jit_sse41_kernel_sgemm_kern: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_kernel_sgemm_kern);
+
+    public:
+        jit_sse41_kernel_sgemm_kern();
 };
 
 }

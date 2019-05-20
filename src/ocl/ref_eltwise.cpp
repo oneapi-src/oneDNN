@@ -30,20 +30,17 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
 
-    const size_t N = pd()->MB();
-    const size_t C = pd()->C();
-    const size_t D = pd()->D();
-    const size_t H = pd()->H();
-    const size_t W = pd()->W();
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
+
+    const auto &jel = pd()->jel_;
 
     kernel_.set_arg(0, src);
     kernel_.set_arg(1, dst);
     kernel_.set_arg(2, alpha);
     kernel_.set_arg(3, beta);
 
-    auto nd_range = cl_nd_range_t({ N * C * D * H * W });
+    auto nd_range = cl_nd_range_t(jel.gws_d);
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
     status_t status = executor.parallel_for(nd_range, kernel_);
@@ -57,19 +54,16 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
 
-    const size_t N = pd()->MB();
-    const size_t C = pd()->C();
-    const size_t D = pd()->D();
-    const size_t H = pd()->H();
-    const size_t W = pd()->W();
     const float alpha = pd()->desc()->alpha;
+
+    const auto &jel = pd()->jel_;
 
     kernel_.set_arg(0, src);
     kernel_.set_arg(1, diff_src);
     kernel_.set_arg(2, diff_dst);
     kernel_.set_arg(3, alpha);
 
-    auto nd_range = cl_nd_range_t({ N * C * D * H * W });
+    auto nd_range = cl_nd_range_t(jel.gws_d);
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
     status_t status = executor.parallel_for(nd_range, kernel_);

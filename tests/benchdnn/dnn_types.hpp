@@ -106,7 +106,6 @@ struct attr_t {
     bool is_def() const;
 };
 
-const size_t max_attr_len = 128;
 int str2attr(attr_t *attr, const char *str);
 void attr2str(const attr_t *attr, char *buffer);
 
@@ -118,5 +117,8 @@ inline mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
 { return create_mkldnn_attr(attr, scale_cnt, -1, scales); }
 
 mkldnn_engine_kind_t str2engine_kind(const char *str);
+const char *engine_kind2str(mkldnn_engine_kind_t engine);
 
+void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
+void maybe_post_ops(float &d, float dst, const attr_t &attr);
 #endif

@@ -298,17 +298,16 @@ protected:
                       right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh),
                       right_padding(pd.iw, pd.ow, pd.kw, pd.padl, pd.strw) };
 
-        std::shared_ptr<memory> p_workspace, p_workspace_host;
+        memory p_workspace;
 
         auto pool_desc = (p.ndims == 5)
                 ? pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
                           p_dst_desc, { pd.strd, pd.strh, pd.strw },
                           { pd.kd, pd.kh, pd.kw },
-                          { pd.padf, pd.padt, pd.padl }, padR_3d,
-                          padding_kind::zero)
+                          { pd.padf, pd.padt, pd.padl }, padR_3d)
                 : pooling_forward::desc(p.aprop_kind, p.aalgorithm, p_src_desc,
                           p_dst_desc, { pd.strh, pd.strw }, { pd.kh, pd.kw },
-                          { pd.padt, pd.padl }, padR_2d, padding_kind::zero);
+                          { pd.padt, pd.padl }, padR_2d);
 
         auto pool_prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
@@ -319,20 +318,20 @@ protected:
                 ? pool_prim_desc.workspace_desc()
                 : memory::desc({}, data_type, p.dst_format);
         if (with_workspace)
-            p_workspace.reset(new memory(p_workspace_desc, eng));
+            p_workspace = memory(p_workspace_desc, eng);
 
         auto p_workspace_host_desc = with_workspace
                 ? memory::desc({ pd.mb, pd.c, pd.oh, pd.ow },
                           mkldnn::memory::data_type::s32, p.dst_format)
                 : memory::desc({}, data_type, p.dst_format);
-        p_workspace_host.reset(new memory(p_workspace_host_desc, eng_host));
+        memory p_workspace_host(p_workspace_host_desc, eng_host);
 
         using primitive_exec_t
                 = std::pair<primitive, std::unordered_map<int, memory>>;
         primitive_exec_t pool_exec = { pooling_forward(pool_prim_desc),
             { { MKLDNN_ARG_SRC, p_src_dev }, { MKLDNN_ARG_DST, p_dst_dev } } };
         if (with_workspace)
-            pool_exec.second.insert({ MKLDNN_ARG_WORKSPACE, *p_workspace });
+            pool_exec.second.insert({ MKLDNN_ARG_WORKSPACE, p_workspace });
 
         auto reo1 = reorder(p_src_host, p_src_dev);
         auto reo2 = reorder(p_dst_host, p_dst_dev);
@@ -365,10 +364,10 @@ protected:
                 { { MKLDNN_ARG_SRC, p_dst_dev_test },
                         { MKLDNN_ARG_DST, p_dst_host_test } } });
         if (with_workspace) {
-            reorder r(*p_workspace, *p_workspace_host);
+            reorder r(p_workspace, p_workspace_host);
             pipeline.push_back({ r,
-                    { { MKLDNN_ARG_SRC, *p_workspace },
-                            { MKLDNN_ARG_DST, *p_workspace_host } } });
+                    { { MKLDNN_ARG_SRC, p_workspace },
+                            { MKLDNN_ARG_DST, p_workspace_host } } });
         }
 
         stream strm(eng);
@@ -379,8 +378,8 @@ protected:
 
         strm.wait();
 
-        EXPECT_EQ(ref_pool_fwd<data_t>(
-                          p, p_src_dev_test, p_dst_dev_test, *p_workspace),
+        ASSERT_EQ(ref_pool_fwd<data_t>(
+                          p, p_src_dev_test, p_dst_dev_test, p_workspace),
                 0);
 
         for (auto &p : pipeline_test_outputs)

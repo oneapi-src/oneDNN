@@ -60,9 +60,6 @@ struct jit_gen9_gemm_kernel {
 
 template <impl::data_type_t type>
 struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
-    jit_gen9_gemm_beta_kernel() {}
-    ~jit_gen9_gemm_beta_kernel() {}
-
     static status_t init_const_def(ocl_jit_t &jit) {
         auto status = init_cl_options<type>(jit);
         if (status)
@@ -77,9 +74,6 @@ struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
 
 template <impl::data_type_t type>
 struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
-    jit_gen9_gemm_copy_kernel() {}
-    ~jit_gen9_gemm_copy_kernel() {}
-
     static status_t init_const_def(ocl_jit_t &jit, bool outer, bool trans) {
         auto status = init_cl_options<type>(jit);
         if (status)
@@ -100,9 +94,6 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
 
 template <impl::data_type_t type>
 struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
-    jit_gen9_gemm_compute_kernel() {}
-    ~jit_gen9_gemm_compute_kernel() {}
-
     static status_t init_const_def(ocl_jit_t &jit, bool beta0) {
         auto status = init_cl_options<type>(jit);
         if (status)
@@ -120,6 +111,37 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
         printf("OPT:\n%s\n", jit.get_options());
 #endif
         return status::success;
+    }
+};
+
+template <impl::data_type_t type>
+struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
+    static status_t init_const_def(ocl_jit_t &jit, bool trans_a, bool trans_b,
+        bool with_relu) {
+        auto status = init_cl_options<type>(jit);
+        if (status)
+            return status;
+
+        if (trans_a)
+            jit.add_option("-DTRANS_A");
+        if (trans_b)
+            jit.add_option("-DTRANS_B");
+        if (with_relu)
+            jit.define_int("WITH_RELU", 1);
+
+#ifdef DEBUG_PRINT
+        printf("OPT:\n%s\n", jit.get_options());
+#endif
+        return status::success;
+    }
+
+    static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
+        int &unroll_n) {
+        static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
+        static constexpr int unroll_n_table[2][2] = {{16, 16}, {32, 32}};
+
+        unroll_m = unroll_m_table[trans_a][trans_b];
+        unroll_n = unroll_n_table[trans_a][trans_b];
     }
 };
 

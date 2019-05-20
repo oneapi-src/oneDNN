@@ -167,17 +167,13 @@ template <typename data_t>
 void compare_eltwise_fwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &dst, const memory &ref_dst)
 {
-    auto ref_dst_data = map_memory<data_t>(ref_dst);
-    auto dst_data = map_memory<data_t>(dst);
-
-    float eps = (data_traits<data_t>::data_type == memory::data_type::f16)
+    data_t eps = (data_traits<data_t>::data_type == memory::data_type::f16)
             ? 5e-2
-            : (p.alg_kind == algorithm::eltwise_soft_relu) ? 2e-6 : 1e-6;
+            : (p.alg_kind == algorithm::eltwise_elu)
+                ? 2e-5
+                : (p.alg_kind == algorithm::eltwise_soft_relu) ? 2e-6 : 1e-6;
 
-    memory::dim n = n_elems(md);
-    for (memory::dim i = 0; i < n; ++i) {
-        ASSERT_NEAR(dst_data[i], ref_dst_data[i], eps);
-    }
+    compare_data(ref_dst, dst, eps);
 }
 
 
@@ -186,6 +182,8 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &src, const memory &diff_dst,
         const memory &diff_src)
 {
+    ASSERT_TRUE(data_traits<data_t>::data_type == memory::data_type::f32);
+
     auto src_data = map_memory<data_t>(src);
     auto diff_dst_data = map_memory<data_t>(diff_dst);
     auto diff_src_data = map_memory<data_t>(diff_src);
@@ -195,8 +193,10 @@ void check_eltwise_bwd(const eltwise_test_params &p,
     const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
     const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    float eps = (data_traits<data_t>::data_type == memory::data_type::f16)
-        ? 5e-2 : 1e-6;
+    const data_t eps = (p.alg_kind == algorithm::eltwise_soft_relu
+            || p.alg_kind == algorithm::eltwise_tanh)
+        ? 2e-6
+        : 1e-6;
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -222,25 +222,22 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
-        EXPECT_NEAR(diff_src_data[diff_data_mdw.off_l(i)], ref_ds, eps);
+
+        const data_t diff = diff_src_data[diff_data_mdw.off_l(i)] - ref_ds;
+        const data_t error = (std::abs(ref_ds) > eps) ? diff / ref_ds : diff;
+        ASSERT_NEAR(error, 0.0, eps);
     }
 }
 
 template <typename data_t>
 class eltwise_test : public ::testing::TestWithParam<eltwise_test_params> {
 private:
-    std::shared_ptr<memory> src;
-    std::shared_ptr<memory> diff_src;
-    std::shared_ptr<memory> dst;
-    std::shared_ptr<memory> ref_dst;
-    std::shared_ptr<memory> diff_dst;
-    std::shared_ptr<memory> workspace;
+    memory src;
     std::shared_ptr<memory::desc> data_desc;
-    std::shared_ptr<memory::desc> diff_data_desc;
-    std::shared_ptr<eltwise_forward::primitive_desc> eltwise_prim_desc;
+    eltwise_forward::primitive_desc eltwise_prim_desc;
     eltwise_test_params p;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
 
 protected:
@@ -258,69 +255,73 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
 
         Forward();
-        Backward();
+        if (data_type != memory::data_type::f16) {
+            Backward();
+        }
     }
 
     void Forward() {
         data_desc.reset(new memory::desc(p.dims, data_type,
             p.data_format));
-        diff_data_desc.reset(new memory::desc(p.dims, data_type,
-            p.diff_format));
-        src.reset(new memory(*data_desc, *eng));
-        dst.reset(new memory(*data_desc, *eng));
-        ref_dst.reset(new memory(*data_desc, *eng));
+        src = memory(*data_desc, eng);
+        memory dst(*data_desc, eng);
+        memory ref_dst(*data_desc, eng);
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(*data_desc), *src,
-                data_median, data_deviation);
-        check_zero_tail<data_t>(1, *src);
+                = p.alg_kind == algorithm::eltwise_elu
+                ? data_t(1.0)
+                : p.alg_kind == algorithm::eltwise_square
+                    ? data_t(6.0) : data_t(200.0);
+        fill_data<data_t>(n_elems(*data_desc), src, data_median, data_deviation);
+        check_zero_tail<data_t>(1, src);
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
                 p.alg_kind, *data_desc, p.alpha, p.beta);
-        eltwise_prim_desc.reset(
-                new eltwise_forward::primitive_desc(eltwise_desc, *eng));
-        eltwise_forward(*eltwise_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DST, *dst}});
-        strm->wait();
+        eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
+        eltwise_forward(eltwise_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src},
+                {MKLDNN_ARG_DST, dst}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *dst);
-        check_eltwise_fwd<data_t>(p, *data_desc, *src, *ref_dst);
-        check_zero_tail<data_t>(1, *ref_dst);
-        compare_eltwise_fwd<data_t>(p, *data_desc, *dst, *ref_dst);
+        check_zero_tail<data_t>(0, dst);
+        check_eltwise_fwd<data_t>(p, *data_desc, src, ref_dst);
+        check_zero_tail<data_t>(1, ref_dst);
+        compare_eltwise_fwd<data_t>(p, *data_desc, dst, ref_dst);
     }
 
     void Backward() {
-        diff_src.reset(new memory(*diff_data_desc, *eng));
-        diff_dst.reset(new memory(*diff_data_desc, *eng));
+        memory::desc diff_data_desc(p.dims, data_type, p.diff_format);
+        memory diff_src(diff_data_desc, eng);
+        memory diff_dst(diff_data_desc, eng);
 
         data_t data_median = data_t(0);
-        data_t data_deviation
-                = p.alg_kind == algorithm::eltwise_elu ? data_t(1) : data_t(200);
-        fill_data<data_t>(n_elems(*diff_data_desc),
-                *diff_dst, data_median,
+        data_t data_deviation = p.alg_kind == algorithm::eltwise_elu
+                ? data_t(1.0)
+                : p.alg_kind == algorithm::eltwise_square
+                    ? data_t(6.0) : data_t(200.0);
+        fill_data<data_t>(n_elems(diff_data_desc), diff_dst, data_median,
                 data_deviation);
-        check_zero_tail<data_t>(1, *diff_dst);
+        check_zero_tail<data_t>(1, diff_dst);
 
         auto eltwise_bwd_desc = eltwise_backward::desc(p.alg_kind,
-                *diff_data_desc, *data_desc, p.alpha, p.beta);
+                diff_data_desc, *data_desc, p.alpha, p.beta);
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
-                eltwise_bwd_desc, *eng, *eltwise_prim_desc);
+                eltwise_bwd_desc, eng, eltwise_prim_desc);
 
-        eltwise_backward(eltwise_bwd_prim_desc).execute(*strm, {
-                {MKLDNN_ARG_SRC, *src},
-                {MKLDNN_ARG_DIFF_DST, *diff_dst},
-                {MKLDNN_ARG_DIFF_SRC, *diff_src}});
-        strm->wait();
+        eltwise_backward(eltwise_bwd_prim_desc).execute(strm, {
+                {MKLDNN_ARG_SRC, src},
+                {MKLDNN_ARG_DIFF_DST, diff_dst},
+                {MKLDNN_ARG_DIFF_SRC, diff_src}});
+        strm.wait();
 
-        check_zero_tail<data_t>(0, *diff_src);
-        check_eltwise_bwd<data_t>(p, *data_desc, *src, *diff_dst, *diff_src);
+        check_zero_tail<data_t>(0, diff_src);
+        /* XXX: Backward pass supports f32 only */
+        check_eltwise_bwd<float>(p, *data_desc, src, diff_dst, diff_src);
     }
 };
 
@@ -396,14 +397,14 @@ CPU_INST_TEST_CASE(Simple_3D,
     PARAMS_ALL_ALG(ncdhw, ndhwc, 0.1f, 0.f, 10, 10, 10, 10, 10)
 );
 
-CPU_INST_TEST_CASE(Simple_blocked_3d_padded,
+INST_TEST_CASE(Simple_blocked_3d_padded,
     PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 15, 2, 2, 2),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 27, 2, 2, 2),
     PARAMS_ALL_ALG(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 2, 2, 2),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 23, 7, 7, 7)
 );
 
-CPU_INST_TEST_CASE(Simple_blocked_padded,
+INST_TEST_CASE(Simple_blocked_padded,
     PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 15, 2, 2),
     PARAMS_ALL_ALG_SDPART(nChw16c, nChw16c, 0.1f, 0.2f, 4, 27, 2, 2),
     PARAMS_ALL_ALG(nChw16c, nChw16c, 0.1f, 0.2f, 4, 23, 2, 2),
@@ -445,7 +446,7 @@ INST_TEST_CASE(Simple_NCHW,
     PARAMS_ALL_ALG(nchw, nchw, 0.1f, 0.f, 3, 5, 7, 11)
 );
 
-CPU_INST_TEST_CASE(Simple_NCHW_SDPART,
+INST_TEST_CASE(Simple_NCHW_SDPART,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.1f, 0.f, 256, 64, 8, 16)
 );
 
@@ -476,7 +477,7 @@ INST_TEST_CASE(AlexNet_NCHW,
     PARAMS_ALL_ALG_SDPART(nchw, nchw, 0.f, 0.f, 2, 384, 13, 13)
 );
 
-CPU_INST_TEST_CASE(Simple_X,
+INST_TEST_CASE(Simple_X,
     PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55)
 );
 

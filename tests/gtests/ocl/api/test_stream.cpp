@@ -55,13 +55,13 @@ protected:
             return;
         }
 
-        eng.reset(new engine(engine::kind::gpu, 0));
+        eng = engine(engine::kind::gpu, 0);
 
-        ocl_ctx = eng->get_ocl_context();
-        ocl_dev = eng->get_ocl_device();
+        ocl_ctx = eng.get_ocl_context();
+        ocl_dev = eng.get_ocl_device();
     }
 
-    std::shared_ptr<engine> eng;
+    engine eng;
     cl_context ocl_ctx = nullptr;
     cl_device_id ocl_dev = nullptr;
 };
@@ -84,8 +84,8 @@ TEST_F(ocl_stream_test_c, CreateC) {
     OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
             sizeof(ocl_queue_ctx), &ocl_queue_ctx, nullptr));
 
-    EXPECT_EQ(ocl_dev, ocl_queue_dev);
-    EXPECT_EQ(ocl_ctx, ocl_queue_ctx);
+    ASSERT_EQ(ocl_dev, ocl_queue_dev);
+    ASSERT_EQ(ocl_ctx, ocl_queue_ctx);
 
     MKLDNN_CHECK(mkldnn_stream_destroy(stream));
 }
@@ -94,7 +94,7 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
-    stream s(*eng);
+    stream s(eng);
     cl_command_queue ocl_queue = s.get_ocl_command_queue();
 
     cl_device_id ocl_queue_dev;
@@ -104,8 +104,8 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
     OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
             sizeof(ocl_queue_ctx), &ocl_queue_ctx, nullptr));
 
-    EXPECT_EQ(ocl_dev, ocl_queue_dev);
-    EXPECT_EQ(ocl_ctx, ocl_queue_ctx);
+    ASSERT_EQ(ocl_dev, ocl_queue_dev);
+    ASSERT_EQ(ocl_ctx, ocl_queue_ctx);
 }
 
 TEST_F(ocl_stream_test_c, BasicInteropC) {
@@ -122,20 +122,20 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
 
     cl_command_queue ocl_queue;
     MKLDNN_CHECK(mkldnn_stream_get_ocl_command_queue(stream, &ocl_queue));
-    EXPECT_EQ(ocl_queue, interop_ocl_queue);
+    ASSERT_EQ(ocl_queue, interop_ocl_queue);
 
     cl_uint ref_count;
     OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
-    EXPECT_EQ(i_ref_count, 2);
+    ASSERT_EQ(i_ref_count, 2);
 
     MKLDNN_CHECK(mkldnn_stream_destroy(stream));
 
     OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     i_ref_count = int(ref_count);
-    EXPECT_EQ(i_ref_count, 1);
+    ASSERT_EQ(i_ref_count, 1);
 
     OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
@@ -150,24 +150,24 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     OCL_CHECK(err);
 
     {
-        stream s(*eng, interop_ocl_queue);
+        stream s(eng, interop_ocl_queue);
 
         cl_uint ref_count;
         OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
                 CL_QUEUE_REFERENCE_COUNT, sizeof(cl_uint), &ref_count,
                 nullptr));
         int i_ref_count = int(ref_count);
-        EXPECT_EQ(i_ref_count, 2);
+        ASSERT_EQ(i_ref_count, 2);
 
         cl_command_queue ocl_queue = s.get_ocl_command_queue();
-        EXPECT_EQ(ocl_queue, interop_ocl_queue);
+        ASSERT_EQ(ocl_queue, interop_ocl_queue);
     }
 
     cl_uint ref_count;
     OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
-    EXPECT_EQ(i_ref_count, 1);
+    ASSERT_EQ(i_ref_count, 1);
 
     OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
@@ -191,7 +191,7 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
     mkldnn_stream_t stream;
     mkldnn_status_t status
             = mkldnn_stream_create_ocl(&stream, eng, cpu_ocl_queue);
-    EXPECT_EQ(status, mkldnn_invalid_arguments);
+    ASSERT_EQ(status, mkldnn_invalid_arguments);
 
     OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
 }
@@ -212,7 +212,7 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
     OCL_CHECK(err);
 
-    catch_expected_failures([&] { stream s(*eng, cpu_ocl_queue); }, true,
+    catch_expected_failures([&] { stream s(eng, cpu_ocl_queue); }, true,
             mkldnn_invalid_arguments);
 
     OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));

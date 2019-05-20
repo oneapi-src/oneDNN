@@ -50,6 +50,9 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
         mkldnn::impl::parallel_nd(
             dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
             [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
+            if (is_current_test_failed())
+                return;
+
             acc_t src_sum = 0.0;
             for (size_t num = 0; num < srcs.size(); num++) {
                 auto &src_data = mapped_srcs[num];
@@ -62,9 +65,11 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                     + src_dims[2]*src_dims[3]*c
                     + src_dims[1]*src_dims[2]*src_dims[3]*n;
                 if (num == 0) {
-                    src_sum = data_t(scale[num]) * src_data[src_mdw.off_l(src_idx, true)];
+                    src_sum = data_t(scale[num])
+                            * src_data[src_mdw.off_l(src_idx, false)];
                 } else {
-                    src_sum += data_t(scale[num])* src_data[src_mdw.off_l(src_idx, true)];
+                    src_sum += data_t(scale[num])
+                            * src_data[src_mdw.off_l(src_idx, false)];
                 }
 
                 src_sum = std::max(std::min(src_sum,
@@ -77,9 +82,9 @@ class sum_test: public ::testing::TestWithParam<sum_test_params> {
                 + dst_dims[3]*h
                 + dst_dims[2]*dst_dims[3]*c
                 + dst_dims[1]*dst_dims[2]*dst_dims[3]*n;
-            auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, true)];
+            auto diff = src_sum - dst_data[dst_mdw.off_l(dst_idx, false)];
             auto e = (std::abs(src_sum) > 1e-4) ? diff / src_sum : diff;
-            EXPECT_NEAR(e, 0.0, 1.2e-7);
+            ASSERT_NEAR(e, 0.0, 1.2e-7);
             }
         );
     }
@@ -119,41 +124,39 @@ protected:
             srcs.push_back(src_memory);
         }
 
-        std::shared_ptr<memory> dst;
-        std::shared_ptr<sum::primitive_desc> sum_pd;
+        memory dst;
+        sum::primitive_desc sum_pd;
 
         if (p.is_output_omitted) {
-            ASSERT_NO_THROW(sum_pd.reset(
-                new sum::primitive_desc(p.scale, srcs_md, eng)));
+            ASSERT_NO_THROW(sum_pd = sum::primitive_desc(p.scale, srcs_md, eng));
         } else {
             auto dst_desc = memory::desc(p.dims, data_type, p.dst_format);
-            sum_pd.reset(
-                new sum::primitive_desc(dst_desc, p.scale, srcs_md, eng));
+            sum_pd = sum::primitive_desc(dst_desc, p.scale, srcs_md, eng);
 
-            ASSERT_EQ(sum_pd->dst_desc().data.ndims, dst_desc.data.ndims);
+            ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
         }
-        ASSERT_NO_THROW(dst.reset(new memory(sum_pd->dst_desc(), eng)));
+        ASSERT_NO_THROW(dst = memory(sum_pd.dst_desc(), eng));
 
         {
-            auto dst_data = map_memory<data_t>(*dst);
+            auto dst_data = map_memory<data_t>(dst);
             const size_t sz =
-                dst->get_desc().get_size() / sizeof(data_t);
+                dst.get_desc().get_size() / sizeof(data_t);
             // overwriting dst to prevent false positives for test cases.
             mkldnn::impl::parallel_nd((ptrdiff_t)sz,
                 [&](ptrdiff_t i) { dst_data[i] = -32; }
             );
         }
 
-        sum c(*sum_pd);
+        sum c(sum_pd);
         std::unordered_map<int, memory> args = {
-            {MKLDNN_ARG_DST, *dst}};
+            {MKLDNN_ARG_DST, dst}};
         for (int i = 0; i < (int)num_srcs; i++) {
             args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
         c.execute(strm, args);
         strm.wait();
 
-        check_data(srcs, p.scale, *dst);
+        check_data(srcs, p.scale, dst);
     }
 };
 
@@ -242,6 +245,10 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestSumEF, test, ::testing::Values( \
     {2, 8, 4 ,4}, {0.1f}, 0, true, mkldnn_invalid_arguments} \
 ));
 
+#define INST_TEST_CASE(test, omit_output) \
+    CPU_INST_TEST_CASE(test, omit_output) \
+    GPU_INST_TEST_CASE(test, omit_output)
+
 using sum_test_float_omit_output = sum_test<float,float>;
 using sum_test_u8_omit_output = sum_test<uint8_t,float>;
 using sum_test_s8_omit_output = sum_test<int8_t,float>;
@@ -262,18 +269,15 @@ INSTANTIATE_TEST_SUITE_P(TestSumCornerCases, sum_cc_f32, ::testing::Values(
     ));
 #undef CASE_CC
 
-CPU_INST_TEST_CASE(sum_test_float_omit_output, 1)
+INST_TEST_CASE(sum_test_float_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_u8_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_s8_omit_output, 1)
 CPU_INST_TEST_CASE(sum_test_s32_omit_output, 1)
 
-CPU_INST_TEST_CASE(sum_test_float, 0)
+INST_TEST_CASE(sum_test_float, 0)
 CPU_INST_TEST_CASE(sum_test_u8, 0)
 CPU_INST_TEST_CASE(sum_test_s8, 0)
 CPU_INST_TEST_CASE(sum_test_s32, 0)
-
-GPU_INST_TEST_CASE(sum_test_float_omit_output, 1)
-GPU_INST_TEST_CASE(sum_test_float, 0)
 
 #undef CPU_INST_TEST_CASE
 #undef GPU_INST_TEST_CASE

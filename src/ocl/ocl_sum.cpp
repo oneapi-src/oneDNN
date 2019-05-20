@@ -17,6 +17,7 @@
 #include "common/utils.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_sum_pd.hpp"
+#include "ocl/ref_sum.hpp"
 #include "ocl/simple_sum.hpp"
 
 namespace mkldnn {
@@ -29,6 +30,7 @@ namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
 static const spd_create_f ocl_sum_impl_list[] = {
     INSTANCE(simple_sum_t<data_type::f32>),
+    INSTANCE(ref_sum_t),
     nullptr,
 };
 #undef INSTANCE

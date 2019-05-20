@@ -34,12 +34,11 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
-        const dims_t padding_r, padding_kind_t padding_kind) {
+        const dims_t padding_r) {
     bool args_ok = true
             && !any_null(deconv_desc, src_desc, weights_desc, dst_desc, strides,
                            padding_l)
-            && one_of(alg_kind, deconvolution_direct, deconvolution_winograd)
-            && one_of(padding_kind, padding_kind::padding_zero);
+            && one_of(alg_kind, deconvolution_direct, deconvolution_winograd);
     if (!args_ok)
         return invalid_arguments;
 
@@ -78,7 +77,6 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     else
         utils::array_set(dd.dilates, 0, sp_dims);
 
-    dd.padding_kind = padding_kind;
     dd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
 
@@ -118,13 +116,12 @@ status_t mkldnn_deconvolution_forward_desc_init(
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_desc, const dims_t strides,
-        const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t padding_l, const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return deconv_desc_init(deconv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, nullptr, padding_l,
-            padding_r, padding_kind);
+            padding_r);
 }
 
 status_t mkldnn_dilated_deconvolution_forward_desc_init(
@@ -132,46 +129,42 @@ status_t mkldnn_dilated_deconvolution_forward_desc_init(
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_desc, const dims_t strides,
-        const dims_t dilates, const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return deconv_desc_init(deconv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, dilates, padding_l,
-            padding_r, padding_kind);
+            padding_r);
 }
 
 status_t mkldnn_deconvolution_backward_data_desc_init(
         deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
         const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t padding_l, const dims_t padding_r) {
     return deconv_desc_init(deconv_desc, backward_data, alg_kind, diff_src_desc,
             weights_desc, nullptr, diff_dst_desc, strides, nullptr, padding_l,
-            padding_r, padding_kind);
+            padding_r);
 }
 
 status_t mkldnn_dilated_deconvolution_backward_data_desc_init(
         deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
         const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t dilates, const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
     return deconv_desc_init(deconv_desc, backward_data, alg_kind, diff_src_desc,
             weights_desc, nullptr, diff_dst_desc, strides,dilates, padding_l,
-            padding_r, padding_kind);
+            padding_r);
 }
 
 status_t mkldnn_deconvolution_backward_weights_desc_init(
         deconvolution_desc_t *deconv_desc, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
-        const dims_t strides, const dims_t padding_l, const dims_t padding_r,
-        padding_kind_t padding_kind) {
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
     return deconv_desc_init(deconv_desc, backward_weights, alg_kind, src_desc,
             diff_weights_desc, diff_bias_desc, diff_dst_desc, strides, nullptr,
-            padding_l, padding_r, padding_kind);
+            padding_l, padding_r);
 }
 
 status_t mkldnn_dilated_deconvolution_backward_weights_desc_init(
@@ -179,10 +172,10 @@ status_t mkldnn_dilated_deconvolution_backward_weights_desc_init(
         const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
-        const dims_t padding_r, padding_kind_t padding_kind) {
+        const dims_t padding_r) {
     return deconv_desc_init(deconv_desc, backward_weights, alg_kind, src_desc,
             diff_weights_desc, diff_bias_desc, diff_dst_desc, strides, dilates,
-            padding_l, padding_r, padding_kind);
+            padding_l, padding_r);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

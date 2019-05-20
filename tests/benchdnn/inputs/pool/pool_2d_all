@@ -1,0 +1,7 @@
+# all 2d pooling data set
+
+--batch=pool_2d
+--batch=pool_alexnet
+--batch=pool_googlenet_v1
+--batch=pool_googlenet_v3
+--batch=pool_resnet_50

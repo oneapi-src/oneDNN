@@ -72,7 +72,7 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
 
     cl_mem ocl_mem;
     MKLDNN_CHECK(mkldnn_memory_get_ocl_mem_object(memory, &ocl_mem));
-    EXPECT_EQ(ocl_mem, nullptr);
+    ASSERT_EQ(ocl_mem, nullptr);
 
     cl_int err;
     cl_mem interop_ocl_mem = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE,
@@ -82,7 +82,7 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
     MKLDNN_CHECK(mkldnn_memory_set_ocl_mem_object(memory, interop_ocl_mem));
 
     MKLDNN_CHECK(mkldnn_memory_get_ocl_mem_object(memory, &ocl_mem));
-    EXPECT_EQ(ocl_mem, interop_ocl_mem);
+    ASSERT_EQ(ocl_mem, interop_ocl_mem);
 
     MKLDNN_CHECK(mkldnn_memory_destroy(memory));
     memory = nullptr;
@@ -91,7 +91,7 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
     OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
-    EXPECT_EQ(i_ref_count, 1);
+    ASSERT_EQ(i_ref_count, 1);
 
     OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
@@ -115,19 +115,19 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
         memory mem(mem_d, eng);
 
         cl_mem ocl_mem = mem.get_ocl_mem_object();
-        EXPECT_NE(ocl_mem, nullptr);
+        ASSERT_NE(ocl_mem, nullptr);
 
         mem.set_ocl_mem_object(interop_ocl_mem);
 
         ocl_mem = mem.get_ocl_mem_object();
-        EXPECT_EQ(ocl_mem, interop_ocl_mem);
+        ASSERT_EQ(ocl_mem, interop_ocl_mem);
     }
 
     cl_uint ref_count;
     OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
-    EXPECT_EQ(i_ref_count, 1);
+    ASSERT_EQ(i_ref_count, 1);
 
     OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }

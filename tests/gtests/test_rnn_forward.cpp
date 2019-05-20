@@ -46,9 +46,16 @@ struct test_rnn_formats_t {
     mkldnn::memory::format_tag dst_iter_fmt;
 };
 
-struct test_rnn_params_t {
-    mkldnn::algorithm aalgorithm;
+struct test_rnn_extra_t {
     mkldnn::algorithm activation;
+    rnn_flags flags;
+    float alpha;
+    float beta;
+};
+
+struct test_rnn_params_t {
+    test_rnn_extra_t extra;
+    prop_kind aprop;
     mkldnn::rnn_direction direction;
     test_rnn_formats_t fmts;
     test_rnn_sizes_t sizes;
@@ -57,9 +64,33 @@ struct test_rnn_params_t {
 };
 
 // We assume uniform data type accross tensors for now
-template <typename data_t>
+template <typename T, typename data_t>
 class rnn_forward_test
     : public ::testing::TestWithParam<test_rnn_params_t> {
+
+private:
+    void getNGatesState(memory::dim &g, memory::dim &s);
+    typename T::desc setDesc(prop_kind aprop, algorithm activation,
+                    rnn_direction direction,
+                    const memory::desc &src_layer_md,
+                    const memory::desc &src_iter_md,
+                    const memory::desc &weights_layer_md,
+                    const memory::desc &weights_iter_md,
+                    const memory::desc &bias_md,
+                    const memory::desc &dst_layer_md,
+                    const memory::desc &dst_iter_md,
+                    rnn_flags flags = rnn_flags::undef,
+                    float alpha = 0.0f, float beta = 0.0f);
+
+    rnn_direction direction;
+    memory::desc weights_layer_md_ref;
+    memory::desc weights_iter_md_ref;
+    memory::desc bias_md_ref;
+    memory::desc src_layer_md_ref;
+    memory::desc src_iter_md_ref;
+    memory::desc dst_layer_md_ref;
+    memory::desc dst_iter_md_ref;
+
 protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
@@ -79,17 +110,8 @@ protected:
         auto dims = p.sizes;
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
         auto slc = dims.slc, sic = dims.sic, dlc = dims.dlc, dic = dims.dic;
-        memory::dim s, g;
-
-        switch (p.aalgorithm) {
-        case algorithm::vanilla_lstm:
-            g = 4; s = 2; break;
-        case algorithm::vanilla_gru:
-        case algorithm::gru_linear_before_reset:
-            g = 3; s = 1; break;
-        default:
-            g = 1; s = 1; break;
-        };
+        memory::dim g, s;
+        getNGatesState(g, s);
 
         auto weights_layer_dims = {l, d, slc, g, dic};
         auto weights_iter_dims = {l, d, sic, g, dic};
@@ -115,25 +137,21 @@ protected:
         auto dst_layer_md_tgt = memory::desc({dst_layer_dims}, prec, p.fmts.dst_layer_fmt);
         auto dst_iter_md_tgt = memory::desc({dst_iter_dims}, prec, p.fmts.dst_iter_fmt);
 
-
-        // Create the reference descriptor
-        rnn_cell::desc cell(p.aalgorithm, p.activation);
-        auto direction = p.direction;
-
-        rnn_forward::desc ref_desc(prop_kind::forward_inference, cell,
-                direction, src_layer_md_any, src_iter_md_any,
+        // Create the reference primitive descriptor
+        auto ref_d = setDesc(p.aprop, p.extra.activation,
+                p.direction, src_layer_md_any, src_iter_md_any,
                 weights_layer_md_any, weights_iter_md_any, bias_md_any,
-                dst_layer_md_any, dst_iter_md_any);
-        auto ref_prim_desc = rnn_forward::primitive_desc(ref_desc, eng);
+                dst_layer_md_any, dst_iter_md_any, p.extra.flags, p.extra.alpha, p.extra.beta);
+        typename T::primitive_desc ref_pd(ref_d, eng);
 
         // Query the descriptor for memory descriptors
-        auto weights_layer_md_ref = ref_prim_desc.weights_layer_desc();
-        auto weights_iter_md_ref = ref_prim_desc.weights_iter_desc();
-        auto bias_md_ref = ref_prim_desc.bias_desc();
-        auto src_layer_md_ref = ref_prim_desc.src_layer_desc();
-        auto src_iter_md_ref = ref_prim_desc.src_iter_desc();
-        auto dst_layer_md_ref = ref_prim_desc.dst_layer_desc();
-        auto dst_iter_md_ref = ref_prim_desc.dst_iter_desc();
+        auto weights_layer_md_ref = ref_pd.weights_layer_desc();
+        auto weights_iter_md_ref = ref_pd.weights_iter_desc();
+        auto bias_md_ref = ref_pd.bias_desc();
+        auto src_layer_md_ref = ref_pd.src_layer_desc();
+        auto src_iter_md_ref = ref_pd.src_iter_desc();
+        auto dst_layer_md_ref = ref_pd.dst_layer_desc();
+        auto dst_iter_md_ref = ref_pd.dst_iter_desc();
 
         bool skip_test = true
             && weights_layer_md_ref == weights_layer_md_tgt
@@ -163,17 +181,18 @@ protected:
         auto dst_layer_tgt = memory(dst_layer_md_tgt, eng);
         auto dst_iter_tgt = memory(dst_iter_md_tgt, eng);
 
+        // Assumption: b is a plain layout
         auto init_tensor = [&](memory a, memory b) {
-            auto a_ptr = map_memory<float>(a);
+            auto b_ptr = map_memory<float>(b);
             auto desc = a.get_desc();
-            auto a_dims = desc.data.dims;
-            auto a_ndims = desc.data.ndims;
-            auto n_elems = std::accumulate(a_dims, a_dims + a_ndims, size_t(1),
+            auto b_dims = desc.data.dims;
+            auto b_ndims = desc.data.ndims;
+            auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<float>());
             const mkldnn::impl::memory_desc_wrapper mdw(desc.data);
             for(size_t i = 0; i < n_elems; i++)
-                a_ptr[mdw.off_l(i, false)] = i;
-            reorder(a, b).execute(strm, a, b);
+                b_ptr[i] = i;
+            reorder(b, a).execute(strm, b, a);
             strm.wait();
         };
 
@@ -184,7 +203,7 @@ protected:
         init_tensor(src_iter_ref, src_iter_tgt);
 
         // run the non packed version
-        rnn_forward(ref_prim_desc).execute(strm, {
+        T(ref_pd).execute(strm, {
                 {MKLDNN_ARG_SRC_LAYER, src_layer_ref},
                 {MKLDNN_ARG_SRC_ITER, src_iter_ref},
                 {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_ref},
@@ -195,12 +214,13 @@ protected:
         strm.wait();
 
         // run the packed version
-        rnn_forward::desc tgt_desc(prop_kind::forward_inference, cell,
-                direction, src_layer_md_tgt, src_iter_md_tgt,
+        auto tgt_d = setDesc(p.aprop, p.extra.activation,
+                p.direction, src_layer_md_tgt, src_iter_md_tgt,
                 weights_layer_md_tgt, weights_iter_md_tgt, bias_md_tgt,
-                dst_layer_md_tgt, dst_iter_md_tgt);
-        auto tgt_prim_desc = rnn_forward::primitive_desc(tgt_desc, eng);
-        rnn_forward(tgt_prim_desc).execute(strm, {
+                dst_layer_md_tgt, dst_iter_md_tgt, p.extra.flags, p.extra.alpha, p.extra.beta);
+        typename T::primitive_desc tgt_pd(tgt_d, eng);
+
+        T(tgt_pd).execute(strm, {
                 {MKLDNN_ARG_SRC_LAYER, src_layer_tgt},
                 {MKLDNN_ARG_SRC_ITER, src_iter_tgt},
                 {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_tgt},
@@ -216,34 +236,155 @@ protected:
     }
 };
 
-    using eng = engine::kind;
-    using fmt = memory::format_tag;
-    using alg = algorithm;
-    using dir = rnn_direction;
-    using rnn_forward_test_f32 = rnn_forward_test<float>;
-    using cfg_f32 = test_rnn_params_t;
+/* RNN specializations */
+template<>
+void rnn_forward_test<rnn_forward, float>::getNGatesState(
+        memory::dim &g, memory::dim &s){
+    g = 1; s = 1;
+}
+
+template<>
+rnn_forward::desc rnn_forward_test<rnn_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation,
+        rnn_direction direction,
+        const memory::desc &src_layer_md,
+        const memory::desc &src_iter_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md,
+        const memory::desc &bias_md,
+        const memory::desc &dst_layer_md,
+        const memory::desc &dst_iter_md,
+        rnn_flags flags,
+        float alpha, float beta){
+    rnn_forward::desc rnn_d(aprop,
+                activation, direction, src_layer_md, src_iter_md,
+                weights_layer_md, weights_iter_md, bias_md,
+                dst_layer_md, dst_iter_md, flags, alpha, beta);
+    return rnn_d;
+}
+
+
+/* LSTM specializations */
+template<>
+void rnn_forward_test<lstm_forward, float>::getNGatesState(
+        memory::dim &g, memory::dim &s){
+    g = 4; s = 2;
+}
+
+template<>
+lstm_forward::desc rnn_forward_test<lstm_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation,
+        rnn_direction direction,
+        const memory::desc &src_layer_md,
+        const memory::desc &src_iter_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md,
+        const memory::desc &bias_md,
+        const memory::desc &dst_layer_md,
+        const memory::desc &dst_iter_md,
+        rnn_flags flags,
+        float alpha, float beta){
+    lstm_forward::desc lstm_d(aprop,
+                direction, src_layer_md, src_iter_md,
+                weights_layer_md, weights_iter_md, bias_md,
+                dst_layer_md, dst_iter_md, flags);
+    return lstm_d;
+}
+
+/* GRU specializations */
+template<>
+void rnn_forward_test<gru_forward, float>::getNGatesState(
+        memory::dim &g, memory::dim &s){
+    g = 3; s = 1;
+}
+
+template<>
+gru_forward::desc rnn_forward_test<gru_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation,
+        rnn_direction direction,
+        const memory::desc &src_layer_md,
+        const memory::desc &src_iter_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md,
+        const memory::desc &bias_md,
+        const memory::desc &dst_layer_md,
+        const memory::desc &dst_iter_md,
+        rnn_flags flags,
+        float alpha, float beta){
+    gru_forward::desc gru_d(aprop,
+                direction, src_layer_md, src_iter_md,
+                weights_layer_md, weights_iter_md, bias_md,
+                dst_layer_md, dst_iter_md, flags);
+    return gru_d;
+}
+
+/* LBR GRU specializations */
+template<>
+void rnn_forward_test<lbr_gru_forward, float>::getNGatesState(
+        memory::dim &g, memory::dim &s){
+    g = 3; s = 1;
+}
+
+template<>
+lbr_gru_forward::desc rnn_forward_test<lbr_gru_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation,
+        rnn_direction direction,
+        const memory::desc &src_layer_md,
+        const memory::desc &src_iter_md,
+        const memory::desc &weights_layer_md,
+        const memory::desc &weights_iter_md,
+        const memory::desc &bias_md,
+        const memory::desc &dst_layer_md,
+        const memory::desc &dst_iter_md,
+        rnn_flags flags,
+        float alpha, float beta){
+    lbr_gru_forward::desc lbr_gru_d(aprop,
+                direction, src_layer_md, src_iter_md,
+                weights_layer_md, weights_iter_md, bias_md,
+                dst_layer_md, dst_iter_md, flags);
+    return lbr_gru_d;
+}
+
+using eng = engine::kind;
+using fmt = memory::format_tag;
+using alg = algorithm;
+using dir = rnn_direction;
+using rnn_forward_test_f32 = rnn_forward_test<rnn_forward, float>;
+using lstm_forward_test_f32 = rnn_forward_test<lstm_forward, float>;
+using gru_forward_test_f32 = rnn_forward_test<gru_forward, float>;
+using lbr_gru_forward_test_f32 = rnn_forward_test<lbr_gru_forward, float>;
+
+using cfg_f32 = test_rnn_params_t;
+
+#define PLAIN_RNN(a) {a, rnn_flags::undef, 0.0f, 0.0f}
+#define NOT_RNN {alg::undef, rnn_flags::undef, 0.0f, 0.0f}
 
 TEST_P(rnn_forward_test_f32, TestsRnn) { }
 CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
         ::testing::Values(
-            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
-                {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
-                    test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)},
-            cfg_f32{alg::vanilla_lstm, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{PLAIN_RNN(alg::eltwise_tanh), prop_kind::forward_inference, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)},
             /* Check for invalid parameters: unsupported unrolling */
-            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{PLAIN_RNN(alg::eltwise_tanh), prop_kind::forward_inference, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 200, 100, 100, 100), true, mkldnn_invalid_arguments},
-            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{PLAIN_RNN(alg::eltwise_tanh), prop_kind::forward_inference, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 100, 200, 100, 100), true, mkldnn_invalid_arguments},
             /* Check for invalid parameters: inconsistent dimensions */
-            cfg_f32{alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
+            cfg_f32{PLAIN_RNN(alg::eltwise_tanh), prop_kind::forward_inference, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
                     test_rnn_sizes_t(2, 1, 10, 16, 100, 100, 50, 100), true, mkldnn_invalid_arguments}
             )
     );
 
+TEST_P(lstm_forward_test_f32, TestsLSTM) { }
+CPU_INSTANTIATE_TEST_SUITE_P(TestLSTM, lstm_forward_test_f32,
+        ::testing::Values(
+            cfg_f32{NOT_RNN, prop_kind::forward_inference, dir::unidirectional_left2right,
+                {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
+                    test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)}
+            )
+    );
 }

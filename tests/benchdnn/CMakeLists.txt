@@ -45,7 +45,7 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
-if(WIN32 OR MINGW)
+if((WIN32 OR MINGW) AND (NOT MKLDNN_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
         "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
@@ -56,32 +56,51 @@ endif()
 # register benchdnn test case
 function(register_benchdnn_test name engine cmd)
     set(benchdnn_target ${name}_${engine})
-    string(REPLACE " " ";" cmd
-        "$<TARGET_FILE:benchdnn> --engine=${engine} ${cmd}")
-    string(REPLACE " " ";" ARGV2
-        "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV2}")
-    if(WIN32 OR MINGW)
-        set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
-        set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
-    endif()
-    add_custom_target(${benchdnn_target}
-        COMMAND ${cmd}
-        COMMAND ${ARGV2} # if any
-        DEPENDS benchdnn
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    )
-    set_target_properties(${benchdnn_target} PROPERTIES
-        EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-    maybe_configure_windows_test(${benchdnn_target} TARGET)
 
-    # Create non-suffixed target for compatibility
-    if (engine STREQUAL "cpu")
-        add_custom_target(${name} DEPENDS ${benchdnn_target})
+    if(MKLDNN_BUILD_FOR_CI)
+       string(REPLACE " " ";" cmd
+            "benchdnn --engine=${engine} ${cmd}")
+        if (ARGC GREATER 3)
+            string(REPLACE " " ";" cmd2
+                "benchdnn --engine=${engine} ${ARGV3}")
+        endif()
+
+        add_test(${benchdnn_target} ${cmd})
+        if (DEFINED cmd2)
+            set(second_target_name "${benchdnn_target}2")
+            add_test(${second_target_name} ${cmd2})
+        endif()
+    else()
+        string(REPLACE " " ";" cmd
+            "$<TARGET_FILE:benchdnn> --engine=${engine} ${cmd}")
+        if (ARGC GREATER 3)
+            string(REPLACE " " ";" cmd2
+                "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV3}")
+        endif()
+
+        if(WIN32 OR MINGW)
+            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+        endif()
+
+        add_custom_target(${benchdnn_target}
+            COMMAND ${cmd}
+            COMMAND ${cmd2} # if any
+            DEPENDS benchdnn
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
+
+        set_target_properties(${benchdnn_target} PROPERTIES
+            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+        maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+        # Create non-suffixed target for compatibility
+        if (engine STREQUAL "cpu")
+            add_custom_target(${name} DEPENDS ${benchdnn_target})
+        endif()
     endif()
 endfunction()
 
-register_benchdnn_test(test_conv
-    cpu "-v1 --conv --batch=inputs/test_conv_all")
 register_benchdnn_test(test_benchdnn_conv
     cpu "-v1 --conv --batch=inputs/test_conv_all")
 register_benchdnn_test(test_benchdnn_deconv
@@ -98,6 +117,8 @@ register_benchdnn_test(test_benchdnn_shuffle
     cpu "--shuffle --batch=inputs/shuffle/test_shuffle_all")
 register_benchdnn_test(test_benchdnn_softmax
     cpu "--softmax --batch=inputs/softmax/test_softmax_all")
+register_benchdnn_test(test_benchdnn_pool
+    cpu "--pool --batch=inputs/pool/test_pool_all")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "--conv --batch=inputs/test_conv_regression"

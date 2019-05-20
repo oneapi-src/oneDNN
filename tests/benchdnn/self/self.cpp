@@ -21,8 +21,8 @@
 
 namespace self {
 
-int bench(int argc, char **argv, bool main_bench) {
-    (void)argv; (void)main_bench;
+int bench(int argc, char **argv) {
+    (void)argv;
 
     SAFE(argc == 0 ? OK : FAIL, CRIT);
     SAFE(bench_mode == CORR ? OK : FAIL, CRIT);

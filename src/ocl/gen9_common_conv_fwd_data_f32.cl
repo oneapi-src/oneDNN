@@ -27,6 +27,10 @@
 #define IDHW_SIZE (ID * IH * IW)
 #define KDHW_SIZE (KD * KH * KW)
 
+#define HAS_PAD_D (PD != 0 || PD_R != 0)
+#define HAS_PAD_H (PH != 0 || PH_R != 0)
+#define HAS_PAD_W (PW != 0 || PW_R != 0)
+
 #define SRC_OFF(n, ic, ih, iw) \
     (((((n * G) * IC + (ic)) * IH + (ih)) * IW + (iw)))
 #define DST_OFF(n, oc, oh, ow) ((((n * G) * OC + (oc)) * OH + (oh)) * OW + (ow))
@@ -92,7 +96,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
     float8 blockC01 = 0.0f;
 #    endif
 
-#    if ((PD != 0 && KD == 1) || (PH != 0 && KH == 1) || (PW != 0 && KW == 1))
+#    if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1) || (HAS_PAD_W && KW == 1))
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0 || iw >= IW)) {
 #    endif
 #    if KH != 1 || KW != 1 || KD != 1
@@ -191,7 +195,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
 #    if KH != 1 || KW != 1 || KD != 1
                 }
 #    endif
-#    if ((PD != 0 && KD == 1) || (PH != 0 && KH == 1) || (PW != 0 && KW == 1))
+#    if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1) || (HAS_PAD_W && KW == 1))
     }
 #    endif
 
@@ -309,7 +313,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
             float tempA[SW * OW_BLOCK + KW];
             int k = iw;
             if (local_id < 3) {
-#        if OW % OW_BLOCK != 0 || PW != 0
+#        if OW % OW_BLOCK != 0 || HAS_PAD_W
                 if (k < 0 || k + SW * OW_BLOCK + KW >= IW) {
                     __attribute__((opencl_unroll_hint(SW * OW_BLOCK + KW)))
                     for (int i = 0; i < SW * OW_BLOCK + KW; i++) {
@@ -325,7 +329,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
                     for (int i = 0; i < SW * OW_BLOCK + KW; i++) {
                         tempA[i] = src1[i * SP_OFF];
                     }
-#        if OW % OW_BLOCK != 0 || PW != 0
+#        if OW % OW_BLOCK != 0 || HAS_PAD_W
                 }
 #        endif
             }
@@ -507,7 +511,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
 
     const bool do_if = iw < 0 || iw + SW * OW_BLOCK + KW >= IW;
 
-#        if ((PD != 0 && KD == 1) || (PH != 0 && KH == 1))
+#        if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH)) {
 #        endif
         int icb = 0;
@@ -531,7 +535,6 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
 
                 float tempA[SW * OW_BLOCK + KW];
                 int k = iw;
-#            if OW % OW_BLOCK != 0 || PW != 0
                 if (do_if) {
                     __attribute__((opencl_unroll_hint(SW * OW_BLOCK + KW)))
                     for (int i = 0; i < SW * OW_BLOCK + KW; i++) {
@@ -544,15 +547,12 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
                         k++;
                     }
                 } else {
-#            endif
                     __attribute__((opencl_unroll_hint(SW * OW_BLOCK + KW)))
                     for (int i = 0; i < SW * OW_BLOCK + KW; i++) {
                         tempA[i] = as_float(intel_sub_group_block_read(
                                 (const __global uint *)(&src1[i * IC_BLOCK])));
                     }
-#            if OW % OW_BLOCK != 0 || PW != 0
                 }
-#            endif
                 __attribute__((opencl_unroll_hint(KW)))
                 for (int kw = 0; kw < KW; ++kw) {
 
@@ -608,22 +608,22 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
                         blockA[i] = tempA[kw + SW * i];
                     }
 #        else
-#            if OW_BLOCK != 8 || PW != 0
+#            if OW_BLOCK != 8 || HAS_PAD_W
         float blockA[OW_BLOCK];
 #            else
         float8 blockA;
 #            endif
-#            if OW % OW_BLOCK != 0 || PW != 0
+#            if OW % OW_BLOCK != 0 || HAS_PAD_W
         if (ow == OW_LAST) {
             for (int i = 0; i < OW - OW_LAST; i++) {
-#                if PW != 0
+#                if HAS_PAD_W
                 if (iw + i * SW < 0 || iw + i * SW >= IW) {
                     blockA[i] = 0.0f;
                 } else {
 #                endif
                     blockA[i] = as_float(intel_sub_group_block_read(
                             (const __global uint *)(&src1[i * IC_BLOCK * SW])));
-#                if PW != 0
+#                if HAS_PAD_W
                 }
 #                endif
             }
@@ -631,17 +631,17 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
                 blockA[i] = 0.0f;
         } else {
 #            endif
-#            if SW != 1 || OW_BLOCK != 8 || PW != 0
+#            if SW != 1 || OW_BLOCK != 8 || HAS_PAD_W
             __attribute__((opencl_unroll_hint(OW_BLOCK)))
             for (int i = 0; i < OW_BLOCK; i++) {
-#                if PW != 0
+#                if HAS_PAD_W
                 if (iw + i * SW < 0 || iw + i * SW >= IW) {
                     blockA[i] = 0.0f;
                 } else {
 #                endif
                     blockA[i] = as_float(intel_sub_group_block_read(
                             (const __global uint *)(&src1[i * IC_BLOCK * SW])));
-#                if PW != 0
+#                if HAS_PAD_W
                 }
 #                endif
             }
@@ -649,7 +649,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
         blockA = as_float8(
                 intel_sub_group_block_read8((const __global uint *)(&src1[0])));
 #            endif
-#            if OW % OW_BLOCK != 0 || PW != 0
+#            if OW % OW_BLOCK != 0 || HAS_PAD_W
         }
 #            endif
 #        endif
@@ -677,7 +677,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
             wei += OC_BLOCK * KDHW_SIZE * IC_BLOCK;
             icb += IC_BLOCK;
         } while (icb < IC);
-#        if ((PD != 0 && KD == 1) || (PH != 0 && KH == 1))
+#        if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
     }
 #        endif
     __global float *dst_write0 = dst + mb * OC * G * ODHW_SIZE

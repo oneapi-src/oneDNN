@@ -47,7 +47,7 @@ dims_t str2dims(const char *str) {
 } while(0)
 
 void dims2str(const dims_t &dims, char *buffer) {
-    int rem_len = max_dims_len;
+    int rem_len = max_desc_len;
     for (size_t d = 0; d < dims.size() - 1; ++d)
         DPRINT(IFMT "x", dims[d]);
     DPRINT(IFMT, dims[dims.size() - 1]);
@@ -56,24 +56,21 @@ void dims2str(const dims_t &dims, char *buffer) {
 #undef DPRINT
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char dim_str[32] = {0};
-    char dir_str[32] = {0};
-    char dt_str[32] = {0};
-    char axis_str[32] = {0};
-    char tag_str[32] = {0};
+    char dir_str[32] = "", dt_str[32] = "", tag_str[32] = "", axis_str[32] = "",
+         dims_str[max_desc_len] = "";
 
-    dims2str(p->dims, dim_str);
+    if (p->dir != FWD_D)
+        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    if (p->dt != mkldnn_f32)
+        snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
+    if (p->tag != mkldnn_nchw)
+        snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
+    if (p->axis != 1)
+        snprintf(axis_str, sizeof(axis_str), "--axis=%d ", p->axis);
+    dims2str(p->dims, dims_str);
 
-    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
-    snprintf(axis_str, sizeof(axis_str), "--axis=%d ", p->axis);
-    snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s",
-            p->dir == FWD_D ? "" : dir_str,
-            p->dt == mkldnn_f32 ? "" : dt_str,
-            p->tag == mkldnn_nchw ? "" : tag_str,
-            p->axis == 1 ? "" : axis_str,
-            dim_str);
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s", dir_str, dt_str, tag_str,
+            axis_str, dims_str);
 }
 
 }

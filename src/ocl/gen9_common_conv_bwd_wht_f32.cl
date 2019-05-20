@@ -20,6 +20,10 @@
 #    define CASE_3D 0
 #endif
 
+#define HAS_PAD_D (PD != 0 || PD_R != 0)
+#define HAS_PAD_H (PH != 0 || PH_R != 0)
+#define HAS_PAD_W (PW != 0 || PW_R != 0)
+
 #if BWD_WEIGHTS == 1
 
 __attribute__((reqd_work_group_size(SUB_GROUP_SIZE, 1, 1)))
@@ -624,7 +628,7 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
                                                 *)(&src1[i * IC_BLOCK * SW])));
                     }
 #            endif
-#            if PW != 0 || KW != 1
+#            if HAS_PAD_W || KW != 1
                     if (iw < 0 || iw + (OW_BLOCK)*SW >= IW) {
                         for (int i = 0; i < OW_BLOCK; i++) {
                             if (iw + i * SW < 0 || iw + i * SW >= IW)

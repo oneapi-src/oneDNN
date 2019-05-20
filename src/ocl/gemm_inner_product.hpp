@@ -32,7 +32,8 @@ namespace {
 status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
         transpose_t transa, transpose_t transb, int m, int n, int k,
         int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
-        data_type_t c_dt, float alpha, float beta) {
+        data_type_t c_dt, float alpha, float beta,
+        const primitive_attr_t &attr) {
     gemm_desc_t gemm_desc;
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
@@ -51,9 +52,7 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 
     op_desc_t op_desc(gemm_desc);
 
-    primitive_attr_t dummy_attr;
-
-    return mkldnn_primitive_desc_create(gemm_pd, &op_desc, &dummy_attr, engine,
+    return mkldnn_primitive_desc_create(gemm_pd, &op_desc, &attr, engine,
             nullptr);
 }
 }
@@ -78,6 +77,11 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
 
+            bool with_relu =  true
+                && attr()->output_scales_.has_default_values()
+                && attr()->post_ops_.len_ == 1
+                && attr()->post_ops_.entry_[0].is_relu(true, false);
+
             bool ok = true
                 && set_default_params() == status::success
                 && is_fwd()
@@ -85,7 +89,8 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 && src_md()->data_type == src_type
                 && weights_md()->data_type == wei_type
                 && dst_md()->data_type == dst_type
-                && attr()->has_default_values()
+                && (attr()->has_default_values()
+                        || IMPLICATION(with_relu, !with_bias()))
                 && dense_consitency_check(src_md(), weights_md(), dst_md())
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
@@ -104,7 +109,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                     wei_tr ? transpose::trans : transpose::notrans,
                     transpose::notrans, oc, mb, ic_total,
                     wei_tr ? ic_total : oc, ic_total, oc, wei_type,
-                    src_type, dst_type, 1.0, 0.0);
+                    src_type, dst_type, 1.0, 0.0, *attr());
             if (!gemm_ok)
                 return status::unimplemented;
 
@@ -202,7 +207,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
                     wei_tr ? transpose::trans : transpose::notrans,
                     transpose::notrans, ic_total, mb, oc,
                     wei_tr ? oc : ic_total, oc, ic_total, wei_type,
-                    diff_src_type, diff_dst_type, 1.0, 0.0);
+                    diff_src_type, diff_dst_type, 1.0, 0.0, *attr());
             if (!gemm_ok)
                 return status::unimplemented;
 
@@ -277,12 +282,12 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
                 gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
                         transpose::notrans, transpose::trans, oc, ic_total, mb,
                         oc, ic_total, oc, data_type, data_type, data_type,
-                        1.0, 0.0) == status::success;
+                        1.0, 0.0, *attr()) == status::success;
             } else {
                 gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
                         transpose::notrans, transpose::trans, ic_total, oc, mb,
                         ic_total, oc, ic_total, data_type, data_type,
-                        data_type, 1.0, 0.0) == status::success;
+                        data_type, 1.0, 0.0, *attr()) == status::success;
             }
             if (!gemm_ok)
                 return status::unimplemented;

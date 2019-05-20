@@ -39,9 +39,10 @@ struct jit_simple_reorder_kernel {
 
         status_t status = status::success;
 
-        const auto &dims = input_md.dims();
-        jrp.do_reorder = input_md != output_md;
+        const auto &dims = output_md.padded_dims();
         jrp.is_alpha_beta = (pd->alpha() != 1.0 || pd->beta() != 0.0);
+        jrp.do_reorder = jrp.is_alpha_beta ? true : input_md != output_md;
+        jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.ndims = input_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
         jrp.par_dims = 4;
@@ -104,6 +105,16 @@ struct jit_simple_reorder_kernel {
         default: status = status::unimplemented; break;
         }
 
+        if (input_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
+                    gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i)
+                || output_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o,
+                        gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i,
+                        gOIhw2o8i8o2i))
+            jrp.with_group = 1;
+
+        if (jrp.has_padding || jrp.is_alpha_beta)
+            return status;
+
         const bool type_f32 = input_md.data_type() == mkldnn_f32
                 && output_md.data_type() == mkldnn_f32;
 
@@ -151,11 +162,6 @@ struct jit_simple_reorder_kernel {
             jrp.block[2] = dims[jrp.with_group + 3];
         }
 
-        if (input_md.matches_one_of_tag(
-                    gOIhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw8i16o2i)
-                || output_md.matches_one_of_tag(gOIhw8i16o2i, gOIhw4o8i8o4i,
-                           gOIhw2o8i8o2i, gOIdhw8i16o2i))
-            jrp.with_group = 1;
         return status;
     };
 
@@ -201,6 +207,8 @@ struct jit_simple_reorder_kernel {
         }
 
         const bool opt_reorder = true
+                && !jrp.has_padding
+                && !jrp.is_alpha_beta
                 && (((input_type == mkldnn_f32 && output_type == mkldnn_f32)
                             && (input_md.matches_tag(nChw16c)
                                        || output_md.matches_tag(nChw16c)
@@ -226,42 +234,57 @@ struct jit_simple_reorder_kernel {
         jit.define_int("REF_REORDER", !opt_reorder);
         jit.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
 
-        if (input_md.matches_tag(nChw16c)) {
+        if (input_md.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)) {
             jit.define_int("IN_NCHW16C", 1);
-        } else if (input_md.matches_tag(NChw16n16c)) {
+        } else if (input_md.matches_one_of_tag(
+                           NCw16n16c, NChw16n16c, NCdhw16n16c)) {
             jit.define_int("IN_NCHW16N16C", 1);
-        } else if (input_md.matches_one_of_tag(IOhw16i16o, gIOhw16i16o)) {
+        } else if (input_md.matches_one_of_tag(IOw16i16o, IOhw16i16o,
+                           IOdhw16i16o, gIOw16i16o, gIOhw16i16o,
+                           gIOdhw16i16o)) {
             jit.define_int("IN_IOHW16I16O", 1);
-        } else if (input_md.matches_one_of_tag(OIhw16o16i, gOIhw16o16i)) {
+        } else if (input_md.matches_one_of_tag(OIw16o16i, OIhw16o16i,
+                           OIdhw16o16i, gOIw16o16i, gOIhw16o16i,
+                           gOIdhw16o16i)) {
             jit.define_int("IN_OIHW16O16I", 1);
-        } else if (input_md.matches_one_of_tag(gOIhw4o8i8o4i, OIhw4o8i8o4i)) {
+        } else if (input_md.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
             jit.define_int("IN_OIHW4O8I8O4I", 1);
-        } else if (input_md.matches_one_of_tag(gOIhw2o8i8o2i, OIhw2o8i8o2i)) {
+        } else if (input_md.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
             jit.define_int("IN_OIHW2O8I8O2I", 1);
-        } else if (input_md.matches_one_of_tag(gOIhw8o16i2o, OIhw8o16i2o)) {
+        } else if (input_md.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o,
+                           gOIw8o16i2o, gOIhw8o16i2o)) {
             jit.define_int("IN_OIHW8O16I2O", 1);
-        } else if (input_md.matches_one_of_tag(gOIhw8i16o2i, OIhw8i16o2i,
-                           gOIdhw8i16o2i, OIdhw8i16o2i)) {
+        } else if (input_md.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i,
+                           OIdhw8i16o2i, gOIw8i16o2i, gOIhw8i16o2i,
+                           gOIdhw8i16o2i)) {
             jit.define_int("IN_OIHW8I16O2I", 1);
         } else {
             jit.define_int("IN_REF_FORMAT", 1);
         }
-        if (output_md.matches_tag(nChw16c)) {
+
+        if (output_md.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)) {
             jit.define_int("OUT_NCHW16C", 1);
-        } else if (output_md.matches_tag(NChw16n16c)) {
+        } else if (output_md.matches_one_of_tag(
+                           NCw16n16c, NChw16n16c, NCdhw16n16c)) {
             jit.define_int("OUT_NCHW16N16C", 1);
-        } else if (output_md.matches_one_of_tag(IOhw16i16o, gIOhw16i16o)) {
+        } else if (output_md.matches_one_of_tag(IOw16i16o, IOhw16i16o,
+                           IOdhw16i16o, gIOw16i16o, gIOhw16i16o,
+                           gIOdhw16i16o)) {
             jit.define_int("OUT_IOHW16I16O", 1);
-        } else if (output_md.matches_one_of_tag(OIhw16o16i, gOIhw16o16i)) {
+        } else if (output_md.matches_one_of_tag(OIw16o16i, OIhw16o16i,
+                           OIdhw16o16i, gOIw16o16i, gOIhw16o16i,
+                           gOIdhw16o16i)) {
             jit.define_int("OUT_OIHW16O16I", 1);
-        } else if (output_md.matches_one_of_tag(gOIhw4o8i8o4i, OIhw4o8i8o4i)) {
+        } else if (output_md.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
             jit.define_int("OUT_OIHW4O8I8O4I", 1);
-        } else if (output_md.matches_one_of_tag(gOIhw2o8i8o2i, OIhw2o8i8o2i)) {
+        } else if (output_md.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
             jit.define_int("OUT_OIHW2O8I8O2I", 1);
-        } else if (output_md.matches_one_of_tag(gOIhw8o16i2o, OIhw8o16i2o)) {
+        } else if (output_md.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o,
+                           gOIw8o16i2o, gOIhw8o16i2o)) {
             jit.define_int("OUT_OIHW8O16I2O", 1);
-        } else if (output_md.matches_one_of_tag(gOIhw8i16o2i, OIhw8i16o2i,
-                           gOIdhw8i16o2i, OIdhw8i16o2i)) {
+        } else if (output_md.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i,
+                           OIdhw8i16o2i, gOIw8i16o2i, gOIhw8i16o2i,
+                           gOIdhw8i16o2i)) {
             jit.define_int("OUT_OIHW8I16O2I", 1);
         } else {
             jit.define_int("OUT_REF_FORMAT", 1);
@@ -269,6 +292,31 @@ struct jit_simple_reorder_kernel {
 
         set_offsets(jit, input_md, "SRC");
         set_offsets(jit, output_md, "DST");
+
+        const auto &in_dims = input_md.dims();
+        const auto &out_dims = output_md.padded_dims();
+
+        jit.define_int("PAD_FILL_ZERO", jrp.has_padding);
+
+        if (jrp.has_padding) {
+            char tempstr[32];
+            for (int d = 0; d < input_md.ndims(); ++d) {
+                snprintf(tempstr, 32, " SRC_DIM%d", d);
+                jit.define_int(tempstr, in_dims[d]);
+            }
+            for (int d = input_md.ndims(); d < 6; ++d) {
+                snprintf(tempstr, 32, " SRC_DIM%d", d);
+                jit.define_int(tempstr, 0);
+            }
+            for (int d = 0; d < output_md.ndims(); ++d) {
+                snprintf(tempstr, 32, " DST_DIM%d", d);
+                jit.define_int(tempstr, out_dims[d]);
+            }
+            for (int d = output_md.ndims(); d < 6; ++d) {
+                snprintf(tempstr, 32, " DST_DIM%d", d);
+                jit.define_int(tempstr, 0);
+            }
+        }
 
         return status::success;
     }

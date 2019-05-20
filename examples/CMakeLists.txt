@@ -26,26 +26,39 @@ append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
+# propagate nowarn flags
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set_if(UNIX LIBM m)
 
-register_exe(simple-net-c simple_net.c "test")
-register_exe(simple-net-cpp simple_net.cpp "test")
-register_exe(simple-training-net-c simple_training_net.c "test" ${LIBM})
-register_exe(simple-training-net-cpp simple_training_net.cpp "test" ${LIBM})
-register_exe(simple-net-int8-cpp simple_net_int8.cpp "test")
-
-# RNN examples access memory directly so work with the native CPU backend only
+# Getting Started example access memory directly so build it with
+# the native CPU backend only
 if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
-    register_exe(simple-rnn-cpp simple_rnn.cpp "test")
-    register_exe(simple-rnn-int8-cpp simple_rnn_int8.cpp "test")
+    register_exe(getting-started getting_started.cpp "test")
 endif()
 
-register_exe(simple-rnn-training-cpp simple_rnn_training.cpp "test")
+register_exe(memory-format-propagation memory_format_propagation.cpp "test")
+
+register_exe(cnn-inference-fp32-c cnn_inference_fp32.c "test")
+register_exe(cnn-inference-fp32-cpp cnn_inference_fp32.cpp "test")
+register_exe(cnn-training-fp32-c cnn_training_fp32.c "test" ${LIBM})
+register_exe(cnn-training-fp32-cpp cnn_training_fp32.cpp "test" ${LIBM})
+register_exe(cnn-inference-int8-cpp cnn_inference_int8.cpp "test")
+
+# RNN examples access memory directly so build it with the native CPU backend only
+if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
+    register_exe(rnn-inference-fp32-cpp rnn_inference_fp32.cpp "test")
+    register_exe(rnn-inference-int8 rnn_inference_int8.cpp "test")
+endif()
+
+register_exe(rnn-training-fp32 rnn_training_fp32.cpp "test")
 
 if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
-    add_subdirectory(gpu)
+    register_exe(gpu-getting-started-c gpu_getting_started.c "test")
+    register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
 endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")

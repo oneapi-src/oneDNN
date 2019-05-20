@@ -26,6 +26,7 @@
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_debug.hpp"
+#include "src/common/math_utils.hpp"
 
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
@@ -346,6 +347,16 @@ mkldnn_engine_kind_t str2engine_kind(const char *str) {
     return mkldnn_cpu;
 }
 
+const char *engine_kind2str(mkldnn_engine_kind_t engine) {
+    switch (engine) {
+    case mkldnn_any_engine: return "any";
+    case mkldnn_cpu: return "cpu";
+    case mkldnn_gpu: return "gpu";
+    }
+    assert(!"incorrect engine kind");
+    return "incorrect engine kind";
+}
+
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales) {
     mkldnn_primitive_attr_t mkldnn_attr = NULL;
@@ -422,4 +433,45 @@ mkldnn_format_tag_t get_default_tag(int ndims) {
     default: assert(!"unknown kind");
     }
     return mkldnn_format_tag_undef;
+}
+
+void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
+    if (!attr.oscale.is_def()) {
+        using policy_t = attr_t::scale_t::policy_t;
+        const auto &s = attr.oscale;
+        if (s.policy == policy_t::COMMON) {
+            d *= s.scale;
+        } else {
+            d *= scales[oc];
+        }
+    }
+}
+
+void maybe_post_ops(float &d, float dst, const attr_t &attr) {
+    using namespace mkldnn::impl::math;
+
+    const auto &ops = attr.post_ops;
+    for (int idx = 0; idx < ops.len; ++idx) {
+        using pk = attr_t::post_ops_t::kind_t;
+        const auto &e = ops.entry[idx];
+
+        const auto &s = e.eltwise.scale;
+        const auto &a = e.eltwise.alpha;
+        const auto &b = e.eltwise.beta;
+
+        switch (e.kind) {
+        case pk::SUM: d += e.sum.scale * dst; break;
+        case pk::RELU: d = s * relu_fwd(d, a); break;
+        case pk::TANH: d = s * tanh_fwd(d); break;
+        case pk::ELU: d = s * elu_fwd(d, a); break;
+        case pk::SQUARE: d = s * square_fwd(d); break;
+        case pk::ABS: d = s * abs_fwd(d); break;
+        case pk::SQRT: d = s * sqrt_fwd(d); break;
+        case pk::LINEAR: d = s * linear_fwd(d, a, b); break;
+        case pk::BRELU: d = s * bounded_relu_fwd(d, a); break;
+        case pk::SRELU: d = s * soft_relu_fwd(d); break;
+        case pk::LOGISTIC: d = s * logistic_fwd(d); break;
+        default: assert(!"unknown attr::post_ops::kind");
+        }
+    }
 }

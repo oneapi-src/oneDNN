@@ -72,6 +72,9 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
         [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
             memory::dim ow) {
+            if (is_current_test_failed())
+                return;
+
             memory::dim oidx = n * padded_c * pd.od * pd.oh * pd.ow
                     + c * pd.od * pd.oh * pd.ow
                     + od * pd.oh * pd.ow
@@ -145,10 +148,10 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             }
 
             const data_t out_ref = (data_t)acc_ref;
-            EXPECT_NEAR(out, out_ref, 1e-6);
+            ASSERT_NEAR(out, out_ref, 1e-6);
             if(p.aalgorithm == algorithm::pooling_max
                 && p.aprop_kind == prop_kind::forward_training) {
-                EXPECT_EQ(out_index, out_ref_index) << " n = " << n
+                ASSERT_EQ(out_index, out_ref_index) << " n = " << n
                 << " c = " << c << " od = " << od << " oh = " << oh
                 << " ow = " << ow;
             }
@@ -215,22 +218,20 @@ protected:
         }
 
         auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,
-                p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r,
-                padding_kind::zero);
+                p_src_desc, p_dst_desc, strides, ker, pad_l, pad_r);
         auto pool_prim_desc
             = pooling_forward::primitive_desc(pool_desc, eng);
 
         auto workspace_desc = pool_prim_desc.workspace_desc();
-        std::shared_ptr<memory> p_workspace;
-        p_workspace.reset(new memory(workspace_desc, eng));
+        memory workspace(workspace_desc, eng);
 
         pooling_forward(pool_prim_desc).execute(strm, {
                 {MKLDNN_ARG_SRC, p_src},
                 {MKLDNN_ARG_DST, p_dst},
-                {MKLDNN_ARG_WORKSPACE, *p_workspace}});
+                {MKLDNN_ARG_WORKSPACE, workspace}});
         strm.wait();
 
-        check_pool_fwd<data_t>(p, p_src, p_dst, *p_workspace);
+        check_pool_fwd<data_t>(p, p_src, p_dst, workspace);
         check_zero_tail<data_t>(0, p_dst);
     }
 };
@@ -331,7 +332,7 @@ TEST_P(pooling_test_u8, TestsPooling)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::nhwc,
@@ -350,7 +351,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding,
@@ -407,22 +408,22 @@ GPU_INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_exclude_padding, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_exclude_padding, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 GPU_INSTANTIATE_TEST_SUITE_P(
@@ -438,22 +439,22 @@ GPU_INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::ncdhw, EXPAND_SIZES_3D( 4, 16, 10, 10, 10, 10, 10, 10, 2, 2, 2, 1, 1, 1, 1, 1, 1 ) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_exclude_padding, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding, memory::format_tag::NCdhw16n16c,
-            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::NCdhw16n16c, EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_max, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_exclude_padding, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) },
             pool_test_params{ prop_kind::forward_inference,
             algorithm::pooling_avg_include_padding, memory::format_tag::nCdhw16c,
-            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 7, 7, 7, 7, 7, 7, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
+            memory::format_tag::nCdhw16c, EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, 3, 3, 1, 1, 1, 1, 1, 1) }
             ));
 
 TEST_P(pooling_test_s32, TestsPooling)
@@ -569,7 +570,7 @@ INSTANTIATE_TEST_SUITE_P(
             true, mkldnn_invalid_arguments}
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw16c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             algorithm::pooling_max, memory::format_tag::nChw16c,
@@ -594,7 +595,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::nChw16c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw8c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             algorithm::pooling_max, memory::format_tag::nChw8c,

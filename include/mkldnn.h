@@ -303,7 +303,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_destroy(mkldnn_post_ops_t post_ops);
 /// Returns the @p length of post operations for given @p post_ops.
 int MKLDNN_API mkldnn_post_ops_len(const_mkldnn_post_ops_t post_ops);
 
-/// Returns the type of post operation with index @p index in given
+/// Returns the kind of post operation with index @p index in given
 /// @p post_ops. In case of error, returns #mkldnn_undefined_primitive.
 mkldnn_primitive_kind_t MKLDNN_API mkldnn_post_ops_get_kind(
         const_mkldnn_post_ops_t post_ops, int index);
@@ -381,15 +381,15 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///      functions, or by directly filling the mkldnn_memory_desc_t structure.
 ///      The latter requires deep knowledge of how the physical data
 ///      representation is mapped to the structure.
-///      The @ref understanding_memory_formats topic should shed some light on
-///      that.
+///      The @ref dev_guide_understanding_memory_formats topic should shed some
+///      light on that.
 ///      For the fully defined memory descriptors (i.e. where the format kind is
 ///      not equal to #mkldnn_format_kind_any) a user can the size, using the
 ///      mkldnn_memory_desc_get_size() function. As described in
-///      @ref understanding_memory_formats, the size of data sometimes cannot
-///      be computed as the product of dimensions times the size of the data
-///      type. So users are encouraged to use this function for better code
-///      portability.
+///      @ref dev_guide_understanding_memory_formats, the size of data sometimes
+///      cannot be computed as the product of dimensions times the size
+///      of the data type. So users are encouraged to use this function
+///      for better code portability.
 ///      Two memory descriptors can be compared with mkldnn_memory_desc_equal().
 ///      The comparison is especially useful when checking whether a primitive
 ///      requires reorder from the user's data format to the primitive's format.
@@ -400,7 +400,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///      mkldnn_memory_set_data_handle(). The latter function always sets the
 ///      memory in the padding region to zero, which is the invariant maintained
 ///      by all the primitives in Intel MKL-DNN.
-///      See @ref understanding_memory_formats for more details.
+///      See @ref dev_guide_understanding_memory_formats for more details.
 ///      A memory can be created using mkldnn_memory_create() function.
 ///      A memory can also be queried for the underlying memory descriptor and
 ///      engine using mkldnn_memory_get_memory_desc() and
@@ -435,7 +435,7 @@ mkldnn_status_t MKLDNN_API mkldnn_post_ops_get_params_eltwise(
 ///  Data handle of *zero-volume* memory is never accessed and hence can be
 ///  unset (NULL in case of CPU engine).
 ///
-/// @sa @ref understanding_memory_formats
+/// @sa @ref dev_guide_understanding_memory_formats
 /// @{
 
 /// Initializes a @p memory_desc memory descriptor using @p ndims, @p dims, @p
@@ -643,7 +643,7 @@ mkldnn_status_t MKLDNN_API mkldnn_sum_primitive_desc_create(
 /// Initializes a convolution descriptor @p conv_desc for forward propagation
 /// using @p prop_kind (possible values are #mkldnn_forward_training and
 /// #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides, @p
-/// padding_l, @p padding_r, and @p padding_kind. In order to create a
+/// padding_l, and @p padding_r. In order to create a
 /// convolution without bias, @p bias_desc should either be @c NULL or point to
 /// a descriptor with memory format kind equal to #mkldnn_format_kind_undef.
 ///
@@ -665,13 +665,12 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_forward_desc_init(
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a dilated convolution descriptor @p conv_desc for forward
 /// propagation using @p prop_kind (possible values are #mkldnn_forward_training
 /// and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
-/// @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
+/// @p dilates, @p padding_l, and @p padding_r.
 /// In order to create a dilated convolution without bias, @p bias_desc
 /// should either be @c NULL or point to a descriptor with memory format kind
 /// equals #mkldnn_format_kind_undef.
@@ -695,11 +694,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_forward_desc_init(
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// Initializes a convolution descriptor @p conv_desc for backward propagation
 /// with respect to data using @p alg_kind, memory descriptors, @p strides, @p
-/// padding_l, @p padding_r, and @p padding_kind.
+/// padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -715,12 +714,11 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_data_desc_init(
         const mkldnn_memory_desc_t *diff_src_desc,
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a dilated convolution descriptor @p conv_desc for backward
 /// propagation with respect to data using @p alg_kind, memory descriptors, @p
-/// strides, @p dilates @p padding_l, @p padding_r, and @p padding_kind.
+/// strides, @p dilates @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -737,11 +735,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_convolution_backward_data_desc_init(
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// Initializes a convolution descriptor @p conv_desc for backward propagation
 /// with respect to weights using @p alg_kind, memory descriptors, @p strides,
-/// @p padding_l, @p padding_r, and @p padding_kind.
+/// @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -759,12 +757,11 @@ mkldnn_status_t MKLDNN_API mkldnn_convolution_backward_weights_desc_init(
         const mkldnn_memory_desc_t *diff_weights_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a convolution descriptor @p conv_desc for backward propagation
 /// with respect to weights using @p alg_kind, memory descriptors, @p strides,
-/// @p dilates @p padding_l, @p padding_r, and @p padding_kind.
+/// @p dilates @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -784,7 +781,7 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// @}
 
@@ -797,7 +794,7 @@ mkldnn_dilated_convolution_backward_weights_desc_init(
 /// Initializes a deconvolution descriptor @p deconv_desc for forward
 /// propagation using @p prop_kind (possible values are #mkldnn_forward_training
 /// and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
-/// @p padding_l, @p padding_r, and @p padding_kind. In order to create a
+/// @p padding_l, and @p padding_r. In order to create a
 /// deconvolution without bias, @p bias_desc should either be @c NULL or point to
 /// a descriptor with memory format kind equals #mkldnn_format_kind_undef.
 ///
@@ -819,13 +816,12 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_forward_desc_init(
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a dilated deconvolution descriptor @p deconv_desc for forward
 /// propagation using @p prop_kind (possible values are #mkldnn_forward_training
 /// and #mkldnn_forward_inference), @p alg_kind, memory descriptors, @p strides,
-/// @p dilates, @p padding_l, @p padding_r, and @p padding_kind. In order to
+/// @p dilates, @p padding_l, and @p padding_r. In order to
 /// create a dilated deconvolution without bias, @p bias_desc should either be
 /// @c NULL or point to a descriptor with memory format kind equal
 /// #mkldnn_format_kind_undef.
@@ -849,11 +845,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_forward_desc_init(
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// Initializes a deconvolution descriptor @p conv_desc for backward propagation
 /// with respect to data using @p alg_kind, memory descriptors, @p strides, @p
-/// padding_l, @p padding_r, and @p padding_kind.
+/// padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -869,12 +865,11 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_data_desc_init(
         const mkldnn_memory_desc_t *diff_src_desc,
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a dilated deconvolution descriptor @p conv_desc for backward
 /// propagation with respect to data using @p alg_kind, memory descriptors, @p
-/// strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
+/// strides, @p dilates, @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -891,11 +886,11 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_data_desc_init(
         const mkldnn_memory_desc_t *weights_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// Initializes a deconvolution descriptor @p conv_desc for backward propagation
 /// with respect to weights using @p alg_kind, memory descriptors, @p strides,
-/// @p padding_l, @p padding_r, and @p padding_kind.
+/// @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -913,12 +908,11 @@ mkldnn_status_t MKLDNN_API mkldnn_deconvolution_backward_weights_desc_init(
         const mkldnn_memory_desc_t *diff_weights_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
-        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r,
-        mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_l, const mkldnn_dims_t padding_r);
 
 /// Initializes a dilated deconvolution descriptor @p conv_desc for backward
 /// propagation with respect to weights using @p alg_kind, memory descriptors,
-/// @p strides, @p dilates, @p padding_l, @p padding_r, and @p padding_kind.
+/// @p strides, @p dilates, @p padding_l, and @p padding_r.
 ///
 /// @note Memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -937,7 +931,7 @@ mkldnn_status_t MKLDNN_API mkldnn_dilated_deconvolution_backward_weights_desc_in
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t dilates, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// @}
 
@@ -1082,7 +1076,7 @@ mkldnn_status_t MKLDNN_API mkldnn_softmax_backward_desc_init(
 /// @p prop_kind (possible values are #mkldnn_forward_training and
 /// #mkldnn_forward_inference), @p alg_kind, memory descriptors, and pooling
 /// parameters in the spatial domain: @p strides, @p kernel sizes, @p padding_l,
-/// @p padding_r, and @p padding_kind.
+/// and @p padding_r.
 ///
 /// @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
 ///
@@ -1099,12 +1093,11 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_forward_desc_init(
         mkldnn_alg_kind_t alg_kind, const mkldnn_memory_desc_t *src_desc,
         const mkldnn_memory_desc_t *dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t kernel, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// Initializes a pooling descriptor @p pool_desc for backward propagation
 /// using @p alg_kind, memory descriptors, and pooling parameters in the spatial
-/// domain: @p strides, @p kernel sizes, @p padding_l, @p padding_r, and @p
-/// padding_kind.
+/// domain: @p strides, @p kernel sizes, @p padding_l, and @p padding_r.
 ///
 /// @note If @p padding_r is @c NULL, the padding is supposed to be symmetric.
 ///
@@ -1120,7 +1113,7 @@ mkldnn_status_t MKLDNN_API mkldnn_pooling_backward_desc_init(
         const mkldnn_memory_desc_t *diff_src_desc,
         const mkldnn_memory_desc_t *diff_dst_desc, const mkldnn_dims_t strides,
         const mkldnn_dims_t kernel, const mkldnn_dims_t padding_l,
-        const mkldnn_dims_t padding_r, mkldnn_padding_kind_t padding_kind);
+        const mkldnn_dims_t padding_r);
 
 /// @}
 
@@ -1341,26 +1334,6 @@ mkldnn_status_t MKLDNN_API mkldnn_inner_product_backward_weights_desc_init(
 /// @sa @ref cpp_api_rnn in @ref cpp_api
 /// @{
 
-///
-/// Initializes a recurrent cell descriptor @p rnn_cell_desc
-/// using @p rnn_cell_desc, @p kind (possible values are
-///  #mkldnn_vanilla_rnn, #mkldnn_vanilla_lstm, #mkldnn_vanilla_gru, and
-///  #mkldnn_gru_linear_before_reset),
-///  @p f (possible values are #mkldnn_eltwise_relu and
-///   #mkldnn_eltwise_tanh), @p flags, @p alpha, and @p clipping.
-mkldnn_status_t MKLDNN_API mkldnn_rnn_cell_desc_init(
-        mkldnn_rnn_cell_desc_t *rnn_cell_desc,
-        mkldnn_alg_kind_t kind, mkldnn_alg_kind_t f,
-        unsigned int flags, float alpha, float clipping);
-
-/// Returns the number of gates of a particular @p rnn_cell_desc.
-int MKLDNN_API mkldnn_rnn_cell_get_gates_count(
-        const mkldnn_rnn_cell_desc_t *rnn_cell_desc);
-
-/// Returns the number of states of a particular @p rnn_cell_desc.
-int MKLDNN_API mkldnn_rnn_cell_get_states_count(
-        const mkldnn_rnn_cell_desc_t *rnn_cell_desc);
-
 /// Sets quantization @p scale and @p shift for RNN data tensors.
 /// For performance reasons, low precision configuration of RNN primitive
 /// expects input activations to have unsigned int8 data type. Scale and shift
@@ -1437,17 +1410,23 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
         mkldnn_primitive_attr_t attr, mkldnn_dim_t count, int mask,
                 const float *weights_scales);
 
-/// Initializes a rnn descriptor @p rnn_desc for forward propagation
-/// using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+/// Initializes an RNN descriptor @p rnn_desc for forward propagation
+/// using @p prop_kind, @p activation, @p direction, and memory descriptors.
 /// @note If @p prop_kind equals #mkldnn_forward_training, you must query a
 /// workspace memory descriptor before creating the primitive.
 ///
 /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed to either be
 /// @c NULL or point to a zero memory descriptor, which would indicate that the
-/// RNN primitive should not use them.
+/// RNN primitive should not use them and will default to zero values.
 ///
-/// @note All memory descriptors except @p src_iter_desc are allowed to be
-///       initialized with #mkldnn_format_kind_any value of @p format_kind.
+/// @note All memory descriptorsare allowed to be initialized with
+/// #mkldnn_format_kind_any value of @p format_kind.
+///
+/// Parameters:
+///  - activation (#mkldnn_eltwise_relu, #mkldnn_eltwise_tanh or #mkldnn_eltwise_logistic)
+///  - alpha (negative slope if activation is #mkldnn_eltwise_relu)
+///  - beta (unused for now)
+///  - flags (unused for now)
 ///
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
@@ -1461,9 +1440,9 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_weights_qparams (
 ///  - dst_iter (#mkldnn_query_dst_md, 1), if used
 ///  - workspace (#mkldnn_query_workspace_md, 0),
 ///      if @p prop_kind equals #mkldnn_forward_training
-mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
+mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_forward_desc_init(
         mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
-        const mkldnn_rnn_cell_desc_t *rnn_cell_desc,
+        const mkldnn_alg_kind_t activation,
         const mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
@@ -1471,10 +1450,12 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc);
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        unsigned flags,
+        float alpha, float beta);
 
-/// Initializes a rnn descriptor @p rnn_desc for backward propagation
-/// using @p prop_kind, @p rnn_cell_desc, @p direction, and memory descriptors.
+/// Initializes an RNN descriptor @p rnn_desc for backward propagation
+/// using @p prop_kind, @p activation, @p direction, and memory descriptors.
 ///
 /// @note All memory descriptors are allowed to be initialized with
 ///       #mkldnn_format_kind_any value of @p format_kind.
@@ -1483,7 +1464,13 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
 /// @p bias_desc (simultaneously with @p diff_bias_desc), and
 /// @p dst_iter_desc (simultaneously with @p diff_src_iter_desc) are allowed to
 /// either be @c NULL or point to a zero memory descriptor, which would indicate
-/// that the RNN primitive should not use them.
+/// that the RNN primitive should not use them and will default to zero values.
+///
+/// Parameters:
+///  - activation (#mkldnn_eltwise_relu, #mkldnn_eltwise_tanh or #mkldnn_eltwise_logistic)
+///  - alpha (negative slope if activation is #mkldnn_eltwise_relu)
+///  - beta (unused for now)
+///  - flags (unused for now)
 ///
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
@@ -1503,9 +1490,9 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_forward_desc_init(
 ///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
 ///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
 ///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
-mkldnn_status_t MKLDNN_API mkldnn_rnn_backward_desc_init(
+mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_backward_desc_init(
         mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
-        const mkldnn_rnn_cell_desc_t *rnn_cell_desc,
+        const mkldnn_alg_kind_t activation,
         const mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
@@ -1519,8 +1506,283 @@ mkldnn_status_t MKLDNN_API mkldnn_rnn_backward_desc_init(
         const mkldnn_memory_desc_t *diff_weights_layer_desc,
         const mkldnn_memory_desc_t *diff_weights_iter_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc);
+        const mkldnn_memory_desc_t *diff_dst_layer_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        unsigned flags,
+        float alpha, float beta);
+
+/// Initializes an LSTM descriptor @p rnn_desc for forward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+/// @note If @p prop_kind equals #mkldnn_forward_training, you must query a
+/// workspace memory descriptor before creating the primitive.
+///
+/// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed to either be
+/// @c NULL or point to a zero memory descriptor, which would indicate that the
+/// RNN primitive should not use them and will default to zero values.
+///
+/// @note All memory descriptors except @p src_iter_desc are allowed to be
+///       initialized with #mkldnn_format_kind_any value of @p format_kind.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///
+/// Outputs:
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0),
+///      if @p prop_kind equals #mkldnn_forward_training
+mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        unsigned flags);
+
+/// Initializes an LSTM descriptor @p rnn_desc for backward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+///
+/// @note All memory descriptors are allowed to be initialized with
+///       #mkldnn_format_kind_any value of @p format_kind.
+///
+/// @p src_iter_desc (simultaneously with @p diff_src_iter_desc),
+/// @p bias_desc (simultaneously with @p diff_bias_desc), and
+/// @p dst_iter_desc (simultaneously with @p diff_src_iter_desc) are allowed to
+/// either be @c NULL or point to a zero memory descriptor, which would indicate
+/// that the RNN primitive should not use them and will default to zero values.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
+///  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0)
+///
+/// Outputs:
+///  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
+///  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
+///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
+///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
+mkldnn_status_t MKLDNN_API mkldnn_lstm_backward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_layer_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_weights_layer_desc,
+        const mkldnn_memory_desc_t *diff_weights_iter_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_layer_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        unsigned flags);
+
+/// Initializes a GRU descriptor @p rnn_desc for forward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+/// @note If @p prop_kind equals #mkldnn_forward_training, you must query a
+/// workspace memory descriptor before creating the primitive.
+///
+/// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed to either be
+/// @c NULL or point to a zero memory descriptor, which would indicate that the
+/// RNN primitive should not use them and will default to zero values.
+///
+/// @note All memory descriptors except @p src_iter_desc are allowed to be
+///       initialized with #mkldnn_format_kind_any value of @p format_kind.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///
+/// Outputs:
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0),
+///      if @p prop_kind equals #mkldnn_forward_training
+mkldnn_status_t MKLDNN_API mkldnn_gru_forward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        unsigned flags);
+
+/// Initializes a GRU descriptor @p rnn_desc for backward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+///
+/// @note All memory descriptors are allowed to be initialized with
+///       #mkldnn_format_kind_any value of @p format_kind.
+///
+/// @p src_iter_desc (simultaneously with @p diff_src_iter_desc),
+/// @p bias_desc (simultaneously with @p diff_bias_desc), and
+/// @p dst_iter_desc (simultaneously with @p diff_src_iter_desc) are allowed to
+/// either be @c NULL or point to a zero memory descriptor, which would indicate
+/// that the RNN primitive should not use them and will default to zero values.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
+///  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0)
+///
+/// Outputs:
+///  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
+///  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
+///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
+///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
+mkldnn_status_t MKLDNN_API mkldnn_gru_backward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_layer_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_weights_layer_desc,
+        const mkldnn_memory_desc_t *diff_weights_iter_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_layer_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        unsigned flags);
+
+/// Initializes an LBR GRU descriptor @p rnn_desc for forward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+/// @note If @p prop_kind equals #mkldnn_forward_training, you must query a
+/// workspace memory descriptor before creating the primitive.
+///
+/// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed to either be
+/// @c NULL or point to a zero memory descriptor, which would indicate that the
+/// RNN primitive should not use them and will default to zero values.
+///
+/// @note All memory descriptors except @p src_iter_desc are allowed to be
+///       initialized with #mkldnn_format_kind_any value of @p format_kind.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///
+/// Outputs:
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0),
+///      if @p prop_kind equals #mkldnn_forward_training
+mkldnn_status_t MKLDNN_API mkldnn_lbr_gru_forward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        unsigned flags);
+
+/// Initializes an LBR GRU descriptor @p rnn_desc for backward propagation
+/// using @p prop_kind, @p direction, and memory descriptors.
+///
+/// @note All memory descriptors are allowed to be initialized with
+///       #mkldnn_format_kind_any value of @p format_kind.
+///
+/// @p src_iter_desc (simultaneously with @p diff_src_iter_desc),
+/// @p bias_desc (simultaneously with @p diff_bias_desc), and
+/// @p dst_iter_desc (simultaneously with @p diff_src_iter_desc) are allowed to
+/// either be @c NULL or point to a zero memory descriptor, which would indicate
+/// that the RNN primitive should not use them and will default to zero values.
+///
+/// Parameters:
+///  - flags (unused for now)
+///
+/// Inputs:
+///  - src_layer (#mkldnn_query_src_md, 0)
+///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - weights_layer (#mkldnn_query_weights_md, 0)
+///  - weights_iter (#mkldnn_query_weights_md, 1)
+///  - bias (#mkldnn_query_weights_md, 2), if used
+///  - dst_layer (#mkldnn_query_dst_md, 0)
+///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
+///  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+///  - workspace (#mkldnn_query_workspace_md, 0)
+///
+/// Outputs:
+///  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
+///  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
+///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
+///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
+mkldnn_status_t MKLDNN_API mkldnn_lbr_gru_backward_desc_init(
+        mkldnn_rnn_desc_t *rnn_desc, mkldnn_prop_kind_t prop_kind,
+        mkldnn_rnn_direction_t direction,
+        const mkldnn_memory_desc_t *src_layer_desc,
+        const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *weights_layer_desc,
+        const mkldnn_memory_desc_t *weights_iter_desc,
+        const mkldnn_memory_desc_t *bias_desc,
+        const mkldnn_memory_desc_t *dst_layer_desc,
+        const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_layer_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_weights_layer_desc,
+        const mkldnn_memory_desc_t *diff_weights_iter_desc,
+        const mkldnn_memory_desc_t *diff_bias_desc,
+        const mkldnn_memory_desc_t *diff_dst_layer_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        unsigned flags);
 
 /// @}
 

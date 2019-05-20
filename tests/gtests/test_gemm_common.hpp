@@ -337,6 +337,9 @@ void compare(const test_params &p, const test_memory &c_mem,
     auto c = map_memory<c_dt>(c_mem);
     auto c_ref = map_memory<c_dt>(c_ref_mem);
     mkldnn::impl::parallel_nd(p.N, p.ldc, [&](int64_t i, int64_t j) {
+        if (is_current_test_failed())
+            return;
+
         c_dt ref = c_ref[p.off.c + i * p.ldc + j];
         c_dt got = c[p.off.c + i * p.ldc + j];
         c_dt diff = got - ref;
@@ -344,21 +347,21 @@ void compare(const test_params &p, const test_memory &c_mem,
         if (data_traits<b_dt>::data_type == data_type::f16) {
             const float eps = 1e-3 * p.K;
             float e = (std::abs(ref) > eps) ? diff / ref : float(diff);
-            EXPECT_NEAR(e, 0.0, eps) << "Row: " << j << " Col: " << i;
+            ASSERT_NEAR(e, 0.0, eps) << "Row: " << j << " Col: " << i;
         } else if (data_traits<b_dt>::data_type == data_type::f32) {
             c_dt e = (std::abs(ref) > 1e-4) ? c_dt(diff / ref) : diff;
-            EXPECT_NEAR(e, 0.0, 1e-4) << "Row: " << j << " Col: " << i;
+            ASSERT_NEAR(e, 0.0, 1e-4) << "Row: " << j << " Col: " << i;
         } else {
             // igemm
             if (p.alpha == 1.0f) {
-                EXPECT_NEAR(diff, 0, 1) << "Row: " << j << " Col: " << i;
+                ASSERT_NEAR(diff, 0, 1) << "Row: " << j << " Col: " << i;
             } else {
                 if (data_traits<b_dt>::data_type == data_type::u8) {
                     c_dt eps = p.K / 700 + 1;
-                    EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
+                    ASSERT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 } else if (data_traits<b_dt>::data_type == data_type::s8) {
                     c_dt eps = p.K / 350 + 1;
-                    EXPECT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
+                    ASSERT_NEAR(diff, 0, eps) << "Row: " << j << " Col: " << i;
                 }
             }
         }

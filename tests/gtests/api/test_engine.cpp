@@ -32,11 +32,11 @@ static void compare_backend(
         mkldnn_engine_kind_t engine_kind, mkldnn_backend_kind_t backend_kind) {
     if (engine_kind == mkldnn_cpu) {
 #if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
-        EXPECT_EQ(backend_kind, mkldnn_backend_native);
+        ASSERT_EQ(backend_kind, mkldnn_backend_native);
 #endif
     } else if (engine_kind == mkldnn_gpu) {
 #if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
-        EXPECT_EQ(backend_kind, mkldnn_backend_ocl);
+        ASSERT_EQ(backend_kind, mkldnn_backend_ocl);
 #endif
     }
 }
@@ -95,7 +95,7 @@ TEST_P(engine_test_c, CreateWithBackend) {
         MKLDNN_CHECK(
                 mkldnn_engine_get_backend_kind(engine, &queried_backend_kind));
 
-        EXPECT_EQ(queried_backend_kind, backend_kind);
+        ASSERT_EQ(queried_backend_kind, backend_kind);
 
         MKLDNN_CHECK(mkldnn_engine_destroy(engine));
     }

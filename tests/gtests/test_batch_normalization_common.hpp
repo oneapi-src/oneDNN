@@ -56,21 +56,18 @@ void fill(const memory &m) {
 template <typename data_t>
 class bnorm_test_common : public ::testing::TestWithParam<test_bnorm_params_t> {
 private:
-    std::shared_ptr<test_memory> src;
-    std::shared_ptr<test_memory> dst;
-    std::shared_ptr<test_memory> diff_src;
-    std::shared_ptr<test_memory> diff_dst;
-    std::shared_ptr<memory> weights;
-    std::shared_ptr<memory> diff_weights;
-    std::shared_ptr<memory> mean;
-    std::shared_ptr<memory> variance;
+    std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
+    memory weights, diff_weights, mean, variance;
+
     std::shared_ptr<memory::desc> data_d;
     std::shared_ptr<memory::desc> diff_d;
-    std::shared_ptr<batch_normalization_forward::primitive_desc> bnorm_fwd_pd;
-    std::shared_ptr<batch_normalization_backward::primitive_desc> bnorm_bwd_pd;
+
+    batch_normalization_forward::primitive_desc bnorm_fwd_pd;
+    batch_normalization_backward::primitive_desc bnorm_bwd_pd;
+
     test_bnorm_params_t p;
-    std::shared_ptr<engine> eng;
-    std::shared_ptr<stream> strm;
+    engine eng;
+    stream strm;
     memory::data_type data_type;
 
 protected:
@@ -84,8 +81,8 @@ protected:
         using bf = batch_normalization_flags;
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        eng.reset(new engine(get_test_engine_kind(), 0));
-        strm.reset(new stream(*eng));
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
 
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_TRUE(isF32(data_type) || isS8(data_type));
@@ -111,10 +108,10 @@ protected:
                 data_type, p.tags.diff_tag));
         }
 
-        src.reset(new test_memory(*data_d, *eng));
-        dst.reset(new test_memory(*data_d, *eng));
-        diff_src.reset(new test_memory(*diff_d, *eng));
-        diff_dst.reset(new test_memory(*diff_d, *eng));
+        src.reset(new test_memory(*data_d, eng));
+        dst.reset(new test_memory(*data_d, eng));
+        diff_src.reset(new test_memory(*diff_d, eng));
+        diff_dst.reset(new test_memory(*diff_d, eng));
 
         auto training = prop_kind::forward_training;
         auto inference = prop_kind::forward_inference;
@@ -153,22 +150,22 @@ protected:
         auto bnorm_fwd_d = batch_normalization_forward::desc(pk,
                     *data_d, p.epsilon, flags);
 
-        bnorm_fwd_pd.reset(new batch_normalization_forward::primitive_desc(
-                    bnorm_fwd_d, *eng));
+        bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
+                bnorm_fwd_d, eng);
 
-        weights.reset(new memory(bnorm_fwd_pd->weights_desc(), *eng));
+        weights = memory(bnorm_fwd_pd.weights_desc(), eng);
         if (isTraining || useGlobalStats) {
-            mean.reset(new memory(bnorm_fwd_pd->mean_desc(), *eng));
-            variance.reset(new memory(bnorm_fwd_pd->variance_desc(), *eng));
+            mean = memory(bnorm_fwd_pd.mean_desc(), eng);
+            variance = memory(bnorm_fwd_pd.variance_desc(), eng);
         }
 
         fill<data_t>(src->get());
         fill<data_t>(dst->get());
         if (useScaleShift)
-            fill<float>(*weights);
+            fill<float>(weights);
         if (useGlobalStats) {
-            fill<float>(*mean);
-            fill<float>(*variance);
+            fill<float>(mean);
+            fill<float>(variance);
         }
         check_zero_tail<data_t>(1, src->get());
         check_zero_tail<data_t>(1, dst->get());
@@ -177,7 +174,7 @@ protected:
 
         check_zero_tail<data_t>(0, dst->get());
 
-        check_bnorm_fwd(p, src->get(), *mean, *variance, *weights, dst->get(),
+        check_bnorm_fwd(p, src->get(), mean, variance, weights, dst->get(),
                 flags, pk);
     }
 
@@ -188,34 +185,33 @@ protected:
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
-        bnorm_fwd_pd.reset(new batch_normalization_forward::primitive_desc(
-                    bnorm_fwd_d, *eng));
+        bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
+                bnorm_fwd_d, eng);
 
         auto bnorm_bwd_d = batch_normalization_backward::desc(
                 pk, *diff_d, *data_d, p.epsilon, flags);
-        bnorm_bwd_pd.reset(
-                new batch_normalization_backward::primitive_desc(
-                bnorm_bwd_d, *eng, *bnorm_fwd_pd));
+        bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
+                bnorm_bwd_d, eng, bnorm_fwd_pd);
 
         if (useScaleShift)
-            weights.reset(new memory(bnorm_bwd_pd->weights_desc(), *eng));
-        diff_weights.reset(new memory(bnorm_bwd_pd->diff_weights_desc(), *eng));
-        mean.reset(new memory(bnorm_bwd_pd->mean_desc(), *eng));
-        variance.reset(new memory(bnorm_bwd_pd->variance_desc(), *eng));
+            weights = memory(bnorm_bwd_pd.weights_desc(), eng);
+        diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);
+        mean = memory(bnorm_bwd_pd.mean_desc(), eng);
+        variance = memory(bnorm_bwd_pd.variance_desc(), eng);
 
         if (useScaleShift)
-            fill<float>(*weights);
+            fill<float>(weights);
         fill<float>(diff_src->get());
         fill<float>(diff_dst->get());
-        fill<float>(*mean);
-        fill<float>(*variance);
+        fill<float>(mean);
+        fill<float>(variance);
         check_zero_tail<data_t>(1, diff_src->get());
         check_zero_tail<data_t>(1, diff_dst->get());
 
         execBnormBwd(useScaleShift, pk);
 
-        check_bnorm_bwd(p, src->get(), diff_dst->get(), *mean, *variance,
-                *weights, diff_src->get(), *diff_weights, flags, pk);
+        check_bnorm_bwd(p, src->get(), diff_dst->get(), mean, variance,
+                weights, diff_src->get(), diff_weights, flags, pk);
         check_zero_tail<data_t>(0, diff_src->get());
     }
 
@@ -234,34 +230,34 @@ protected:
         };
 
         if (useScaleShift)
-            args.insert({MKLDNN_ARG_SCALE_SHIFT, *weights});
+            args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
 
         if (isTraining || useGlobalStats) {
-            args.insert({MKLDNN_ARG_MEAN, *mean});
-            args.insert({MKLDNN_ARG_VARIANCE, *variance});
+            args.insert({MKLDNN_ARG_MEAN, mean});
+            args.insert({MKLDNN_ARG_VARIANCE, variance});
         }
 
-        batch_normalization_forward(*bnorm_fwd_pd).execute(*strm, args);
-        strm->wait();
+        batch_normalization_forward(bnorm_fwd_pd).execute(strm, args);
+        strm.wait();
     }
 
     void execBnormBwd(bool useScaleShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
             {MKLDNN_ARG_SRC, src->get()},
             {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-            {MKLDNN_ARG_MEAN, *mean},
-            {MKLDNN_ARG_VARIANCE, *variance},
+            {MKLDNN_ARG_MEAN, mean},
+            {MKLDNN_ARG_VARIANCE, variance},
             {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
         };
 
         if (useScaleShift) {
-            args.insert({MKLDNN_ARG_SCALE_SHIFT, *weights});
+            args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
             if (pk == prop_kind::backward)
-                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, *diff_weights});
+                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
 
-        batch_normalization_backward(*bnorm_bwd_pd).execute(*strm, args);
-        strm->wait();
+        batch_normalization_backward(bnorm_bwd_pd).execute(strm, args);
+        strm.wait();
     }
 
     void check_bnorm_fwd(const test_bnorm_params_t &p, const memory &src,
@@ -303,6 +299,9 @@ protected:
         auto padded_c = src_d.data.padded_dims[1];
 
         mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+            if (is_current_test_failed())
+                return;
+
             float ref_mean = calculate_stats ? float(0) : mean_data[c];
             float ref_variance = calculate_stats ? float(0) :
                     variance_data[c];
@@ -321,7 +320,7 @@ protected:
                         std::max(std::abs(mean_data[c]), std::abs(ref_mean));
                     if (mean_norm_max < eps)
                         mean_norm_max = float(1);
-                    EXPECT_NEAR((mean_data[c] - ref_mean) / mean_norm_max,
+                    ASSERT_NEAR((mean_data[c] - ref_mean) / mean_norm_max,
                         0., eps);
                 }
 
@@ -340,7 +339,7 @@ protected:
                             std::abs(variance_data[c]), std::abs(ref_variance));
                     if (variance_norm_max < eps)
                         variance_norm_max = float(1);
-                    EXPECT_NEAR((variance_data[c] - ref_variance) /
+                    ASSERT_NEAR((variance_data[c] - ref_variance) /
                             variance_norm_max, 0., eps);
                 }
             }
@@ -377,7 +376,7 @@ protected:
                 float norm_max = std::max(std::abs(out), std::abs(ref_dst));
                 if (norm_max < 1e-2 || isS8(data_type))
                     norm_max = 1.;
-                EXPECT_NEAR((out - ref_dst) / norm_max, 0., eps);
+                ASSERT_NEAR((out - ref_dst) / norm_max, 0., eps);
             }
         });
     }
@@ -421,8 +420,8 @@ protected:
                 for (memory::dim c = 0; c < bp.c; ++c) {
                     auto dg = diff_weights_data[diff_weights_mdw.off_l(c, true)];
                     auto db = diff_weights_data[diff_weights_mdw.off_l(bp.c + c, true)];
-                    EXPECT_NEAR(dg, 0., 1e-7);
-                    EXPECT_NEAR(db, 0., 1e-7);
+                    ASSERT_NEAR(dg, 0., 1e-7);
+                    ASSERT_NEAR(db, 0., 1e-7);
                 }
             }
             return;
@@ -434,6 +433,9 @@ protected:
         auto padded_c = src_d.data.padded_dims[1];
 
         mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+            if (is_current_test_failed())
+                return;
+
             float ref_diff_gamma = float(0);
             float ref_diff_beta = float(0);
 
@@ -463,7 +465,7 @@ protected:
                     std::max(std::abs(diff_gamma), std::abs(ref_diff_gamma));
                 if (norm_max < 1e-2)
                     norm_max = float(1);
-                EXPECT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
+                ASSERT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
 
                 auto diff_beta =
                     diff_weights_data[diff_weights_mdw.off_l(bp.c + c, true)];
@@ -471,7 +473,7 @@ protected:
                     std::max(std::abs(diff_beta), std::abs(ref_diff_beta));
                 if (norm_max < 1e-2)
                     norm_max = float(1);
-                EXPECT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
+                ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
             for (memory::dim n = 0; n < bp.mb; n++)
@@ -494,7 +496,7 @@ protected:
                     std::max(std::abs(out_diff_src), std::abs(ref_diff_src));
                 if (norm_max < eps)
                     norm_max = float(1);
-                EXPECT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
+                ASSERT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
         });
     }

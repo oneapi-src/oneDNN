@@ -104,6 +104,7 @@ enum prim_t {
     BNORM,
     RNN,
     SOFTMAX,
+    POOL,
     DEF = CONV,
 };
 
@@ -111,6 +112,12 @@ enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
 const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 extern bench_mode_t bench_mode;
+
+/* string length constants */
+constexpr size_t max_attr_len = 128;
+constexpr size_t max_desc_len = 160;
+constexpr size_t max_base_prb_len = 196;
+constexpr size_t max_prb_len = max_attr_len + max_desc_len + max_base_prb_len;
 
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
@@ -185,18 +192,7 @@ const char *bool2str(bool value);
 bool match_regex(const char *str, const char *pattern);
 bool maybe_skip(const char *skip_impl, const char *impl_str);
 
-template <typename B, typename F>
-void read_csv(const char *csv, B b, F f, const char *delim = ",") {
-    char csv_copy[128];
-    strncpy(csv_copy, csv, sizeof(csv_copy) - 1);
-    csv_copy[sizeof(csv_copy) - 1] = '\0';
-
-    b();
-    const char *s = strtok(csv_copy, delim);
-    for (; s && *s; s = strtok(NULL, delim)) f(s);
-}
-
-typedef int (*bench_f)(int argc, char **argv, bool main_bench);
+typedef int (*bench_f)(int argc, char **argv);
 int batch(const char *fname, bench_f bench);
 
 /* returns 1 with given probability */

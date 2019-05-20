@@ -256,11 +256,20 @@ struct memory_desc_wrapper: public c_compatible {
             dim_t blk_stride = 1;
             for (int iblk = blk.inner_nblks - 1; iblk >= 0; --iblk) {
                 const int d = blk.inner_idxs[iblk];
-                const dim_t p = pos_copy[d] % blk.inner_blks[iblk];
+
+                dim_t p;
+                /* switch to faster 32-bit division when possible.
+                 * inner blocks always fit 32-bit. */
+                if (pos_copy[d] <= INT32_MAX) {
+                    p = (int32_t)pos_copy[d] % (int32_t)blk.inner_blks[iblk];
+                    pos_copy[d] = (int32_t)pos_copy[d]
+                            / (int32_t)blk.inner_blks[iblk];
+                } else {
+                    p = pos_copy[d] % blk.inner_blks[iblk];
+                    pos_copy[d] /= blk.inner_blks[iblk];
+                }
 
                 phys_offset += p * blk_stride;
-
-                pos_copy[d] /= blk.inner_blks[iblk];
 
                 blk_stride *= blk.inner_blks[iblk];
             }
@@ -283,8 +292,14 @@ struct memory_desc_wrapper: public c_compatible {
         for (int rd = 0; rd < ndims(); ++rd) {
             const int d = ndims() - 1 - rd;
             const dim_t cur_dim = is_pos_padded ? padded_dims()[d] : dims()[d];
-            pos[d] = l_offset % cur_dim;
-            l_offset /= cur_dim;
+            /* switch to faster 32-bit division when possible. */
+            if (l_offset <= INT32_MAX && cur_dim <= INT32_MAX) {
+                pos[d] = (int32_t)l_offset % (int32_t)cur_dim;
+                l_offset = (int32_t)l_offset / (int32_t)cur_dim;
+            } else {
+                pos[d] = l_offset % cur_dim;
+                l_offset /= cur_dim;
+            }
         }
         return off_v(pos, is_pos_padded);
     }

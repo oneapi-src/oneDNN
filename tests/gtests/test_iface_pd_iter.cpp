@@ -29,7 +29,7 @@ protected:
     mkldnn_engine_t engine;
     virtual void SetUp() {
         auto engine_kind = static_cast<mkldnn_engine_kind_t>(get_test_engine_kind());
-        EXPECT_EQ(mkldnn_engine_create(&engine, engine_kind, 0), ok);
+        ASSERT_EQ(mkldnn_engine_create(&engine, engine_kind, 0), ok);
     }
     virtual void TearDown() {
         mkldnn_engine_destroy(engine);
@@ -39,29 +39,29 @@ protected:
 TEST_F(pd_iter_test, TestReLUImpls) {
     mkldnn_memory_desc_t dense_md;
     mkldnn_dims_t dims = {4, 16, 16, 16};
-    EXPECT_EQ(mkldnn_memory_desc_init_by_tag(&dense_md, 4, dims, mkldnn_f32,
+    ASSERT_EQ(mkldnn_memory_desc_init_by_tag(&dense_md, 4, dims, mkldnn_f32,
                 mkldnn_nchw), ok);
 
     mkldnn_eltwise_desc_t ed;
-    EXPECT_EQ(mkldnn_eltwise_forward_desc_init(&ed, mkldnn_forward_inference,
+    ASSERT_EQ(mkldnn_eltwise_forward_desc_init(&ed, mkldnn_forward_inference,
                 mkldnn_eltwise_relu, &dense_md, 0., 0.), ok);
 
     mkldnn_primitive_desc_iterator_t it;
     mkldnn_status_t rc;
 
-    EXPECT_EQ(rc = mkldnn_primitive_desc_iterator_create(&it, &ed, nullptr,
+    ASSERT_EQ(rc = mkldnn_primitive_desc_iterator_create(&it, &ed, nullptr,
                 engine, nullptr), ok); /* there should be at least one impl */
 
     mkldnn_primitive_desc_t pd;
-    EXPECT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
+    ASSERT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
     mkldnn_primitive_desc_destroy(pd);
 
     while ((rc = mkldnn_primitive_desc_iterator_next(it)) == ok) {
-        EXPECT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
+        ASSERT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
         mkldnn_primitive_desc_destroy(pd);
     }
 
-    EXPECT_EQ(rc, mkldnn_iterator_ends);
+    ASSERT_EQ(rc, mkldnn_iterator_ends);
     mkldnn_primitive_desc_iterator_destroy(it);
 }
 
@@ -79,7 +79,7 @@ TEST(pd_next_impl, TestEltwiseImpl) {
     while (epd.next_impl()) {
         std::string impl1(epd.impl_info_str());
         eltwise_forward e1(epd);
-        EXPECT_NE(impl0, impl1);
+        ASSERT_NE(impl0, impl1);
         impl0 = impl1;
     }
 }

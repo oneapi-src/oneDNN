@@ -118,18 +118,17 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
         DNN_SAFE(mkldnn_dilated_deconvolution_forward_desc_init(&cd,
                     mkldnn_forward_inference, alg, &src_d, &wei_d,
                     p->dir == FWD_D ? NULL : &bia_d, &dst_d, strides,
-                    dilates, padding, padding_r, mkldnn_padding_zero), WARN);
+                    dilates, padding, padding_r), WARN);
         break;
     case BWD_D:
         DNN_SAFE(mkldnn_dilated_deconvolution_backward_data_desc_init(&cd, alg,
                     &src_d, &wei_d, &dst_d, strides, dilates, padding,
-                    padding_r, mkldnn_padding_zero), WARN);
+                    padding_r), WARN);
         break;
     case BWD_W: case BWD_WB:
         DNN_SAFE(mkldnn_dilated_deconvolution_backward_weights_desc_init(&cd,
                     alg, &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d,
-                    &dst_d, strides, dilates,  padding, padding_r,
-                    mkldnn_padding_zero), WARN);
+                    &dst_d, strides, dilates,  padding, padding_r), WARN);
         break;
     default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
     }

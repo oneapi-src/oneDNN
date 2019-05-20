@@ -1,42 +1,11 @@
-# f32
+--reset
 
+--activation=TANH --prop=FWD_D,BWD_DW
 # RNN
---reset --alg=VANILLA_RNN
+--alg=VANILLA_RNN
+--direction=left2right,concat,sum --batch=rnn_training
+
+# LSTM, GRU
 --direction=left2right
---activation=TANH
---prop=FWD_D --batch=rnn_training
---prop=BWD_DW --batch=rnn_training
-
---reset
---direction=concat
---activation=TANH
---prop=FWD_D --batch=rnn_training
---prop=BWD_DW --batch=rnn_training
-
-# sum
---reset
---direction=sum
---activation=TANH
---prop=FWD_D --batch=rnn_training
---prop=BWD_DW --batch=rnn_training
-
-# LSTM
---reset --alg=VANILLA_LSTM
---direction=left2right
---activation=TANH
---prop=FWD_D --batch=rnn_training
---prop=BWD_DW --batch=rnn_training
-
-# GRU
---reset --alg=VANILLA_GRU
---direction=left2right
---activation=TANH
---prop=FWD_D --batch=rnn_gru
---prop=BWD_DW --batch=rnn_gru
-
-# LBR_GRU
---reset --alg=LBR_GRU
---direction=left2right
---activation=TANH
---prop=FWD_D --batch=rnn_training
---prop=BWD_DW --batch=rnn_training
+--alg=VANILLA_LSTM,LBR_GRU --batch=rnn_training
+--alg=VANILLA_GRU          --batch=rnn_gru

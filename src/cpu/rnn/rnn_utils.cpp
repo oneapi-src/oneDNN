@@ -18,6 +18,7 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 
+#include "rnn.hpp"
 #include "ref_rnn.hpp"
 #include "rnn_utils.hpp"
 #include "type_helpers.hpp"
@@ -66,7 +67,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn.is_lbr = rd.cell_desc.cell_kind == mkldnn_gru_linear_before_reset;
+    rnn.is_lbr = rd.cell_kind == mkldnn_lbr_gru;
 
     switch (rd.direction) {
     case mkldnn_unidirectional_left2right: rnn.exec_dir = l2r; break;
@@ -95,7 +96,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.n_iter = src_layer_d.dims()[0];
     rnn.n_dir = weights_layer_d.dims()[1];
     rnn.n_gates = weights_layer_d.dims()[3];
-    rnn.n_states = mkldnn_rnn_cell_get_states_count(&rd.cell_desc);
+    rnn.n_states = mkldnn::impl::rnn::get_states_count(rd.cell_kind);
     rnn.n_bias = rnn.n_gates + rnn.is_lbr;
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];
@@ -108,7 +109,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.states_nld = rnn.mb;
 
     /* Set the correct number of weights parts */
-    bool is_orig_gru = rd.cell_desc.cell_kind == alg_kind::vanilla_gru;
+    bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
@@ -126,8 +127,8 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     bool is_int8 = rnn.dt_conf != all_f32;
     rnn.merge_gemm_layer = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
             || is_int8;
-    bool is_gru = utils::one_of(rd.cell_desc.cell_kind, alg_kind::vanilla_gru,
-            alg_kind::gru_linear_before_reset);
+    bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
+            alg_kind::lbr_gru);
     rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru) || is_int8;
     bool is_inference = !rnn.is_training;
 
@@ -140,13 +141,15 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
 #if USE_MKL_PACKED_GEMM
     rnn.use_layer_packed_gemm
-            = (weights_layer_d.format_kind() == format_kind::any
-                       && is_inference && rnn.n_iter == 1)
-              || is_int8;
+        = (utils::one_of(weights_layer_d.format_kind(), format_kind::any,
+                   format_kind::rnn_packed)
+           && is_inference && rnn.n_iter == 1)
+        || is_int8;
     rnn.use_iter_packed_gemm
-            = (weights_layer_d.format_kind() == format_kind::any
-                      && is_inference && rnn.mb >= 16)
-            || is_int8;
+        = (utils::one_of(weights_iter_d.format_kind(), format_kind::any,
+                   format_kind::rnn_packed)
+           && is_inference && rnn.mb >= 16)
+        || is_int8;
 #else
     rnn.use_layer_packed_gemm = false;
     rnn.use_iter_packed_gemm = false;
@@ -269,7 +272,7 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.use_workspace = rnn.is_training;
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
             * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * sizeof_states_dt;
-    bool is_lstm = rd.cell_desc.cell_kind == mkldnn_vanilla_lstm;
+    bool is_lstm = rd.cell_kind == mkldnn_vanilla_lstm;
     rnn.ws_c_states_size = is_lstm
             ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
                     * rnn.states_ws_ld * sizeof(float)

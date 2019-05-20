@@ -79,7 +79,7 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
                     + DST_D*DST_H*DST_W*adj_dst_dim(1, c)
                     + DST_C_PADDED*DST_D*DST_H*DST_W*adj_dst_dim(0, n);
                 if (ndims == 5) dst_idx += DST_H*DST_W*adj_dst_dim(2, d);
-                EXPECT_NEAR(src_data[src_mdw.off_l(src_idx, true)],
+                ASSERT_NEAR(src_data[src_mdw.off_l(src_idx, true)],
                             dst_data[dst_mdw.off_l(dst_idx, true)],
                             1e-7);
             }
@@ -186,7 +186,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, ::testing::Values
     concat_test_params{1, {fmt::nchw, fmt::nchw}, fmt::nchw,  {{1, 4, 5, 5}, {1, 2, 5, 5}}, {1, 6, 6, 5}, true, mkldnn_invalid_arguments}
 ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_padded, concat_test_float, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(TestConcat_padded, concat_test_float, ::testing::Values(
     concat_test_params{1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c, {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}, true, mkldnn_unimplemented},
     concat_test_params{1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},
     concat_test_params{1, {fmt::nChw8c,  fmt::nChw8c},  fmt::nchw,    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70,  5,  5}},

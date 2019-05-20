@@ -288,4 +288,36 @@ GPU_INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
             )
         );
 
+GPU_INSTANTIATE_TEST_SUITE_P(Data_1D, reorder_simple_test_f32_f32,
+        ::testing::Values(
+            cfg_f32{fmt::ncw, fmt::nCw16c, {32, 48, 7}},
+            cfg_f32{fmt::nCw16c, fmt::ncw, {32, 48, 7}},
+            cfg_f32{fmt::ncw, fmt::NCw16n16c, {32, 48, 7}},
+            cfg_f32{fmt::NCw16n16c, fmt::ncw, {32, 48, 7}},
+            cfg_f32{fmt::nCw16c, fmt::NCw16n16c, {32, 48, 7}},
+            cfg_f32{fmt::NCw16n16c, fmt::nCw16c, {32, 48, 7}}
+            )
+        );
+
+GPU_INSTANTIATE_TEST_SUITE_P(weights_1D, reorder_simple_test_f32_f32,
+        ::testing::Values(
+            cfg_f32{fmt::oiw, fmt::OIw8i16o2i, {32, 48, 7}},
+            cfg_f32{fmt::OIw8i16o2i, fmt::oiw, {32, 48, 7}},
+            cfg_f32{fmt::goiw, fmt::gOIw8i16o2i, {8, 32, 48, 7}},
+            cfg_f32{fmt::gOIw8i16o2i, fmt::goiw, {8, 32, 48, 7}},
+            cfg_f32{fmt::oiw, fmt::OIw16i16o, {32, 48, 7}},
+            cfg_f32{fmt::OIw16i16o, fmt::oiw, {32, 48, 7}},
+            cfg_f32{fmt::goiw, fmt::gOIw16i16o, {8, 32, 48, 7}},
+            cfg_f32{fmt::gOIw16i16o, fmt::goiw, {8, 32, 48, 7}},
+            cfg_f32{fmt::oiw, fmt::Oiw16o, {32, 48, 7}},
+            cfg_f32{fmt::Oiw16o, fmt::oiw, {32, 48, 7}},
+            cfg_f32{fmt::goiw, fmt::gOiw16o, {8, 32, 48, 7}},
+            cfg_f32{fmt::gOiw16o, fmt::goiw, {8, 32, 48, 7}},
+            cfg_f32{fmt::oiw, fmt::IOw16i16o, {32, 48, 7}},
+            cfg_f32{fmt::IOw16i16o, fmt::oiw, {32, 48, 7}},
+            cfg_f32{fmt::goiw, fmt::gIOw16i16o, {8, 32, 48, 7}},
+            cfg_f32{fmt::gIOw16i16o, fmt::goiw, {8, 32, 48, 7}}
+            )
+        );
+
 }

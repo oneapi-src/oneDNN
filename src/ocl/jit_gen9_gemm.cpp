@@ -25,21 +25,28 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <data_type_t c_type>
+template <data_type_t c_type, bool nocopy>
 struct jit_gen9_gemm_driver_params {};
 
 template <>
-struct jit_gen9_gemm_driver_params<data_type::f32> {
+struct jit_gen9_gemm_driver_params<data_type::f32, false> {
     static constexpr auto block_m = 512 * 16;
     static constexpr auto block_n = 64 * 32;
     static constexpr auto block_k = 1024;
 };
 
 template <>
-struct jit_gen9_gemm_driver_params<data_type::f16> {
+struct jit_gen9_gemm_driver_params<data_type::f16, false> {
     static constexpr auto block_m = 512 * 16;
     static constexpr auto block_n = 64 * 32;
     static constexpr auto block_k = 2048;
+};
+
+template <data_type_t c_type>
+struct jit_gen9_gemm_driver_params<c_type, true> {
+    static constexpr auto block_m = 1024;
+    static constexpr auto block_n = 2048;
+    static constexpr auto block_k = 1024;
 };
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
@@ -136,6 +143,53 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(stream_t *s,
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
+    stream_t *s, const memory_storage_t &a, const memory_storage_t &b,
+    const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
+    int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
+    int32_t n, int32_t k, float alpha, float beta, float post_op_param) const {
+
+    auto &kernel = nocopy_kernel_;
+
+    assert(kernel);
+    kernel.set_arg(0, a);
+    kernel.set_arg(1, b);
+    kernel.set_arg(2, c);
+    kernel.set_arg(3, offset_a);
+    kernel.set_arg(4, offset_b);
+    kernel.set_arg(5, offset_c);
+    kernel.set_arg(6, lda);
+    kernel.set_arg(7, ldb);
+    kernel.set_arg(8, ldc);
+    kernel.set_arg(9, m);
+    kernel.set_arg(10, n);
+    kernel.set_arg(11, k);
+    kernel.set_arg(12, alpha);
+    kernel.set_arg(13, beta);
+    kernel.set_arg(14, post_op_param);
+
+    bool transa = (pd()->desc()->transa == mkldnn_trans);
+    bool transb = (pd()->desc()->transb == mkldnn_trans);
+
+    int unroll_m, unroll_n;
+
+    jit_gen9_gemm_nocopy_kernel<c_type>::get_unrolls(transa, transb, unroll_m,
+        unroll_n);
+
+    int nthreads_x = (n + unroll_n - 1) / unroll_n;
+    int nthreads_y = (m + unroll_m - 1) / unroll_m;
+    static constexpr auto subgroup_size = 16;
+    size_t gws[3] = {size_t(nthreads_x * subgroup_size), size_t(nthreads_y), 1};
+    size_t lws[3] = {2 * subgroup_size, 8, 1};
+
+    auto nd_range = cl_nd_range_t(gws, lws);
+
+    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
+
+    return executor.parallel_for(nd_range, kernel);
+}
+
+template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
         const exec_ctx_t &ctx) const {
 
@@ -145,9 +199,16 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
 
     status_t status;
     constexpr int64_t align = 0x1000;
-    auto block_m = jit_gen9_gemm_driver_params<c_type>::block_m;
-    auto block_n = jit_gen9_gemm_driver_params<c_type>::block_n;
-    auto block_k = jit_gen9_gemm_driver_params<c_type>::block_k;
+    int block_m, block_n, block_k;
+    if (!nocopy_) {
+        block_m = jit_gen9_gemm_driver_params<c_type, false>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, false>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, false>::block_k;
+    } else {
+        block_m = jit_gen9_gemm_driver_params<c_type, true>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, true>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, true>::block_k;
+    }
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -163,6 +224,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
     auto alpha = pd()->desc()->alpha;
     auto beta = pd()->desc()->beta;
 
+    auto relu_negative_slope = pd()->relu_negative_slope();
+
     c_t alpha_native, beta_native, one_native;
     alpha_native = alpha;
     beta_native = beta;
@@ -176,7 +239,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
     size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
     size_t off_c0 = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
-    if (beta != 0. && beta != 1.) {
+    if (!nocopy_ && beta != 0. && beta != 1.) {
         status = launch_beta(ctx.stream(), m, n, beta_native, c, off_c0, ldc);
         if (status)
             return status;
@@ -188,7 +251,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
-        if (size_k > block_k)
+        bool last_k_block = (size_k <= block_k);
+        if (!last_k_block)
             size_k = block_k;
 
         for (int64_t Bm = 0; Bm < m; Bm += block_m) {
@@ -198,32 +262,46 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
 
             auto off_a_src
                     = off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
-            status = launch_copy(ctx.stream(), size_k, size_m, a, off_a_src,
-                    lda, alpha_native, *temp_buf_, off_a_packed, false, !transa);
-            if (status)
-                return status;
+
+            if (!nocopy_) {
+                status = launch_copy(ctx.stream(), size_k, size_m, a, off_a_src,
+                    lda, alpha_native, *temp_buf_, off_a_packed, false,
+                    !transa);
+                if (status)
+                    return status;
+            }
 
             for (int64_t Bn = 0; Bn < n; Bn += block_n) {
                 int64_t size_n = n - Bn;
                 if (size_n > block_n)
                     size_n = block_n;
 
-                if ((Bn == 0) || (n > block_n)) {
-                    auto off_b_src = off_b0
-                            + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * lda));
+                auto off_b_src = off_b0
+                    + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
+                if (!nocopy_ && ((Bn == 0) || (n > block_n))) {
                     status = launch_copy(ctx.stream(), size_k, size_n, b,
-                            off_b_src, ldb, one_native, *temp_buf_, off_b_packed,
-                            true, transb);
+                            off_b_src, ldb, one_native, *temp_buf_,
+                            off_b_packed, true, transb);
                     if (status)
                         return status;
                 }
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
 
-                bool beta0 = (beta == 0) && (Bk == 0);
-                status = launch_compute(ctx.stream(), size_m, size_n, size_k,
-                        *temp_buf_, off_a_packed, off_b_packed, c, off_c, ldc, beta0);
+                if (nocopy_) {
+                    float eff_beta = (Bk == 0) ? beta : 1.0f;
+                    float eff_relu_negative_slope = last_k_block ?
+                        relu_negative_slope : 1.0f;
+                    status = launch_nocopy(ctx.stream(), a, b, c, off_a_src,
+                        off_b_src, off_c, lda, ldb, ldc, size_m, size_n, size_k,
+                        alpha, eff_beta, eff_relu_negative_slope);
+                } else {
+                    bool beta0 = (beta == 0) && (Bk == 0);
+                    status = launch_compute(ctx.stream(), size_m, size_n,
+                        size_k, *temp_buf_, off_a_packed, off_b_packed, c,
+                        off_c, ldc, beta0);
+                }
                 if (status)
                     return status;
             }

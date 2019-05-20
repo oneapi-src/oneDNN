@@ -166,7 +166,7 @@ rnn_grid_execution_sig(
             if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
                 (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic,
                         rnn.mb * rnn.n_iter, rnn.slc, 1.0,
-                        weights_input(lay, dir, 0), rnn.weights_iter_ld,
+                        weights_input(lay, dir, 0), rnn.weights_layer_ld,
                         &(ws_states(lay, dir, 1, 0)), rnn.states_ws_ld, 0.0,
                         &(ws_gates(lay, dir, 0, 0)), rnn.gates_ws_ld);
             }

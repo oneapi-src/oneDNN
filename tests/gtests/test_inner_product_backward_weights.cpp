@@ -136,9 +136,6 @@ protected:
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
-        std::shared_ptr<memory> ip_src, ip_diff_dst, ip_diff_weights, ip_diff_bias;
-        std::shared_ptr<memory> diff_weights_ref, diff_bias_ref;
-
         auto ip_src_desc = has_spatial ? p.ndims == 5
             ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
                     data_type, p.src_format)
@@ -175,42 +172,42 @@ protected:
         auto ip_primitive_desc = inner_product_backward_weights::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
 
-        ip_src.reset(new memory(ip_primitive_desc.src_desc(), eng));
-        ip_diff_dst.reset(new memory(ip_primitive_desc.diff_dst_desc(), eng));
-        ip_diff_weights.reset(new memory(ip_primitive_desc.diff_weights_desc(), eng));
-        diff_weights_ref.reset(new memory(ip_primitive_desc.diff_weights_desc(), eng));
-        ip_diff_bias.reset(new memory(ip_primitive_desc.diff_bias_desc(), eng));
-        diff_bias_ref.reset(new memory(ip_primitive_desc.diff_bias_desc(), eng));
+        memory ip_src(ip_primitive_desc.src_desc(), eng);
+        memory ip_diff_dst(ip_primitive_desc.diff_dst_desc(), eng);
+        memory ip_diff_weights(ip_primitive_desc.diff_weights_desc(), eng);
+        memory diff_weights_ref(ip_primitive_desc.diff_weights_desc(), eng);
+        memory ip_diff_bias(ip_primitive_desc.diff_bias_desc(), eng);
+        memory diff_bias_ref(ip_primitive_desc.diff_bias_desc(), eng);
 
         fill_data<data_t>(
-                ip_src->get_desc().get_size() / sizeof(data_t),
-                *ip_src);
+                ip_src.get_desc().get_size() / sizeof(data_t),
+                ip_src);
         fill_data<data_t>(
-                ip_diff_dst->get_desc().get_size() / sizeof(data_t),
-                *ip_diff_dst);
+                ip_diff_dst.get_desc().get_size() / sizeof(data_t),
+                ip_diff_dst);
 
-        check_zero_tail<data_t>(1, *ip_src);
-        check_zero_tail<data_t>(1, *ip_diff_dst);
+        check_zero_tail<data_t>(1, ip_src);
+        check_zero_tail<data_t>(1, ip_diff_dst);
 
         inner_product_backward_weights(ip_primitive_desc).execute(strm, {
-                {MKLDNN_ARG_DIFF_DST, *ip_diff_dst},
-                {MKLDNN_ARG_SRC, *ip_src},
-                {MKLDNN_ARG_DIFF_WEIGHTS, *ip_diff_weights},
-                {MKLDNN_ARG_DIFF_BIAS, *ip_diff_bias}});
+                {MKLDNN_ARG_DIFF_DST, ip_diff_dst},
+                {MKLDNN_ARG_SRC, ip_src},
+                {MKLDNN_ARG_DIFF_WEIGHTS, ip_diff_weights},
+                {MKLDNN_ARG_DIFF_BIAS, ip_diff_bias}});
         strm.wait();
 
-        compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, *ip_src,
-                *ip_diff_dst, *diff_weights_ref);
-        check_zero_tail<data_t>(1, *diff_weights_ref);
+        compute_ref_inner_product_bwd_weights<data_t>(p.ndims, ipd, ip_src,
+                ip_diff_dst, diff_weights_ref);
+        check_zero_tail<data_t>(1, diff_weights_ref);
 
-        compare_data<data_t>(*diff_weights_ref, *ip_diff_weights);
+        compare_data<data_t>(diff_weights_ref, ip_diff_weights);
 
-        check_zero_tail<data_t>(0, *ip_diff_weights);
+        check_zero_tail<data_t>(0, ip_diff_weights);
 
         if (with_bias) {
-            compute_ref_inner_product_bwd_bias<data_t>(ipd, *ip_diff_dst,
-                    *diff_bias_ref);
-            compare_data<data_t>(*diff_bias_ref, *ip_diff_bias);
+            compute_ref_inner_product_bwd_bias<data_t>(ipd, ip_diff_dst,
+                    diff_bias_ref);
+            compare_data<data_t>(diff_bias_ref, ip_diff_bias);
         }
     }
 };
@@ -271,6 +268,26 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                 inprod_test_params_float{
                         memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
                         memory::format_tag::undef, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
+
+GPU_INSTANTIATE_TEST_SUITE_P(
+        TestInnerProductBackwardWeights_padded, inner_product_test_float,
+        ::testing::Values(
+                inprod_test_params_float{
+                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 10, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
+                        memory::format_tag::x, memory::format_tag::nc,
+                        EXPAND_SIZES_2D( 2, 17, 5, 3, 3 ) },
+                inprod_test_params_float{
+                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
+                        memory::format_tag::x, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
 CPU_INSTANTIATE_TEST_SUITE_P(

@@ -286,26 +286,26 @@ void prb_t::generate_oscales() {
 }
 
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char desc_buf[max_desc_len], attr_buf[max_attr_len];
-    char dir_str[32] = {0}, cfg_str[32] = {0}, alg_str[32] = {0};
-    desc2str(p, desc_buf, canonical);
-    snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
-    snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-    bool is_attr_def = p->attr.is_def();
-    if (!is_attr_def) {
-        int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
+    char dir_str[32] = "", cfg_str[32] = "", alg_str[32] = "",
+         desc_str[max_desc_len] = "", attr_str[max_attr_len] = "";
+
+    if (p->dir != FWD_B)
+        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
+    if (p->cfg != conf_f32)
+        snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
+    if (p->alg != DIRECT)
+        snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
+    if (!p->attr.is_def()) {
+        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
         SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_buf + len);
-        len = (int)strnlen(attr_buf, max_attr_len);
-        snprintf(attr_buf + len, max_attr_len - len, "\" ");
+        attr2str(&p->attr, attr_str + len);
+        len = (int)strnlen(attr_str, max_attr_len);
+        snprintf(attr_str + len, max_attr_len - len, "\" ");
     }
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s",
-            p->dir == FWD_B ? "" : dir_str,
-            p->cfg == conf_f32 ? "" : cfg_str,
-            p->alg == DIRECT ? "" : alg_str,
-            is_attr_def ? "" : attr_buf,
-            desc_buf);
+    desc2str(p, desc_str, canonical);
+
+    snprintf(buffer, max_prb_len, "%s%s%s%s%s", dir_str, cfg_str, alg_str,
+            attr_str, desc_str);
 }
 
 }
