@@ -163,6 +163,8 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
             }
             return 1;
         }
+        arg_seq.c = new_y;
+        arg_seq.ldc = 1;
     }
 
     // GEMV computation
