@@ -77,6 +77,7 @@ struct jit_uni_eltwise_injector_f32 {
 private:
     // if only the injector was inherited from jit_generator...
     enum {
+        _cmp_lt_os = jit_generator::_cmp_lt_os,
         _cmp_le_os = jit_generator::_cmp_le_os,
         _cmp_nle_us = jit_generator::_cmp_nle_us,
         _op_floor = jit_generator::_op_floor,
