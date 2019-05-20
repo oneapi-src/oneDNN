@@ -720,7 +720,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
 
     int condition_2D_bsrc = -1;
     if (isSgemm) {
-        // If m is large and n is small then do 1D partitioning for AVX2.
+        // If m is large and n is small then do 1D partitioning for Intel AVX2.
         if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
             condition_2D_bsrc = 0;
         } else {
@@ -740,7 +740,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
-    } else { // AVX2 code path
+    } else { // Intel AVX2 code path
         if (m >= 1000 && n >= 4000) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
@@ -1437,15 +1437,15 @@ mkldnn_status_t gemm_driver(
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
-    // gemm_driver supports bfloat16 gemm for avx512_core and above.
+    // gemm_driver supports bfloat16 gemm for Intel AVX512 and above.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
                 mayiuse(avx512_core) && !force_nocopy));
 
-    // gemm_driver supports 8-bit integer for avx512_core and above.
+    // gemm_driver supports 8-bit integer for Intel AVX512 and above.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
                 mayiuse(avx512_core) && !force_nocopy));
 
-    // gemm_driver supports sgemm for avx.
+    // gemm_driver supports sgemm for Intel AVX.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::f32,
             mayiuse(avx)));
 
