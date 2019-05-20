@@ -83,7 +83,6 @@ struct jit_ref_pooling_fwd_kernel {
         jpp.use_16mb_unroll = 0;
         jpp.use_16c_unroll = 0;
         // disable subgroup optimization for s8
-        // waiting for cl_intel_subgroups_char
         if (utils::one_of(src_d.data_type(), data_type::f32, data_type::f16)
                 && ((src_d.matches_tag(NChw16n16c)
                             && dst_d.matches_tag(NChw16n16c))
