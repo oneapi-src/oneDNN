@@ -23,12 +23,6 @@
 #include "type_helpers.hpp"
 
 #include "ref_softmax.hpp"
-#include "gemm/os_blas.hpp"
-
-#ifdef USE_MKL
-#include "mkl_vml_functions.h"
-#include "mkl_vml_defines.h"
-#endif
 
 namespace mkldnn {
 namespace impl {
@@ -163,32 +157,12 @@ void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
         data_t *r) const {
-#ifdef USE_MKL
-    if (data_type == data_type::f32) {
-// TODO: mklml for win doesn't contain vmsExp symbol
-// Remove this limitation once it's updated
-#ifndef _WIN32
-        vmsExp(n, a, r, VML_ERRMODE_NOERR);
-#else
-        vsExp(n, a, r);
-#endif
-        return;
-    }
-#endif
     parallel_nd(n, [&](int c) { r[c] = expf(a[c]); });
 }
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
         data_t *sum_data) const {
-#ifdef USE_CBLAS
-    // Here we are summing x's eg. e^z , which are positives
-    // so we can use BLAS ASUM
-    if (data_type == data_type::f32) {
-        sum_data[0] = cblas_sasum(n, x, 1);
-        return;
-    }
-#endif
     data_t tsum = static_cast<data_t>(0);
     PRAGMA_OMP_SIMD(reduction(+ : tsum))
     for (int c = 0; c < n; ++c)
@@ -198,12 +172,6 @@ void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) const {
-#ifdef USE_CBLAS
-    if (data_type == data_type::f32) {
-        cblas_sscal(n, alpha, x, 1);
-        return;
-    }
-#endif
     parallel_nd(n, [&](int c) { x[c] *= alpha; });
 }
 
