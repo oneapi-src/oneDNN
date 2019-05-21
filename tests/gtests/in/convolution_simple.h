@@ -14,6 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
+GPU_INST_TEST_CASE(Dilation,
+    PARAMS(NChw16n16c, FMT_WEIGHTS_GPU_BLOCKED16x16, FMT_BIAS, NChw16n16c, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(nChw16c, FMT_WEIGHTS_GPU_BLOCKED16, FMT_BIAS, nChw16c, 2, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(nChw16c, FMT_WEIGHTS_GPU_BLOCKED16, FMT_BIAS, nChw16c, 1, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
+    /* TODO: uncomment these testcases when reference implementation is done*/
+//    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 1, 1, 1, 1, 0, 0),
+//    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
+    );
+
 CPU_INST_TEST_CASE(Simple_ZeroDim,
     PARAMS(nchw, oihw, FMT_BIAS, nchw, 0, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1),
     PARAMS(nchw, oihw, FMT_BIAS, nchw, 0, 1, 4, 0, 4, 6, 0, 4, 3, 3, 1, 1, 1, 1),

@@ -71,16 +71,16 @@ __kernel void gen9_common_conv_fwd_kernel(const __global DATA_T *src,
             for (int kh = 0; kh < KH; kh++)
                 for (int kw = 0; kw < KW; kw++) {
 
-                    if (id + kd < 0 || id + kd >= ID)
+                    if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID)
                         continue;
-                    if (ih + kh < 0 || ih + kh >= IH)
+                    if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH)
                         continue;
 
                     const __global DATA_T *wei1
                             = wei + (kd * KH * KW + kh * KW + kw) * OC_BLOCK;
                     const __global DATA_T *src1 = src
-                            + (kd * IH * IW + kh * IW + kw) * MB_BLOCK
-                                    * IC_BLOCK;
+                            + (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW
+                            + kw * (1 + DW)) * MB_BLOCK * IC_BLOCK;
 #    else
         const int kw = 0;
         const __global DATA_T *wei1 = wei;
@@ -93,7 +93,8 @@ __kernel void gen9_common_conv_fwd_kernel(const __global DATA_T *src,
                     __attribute__((opencl_unroll_hint(OW_BLOCK)))
                     for (int k = 0; k < OW_BLOCK; k++) {
 
-                        if (iw + kw + k * SW < 0 || iw + kw + k * SW >= IW)
+                        if (iw + kw * (1 + DW) + k * SW < 0
+                            || iw + kw * (1 + DW) + k * SW >= IW)
                             A0 = 0.0;
                         else
                             A0 = AS_DATA_T(BLOCK_READ((const __global uint
@@ -185,18 +186,18 @@ __kernel void gen9_common_conv_fwd_kernel(const __global DATA_T *src,
         for (int kd = 0; kd < KD; kd++)
             for (int kh = 0; kh < KH; kh++)
                 for (int kw = 0; kw < KW; kw++) {
-                    if (id + kd < 0 || id + kd >= ID)
+                    if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID)
                         continue;
-                    if (ih + kh < 0 || ih + kh >= IH)
+                    if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH)
                         continue;
-                    if (iw + kw < 0 || iw + kw >= IW)
+                    if (iw + kw * (1 + DW) < 0 || iw + kw * (1 + DW) >= IW)
                         continue;
 
                     const __global DATA_T *wei1
                             = wei + (kd * KH * KW + kh * KW + kw) * OC_BLOCK;
                     const __global DATA_T *src1 = src
-                            + (kd * IH * IW + kh * IW + kw) * MB_BLOCK
-                                    * IC_BLOCK;
+                            + (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW
+                            + kw * (1 + DW)) * MB_BLOCK * IC_BLOCK;
 #    else
         const __global DATA_T *wei1 = wei;
         const __global DATA_T *src1 = src;

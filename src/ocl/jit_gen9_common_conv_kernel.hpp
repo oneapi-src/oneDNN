@@ -44,9 +44,6 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
 
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
-
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -518,9 +515,6 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
         set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
 
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
-
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -721,9 +715,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         const memory_desc_wrapper bias_mdw(&diff_bias_md);
 
         set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
-
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
 
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
