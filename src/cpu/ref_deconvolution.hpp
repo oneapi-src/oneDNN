@@ -210,16 +210,19 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             using namespace memory_format;
             using namespace mkldnn::impl::memory_tracking::names;
 
+            memory_tracking::registrar_t scratchpad
+                    = scratchpad_registry().registrar();
             if (desc()->dst_desc.data_type == data_type::bf16
                     && utils::one_of(dst_pd_.desc()->format, ncw, nchw, ncdhw)
                     && with_bias()) {
                 const int SP = OW() * OH() * OD();
                 const int num_thr
                         = mkldnn_in_parallel() ? 1 : mkldnn_get_max_threads();
-                memory_tracking::registrar_t scratchpad
-                        = scratchpad_registry().registrar();
                 scratchpad.book(key_deconv_dst_bf16_convert_wsp,
                         sizeof(float) * SP * num_thr);
+            }
+            if (with_bias() && desc()->bias_desc.data_type == data_type::bf16) {
+                scratchpad.book(key_conv_bias_bf16_convert_wsp, sizeof(float) * OC());
             }
         }
     };
@@ -455,8 +458,8 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                         alg_kind::deconvolution_winograd)
                 && this->attr()->has_default_values()
                 && IMPLICATION(this->with_bias(),
-                        (this->desc()->diff_bias_desc.data_type
-                                == data_type::f32)
+                        (utils::one_of(this->desc()->diff_bias_desc.data_type,
+                                        data_type::f32, data_type::bf16))
                         && utils::one_of(this->desc()->diff_dst_desc.data_type,
                             data_type::f32, data_type::bf16));
             if (ok) {
@@ -486,6 +489,8 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
         void init_scratchpad() {
             using namespace memory_format;
             using namespace mkldnn::impl::memory_tracking::names;
+            memory_tracking::registrar_t scratchpad
+                    = scratchpad_registry().registrar();
             if (desc()->diff_dst_desc.data_type == data_type::bf16
                     && utils::one_of(
                                diff_dst_pd_.desc()->format, ncw, nchw, ncdhw)
@@ -497,6 +502,9 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
                         = scratchpad_registry().registrar();
                 scratchpad.book(key_deconv_dst_bf16_convert_wsp,
                         sizeof(float) * SP * num_thr);
+            }
+            if (with_bias() && desc()->diff_bias_desc.data_type == data_type::bf16) {
+                scratchpad.book(key_conv_bias_bf16_convert_wsp, sizeof(float) * OC());
             }
         }
     };
