@@ -510,6 +510,10 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
 ///
 /// Mapping is an exclusive operation - a memory object cannot be used in other
 /// operations until this memory object is unmapped.
+//
+/// @note Any primitives working with @p memory should be completed before
+//        mapping the memory. Use mkldnn_stream_wait to synchronize the
+//        corresponding execution stream.
 mkldnn_status_t MKLDNN_API mkldnn_memory_map_data(
         const_mkldnn_memory_t memory, void **mapped_ptr);
 

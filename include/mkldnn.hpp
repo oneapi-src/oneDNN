@@ -1438,6 +1438,10 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Mapping is an exclusive operation - a memory object cannot be used in
     /// other operations until this memory object is unmapped.
     /// @tparam T Type of the pointer to be mapped.
+    //
+    /// @note Any primitives working with the memory should be completed before
+    //        mapping. Use stream::wait() to synchronize the corresponding
+    //        execution stream.
     template <typename T = void>
     T *map_data() const {
         void *mapped_ptr;
