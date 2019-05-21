@@ -144,6 +144,7 @@ namespace memory_tracking {
 namespace names {
 enum {
     key_none = 0,
+    key_barrier,
     key_bnorm_tmp_mean,
     key_bnorm_tmp_var,
     key_bnorm_tmp_diff_ss,
@@ -183,10 +184,10 @@ enum {
     key_rnn_ptrs_wei_layer,
     key_rnn_ptrs_wei_iter,
     key_softmax_reduction,
+    key_sum_srcs_cvt,
     key_wino_U,
     key_wino_V,
     key_wino_M,
-    key_barrier,
 };
 
 enum {
