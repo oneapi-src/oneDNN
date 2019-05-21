@@ -64,8 +64,7 @@ status_t ref_lrn_bwd_t<data_type>::execute_backward(
     return status;
 }
 
-// TODO add tests for f16
-//template struct ref_lrn_fwd_t<data_type::f16>;
+template struct ref_lrn_fwd_t<data_type::f16>;
 template struct ref_lrn_fwd_t<data_type::f32>;
 template struct ref_lrn_bwd_t<data_type::f32>;
 } // namespace ocl
