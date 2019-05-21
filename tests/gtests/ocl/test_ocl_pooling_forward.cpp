@@ -117,8 +117,13 @@ int ref_pool_fwd(const pool_test_params &p, const memory &src,
     const size_t source_code_length = strlen(source_code);
 
     cl_int errcode = 0;
+#ifdef CL_VERSION_2_0
     cl_command_queue queue = clCreateCommandQueueWithProperties(
             context, device, NULL, &errcode);
+#else
+    cl_command_queue queue = clCreateCommandQueue(
+            context, device, 0, &errcode);
+#endif
     if (errcode != 0)
         return (int)errcode;
     cl_program program = clCreateProgramWithSource(

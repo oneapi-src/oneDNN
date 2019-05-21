@@ -38,8 +38,13 @@ status_t ocl_stream_t::init() {
     // Create queue if it is not set
     if (!queue_) {
         cl_int err;
+#ifdef CL_VERSION_2_0
         queue_ = clCreateCommandQueueWithProperties(
                 ocl_engine->context(), ocl_engine->device(), nullptr, &err);
+#else
+        queue_ = clCreateCommandQueue(
+                ocl_engine->context(), ocl_engine->device(), 0, &err);
+#endif
         OCL_CHECK(err);
     } else {
         // Check that queue is compatible with the engine
