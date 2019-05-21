@@ -800,7 +800,7 @@ struct jit_bf16_eltwise_injector {
         h->kmovd(k_full_mask_, mask_reg.cvt32());
         h->pop(mask_reg);
     }
-    void load_f32_cvt_to_bf16(size_t idx, Reg64 reg_from,
+    void load_bf16_cvt_to_f32(size_t idx, Reg64 reg_from,
             bool is_tail = false, size_t offset = 0) {
         Ymm ymm_bf16 = Ymm(idx);
         Zmm zmm_f32 = Zmm(idx);
@@ -840,7 +840,7 @@ struct jit_uni_relu_kernel : public jit_uni_eltwise_kernel,
     void compute_step(bool vectorize, const int uf, const int shift) {
         auto load_vec = [=](int idx, Reg64 reg_addr, int offset) {
             if (is_bf16()) {
-                bf16_injector_->load_f32_cvt_to_bf16(idx, reg_addr, false, offset);
+                bf16_injector_->load_bf16_cvt_to_f32(idx, reg_addr, false, offset);
             } else {
                 uni_vmovups(Vmm(idx), ptr[reg_addr + offset]);
             }
@@ -848,7 +848,7 @@ struct jit_uni_relu_kernel : public jit_uni_eltwise_kernel,
 
         auto load_elem = [=](int idx, Reg64 reg_addr, int offset) {
             if (is_bf16()) {
-                bf16_injector_->load_f32_cvt_to_bf16(idx, reg_addr, true, offset);
+                bf16_injector_->load_bf16_cvt_to_f32(idx, reg_addr, true, offset);
             } else {
                 movss(Xmm(idx), ptr[reg_addr + offset]);
             }
@@ -1102,7 +1102,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         L(vectorized_loop_start);
 
         if (is_bf16()) {
-            bf16_injector_->load_f32_cvt_to_bf16(vmm_src.getIdx(), reg_from);
+            bf16_injector_->load_bf16_cvt_to_f32(vmm_src.getIdx(), reg_from);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
             bf16_injector_->cvt_f32_to_bf16_store(vmm_src.getIdx(), reg_to);
         } else {
@@ -1125,7 +1125,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         cmp(reg_work_amount, 0);
         jle(reminder_loop_end, T_NEAR);
         if (is_bf16()) {
-            bf16_injector_->load_f32_cvt_to_bf16(
+            bf16_injector_->load_bf16_cvt_to_f32(
                     vmm_src.getIdx(), reg_from, true);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
             bf16_injector_->cvt_f32_to_bf16_store(
