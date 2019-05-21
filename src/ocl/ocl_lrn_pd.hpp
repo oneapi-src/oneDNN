@@ -28,6 +28,10 @@ struct ocl_lrn_fwd_pd_t : public lrn_fwd_pd_t {
     using lrn_fwd_pd_t::lrn_fwd_pd_t;
 };
 
+struct ocl_lrn_bwd_pd_t : public lrn_bwd_pd_t {
+    using lrn_bwd_pd_t::lrn_bwd_pd_t;
+};
+
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

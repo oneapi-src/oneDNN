@@ -113,6 +113,7 @@ static const pd_create_f ocl_impl_list[] = {
     // TODO add tests for f16
     //INSTANCE(ref_lrn_fwd_t<f16>),
     INSTANCE(ref_lrn_fwd_t<f32>),
+    INSTANCE(ref_lrn_bwd_t<f32>),
     /*inner_product*/
     INSTANCE(gemm_inner_product_fwd_t<f16>),
     INSTANCE(gemm_inner_product_fwd_t<f32>),
