@@ -69,10 +69,29 @@ static status_t conv_descr_create(
     prop_kind_t prop_kind;
     memory_desc_t c_weights_d;
 
-    prop_kind = backward_data;
-    src_md = &dd->dst_desc;
-    dst_md = &dd->src_desc;
-    d_weights_d = &dd->weights_desc;
+    switch (dd->prop_kind) {
+    case forward:
+    case forward_inference:
+        prop_kind = backward_data;
+        src_md = &dd->dst_desc;
+        dst_md = &dd->src_desc;
+        d_weights_d = &dd->weights_desc;
+        break;
+    case backward_data:
+        prop_kind = forward_training;
+        src_md = &dd->diff_dst_desc;
+        dst_md = &dd->diff_src_desc;
+        d_weights_d = &dd->weights_desc;
+        break;
+    case backward_weights:
+        prop_kind = dd->prop_kind;
+        src_md = &dd->diff_dst_desc;
+        dst_md = &dd->src_desc;
+        d_weights_d = &dd->diff_weights_desc;
+        break;
+    default: assert(!"unknown prop_kind"); return status::invalid_arguments;
+    }
+
     const bool with_groups = d_weights_d->ndims == src_md->ndims + 1;
 
     // Create weights desc for convolution
@@ -121,10 +140,12 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             using namespace format_tag;
 
             bool ok = true && is_fwd()
-                    && utils::one_of(
-                            desc()->alg_kind, alg_kind::deconvolution_direct)
-                    && attr()->post_ops_.has_default_values();
-
+                    && desc()->alg_kind == alg_kind::deconvolution_direct
+                    && attr()->post_ops_.has_default_values()
+                    && utils::everyone_is(data_type::f32,
+                            desc()->src_desc.data_type,
+                            desc()->weights_desc.data_type,
+                            desc()->dst_desc.data_type);
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any) {
@@ -145,13 +166,17 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             return status::unimplemented;
         }
 
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
         primitive_desc_t *conv_pd_;
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~ref_deconvolution_fwd_t() { conv_p_ = NULL; }
+    ~ref_deconvolution_fwd_t() { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
@@ -223,9 +248,98 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         return status::success;
     }
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_t *conv_p_;
+    primitive_t *conv_p_ = NULL;
     ocl_kernel_t bias_kernel;
     size_t gws[3];
+};
+
+struct ref_deconvolution_bwd_data_t : public primitive_t {
+    struct pd_t : public ocl_deconvolution_bwd_data_pd_t {
+        pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const deconvolution_fwd_pd_t *hint_fwd_pd)
+            : ocl_deconvolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+            , conv_pd_(nullptr) {}
+
+        pd_t(const pd_t &other)
+            : ocl_deconvolution_bwd_data_pd_t(other)
+            , conv_pd_(other.conv_pd_->clone()) {}
+
+        ~pd_t() { delete conv_pd_; }
+
+        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
+
+        status_t init_convolution() {
+            convolution_desc_t cd;
+            CHECK(conv_descr_create(desc(), &cd));
+            status_t status = mkldnn_primitive_desc_create(
+                    &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
+            return status;
+        }
+
+        status_t init() {
+            using namespace data_type;
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && utils::everyone_is(data_type::f32,
+                            desc()->diff_src_desc.data_type,
+                            desc()->weights_desc.data_type,
+                            desc()->diff_dst_desc.data_type)
+                    && desc()->alg_kind == alg_kind::deconvolution_direct;
+
+            if (ok) {
+                CHECK(init_convolution());
+                if (weights_md_.format_kind == format_kind::any) {
+                    CHECK(compute_blocked_format(with_groups(),
+                            conv_pd_->weights_md(), &desc_.weights_desc));
+                    weights_md_ = desc_.weights_desc;
+                }
+                if (diff_src_md_.format_kind == format_kind::any)
+                    diff_src_md_ = *conv_pd_->dst_md();
+                if (diff_dst_md_.format_kind == format_kind::any)
+                    diff_dst_md_ = *conv_pd_->src_md();
+
+                return status::success;
+            }
+
+            return status::unimplemented;
+        }
+
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
+        primitive_desc_t *conv_pd_;
+    };
+
+    typedef typename prec_traits<data_type::f32>::type data_t;
+
+    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ~ref_deconvolution_bwd_data_t() { delete conv_p_; }
+
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
+        const auto &args = ctx.args();
+        exec_args_t conv_args;
+        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
+        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
+        conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
+        if (!types::is_zero_md(pd()->scratchpad_md()))
+            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
+        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+        // Executing the convolution kernel
+        status_t status = conv_p_->execute(conv_ctx);
+        return status;
+    }
+
+    status_t init() override {
+        status_t conv_status
+                = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        return conv_status;
+    }
+
+private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_t *conv_p_ = NULL;
 };
 
 } // namespace ocl

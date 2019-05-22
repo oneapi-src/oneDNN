@@ -188,8 +188,8 @@ protected:
             right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)
         };
         Forward();
+        BackwardData();
         if (get_test_engine_kind() == engine::kind::cpu) {
-            BackwardData();
             BackwardWeights();
         }
     }

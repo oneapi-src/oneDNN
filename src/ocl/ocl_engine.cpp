@@ -95,6 +95,7 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_eltwise_bwd_t),
     /*deconv*/
     INSTANCE(ref_deconvolution_fwd_t),
+    INSTANCE(ref_deconvolution_bwd_data_t),
     /*conv*/
     INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),
