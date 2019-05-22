@@ -27,6 +27,7 @@
 #include "ocl/ocl_stream.hpp"
 
 extern const char *ref_deconv_forward_bias_kernel;
+extern const char *ref_deconv_backward_bias_kernel;
 
 namespace mkldnn {
 namespace impl {
@@ -89,7 +90,9 @@ static status_t conv_descr_create(
         dst_md = &dd->src_desc;
         d_weights_d = &dd->diff_weights_desc;
         break;
-    default: assert(!"unknown prop_kind"); return status::invalid_arguments;
+    default:
+        assert(!"unknown prop kind");
+        return status::invalid_arguments;
     }
 
     const bool with_groups = d_weights_d->ndims == src_md->ndims + 1;
@@ -207,7 +210,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
             auto &executor = *(utils::downcast<cl_stream_t *>(ctx.stream())
                                        ->cl_executor());
-            // Setting up global work-space to {1, MB, OC*G}
+            // Setting up global work-space to {OC*G, 1, 1}
             auto nd_range = cl_nd_range_t({ gws[0], gws[1], gws[2] });
             status = executor.parallel_for(nd_range, bias_kernel);
         }
@@ -229,12 +232,11 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         set_offsets(dst_mdw, jit_off.dst_off);
         def_offsets(jit_off.dst_off, jit, "DST", pd()->desc()->dst_desc.ndims);
 
-        jit.define_int("G", pd()->G());
         jit.define_int("MB", pd()->MB());
         jit.define_int("OH", pd()->OH());
         jit.define_int("OW", pd()->OW());
         jit.define_int("OD", pd()->OD());
-        jit.define_int("OC", pd()->OC());
+        jit.define_int("OC", pd()->OC() / pd()->G());
         jit.define_int("NDIMS", pd()->desc()->dst_desc.ndims);
 
         status_t kernel_status = jit.build(engine());
@@ -245,14 +247,14 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         if (!bias_kernel)
             return status::runtime_error;
 
-        gws[0] = 1;
-        gws[1] = pd()->MB();
-        gws[2] = pd()->OC() * pd()->G();
+        gws[0] = pd()->OC() * pd()->G();
+        gws[1] = 1;
+        gws[2] = 1;
 
         return status::success;
     }
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_t *conv_p_ = NULL;
+    primitive_t *conv_p_ = nullptr;
     ocl_kernel_t bias_kernel;
     size_t gws[3];
 };
@@ -343,7 +345,153 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_t *conv_p_ = NULL;
+    primitive_t *conv_p_ = nullptr;
+};
+
+struct ref_deconvolution_bwd_weights_t : public primitive_t {
+    struct pd_t : public ocl_deconvolution_bwd_weights_pd_t {
+        pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const deconvolution_fwd_pd_t *hint_fwd_pd)
+            : ocl_deconvolution_bwd_weights_pd_t(
+                    engine, adesc, attr, hint_fwd_pd)
+            , conv_pd_(nullptr) {}
+
+        pd_t(const pd_t &other)
+            : ocl_deconvolution_bwd_weights_pd_t(other)
+            , conv_pd_(other.conv_pd_->clone()) {}
+
+        ~pd_t() { delete conv_pd_; }
+
+        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
+
+        status_t init_convolution() {
+            convolution_desc_t cd;
+            CHECK(conv_descr_create(desc(), &cd));
+            status_t status = mkldnn_primitive_desc_create(
+                    &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
+            return status;
+        }
+
+        status_t init() {
+            using namespace format_tag;
+            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && utils::everyone_is(data_type::f32,
+                            desc()->src_desc.data_type,
+                            desc()->diff_weights_desc.data_type,
+                            desc()->diff_dst_desc.data_type)
+                    && utils::one_of(
+                            desc()->alg_kind, alg_kind::deconvolution_direct)
+                    && attr()->has_default_values();
+            if (ok) {
+                CHECK(init_convolution());
+                if (diff_weights_md_.format_kind == format_kind::any) {
+                    CHECK(compute_blocked_format(with_groups(),
+                            conv_pd_->diff_weights_md(),
+                            &desc_.diff_weights_desc));
+                    diff_weights_md_ = desc_.diff_weights_desc;
+                }
+                if (src_md_.format_kind == format_kind::any)
+                    src_md_ = *conv_pd_->diff_dst_md();
+                if (diff_dst_md_.format_kind == format_kind::any)
+                    diff_dst_md_ = *conv_pd_->src_md();
+                if (diff_bias_md_.format_kind == format_kind::any)
+                    CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
+
+                return status::success;
+            }
+
+            return status::unimplemented;
+        }
+
+        virtual void init_scratchpad_md() override {
+            scratchpad_md_ = *conv_pd_->scratchpad_md();
+        }
+
+        primitive_desc_t *conv_pd_;
+    };
+
+    typedef typename prec_traits<data_type::f32>::type data_t;
+
+    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
+        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+    }
+    ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
+
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
+        const auto &args = ctx.args();
+        exec_args_t conv_args;
+        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
+        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
+        conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
+        if (!types::is_zero_md(pd()->scratchpad_md()))
+            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
+        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+        status_t status = conv_p_->execute(conv_ctx);
+        if (status != status::success)
+            return status;
+
+        if (pd()->with_bias()) {
+            // Calling the bias kernel if bias=1
+            auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
+            auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
+
+            bias_kernel.set_arg(0, diff_dst);
+            bias_kernel.set_arg(1, diff_bias);
+
+            auto &executor = *(utils::downcast<cl_stream_t *>(ctx.stream())
+                                       ->cl_executor());
+            // Setting up global work-space to {OC*G, 1, 1}
+            auto nd_range = cl_nd_range_t({ gws[0], gws[1], gws[2] });
+            status = executor.parallel_for(nd_range, bias_kernel);
+        }
+        return status::success;
+    }
+
+    status_t init() override {
+        // Creating convolution primitve
+        status_t conv_status
+                = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        if (conv_status != status::success)
+            return conv_status;
+
+        // Initializing values for the deconv bias kernel
+        auto jit = ocl_jit_t(ref_deconv_backward_bias_kernel);
+        memory_desc_wrapper diff_dst_mdw(pd()->diff_dst_md());
+        jit.set_data_type(pd()->diff_dst_md()->data_type);
+        jit_offsets jit_off;
+        set_offsets(diff_dst_mdw, jit_off.dst_off);
+        def_offsets(
+                jit_off.dst_off, jit, "DST", pd()->desc()->diff_dst_desc.ndims);
+
+        jit.define_int("MB", pd()->MB());
+        jit.define_int("OH", pd()->OH());
+        jit.define_int("OW", pd()->OW());
+        jit.define_int("OD", pd()->OD());
+        jit.define_int("OC", pd()->OC() / pd()->G());
+        jit.define_int("NDIMS", pd()->desc()->src_desc.ndims);
+
+        status_t kernel_status = jit.build(engine());
+        if (kernel_status != status::success)
+            return kernel_status;
+
+        bias_kernel = jit.get_kernel("ref_deconv_backward_bias");
+        if (!bias_kernel)
+            return status::runtime_error;
+
+        gws[0] = pd()->OC() * pd()->G();
+        gws[1] = 1;
+        gws[2] = 1;
+
+        return status::success;
+    }
+
+private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_t *conv_p_ = nullptr;
+    ocl_kernel_t bias_kernel;
+    size_t gws[3];
 };
 
 } // namespace ocl

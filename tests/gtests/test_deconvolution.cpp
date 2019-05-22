@@ -189,9 +189,7 @@ protected:
         };
         Forward();
         BackwardData();
-        if (get_test_engine_kind() == engine::kind::cpu) {
-            BackwardWeights();
-        }
+        BackwardWeights();
     }
     void Forward() {
         auto aprop_kind =  prop_kind::forward;
@@ -415,6 +413,8 @@ TEST_P(deconvolution_test_float, TestDeconvolution)
 #define FMT_BIAS x
 #define FMT_DATA_BLOCKED nChw8c
 #define FMT_WEIGHTS_BLOCKED Ohwi8o
+#define FMT_DATA_BLOCKED_GPU NChw16n16c
+#define FMT_WEIGHTS_BLOCKED_GPU IOhw16i16o
 
 CPU_INST_TEST_CASE(SimpleSmall_NCHW,
     PARAMS(nchw, oihw, x, nchw,
@@ -451,26 +451,38 @@ CPU_INST_TEST_CASE(SimpleSmall_Blocked,
         2, 1, 48, 11, 11, 32, 13, 13, 3, 3, 0, 0, 1, 1)
 );
 
-//TODO: Need to merge these test-cases with CPU
-//SimpleSmall_NCHW after GPU convolution is fixed
+GPU_INST_TEST_CASE(SimpleSmall_Blocked,
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 32, 12, 12, 32, 10, 10, 3, 3, 0, 0, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 32, 4, 4, 32, 3, 3, 3, 3, 1, 1, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 32, 4, 4, 32, 4, 4, 3, 3, 0, 0, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 32, 2, 2, 32, 3, 3, 3, 3, 0, 0, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 32, 2, 2, 32, 2, 2, 3, 3, 1, 1, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 48, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 1),
+    PARAMS(FMT_DATA_BLOCKED_GPU, FMT_WEIGHTS_BLOCKED_GPU, FMT_BIAS, FMT_DATA_BLOCKED_GPU,
+       32, 1, 48, 11, 11, 32, 13, 13, 3, 3, 0, 0, 1, 1)
+);
 
 GPU_INST_TEST_CASE(SimpleSmall_NCHW,
     PARAMS(nchw, oihw, x, nchw,
-        2, 1, 1, 2, 2, 1, 2, 2, 1, 1, 0, 0, 1, 1),
+        2, 1, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
     PARAMS(nchw, oihw, x, nchw,
-        2, 1, 1, 3, 3, 1, 3, 3, 1, 1, 0, 0, 1, 1),
-    PARAMS(nchw, hwio, x, nchw,
-        2, 1, 1, 4, 4, 16, 4, 4, 1, 1, 0, 0, 1, 1),
-    PARAMS(nchw, oihw, x, nchw,
-        2, 1, 6, 5, 5, 1, 5, 5, 1, 1, 0, 0, 1, 1),
-    PARAMS(nchw, hwio, x, nchw,
-        2, 1, 6, 2, 2, 1, 1, 1, 2, 2, 0, 0, 1, 1),
-    PARAMS(nchw, hwio, x, nchw,
-        2, 1, 6, 3, 3, 1, 3, 3, 2, 2, 1, 1, 1, 1),
-    PARAMS(nchw, oihw, x, nchw,
-        2, 1, 1, 4, 4, 6, 3, 3, 2, 2, 0, 0, 1, 1),
+        2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
+    PARAMS(nhwc, oihw, x, nhwc,
+        2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
     PARAMS(nhwc, hwio, x, nhwc,
-        2, 1, 6, 5, 5, 1, 5, 5, 2, 2, 1, 1, 1, 1)
+        2, 1, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
+    PARAMS(nhwc, hwio, x, nhwc,
+        2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
+    PARAMS(nhwc, goihw, x, nhwc,
+        2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1),
+    PARAMS(nhwc, hwigo, x, nhwc,
+        2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)
 
 );
 
