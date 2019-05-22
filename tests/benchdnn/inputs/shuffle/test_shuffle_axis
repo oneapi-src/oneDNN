@@ -1,4 +1,6 @@
+--reset
 --dir=FWD_D
+--allow-unimpl=true
 
 # group_size = 4
 # (1, 68, 56, 56)
