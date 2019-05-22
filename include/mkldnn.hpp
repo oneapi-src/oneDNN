@@ -3012,13 +3012,12 @@ struct eltwise_forward : public primitive {
     /// descriptor @p data_desc, @p alpha, and @p beta parameters.
     struct desc {
         mkldnn_eltwise_desc_t data;
-        template <typename T>
         desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, T alpha = 0, T beta = 0) {
+                const memory::desc &src_desc, float alpha = 0, float beta = 0) {
             error::wrap_c_api(mkldnn_eltwise_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         mkldnn::convert_to_c(aalgorithm), &src_desc.data,
-                        static_cast<float>(alpha), static_cast<float>(beta)),
+                        alpha, beta),
                     "could not create a eltwise forward descriptor");
         }
     };
@@ -3060,13 +3059,12 @@ struct eltwise_backward : public primitive {
     struct desc {
         mkldnn_eltwise_desc_t data;
 
-        template <typename T>
         desc(algorithm aalgorithm, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, T alpha = 0, T beta = 0) {
+                const memory::desc &data_desc, float alpha = 0, float beta = 0)
+        {
             error::wrap_c_api(mkldnn_eltwise_backward_desc_init(&data,
                         mkldnn::convert_to_c(aalgorithm), &diff_data_desc.data,
-                        &data_desc.data, static_cast<float>(alpha),
-                        static_cast<float>(beta)),
+                        &data_desc.data, alpha, beta),
                     "could not create a eltwise backward descriptor");
         }
     };
@@ -3237,7 +3235,6 @@ struct batch_normalization_forward : public primitive {
     /// Descriptor for batch normalization forward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
-        template <typename T>
 
         /// Initializes a batch normalization descriptor for forward propagation
         /// using @p prop_kind (possible values are #mkldnn::forward_training and
@@ -3247,12 +3244,12 @@ struct batch_normalization_forward : public primitive {
         ///
         /// @note In-place operation is supported; that is, dst points to the
         ///       same memory as src.
-        desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
+        desc(prop_kind aprop_kind, const memory::desc &src_desc, float epsilon,
                 batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                            static_cast<float>(epsilon), convert_to_c(flags)),
+                            epsilon, convert_to_c(flags)),
                     "could not create a batch normalization forward "
                     "descriptor");
         }
@@ -3327,7 +3324,6 @@ struct batch_normalization_backward : public primitive {
     /// Descriptor for batch normalization backward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
-        template <typename T>
 
         /// Initializes a batch normalization descriptor for backward
         /// propagation with respect to data and scale-shift parameters using
@@ -3338,13 +3334,13 @@ struct batch_normalization_backward : public primitive {
         /// @note In-place operation is supported; that is, diff_src points to
         ///       the same memory as diff_dst.
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, T epsilon,
+                const memory::desc &data_desc, float epsilon,
                 batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_backward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind),
                             &diff_data_desc.data, &data_desc.data,
-                            static_cast<float>(epsilon), convert_to_c(flags)),
+                            epsilon, convert_to_c(flags)),
                     "could not create a batch normalization backward "
                     "descriptor");
         }
