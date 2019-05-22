@@ -52,8 +52,11 @@ struct jit_gen9_gemm_kernel {
 
         jit.add_option("-cl-mad-enable");
         jit.add_option("-cl-strict-aliasing");
+#ifdef CL_VERSION_2_0
         jit.add_option("-cl-std=CL2.0");
-
+#else
+        jit.add_option("-Dget_enqueued_local_size=get_local_size");
+#endif
         return status::success;
     }
 };

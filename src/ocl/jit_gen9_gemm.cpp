@@ -176,11 +176,20 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     jit_gen9_gemm_nocopy_kernel<c_type>::get_unrolls(transa, transb, unroll_m,
         unroll_n);
 
-    int nthreads_x = (n + unroll_n - 1) / unroll_n;
-    int nthreads_y = (m + unroll_m - 1) / unroll_m;
-    static constexpr auto subgroup_size = 16;
-    size_t gws[3] = {size_t(nthreads_x * subgroup_size), size_t(nthreads_y), 1};
-    size_t lws[3] = {2 * subgroup_size, 8, 1};
+    size_t nthreads_x = (n + unroll_n - 1) / unroll_n;
+    size_t nthreads_y = (m + unroll_m - 1) / unroll_m;
+
+    size_t lthreads_x = 2;
+    size_t lthreads_y = 8;
+
+#ifndef CL_VERSION_2_0
+    while (nthreads_x % lthreads_x) lthreads_x--;
+    while (nthreads_y % lthreads_y) lthreads_y--;
+#endif
+
+    static constexpr size_t subgroup_size = 16;
+    size_t gws[3] = {nthreads_x * subgroup_size, nthreads_y, 1};
+    size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, 1};
 
     auto nd_range = cl_nd_range_t(gws, lws);
 
