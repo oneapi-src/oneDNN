@@ -157,7 +157,6 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward(const data_t *diff_dst,
 
         (*kernel_)(&arg);
     };
-
     parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
         for (int oh = 0; oh < jpp.oh; ++oh) {
             ker(n, b_c, oh);
