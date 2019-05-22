@@ -90,6 +90,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Xmm xreg_mask_hi  = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
     Vmm vreg_mask_q   = vreg(3); // "avg" - 1/4 part for non-zero tails
     Mmx mmx_dst_i8    = Mmx(0);  // "avg" - Mmx reg for masked store results of s8/u8 operations
+    Mmx mmx_full_msk  = Mmx(1);  // "avg" - Mmx reg for full mask (all 8 bytes) - used until not in tail
 
     enum:int {vidx_base = isa == avx2 ? 4 : 2};
     Vmm base_vr(int idx) const { return vreg(vidx_base + idx); }
@@ -109,12 +110,12 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
         s32_to_i8_ratio = sizeof(typename prec_traits<avg_proc_dt>::type)
                 / sizeof(typename prec_traits<data_type::u8>::type),
         max_num_ll =  s32_to_i8_ratio,
-        mmx_msk_base_reg = 1
+        mmx_msk_base_reg = 2
     };
     Vmm vreg_src_s32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 0*max_num_ll); }  // ll: 0..4 [0..3]
     Vmm vreg_dst_s32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 1*max_num_ll); }  // ll: 0..4 [4..7]
     Vmm vreg_dst_f32(int jj, int ll) { return base_vr(3*max_num_ll*jj + ll + 2*max_num_ll); }  // ll: 0..4 [8..11]
-    Mmx mmx_mask(int ll)             { return Mmx(mmx_msk_base_reg + ll); };                   // ll: 0..4 [Mmx(1)...Mmx(4)]
+    Mmx mmx_mask(int ll)             { return Mmx(mmx_msk_base_reg + ll); };                   // ll: 0..4 [Mmx(2)...Mmx(5)]
 
     void (*ker_)(const call_params_t *);
     jit_pool_conf_t jpp;
@@ -391,9 +392,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
         //         with low 8-bytes mask throws exception if high 8-bytes belongs write-protected page.
         movdq2q(mmx_dst_i8, vr_dst);
 
-        // 0-th - mask for all 8 bytes in zero-tail case
-        // ll-th - mask of tail in non-zero-tail case
-        maskmovq(mmx_dst_i8, mmx_mask(is_masked ? ll : 0));
+        // mmx_full_msk - mask for all 8 bytes in zero-tail case
+        // mmx_mask(ll) - ll-th mask of tail in non-zero-tail case
+        maskmovq(mmx_dst_i8, is_masked ? mmx_mask(ll) : mmx_full_msk);
     };
 
     switch (jpp.dst_dt) {
@@ -668,13 +669,12 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
     auto init = [&](uint64_t bit_mask, bool need_ymm_mask = true, bool need_mmx_mask = false) {
         const size_t QW_PER_VREG = cpu_isa::vlen / sizeof(uint64_t);
 
+        const size_t DBITS = 8*sizeof_src_dt();
+        const uint64_t VMSK = 1ULL << (DBITS-1);
+        const size_t D_PER_QW = (8*sizeof(uint64_t))/DBITS;
         uint64_t vmask[QW_PER_VREG];
         for (size_t i = 0; i < QW_PER_VREG; i++){
-
             uint64_t qw_vmask=0ULL;
-            const size_t DBITS = 8*sizeof_src_dt();
-            const uint64_t VMSK = 1ULL << (DBITS-1);
-            const size_t D_PER_QW = (8*sizeof(qw_vmask))/DBITS;
             for (size_t j = 0; j < D_PER_QW; j++) {
                 if (bit_mask & 1)
                     qw_vmask |= VMSK << DBITS * j;
@@ -705,9 +705,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
                 mov(reg_mask, vmask[i]);
                 vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
 
-                // Need mask MMX regs ?
+                // Need mask in MMX regs also?
                 if (need_mmx_mask)
-                    movq(mmx_mask(i), reg_mask);
+                    movq(mmx_mask(i), reg_mask); // reuse value in reg_mask
             }
 
             // Merge Low (xreg_mask_lo alias for vreg_mask.xreg)
@@ -716,12 +716,24 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
             vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
         }
 
-        // Need mask only in MMX regs ?
-        if (!need_ymm_mask && need_mmx_mask)
-            for (size_t i = 0; i < QW_PER_VREG; i++) {
-                mov(reg_mask, vmask[i]);
-                movq(mmx_mask(i), reg_mask);
-            }
+        // Need mask in MMX regs ?
+        if (need_mmx_mask) {
+
+            // Only in MMX regs ?
+            if (!need_ymm_mask)
+                for (size_t i = 0; i < QW_PER_VREG; i++) {
+                    mov(reg_mask, vmask[i]);
+                    movq(mmx_mask(i), reg_mask);
+                }
+
+            // Form full mask for one QWORD
+            uint64_t qw_full_vmask=0ULL;
+            for (size_t i = 0; i < D_PER_QW; i++)
+                qw_full_vmask |= VMSK << DBITS * i;
+
+            mov(reg_mask, qw_full_vmask);
+            movq(mmx_full_msk, reg_mask);
+        }
     };
 
     uint64_t tail_mask = (1ULL << jpp.c_tail) - 1;
