@@ -1109,6 +1109,11 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                 conv_acc_buffer_size = sizeof(float) * weights_d.size();
             scratchpad.book(key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
         }
+        if ((is_fwd && cd.bias_desc.data_type == data_type::bf16)
+            || (is_bwd_w && cd.diff_bias_desc.data_type == data_type::bf16)) {
+            scratchpad.book(key_conv_bias_bf16_convert_wsp,
+                sizeof(float) * jcp.oc * jcp.ngroups);
+        }
     }
     return status::success;
 }

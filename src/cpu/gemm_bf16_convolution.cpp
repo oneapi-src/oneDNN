@@ -275,7 +275,6 @@ template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const acc_data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t*>(this->memory());
 
     bool is_bf16_dst = dst_data_type == data_type::bf16;
@@ -285,11 +284,21 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
         ? scratchpad().template get<acc_data_t>(key_conv_int_dat_in_acc_dt)
         : nullptr;
 
+    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+
+    float *bias = nullptr;
+    if (pd()->desc()->bias_desc.data_type == data_type::bf16) {
+        auto bias_in = reinterpret_cast<const mkldnn_bfloat16_t *>(this->input_memory(2));
+        bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+        bf16_cvt_utils::cvt_bfloat16_to_float(bias, bias_in, jcp.oc * jcp.ngroups);
+    } else {
+        auto bias_in = reinterpret_cast<const float *>(this->input_memory(2));
+        bias = const_cast<float*>(bias_in);
+    }
+
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
-
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -510,7 +519,6 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     auto diff_dst =
         reinterpret_cast<const diff_dst_data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<diff_wei_data_t*>(this->memory(0));
-    auto diff_bias = reinterpret_cast<acc_data_t *>(this->memory(1));
 
     auto col = scratchpad().template get<src_data_t>(key_conv_gemm_col);
     auto wei_reduction = scratchpad().template get<acc_data_t>(
@@ -521,6 +529,13 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     acc_data_t *acc_base = diff_wei_data_type == data_type::bf16
         ? scratchpad().template get<acc_data_t>(key_conv_int_dat_in_acc_dt)
         : (acc_data_t *)diff_weights;
+
+    float *diff_bias = nullptr;
+    if (pd()->desc()->diff_bias_desc.data_type == data_type::bf16) {
+        diff_bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+    } else {
+        diff_bias = reinterpret_cast<float *>(this->memory(1));
+    }
 
     const int K = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -655,6 +670,11 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                 nd_iterator_step(g, jcp.ngroups, oc, jcp.oc);
             }
         });
+    }
+    if (pd()->desc()->diff_bias_desc.data_type == data_type::bf16) {
+        auto diff_bias_in = reinterpret_cast<mkldnn_bfloat16_t *>(this->memory(1));
+        bf16_cvt_utils::cvt_float_to_bfloat16(diff_bias_in, diff_bias,
+                                                jcp.oc * jcp.ngroups);
     }
 }
 
