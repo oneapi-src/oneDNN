@@ -1905,9 +1905,9 @@ struct convolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -1931,9 +1931,9 @@ struct convolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -1958,10 +1958,10 @@ struct convolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -1987,10 +1987,10 @@ struct convolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2067,9 +2067,9 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2090,10 +2090,10 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2167,9 +2167,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2191,9 +2191,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2215,10 +2215,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2241,10 +2241,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2333,9 +2333,9 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2359,9 +2359,9 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2386,10 +2386,10 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2414,10 +2414,10 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2493,9 +2493,9 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2516,10 +2516,10 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2592,9 +2592,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2616,9 +2616,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2640,10 +2640,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2666,10 +2666,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2871,10 +2871,10 @@ struct pooling_forward : public primitive {
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims kernel,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &kernel,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(kernel);
             memory::validate_dims(padding_l);
