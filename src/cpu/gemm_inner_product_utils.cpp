@@ -172,9 +172,14 @@ void pp_kernel_t<acc_type, dst_type>::generate()
             case data_type::f32:
                 vmovups(vreg_bias_, bias_addr);
                 break;
+            case data_type::bf16:
+                vpmovzxwd(vreg_bias_, bias_addr);
+                vpslld(vreg_bias(idx), vreg_bias(idx), 0x10);
+                break;
             default: assert(!"unimplemented");
             }
-            if (bias_data_type_ != data_type::f32)
+            if (utils::one_of(bias_data_type_, data_type::u8,
+                        data_type::s8, data_type::s32))
                 vcvtdq2ps(vreg_bias(idx), vreg_bias(idx));
             vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias(idx));
         }

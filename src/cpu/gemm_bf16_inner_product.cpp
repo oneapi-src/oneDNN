@@ -37,7 +37,7 @@ template <data_type_t dst_data_type>
 void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward() const {
     auto src = reinterpret_cast<const src_data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const wei_data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const acc_data_t *>(this->input_memory(2));
+    auto bias = reinterpret_cast<const char *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const int M = pd()->OC();
@@ -60,7 +60,7 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward() const {
         parallel(0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)M * N, nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, (char *)bias, scales, start, end);
+            (*pp_kernel_)(dst, acc, bias, scales, start, end);
         });
 }
 
@@ -108,7 +108,7 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     auto diff_dst =
         reinterpret_cast<const diff_dst_data_t *>(this->input_memory(1));
     auto diff_weights = reinterpret_cast<diff_wei_data_t *>(this->memory(0));
-    auto diff_bias = reinterpret_cast<acc_data_t *>(this->memory(1));
+    auto diff_bias = reinterpret_cast<char *>(this->memory(1));
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_pd());
     const memory_desc_wrapper diff_bias_d(pd()->diff_weights_pd(1));
@@ -147,12 +147,18 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     }
 
     if (pd()->with_bias()) {
-        diff_bias += diff_bias_d.blocking_desc().offset_padding;
+        const size_t bias_dt_size = types::data_type_size(
+                pd()->desc()->diff_bias_desc.data_type);
+        diff_bias += bias_dt_size * diff_bias_d.blocking_desc().offset_padding;
         constexpr int blksize = 16;
         const int OC_blocks = OC / blksize;
         const int rem_OC = OC % blksize;
-        acc_data_t *ddst_ws = scratchpad().template get<acc_data_t>(
+        float *ddst_ws = (float *)scratchpad().template get<acc_data_t>(
             key_iprod_dst_bf16_convert_wsp);
+        float *diff_bias_acc = pd()->diff_bias_is_acc_
+                ? (float *)diff_bias
+                : (float *)scratchpad().template get<acc_data_t>(
+                          key_iprod_bias_bf16_convert_wsp);
         parallel(0, [&](const int ithr, const int nthr) {
             int oc_st{0}, oc_e{0};
             balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
@@ -161,35 +167,46 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
             PRAGMA_OMP_SIMD()
             for (int oc = oc_st; oc < oc_e; ++oc)
-                diff_bias[oc] = 0.0f;
+                diff_bias_acc[oc] = 0.0f;
 
             for (int mb = 0; mb < MB; ++mb) {
                 if (oc_e > oc_st)
-                    cvt_bfloat16_to_float((float *)&ddst_ws[oc_st],
+                    cvt_bfloat16_to_float(&ddst_ws[oc_st],
                         (const mkldnn_bfloat16_t *)&diff_dst[mb * OC + oc_st],
                         oc_e - oc_st);
 
                 PRAGMA_OMP_SIMD()
                 for (int oc = oc_st; oc < oc_e; ++oc)
-                    diff_bias[oc] += ddst_ws[oc];
+                    diff_bias_acc[oc] += ddst_ws[oc];
             }
+            if (!pd()->diff_bias_is_acc_ && oc_st < oc_e)
+                cvt_float_to_bfloat16(
+                    &((mkldnn_bfloat16_t *)diff_bias)[oc_st],
+                    &((const float *)diff_bias_acc)[oc_st],
+                    oc_e - oc_st);
 
             if (rem_OC != 0 && ithr == nthr-1) {
-                int oc_st = OC_blocks * blksize;
-                for (int oc = OC_blocks * blksize; oc < OC; oc++)
-                    diff_bias[oc] = 0.0f;
+                oc_st = OC_blocks * blksize;
+                oc_e = OC;
+                for (int oc = oc_st; oc < oc_e; oc++)
+                    diff_bias_acc[oc] = 0.0f;
                 for (int mb = 0; mb < MB; ++mb) {
-                    cvt_bfloat16_to_float((float *)&ddst_ws[oc_st],
+                    cvt_bfloat16_to_float(&ddst_ws[oc_st],
                         (const mkldnn_bfloat16_t *)&diff_dst[mb * OC + oc_st],
-                        OC - oc_st);
+                        oc_e - oc_st);
 
-                    for (int oc = oc_st; oc < OC; oc++)
-                        diff_bias[oc] += ddst_ws[oc];
+                    for (int oc = oc_st; oc < oc_e; ++oc)
+                        diff_bias_acc[oc] += ddst_ws[oc];
                 }
+
+                if (!pd()->diff_bias_is_acc_ && oc_st < oc_e)
+                    cvt_float_to_bfloat16(
+                        &((mkldnn_bfloat16_t *)diff_bias)[oc_st],
+                        &((const float *)diff_bias_acc)[oc_st],
+                        oc_e - oc_st);
             }
         });
     }
-
 }
 
 template struct gemm_bf16_inner_product_fwd_t<data_type::f32>;

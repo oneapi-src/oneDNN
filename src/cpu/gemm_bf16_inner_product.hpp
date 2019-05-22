@@ -56,8 +56,9 @@ struct gemm_bf16_inner_product_fwd_t: public cpu_primitive_t {
                        desc()->src_desc.data_type,
                        desc()->weights_desc.data_type)
                 && dst_data_type == desc()->dst_desc.data_type
-                && IMPLICATION(this->with_bias(),
-                        data_type::f32 == desc()->bias_desc.data_type)
+                && IMPLICATION(this->with_bias(), one_of(
+                        desc()->bias_desc.data_type,
+                        data_type::f32, data_type::bf16))
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_ == 1,
                         attr()->post_ops_.entry_[0].is_eltwise())
@@ -213,20 +214,25 @@ struct gemm_bf16_inner_product_bwd_weights_t: public cpu_primitive_t {
                         desc()->src_desc.data_type,
                         desc()->diff_dst_desc.data_type)
                 && diff_wei_data_type == desc()->diff_weights_desc.data_type
+                && IMPLICATION(this->with_bias(), one_of(
+                        desc()->diff_bias_desc.data_type,
+                        data_type::f32, data_type::bf16))
                 && attr()->has_default_values()
                 && dense_gemm_consitency_check(src_pd(), diff_weights_pd(),
                         diff_dst_pd());
 
             if (!ok) return status::unimplemented;
 
-            diff_wei_is_acc_ = one_of(diff_wei_data_type, data_type::f32);
+            diff_wei_is_acc_ = diff_wei_data_type == data_type::f32;
+            diff_bias_is_acc_ = with_bias()
+                    && desc()->diff_bias_desc.data_type == data_type::f32;
 
             init_scratchpad();
 
             return status::success;
         }
 
-        bool diff_wei_is_acc_;
+        bool diff_wei_is_acc_, diff_bias_is_acc_;
 
     private:
         void init_scratchpad() {
@@ -236,10 +242,16 @@ struct gemm_bf16_inner_product_bwd_weights_t: public cpu_primitive_t {
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
                         sizeof(acc_data_t) * OC() * IC_total_padded());
 
-            if (with_bias())
+            if (with_bias()) {
                 scratchpad.book(
                     memory_tracking::names::key_iprod_dst_bf16_convert_wsp,
                     sizeof(acc_data_t) * OC());
+                if (!diff_bias_is_acc_)
+                    scratchpad.book(
+                        memory_tracking::names::
+                                key_iprod_bias_bf16_convert_wsp,
+                        sizeof(acc_data_t) * OC());
+            }
         }
     };
 
