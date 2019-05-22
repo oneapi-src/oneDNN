@@ -57,14 +57,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                 && weights_md()->data_type == s8
                 && IMPLICATION(with_bias(), utils::one_of(
                             weights_md(1)->data_type, f32, s32, s8, u8))
-                && attr()->post_ops_.len_ <= 1
-                && IMPLICATION(attr()->post_ops_.len_,
-                        attr()->post_ops_.entry_[0].is_eltwise())
+                && post_ops_ok()
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             if (!ok) return status::unimplemented;
 
-            dst_is_acc_ = utils::one_of(dst_type, s32, f32);
+            bool do_sum = attr()->post_ops_.find(primitive_kind::sum) >= 0;
+            dst_is_acc_ = utils::one_of(dst_type, s32, f32) && !do_sum;
 
             init_scratchpad();
 
@@ -74,6 +73,23 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
         bool dst_is_acc_;
 
     protected:
+        bool post_ops_ok() const {
+            auto const &po = attr()->post_ops_;
+            auto is_eltwise
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
+            switch (po.len_) {
+            case 0:
+                return true; // no post_ops
+            case 1:
+                return is_eltwise(0) || is_sum(0); // sum OR eltwise
+            case 2:
+                return is_sum(0) && is_eltwise(1); // sum -> eltwise
+            default: return false;
+            }
+            return false;
+        }
+
         status_t set_default_params() {
             using namespace format_tag;
             if (src_md_.format_kind == format_kind::any) {
@@ -108,7 +124,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd)
         : cpu_primitive_t(apd, true) {
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
-                dst_type>(apd);
+                dst_type>(apd, false);
     }
     ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 

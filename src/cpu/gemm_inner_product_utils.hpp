@@ -37,7 +37,7 @@ class pp_kernel_t : jit_generator
 {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
-    pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd);
+    pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
     ~pp_kernel_t() {
         if (do_eltwise_) {
             delete eltwise_injector_;
@@ -73,7 +73,9 @@ private:
     size_t bias_data_type_size_;
     size_t scale_idx_mult_;
     bool do_eltwise_;
+    bool do_sum_;
     post_ops_t::entry_t::eltwise_t eltwise_;
+    float sum_scale_;
 };
 
 }

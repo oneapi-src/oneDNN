@@ -27,18 +27,23 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m,
     int64_t N = p->oc;
     int64_t K = p->ic * p->id * p->ih * p->iw;
 
+    dnn_mem_t dst_tmp(dst_m.md_, mkldnn_f32, mkldnn_nc, engine_ref);
+
     gemm("C", "N", "T", M, N, K, 1.f, (float *)src_m, K, (float *)wei_m, K,
-        0.f, (float *)dst_m, N);
+        0.f, (float *)dst_tmp, N);
 
     mkldnn::impl::parallel_nd(p->mb, p->oc, [&](int64_t mb, int64_t oc) {
         size_t dst_off = dst_off_f(p, mb, oc);
-        float &d = ((float *)dst_m)[dst_off];
+        float &dst = ((float *)dst_m)[dst_off];
+
+        float d = ((float *)dst_tmp)[dst_off];
         if (p->dir & FLAG_BIA) {
             size_t bia_off = bia_off_f(p, oc);
             d += ((float *)bia_m)[bia_off];
         }
         maybe_scale(d, p->scales, oc, p->attr);
-        maybe_post_ops(d, 0, p->attr);
+        maybe_post_ops(d, dst, p->attr);
+        dst = d;
     });
 }
 
