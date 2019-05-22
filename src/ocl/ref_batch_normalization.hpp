@@ -48,9 +48,11 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
 
             bool ok = true
-                    && is_fwd() && src_md()->data_type == data_type
-                    && IMPLICATION(use_scaleshift(),
-                               weights_md()->data_type == data_type::f32)
+                    && is_fwd()
+                    && utils::everyone_is(data_type, src_md()->data_type,
+                               dst_md()->data_type)
+                    && IMPLICATION(data_type == data_type::f16,
+                               !is_training() && stats_is_src())
                     && (attr()->has_default_values() || with_relu_post_op())
                     && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups);
             if (!ok)

@@ -122,6 +122,7 @@ The operation supports the following combinations of data types:
 | Propagation        | Source / Destination | Mean / Variance / ScaleShift
 | :--                | :--                  | :--
 | forward / backward | f32                  | f32
+| forward            | f16                  | f32
 | forward            | s8                   | f32
 
 @warning
@@ -181,8 +182,12 @@ directly.
 @anchor dg_bnorm_impl_limits
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
-   limitations related to data types support.
+1. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
+
+2. For the data types that have forward propagation support only, mean and
+   variance must be provided by a user (i.e., #mkldnn_use_global_stats
+   is not set).
 
 
 ## Performance Tips
