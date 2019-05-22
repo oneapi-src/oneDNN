@@ -192,11 +192,20 @@
                 + ((x2) % SRC_B2) * SRC_SB2 + ((x2) / SRC_B2) * SRC_S2 \
                 + ((x3) % SRC_B3) * SRC_SB3 + ((x3) / SRC_B3) * SRC_S3)
 
-#    define WHT_OFF(x0, x1, d, x2, x3)                                 \
-        (((x0) % WHT_B0) * WHT_SB0 + ((x0) / WHT_B0) * WHT_S0          \
-                + ((x1) % WHT_B1) * WHT_SB1 + ((x1) / WHT_B1) * WHT_S1 \
-                + ((x2) % WHT_B2) * WHT_SB2 + ((x2) / WHT_B2) * WHT_S2 \
-                + ((x3) % WHT_B3) * WHT_SB3 + ((x3) / WHT_B3) * WHT_S3)
+#    if WITH_GROUPS == 1
+#        define WHT_OFF(x0, x1, x2, d, x3, x4)                             \
+            (((x0) % WHT_B0) * WHT_SB0 + ((x0) / WHT_B0) * WHT_S0          \
+                    + ((x1) % WHT_B1) * WHT_SB1 + ((x1) / WHT_B1) * WHT_S1 \
+                    + ((x2) % WHT_B2) * WHT_SB2 + ((x2) / WHT_B2) * WHT_S2 \
+                    + ((x3) % WHT_B3) * WHT_SB3 + ((x3) / WHT_B3) * WHT_S3 \
+                    + ((x4) % WHT_B4) * WHT_SB4 + ((x4) / WHT_B4) * WHT_S4)
+#    else
+#        define WHT_OFF(g, x1, x2, d, x3, x4)                              \
+            (((x1) % WHT_B0) * WHT_SB0 + ((x1) / WHT_B0) * WHT_S0          \
+                    + ((x2) % WHT_B1) * WHT_SB1 + ((x2) / WHT_B1) * WHT_S1 \
+                    + ((x3) % WHT_B2) * WHT_SB2 + ((x3) / WHT_B2) * WHT_S2 \
+                    + ((x4) % WHT_B3) * WHT_SB3 + ((x4) / WHT_B3) * WHT_S3)
+#    endif
 
 #    define DST_OFF(x0, x1, d, x2, x3)                                 \
         (((x0) % DST_B0) * DST_SB0 + ((x0) / DST_B0) * DST_S0          \
@@ -211,12 +220,22 @@
                 + ((x3) % SRC_B3) * SRC_SB3 + ((x3) / SRC_B3) * SRC_S3 \
                 + ((x4) % SRC_B4) * SRC_SB4 + ((x4) / SRC_B4) * SRC_S4)
 
-#    define WHT_OFF(x0, x1, x2, x3, x4)                                \
-        (((x0) % WHT_B0) * WHT_SB0 + ((x0) / WHT_B0) * WHT_S0          \
-                + ((x1) % WHT_B1) * WHT_SB1 + ((x1) / WHT_B1) * WHT_S1 \
-                + ((x2) % WHT_B2) * WHT_SB2 + ((x2) / WHT_B2) * WHT_S2 \
-                + ((x3) % WHT_B3) * WHT_SB3 + ((x3) / WHT_B3) * WHT_S3 \
-                + ((x4) % WHT_B4) * WHT_SB4 + ((x4) / WHT_B4) * WHT_S4)
+#    if WITH_GROUPS == 1
+#       define WHT_OFF(x0, x1, x2, x3, x4, x5)                             \
+            (((x0) % WHT_B0) * WHT_SB0 + ((x0) / WHT_B0) * WHT_S0          \
+                    + ((x1) % WHT_B1) * WHT_SB1 + ((x1) / WHT_B1) * WHT_S1 \
+                    + ((x2) % WHT_B2) * WHT_SB2 + ((x2) / WHT_B2) * WHT_S2 \
+                    + ((x3) % WHT_B3) * WHT_SB3 + ((x3) / WHT_B3) * WHT_S3 \
+                    + ((x4) % WHT_B4) * WHT_SB4 + ((x4) / WHT_B4) * WHT_S4 \
+                    + ((x5) % WHT_B5) * WHT_SB5 + ((x5) / WHT_B5) * WHT_S5)
+#    else
+#       define WHT_OFF(g, x1, x2, x3, x4, x5)                              \
+            (((x1) % WHT_B0) * WHT_SB0 + ((x1) / WHT_B0) * WHT_S0          \
+                    + ((x2) % WHT_B1) * WHT_SB1 + ((x2) / WHT_B1) * WHT_S1 \
+                    + ((x3) % WHT_B2) * WHT_SB2 + ((x3) / WHT_B2) * WHT_S2 \
+                    + ((x4) % WHT_B3) * WHT_SB3 + ((x4) / WHT_B3) * WHT_S3 \
+                    + ((x5) % WHT_B4) * WHT_SB4 + ((x5) / WHT_B4) * WHT_S4)
+#    endif
 
 #    define DST_OFF(x0, x1, x2, x3, x4)                                \
         (((x0) % DST_B0) * DST_SB0 + ((x0) / DST_B0) * DST_S0          \
