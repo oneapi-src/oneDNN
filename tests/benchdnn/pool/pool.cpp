@@ -265,18 +265,28 @@ int doit(const prb_t *p, res_t *r) {
         return OK;
     }
 
-    // process ws before fwd_pd destroy
-    auto &ws_d = *mkldnn_primitive_desc_query_md(pfpd, mkldnn_query_src_md, 0);
-    dnn_mem_t ws_dt(ws_d, engine_tgt);
-    dnn_mem_t ws_fp(ws_d, engine_ref);
-
-    // to catch usage of uninitialized values in the library
-    SAFE(fill_ws(p, ws_dt, ws_fp, r), WARN);
+    dnn_mem_t *p_ws_dt = NULL;
+    dnn_mem_t *p_ws_fp = NULL;
+    if (p->alg == MAX && !(p->dir & FLAG_INF)) {
+        // process ws before fwd_pd destroy
+        auto &ws_d = *mkldnn_primitive_desc_query_md(pfpd, mkldnn_query_workspace_md, 0);
+        p_ws_dt = new dnn_mem_t(ws_d, engine_tgt);
+        p_ws_fp = new dnn_mem_t(ws_d, engine_ref);
+        // to catch usage of uninitialized values in the library
+        SAFE(fill_ws(p, *p_ws_dt, *p_ws_fp, r), WARN);
+    }
+    dnn_mem_t &ws_dt = *p_ws_dt;
+    dnn_mem_t &ws_fp = *p_ws_fp;
 
     if (p->dir & FLAG_BWD) {
         SAFE(init_pd(p, pbd, pbpd, pfpd, r), WARN);
-        if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
+        if (r->state == SKIPPED || r->state == UNIMPLEMENTED) {
+            if (p->alg == MAX && !(p->dir & FLAG_INF)) {
+                delete p_ws_dt;
+                delete p_ws_fp;
+            }
             return OK;
+        }
 
         DNN_SAFE(mkldnn_primitive_create(&pb, pbpd), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(pbpd), CRIT);
@@ -306,7 +316,7 @@ int doit(const prb_t *p, res_t *r) {
     args_t args_fwd, args_bwd;
     args_fwd.set(MKLDNN_ARG_SRC, src_dt.m_);
     args_fwd.set(MKLDNN_ARG_DST, dst_dt.m_);
-    if (!(p->dir & FLAG_INF))
+    if (p->alg == MAX && !(p->dir & FLAG_INF))
         args_fwd.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
     DNN_SAFE(execute_and_wait(pf, stream_tgt, args_fwd.size(), args_fwd), WARN);
@@ -322,7 +332,8 @@ int doit(const prb_t *p, res_t *r) {
 
         args_bwd.set(MKLDNN_ARG_DIFF_DST, diff_dst_dt.m_);
         args_bwd.set(MKLDNN_ARG_DIFF_SRC, diff_src_dt.m_);
-        args_bwd.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
+        if(p->alg == MAX)
+            args_bwd.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
         DNN_SAFE(execute_and_wait(pb, stream_tgt, args_bwd.size(), args_bwd),
                 WARN);
@@ -355,6 +366,11 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(mkldnn_primitive_destroy(pf), CRIT);
     if (p->dir & FLAG_BWD)
         DNN_SAFE(mkldnn_primitive_destroy(pb), CRIT);
+
+    if (p->alg == MAX && !(p->dir & FLAG_INF)) {
+        delete p_ws_dt;
+        delete p_ws_fp;
+    }
 
     return OK;
 }

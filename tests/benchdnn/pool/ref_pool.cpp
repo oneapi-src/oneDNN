@@ -55,7 +55,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
         const auto dst_off = dst_off_f(p, mb, ic, od, oh, ow);
         if (p->alg == MAX) {
             dst.set_elem(dst_off, max_value);
-            ws.set_elem(dst_off, ws_off);
+            if (!(p->dir & FLAG_INF))
+                ws.set_elem(dst_off, ws_off);
         } else if (p->alg == AVG_NP || p->alg == AVG_P)
             dst.set_elem(dst_off, avg_value / get_num_summands(p, od, oh, ow));
     };
@@ -78,7 +79,7 @@ void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
         const auto diff_dst_off = dst_off_f(p, mb, ic, od, oh, ow);
         float diff_dst_val = diff_dst.get_elem(diff_dst_off);
-        int ws_off = ws.get_elem(diff_dst_off);
+        int ws_off = (p->alg == MAX) ? ws.get_elem(diff_dst_off) : 0;
 
         const int64_t ID = p->id, IH = p->ih, IW = p->iw;
         const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
