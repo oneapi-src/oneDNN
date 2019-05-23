@@ -29,6 +29,8 @@ namespace f16_support {
 struct float16_t {
     uint16_t raw;
 
+    constexpr float16_t(uint16_t raw, bool) : raw(raw) {}
+
     float16_t() = default;
     float16_t(float f) { (*this) = f; }
 

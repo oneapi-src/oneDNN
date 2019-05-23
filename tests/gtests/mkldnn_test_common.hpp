@@ -43,6 +43,7 @@
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/float16.hpp"
 #include "src/common/bfloat16.hpp"
+#include "src/common/nstl.hpp"
 
 using mkldnn::impl::f16_support::float16_t;
 using mkldnn::impl::bfloat16_t;
@@ -61,21 +62,33 @@ mkldnn::engine::kind get_test_engine_kind();
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float16_t> {
     static const auto data_type = memory::data_type::f16;
+
+    using uint_type = uint16_t;
 };
 template <> struct data_traits<bfloat16_t> {
     static const auto data_type = memory::data_type::bf16;
+
+    using uint_type = uint16_t;
 };
 template <> struct data_traits<float> {
     static const auto data_type = memory::data_type::f32;
+
+    using uint_type = uint32_t;
 };
 template <> struct data_traits<uint8_t> {
     static const auto data_type = memory::data_type::u8;
+
+    using uint_type = uint8_t;
 };
 template <> struct data_traits<int8_t> {
     static const auto data_type = memory::data_type::s8;
+
+    using uint_type = uint8_t;
 };
 template <> struct data_traits<int32_t> {
     static const auto data_type = memory::data_type::s32;
+
+    using uint_type = uint32_t;
 };
 
 template <typename T> inline void assert_eq(T a, T b);
