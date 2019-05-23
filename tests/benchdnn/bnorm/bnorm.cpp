@@ -93,7 +93,9 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
         alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
 
     const int64_t flex_bits = alg == ALG_0
-        ? want_flex_bits : ((exact_bits - logL) / 2 - 1);
+            ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
+            : MIN2(p->dt == mkldnn_bf16 ? 7 : exact_bits,
+                      (exact_bits - logL) / 2 - 1);
 
     if (flex_bits < min_flex_bits)
         return FAIL;
@@ -296,11 +298,16 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             if (p->flags & FUSE_BN_RELU)
                 ((float *)mask)[l0] = ((float *)mask)[l1] = 1;
 
-            float f1 = ((target_db - db) + (target_dg - dg)) /2;
-            float f0 = ((target_db - db) - (target_dg - dg)) /2;
+            float f1 = ((target_db - db) + (target_dg - dg)) / 2;
+            float f0 = ((target_db - db) - (target_dg - dg)) / 2;
 
             ((float *)d_dst)[l1] = f1 + m;
             ((float *)d_dst)[l0] = f0 + m;
+
+            if (p->dt == mkldnn_bf16) { // truncate to bf16
+                ((uint16_t *)(&((float *)d_dst)[l1]))[0] = 0;
+                ((uint16_t *)(&((float *)d_dst)[l0]))[0] = 0;
+            }
         }
 
         if (p->flags & USE_SCALESHIFT) {
@@ -441,6 +448,7 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
     const int64_t nelems = data_dt.nelems(true);
+    const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
      * for the ref implementation) or as bits (e.g. for the jitted one); in
@@ -451,12 +459,11 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* more internal knowledge: data_dt and ws_dt are expected to have exactly
      * the same data layout, and data_dt padded regions are expected to be
      * zero, and the respective ws_dt elements should be set accordingly */
-    const float *d = (const float *)data_dt;
-    const uint8_t *ws = (const uint8_t *)ws_dt;
     for (int64_t i = 0; i < nelems; i += 8) {
         for (int64_t j = 0; j < MIN2(8, nelems - i); ++j) {
-            const bool want = *d > 0;
-            const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1<<j));
+            const float data = data_dt.get_elem(i + j);
+            const bool want = data > 0.f;
+            const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1 << j));
 
             const bool ok = bit_set == want;
             r->errors += !ok;
@@ -466,10 +473,9 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
                 || (verbose >= 50 && i < 30);
             if (dump) {
                 print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
-                        (unsigned long)(i + j), want, bit_set, *d, *d);
+                        (unsigned long)(i + j), want, bit_set, data, data);
             }
 
-            ++d;
             // XXX: GPU implementation uses int32_t for workspace
             if (engine_tgt_kind == mkldnn_gpu) {
                 ws += sizeof(int32_t);
@@ -511,16 +517,20 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
                     &data_d, &data_d, p->eps, flags), WARN);
     }
 
-    auto mkldnn_attr = create_mkldnn_attr(p->attr, 1, NULL);
-
     mkldnn_primitive_desc_t hint_fwd_pd = NULL;
     if (p->dir & FLAG_BWD) {
         mkldnn_batch_normalization_desc_t bd_fwd;
         DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
-                    mkldnn_forward_training, &data_d, p->eps, flags), WARN);
-        DNN_SAFE(mkldnn_primitive_desc_create(&hint_fwd_pd, &bd_fwd, NULL,
-                    engine_tgt, NULL), WARN);
+                         mkldnn_forward_training, &data_d, p->eps, flags),
+                WARN);
+        mkldnn_status_t init_fwd_status = mkldnn_primitive_desc_create(
+                &hint_fwd_pd, &bd_fwd, NULL, engine_tgt, NULL);
+        if (init_fwd_status == mkldnn_unimplemented)
+            return r->state = UNIMPLEMENTED, OK;
+        else
+            SAFE(init_fwd_status, WARN);
     }
+    auto mkldnn_attr = create_mkldnn_attr(p->attr, 1, NULL);
     mkldnn_status_t init_status = mkldnn_primitive_desc_create(
             &bpd, &bd, mkldnn_attr, engine_tgt, hint_fwd_pd);
 

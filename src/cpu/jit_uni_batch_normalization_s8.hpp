@@ -43,7 +43,7 @@ struct jit_uni_batch_normalization_s8_fwd_t: public cpu_primitive_t {
         {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                JIT_IMPL_NAME_HELPER("bnorm_jit:", isa, ""),
                 jit_uni_batch_normalization_s8_fwd_t<isa>);
 
         status_t init();

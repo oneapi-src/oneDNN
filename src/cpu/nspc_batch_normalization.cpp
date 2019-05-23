@@ -19,9 +19,9 @@
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
+#include "mkldnn_thread.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
-#include "jit_generator.hpp"
 
 #include "nspc_batch_normalization.hpp"
 
@@ -37,8 +37,10 @@ namespace impl {
 namespace cpu {
 
 using namespace memory_tracking::names;
+using namespace data_type;
 
-void nspc_batch_normalization_fwd_t::execute_forward(
+template <data_type_t d_type>
+void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
@@ -47,23 +49,23 @@ void nspc_batch_normalization_fwd_t::execute_forward(
     const bool with_relu = pd()->with_relu_post_op();
 
     auto scratchpad = this->scratchpad(ctx);
-    auto tmp_mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
-    auto tmp_var = scratchpad.get<data_t>(key_bnorm_tmp_var);
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+    auto tmp_mean = scratchpad.template get<acc_data_t>(key_bnorm_tmp_mean);
+    auto tmp_var = scratchpad.template get<acc_data_t>(key_bnorm_tmp_var);
+    auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
-    data_t *mean, *variance;
+    acc_data_t *mean, *variance;
     if (!calculate_stats) {
-        mean = const_cast<data_t *>(
-                CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN));
-        variance = const_cast<data_t *>(
-                CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE));
+        mean = const_cast<acc_data_t *>(
+                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN));
+        variance = const_cast<acc_data_t *>(
+                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
-            variance = CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
+            mean = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_MEAN);
+            variance = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_VARIANCE);
         } else {
             mean = tmp_mean;
             variance = tmp_var;
@@ -72,34 +74,53 @@ void nspc_batch_normalization_fwd_t::execute_forward(
 
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
+    acc_data_t *tmp_data_ = d_type == bf16
+            ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
+            : nullptr;
 
     const dim_t N = pd()->MB();
     const dim_t C = pd()->C();
+    const int simd_w = 16;
+    const dim_t C_align = utils::rnd_up(C, simd_w);
     const dim_t SP = pd()->H() * pd()->W() * pd()->D();
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
     auto maybe_post_op
-            = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
+            = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
 
     assert(mkldnn_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
-        data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
-        data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
+        acc_data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
+        acc_data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
 
         if (calculate_stats) {
             for (dim_t c = 0; c < C; c++)
                 ws_reduce[C * ithr + c] = 0.;
 
-            for (dim_t n = N_s; n < N_e; n++)
-                for (dim_t sp = 0; sp < SP; sp++)
+            for (dim_t n = N_s; n < N_e; n++) {
+                for (dim_t sp = 0; sp < SP; sp++) {
+                    const acc_data_t *_src;
+                    const size_t s_off = (size_t)n * SP * C + sp * C;
+                    if (d_type == bf16) {
+                        // convert src from b16 to f32
+                        acc_data_t *tmp_src = tmp_data_ + ithr * C_align;
+                        cvt_bfloat16_to_float(
+                                tmp_src, (bfloat16_t *)src + s_off, C);
+                        _src = tmp_src;
+                    } else {
+                        _src = reinterpret_cast<const acc_data_t *>(
+                                src + s_off);
+                    }
                     PRAGMA_OMP_SIMD()
-                    for (dim_t c = 0; c < C; c++)
-                        ws_reduce[C * ithr + c] += src[(size_t)n * SP * C
-                            + sp * C + c];
+                    for (int c = 0; c < C; c++) {
+                        ws_reduce[C * ithr + c] += _src[c];
+                    }
+                }
+            }
 
             mkldnn_thr_barrier();
 
@@ -117,14 +138,27 @@ void nspc_batch_normalization_fwd_t::execute_forward(
                 ws_reduce[C * ithr + c] = 0.;
             }
 
-            for (dim_t n = N_s; n < N_e; n++)
-                for (dim_t sp = 0; sp < SP; sp++)
+            for (dim_t n = N_s; n < N_e; n++) {
+                for (dim_t sp = 0; sp < SP; sp++) {
+                    const acc_data_t *_src;
+                    const size_t s_off = (size_t)n * SP * C + sp * C;
+                    if (d_type == bf16) {
+                        // convert src from b16 to f32
+                        acc_data_t *tmp_src = tmp_data_ + ithr * C_align;
+                        cvt_bfloat16_to_float(
+                                tmp_src, (bfloat16_t *)src + s_off, C);
+                        _src = tmp_src;
+                    } else {
+                        _src = reinterpret_cast<const acc_data_t *>(
+                                src + s_off);
+                    }
                     PRAGMA_OMP_SIMD()
-                    for (dim_t c = 0; c < C; c++) {
-                        data_t m = src[(size_t)n * SP * C + sp * C + c]
-                            - mean_loc[c];
+                    for (int c = 0; c < C; c++) {
+                        acc_data_t m = _src[c] - mean_loc[c];
                         ws_reduce[C * ithr + c] += m * m;
                     }
+                }
+            }
 
             mkldnn_thr_barrier();
 
@@ -146,56 +180,91 @@ void nspc_batch_normalization_fwd_t::execute_forward(
 
         for (dim_t n = N_s; n < N_e; n++) {
             for (dim_t sp = 0; sp < SP; sp++) {
+                acc_data_t *_dst;
+                const acc_data_t *_src;
+                const size_t s_off = (size_t)n * SP * C + sp * C;
+                if (d_type == bf16) {
+                    // store dst to f32 buffer
+                    _dst = tmp_data_ + ithr * C_align;
+                    // convert src from b16 to f32
+                    acc_data_t *tmp_src = tmp_data_ + (nthr + ithr) * C_align;
+                    cvt_bfloat16_to_float(
+                            tmp_src, (bfloat16_t *)src + s_off, C);
+                    _src = tmp_src;
+                } else {
+                    _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
+                    _src = reinterpret_cast<const acc_data_t *>(src + s_off);
+                }
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
-                for (dim_t c = 0; c < C; c++) {
-                    data_t sqrt_variance = static_cast<data_t>(
+                for (int c = 0; c < C; c++) {
+                    const size_t c_off = s_off + c;
+                    acc_data_t sqrt_variance = static_cast<acc_data_t>(
                             sqrtf(variance_loc[c] + eps));
-                    data_t sm = (use_scaleshift ? scaleshift[c] : 1.0f) / sqrt_variance;
-                    data_t sv = use_scaleshift ? scaleshift[C + c] : 0;
-                    size_t d_off = (size_t)n * SP * C + sp * C + c;
-                    data_t bn_res = sm * (src[d_off] - mean_loc[c]) + sv;
+                    acc_data_t sm = (use_scaleshift ? (acc_data_t)scaleshift[c]
+                                                    : (acc_data_t)1.0f)
+                            / sqrt_variance;
+                    acc_data_t sv = use_scaleshift
+                            ? (acc_data_t)scaleshift[C + c]
+                            : (acc_data_t)0;
+                    acc_data_t bn_res = sm * (_src[c] - mean_loc[c]) + sv;
                     if (fuse_bn_relu) {
                         if (bn_res <= 0) {
                             bn_res = 0;
                             if (is_training)
-                                ws[d_off] = 0;
+                                ws[c_off] = 0;
                         } else {
                             if (is_training)
-                                ws[d_off] = 1;
+                                ws[c_off] = 1;
                         }
                     }
-                    dst[d_off] = maybe_post_op(bn_res);
+                    _dst[c] = maybe_post_op(bn_res);
+                }
+                if (d_type == bf16) {
+                    // convert dst from f32 to b16
+                    cvt_float_to_bfloat16((bfloat16_t *)dst + s_off, _dst, C);
                 }
             }
         }
     });
 }
 
-void nspc_batch_normalization_bwd_t::execute_backward(
+template struct nspc_batch_normalization_fwd_t<f32>;
+template struct nspc_batch_normalization_fwd_t<bf16>;
+
+template <data_type_t d_type>
+void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
-    auto variance = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto mean = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
-    auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto diff_scaleshift
+            = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad(ctx);
-    auto tmp_diff_ss = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
+    auto tmp_diff_ss
+            = scratchpad.template get<acc_data_t>(key_bnorm_tmp_diff_ss);
 
     if (diff_scaleshift == nullptr)
         diff_scaleshift = tmp_diff_ss;
 
     const dim_t N = pd()->MB();
     const dim_t C = pd()->C();
+    const int simd_w = 16;
+    const dim_t C_align = utils::rnd_up(C, simd_w);
     const dim_t SP = pd()->D() * pd()->H() * pd()->W();
-    data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+    acc_data_t *diff_gamma = diff_scaleshift, *diff_beta = diff_scaleshift + C;
+    acc_data_t *ws_reduce
+            = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
+    acc_data_t *tmp_data_ = d_type == bf16
+            ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
+            : nullptr;
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
@@ -208,35 +277,56 @@ void nspc_batch_normalization_bwd_t::execute_backward(
         balance211(N, nthr, ithr, N_s, N_e);
         balance211(C, nthr, ithr, C_s, C_e);
 
-        data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
-        data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
+        acc_data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
+        acc_data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
 
         for (dim_t c = 0; c < C; c++) {
             ws_reduce[C * ithr + c] = 0.;
             ws_reduce[C * nthr + C * ithr + c] = 0.;
         }
 
-        for (dim_t n = N_s; n < N_e; n++)
-            for (dim_t sp = 0; sp < SP; sp++)
+        for (dim_t n = N_s; n < N_e; n++) {
+            for (dim_t sp = 0; sp < SP; sp++) {
+                const acc_data_t *_diff_dst;
+                const acc_data_t *_src;
+                const size_t s_off = (size_t)n * SP * C + sp * C;
+                if (d_type == bf16) {
+                    // convert diff_dst from b16 to f32
+                    acc_data_t *tmp_diff_dst = tmp_data_ + ithr * C_align;
+                    cvt_bfloat16_to_float(
+                            tmp_diff_dst, (bfloat16_t *)diff_dst + s_off, C);
+                    _diff_dst = tmp_diff_dst;
+                    // convert src from b16 to f32
+                    acc_data_t *tmp_src = tmp_data_ + (nthr + ithr) * C_align;
+                    cvt_bfloat16_to_float(
+                            tmp_src, (bfloat16_t *)src + s_off, C);
+                    _src = tmp_src;
+                } else {
+                    _diff_dst = reinterpret_cast<const acc_data_t *>(
+                            diff_dst + s_off);
+                    _src = reinterpret_cast<const acc_data_t *>(src + s_off);
+                }
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
                 for (dim_t c = 0; c < C; c++) {
-                    const size_t d_off = (size_t)n * SP * C + sp * C + c;
-                    data_t dd;
-                    if (fuse_bn_relu)
-                        dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
+                    const size_t c_off = s_off + c;
+                    acc_data_t dd;
+                    if (fuse_bn_relu && !ws[c_off])
+                        dd = 0;
                     else
-                        dd = diff_dst[d_off];
-                    ws_reduce[C * ithr + c] += (src[d_off] - mean[c]) * dd;
+                        dd = _diff_dst[c];
+                    ws_reduce[C * ithr + c] += (_src[c] - mean[c]) * dd;
                     ws_reduce[C * nthr + C * ithr + c] += dd;
                 }
+            }
+        }
 
         mkldnn_thr_barrier();
 
         for (dim_t c = C_s; c < C_e; c++) {
-            data_t sqrt_variance
-                    = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
+            acc_data_t sqrt_variance
+                    = static_cast<acc_data_t>(1.0f / sqrtf(variance[c] + eps));
             diff_gamma[c] = 0;
             diff_beta[c] = 0;
             for (dim_t n = 0; n < nthr; n++) {
@@ -255,32 +345,67 @@ void nspc_batch_normalization_bwd_t::execute_backward(
 
         for (dim_t n = N_s; n < N_e; n++) {
             for (dim_t sp = 0; sp < SP; sp++) {
+                acc_data_t *_diff_src;
+                const acc_data_t *_diff_dst;
+                const acc_data_t *_src;
+                const size_t s_off = (size_t)n * SP * C + sp * C;
+                if (d_type == bf16) {
+                    // store diff_src to f32 buffer
+                    _diff_src = tmp_data_ + ithr * C_align;
+                    // convert diff_dst from b16 to f32
+                    acc_data_t *tmp_diff_dst = tmp_data_ + ithr * C_align;
+                    cvt_bfloat16_to_float(
+                            tmp_diff_dst, (bfloat16_t *)diff_dst + s_off, C);
+                    _diff_dst = tmp_diff_dst;
+                    if (calculate_diff_stats) {
+                        // convert src from b16 to f32
+                        acc_data_t *tmp_src
+                                = tmp_data_ + (2 * nthr + ithr) * C_align;
+                        cvt_bfloat16_to_float(
+                                tmp_src, (bfloat16_t *)src + s_off, C);
+                        _src = tmp_src;
+                    } else
+                        _src = nullptr; // to avoid compiler warning w/ gcc483
+                } else {
+                    _diff_src
+                            = reinterpret_cast<acc_data_t *>(diff_src + s_off);
+                    _diff_dst = reinterpret_cast<const acc_data_t *>(
+                            diff_dst + s_off);
+                    _src = reinterpret_cast<const acc_data_t *>(src + s_off);
+                }
 #if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
                 for (dim_t c = 0; c < C; c++) {
-                    const size_t d_off = (size_t)n * SP * C + sp * C + c;
-                    data_t gamma = use_scaleshift ? scaleshift[c] : 1;
-                    data_t sqrt_variance
-                            = static_cast<data_t>(1.0f / sqrtf(variance[c] + eps));
-                    data_t v_diff_src;
-                    if (fuse_bn_relu)
-                        v_diff_src = (!ws[d_off]) ? 0 : diff_dst[d_off];
+                    const size_t c_off = s_off + c;
+                    acc_data_t gamma = use_scaleshift ? scaleshift[c] : 1;
+                    acc_data_t sqrt_variance = static_cast<acc_data_t>(
+                            1.0f / sqrtf(variance[c] + eps));
+                    acc_data_t v_diff_src;
+                    if (fuse_bn_relu && !ws[c_off])
+                        v_diff_src = 0;
                     else
-                        v_diff_src = diff_dst[d_off];
+                        v_diff_src = _diff_dst[c];
                     if (calculate_diff_stats) {
                         v_diff_src -= diff_beta_loc[c] / (SP * N)
-                                + (src[d_off] - mean[c]) * diff_gamma_loc[c]
+                                + (_src[c] - mean[c]) * diff_gamma_loc[c]
                                         * sqrt_variance / (SP * N);
                     }
                     v_diff_src *= gamma * sqrt_variance;
-                    diff_src[d_off] = v_diff_src;
+                    _diff_src[c] = v_diff_src;
+                }
+                if (d_type == bf16) {
+                    // convert diff_src from f32 to b16
+                    cvt_float_to_bfloat16(
+                            (bfloat16_t *)diff_src + s_off, _diff_src, C);
                 }
             }
         }
     });
 }
 
+template struct nspc_batch_normalization_bwd_t<f32>;
+template struct nspc_batch_normalization_bwd_t<bf16>;
 }
 }
 }
