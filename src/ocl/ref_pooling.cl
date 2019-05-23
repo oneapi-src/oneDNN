@@ -365,11 +365,11 @@ __kernel void ref_pooling_bwd_kernel(__global DATA_T *diff_src,
                 const int iw = ow * SW - PW + kw;
 
                 if (id < 0 || id >= ID)
-                    return;
+                    continue;
                 if (ih < 0 || ih >= IH)
-                    return;
+                    continue;
                 if (iw < 0 || iw >= IW)
-                    return;
+                    continue;
 
                 uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
                 diff_src[diff_src_offset] += d;
