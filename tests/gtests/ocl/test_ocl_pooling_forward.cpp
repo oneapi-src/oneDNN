@@ -136,9 +136,7 @@ int ref_pool_fwd(const pool_test_params &p, const memory &src,
         str.append(" -D");
         str.append(name);
         str.append("=");
-        char buffer[16] = { '\0' };
-        sprintf(buffer, "%d", value);
-        str.append(buffer);
+        str.append(std::to_string(value));
     };
 
     switch (data_traits<data_t>::data_type) {
