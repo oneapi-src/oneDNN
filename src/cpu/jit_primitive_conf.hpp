@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -136,7 +137,9 @@ struct jit_conv_conf_t {
     bool signed_input;
     float wei_adj_scale;
 
-    bool is_cpx;
+    bool bf16_ISA() {
+        return mayiuse(avx512_core_bf16);
+    }
 };
 
 struct jit_conv_conf_2x3_wino_t {
@@ -403,7 +406,9 @@ struct jit_1x1_conv_conf_t {
     bool signed_input;
     float wei_adj_scale;
 
-    bool is_cpx;
+    bool bf16_ISA() {
+        return mayiuse(avx512_core_bf16);
+    }
 };
 
 struct jit_gemm_conv_conf_t {

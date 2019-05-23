@@ -83,22 +83,17 @@ struct _jit_avx512_core_bf16_1x1_convolution_fwd_t : public cpu_primitive_t {
                     && this->desc()->alg_kind == alg_kind::convolution_auto)
                 CHECK(this->set_alg_kind(alg_kind::convolution_direct));
 
-            init_scratchpad();
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(scratchpad,
+                    jcp_);
+
+            rtus_prepare_space_info(this, scratchpad);
 
             return status::success;
         }
 
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
-
-        private:
-            void init_scratchpad() {
-                using namespace mkldnn::impl::memory_tracking::names;
-                auto scratchpad = scratchpad_registry().registrar();
-                if (jcp_.with_bias && jcp_.oc != jcp_.oc_without_padding)
-                    scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp_.oc);
-                rtus_prepare_space_info(this, scratchpad);
-            }
 
         protected:
             virtual status_t set_default_params() override {
@@ -208,7 +203,8 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
                     && this->desc()->alg_kind == alg_kind::convolution_auto)
                 CHECK(this->set_alg_kind(alg_kind::convolution_direct));
 
-            init_scratchpad();
+            auto scratchpad = scratchpad_registry().registrar();
+            rtus_prepare_space_info(this, scratchpad);
 
             return status::success;
         }
@@ -216,12 +212,6 @@ struct _jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public cpu_primitive_t
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
-
-    private:
-        void init_scratchpad() {
-            auto scratchpad = scratchpad_registry().registrar();
-            rtus_prepare_space_info(this, scratchpad);
-        }
 
     protected:
         virtual status_t set_default_params() override {

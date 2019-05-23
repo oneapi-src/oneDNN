@@ -281,36 +281,6 @@ struct _jit_avx512_core_bf16_convolution_bwd_weights_t: public cpu_primitive_t {
         jit_conv_conf_t jcp_;
         typename cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
 
-    protected:
-        memory_format_t src_format()
-        {
-            using namespace memory_format;
-            return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-        }
-
-        memory_format_t wei_format()
-        {
-            using namespace memory_format;
-            return this->with_groups()
-                ? utils::pick(ndims() - 3, gOIw16o16i, gOIhw16o16i,
-                      gOIdhw16o16i)
-                : utils::pick(ndims() - 3, OIw16o16i, OIhw16o16i,
-                      OIdhw16o16i);
-        }
-
-        virtual status_t set_default_params() override {
-            using namespace memory_format;
-
-            if (this->src_pd_.desc()->format == any)
-                CHECK(this->src_pd_.set_format(src_format()));
-            if (this->diff_weights_pd_.desc()->format == any)
-                CHECK(this->diff_weights_pd_.set_format(wei_format()));
-            if (this->diff_dst_pd_.desc()->format == any)
-                CHECK(this->diff_dst_pd_.set_format(src_format()));
-
-            return status::success;
-        }
-
     private:
         void init_balancers() {
             const size_t max_buffer_size = jcp_.nthr * 3 * 5 * 5 * 16 * 16;

@@ -174,15 +174,13 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
     if (!args_ok) return status::unimplemented;
 
-    jcp.is_cpx = (mayiuse(avx512_core_bf16)) ? true : false;
-
     jcp.typesize_out = jcp.dst_dt == data_type::bf16 ? sizeof(mkldnn_bfloat16_t)
                                                      : sizeof(float);
     jcp.typesize_in = src_d.data_type() == data_type::bf16
             ? sizeof(mkldnn_bfloat16_t)
             : sizeof(float);
 
-    jcp.ur_w = is_bf16 ? (jcp.is_cpx ? 6 : 4)
+    jcp.ur_w = is_bf16 ? (jcp.bf16_ISA() ? 6 : 4)
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.ch_block = simd_w;
@@ -317,8 +315,6 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         && jcp.ngroups <= weights_d.blocking_desc().padding_dims[0];
     if (!args_ok) return status::unimplemented;
 
-    jcp.is_cpx = (mayiuse(avx512_core_bf16)) ? true : false;
-
     jcp.typesize_out = diff_src_d.data_type() == data_type::bf16
             ? sizeof(mkldnn_bfloat16_t)
             : sizeof(float);
@@ -326,7 +322,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             ? sizeof(mkldnn_bfloat16_t)
             : sizeof(float);
 
-    jcp.ur_w = is_bf16 ? (jcp.is_cpx ? 6 : 4)
+    jcp.ur_w = is_bf16 ? (jcp.bf16_ISA() ? 6 : 4)
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.ch_block = simd_w;
@@ -469,8 +465,6 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
             && jcp.r_pad <= max_wpad;
     if (!boundaries_ok)
         return status::unimplemented;
-
-    jcp.is_cpx = (mayiuse(avx512_core_bf16)) ? true : false;
 
     /* BF16: accumulation of output happens in f32, down-conversion to bf16
      * happens during the reduction phase. */
