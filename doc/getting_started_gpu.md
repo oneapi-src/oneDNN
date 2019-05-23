@@ -40,7 +40,7 @@ memory mem(mem_d, eng);
 ## Initialize the data executing a custom OpenCL kernel
 
 We are going to create an OpenCL kernel that will initialize our data.
-It requries writing a bit of C code to create an OpenCL program from a string literal source, build it and extract the kernel.
+It requires writing a bit of C code to create an OpenCL program from a string literal source, build it and extract the kernel.
 The kernel initializes the data by the `0, -1, 2, -3, ...` sequence: `data[i] = (-1)^i * i`.
 
 ~~~cpp
@@ -78,7 +78,7 @@ There are 3 steps to create an operation primitive in Intel MKL-DNN:
 - Create a primitive descriptor
 - Create a primitive
 
-Let's create the primitive to perform ReLU (recitified linear unit) operation: `x = max(0, x)`.
+Let's create the primitive to perform ReLU (rectified linear unit) operation: `x = max(0, x)`.
 
 ~~~cpp
 auto relu_d = eltwise_forward::desc(prop_kind::forward, algorithm::eltwise_relu,
@@ -105,7 +105,7 @@ But user can call `stream::wait()` to synchronize the stream and ensure that all
 ## Validating the results
 
 The simplest way to access the OpenCL memory is to map it to the host using `memory::map_data()` and `memory::unmap_data()` APIs.
-After mapping this data is directly accessible (reading/writing) on the host. Whlie the data is mapped, any GPU-side operations on this data are not allowed.
+After mapping this data is directly accessible (reading/writing) on the host. While the data is mapped, any GPU-side operations on this data are not allowed.
 The data should be unmapped to release all resources associated with mapping.
 
 ~~~cpp

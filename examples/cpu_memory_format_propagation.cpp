@@ -231,7 +231,7 @@ void cpu_memory_format_propagation_tutorial() {
     /// check if reorders are necessary based on the flags computed before and
     /// create and execute them immediately.
     ///
-    /// @note we call @ref mkldnn::stream::wait() before reorder primitives
+    /// @note We call @ref mkldnn::stream::wait() before reorder primitives
     /// get out of scope and destroyed to accommodate for potentially
     /// asynchronous execution.
     ///

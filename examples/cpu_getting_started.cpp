@@ -178,8 +178,8 @@ void cpu_getting_started_tutorial() {
     ///      memory object is used when a primitive is executed.
     ///
     /// Thanks to the
-    /// [`std::initializer_list`](https://en.cppreference.com/w/cpp/utility/initializer_list)
-    /// introduced in C++11 it is possible to combine these two steps whenever an
+    /// [list initialization](https://en.cppreference.com/w/cpp/language/list_initialization)
+    /// introduced in C++11 it is possible to combine these two steps whenever a
     /// memory descriptor is not used anywhere else but in creating an @ref
     /// mkldnn::memory object.
     ///
@@ -432,7 +432,7 @@ void cpu_getting_started_tutorial() {
     /// @warning
     ///     The @ref mkldnn::memory::get_data_handle() returns a raw handle
     ///     to the buffer which type is engine specific. For CPU engine the
-    ///     buffer is always a pointer to `void *` which can safely be used.
+    ///     buffer is always a pointer to `void` which can safely be used.
     ///     However, for engines other than CPU the handle might be backend
     ///     specific type, such as `cl_mem` in case of GPU/OpenCL.
     ///

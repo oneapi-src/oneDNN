@@ -1,11 +1,11 @@
-Linear Response Normalization (LRN) {#dev_guide_lrn}
+Local Response Normalization (LRN) {#dev_guide_lrn}
 ====================================================
 
 >
 > API reference: [C](@ref c_api_lrn), [C++](@ref cpp_api_lrn)
 >
 
-The LRN primitive performs a forward or backward linear response normalization
+The LRN primitive performs a forward or backward local response normalization
 operation on 2D spatial data and is defined by the following formulas:
 
 ### Forward
@@ -15,7 +15,7 @@ LRN [across channels](#mkldnn_lrn_across_channels):
 \f[
     dst(n, c, h, w) =
         \left\{k + \frac{\alpha}{n_{l}}
-            \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2}
+            \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
                 (src(n, c+i, h, w))^2
         \right\}^{-\beta}
         \cdot
@@ -27,8 +27,8 @@ LRN [within channel](#mkldnn_lrn_within_channel):
 \f[
     dst(n, c, h, w) =
         \left\{k + \frac{\alpha}{n_{l}}
-            \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2}
-            \sum\limits_{j=-(n_{l}-1)/2}^{(n_{l}+1)/2}
+            \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
+            \sum\limits_{j=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
                 (src(n, c, h+i, w+j))^2
         \right\}^{-\beta}
         \cdot
@@ -69,6 +69,7 @@ The LRN primitive supports the following combinations of data types:
 | Propagation        | Source / Destination |
 | :--                | :--                  |
 | forward / backward | f32                  |
+| forward            | f16                  |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -101,9 +102,6 @@ The LRN primitive doesn't support any post-ops or attributes.
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
-
-2. **GPU**
-   - No support for backward propagation
 
 
 ## Performance Tips

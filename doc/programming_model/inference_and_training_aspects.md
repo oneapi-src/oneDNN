@@ -201,7 +201,7 @@ The workflow for using workspace is:
      for this primitive in this configuration.
    - Otherwise, create a workspace memory based on the memory descriptor
      obtained and pass it to the execution function with
-     `MKLDNN_ARG_WORKSPACE` tag:
+     `MKLDNN_ARG_WORKSPACE` tag.
 
 2. On backward propagation, attach that same workspace memory during
    the execution as well. The state of the workspace memory after backward

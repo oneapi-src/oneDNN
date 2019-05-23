@@ -45,7 +45,7 @@ Average pooling supports two algorithms:
 
 > TODO: a picture would be nice here.
 
-#### Difference Between [forward training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
 
 - Max pooling requires `workspace` output for the #mkldnn_forward_training
   propagation kind, and doesn't require it for #mkldnn_forward_inference

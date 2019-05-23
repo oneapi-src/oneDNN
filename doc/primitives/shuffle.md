@@ -95,7 +95,7 @@ of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
 
-The LRN primitive doesn't support any post-ops or attributes.
+The shuffle primitive doesn't support any post-ops or attributes.
 
 
 @anchor dg_shuffle_impl_limits
