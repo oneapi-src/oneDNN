@@ -452,10 +452,8 @@ private:
 };
 
 struct ocl_jit_t {
-    ocl_jit_t(const char *code) : code_(), options_(), program_(nullptr) {
-        size_t code_sz = strlen(code);
-        code_.resize(code_sz + 1);
-        memcpy(code_.data(), code, sizeof(char) * code_sz);
+    ocl_jit_t(const char *code) : code_(code), options_(), program_(nullptr) {
+        code_size_ = strlen(code_);
 
         options_.reserve(256);
         options_.push_back('\0');
@@ -472,25 +470,28 @@ struct ocl_jit_t {
     ocl_jit_t &operator=(const ocl_jit_t &) = delete;
 
     ocl_jit_t(ocl_jit_t &&other) {
-        code_ = std::move(other.code_);
+        code_ = other.code_;
+        code_size_ = other.code_size_;
         options_ = std::move(other.options_);
         program_ = other.program_;
 
-        other.program_ = nullptr;
+        other.reset();
     }
 
     ocl_jit_t &operator=(ocl_jit_t &&other) {
         code_ = std::move(other.code_);
+        code_size_ = other.code_size_;
         options_ = std::move(other.options_);
         program_ = other.program_;
 
-        other.program_ = nullptr;
+        other.reset();
+
         return *this;
     }
 
-    const char *get_code() const { return code_.data(); }
+    const char *get_code() const { return code_; }
     const char *get_options() const { return options_.data(); }
-    size_t get_code_size() const { return code_.size(); }
+    size_t get_code_size() const { return code_size_; }
 
     void define_int(const char *variable, int64_t value) {
         int var_sz = snprintf(nullptr, 0, " -D%s=%" PRId64, variable, value);
@@ -554,7 +555,14 @@ private:
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
     }
 
-    std::vector<char> code_;
+    void reset() {
+        code_ = nullptr;
+        code_size_ = 0;
+        program_ = nullptr;
+    }
+
+    const char *code_;
+    size_t code_size_;
     std::vector<char> options_;
     cl_program program_;
 };
