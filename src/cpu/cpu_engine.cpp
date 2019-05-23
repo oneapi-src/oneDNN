@@ -66,6 +66,10 @@
 #include "cpu/jit_avx512_core_fp32_wino_conv_2x3.hpp"
 #include "cpu/jit_uni_batch_normalization_s8.hpp"
 
+#include "cpu/jit_uni_resize_bilinear.hpp"
+#include "cpu/nchw_resize_bilinear.hpp"
+#include "cpu/nhwc_resize_bilinear.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -278,6 +282,17 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>),
     INSTANCE(ref_inner_product_fwd_t<u8, s8, f32, s32>),
+    /* bilinear */
+    INSTANCE(jit_uni_resize_bilinear_fwd_t<avx512_common>),
+    INSTANCE(jit_uni_resize_bilinear_fwd_t<avx2>),
+    INSTANCE(jit_uni_resize_bilinear_fwd_t<sse41>),
+    INSTANCE(nchw_resize_bilinear_fwd_t<f32>),
+    INSTANCE(nchw_resize_bilinear_fwd_t<u8>),
+    INSTANCE(nchw_resize_bilinear_fwd_t<s8>),
+    INSTANCE(nhwc_resize_bilinear_fwd_t<f32>),
+    INSTANCE(nhwc_resize_bilinear_fwd_t<u8>),
+    INSTANCE(nhwc_resize_bilinear_fwd_t<s8>),
+
     /* eol */
     nullptr,
 };
@@ -293,3 +308,4 @@ const pd_create_f* cpu_engine_t::get_implementation_list() const {
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+

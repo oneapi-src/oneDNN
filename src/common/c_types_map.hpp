@@ -20,6 +20,8 @@
 #include "gemm_types.hpp"
 #include "mkldnn_types.h"
 
+#include "patch_mkldnn_types.hpp"
+
 namespace mkldnn {
 namespace impl {
 
@@ -426,6 +428,8 @@ namespace primitive_kind {
     const primitive_kind_t inner_product = mkldnn_inner_product;
     const primitive_kind_t rnn = mkldnn_rnn;
     const primitive_kind_t gemm = mkldnn_gemm;
+const primitive_kind_t resize_bilinear = mkldnn_resize_bilinear;
+
 }
 
 using query_t = mkldnn_query_t;
@@ -459,6 +463,8 @@ namespace query {
     const query_t rnn_d = mkldnn_query_rnn_d;
     const query_t gemm_d = mkldnn_query_gemm_d;
 
+    const mkldnn_query_t resize_bilinear_d = mkldnn_query_resize_bilinear_d;
+
     const query_t some_md = mkldnn_query_some_md;
     const query_t src_md = mkldnn_query_src_md;
     const query_t diff_src_md = mkldnn_query_diff_src_md;
@@ -485,6 +491,8 @@ using softmax_desc_t = mkldnn_softmax_desc_t;
 using lrn_desc_t = mkldnn_lrn_desc_t;
 using batch_normalization_desc_t = mkldnn_batch_normalization_desc_t;
 using inner_product_desc_t = mkldnn_inner_product_desc_t;
+
+using resize_bilinear_desc_t = mkldnn_resize_bilinear_desc_t;
 
 using rnn_direction_t = mkldnn_rnn_direction_t;
 using rnn_desc_t = mkldnn_rnn_desc_t;
@@ -595,9 +603,12 @@ struct softmax_fwd_pd_t;
 struct softmax_pd_t;
 struct sum_pd_t;
 
+struct resize_bilinear_pd_t;
+
 }
 }
 
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+

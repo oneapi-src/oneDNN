@@ -621,6 +621,9 @@ typedef enum {
     mkldnn_rnn,
     /// A matrix multiplication primitive.
     mkldnn_gemm,
+/** A resize_bilinear primitive. */
+mkldnn_resize_bilinear,
+
 } mkldnn_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -1504,6 +1507,8 @@ typedef enum {
     mkldnn_query_diff_dst_md, ///< destination grad. memory desc
     mkldnn_query_workspace_md, ///< workspace memory desc
     mkldnn_query_scratchpad_md, ///< scratchpad memory desc
+mkldnn_query_resize_bilinear_d, /**< resize_bilinear descriptor */
+
 } mkldnn_query_t;
 
 /// @}
@@ -1542,3 +1547,4 @@ typedef const struct mkldnn_stream *const_mkldnn_stream_t;
 
 
 #endif
+

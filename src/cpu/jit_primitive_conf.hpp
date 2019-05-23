@@ -21,6 +21,8 @@
 
 #include "common/primitive_attr.hpp"
 
+#include "patch_jit_primitive_conf.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -489,3 +491,4 @@ struct jit_pool_call_s {
 }
 
 #endif
+

@@ -28,6 +28,8 @@
 #include "z_magic.hpp"
 #include "bfloat16.hpp"
 
+#include "patch_mkldnn.h"
+
 namespace mkldnn {
 namespace impl {
 
@@ -75,6 +77,8 @@ PKIND_TRAITS_INST(lrn);
 PKIND_TRAITS_INST(batch_normalization);
 PKIND_TRAITS_INST(inner_product);
 PKIND_TRAITS_INST(rnn);
+PKIND_TRAITS_INST(resize_bilinear);
+
 PKIND_TRAITS_INST(gemm);
 #undef PKIND_TRAITS_INST
 
@@ -84,3 +88,4 @@ PKIND_TRAITS_INST(gemm);
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+

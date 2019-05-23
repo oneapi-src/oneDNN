@@ -57,7 +57,10 @@ void init_info(shuffle_pd_t *s, char *buffer);
 void init_info(softmax_pd_t *s, char *buffer);
 void init_info(sum_pd_t *s, char *buffer);
 
+void init_info(resize_bilinear_pd_t *s, char *buffer);
+
 }
 }
 
 #endif
+
