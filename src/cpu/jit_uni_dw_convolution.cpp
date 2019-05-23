@@ -36,7 +36,6 @@ void _jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward()
         const {
     auto src = reinterpret_cast<const data_t *>(this->input_memory(0));
     auto weights = reinterpret_cast<const data_t *>(this->input_memory(1));
-    auto bias = reinterpret_cast<const f32_data_t *>(this->input_memory(2));
     auto dst = reinterpret_cast<dst_data_t *>(this->memory());
 
     const memory_desc_wrapper src_d(pd()->src_pd());
@@ -46,13 +45,22 @@ void _jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward()
 
     const auto &jcp = pd()->jcp_;
 
-    if (pd()->wants_padded_bias()) {
-        auto padded_bias = this->scratchpad().template get<f32_data_t>(
-                key_conv_padded_bias);
-        utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
-        utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
-                jcp.oc - jcp.oc_without_padding);
-        bias = padded_bias;
+    f32_data_t *bias = nullptr;
+    if (pd()->desc()->bias_desc.data_type == data_type::bf16) {
+        auto bias_in = reinterpret_cast<const bf16_data_t *>(this->input_memory(2));
+        bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+        bf16_cvt_utils::cvt_bfloat16_to_float(bias, bias_in, jcp.oc);
+    } else {
+        auto bias_in = reinterpret_cast<const f32_data_t *>(this->input_memory(2));
+        if (pd()->wants_padded_bias()) {
+            auto padded_bias = this->scratchpad().template get<f32_data_t>(
+                    key_conv_padded_bias);
+            utils::array_copy(padded_bias, bias_in, jcp.oc_without_padding);
+            utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
+                    jcp.oc - jcp.oc_without_padding);
+            bias = padded_bias;
+        } else
+            bias = const_cast<float*> (bias_in);
     }
 
     int dil_h = jcp.dilate_h + 1;
@@ -267,7 +275,6 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
             = reinterpret_cast<const diff_dst_data_t *>(this->input_memory(1));
     auto diff_weights
             = reinterpret_cast<diff_weights_data_t *>(this->memory(0));
-    auto diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
 
     auto diff_wei_reduction_buf
             = scratchpad().template get<f32_data_t>(key_conv_wei_reduction);
@@ -275,6 +282,13 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
             = scratchpad().template get<f32_data_t>(key_conv_bia_reduction);
 
     const auto &jcp = pd()->jcp_;
+
+    float *diff_bias = nullptr;
+    if (jcp.bia_dt == data_type::bf16) {
+        diff_bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+    } else {
+        diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
+    }
 
     const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
     const size_t bias_size = jcp.with_bias ? jcp.ngroups : 0;
@@ -371,6 +385,11 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
             }
         }
     });
+
+    if (jcp.bia_dt == data_type::bf16) {
+        auto diff_bias_in = reinterpret_cast<mkldnn_bfloat16_t *>(this->memory(1));
+        bf16_cvt_utils::cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
+    }
 }
 
 /* TODO: Performing a Parallel Reduction could potentially improve performance;
@@ -380,7 +399,6 @@ template <>
 void _jit_uni_dw_convolution_bwd_weights_t<avx512_core,
         data_type::bf16>::execute_reduction() const {
 
-    auto diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
     auto diff_wei_reduction_buf
             = scratchpad().template get<f32_data_t>(key_conv_wei_reduction);
     auto diff_bia_reduction_buf
@@ -395,6 +413,13 @@ void _jit_uni_dw_convolution_bwd_weights_t<avx512_core,
     const size_t bias_size = jcp.with_bias ? jcp.ngroups : 0;
 
     const int ch_block = jcp.ch_block;
+
+    float *diff_bias = nullptr;
+    if (jcp.bia_dt == data_type::bf16) {
+        diff_bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+    } else {
+        diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
+    }
 
     /* Apply single-threaded 'mb' reduction */
     if (jcp.with_bias && jcp.nthr_mb > 1) {
@@ -413,7 +438,10 @@ void _jit_uni_dw_convolution_bwd_weights_t<avx512_core,
             }
         }
     }
-
+    if (jcp.bia_dt == data_type::bf16) {
+        auto diff_bias_in = reinterpret_cast<bf16_data_t *>(this->memory(1));
+        bf16_cvt_utils::cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
+    }
     /* Apply single-threaded 'mb' reduction */
     if (jcp.nthr_mb > 1) {
         for (int thr_mb = 2; thr_mb < jcp.nthr_mb; ++thr_mb) {
@@ -485,7 +513,6 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         diff_weights_type>::execute_reduction() const {
 
-    auto diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
     auto diff_wei_reduction_buf
             = scratchpad().template get<f32_data_t>(key_conv_wei_reduction);
     auto diff_bia_reduction_buf
@@ -501,6 +528,13 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
 
     assert(diff_weights_type == data_type::f32
             && jcp.dwei_dt == data_type::f32);
+
+    float *diff_bias = nullptr;
+    if (jcp.bia_dt == data_type::bf16) {
+        diff_bias = scratchpad().template get<float>(key_conv_bias_bf16_convert_wsp);
+    } else {
+        diff_bias = reinterpret_cast<f32_data_t *>(this->memory(1));
+    }
 
     /* Apply single-threaded 'mb' reduction */
     for (int thr_mb = 1; thr_mb < jcp.nthr_mb; ++thr_mb) {
@@ -522,6 +556,12 @@ void _jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         acc_ker_->accumulate(&diff_weights[0],
                 &diff_wei_reduction_buf[mb_accum_offset], wei_size);
     }
+
+    if (jcp.bia_dt == data_type::bf16) {
+        auto diff_bias_in = reinterpret_cast<bf16_data_t *>(this->memory(1));
+        bf16_cvt_utils::cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
+    }
+
 }
 
 template struct _jit_uni_dw_convolution_bwd_weights_t<avx512_core,

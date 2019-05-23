@@ -56,8 +56,9 @@ struct _jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
                                this->desc()->src_desc.data_type,
                                this->desc()->weights_desc.data_type)
                     && this->desc()->dst_desc.data_type == dst_type
-                    && IMPLICATION(this->with_bias(), data_type::f32
-                                       == this->desc()->bias_desc.data_type);
+                    && IMPLICATION(this->with_bias(), utils::one_of(
+                        this->desc()->bias_desc.data_type, data_type::f32,
+                        data_type::bf16));
 
             if (!ok)
                 return status::unimplemented;
@@ -112,6 +113,7 @@ struct _jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
     ~_jit_uni_dw_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type f32_data_t;
+    typedef typename prec_traits<data_type::bf16>::type bf16_data_t;
     typedef typename prec_traits<src_type>::type data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
@@ -334,6 +336,7 @@ struct _jit_uni_dw_convolution_bwd_weights_t : public cpu_primitive_t {
     };
 
     typedef typename prec_traits<data_type::f32>::type f32_data_t;
+    typedef typename prec_traits<data_type::bf16>::type bf16_data_t;
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<src_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
