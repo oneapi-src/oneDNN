@@ -21,16 +21,7 @@ if(POLICY CMP0015)
     cmake_policy(SET CMP0015 NEW)
 endif()
 
-set(MKLDNNROOT "..")
-
-if(APPLE OR WIN32)
-    set(LIBDIR ${MKLDNNROOT}/lib)
-else()
-    set(LIBDIR ${MKLDNNROOT}/lib64)
-endif()
-
-link_directories(${LIBDIR})
-include_directories(${MKLDNNROOT}/include)
+set(MKLDNNROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
 
 enable_testing()
 
@@ -75,8 +66,8 @@ endif()
 #   srcs -- list of source, if many must be enclosed with ""
 function(register_example name srcs)
     add_executable(${name} ${srcs})
-    find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${LIBDIR}/cmake/mkldnn)
-    target_link_libraries(${name} mkldnn ${LIBM})
+    find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
+    target_link_libraries(${name} MKLDNN::mkldnn ${LIBM})
     add_test(${name} ${name})
     if(WIN32 OR MINGW)
         set_property(TEST ${name} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH};$ENV{PATH}")
