@@ -104,8 +104,8 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
 
 /// Queries primitive descriptor
 ///
-/// One of the most typical use cases is to query a convolution primitive
-/// descriptor created with source, weights, and destination formats equal
+/// One of the most typical use cases is to query a primitive descriptor
+/// created with source, weights, and destination formats equal
 /// to #mkldnn_format_tag_any about the corresponding memory descriptors
 /// (@p what equals #mkldnn_query_src_md, #mkldnn_query_weights_md, and
 /// #mkldnn_query_dst_md respectively) to be able to prepare memory and
@@ -115,6 +115,10 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
 /// descriptor for a workspace (@p what equals #mkldnn_query_workspace_md).
 /// The returned status #mkldnn_not_required indicates that a workspace is
 /// not required.
+///
+/// @note When querying a memory descriptor for a scratchpad, a
+/// workspace, or an optional parameter, the query will return a
+/// zero_md if the parameter is not needed.
 ///
 /// A few other possibilities:
 ///  - query an operation primitive descriptor for the underlying operation
