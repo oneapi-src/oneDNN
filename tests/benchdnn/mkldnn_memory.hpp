@@ -198,7 +198,7 @@ private:
     mkldnn_engine_kind_t engine_kind_;
     mkldnn_engine_t engine_;
 
-    bool is_cpu_native_;
+    bool is_ref_engine_;
 
     bool is_mapped_;
     void *mapped_ptr_;
@@ -214,10 +214,9 @@ private:
         }
         engine_ = engine;
         DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
-        is_cpu_native_ = (engine_kind_ == mkldnn_cpu)
-                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
+        is_ref_engine_ = (engine == engine_ref);
 
-        if (is_cpu_native_) {
+        if (is_ref_engine_) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
             const size_t alignment = 1024 * 1024 * 16;
