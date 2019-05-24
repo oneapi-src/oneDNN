@@ -30,6 +30,12 @@ using namespace mkldnn::impl::utils;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::data_type;
 
+namespace mkldnn {
+namespace impl {
+memory_desc_t glob_zero_md = memory_desc_t();
+}
+}
+
 namespace {
 bool memory_desc_sanity_check(int ndims,const dims_t dims,
         data_type_t data_type, format_kind_t format_kind) {

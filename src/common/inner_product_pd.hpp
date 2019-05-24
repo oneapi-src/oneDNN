@@ -156,7 +156,7 @@ protected:
             CHECK(memory_desc_init_by_tag(weights_md,
                         utils::pick(ndims() - 2, oi, oiw, oihw, oidhw)));
         }
-        if (bias_md && bias_md->format_kind == format_kind::any)
+        if (bias_md->format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(*bias_md, x));
         return status::success;
     }
@@ -191,13 +191,13 @@ struct inner_product_fwd_pd_t: public inner_product_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : nullptr; }
+    { return index == 0 ? &src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : nullptr; }
+    { return index == 0 ? &dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override { return 2 + with_bias(); }
@@ -240,11 +240,11 @@ struct inner_product_bwd_data_pd_t: public inner_product_pd_t {
     }
 
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_src_md_ : nullptr; }
+    { return index == 0 ? &diff_src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *weights_md(int index = 0) const override
-    { return index == 0 ? &weights_md_ : nullptr; }
+    { return index == 0 ? &weights_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 2; }
     virtual int n_outputs() const override { return 1; }
@@ -256,7 +256,7 @@ protected:
 
     status_t set_default_params() {
         return template_set_default_params(diff_src_md_, weights_md_,
-                diff_dst_md_, nullptr);
+                diff_dst_md_, &glob_zero_md);
     }
 };
 
@@ -289,13 +289,13 @@ struct inner_product_bwd_weights_pd_t: public inner_product_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : nullptr; }
+    { return index == 0 ? &src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_md_;
         if (index == 1 && with_bias()) return &diff_bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override { return 2; }

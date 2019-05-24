@@ -57,11 +57,11 @@ struct gemm_pd_t : public primitive_desc_t {
         switch (index) {
         case 0: return &a_md_;
         case 1: return &b_md_;
-        default: return nullptr;
+        default: return &glob_zero_md;
         }
     }
     virtual const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &c_md_ : nullptr;
+        return index == 0 ? &c_md_ : &glob_zero_md;
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }

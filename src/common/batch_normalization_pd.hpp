@@ -147,21 +147,21 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
     virtual const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0) return &data_md_;
         if (stats_is_src() && (index == 1 || index == 2)) return &stat_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual const memory_desc_t *dst_md(int index = 0) const override {
         if (index == 0) return &data_md_;
         if (!stats_is_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual const memory_desc_t *weights_md(int index = 0) const override
-    { return index == 0 ? &scaleshift_md_ : nullptr; }
+    { return index == 0 ? &scaleshift_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && is_training() && fuse_bn_relu() ? &ws_md_ : nullptr; }
+    { return index == 0 && is_training() && fuse_bn_relu() ? &ws_md_ : &glob_zero_md; }
 
     const memory_desc_t *stat_md() const
     { return stats_is_src() ? src_md(1) : dst_md(1); }
@@ -206,19 +206,19 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *weights_md(int index = 0) const override
-    { return index == 0 ? &scaleshift_md_ : nullptr; }
+    { return index == 0 ? &scaleshift_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_weights_md(int index = 0) const override
-    { return index == 0 ? &diff_scaleshift_md_ : nullptr; }
+    { return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && fuse_bn_relu() ? &ws_md_ : nullptr; }
+    { return index == 0 && fuse_bn_relu() ? &ws_md_ : &glob_zero_md; }
 
     const memory_desc_t *stat_md() const { return src_md(1); }
 

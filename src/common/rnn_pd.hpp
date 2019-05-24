@@ -65,21 +65,21 @@ struct rnn_pd_t : public primitive_desc_t {
     virtual const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0) return &src_layer_md_;
         if (index == 1 && with_src_iter()) return &src_iter_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_layer_md_;
         if (index == 1) return &weights_iter_md_;
         if (index == 2 && with_bias()) return &bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
     virtual const memory_desc_t *dst_md(int index = 0) const override {
         if (index == 0) return &dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &dst_iter_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
+        { return (index == 0) ?  &ws_md_ : &glob_zero_md;}
 
     /* common pooling aux functions */
 
@@ -247,19 +247,19 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     virtual const memory_desc_t *diff_src_md(int index = 0) const override {
         if (index == 0) return &diff_src_layer_md_;
         if (index == 1 && with_src_iter()) return &diff_src_iter_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
     virtual const memory_desc_t *diff_weights_md(
             int index = 0) const override {
         if (index == 0) return &diff_weights_layer_md_;
         if (index == 1) return &diff_weights_iter_md_;
         if (index == 2 && with_bias()) return &diff_bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
         if (index == 0) return &diff_dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &diff_dst_iter_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override

@@ -74,14 +74,14 @@ struct shuffle_pd_t: public primitive_desc_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_md_ : nullptr; }
+    { return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_md_ : nullptr; }
+    { return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_md_ : nullptr; }
+    { return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_md_ : nullptr; }
+    { return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
