@@ -116,16 +116,16 @@ static int check_post_ops2str() {
         ops.entry[2*i + 0].sum.scale = 2. + i;
         ops.entry[2*i + 1].kind = attr_t::post_ops_t::RELU;
         ops.entry[2*i + 1].eltwise.scale = 1.;
-        ops.entry[2*i + 1].eltwise.alpha = 0.;
+        ops.entry[2*i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
         ops.entry[2*i + 1].eltwise.beta = 0.;
     }
-    CHECK_OPS_STR_EQ(ops, "'sum:2;relu;sum:3;relu'");
+    CHECK_OPS_STR_EQ(ops, "'sum:2;relu:0;sum:3;relu:5'");
 
     ops.len = 3;
-    CHECK_OPS_STR_EQ(ops, "'sum:2;relu;sum:3'");
+    CHECK_OPS_STR_EQ(ops, "'sum:2;relu:0;sum:3'");
 
     ops.len = 2;
-    CHECK_OPS_STR_EQ(ops, "'sum:2;relu'");
+    CHECK_OPS_STR_EQ(ops, "'sum:2;relu:0'");
 
     ops.len = 1;
     CHECK_OPS_STR_EQ(ops, "'sum:2'");
