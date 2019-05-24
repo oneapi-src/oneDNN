@@ -31,7 +31,7 @@ using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
-        const cpu_inner_product_fwd_pd_t *pd)
+        const cpu_inner_product_fwd_pd_t *pd, bool skip_sum)
     : ker_(nullptr)
     , eltwise_injector_(nullptr)
     , ref_eltwise_(nullptr)
@@ -40,7 +40,9 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
     , bias_data_type_(data_type::undef)
     , bias_data_type_size_(0)
     , scale_idx_mult_(0)
-    , do_eltwise_(false) {
+    , do_eltwise_(false)
+    , do_sum_(false)
+    , sum_scale_(0) {
     using namespace types;
 
     scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
@@ -50,6 +52,11 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
     do_eltwise_ = eltwise_ind != -1;
     if (do_eltwise_)
         eltwise_ = p.entry_[eltwise_ind].eltwise;
+
+    const int sum_ind = p.find(primitive_kind::sum);
+    do_sum_ = sum_ind != -1 && !skip_sum;
+    if (do_sum_)
+        sum_scale_ = p.entry_[sum_ind].sum.scale;
 
     bias_data_type_ = pd->desc()->bias_desc.data_type;
     if (do_bias_) {
@@ -96,9 +103,13 @@ void pp_kernel_t<acc_type, dst_type>::generate()
 
     Zmm vreg_zero = Zmm(0);
     Zmm vreg_scale = Zmm(1);
+    Zmm vreg_sum_scale = Zmm(2);
+    Xmm xreg_sum_scale = Xmm(0);
 
-    auto vreg_dst = [&](int idx) { return Zmm(3 + idx * 2 + 0); };
-    auto vreg_bias = [&](int idx) { return Zmm(3 + idx * 2 + 1); };
+    int zmm_step = do_sum_ ? 3 : 2;
+    auto vreg_dst = [&](int idx) { return Zmm(3 + idx * zmm_step + 0); };
+    auto vreg_bias = [&](int idx) { return Zmm(3 + idx * zmm_step + 1); };
+    auto vreg_prev_dst = [&](int idx) { return Zmm(3 + idx * zmm_step + 2); };
 
     preamble();
 
@@ -112,6 +123,12 @@ void pp_kernel_t<acc_type, dst_type>::generate()
     if (scale_idx_mult_ == 0)
         vbroadcastss(vreg_scale, dword[reg_scales]);
 #undef PARAM_OFF
+
+    if (do_sum_) {
+        mov(reg_tmp, float2int(sum_scale_));
+        vmovq(xreg_sum_scale, reg_tmp);
+        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+    }
 
     if (dst_type == data_type::u8)
         vxorps(vreg_zero, vreg_zero, vreg_zero);
@@ -164,6 +181,26 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         }
 
         vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
+
+        auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
+        if (do_sum_) {
+            auto vreg_prev_dst_ = vreg_prev_dst(idx);
+            if (apply_mask)
+                vreg_prev_dst_ = vreg_prev_dst_ | kreg_rem_mask;
+
+            switch (dst_type) {
+            case data_type::f32:
+            case data_type::s32: vmovups(vreg_prev_dst_, dst_addr); break;
+            case data_type::s8: vpmovsxbd(vreg_prev_dst_, dst_addr); break;
+            case data_type::u8: vpmovzxbd(vreg_prev_dst_, dst_addr); break;
+            default: assert(!"unsupported data type");
+            }
+            if (dst_type != data_type::f32)
+                vcvtdq2ps(vreg_prev_dst(idx), vreg_prev_dst(idx));
+
+            vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
+        }
+
         if (do_eltwise_)
             eltwise_injector_->compute_vector(vreg_dst(idx).getIdx());
 
@@ -174,7 +211,6 @@ void pp_kernel_t<acc_type, dst_type>::generate()
             vcvtps2dq(vreg_dst(idx), vreg_dst(idx));
         }
 
-        auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
         switch (dst_type) {
         case data_type::s8:
             vpmovsdb(dst_addr, vreg_dst_);
@@ -284,7 +320,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         Label main_loop;
         L(main_loop); {
             size_t def_unroll = 4;
-            size_t max_unroll = 13;
+            size_t max_unroll = do_sum_ ? 9 : 13;
 
             size_t OC_loop, OC_tail;
             if (OC_ < max_unroll * vlen) {
@@ -398,6 +434,8 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
             float b = get_bias(bias, oc, bias_data_type_);
             d = d + b;
             d *= scales[oc * scale_idx_mult_];
+            if (do_sum_)
+                d += sum_scale_ * dst[i];
             if (do_eltwise_)
                 d = ref_eltwise_->compute_scalar(d);
             dst[i] = qz_a1b0<float, dst_data_t>()(d);

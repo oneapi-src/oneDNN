@@ -44,9 +44,6 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
 
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
-
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
         const bool is_1stconv = jcp.ic == 3;
@@ -492,8 +489,6 @@ struct jit_gen9_common_conv_fwd_kernel {
         else if (jcp.is_nhwc)
             jit.define_int("NHWC", 1);
 
-        jit.add_option("-Dcl_intel_subgroup_matrix_multiply_accumulate");
-        jit.add_option("-Dcl_intel_subgroups_char");
 #ifdef DEBUG_PRINT
         printf("OPT:\n%s\n", jit.get_options());
 #endif
@@ -519,9 +514,6 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         const memory_desc_wrapper dst_mdw(&diff_dst_md);
 
         set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
-
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
 
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 
@@ -723,9 +715,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         const memory_desc_wrapper bias_mdw(&diff_bias_md);
 
         set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
-
-        if (!utils::everyone_is(0, jcp.dilate_w, jcp.dilate_h, jcp.dilate_d))
-            return status::unimplemented;
 
         const bool is_dw_16g = (jcp.is_depthwise && jcp.ngroups % 16 == 0);
 

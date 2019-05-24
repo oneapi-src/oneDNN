@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 
 #include "cpu_eltwise_pd.hpp"
 #include "cpu_primitive.hpp"
-
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -45,7 +44,7 @@ struct jit_uni_eltwise_injector_f32 {
         , save_state_(save_state), p_table(p_table), k_mask(k_mask)
     {
         using namespace alg_kind;
-        assert(utils::one_of(isa, sse41, avx2, avx512_common));
+        assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic));
@@ -88,7 +87,7 @@ private:
     const static size_t preserved_vecs_max = 5;
 
     size_t vecs_to_preserve = 0;
-    size_t vecs_count = isa == avx512_common ? 32 : 16;
+    size_t vecs_count = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
     size_t preserved_vecs_count = 0;
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
     size_t start_idx_tail = 0;
@@ -128,16 +127,16 @@ private:
     void bounded_relu_prepare_table();
 };
 
-struct jit_uni_eltwise_kernel_f32;
+struct jit_uni_eltwise_kernel;
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_fwd_t<isa>);
+                jit_uni_eltwise_fwd_t<isa, d_type>);
 
         status_t init();
     };
@@ -145,7 +144,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
     jit_uni_eltwise_fwd_t(const pd_t *apd);
     ~jit_uni_eltwise_fwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -155,17 +154,17 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    jit_uni_eltwise_kernel_f32 *kernel_;
+    jit_uni_eltwise_kernel *kernel_;
 };
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_bwd_t<isa>);
+                jit_uni_eltwise_bwd_t<isa, d_type>);
 
         status_t init();
     };
@@ -173,7 +172,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     jit_uni_eltwise_bwd_t(const pd_t *apd);
     ~jit_uni_eltwise_bwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
@@ -183,7 +182,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    jit_uni_eltwise_kernel_f32 *kernel_;
+    jit_uni_eltwise_kernel *kernel_;
 };
 
 }

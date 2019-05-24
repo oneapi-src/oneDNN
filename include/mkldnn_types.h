@@ -76,14 +76,16 @@ typedef enum {
     mkldnn_data_type_undef = 0,
     /// 16-bit/half-precision floating point.
     mkldnn_f16 = 1,
+    /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+    mkldnn_bf16 = 2,
     /// 32-bit/single-precision floating point.
-    mkldnn_f32 = 2,
+    mkldnn_f32 = 3,
     /// 32-bit signed integer.
-    mkldnn_s32 = 3,
+    mkldnn_s32 = 4,
     /// 8-bit signed integer.
-    mkldnn_s8 = 4,
+    mkldnn_s8 = 5,
     /// 8-bit unsigned integer.
-    mkldnn_u8 = 5,
+    mkldnn_u8 = 6,
 } mkldnn_data_type_t;
 
 /// Memory format kind
@@ -1211,14 +1213,6 @@ typedef struct {
 
 } mkldnn_rnn_desc_t;
 
-/// Transposition settings for GEMM operation
-typedef enum {
-    /// Do not transpose matrix.
-    mkldnn_notrans,
-    /// Transpose matrix.
-    mkldnn_trans,
-} mkldnn_transpose_t;
-
 /// @}
 
 /// @addtogroup c_api_engine_types Engine
@@ -1244,16 +1238,6 @@ typedef struct mkldnn_engine *mkldnn_engine_t;
 /// @brief A constant engine handle.
 typedef const struct mkldnn_engine *const_mkldnn_engine_t;
 #endif
-
-/// @brief Kinds of engine backends.
-typedef enum {
-    /// Native backend.
-    mkldnn_backend_native,
-    /// OpenCL backend.
-    mkldnn_backend_ocl,
-    /** SYCL backend. */
-    mkldnn_backend_sycl,
-} mkldnn_backend_kind_t;
 
 /// @}
 

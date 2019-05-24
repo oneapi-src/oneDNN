@@ -7,7 +7,8 @@
 --tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_2d_all
 --tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_3d_all
 --alg=MAX,AVG_P
---tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_ker_in_pad
+--tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_ker_in_pad_2d
+--tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_ker_in_pad_3d
 
 # int8
 --cfg=s32,s8,u8
@@ -16,4 +17,5 @@
 --tag=nhwc --batch=pool_2d_all
 --tag=ndhwc --batch=pool_3d_all
 --alg=MAX,AVG_P
---tag=nhwc --batch=pool_ker_in_pad
+--tag=nhwc --batch=pool_ker_in_pad_2d
+--tag=ndhwc --batch=pool_ker_in_pad_3d

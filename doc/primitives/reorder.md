@@ -109,9 +109,4 @@ floating point data type.
 
 ## Performance Tips
 
-N/A.
-
-
---------
-
-[Legal information](@ref legal_information)
+N/A

@@ -69,7 +69,8 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                 ? ws_d.off(mb, oc, od, oh, ow)
                 : ws_d.off(mb, oc, oh, ow);
             if (ws_dt == data_type::u8) {
-                assert(0 <= value && value <= 255);
+                assert(0 <= value && value <= nstl::numeric_limits<typename 
+                        prec_traits<data_type::u8>::type>::max());
                 ws[off] = value;
             } else
                 reinterpret_cast<int *>(ws)[off] = value;
@@ -255,12 +256,21 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward(
     const int OH = pd()->OH();
     const int OW = pd()->OW();
 
+    int ow_start = nstl::max(0, utils::div_up(padL - KW + 1, SW));
+    int ow_end = nstl::min(OW, 1 + (padL + IW - 1) / SW);
+
+    int oh_start = nstl::max(0, utils::div_up(padT - KH + 1, SH));
+    int oh_end = nstl::min(OH, 1 + (padT + IH - 1) / SH);
+
+    int od_start = nstl::max(0, utils::div_up(padF - KD + 1, SD));
+    int od_end = nstl::min(OD, 1 + (padF + ID - 1) / SD);
+
     if (alg == pooling_max) {
         parallel_nd(MB, OC, [&](int mb, int oc) {
             ker_zero(mb, oc);
-            for (int od = 0; od < OD; ++od)
-                for (int oh = 0; oh < OH; ++oh)
-                    for (int ow = 0; ow < OW; ++ow) {
+            for (int od = od_start; od < od_end; ++od)
+                for (int oh = oh_start; oh < oh_end; ++oh)
+                    for (int ow = ow_start; ow < ow_end; ++ow) {
                         const data_t *d = is_3d
                             ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
                             : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];
@@ -270,9 +280,9 @@ void ref_pooling_bwd_t<data_type, acc_type>::execute_backward(
     } else {
         parallel_nd(MB, OC, [&](int mb, int oc) {
             ker_zero(mb, oc);
-            for (int od = 0; od < OD; ++od)
-                for (int oh = 0; oh < OH; ++oh)
-                    for (int ow = 0; ow < OW; ++ow) {
+            for (int od = od_start; od < od_end; ++od)
+                for (int oh = oh_start; oh < oh_end; ++oh)
+                    for (int ow = ow_start; ow < ow_end; ++ow) {
                         const data_t *d = is_3d
                             ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
                             : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];

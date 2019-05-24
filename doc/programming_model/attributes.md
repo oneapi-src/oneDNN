@@ -103,8 +103,3 @@ implementation supports such a configuration. In this case a user will get
 
 @warning
     Error handling of attributes might be complicated and obscure.
-
-
---------
-
-[Legal information](@ref legal_information)

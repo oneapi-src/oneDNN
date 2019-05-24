@@ -1,5 +1,0 @@
-# corner case problems when kernel starts working in padded area
-
-mb1ic16_ih10oh6_kh5sh5ph10
-mb2ic20_ih16oh3_kh16sh16ph16
-mb3ic17_ih13oh37_kh17ph20

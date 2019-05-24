@@ -26,6 +26,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 #include "z_magic.hpp"
+#include "bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -36,6 +37,7 @@ template <int> struct typesize_traits {}; /* ::data_type_size -> f32 */
 template <primitive_kind_t> struct pkind_traits {}; /* ::desc_type, ::query_d */
 
 template <> struct prec_traits<data_type::f16> { typedef float16_t type; };
+template <> struct prec_traits<data_type::bf16> { typedef bfloat16_t type; };
 template <> struct prec_traits<data_type::f32> { typedef float type; };
 template <> struct prec_traits<data_type::s32> { typedef int32_t type; };
 template <> struct prec_traits<data_type::s8> { typedef int8_t type; };
@@ -43,6 +45,8 @@ template <> struct prec_traits<data_type::u8> { typedef uint8_t type; };
 
 template <> struct data_traits<float16_t>
 { static constexpr data_type_t data_type = data_type::f16; };
+template <> struct data_traits<bfloat16_t>
+{ static constexpr data_type_t data_type = data_type::bf16; };
 template <> struct data_traits<float>
 { static constexpr data_type_t data_type = data_type::f32; };
 template <> struct data_traits<int32_t>

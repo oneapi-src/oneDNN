@@ -47,9 +47,9 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
 
     const float *scales = pd()->attr()->output_scales_.scales_;
 
-    float alpha = 1.0, beta = 0.0;
+    float alpha = 1.;
     extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &MB, &IC, &alpha, weights,
-            wei_tr ? &IC : &OC, src, &IC, &beta, dst, &OC,
+            wei_tr ? &IC : &OC, src, &IC, &beta_, dst, &OC,
             postops_in_ip_ ? nullptr : bias);
 
     if (postops_in_ip_) {

@@ -115,7 +115,9 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 //    const float dst_conf_min = c_dst.min;
 //    const float dst_conf_max = dst_conf_min + c_dst.range - 1;
 
-    auto dst_width = dst.sizeof_dt() * 8;
+    auto dst_width = (dst_dt == mkldnn_bf16
+        ? sizeof_dt(mkldnn_f32)
+        : dst.sizeof_dt()) * 8;
 
     const float dst_dt_min = dst_dt == mkldnn_u8
         ? 0.f : -(float)(1l << (dst_width - 1));
@@ -139,7 +141,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
         float dst_ = saturate(src_ * scale, dst_min, dst_max);
 
         /* parse round mode and round value*/
-        if (dst_dt != mkldnn_f32) {
+        if (dst_dt != mkldnn_f32 && dst_dt != mkldnn_bf16) {
             dst_ = mxcsr_round(dst_);
             dst_ = saturate(dst_, dst_min, dst_max);
         }
@@ -193,10 +195,14 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
 
     int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
+    const float tolerance = mem_computed.dt() == mkldnn_bf16
+        ? 8.e-3f // due to bf16 truncation (7th mantissa bit -> 1/129)
+        : 0.0f;
     for (int64_t i = 0; i < nelems; ++i) {
         const float expected = mem_expected.get_elem(i);
         const float computed = mem_computed.get_elem(i);
-        const float diff = fabsf(computed - expected);
+        const float diff = fabsf(computed - expected)
+            / MAX2(FLT_MIN, fabsf(expected));
 
         if (expected == dt_max) inf_p++;
         else if (expected == dt_min) inf_n++;
@@ -204,7 +210,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         else
             reg++;
 
-        if (r->errors < 10 && diff != 0.0) {
+        if (r->errors < 10 && diff > tolerance) {
             printf("idx: " IFMT " exp: %f com:%f\n", i, expected, computed);
             r->errors++;
         }
@@ -226,11 +232,11 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     const int c_src_max = c_src->min + c_src->range - 1;
     const int c_dst_max = c_dst->min + c_dst->range - 1;
 
-    bool check_inf_p = (dt != mkldnn_f32 && dt != mkldnn_s32)
+    bool check_inf_p = (dt != mkldnn_f32 && dt != mkldnn_bf16 && dt != mkldnn_s32)
         && (c_src_max * max_scale > c_dst_max) ? true : false;
-    bool check_inf_n = (dt != mkldnn_f32 && dt != mkldnn_s32)
+    bool check_inf_n = (dt != mkldnn_f32 && dt != mkldnn_bf16 && dt != mkldnn_s32)
         && (c_src->min * max_scale < c_dst->min) ? true : false;
-    bool check_zeros = (dt != mkldnn_f32)
+    bool check_zeros = (dt != mkldnn_f32 && dt != mkldnn_bf16)
         && (dt_min != 0 && dt_max != 0) ? true : false;
 
     bool mistrusted = reg == 0
@@ -317,14 +323,22 @@ int check_reorder(const prb_t *p, res_t *res) {
     float *scales = (float *)zmalloc(sizeof(float) * count, 64);
     SAFE(scales != NULL ? OK : FAIL, CRIT);
     SAFE(fill_scales(p, scales, count), WARN);
-    /* Step 3: fill input memory */
-    SAFE(fill_memory(p, mem_dt_in_fmt_ref, scales, p->attr), WARN);
-
-    /* Step 4: execute mkl-dnn */
-    SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
     auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
 
+    /* check for extra flags on output format, and set them */
+    if (p->alg == ALG_BOOT
+            && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
+        int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
+        auto set_oflags = [=](dnn_mem_t &m) {
+            m.md_.extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
+            m.md_.extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
+        };
+        set_oflags(mem_dt_out_fmt_out);
+        set_oflags(mem_test_dt_out_fmt_out);
+    }
+
+    /* Step 3: check creation of reorder primitive */
     mkldnn_primitive_desc_t check_rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
             &check_rpd, &mem_dt_in_fmt_in.md_, engine_tgt,
@@ -336,9 +350,15 @@ int check_reorder(const prb_t *p, res_t *res) {
     mkldnn_primitive_desc_destroy(check_rpd);
     SAFE(init_status, WARN);
 
+    /* Step 4: fill input memory */
+    SAFE(fill_memory(p, mem_dt_in_fmt_ref, scales, p->attr), WARN);
+
+    /* Step 5: execute mkl-dnn */
+    SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
+
     SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr), WARN);
 
-    /* Step 5: check correctness */
+    /* Step 6: check correctness */
     if (bench_mode & CORR) {
         if (p->alg == ALG_BOOT) {
             /* "bootstrap" algorithm: compare to another mkldnn reorder. use
@@ -371,7 +391,7 @@ int check_reorder(const prb_t *p, res_t *res) {
         }
     }
 
-    /* Step 6: performance measurement */
+    /* Step 7: performance measurement */
     if (bench_mode & PERF) {
         mkldnn_primitive_desc_t perf_r_pd;
         DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd,
@@ -404,7 +424,7 @@ int check_reorder(const prb_t *p, res_t *res) {
         DNN_SAFE_V(mkldnn_primitive_destroy(perf_r));
     }
 
-    /* Step 7: clean up */
+    /* Step 8: clean up */
 cleanup:
     mkldnn_primitive_attr_destroy(mkldnn_attr);
     zfree(scales);

@@ -12,6 +12,3 @@ The behavior is controlled with build time option `MKLDNN_ENABLE_JIT_PROFILING`
 | Option                      | Possible Values (defaults in bold)   | Description
 | :---                        |:---                                  | :---
 |MKLDNN_ENABLE_JIT_PROFILING  | **ON**, OFF                          | Enables integration with Intel(R) VTune(TM) Amplifier
-
-
-[Legal information](@ref legal_information)

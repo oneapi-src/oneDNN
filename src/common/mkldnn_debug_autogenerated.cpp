@@ -38,6 +38,7 @@ const char *mkldnn_status2str(mkldnn_status_t v) {
 const char *mkldnn_dt2str(mkldnn_data_type_t v) {
     if (v == mkldnn_data_type_undef) return "undef";
     if (v == mkldnn_f16) return "f16";
+    if (v == mkldnn_bf16) return "bf16";
     if (v == mkldnn_f32) return "f32";
     if (v == mkldnn_s32) return "s32";
     if (v == mkldnn_s8) return "s8";
@@ -396,20 +397,6 @@ const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
     if (v == mkldnn_unidirectional) return "unidirectional";
     assert(!"unknown rnn_direction");
     return "unknown rnn_direction";
-}
-
-const char *mkldnn_mkldnn_transpose_t2str(mkldnn_transpose_t v) {
-    if (v == mkldnn_notrans) return "notrans";
-    if (v == mkldnn_trans) return "trans";
-    assert(!"unknown mkldnn_transpose_t");
-    return "unknown mkldnn_transpose_t";
-}
-
-const char *mkldnn_mkldnn_backend_kind_t2str(mkldnn_backend_kind_t v) {
-    if (v == mkldnn_backend_native) return "backend_native";
-    if (v == mkldnn_backend_ocl) return "backend_ocl";
-    assert(!"unknown mkldnn_backend_kind_t");
-    return "unknown mkldnn_backend_kind_t";
 }
 
 const char *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v) {

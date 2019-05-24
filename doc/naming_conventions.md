@@ -151,6 +151,3 @@ with the first dimension corresponding to batch, the second to channel, and
 the remaining two to spatial dimensions. Due to the canonical order of
 dimensions for CNNs, this tag is the same as _abcd_. As another example, _nhwc_
 is the same as _acdb_.
-
---------
-[Legal information](@ref legal_information)

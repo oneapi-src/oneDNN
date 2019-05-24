@@ -43,9 +43,30 @@ status_t ref_lrn_fwd_t<data_type>::execute_forward(
     return status;
 }
 
-// TODO add tests for f16
-//template struct ref_lrn_fwd_t<data_type::f16>;
+template <impl::data_type_t data_type>
+status_t ref_lrn_bwd_t<data_type>::execute_backward(
+    const exec_ctx_t &ctx) const {
+    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
+    auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+
+    kernel_.set_arg(0, src);
+    kernel_.set_arg(1, diff_dst);
+    kernel_.set_arg(2, ws);
+    kernel_.set_arg(3, diff_src);
+
+    auto nd_range = cl_nd_range_t(3, pd()->gws, pd()->lws);
+    auto &executor
+        = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
+    status_t status = executor.parallel_for(nd_range, kernel_);
+
+    return status;
+}
+
+template struct ref_lrn_fwd_t<data_type::f16>;
 template struct ref_lrn_fwd_t<data_type::f32>;
+template struct ref_lrn_bwd_t<data_type::f32>;
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

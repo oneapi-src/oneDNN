@@ -15,13 +15,13 @@ notice. Contact your Intel representative to obtain the latest forecast,
 schedule, specifications and roadmaps.
 
 The products and services described may contain defects or errors which may
-cause deviations from published specifications. Current characterized errata 
+cause deviations from published specifications. Current characterized errata
 are available on request.
 
 Intel, the Intel logo, Intel Atom, Intel Core, Intel Inside, the Intel Inside
-logo, Intel Nervana, Intel Xeon Phi, Pentium, VTune and Xeon are trademarks 
+logo, Intel Nervana, Intel Xeon Phi, Pentium, VTune and Xeon are trademarks
 of Intel Corporation or its subsidiaries in the U.S. and/or other countries.
 
 \* Other names and brands may be claimed as the property of others.
 
-(C) 2016-2018, Intel Corporation.
+(C) 2016-2019, Intel Corporation.

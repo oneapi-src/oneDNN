@@ -32,8 +32,15 @@ enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 
 template <data_type_t dt, blk_kind_t blk_kind, int blksize>
 void typed_zero_pad_blk(
-        const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
-    using data_t = typename prec_traits<dt>::type;
+        const memory_desc_wrapper &m_d, void *data_handle) {
+    /* Note: for bf16 memory,
+     * use uint16_t for initialization of padding to zero,
+     * in order to avoid using assign operators defined in bfloat16_t.
+     * This allows user will be to create bf16 memory
+     * on non-avx512_core machines. */
+    using data_t = typename utils::conditional<dt == bf16, uint16_t,
+            typename prec_traits<dt>::type>::type;
+    auto data = reinterpret_cast<data_t *>(data_handle);
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
     const auto &blk = m_d.blocking_desc();
@@ -124,7 +131,15 @@ void typed_zero_pad_blk(
  */
 template <data_type_t dt>
 void typed_zero_pad_generic_blocked(
-        const memory_desc_wrapper &m_d, typename prec_traits<dt>::type *data) {
+        const memory_desc_wrapper &m_d, void *data_handle) {
+    /* Note: for bf16 memory,
+     * use uint16_t for initialization of padding to zero,
+     * in order to avoid using assign operators defined in bfloat16_t.
+     * This allows user will be to create bf16 memory
+     * on non-avx512_core machines. */
+    using data_t = typename utils::conditional<dt == bf16, uint16_t,
+            typename prec_traits<dt>::type>::type;
+    auto data = reinterpret_cast<data_t *>(data_handle);
     const int ndims = m_d.ndims();
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
@@ -267,15 +282,16 @@ status_t memory_t::zero_pad(const exec_ctx_t &exec_ctx) const {
 
     status_t status = status::success;
     switch (mdw.data_type()) {
-    case f16: typed_zero_pad<f16>(mapped_ptr); break;
-    case f32: typed_zero_pad<f32>(mapped_ptr); break;
-    case s32: typed_zero_pad<s32>(mapped_ptr); break;
-    case s8: typed_zero_pad<s8>(mapped_ptr); break;
-    case u8: typed_zero_pad<u8>(mapped_ptr); break;
-    default:
-        assert(!"memory is undefined");
-        status = unimplemented;
-        break;
+        case f16: typed_zero_pad<f16>(mapped_ptr); break;
+        case bf16: typed_zero_pad<bf16>(mapped_ptr); break;
+        case f32: typed_zero_pad<f32>(mapped_ptr); break;
+        case s32: typed_zero_pad<s32>(mapped_ptr); break;
+        case s8: typed_zero_pad<s8>(mapped_ptr); break;
+        case u8: typed_zero_pad<u8>(mapped_ptr); break;
+        default:
+            assert(!"memory is undefined");
+            status = unimplemented;
+            break;
     }
 
     exec_ctx.unmap_memory_storage(memory_storage(), mapped_ptr);

@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <vector>
 
+#include "src/common/bfloat16.hpp"
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -54,6 +55,7 @@
 
 /* aux */
 template <mkldnn_data_type_t> struct prec_traits;
+template <> struct prec_traits<mkldnn_bf16> { typedef mkldnn::impl::bfloat16_t type; };
 template <> struct prec_traits<mkldnn_f32> { typedef float type; };
 template <> struct prec_traits<mkldnn_s32> { typedef int32_t type; };
 template <> struct prec_traits<mkldnn_s8> { typedef int8_t type; };
@@ -62,6 +64,7 @@ template <> struct prec_traits<mkldnn_u8> { typedef uint8_t type; };
 inline size_t sizeof_dt(mkldnn_data_type_t dt) {
     switch (dt) {
 #   define CASE(dt) case dt: return sizeof(typename prec_traits<dt>::type)
+    CASE(mkldnn_bf16);
     CASE(mkldnn_f32);
     CASE(mkldnn_s32);
     CASE(mkldnn_s8);
@@ -81,9 +84,13 @@ extern mkldnn_engine_t engine_tgt;
 extern mkldnn_stream_t stream_ref;
 extern mkldnn_stream_t stream_tgt;
 
+extern "C" mkldnn_status_t mkldnn_engine_create_with_backend(
+        mkldnn_engine_t *engine, mkldnn_engine_kind_t kind, int backend_kind,
+        size_t index);
+
 inline int init() {
-    DNN_SAFE(mkldnn_engine_create_with_backend(
-                     &engine_ref, mkldnn_cpu, mkldnn_backend_native, 0),
+    /* Create engine with CPU native backend: backend_kind == 0 */
+    DNN_SAFE(mkldnn_engine_create_with_backend(&engine_ref, mkldnn_cpu, 0, 0),
             CRIT);
     DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
 

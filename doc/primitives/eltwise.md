@@ -124,7 +124,3 @@ The eltwise primitive doesn't support any post-ops or attributes.
       with the previous operation if that operation doesn't require its
       \f$dst\f$ to compute the backward propagation (e.g., if the convolution
       operation satisfies these conditions).
-
---------
-
-[Legal information](@ref legal_information)

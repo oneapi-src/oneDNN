@@ -37,24 +37,23 @@ set_if(UNIX LIBM m)
 # Getting Started example access memory directly so build it with
 # the native CPU backend only
 if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
-    register_exe(getting-started getting_started.cpp "test")
+    register_exe(cpu-getting-started cpu_getting_started.cpp "test")
 endif()
+register_exe(cpu-memory-format-propagation cpu_memory_format_propagation.cpp "test")
 
-register_exe(memory-format-propagation memory_format_propagation.cpp "test")
-
-register_exe(cnn-inference-fp32-c cnn_inference_fp32.c "test")
-register_exe(cnn-inference-fp32-cpp cnn_inference_fp32.cpp "test")
-register_exe(cnn-training-fp32-c cnn_training_fp32.c "test" ${LIBM})
-register_exe(cnn-training-fp32-cpp cnn_training_fp32.cpp "test" ${LIBM})
-register_exe(cnn-inference-int8-cpp cnn_inference_int8.cpp "test")
+register_exe(cpu-cnn-inference-fp32-c cpu_cnn_inference_fp32.c "test")
+register_exe(cpu-cnn-inference-fp32-cpp cpu_cnn_inference_fp32.cpp "test")
+register_exe(cpu-cnn-training-fp32-c cpu_cnn_training_fp32.c "test" ${LIBM})
+register_exe(cpu-cnn-training-fp32-cpp cpu_cnn_training_fp32.cpp "test" ${LIBM})
+register_exe(cpu-cnn-inference-int8-cpp cpu_cnn_inference_int8.cpp "test")
 
 # RNN examples access memory directly so build it with the native CPU backend only
 if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
-    register_exe(rnn-inference-fp32-cpp rnn_inference_fp32.cpp "test")
-    register_exe(rnn-inference-int8 rnn_inference_int8.cpp "test")
+    register_exe(cpu-rnn-inference-fp32-cpp cpu_rnn_inference_fp32.cpp "test")
+    register_exe(cpu-rnn-inference-int8 cpu_rnn_inference_int8.cpp "test")
 endif()
 
-register_exe(rnn-training-fp32 rnn_training_fp32.cpp "test")
+register_exe(cpu-rnn-training-fp32 cpu_rnn_training_fp32.cpp "test")
 
 if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
     register_exe(gpu-getting-started-c gpu_getting_started.c "test")
@@ -62,7 +61,7 @@ if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
 endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-    file(GLOB example_sources "*.cpp" "*.c")
+    file(GLOB example_sources "cpu_*.cpp" "cpu_*.c")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt

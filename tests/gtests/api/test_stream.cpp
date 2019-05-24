@@ -23,15 +23,19 @@
 
 namespace mkldnn {
 
-static bool are_valid_flags(mkldnn_backend_kind_t backend_kind,
+static bool are_valid_flags(mkldnn_engine_kind_t engine_kind,
         mkldnn_stream_flags_t stream_flags) {
     bool ok = true;
-    if (backend_kind == mkldnn_backend_ocl
+#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
+    if (engine_kind == mkldnn_gpu
             && (stream_flags & mkldnn_stream_out_of_order))
         ok = false;
-    else if (backend_kind == mkldnn_backend_native
+#endif
+#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
+    if (engine_kind == mkldnn_cpu
             && (stream_flags & mkldnn_stream_out_of_order))
         ok = false;
+#endif
     return ok;
 }
 
@@ -49,10 +53,7 @@ protected:
         MKLDNN_CHECK(mkldnn_engine_create(&engine, eng_kind, 0));
 
         // Check that the flags are compatible with the engine
-        mkldnn_backend_kind_t backend_kind;
-        MKLDNN_CHECK(mkldnn_engine_get_backend_kind(engine, &backend_kind));
-
-        if (!are_valid_flags(backend_kind, stream_flags)) {
+        if (!are_valid_flags(eng_kind, stream_flags)) {
             MKLDNN_CHECK(mkldnn_engine_destroy(engine));
             engine = nullptr;
             return;
@@ -112,7 +113,7 @@ TEST_P(stream_test_cpp, Wait) {
 
     engine eng(eng_kind, 0);
     SKIP_IF(!are_valid_flags(
-                    static_cast<mkldnn_backend_kind_t>(eng.get_backend_kind()),
+                    static_cast<mkldnn_engine_kind_t>(eng.get_kind()),
                     stream_flags_c),
             "Incompatible stream flags.");
 

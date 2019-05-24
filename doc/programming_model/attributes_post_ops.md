@@ -222,10 +222,3 @@ the tensors are designated by their names only; i.e., `(:)` is omitted):
             + \beta
         )
 \f]
-
-
-
-
---------
-
-[Legal information](@ref legal_information)

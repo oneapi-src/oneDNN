@@ -1,0 +1,302 @@
+/* BASICS */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body,
+table,
+div,
+p,
+dl {
+  font: normal 400 15px/22px 'Open Sans', sans-serif;;
+}
+
+/* TOP */
+
+div#titlearea {
+  text-align: center;
+  padding: 30px 20px;   
+  color:white;
+  background-image: linear-gradient(-180deg, #0F93C2 24%, #2171B8 97%);
+}
+
+#projectname {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+/* HEADERS */
+
+h1, h2, h2.groupheader, h3, h4, h5, h6, .title {
+  color:#2171B8;
+  font-weight: 400;
+}
+
+/* NAVIGATION */
+
+.tabs, .tabs2, .tabs3 {
+  background-image: none;
+}
+
+div#navrow1 {
+  background-color:#E1E2E1;
+  box-shadow: 0 5px 5px -5px #999;
+
+}
+
+.sticky {
+  position: fixed;
+  top: 0;
+  width:100%;
+  opacity: 0.9;
+}
+
+ul.tablist {
+  background-image: none;
+  width:80%;
+  margin: auto;
+  float:none;
+  display:flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+div#navrow1 ul {
+  justify-content: space-around;
+}
+
+div#navrow1 li.current a {
+  background-color:#cccccc;
+}
+
+
+.tablist li, .tablist a,
+  .tablist li.current a,
+  .tablist li a:hover {
+  background-image:none;
+  text-shadow:none;
+  color:#29a3f0;
+}
+
+.tablist li.current {
+  background-image: linear-gradient(-180deg, #0F93C2 24%, #2171B8 97%);
+  border-radius: 5px;
+  color:white;
+}
+
+#navrow2, #navrow3, #navrow4 {
+  margin-top:10px;
+}
+
+.tablist li.current a {
+  color:white;
+}
+
+.tablist li.current a:hover {
+  color: white;
+}
+
+.tablist li a:hover {
+  color: #55bef5;
+}
+
+
+div#navrow1 ul li {
+  display:flex;
+  background-image:none;
+}
+
+div#navrow1 ul a {
+  background-image: none;
+  color:#62757f;
+  text-transform: uppercase;
+}
+
+div#navrow1 a:hover {
+  color: #62757f;
+  text-shadow: none;
+}
+
+div#navrow1 a span.sub-arrow {
+  border-color: #62757f transparent transparent transparent;
+}
+
+.navpath ul {
+  background-image: none;
+}
+
+.submenu {
+  top: 40px !important;
+}
+
+/* SEARCH BOX */
+
+#MSearchResultsWindow {
+  background-color: white;
+  border: none;
+  overflow: hidden;
+  padding: 10px;
+  position: fixed;
+}
+
+iframe#MSearchResults {
+  width: 533px;
+}
+
+#MSearchBox {
+  width:200px;
+  background: white;
+  float: right;
+  height: 30px;
+  margin-top: 0;
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#MSearchBox .left,
+#MSearchBox .right {
+  background: none;
+  height: auto;
+  left: 0;
+  position: relative;
+  top: 0;
+  width: auto;
+}
+
+#MSearchBox .left img {
+  display: none;
+}
+
+#MSearchField {
+  background: url(images/search-icon.svg) 0.5em center no-repeat;
+  background-size: 1em;
+  font: inherit;
+  height: 30px;
+  line-height: 30px;
+  margin: 0;
+  padding: 0 2em;
+  width: 100%;
+}
+
+.right #MSearchClose {
+  right: 10px;
+  background: url(images/close-btn.svg) center no-repeat;
+  background-size: 1em;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  top: 8px;
+  width: 16px;
+}
+
+#MSearchClose img {
+  display: none;
+}
+
+/* CONTENT */
+
+div.header {
+  text-align: center;
+  width:80%;
+  margin: 0 auto;
+  background-color: initial;
+  background-image: none;
+  margin-top:25px;
+}
+
+div.contents {
+  width:80%;
+  margin:0 auto;
+  flex-grow: 1;
+}
+
+dl.note {
+  border-color: #0F93C2;
+}
+
+div.fragment {
+  padding: 5px;
+}
+
+div.ah, span.mlabel {
+  background-image: linear-gradient(-180deg, #60BCD7 3%, #2171B8 97%);
+}
+
+div.navpath {
+  display: none;
+}
+
+/* TABLES */
+
+table.doxtable {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+table.doxtable th {
+  background-color: initial;
+  text-align: center;
+  color: black;
+}
+
+table.doxtable  th, table.doxtable td {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+}
+
+div.qindex + table {
+  font-size:0.7rem;
+}
+
+/* LINKS */
+
+a.el, .navpath li.navelem a, a.code, a {
+  color: #29a3f0;
+  font-weight: 400;
+}
+
+a:visited, a.el:visited, a.qindex:visited {
+  color: #29a3f0;
+}
+
+.sm-dox a:hover, a:hover, a.el:hover, .navpath li.navelem a:hover {
+  color: #55bef5;
+  text-shadow: none;
+  text-decoration: none;
+}
+
+/* FOOTER */
+
+div.footer {
+  min-height: 220px;
+  background-color: #353b48;
+  width:100%;
+  left:0;
+  margin-top:30px;
+  color:#dcdde1;
+  padding: 20px 0px;
+}
+
+.footer-wrapper {
+  width:80%;
+  margin:auto;
+}
+
+ul#footer-links {
+  list-style-type: none;
+  padding:0;
+}
+
+ul#footer-links a {
+  color: #dcdde1;
+}

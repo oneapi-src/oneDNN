@@ -61,7 +61,3 @@ MKLDNN_VERBOSE output to tune Intel MKL-DNN code to align with
 @warning
 Verbose mode has non-negligible performance impact especially if the output
 rate is high.
-
-
---------
-[Legal information](@ref legal_information)

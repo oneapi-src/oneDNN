@@ -70,12 +70,12 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
             for (int kh = 0; kh < KH; ++kh)
                 for (int kw = 0; kw < KW; ++kw) {
 
-                    if (iw + PW < kw || ih + PH < kh)
+                    if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH))
                         continue;
 #            if CASE_3D
-                    if (id + PD < kd)
+                    if (id + PD < kd * (1 + DD))
                         continue;
-                    int od = id - kd + PD;
+                    int od = id - kd * (1 + DD) + PD;
                     if (od % SD != 0)
                         continue;
                     od /= SD;
@@ -83,8 +83,8 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
                         continue;
 #            endif
 
-                    int ow = iw - kw + PW;
-                    int oh = ih - kh + PH;
+                    int ow = iw - kw * (1 + DW) + PW;
+                    int oh = ih - kh * (1 + DH) + PH;
                     if (ow % SW != 0 || oh % SH != 0)
                         continue;
                     ow /= SW;

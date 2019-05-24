@@ -37,8 +37,6 @@ const char MKLDNN_API *mkldnn_prop_kind2str(mkldnn_prop_kind_t v);
 const char MKLDNN_API *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v);
 const char MKLDNN_API *mkldnn_alg_kind2str(mkldnn_alg_kind_t v);
 const char MKLDNN_API *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v);
-const char MKLDNN_API *mkldnn_mkldnn_transpose_t2str(mkldnn_transpose_t v);
-const char MKLDNN_API *mkldnn_mkldnn_backend_kind_t2str(mkldnn_backend_kind_t v);
 const char MKLDNN_API *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v);
 
 /// Forms a format string for a given memory descriptor.

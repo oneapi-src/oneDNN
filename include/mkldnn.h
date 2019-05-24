@@ -510,6 +510,10 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
 ///
 /// Mapping is an exclusive operation - a memory object cannot be used in other
 /// operations until this memory object is unmapped.
+//
+/// @note Any primitives working with @p memory should be completed before
+//        mapping the memory. Use mkldnn_stream_wait to synchronize the
+//        corresponding execution stream.
 mkldnn_status_t MKLDNN_API mkldnn_memory_map_data(
         const_mkldnn_memory_t memory, void **mapped_ptr);
 
@@ -1805,18 +1809,9 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_create_ocl(mkldnn_engine_t *engine,
         mkldnn_engine_kind_t kind, cl_device_id device, cl_context context);
 #endif
 
-/// Creates an @p engine of particular @p kind, @p backend_kind and @p index.
-mkldnn_status_t MKLDNN_API mkldnn_engine_create_with_backend(
-        mkldnn_engine_t *engine, mkldnn_engine_kind_t kind,
-        mkldnn_backend_kind_t backend_kind, size_t index);
-
 /// Returns the kind of an @p engine.
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
         mkldnn_engine_kind_t *kind);
-
-/// Returns the backend kind of an @p engine.
-mkldnn_status_t MKLDNN_API mkldnn_engine_get_backend_kind(
-        mkldnn_engine_t engine, mkldnn_backend_kind_t *backend_kind);
 
 #if MKLDNN_WITH_OPENCL
 /// Returns an OpenCL @p context associated with an @p engine.
@@ -1970,44 +1965,6 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
         const int8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
         const float *beta,
         int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
-
-#if MKLDNN_WITH_OPENCL
-/// SGEMM interface for OpenCL (float data type).
-///
-/// SGEMM performs matrix-matrix multiplication operation
-/// C := alpha*op( A )*op( B ) + beta*C,
-/// where  op( X ) is one of
-/// op( X ) = X or op( X ) = X**T,
-/// alpha and beta are scalars, and A, B and C are matrices, with op( A )
-/// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
-///
-/// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
-/// first element for the corresponding OpenCL buffers. Counted in elements.
-mkldnn_status_t MKLDNN_API mkldnn_ocl_sgemm(cl_command_queue queue,
-        mkldnn_transpose_t transa, mkldnn_transpose_t transb, mkldnn_dim_t m,
-        mkldnn_dim_t n, mkldnn_dim_t k, cl_float alpha, cl_mem a,
-        mkldnn_dim_t offset_a, mkldnn_dim_t lda, cl_mem b,
-        mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta, cl_mem c,
-        mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
-
-/// HGEMM interface for OpenCL (half data type).
-///
-/// HGEMM performs matrix-matrix multiplication operation
-/// C := alpha*op( A )*op( B ) + beta*C,
-/// where  op( X ) is one of
-/// op( X ) = X or op( X ) = X**T,
-/// alpha and beta are scalars, and A, B and C are matrices, with op( A )
-/// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
-///
-/// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
-/// first element for the corresponding OpenCL buffers. Counted in elements.
-mkldnn_status_t MKLDNN_API mkldnn_ocl_hgemm(cl_command_queue queue,
-        mkldnn_transpose_t transa, mkldnn_transpose_t transb, mkldnn_dim_t m,
-        mkldnn_dim_t n, mkldnn_dim_t k, cl_float alpha, cl_mem a,
-        mkldnn_dim_t offset_a, mkldnn_dim_t lda, cl_mem b,
-        mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta, cl_mem c,
-        mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
-#endif
 /// @}
 
 /// @}

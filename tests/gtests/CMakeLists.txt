@@ -45,7 +45,8 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_softmax_forward.cpp
                               test_softmax_backward.cpp
                               test_eltwise.cpp
-                              test_lrn_forward.cpp
+                              test_lrn_forward_f32.cpp
+                              test_lrn_forward_f16.cpp
                               test_lrn_backward.cpp
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp

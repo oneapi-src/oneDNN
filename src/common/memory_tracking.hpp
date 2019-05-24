@@ -170,6 +170,7 @@ enum {
     key_iprod_int_dat_in_acc_dt,
     key_reducer_space,
     key_reducer_space_bctx,
+    key_reorder_space,
     key_reorder_wino_plain,
     key_reorder_wino_transform_space,
     key_reorder_rnn_weights_quantization,

@@ -15,41 +15,32 @@ $search
 <script src="assets/mathjax/MathJax.js?config=TeX-AMS_CHTML"></script>
 <link href="$relpath^$stylesheet" rel="stylesheet" type="text/css" />
 $extrastylesheet
+<link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet">
+<link href="assets/customdoxygen.css" rel="stylesheet" type="text/css" />
+<script type="text/javascript" src="assets/dnn.js"></script>
 </head>
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 
 <!--BEGIN TITLEAREA-->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
- <tbody>
- <tr style="height: 56px;">
-  <!--BEGIN PROJECT_LOGO-->
-  <td id="projectlogo"><img alt="Logo" src="$relpath^$projectlogo"/></td>
-  <!--END PROJECT_LOGO-->
   <!--BEGIN PROJECT_NAME-->
-  <td style="padding-left: 0.5em;">
    <div id="projectname">@PROJECT_FULL_NAME@
    <!--BEGIN PROJECT_NUMBER-->&#160;<span id="projectnumber">$projectnumber</span><!--END PROJECT_NUMBER-->
    </div>
    <!--BEGIN PROJECT_BRIEF--><div id="projectbrief">$projectbrief</div><!--END PROJECT_BRIEF-->
-  </td>
   <!--END PROJECT_NAME-->
   <!--BEGIN !PROJECT_NAME-->
    <!--BEGIN PROJECT_BRIEF-->
-    <td style="padding-left: 0.5em;">
     <div id="projectbrief">$projectbrief</div>
-    </td>
    <!--END PROJECT_BRIEF-->
   <!--END !PROJECT_NAME-->
   <!--BEGIN DISABLE_INDEX-->
    <!--BEGIN SEARCHENGINE-->
-   <td>$searchbox</td>
+   <div>$searchbox</div>
    <!--END SEARCHENGINE-->
   <!--END DISABLE_INDEX-->
- </tr>
- </tbody>
-</table>
 </div>
 <!--END TITLEAREA-->
 <!-- end header part -->

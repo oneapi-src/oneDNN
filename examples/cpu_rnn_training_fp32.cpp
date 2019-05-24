@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example rnn_training_fp32.cpp
-/// @copydoc rnn_training_fp32_cpp
+/// @example cpu_rnn_training_fp32.cpp
+/// @copydoc cpu_rnn_training_fp32_cpp
 ///
-/// @page rnn_training_fp32_cpp RNN fp32 training example
+/// @page cpu_rnn_training_fp32_cpp RNN fp32 training example
 /// This C++ API example demonstrates how to build an GNMT model training
 ///
-/// @include rnn_training_fp32.cpp
+/// @include cpu_rnn_training_fp32.cpp
 
 #include <cstring>
 #include <iostream>

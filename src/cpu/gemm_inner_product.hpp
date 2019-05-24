@@ -52,23 +52,44 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                         weights_md()->data_type,
                         dst_md()->data_type,
                         with_bias() ? weights_md(1)->data_type : data_type)
-                && attr()->post_ops_.len_ <= 1
-                && IMPLICATION(attr()->post_ops_.len_ == 1,
-                        attr()->post_ops_.entry_[0].is_eltwise())
+                && attr()->output_scales_.has_default_values()
+                && post_ops_ok()
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             return ok ? status::success : status::unimplemented;
+        }
+
+    protected:
+        bool post_ops_ok() const {
+            auto const &po = attr()->post_ops_;
+            auto is_eltwise
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
+            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
+            switch (po.len_) {
+            case 0:
+                return true; // no post_ops
+            case 1:
+                return is_eltwise(0) || is_sum(0); // sum OR eltwise
+            case 2:
+                return is_sum(0) && is_eltwise(1); // sum -> eltwise
+            default: return false;
+            }
+            return false;
         }
     };
 
     gemm_inner_product_fwd_t(const pd_t *apd)
         : cpu_primitive_t(apd), pp_kernel_(nullptr), postops_in_ip_(false) {
-        bool has_bias = pd()->with_bias(),
-             has_eltwise = pd()->attr()->post_ops_.len_ == 1,
-             has_scale = !pd()->attr()->output_scales_.has_default_values();
-        postops_in_ip_ = has_bias || has_eltwise || has_scale;
+        bool has_bias = pd()->with_bias(), has_eltwise
+                = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
+        postops_in_ip_ = has_bias || has_eltwise;
+
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type, data_type>(
-                apd);
+                apd, true);
+
+        auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
+        beta_ = sum_idx >= 0 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
+                             : 0.0;
     }
     ~gemm_inner_product_fwd_t() { delete pp_kernel_; }
 
@@ -85,6 +106,7 @@ private:
 
     inner_product_utils::pp_kernel_t<data_type, data_type> *pp_kernel_;
     bool postops_in_ip_;
+    float beta_;
 };
 
 template <impl::data_type_t data_type>

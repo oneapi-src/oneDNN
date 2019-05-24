@@ -187,6 +187,3 @@ followed by eltwise (relu).
 ## Example
 
 @ref cnn_inference_int8_cpp example walks through the steps of int8 inference.
-
----
-[Legal information](@ref legal_information)

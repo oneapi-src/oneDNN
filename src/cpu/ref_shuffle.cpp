@@ -136,6 +136,16 @@ template void ref_shuffle_t<4>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
 template void ref_shuffle_t<4>::execute_<nhwc>(const exec_ctx_t &ctx) const;
 template void ref_shuffle_t<4>::execute_<any>(const exec_ctx_t &ctx) const;
 
+template void ref_shuffle_t<2>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<nchw>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<nhwc>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t<2>::execute_<any>(const exec_ctx_t &ctx) const;
+
 template void ref_shuffle_t<1>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
 template void ref_shuffle_t<1>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
 template void ref_shuffle_t<1>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;

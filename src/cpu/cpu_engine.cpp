@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,16 +191,21 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_deconvolution_fwd_t),
     /* shuffle */
     INSTANCE(ref_shuffle_t<4>), /* f32 or s32 */
+    INSTANCE(ref_shuffle_t<2>), /* bf16 */
     INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
     /* eltwise */
-    INSTANCE(jit_uni_eltwise_fwd_t<avx512_common>),
-    INSTANCE(jit_uni_eltwise_bwd_t<avx512_common>),
-    INSTANCE(jit_uni_eltwise_fwd_t<avx2>),
-    INSTANCE(jit_uni_eltwise_bwd_t<avx2>),
-    INSTANCE(jit_uni_eltwise_fwd_t<sse41>),
-    INSTANCE(jit_uni_eltwise_bwd_t<sse41>),
+    INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, f32>),
+    INSTANCE(jit_uni_eltwise_bwd_t<avx512_common, f32>),
+    INSTANCE(jit_uni_eltwise_fwd_t<avx512_core, bf16>),
+    INSTANCE(jit_uni_eltwise_bwd_t<avx512_core, bf16>),
+    INSTANCE(jit_uni_eltwise_fwd_t<avx2, f32>),
+    INSTANCE(jit_uni_eltwise_bwd_t<avx2, f32>),
+    INSTANCE(jit_uni_eltwise_fwd_t<sse41, f32>),
+    INSTANCE(jit_uni_eltwise_bwd_t<sse41, f32>),
     INSTANCE(ref_eltwise_fwd_t<f32>),
     INSTANCE(ref_eltwise_bwd_t<f32>),
+    INSTANCE(ref_eltwise_fwd_t<bf16>),
+    INSTANCE(ref_eltwise_bwd_t<bf16>),
     /* eltwise (int) */
     INSTANCE(ref_eltwise_fwd_t<s32>),
     INSTANCE(ref_eltwise_fwd_t<s8>),

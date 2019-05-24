@@ -124,11 +124,14 @@ struct dnn_mem_t {
         void *data = (void *)*this;
         float elem = 0.0;
         switch (dt()) {
-            case mkldnn_s8: elem = static_cast<int8_t *>(data)[idx]; break;
-            case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
-            case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
-            case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
-            default: assert(!"bad data type");
+        case mkldnn_s8: elem = static_cast<int8_t *>(data)[idx]; break;
+        case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
+        case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
+        case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
+        case mkldnn_bf16:
+            elem = static_cast<mkldnn::impl::bfloat16_t *>(data)[idx];
+            break;
+        default: assert(!"bad data type");
         }
         return elem;
     }
@@ -140,6 +143,9 @@ struct dnn_mem_t {
             case mkldnn_u8: ((uint8_t *)data)[idx] = value; break;
             case mkldnn_s32: ((int32_t *)data)[idx] = value; break;
             case mkldnn_f32: ((float *)data)[idx] = value; break;
+            case mkldnn_bf16:
+                ((mkldnn::impl::bfloat16_t *)data)[idx] = value;
+                break;
             default: assert(!"bad data type");
         }
     }
@@ -190,8 +196,9 @@ private:
     bool is_data_owner_, active_;
 
     mkldnn_engine_kind_t engine_kind_;
-    mkldnn_backend_kind_t backend_kind_;
     mkldnn_engine_t engine_;
+
+    bool is_cpu_native_;
 
     bool is_mapped_;
     void *mapped_ptr_;
@@ -207,9 +214,10 @@ private:
         }
         engine_ = engine;
         DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
-        DNN_SAFE_V(mkldnn_engine_get_backend_kind(engine_, &backend_kind_));
+        is_cpu_native_ = (engine_kind_ == mkldnn_cpu)
+                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
 
-        if (backend_kind_ == mkldnn_backend_native) {
+        if (is_cpu_native_) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
             const size_t alignment = 1024 * 1024 * 16;

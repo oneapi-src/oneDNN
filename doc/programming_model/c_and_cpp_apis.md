@@ -34,7 +34,3 @@ responsibility to
 to the library
 * Ensure that the data buffers do not overlap unless the functionality
 explicitly permits in-place computations
-
-
---------
-[Legal information](@ref legal_information)

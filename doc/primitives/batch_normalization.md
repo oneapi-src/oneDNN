@@ -193,7 +193,3 @@ directly.
    lead to highly suboptimal performance.
 
 2. Use in-place operations whenever possible.
-
---------
-
-[Legal information](@ref legal_information)

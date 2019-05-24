@@ -34,6 +34,10 @@ if(DOXYGEN_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/doc/header.html.in
         ${CMAKE_CURRENT_BINARY_DIR}/header.html
         @ONLY)
+    file(COPY
+        ${CMAKE_CURRENT_SOURCE_DIR}/doc/footer.html
+        DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+        )
     file(GLOB_RECURSE HEADERS
         ${PROJECT_SOURCE_DIR}/include/*.h
         ${PROJECT_SOURCE_DIR}/include/*.hpp
@@ -53,7 +57,10 @@ if(DOXYGEN_FOUND)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
     add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
-    install(
-        DIRECTORY ${DOXYGEN_OUTPUT_DIR}
-        DESTINATION share/doc/${LIB_NAME} OPTIONAL)
+
+    if(NOT MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+        install(
+            DIRECTORY ${DOXYGEN_OUTPUT_DIR}
+            DESTINATION share/doc/${LIB_NAME} OPTIONAL)
+    endif()
 endif(DOXYGEN_FOUND)

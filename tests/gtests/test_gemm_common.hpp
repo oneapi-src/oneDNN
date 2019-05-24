@@ -41,6 +41,24 @@
 #define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(str,TEST_CASE_NAME_PREFIX), __VA_ARGS__)
 
+#if MKLDNN_WITH_OPENCL
+
+// Declare OpenCL GEMM interfaces for testing
+extern "C" {
+mkldnn_status_t mkldnn_ocl_sgemm(cl_command_queue queue, const char *transa,
+        const char *transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
+        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
+        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
+        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+
+mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, const char *transa,
+        const char *transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
+        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
+        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
+        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+}
+#endif
+
 namespace mkldnn {
 
 struct test_igemm_params {
@@ -438,36 +456,12 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
-            mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            mkldnn_transpose_t transb = (p.transB == 'n' || p.transB == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            auto status = mkldnn_ocl_hgemm(q, transa, transb, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+            auto status = mkldnn_ocl_hgemm(q, &p.transA, &p.transB, p.M, p.N,
+                    p.K, p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a,
+                    p.lda, b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    p.beta, c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
-        }
-#elif MKLDNN_WITH_SYCL
-        if (eng.get_backend_kind() == backend_kind::sycl) {
-            cl::sycl::queue sycl_queue = s.get_sycl_queue();
-            transpose transa = (p.transA == 'n' || p.transA == 'N')
-                    ? transpose::notrans
-                    : transpose::trans;
-            transpose transb = (p.transB == 'n' || p.transB == 'N')
-                    ? transpose::notrans
-                    : transpose::trans;
-            auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
-            auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
-            auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
-            mkldnn::gemm(sycl_queue, transa, transb, p.M, p.N, p.K, p.alpha, a,
-                    p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
-                    p.ldc);
-            s.wait();
-            return mkldnn_success;
         }
 #endif
         throw error(mkldnn_runtime_error, "unknown gemm");
@@ -484,40 +478,14 @@ struct mkldnn_gemm<float, float, float> {
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
-            mkldnn_transpose_t transa = (p.transA == 'n' || p.transA == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            mkldnn_transpose_t transb = (p.transB == 'n' || p.transB == 'N')
-                    ? mkldnn_notrans
-                    : mkldnn_trans;
-            auto status = mkldnn_ocl_sgemm(q, transa, transb, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+            auto status = mkldnn_ocl_sgemm(q, &p.transA, &p.transB, p.M, p.N,
+                    p.K, p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a,
+                    p.lda, b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    p.beta, c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
         }
-#elif MKLDNN_WITH_SYCL
-        if (eng.get_backend_kind() == backend_kind::sycl) {
-            cl::sycl::queue sycl_queue = s.get_sycl_queue();
-            transpose transa = (p.transA == 'n' || p.transA == 'N')
-                    ? transpose::notrans
-                    : transpose::trans;
-            transpose transb = (p.transB == 'n' || p.transB == 'N')
-                    ? transpose::notrans
-                    : transpose::trans;
-            auto a = a_mem.get().get_sycl_buffer<float>();
-            auto b = b_mem.get().get_sycl_buffer<float>();
-            auto c = c_mem.get().get_sycl_buffer<float>();
-            mkldnn::gemm(sycl_queue, transa, transb, p.M, p.N, p.K, p.alpha, a,
-                    p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
-                    p.ldc);
-            s.wait();
-            return mkldnn_success;
-        }
 #endif
-        assert(eng.get_backend_kind() == backend_kind::native);
-
         auto A = map_memory<float>(a_mem);
         auto B = map_memory<float>(b_mem);
         auto C = map_memory<float>(c_mem);
@@ -624,14 +592,10 @@ protected:
 #if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
                 "SYCL CPU GEMM not implemented.");
+#elif MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
+                "SYCL GPU GEMM not implemented.");
 #endif
-
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transA != 'n'
-                        && p.transA != 'N' && p.transA != 't' && p.transA != 'T',
-                "GPU interfaces take transA as enum.");
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && p.transB != 'n'
-                        && p.transB != 'N' && p.transB != 't' && p.transB != 'T',
-                "GPU interfaces take transB as enum.");
 
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);

@@ -42,8 +42,11 @@
 #include "src/common/mkldnn_thread.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/float16.hpp"
+#include "src/common/bfloat16.hpp"
+#include "src/common/nstl.hpp"
 
 using mkldnn::impl::f16_support::float16_t;
+using mkldnn::impl::bfloat16_t;
 
 #define MKLDNN_CHECK(f)               \
     do {                              \
@@ -59,18 +62,33 @@ mkldnn::engine::kind get_test_engine_kind();
 template <typename data_t> struct data_traits { };
 template <> struct data_traits<float16_t> {
     static const auto data_type = memory::data_type::f16;
+
+    using uint_type = uint16_t;
+};
+template <> struct data_traits<bfloat16_t> {
+    static const auto data_type = memory::data_type::bf16;
+
+    using uint_type = uint16_t;
 };
 template <> struct data_traits<float> {
     static const auto data_type = memory::data_type::f32;
+
+    using uint_type = uint32_t;
 };
 template <> struct data_traits<uint8_t> {
     static const auto data_type = memory::data_type::u8;
+
+    using uint_type = uint8_t;
 };
 template <> struct data_traits<int8_t> {
     static const auto data_type = memory::data_type::s8;
+
+    using uint_type = uint8_t;
 };
 template <> struct data_traits<int32_t> {
     static const auto data_type = memory::data_type::s32;
+
+    using uint_type = uint32_t;
 };
 
 template <typename T> inline void assert_eq(T a, T b);
@@ -201,7 +219,8 @@ template <typename data_t>
 static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         double sparsity)
 {
-    if (data_traits<data_t>::data_type == memory::data_type::f16) {
+    if (data_traits<data_t>::data_type == memory::data_type::f16
+            || data_traits<data_t>::data_type == memory::data_type::bf16) {
         return data_t(set_value<float>(index, mean, deviation, sparsity));
     } else if (data_traits<data_t>::data_type == memory::data_type::f32) {
         const memory::dim group_size = (memory::dim)(1. / sparsity);
@@ -264,6 +283,7 @@ static void compare_data(
 
     ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32
             || data_traits<data_t>::data_type == data_type::f16
+            || data_traits<data_t>::data_type == data_type::bf16
             || data_traits<data_t>::data_type == data_type::s32);
 
     /* Note: size_t incompatible with MSVC++ */
@@ -298,7 +318,8 @@ static void compare_data(
         data_t got = dst_data[mdw_dst.off_l(i, true)];
 
         if (data_traits<data_t>::data_type == data_type::f32
-                || data_traits<data_t>::data_type == data_type::f16) {
+                || data_traits<data_t>::data_type == data_type::f16
+                || data_traits<data_t>::data_type == data_type::bf16) {
             const float threshold_f32 = static_cast<float>(threshold);
             const float ref_f32 = static_cast<float>(ref);
             const float got_f32 = static_cast<float>(got);
@@ -477,7 +498,9 @@ class test_memory {
 public:
     test_memory(const memory::desc &d, const mkldnn::engine &e) {
         size_ = d.get_size();
-        if (e.get_backend_kind() == mkldnn::backend_kind::native) {
+        bool is_cpu_native = (e.get_kind() == mkldnn::engine::kind::cpu)
+                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
+        if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
             mem_ = memory(d, e, data_.get());
         } else {

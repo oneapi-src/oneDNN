@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cnn_inference_int8.cpp
-/// Annotated version: @ref cnn_inference_int8_cpp
+/// @example cpu_cnn_inference_int8.cpp
+/// Annotated version: @ref cpu_cnn_inference_int8_cpp
 ///
-/// @page cnn_inference_int8_cpp CNN int8 inference example
-/// Full example text: @ref cnn_inference_int8.cpp
+/// @page cpu_cnn_inference_int8_cpp CNN int8 inference example
+/// Full example text: @ref cpu_cnn_inference_int8.cpp
 ///
 /// This C++ API example demonstrates how to run AlexNet's conv3 and relu3
 /// with int8 data type.
@@ -45,7 +45,7 @@ void simple_net_int8() {
     const int batch = 8;
 
 /// Configure tensor shapes
-/// @snippet cnn_inference_int8.cpp Configure tensor shapes
+/// @snippet cpu_cnn_inference_int8.cpp Configure tensor shapes
 //[Configure tensor shapes]
     // AlexNet: conv3
     // {batch, 256, 13, 13} (x)  {384, 256, 3, 3}; -> {batch, 384, 13, 13}
@@ -62,7 +62,7 @@ void simple_net_int8() {
 /// into int8. For this example, the scaling value is chosen as an
 /// arbitrary number, although in a realistic scenario, it should be
 /// calculated from a set of precomputed values as previously mentioned.
-/// @snippet cnn_inference_int8.cpp Choose scaling factors
+/// @snippet cpu_cnn_inference_int8.cpp Choose scaling factors
 //[Choose scaling factors]
     // Choose scaling factors for input, weight, output and bias quantization
     const std::vector<float> src_scales = { 1.8f };
@@ -81,7 +81,7 @@ void simple_net_int8() {
 /// format with mask set to '0', while the *output* from the convolution
 /// (conv_scales) will use the array format where mask = 2 corresponding
 /// to the output dimension.
-/// @snippet cnn_inference_int8.cpp Set scaling mask
+/// @snippet cpu_cnn_inference_int8.cpp Set scaling mask
 //[Set scaling mask]
     const int src_mask = 0;
     const int weight_mask = 0;
@@ -100,7 +100,7 @@ void simple_net_int8() {
 
 /// Create the memory primitives for user data (source, weights, and bias).
 /// The user data will be in its original 32-bit floating point format.
-/// @snippet cnn_inference_int8.cpp Allocate buffers
+/// @snippet cpu_cnn_inference_int8.cpp Allocate buffers
 //[Allocate buffers]
     auto user_src_memory = memory({ { conv_src_tz }, dt::f32, tag::nchw },
             cpu_engine, user_src.data());
@@ -121,7 +121,7 @@ void simple_net_int8() {
 ///  > **Note**
 ///  > The destination type is chosen as *unsigned* because the
 ///  > convolution applies a ReLU operation where data results \f$\geq 0\f$.
-/// @snippet cnn_inference_int8.cpp Create convolution memory descriptors
+/// @snippet cpu_cnn_inference_int8.cpp Create convolution memory descriptors
 //[Create convolution memory descriptors]
     auto conv_src_md = memory::desc({ conv_src_tz }, dt::u8, tag::any);
     auto conv_bias_md = memory::desc({ conv_bias_tz }, dt::s8, tag::any);
@@ -131,7 +131,7 @@ void simple_net_int8() {
 
 /// Create a convolution descriptor passing the int8 memory
 /// descriptors as parameters.
-/// @snippet cnn_inference_int8.cpp Create convolution descriptor
+/// @snippet cpu_cnn_inference_int8.cpp Create convolution descriptor
 //[Create convolution descriptor]
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
             algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
@@ -141,7 +141,7 @@ void simple_net_int8() {
 /// Configuring int8-specific parameters in an int8 primitive is done
 /// via the Attributes Primitive. Create an attributes object for the
 /// convolution and configure it accordingly.
-/// @snippet cnn_inference_int8.cpp Configure scaling
+/// @snippet cpu_cnn_inference_int8.cpp Configure scaling
 //[Configure scaling]
     primitive_attr conv_attr;
     conv_attr.set_output_scales(conv_mask, conv_scales);
@@ -149,7 +149,7 @@ void simple_net_int8() {
 
 /// The ReLU layer from Alexnet is executed through the PostOps feature. Create
 /// a PostOps object and configure it to execute an _eltwise relu_ operation.
-/// @snippet cnn_inference_int8.cpp Configure post-ops
+/// @snippet cpu_cnn_inference_int8.cpp Configure post-ops
 //[Configure post-ops]
     const float ops_scale = 1.f;
     const float ops_alpha = 0.f; // relu negative slope
@@ -165,9 +165,9 @@ void simple_net_int8() {
                 conv_desc, conv_attr, cpu_engine);
     } catch (error &e) {
         if (e.status == mkldnn_unimplemented) {
-            std::cerr << "AVX512-BW support or Intel(R) MKL dependency is "
-                         "required for int8 convolution"
-                      << std::endl;
+            std::cerr << "Intel MKL-DNN does not have int8 convolution "
+            "implementation that supports this system. Please refer to "
+            "the developer guide for details." << std::endl;
         }
         throw;
     }
@@ -176,7 +176,7 @@ void simple_net_int8() {
 /// and passing along the int8 attributes in the constructor. The primitive
 /// descriptor for the convolution will contain the specific memory
 /// formats for the computation.
-/// @snippet cnn_inference_int8.cpp Create convolution primitive descriptor
+/// @snippet cpu_cnn_inference_int8.cpp Create convolution primitive descriptor
 //[Create convolution primitive descriptor]
     auto conv_prim_desc = convolution_forward::primitive_desc(
             conv_desc, conv_attr, cpu_engine);
@@ -197,7 +197,7 @@ void simple_net_int8() {
 /// transforms the user data into the required memory format (as explained
 /// in the simple_net example).
 ///
-/// @snippet cnn_inference_int8.cpp Quantize data and weights
+/// @snippet cpu_cnn_inference_int8.cpp Quantize data and weights
 //[Quantize data and weights]
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), cpu_engine);
     primitive_attr src_attr;
@@ -235,7 +235,7 @@ void simple_net_int8() {
 /// using the int8 and PostOps approach. Although performance is not
 /// measured here, in practice it would require less computation time to achieve
 /// similar results.
-/// @snippet cnn_inference_int8.cpp Create convolution primitive
+/// @snippet cpu_cnn_inference_int8.cpp Create convolution primitive
 //[Create convolution primitive]
     auto conv = convolution_forward(conv_prim_desc);
     conv.execute(s,
@@ -245,12 +245,12 @@ void simple_net_int8() {
                     { MKLDNN_ARG_DST, conv_dst_memory } });
 //[Create convolution primitive]
 
-/// @page cnn_inference_int8_cpp
+/// @page cpu_cnn_inference_int8_cpp
 /// Finally, *dst memory* may be dequantized from int8 into the original
 /// fp32 format. Create a memory primitive for the user data in the original
 /// 32-bit floating point format and then apply a reorder to transform the
 /// computation output data.
-/// @snippet cnn_inference_int8.cpp Dequantize the result
+/// @snippet cpu_cnn_inference_int8.cpp Dequantize the result
 //[Dequantize the result]
     auto user_dst_memory = memory({ { conv_dst_tz }, dt::f32, tag::nchw },
             cpu_engine, user_dst.data());

@@ -1,0 +1,18 @@
+# f32 <--> bf16
+--reset
+--allow-unimpl=true
+--idt=f32 --odt=bf16
+--itag=nchw --otag=nChw16c 2x64x14x14
+--itag=nchw --otag=nChw16c 2x56x14x14
+--itag=goihw --otag=gOIhw8i16o2i 2x64x64x3x3
+--itag=goihw --otag=gOIhw8o16i2o 2x64x64x3x3
+--itag=goihw --otag=gOIhw16i16o 2x64x64x3x3
+--itag=goihw --otag=gOIhw8o16i2o 2x56x56x3x3
+
+--idt=bf16 --odt=f32
+--otag=nchw --itag=nChw16c 2x64x14x14
+--itag=nchw --otag=nChw16c 2x56x14x14
+--otag=goihw --itag=gOIhw8i16o2i 2x64x64x3x3
+--otag=goihw --itag=gOIhw8o16i2o 2x64x64x3x3
+--otag=goihw --itag=gOIhw16i16o 2x64x64x3x3
+--otag=goihw --itag=gOIhw8o16i2o 2x56x56x3x3

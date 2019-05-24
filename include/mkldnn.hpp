@@ -546,26 +546,6 @@ inline mkldnn_query_t convert_to_c(query aquery) {
     return static_cast<mkldnn_query_t>(aquery);
 }
 
-/// Backend kinds
-enum class backend_kind {
-    /// Native backend
-    native = mkldnn_backend_native,
-    /// OpenCL backend
-    ocl = mkldnn_backend_ocl,
-    /// SYCL backend
-    sycl = mkldnn_backend_sycl,
-};
-
-inline mkldnn_backend_kind_t convert_to_c(backend_kind akind) {
-    return static_cast<mkldnn_backend_kind_t>(akind);
-}
-
-/// Transposition settings for GEMM operation
-enum class transpose {
-    notrans = mkldnn_notrans,
-    trans = mkldnn_trans,
-};
-
 /// @}
 
 /// @addtogroup cpp_api_attr Attributes
@@ -881,13 +861,6 @@ struct MKLDNN_API engine: public handle<mkldnn_engine_t> {
         return static_cast<engine::kind>(akind);
     }
 
-    backend_kind get_backend_kind() const {
-        mkldnn_backend_kind_t abackend_kind;
-        error::wrap_c_api(mkldnn_engine_get_backend_kind(get(), &abackend_kind),
-                "could not get the backend kind of the engine");
-        return static_cast<backend_kind>(abackend_kind);
-    }
-
 #if MKLDNN_WITH_OPENCL
     cl_context get_ocl_context() const {
         cl_context context = nullptr;
@@ -1054,6 +1027,8 @@ struct memory: public handle<mkldnn_memory_t> {
         undef = mkldnn_data_type_undef,
         /// 16-bit/half-precision floating point.
         f16 = mkldnn_f16,
+        /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+        bf16 = mkldnn_bf16,
         /// 32-bit/single-precision floating point.
         f32 = mkldnn_f32,
         /// 32-bit signed integer.
@@ -1500,6 +1475,10 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Mapping is an exclusive operation - a memory object cannot be used in
     /// other operations until this memory object is unmapped.
     /// @tparam T Type of the pointer to be mapped.
+    //
+    /// @note Any primitives working with the memory should be completed before
+    //        mapping. Use stream::wait() to synchronize the corresponding
+    //        execution stream.
     template <typename T = void>
     T *map_data() const {
         void *mapped_ptr;
@@ -2016,9 +1995,9 @@ struct convolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2042,9 +2021,9 @@ struct convolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2069,10 +2048,10 @@ struct convolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2098,10 +2077,10 @@ struct convolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2178,9 +2157,9 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2201,10 +2180,10 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2278,9 +2257,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2302,9 +2281,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2326,10 +2305,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2352,10 +2331,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2444,9 +2423,9 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2470,9 +2449,9 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2497,10 +2476,10 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2525,10 +2504,10 @@ struct deconvolution_forward: public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2604,9 +2583,9 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2627,10 +2606,10 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_src_desc,
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2703,9 +2682,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2727,9 +2706,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(padding_l);
             memory::validate_dims(padding_r);
@@ -2751,10 +2730,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2777,10 +2756,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &src_desc,
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc,
-                const memory::dims strides,
-                const memory::dims dilates,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &dilates,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(dilates);
             memory::validate_dims(padding_l);
@@ -2982,10 +2961,10 @@ struct pooling_forward : public primitive {
         desc(prop_kind aprop_kind, algorithm aalgorithm,
                 const memory::desc &src_desc,
                 const memory::desc &dst_desc,
-                const memory::dims strides,
-                const memory::dims kernel,
-                const memory::dims padding_l,
-                const memory::dims padding_r) {
+                const memory::dims &strides,
+                const memory::dims &kernel,
+                const memory::dims &padding_l,
+                const memory::dims &padding_r) {
             memory::validate_dims(strides);
             memory::validate_dims(kernel);
             memory::validate_dims(padding_l);
@@ -3123,13 +3102,12 @@ struct eltwise_forward : public primitive {
     /// descriptor @p data_desc, @p alpha, and @p beta parameters.
     struct desc {
         mkldnn_eltwise_desc_t data;
-        template <typename T>
         desc(prop_kind aprop_kind, algorithm aalgorithm,
-                const memory::desc &src_desc, T alpha = 0, T beta = 0) {
+                const memory::desc &src_desc, float alpha = 0, float beta = 0) {
             error::wrap_c_api(mkldnn_eltwise_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         mkldnn::convert_to_c(aalgorithm), &src_desc.data,
-                        static_cast<float>(alpha), static_cast<float>(beta)),
+                        alpha, beta),
                     "could not create a eltwise forward descriptor");
         }
     };
@@ -3171,13 +3149,12 @@ struct eltwise_backward : public primitive {
     struct desc {
         mkldnn_eltwise_desc_t data;
 
-        template <typename T>
         desc(algorithm aalgorithm, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, T alpha = 0, T beta = 0) {
+                const memory::desc &data_desc, float alpha = 0, float beta = 0)
+        {
             error::wrap_c_api(mkldnn_eltwise_backward_desc_init(&data,
                         mkldnn::convert_to_c(aalgorithm), &diff_data_desc.data,
-                        &data_desc.data, static_cast<float>(alpha),
-                        static_cast<float>(beta)),
+                        &data_desc.data, alpha, beta),
                     "could not create a eltwise backward descriptor");
         }
     };
@@ -3348,7 +3325,6 @@ struct batch_normalization_forward : public primitive {
     /// Descriptor for batch normalization forward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
-        template <typename T>
 
         /// Initializes a batch normalization descriptor for forward propagation
         /// using @p prop_kind (possible values are #mkldnn::forward_training and
@@ -3358,12 +3334,12 @@ struct batch_normalization_forward : public primitive {
         ///
         /// @note In-place operation is supported; that is, dst points to the
         ///       same memory as src.
-        desc(prop_kind aprop_kind, const memory::desc &src_desc, T epsilon,
+        desc(prop_kind aprop_kind, const memory::desc &src_desc, float epsilon,
                 batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind), &src_desc.data,
-                            static_cast<float>(epsilon), convert_to_c(flags)),
+                            epsilon, convert_to_c(flags)),
                     "could not create a batch normalization forward "
                     "descriptor");
         }
@@ -3438,7 +3414,6 @@ struct batch_normalization_backward : public primitive {
     /// Descriptor for batch normalization backward propagation.
     struct desc {
         mkldnn_batch_normalization_desc_t data;
-        template <typename T>
 
         /// Initializes a batch normalization descriptor for backward
         /// propagation with respect to data and scale-shift parameters using
@@ -3449,13 +3424,13 @@ struct batch_normalization_backward : public primitive {
         /// @note In-place operation is supported; that is, diff_src points to
         ///       the same memory as diff_dst.
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
-                const memory::desc &data_desc, T epsilon,
+                const memory::desc &data_desc, float epsilon,
                 batch_normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_backward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind),
                             &diff_data_desc.data, &data_desc.data,
-                            static_cast<float>(epsilon), convert_to_c(flags)),
+                            epsilon, convert_to_c(flags)),
                     "could not create a batch normalization backward "
                     "descriptor");
         }
@@ -4863,54 +4838,6 @@ struct shuffle_backward : public primitive {
 /// @}
 
 /// @} Primitives
-
-#if MKLDNN_WITH_SYCL
-
-/// @addtogroup cpp_api_blas BLAS functions
-/// @{
-
-///
-// SGEMM interface for SYCL (float data type).
-//
-// SGEMM performs matrix-matrix multiplication operation
-// C := alpha*op( A )*op( B ) + beta*C,
-// where  op( X ) is one of
-// op( X ) = X or op( X ) = X**T,
-// alpha and beta are scalars, and A, B and C are matrices, with op( A )
-// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
-//
-// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
-// first element for the corresponding SYCL buffers. Counted in elements.
-void MKLDNN_API gemm(cl::sycl::queue &queue, transpose transa,
-        transpose transb, memory::dim m, memory::dim n, memory::dim k,
-        float alpha, cl::sycl::buffer<float, 1> &a, memory::dim offset_a,
-        memory::dim lda, cl::sycl::buffer<float, 1> &b, memory::dim offset_b,
-        memory::dim ldb, float beta, cl::sycl::buffer<float, 1> &c,
-        memory::dim offset_c, memory::dim ldc);
-
-/// HGEMM interface for SYCL (half data type).
-///
-/// HGEMM performs matrix-matrix multiplication operation
-/// C := alpha*op( A )*op( B ) + beta*C,
-/// where  op( X ) is one of
-/// op( X ) = X or op( X ) = X**T,
-/// alpha and beta are scalars, and A, B and C are matrices, with op( A )
-/// an m by k matrix, op( B ) a k by n matrix and C an m by n matrix.
-///
-/// @p offset_a, @p offset_b and @p offset_a specify the offsets for the
-/// first element for the corresponding SYCL buffers. Counted in elements.
-///
-void MKLDNN_API gemm(cl::sycl::queue &queue, transpose transa,
-        transpose transb, memory::dim m, memory::dim n, memory::dim k,
-        float alpha, cl::sycl::buffer<cl::sycl::half, 1> &a,
-        memory::dim offset_a, memory::dim lda,
-        cl::sycl::buffer<cl::sycl::half, 1> &b, memory::dim offset_b,
-        memory::dim ldb, float beta, cl::sycl::buffer<cl::sycl::half, 1> &c,
-        memory::dim offset_c, memory::dim ldc);
-
-/// @} cpp_api_blas
-
-#endif
 
 /// @} C++ API
 

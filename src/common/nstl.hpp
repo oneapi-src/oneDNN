@@ -24,6 +24,8 @@
 #include <vector>
 #include <map>
 
+#include "bfloat16.hpp"
+#include "float16.hpp"
 #include "z_magic.hpp"
 
 namespace mkldnn {
@@ -73,29 +75,40 @@ template<typename T> void swap(T& t1, T& t2) {
 
 template<typename T> struct numeric_limits;
 
-template<> struct numeric_limits<float> {
-    static constexpr float lowest() { return -FLT_MAX; }
-    static constexpr float max() { return FLT_MAX; }
+template <>
+struct numeric_limits<float> : public std::numeric_limits<float> {};
+
+template <>
+struct numeric_limits<int32_t> : public std::numeric_limits<int32_t> {};
+
+template <>
+struct numeric_limits<int16_t> : public std::numeric_limits<int16_t> {};
+
+template <>
+struct numeric_limits<int8_t> : public std::numeric_limits<int8_t> {};
+
+template <>
+struct numeric_limits<uint8_t> : public std::numeric_limits<uint8_t> {};
+
+template <> struct numeric_limits<bfloat16_t> {
+    static constexpr bfloat16_t lowest() {
+        return bfloat16_t(0xff7f, true);
+    }
+
+    static constexpr bfloat16_t max() {
+        return bfloat16_t(0x7f7f, true);
+    }
+
+    static constexpr int digits = 8;
 };
 
-template<> struct numeric_limits<int32_t> {
-    static constexpr int lowest() { return INT32_MIN; }
-    static constexpr int max() { return INT32_MAX; }
-};
+template <>
+struct numeric_limits<float16_t> {
+    static constexpr float16_t lowest() { return float16_t(0xfbff, true); }
 
-template<> struct numeric_limits<int16_t> {
-    static constexpr int16_t lowest() { return INT16_MIN; }
-    static constexpr int16_t max() { return INT16_MAX; }
-};
+    static constexpr float16_t max() { return float16_t(0x7bff, true); }
 
-template<> struct numeric_limits<int8_t> {
-    static constexpr int8_t lowest() { return INT8_MIN; }
-    static constexpr int8_t max() { return INT8_MAX; }
-};
-
-template<> struct numeric_limits<uint8_t> {
-    static constexpr uint8_t lowest() { return 0; }
-    static constexpr uint8_t max() { return UINT8_MAX; }
+    static constexpr int digits = 11;
 };
 
 template<typename T> struct is_integral

@@ -122,9 +122,10 @@ The software dependencies are:
   * Threading Building Blocks (TBB) 2017 or later
   * Intel MKL 2017 Update 1 or Intel MKL small libraries
 
-The additional software dependencies for Intel(R) Processor Graphics support on Linux:
-* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3 or later
-* [Intel(R) Graphics Compute Runtime for OpenCL\*](https://github.com/intel/compute-runtime/releases) 18.32.11249 or later
+The additional software dependencies for Intel(R) Processor Graphics support:
+* OpenCL\* runtime library (OpenCL\* version 1.2 or later)
+* OpenCL\* driver (with kernel language support for OpenCL\* C 2.0 or later)
+  with Intel(R) subgroups extension support
 
 The additional software dependencies for SYCL support:
 * SYCL compiler with SYCL 1.2.1 support:
@@ -159,8 +160,15 @@ Intel(R) Processor Graphics support was validated on Ubuntu\* 18.04 with
 * Clang\* 3.8.1
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   19.0
-* Intel(R) SDK for OpenCL\* applications 2019 Update 3
-* Intel(R) Graphics Compute Runtime for OpenCL\* 19.15.12831
+* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
+* [Intel(R) Graphics Compute Runtime for OpenCL\*](https://github.com/intel/compute-runtime/releases) 19.15.12831
+
+on Windows Server\* 2019 with
+* Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
+* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+  19.0
+* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
+* [Intel(R) Graphics - Windows\* 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
 
 The implementation uses OpenMP 4.0 SIMD extensions. We recommend using the
 Intel C++ Compiler for the best performance results.

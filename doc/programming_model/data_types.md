@@ -59,7 +59,3 @@ current support matrix:
   approximately 3-4x times lower than the corresponding f32.
   The primary goal is to allow users to try using bfloat16 before the
   actual HW will become available.
-
---------
-
-[Legal information](@ref legal_information)
