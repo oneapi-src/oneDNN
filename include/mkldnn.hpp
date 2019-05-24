@@ -1373,6 +1373,9 @@ struct memory: public handle<mkldnn_memory_t> {
         /// described including the padding area.
         size_t get_size() const { return mkldnn_memory_desc_get_size(&data); }
 
+        /// Returns true if the memory descriptor describes an empty memory
+        bool is_zero() const { return data.ndims == 0; }
+
         bool operator==(const desc &other) const {
             return mkldnn_memory_desc_equal(&data, &other.data) != 0;
         }
@@ -1556,8 +1559,6 @@ struct reorder : public primitive {
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1649,9 +1650,6 @@ struct concat : public primitive {
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
-            error::wrap_c_api(
-                    cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
-                    "could not get a dst memory descriptor");
             return memory::desc(*cdesc);
         }
 
@@ -1661,8 +1659,6 @@ struct concat : public primitive {
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1738,9 +1734,6 @@ struct sum : public primitive {
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
-            error::wrap_c_api(
-                    cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
-                    "could not get a dst memory descriptor");
             return memory::desc(*cdesc);
         }
 
@@ -1750,8 +1743,6 @@ struct sum : public primitive {
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1851,8 +1842,6 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 
         const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                 get(), mkldnn::convert_to_c(what), idx);
-        if (cdesc == nullptr) return memory::desc();
-
         return memory::desc(*cdesc);
     }
 
