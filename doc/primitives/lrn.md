@@ -88,7 +88,7 @@ The LRN primitive is optimized for the following memory formats:
 | 2D      | NCHW           | #mkldnn_nchw (#mkldnn_abcd), #mkldnn_nhwc (#mkldnn_acdb), *optimized^*
 
 Here *optimized^* means the format that
-[comes out](@ref memory_format_propagation_cpp)
+[comes out](@ref cpu_memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes

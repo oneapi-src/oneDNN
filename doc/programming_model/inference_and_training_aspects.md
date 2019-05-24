@@ -110,8 +110,8 @@ with Intel MKL-DNN:
    better performance.
 
 Most of these techniques are shown in the following examples:
-- @ref cnn_inference_fp32_cpp
-- @ref cnn_inference_int8_cpp
+- @ref cpu_cnn_inference_fp32_cpp
+- @ref cpu_cnn_inference_int8_cpp
 
 @anchor dev_guide_inference_and_training_aspects_training
 ## Training-Specific Aspects
@@ -181,7 +181,7 @@ with Intel MKL-DNN:
    `workspace`, because it might be different for different implementations.
 
 Most of these techniques are shown in the following examples:
-- @ref cnn_training_fp32_cpp
+- @ref cpu_cnn_training_fp32_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace

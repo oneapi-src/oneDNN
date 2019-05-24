@@ -158,7 +158,7 @@ The batch normalization primitive is optimized for the following memory formats:
 | 3D      | NCDHW          | #mkldnn_ncdhw (#mkldnn_abcde), #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^*
 
 Here *optimized^* means the format that
-[comes out](@ref memory_format_propagation_cpp)
+[comes out](@ref cpu_memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes

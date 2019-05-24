@@ -19,8 +19,8 @@ segmentation, neural machine translation, and speech recognition.
 # Programming Model
 
  * @ref dev_guide_basic_concepts
- * @ref getting_started_cpp
- * @ref memory_format_propagation_cpp
+ * @ref cpu_getting_started_cpp
+ * @ref cpu_memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
    * @ref dev_guide_inference_int8
@@ -66,13 +66,13 @@ Data manipulation:
 
 # Examples
 
-| Scenario           | Platform | C++ API                      | C API                      |
-| :----              | :---     | :----                        | :---                       |
-| Introduction       | CPU      | @ref getting_started_cpp     |                            |
-|                    | GPU      | @ref gpu_getting_started_cpp | @ref gpu_getting_started_c |
-| fp32 inference     | CPU      | @ref cnn_inference_fp32_cpp  | @ref cnn_inference_fp32_c  |
-|                    |          | @ref rnn_inference_fp32_cpp  |                            |
-| int8 inference     | CPU      | @ref cnn_inference_int8_cpp  |                            |
-|                    |          | @ref rnn_inference_int8_cpp  |                            |
-| training           | CPU      | @ref cnn_training_fp32_cpp   | @ref cnn_training_fp32_c   |
-|                    | CPU      | @ref rnn_training_fp32_cpp   |                            |
+| Scenario           | Platform | C++ API                          | C API                          |
+| :----              | :---     | :----                            | :---                           |
+| Introduction       | CPU      | @ref cpu_getting_started_cpp     |                                |
+|                    | GPU      | @ref gpu_getting_started_cpp     | @ref gpu_getting_started_c     |
+| fp32 inference     | CPU      | @ref cpu_cnn_inference_fp32_cpp  | @ref cpu_cnn_inference_fp32_c  |
+|                    |          | @ref cpu_rnn_inference_fp32_cpp  |                                |
+| int8 inference     | CPU      | @ref cpu_cnn_inference_int8_cpp  |                                |
+|                    |          | @ref cpu_rnn_inference_int8_cpp  |                                |
+| training           | CPU      | @ref cpu_cnn_training_fp32_cpp   | @ref cpu_cnn_training_fp32_c   |
+|                    | CPU      | @ref cpu_rnn_training_fp32_cpp   |                                |
