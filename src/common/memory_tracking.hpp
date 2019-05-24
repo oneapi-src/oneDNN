@@ -187,6 +187,7 @@ enum {
     key_rnn_ptrs_wei_layer,
     key_rnn_ptrs_wei_iter,
     key_softmax_reduction,
+    key_sum_reduction,
     key_sum_srcs_cvt,
     key_wino_U,
     key_wino_V,

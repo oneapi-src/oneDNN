@@ -59,16 +59,21 @@ struct sum_pd_t: public primitive_desc_t {
     { return index < n_inputs() ? &src_mds_[index] : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
     { return index == 0 ? &dst_md_ : &glob_zero_md; }
+    const memory_desc_t *dst_acc_md() const
+    { return need_output_reorder() ? &dst_acc_md_ : &dst_md_; }
 
     virtual int n_inputs() const override { return n_; }
     virtual int n_outputs() const override { return 1; }
 
     const float *scales() const { return &scales_[0]; }
 
+    bool need_output_reorder() const
+    { return dst_md()->data_type != mkldnn_f32; }
+
 protected:
     int n_;
     nstl::vector<float> scales_;
-    memory_desc_t dst_md_;
+    memory_desc_t dst_md_, dst_acc_md_;
     nstl::vector<memory_desc_t> src_mds_;
 
 protected:
@@ -82,7 +87,15 @@ protected:
         bool ok = true
             && set_default_params() == status::success
             && attr()->has_default_values();
-        return ok ? status::success : status::unimplemented;
+        if (!ok) return status::unimplemented;
+
+        // use f32 accumulator to handle float scales w/o accuracy loss
+        if (need_output_reorder()) {
+            dst_acc_md_ = dst_md_;
+            dst_acc_md_.data_type = mkldnn_f32;
+        }
+
+        return status::success;
     }
 
     status_t set_default_params() {
