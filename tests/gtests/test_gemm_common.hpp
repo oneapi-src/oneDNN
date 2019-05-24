@@ -592,7 +592,9 @@ protected:
 #if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
                 "SYCL CPU GEMM not implemented.");
-#elif MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL
+#endif
+
+#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "SYCL GPU GEMM not implemented.");
 #endif

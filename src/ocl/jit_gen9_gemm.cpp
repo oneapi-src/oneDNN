@@ -182,7 +182,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     size_t lthreads_x = 2;
     size_t lthreads_y = 8;
 
-#ifndef CL_VERSION_2_0
+#if !defined(CL_VERSION_2_0) || defined(MKLDNN_SYCL_COMPUTECPP)
     while (nthreads_x % lthreads_x) lthreads_x--;
     while (nthreads_y % lthreads_y) lthreads_y--;
 #endif
