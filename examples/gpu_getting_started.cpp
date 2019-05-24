@@ -49,6 +49,9 @@
 
 #include "mkldnn.hpp"
 
+// Optional header to access debug functions like `mkldnn_status2str()`
+#include "mkldnn_debug.h"
+
 using namespace mkldnn;
 
 using namespace std;
