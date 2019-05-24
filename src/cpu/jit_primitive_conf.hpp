@@ -115,6 +115,8 @@ struct jit_conv_conf_t {
     int ur_ow_nsteps;
     data_type_t bia_dt;
     data_type_t dst_dt;
+    /* bf16 weights update */
+    data_type_t wei_dt;
     /* avx512: max possible value is nregs(32) - aux_regs(4) */
     int src_offsets[28];
     int src_count;
@@ -133,6 +135,8 @@ struct jit_conv_conf_t {
     float wei_adj_scale;
 
     cpu_isa_t isa;
+    // bf16 bwdw conv
+    int tr_ow;
 };
 
 struct jit_conv_conf_2x3_wino_t {

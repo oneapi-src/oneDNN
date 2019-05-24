@@ -25,6 +25,9 @@
 #include "jit_uni_eltwise.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 
+//#define BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+//#define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -286,6 +289,101 @@ private:
 
         return ur_w - res;
     }
+};
+
+struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
+
+    jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp) :
+        jit_generator(nullptr, ker_code_size),
+        jcp(ajcp), bf16_emu_(nullptr)
+    {
+        if (!isa_has_bf16(jcp.isa)) {
+            bf16_emu_ = new bf16_emulation_t(this, one, even, selector, scratch,
+                                        tmp0, tmp1);
+        }
+        generate();
+        jit_ker = (decltype(jit_ker))getCode();
+    }
+
+    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() {
+        delete bf16_emu_;
+    }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
+
+    static status_t init_conf(jit_conv_conf_t &jcp,
+            const convolution_desc_t &cd,
+            const memory_desc_wrapper &src_md,
+            const memory_desc_wrapper &diff_weights_md,
+            const memory_desc_wrapper &diff_bias_md,
+            const memory_desc_wrapper &diff_dst_md);
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp);
+
+    const jit_conv_conf_t &jcp;
+    void (*jit_ker)(jit_conv_call_s *);
+
+private:
+    Xbyak::Label dst_prm_table;
+
+    using reg64_t = const Xbyak::Reg64;
+    enum {
+        ker_code_size = 1024 * 1024,
+    };
+    static const int max_ur_w;
+
+    reg64_t param = abi_param1;
+    reg64_t reg_input = rax;
+    reg64_t reg_kernel = rdx;
+    reg64_t reg_output = rsi;
+    reg64_t b_ic = abi_not_param1;
+    reg64_t kj = r8;
+    reg64_t reg_kh = r9;
+    reg64_t reg_ur_w_trips = r10;
+    reg64_t reg_oj = r15;
+    reg64_t reg_ih_count = rbx;
+    reg64_t reg_tmp = r14;
+    reg64_t reg_long_offt = r14;
+
+    reg64_t ki = r11;
+    reg64_t reg_kd_count = r12;
+    reg64_t reg_oi = r12;
+    reg64_t reg_d_index = r13;
+    reg64_t reg_input_d = r15;
+    reg64_t reg_output_d = rbx;
+    reg64_t aux_reg_input = r12;
+    reg64_t aux_reg_kernel = r13;
+    reg64_t reg_bias = rbx;
+
+    Xbyak::Zmm one = Xbyak::Zmm(27);
+    Xbyak::Zmm even = Xbyak::Zmm(28);
+    Xbyak::Zmm selector = Xbyak::Zmm(29);
+    Xbyak::Zmm tmp0 = Xbyak::Zmm(30);
+    Xbyak::Zmm tmp1 = Xbyak::Zmm(31);
+    reg64_t scratch = r11;
+
+    inline void maybe_zero_kernel();
+    inline void compute_oh_step_unroll_ow_icblock(int ic_block_step);
+    inline void od_step_comeback_pointers();
+    inline void oh_step_comeback_pointers();
+    inline void compute_oh_step_unroll_ow(int ic_block_step);
+    inline void compute_ic_block_step(int ur_w,
+            int pad_l, int pad_r, int ic_block_step,
+            int input_offset, int kernel_offset, int output_offset,
+            bool is_tail = false);
+    inline void compute_oh_step_common(int ic_block_step);
+    inline void compute_oh_step_disp();
+    inline void compute_loop();
+
+    void generate();
+
+    static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
+            int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
+
+    bf16_emulation_t *bf16_emu_;
+#ifdef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+    int stack_space_needed = 64;
+#endif
 };
 
 }
