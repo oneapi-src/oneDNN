@@ -129,7 +129,7 @@ const char *state2str(res_state_t state, bool allow_unimpl) {
 }
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, char *pstr) {
+        int status, const char *pstr) {
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state, allow_unimpl);
 

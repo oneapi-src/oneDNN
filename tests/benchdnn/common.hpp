@@ -177,7 +177,7 @@ struct res_t {
 };
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, char *pstr);
+        int status, const char *pstr);
 
 /* misc */
 void init_fp_mode();
