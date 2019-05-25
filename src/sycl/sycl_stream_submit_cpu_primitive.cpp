@@ -141,6 +141,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
     }
 
     // Keep unique only
+    std::sort(sycl_mem_storages.begin(), sycl_mem_storages.end());
     auto last = std::unique(sycl_mem_storages.begin(), sycl_mem_storages.end());
     sycl_mem_storages.erase(last, sycl_mem_storages.end());
 
