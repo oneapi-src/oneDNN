@@ -31,7 +31,7 @@ struct bfloat16_t {
     MKLDNN_API operator float() const;
 
     bfloat16_t &operator+=(bfloat16_t a) {
-        (*this) = float(float() + (float)a);
+        (*this) = (float)(*this) + (float)a;
         return *this;
     }
 };
