@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#define DT_F32 1
 #define IC_BLOCK 16
 
 #if MB_BLOCK == 16
@@ -28,7 +27,7 @@
 
 #if BNORM_FWD == 1
 
-#    if USE_16MB_UNROLL == 1
+#    if USE_16MB_UNROLL == 1 && DT_F32 == 1
 
 __attribute__((reqd_work_group_size(1, 1, 16)))
 __attribute__((intel_reqd_sub_group_size(16)))
@@ -137,8 +136,8 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 #    if USE_16MB_UNROLL == 1
 __attribute__((intel_reqd_sub_group_size(LWS_1)))
 #    endif
-__kernel void ref_bnorm_fwd_kernel(__global float *src, __global float *mean,
-        __global float *variance, __global float *dst,
+__kernel void ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
+        __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global int *ws, float eps) {
 
 #    if USE_16MB_UNROLL == 1
@@ -172,23 +171,23 @@ __kernel void ref_bnorm_fwd_kernel(__global float *src, __global float *mean,
     src += d_off;
     dst += d_off;
 
-    VECT_DATA_T blockS0
-            = AS_VECT_DATA_T(VECT_BLOCK_READ((const __global uint *)&src[0]));
-    VECT_DATA_T blockD0 = fma(blockS0 - (VECT_DATA_T)v_mean,
-            (VECT_DATA_T)sqrt_variance, (VECT_DATA_T)sv);
+    VECT_FLOAT_T blockS0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+            VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
+    VECT_FLOAT_T blockD0 = fma(blockS0 - (VECT_FLOAT_T)v_mean,
+            (VECT_FLOAT_T)sqrt_variance, (VECT_FLOAT_T)sv);
 #        ifdef MB16
-    VECT_DATA_T blockS1 = AS_VECT_DATA_T(
-            VECT_BLOCK_READ((const __global uint *)&src[8 * IC_BLOCK]));
-    VECT_DATA_T blockD1 = fma(blockS1 - (VECT_DATA_T)v_mean,
-            (VECT_DATA_T)sqrt_variance, (VECT_DATA_T)sv);
+    VECT_FLOAT_T blockS1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+            (const __global BLOCK_DATA_T *)&src[8 * IC_BLOCK])));
+    VECT_FLOAT_T blockD1 = fma(blockS1 - (VECT_FLOAT_T)v_mean,
+            (VECT_FLOAT_T)sqrt_variance, (VECT_FLOAT_T)sv);
 #        endif
 
 #        if FUSE_BN_RELU == 1
-    VECT_INT_T blockWS0 = isgreater(blockD0, (VECT_DATA_T)0.0f);
-    blockD0 = select((VECT_DATA_T)0.0f, blockD0, blockWS0);
+    VECT_INT_T blockWS0 = isgreater(blockD0, (VECT_FLOAT_T)0.0f);
+    blockD0 = select((VECT_FLOAT_T)0.0f, blockD0, blockWS0);
 #            ifdef MB16
-    VECT_INT_T blockWS1 = isgreater(blockD1, (VECT_DATA_T)0.0f);
-    blockD1 = select((VECT_DATA_T)0.0f, blockD1, blockWS1);
+    VECT_INT_T blockWS1 = isgreater(blockD1, (VECT_FLOAT_T)0.0f);
+    blockD1 = select((VECT_FLOAT_T)0.0f, blockD1, blockWS1);
 #            endif
 #            if IS_TRAINING == 1
     ws += d_off;
@@ -200,15 +199,17 @@ __kernel void ref_bnorm_fwd_kernel(__global float *src, __global float *mean,
 #        endif
 
 #        if WITH_RELU
-    blockD0 = max(blockD0, (VECT_DATA_T)0.0f);
+    blockD0 = max(blockD0, (VECT_FLOAT_T)0.0f);
 #            ifdef MB16
-    blockD1 = max(blockD1, (VECT_DATA_T)0.0f);
+    blockD1 = max(blockD1, (VECT_FLOAT_T)0.0f);
 #            endif
 #        endif
 
-    VECT_BLOCK_WRITE((__global uint *)&dst[0], AS_VECT_UINT_T(blockD0));
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[0],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
 #        ifdef MB16
-    VECT_BLOCK_WRITE((__global uint *)&dst[8 * 16], AS_VECT_UINT_T(blockD1));
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[8 * 16],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
 #        endif
 #    else
     const int c = get_global_id(0);

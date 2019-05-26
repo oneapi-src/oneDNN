@@ -11,9 +11,9 @@ in comparison to fp32.
 
 | Data type | Description
 | :---      | :---
-| fp32      | [IEEE single precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
+| f32       | [IEEE single precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
 | bf16      | [non-IEEE 16-bit floating point](https://software.intel.com/en-us/download/bfloat16-hardware-numerics-definition)
-| fp16      | [IEEE half precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
+| f16       | [IEEE half precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
 | s8/u8     | signed/unsigned 8-bit integer
 
 ## Inference and Training
@@ -22,8 +22,8 @@ Intel MKL-DNN supports training and inference with the following data types:
 
 | Usage mode | CPU                | GPU        |
 | :---       | :---               | :---       |
-| Inference  | fp32, bfp16, s8/u8 | fp32, fp16 |
-| Training   | fp32, bfp16        | fp32       |
+| Inference  | f32, bf16, s8/u8   | f32, f16   |
+| Training   | f32, bf16          | f32        |
 
 Note, that using lower precision arithmetic requires changes
 in the deep learning model implementation. See topics for the corresponding
@@ -48,9 +48,9 @@ current support matrix:
 
 | Data type | CPU                                | GPU           |
 | :---      | :---                               | :---          |
-| fp32      | any                                | any           |
-| bfloat16  | Intel(R) DL-Boost with bfloat16    | not supported |
-| fp16      | not supported                      | any           |
+| f32       | any                                | any           |
+| bf16      | Intel(R) DL-Boost with bfloat16    | not supported |
+| f16       | not supported                      | any           |
 | s8, u8    | Intel(R) AVX512, Intel DL-Boost    | not supported |
 
 @note

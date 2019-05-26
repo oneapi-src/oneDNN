@@ -40,6 +40,8 @@ struct jit_ref_bnorm_common_kernel {
 
         const int ndims = data_mdw.ndims();
 
+        jbn.data_type = data_mdw.data_type();
+
         jbn.ndims = ndims;
         jbn.mb = data_mdw.dims()[0];
 
@@ -101,6 +103,8 @@ struct jit_ref_bnorm_common_kernel {
 
     static status_t init_const_def(ocl_jit_t &jit, const jit_bnorm_conf_t &jbn,
             const jit_offsets &jit_off) {
+        jit.set_data_type(jbn.data_type);
+
         jit.define_int("NDIMS", jbn.ndims);
         jit.define_int("MB", jbn.mb);
         jit.define_int("IC", jbn.ic);

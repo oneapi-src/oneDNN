@@ -114,7 +114,7 @@ The library is optimized for the systems based on
 * Intel(R) Iris(R) Pro Graphics.
 
 The software dependencies are:
-* [Cmake](https://cmake.org/download/) 2.8.0 or later
+* [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
 * C++ compiler with C++11 standard support
 * Optional dependencies:

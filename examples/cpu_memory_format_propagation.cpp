@@ -61,7 +61,7 @@
 ///   memory formats.
 ///
 /// This tutorial assumes that the reader has already reviewed the
-/// @ref getting_started_cpp tutorial.
+/// @ref cpu_getting_started_cpp tutorial.
 ///
 /// The example is built around a CNN consisting of a convolution followed by
 /// a pooling and consists of the following steps:
@@ -231,7 +231,7 @@ void cpu_memory_format_propagation_tutorial() {
     /// check if reorders are necessary based on the flags computed before and
     /// create and execute them immediately.
     ///
-    /// @note we call @ref mkldnn::stream::wait() before reorder primitives
+    /// @note We call @ref mkldnn::stream::wait() before reorder primitives
     /// get out of scope and destroyed to accommodate for potentially
     /// asynchronous execution.
     ///

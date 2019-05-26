@@ -45,7 +45,7 @@ Average pooling supports two algorithms:
 
 > TODO: a picture would be nice here.
 
-#### Difference Between [forward training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
 
 - Max pooling requires `workspace` output for the #mkldnn_forward_training
   propagation kind, and doesn't require it for #mkldnn_forward_inference
@@ -107,7 +107,7 @@ The pooling primitive is optimized for the following memory formats:
 | 3D      | NCDHW          | s32, s8, u8 | #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^*                                |
 
 Here *optimized^* means the format that
-[comes out](@ref memory_format_propagation_cpp)
+[comes out](@ref cpu_memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes

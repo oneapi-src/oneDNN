@@ -110,8 +110,8 @@ with Intel MKL-DNN:
    better performance.
 
 Most of these techniques are shown in the following examples:
-- @ref cnn_inference_fp32_cpp
-- @ref cnn_inference_int8_cpp
+- @ref cpu_cnn_inference_fp32_cpp
+- @ref cpu_cnn_inference_int8_cpp
 
 @anchor dev_guide_inference_and_training_aspects_training
 ## Training-Specific Aspects
@@ -181,7 +181,7 @@ with Intel MKL-DNN:
    `workspace`, because it might be different for different implementations.
 
 Most of these techniques are shown in the following examples:
-- @ref cnn_training_fp32_cpp
+- @ref cpu_cnn_training_fp32_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace
@@ -201,7 +201,7 @@ The workflow for using workspace is:
      for this primitive in this configuration.
    - Otherwise, create a workspace memory based on the memory descriptor
      obtained and pass it to the execution function with
-     `MKLDNN_ARG_WORKSPACE` tag:
+     `MKLDNN_ARG_WORKSPACE` tag.
 
 2. On backward propagation, attach that same workspace memory during
    the execution as well. The state of the workspace memory after backward

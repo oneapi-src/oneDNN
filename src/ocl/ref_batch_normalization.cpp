@@ -182,6 +182,7 @@ status_t ref_batch_normalization_bwd_t<data_type>::execute_backward(
     return status;
 }
 
+template struct ref_batch_normalization_fwd_t<data_type::f16>;
 template struct ref_batch_normalization_fwd_t<data_type::f32>;
 template struct ref_batch_normalization_bwd_t<data_type::f32>;
 

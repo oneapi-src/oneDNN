@@ -178,8 +178,8 @@ void cpu_getting_started_tutorial() {
     ///      memory object is used when a primitive is executed.
     ///
     /// Thanks to the
-    /// [`std::initializer_list`](https://en.cppreference.com/w/cpp/utility/initializer_list)
-    /// introduced in C++11 it is possible to combine these two steps whenever an
+    /// [list initialization](https://en.cppreference.com/w/cpp/language/list_initialization)
+    /// introduced in C++11 it is possible to combine these two steps whenever a
     /// memory descriptor is not used anywhere else but in creating an @ref
     /// mkldnn::memory object.
     ///
@@ -324,7 +324,7 @@ void cpu_getting_started_tutorial() {
     ///    **implements** given operation. User can query different
     ///    characteristics of the chosen implementation like memory
     ///    consumptions and some others that will be covered in the next topic
-    ///    (@ref memory_format_propagation_cpp).
+    ///    (@ref cpu_memory_format_propagation_cpp).
     /// 3. Create a primitive (here @ref mkldnn::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
@@ -375,7 +375,7 @@ void cpu_getting_started_tutorial() {
     /// Compute-intensive primitives (like @ref dev_guide_convolution) have an
     /// ability to define the appropriate memory format on their own. This is
     /// one of the key features of the library and will be discussed in detail
-    /// in the next topic: @ref memory_format_propagation_cpp.
+    /// in the next topic: @ref cpu_memory_format_propagation_cpp.
 
     /// @subsection cpu_getting_started_cpp_sub5 Executing the ReLU primitive
     ///
@@ -432,7 +432,7 @@ void cpu_getting_started_tutorial() {
     /// @warning
     ///     The @ref mkldnn::memory::get_data_handle() returns a raw handle
     ///     to the buffer which type is engine specific. For CPU engine the
-    ///     buffer is always a pointer to `void *` which can safely be used.
+    ///     buffer is always a pointer to `void` which can safely be used.
     ///     However, for engines other than CPU the handle might be backend
     ///     specific type, such as `cl_mem` in case of GPU/OpenCL.
     ///

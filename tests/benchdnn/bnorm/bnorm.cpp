@@ -76,7 +76,7 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
      * ALG_0: mean is set to 0
      * ALG_1: mean is set to 2^p, where p \in {-2, -1, ..., 4}
      * ALG_AUTO: choose between ALG_0 and ALG_1 automatically */
-    const int64_t exact_bits = 24;
+    const int64_t exact_bits = digits_dt(p->dt);
     const int64_t L = p->mb * p->id * p->ih * p->iw;
     const int64_t logL = (int64_t)ceilf(log2f(L));
 
@@ -84,7 +84,7 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     assert(L <= (1LL <<logL));
 
     const int64_t min_flex_bits = 3;
-    const int64_t want_flex_bits = 6;
+    const int64_t want_flex_bits = MIN2(6, exact_bits / 2);
 
     check_alg_t alg = p->check_alg;
     if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
@@ -316,9 +316,12 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r, const dnn_mem_t *ss = nullptr) {
     const char *skind = data_kind2str(kind);
-    const float eps = p->dir & FLAG_FWD
-        ? (kind == DATA ? 5e-7 : 0)
-        : (kind == DATA ? 2e-7 : 0);
+
+    const int f32_mant_digits = 24;
+    const float eps_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
+    const float eps = eps_coeff
+            * (p->dir & FLAG_FWD ? (kind == DATA ? 5e-7 : 0)
+                                 : (kind == DATA ? 2e-7 : 0));
 
     /* With all the stability tricks bwd_d is still pretty unstable.
      * So let's rely on relative error in L1, L2, and L_inf norms.

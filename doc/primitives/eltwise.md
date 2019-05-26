@@ -23,7 +23,7 @@ The following operations are supported:
 | linear       | #mkldnn_eltwise_linear       | \f$ x = \alpha x + \beta \f$
 | logistic     | #mkldnn_eltwise_logistic     | \f$ x = \frac{1}{1+e^{-x}} \f$
 | relu         | #mkldnn_eltwise_relu         | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
-| soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ x = \log{e}{1+e^x} \f$
+| soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ x = \log_{e}(1+e^x) \f$
 | sqrt         | #mkldnn_eltwise_sqrt         | \f$ x = \sqrt{x} \f$
 | square       | #mkldnn_eltwise_square       | \f$ x = x^2 \f$
 | tanh         | #mkldnn_eltwise_tanh         | \f$ x = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$

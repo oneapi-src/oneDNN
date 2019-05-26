@@ -35,6 +35,7 @@ mkldnn_data_type_t str2dt(const char *str) {
     CASE(s8);
     CASE(u8);
     CASE(s32);
+    CASE(f16);
     CASE(bf16);
     CASE(f32);
 #undef CASE

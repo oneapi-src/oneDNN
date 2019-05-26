@@ -23,6 +23,20 @@
 #    define VECT_DT_N 1
 #endif
 
+#if VECT_DT_N == 1
+#    if DT_F16 == 1
+#        define VECT_ACC_FLOAT_T half
+#    else
+#        define VECT_ACC_FLOAT_T float
+#    endif
+#elif VECT_DT_N == 8
+#    if DT_F16 == 1
+#        define VECT_ACC_FLOAT_T half8
+#    else
+#        define VECT_ACC_FLOAT_T float8
+#    endif
+#endif
+
 #include "ocl/ocl_types.h"
 
 #if POOLING_FWD == 1
@@ -120,9 +134,9 @@ __kernel void ref_pooling_fwd_kernel(
             }
 
 #        ifdef POOLING_AVG_INCLUDE_PADDING
-        blockD0 = ROUND((VECT_FLOAT_T)blockD0 / (KD * KH * KW));
+        blockD0 = ROUND((VECT_ACC_FLOAT_T)blockD0 / (KD * KH * KW));
 #            ifdef MB16
-        blockD1 = ROUND((VECT_FLOAT_T)blockD1 / (KD * KH * KW));
+        blockD1 = ROUND((VECT_ACC_FLOAT_T)blockD1 / (KD * KH * KW));
 #            endif
 #        endif // POOLING_AVG_INCLUDE_PADDING
 
@@ -135,9 +149,9 @@ __kernel void ref_pooling_fwd_kernel(
         const int iw_end = min(ow * SW - PW + KW, IW);
         const ACC_DATA_T num_summands
                 = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
-        blockD0 = ROUND((VECT_FLOAT_T)blockD0 / num_summands);
+        blockD0 = ROUND((VECT_ACC_FLOAT_T)blockD0 / num_summands);
 #            ifdef MB16
-        blockD1 = ROUND((VECT_FLOAT_T)blockD1 / num_summands);
+        blockD1 = ROUND((VECT_ACC_FLOAT_T)blockD1 / num_summands);
 #            endif
 #        endif // POOLING_AVG_EXCLUDE_PADDING
 
@@ -365,11 +379,11 @@ __kernel void ref_pooling_bwd_kernel(__global DATA_T *diff_src,
                 const int iw = ow * SW - PW + kw;
 
                 if (id < 0 || id >= ID)
-                    return;
+                    continue;
                 if (ih < 0 || ih >= IH)
-                    return;
+                    continue;
                 if (iw < 0 || iw >= IW)
-                    return;
+                    continue;
 
                 uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
                 diff_src[diff_src_offset] += d;

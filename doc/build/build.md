@@ -27,17 +27,17 @@ configuration options.
 
 ### Linux/macOS
 
-- Generate makefile
+- Generate makefile:
 ~~~sh
 mkdir -p build && cd build && cmake ..
 ~~~
 
-- Build the library
+- Build the library:
 ~~~sh
 make -j
 ~~~
 
-- Build the documentation
+- Build the documentation:
 ~~~sh
 make doc
 ~~~
@@ -59,7 +59,7 @@ toolchain using the cmake `-T` switch:
 cmake -G "Visual Studio 15 2017 Win64" -T "Intel C++ Compiler 19.0" ..
 ~~~
 
-- Build the library
+- Build the library:
 ~~~bat
 cmake --build .
 ~~~

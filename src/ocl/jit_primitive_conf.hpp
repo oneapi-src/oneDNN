@@ -185,6 +185,8 @@ struct jit_rnn_conf_t {
 
 /* bnorm */
 struct jit_bnorm_conf_t {
+    data_type_t data_type;
+
     int ndims;
     int mb, ic, mb_chunk, sp_chunk, mb_block;
     int id, ih, iw;

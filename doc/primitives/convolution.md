@@ -30,7 +30,7 @@ if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 #### Regular Convolution
 
 \f[dst(n, oc, oh, ow) =  bias(oc) + \\
-    + \sum_{ic=0}^{IC}\sum_{kh=0}^{KH}\sum_{kw=0}^{KW}
+    + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
         src(n, ic, oh \cdot SH + kh - ph_0, ow \cdot SW + kw - pw_0)
         \cdot
         weights(oc, ic, kh, kw).\f]
@@ -53,7 +53,7 @@ IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
     dst(n, g \cdot OC_G + oc_g, oh, ow) =
         bias(g \cdot OC_G + oc_g) + \\
         +
-        \sum_{ic_g=0}^{IC_G}\sum_{kh=0}^{KH}\sum_{kw=0}^{KW}
+        \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
             src(n, g \cdot IC_G + ic_g, oh + kh - ph_0, ow + kw - pw_0)
         \cdot
         weights(g, oc_g, ic_g, kh, kw),
@@ -73,7 +73,7 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
     dst(n, oc, oh, ow) =
         bias(oc) + \\
         +
-        \sum_{ic=0}^{IC}\sum_{kh=0}^{KH}\sum_{kw=0}^{KW}
+        \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
             src(n, ic, oh + kh \cdot dh - ph_0, ow + kw \cdot dw - pw_0)
             \cdot
             weights(oc, ic, kh, kw).
@@ -124,9 +124,9 @@ source, destination, and weights memory objects:
 
 | Propagation        | Source | Weights | Destination       | Bias
 | :--                | :--    | :--     | :--               | :--
-| forward / backward | fp32   | fp32    | fp32              | fp32
-| forward            | fp16   | fp16    | fp16              | fp16
-| forward            | u8, s8 | s8      | u8, s8, s32, fp32 | u8, s8, s32, fp32
+| forward / backward | f32    | f32     | f32               | f32
+| forward            | f16    | f16     | f16               | f16
+| forward            | u8, s8 | s8      | u8, s8, s32, f32  | u8, s8, s32, f32
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -335,7 +335,7 @@ performance boost achieved from using the Winograd algorithm:
   significantly less accurate than results from the direct convolution.
 
 Create a Winograd convolution by simply creating a convolution descriptor
-(step 6 in [simple network example](@ref cnn_inference_fp32_cpp) specifying
+(step 6 in [simple network example](@ref cpu_cnn_inference_fp32_cpp) specifying
 the Winograd algorithm. The rest of the steps are exactly the same.
 
 ~~~cpp
@@ -367,7 +367,7 @@ the convolution.)
 
 3. **GPU**
     - No support for Winograd algorithm
-    - No deconvolution support
+    - No support for backward propagation for deconvolution
 
 
 ## Performance Tips
