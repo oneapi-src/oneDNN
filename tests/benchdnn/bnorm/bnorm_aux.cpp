@@ -61,7 +61,7 @@ const char *flags2str(flags_t flags) {
 
 int str2desc(desc_t *desc, const char *str) {
     /* canonical form:
-     * mbXicXihXiwXepsYnS
+     * mbXicXihXiwXidXepsYnS
      *
      * where:
      *  X is number (integer)
@@ -74,6 +74,7 @@ int str2desc(desc_t *desc, const char *str) {
      *  S = "wip"
      *  if iw is unset iw <-- ih
      *  if ih is unset ih <-- iw
+     *  if id is unset id <-- 1
      */
 
     desc_t d{0};

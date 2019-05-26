@@ -126,6 +126,17 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     const bool no_d = (d.id | d.kd | d.od | d.dd) == 0 && d.sd == 1 && d.pd < 1;
     const bool no_h = (d.ih | d.kh | d.oh | d.dh) == 0 && d.sh == 1 && d.ph < 1;
     const bool no_w = (d.iw | d.kw | d.ow | d.dw) == 0 && d.sw == 1 && d.pw < 1;
+    if (no_d && no_h && no_w) return FAIL;
+
+    if (!no_d) {
+        if (!d.id || !d.kd) return FAIL;
+        if (!d.od) {
+            d.pd = 0;
+            d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
+        } else if (d.pd < 0)
+            d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
+    }
+
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
@@ -144,29 +155,26 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
-    if (!no_d && d.id) {
-        if (!d.id || !d.kd) return FAIL;
-        if (!d.od) {
-            d.pd = 0;
-            d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
-        } else if (d.pd < 0)
-            d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
-    }
-    if (no_w && no_h && d.id) {
+    if (no_w && no_h && d.id > 0) {
+        // User specified values for the d dimesion but not values h and w
+        // dimensions. Propagate *d values to h and w dimesions.
         d.iw = d.ih = d.id;
         d.kw = d.kh = d.kd;
         d.ow = d.oh = d.od;
         d.pw = d.ph = d.pd;
         d.sw = d.sh = d.sd;
         d.dw = d.dh = d.dd;
-    } else if (no_w) {
+    } else if (no_w && d.ih > 0) {
+        /* user specified values for h dimesion but not w
+         * dimension. propagate *h values to the w dimension. */
         d.iw = d.ih;
         d.kw = d.kh;
         d.ow = d.oh;
         d.pw = d.ph;
         d.sw = d.sh;
         d.dw = d.dh;
-    } else if (no_h) {
+    } else if (no_h && !no_w) {
+        /* this is a 1D convolution. set default values for the h dimension  */
         d.ih = 1;
         d.kh = 1;
         d.oh = 1;
@@ -174,7 +182,17 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
         d.sh = 1;
         d.dh = 0;
     }
-    if (d.id<1) {d.id = 1; d.kd = 1; d.od = 1; d.sd = 1; d.pd = 0; d.dd = 0;}
+
+    if (no_d) {
+        /* user did not specify values for the d dimension. set them
+         * to defaults. this also happens for 1D convolutions. */
+        d.id = 1;
+        d.kd = 1;
+        d.od = 1;
+        d.sd = 1;
+        d.pd = 0;
+        d.dd = 0;
+    }
 
     *desc = d;
 
