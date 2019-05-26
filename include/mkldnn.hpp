@@ -786,7 +786,7 @@ template <> struct handle_traits<mkldnn_engine_t> {
 #endif
 
 /// An execution engine.
-struct MKLDNN_API engine: public handle<mkldnn_engine_t> {
+struct engine: public handle<mkldnn_engine_t> {
     friend class primitive;
 
     /// Kinds of engines.
@@ -839,7 +839,7 @@ struct MKLDNN_API engine: public handle<mkldnn_engine_t> {
     /// @param akind The kind of engine to construct.
     /// @param dev SYCL device.
     /// @param ctx SYCL context.
-    engine(kind akind, const cl::sycl::device& dev, const cl::sycl::context& ctx);
+    MKLDNN_API engine(kind akind, const cl::sycl::device& dev, const cl::sycl::context& ctx);
 #endif
 
     explicit engine(const mkldnn_engine_t& aengine)
@@ -891,10 +891,10 @@ struct MKLDNN_API engine: public handle<mkldnn_engine_t> {
 
 #if MKLDNN_WITH_SYCL
     /// Returns the underlying SYCL context object.
-    cl::sycl::context get_sycl_context() const;
+    cl::sycl::context MKLDNN_API get_sycl_context() const;
 
     /// Returns the underlying SYCL device object.
-    cl::sycl::device get_sycl_device() const;
+    cl::sycl::device MKLDNN_API get_sycl_device() const;
 #endif
 
 private:
@@ -918,7 +918,7 @@ template <> struct handle_traits<mkldnn_stream_t> {
 #endif
 
 /// An execution stream.
-struct MKLDNN_API stream: public handle<mkldnn_stream_t> {
+struct stream: public handle<mkldnn_stream_t> {
     using handle::handle;
 
     /// @brief Stream flags.
@@ -967,10 +967,10 @@ struct MKLDNN_API stream: public handle<mkldnn_stream_t> {
     ///
     /// @param eng Engine object to use for the stream.
     /// @param aqueue SYCL queue to use for the stream.
-    stream(const engine &eng, cl::sycl::queue& aqueue);
+    MKLDNN_API stream(const engine &eng, cl::sycl::queue& aqueue);
 
     /// Returns the underlying SYCL queue object.
-    cl::sycl::queue get_sycl_queue() const;
+    cl::sycl::queue MKLDNN_API get_sycl_queue() const;
 #endif
 
     /// Waits for all primitives in the stream to finish.
