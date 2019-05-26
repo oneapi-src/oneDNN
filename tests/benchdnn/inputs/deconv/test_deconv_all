@@ -25,3 +25,6 @@
 --cfg=f32
 --attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu' --batch=test_deconv_1x1
 --attr=oscale=common:2.25;post_ops='sum:1.5'      --batch=test_deconv_1x1
+
+# bf16
+--batch=test_deconv_bfloat16

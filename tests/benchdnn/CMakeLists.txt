@@ -107,6 +107,8 @@ register_benchdnn_test(test_benchdnn_conv_bf16
     cpu "-v1 --conv --batch=inputs/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_deconv
     cpu "-v1 --deconv --batch=inputs/deconv/test_deconv_all")
+register_benchdnn_test(test_benchdnn_deconv_bf16
+    cpu "-v1 --deconv --batch=inputs/deconv/test_deconv_bfloat16")
 register_benchdnn_test(test_benchdnn_rnn
     cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder
