@@ -84,6 +84,8 @@ MaxEmptyLinesToKeep: 1
 
 NamespaceIndentation: 'None'
 
+ReflowComments: 'false'
+
 SpaceAfterCStyleCast: 'false'
 SpaceBeforeAssignmentOperators: 'true'
 SpaceBeforeParens: 'ControlStatements'
