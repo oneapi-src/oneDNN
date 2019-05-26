@@ -1103,13 +1103,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
     using namespace mkldnn::impl::memory_tracking::names;
 
     if((one_of(jcp.prop_kind, forward_training, forward_inference)
-            && jcp.oc != jcp.oc_without_padding)
-        || (jcp.prop_kind == backward_weights && jcp.bia_dt != data_type::bf16
-                && jcp.oc != jcp.oc_without_padding))
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_acc * jcp.oc);
-
-    if(one_of(jcp.prop_kind, forward_training, forward_inference)
-            && (jcp.with_bias && jcp.oc != jcp.oc_without_padding))
+            || (jcp.prop_kind == backward_weights && jcp.bia_dt != data_type::bf16))
+        && (jcp.with_bias && jcp.oc != jcp.oc_without_padding))
         scratchpad.book(key_conv_padded_bias, jcp.typesize_bia * jcp.oc);
 
     if (jcp.prop_kind == backward_weights) {
