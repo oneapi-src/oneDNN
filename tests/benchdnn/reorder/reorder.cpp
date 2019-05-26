@@ -284,8 +284,8 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* check for extra flags on output format, and create extra information
      * descriptor for output memory. */
-    mkldnn_memory_extra_desc_t mem_extra_dt_out_fmt_out;
-    mkldnn_memory_extra_desc_t mem_extra_test_dt_out_fmt_out;
+    mkldnn_memory_extra_desc_t mem_extra_dt_out_fmt_out = {};
+    mkldnn_memory_extra_desc_t mem_extra_test_dt_out_fmt_out = {};
 
     mem_extra_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
     mem_extra_test_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
