@@ -21,6 +21,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <iostream>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
@@ -57,8 +59,7 @@ struct prb_t {
     int axis;
     int64_t group;
 };
-
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
     perf_report_t(const char *perf_template) :
