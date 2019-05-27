@@ -44,19 +44,19 @@ dims_t str2dims(const char *str) {
     return dims;
 }
 
-#define DPRINT(...) do { \
-    int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-    buffer += l; rem_len -= l; \
-} while(0)
-
-void dims2str(const dims_t &dims, char *buffer) {
-    int rem_len = max_desc_len;
-    for (size_t d = 0; d < dims.size() - 1; ++d)
-        DPRINT(IFMT "x", dims[d]);
-    DPRINT(IFMT, dims[dims.size() - 1]);
+std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
+    s << dims[0];
+    for (size_t d = 1; d < dims.size(); ++d)
+        s << "x" << dims[d];
+    return s;
 }
 
-#undef DPRINT
+void dims2str(const dims_t &dims, char *buffer) {
+    std::stringstream ss;
+    ss << dims;
+    std::string str = ss.str();
+    strcpy(buffer, str.c_str());
+}
 
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
