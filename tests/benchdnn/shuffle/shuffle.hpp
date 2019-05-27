@@ -69,29 +69,15 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_axis(char *buf) const override {
-        dprint(buf, p_->axis);
-    }
-
-    virtual void dump_data_type(char *buf) const override {
-        dprint(buf, dt2str(p_->dt));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
+    virtual void dump_desc_csv(char *buf) const override {
         dims2str(p_->dims, buf);
     }
 
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual void dump_group_size(char *buf) const override {
-        dprint(buf, p_->group);
-    }
-
-    virtual void dump_tag(char *buf) const override {
-        dprint(buf, tag2str(p_->tag));
-    }
+    virtual const int *axis() const override { return &p_->axis; }
+    virtual const int64_t *group() const override { return &p_->group; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
+    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_;

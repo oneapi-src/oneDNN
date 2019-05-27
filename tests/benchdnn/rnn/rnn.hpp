@@ -255,11 +255,11 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_config(char *buf) const override {
+    virtual void dump_cfg(char *buf) const override {
         dprint(buf, cfg2str(p_->cfg));
     }
 
-    virtual void dump_descriptor_csv(char *buf) const override {
+    virtual void dump_desc_csv(char *buf) const override {
         snprintf(buf, max_dump_len,
                 "%s_%s_%s_l" IFMT "d" IFMT "t" IFMT "mb" IFMT "_slc" IFMT "sic"
                IFMT "dic" IFMT "",
@@ -268,17 +268,9 @@ struct perf_report_t: public base_perf_report_t {
                p_->n_iter, p_->mb, p_->slc, p_->sic, p_->dic);
     }
 
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_properties(char *buf) const override {
-        dprint(buf, prop2str(p_->prop));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const char *name() const override { return p_->name; }
+    virtual const mkldnn_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
     const prb_t *p_;

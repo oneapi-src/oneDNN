@@ -37,7 +37,7 @@ alg_t alg = ALG_REF;
 attr_t attr;
 bool allow_unimpl = false;
 const char *perf_template_csv =
-    "perf,%engine%,%dt%,%tag%,%alg%,%flags%,%attr%,%DESC%,"
+    "perf,%engine%,%idt%,%odt%,%itag%,%otag%,%flags%,%attr%,%DESC%,"
     "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template_def =
     "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";

@@ -138,20 +138,15 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_algorithm(char *buf) const override {
+    virtual void dump_alg(char *buf) const override {
         dprint(buf, alg2str(p_->alg));
     }
 
-    virtual void dump_attributes(char *buf) const override {
-        if (!p_->attr.is_def())
-            attr2str(&p_->attr, buf);
-    }
-
-    virtual void dump_config(char *buf) const override {
+    virtual void dump_cfg(char *buf) const override {
         dprint(buf, cfg2str(p_->cfg));
     }
 
-    virtual void dump_descriptor_csv(char *buf) const override {
+    virtual void dump_desc_csv(char *buf) const override {
         if (p_->id > 1)
             snprintf(buf, max_dump_len,
                     "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
@@ -172,17 +167,10 @@ struct perf_report_t: public base_perf_report_t {
                     p_->ph, p_->pw);
     }
 
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const attr_t *attr() const override { return &p_->attr; }
+    virtual const char *name() const override { return p_->name; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
 
 private:
     const prb_t *p_;

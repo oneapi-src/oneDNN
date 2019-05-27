@@ -103,24 +103,12 @@ struct perf_report_t: public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        idt_ = cfg2dt(p_->conf_in);
+        odt_ = cfg2dt(p_->conf_out);
         base_report(r, prb_str);
     }
 
-    virtual void dump_algorithm(char *buf) const override {
-        dprint(buf, alg2str(p_->alg));
-    }
-
-    virtual void dump_attributes(char *buf) const override {
-        if (!p_->attr.is_def())
-            attr2str(&p_->attr, buf);
-    }
-
-    virtual void dump_data_type(char *buf) const override {
-        snprintf(buf, max_dump_len, "%s,%s", dt2str(cfg2dt(p_->conf_in)),
-                dt2str(cfg2dt(p_->conf_out)));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
+    virtual void dump_desc_csv(char *buf) const override {
         dims2str(p_->reorder.dims, buf);
     }
 
@@ -128,17 +116,18 @@ struct perf_report_t: public base_perf_report_t {
         dprint(buf, flag2str(p_->oflag));
     }
 
-    virtual void dump_tag(char *buf) const override {
-        snprintf(buf, max_dump_len, "%s,%s", tag2str(p_->reorder.tag_in),
-                tag2str(p_->reorder.tag_out));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const attr_t *attr() const override { return &p_->attr; }
+    virtual const mkldnn_data_type_t *idt() const override { return &idt_; }
+    virtual const mkldnn_data_type_t *odt() const override { return &odt_; }
+    virtual const mkldnn_format_tag_t *itag() const override
+    { return &p_->reorder.tag_in; }
+    virtual const mkldnn_format_tag_t *otag() const override
+    { return &p_->reorder.tag_out; }
 
 private:
     const prb_t *p_;
+    mkldnn_data_type_t idt_, odt_;
 };
 
 int doit(const prb_t *p, res_t *res);

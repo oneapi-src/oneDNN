@@ -35,35 +35,34 @@ table of modifiers below.
 > **caution:** threads have to be pinned in order to get consistent frequency
 
 Options supported:
-| Syntax    | Primitives       | Description
-|:----------|:-----------------|:-----------
-| %alg%     | Conv             | Primitive algorithm
-| %attr%    | Bnorm, Conv, IP  | Primitive attributes
-| %axis%    | Shuffle, Softmax | Shuffle and softmax axis
-| %@bw%     | All with ops     | Bytes per second (modifier extended)
-| %cfg%     | Conv, IP, RNN    | Config, describes data types and filling rules
-| %@clocks% | All              | Time in clocks (modifier extended)
-| %desc%    | All              | Problem descriptor (dimensions and other options included)
-| %DESC%    | All              | CSV-style problem descriptor (mostly dimensions)
-| %dir%     | All, except RNN, | Primitive direction
-|           |   Reorder        |
-| %dt%      | Bnorm, Shuffle,  | Data type (precision)
-|           |   Softmax        |
-| %engine%  | All              | Engine kind
-| %flags%   | Bnorm            | Batch normalization flags
-| %@flops%  | All with ops     | Ops per second (modifier extended)
-| %@freq%   | All              | Effective cpu frequency computed as clocks[@] / time[@]
-| %group%   | Shuffle          | Shuffle group
-| %name%    | All with desc_t  | Problem name
-| %@ops%    | All with ops     | Number of ops required (padding is not taken into account)
-| %prop%    | RNN              | RNN properties
-| %tag%     | Bnorm, Shuffle,  | Data format tag (physical memory layout)
-|           |   Softmax        |
-| %@time%   | All              | Time in ms (modifier extended)
+| Syntax        | Primitives               | Description
+| :--           | :--                      | :--
+| %alg%         | Conv                     | Primitive algorithm
+| %attr%        | Bnorm, Conv, IP          | Primitive attributes
+| %axis%        | Shuffle, Softmax         | Shuffle and softmax axis
+| %@bw%         | All with ops             | Bytes per second (modifier extended)
+| %cfg%         | Conv, IP, RNN            | Config, describes data types and filling rules
+| %@clocks%     | All                      | Time in clocks (modifier extended)
+| %desc%        | All                      | Problem descriptor (dimensions and other options included)
+| %DESC%        | All                      | CSV-style problem descriptor (mostly dimensions)
+| %dir%         | All, except RNN, Reorder | Primitive direction
+| %dt%          | Bnorm, Shuffle, Softmax  | Data type (precision)
+| %idt%/%odt%   | Reorder                  | Input/Output data types (precision)
+| %engine%      | All                      | Engine kind
+| %flags%       | Bnorm                    | Batch normalization flags
+| %@flops%      | All with ops             | Ops per second (modifier extended)
+| %@freq%       | All                      | Effective cpu frequency computed as clocks[@] / time[@]
+| %group%       | Shuffle                  | Shuffle group
+| %name%        | All with desc_t          | Problem name
+| %@ops%        | All with ops             | Number of ops required (padding is not taken into account)
+| %prop%        | RNN                      | RNN properties
+| %tag%         | Bnorm, Shuffle, Softmax  | Data format tag (physical memory layout)
+| %itag%/%otag% | Reorder                  | Input/Output data format tag (physical memory layout)
+| %@time%       | All                      | Time in ms (modifier extended)
 
 Modifiers supported:
-| Name  | description
-|:----  |:-----------
+| Name  | Description
+| :--   | :--
 | Time: |
 | -     | min (time) -- default
 | 0     | avg (time)
@@ -111,64 +110,43 @@ struct base_perf_report_t {
             c = *(++option);
         }
 
-        if (!strncmp("alg", option, 3))
-            dump_algorithm(buf);
-        else if (!strncmp("attr", option, 4))
-            dump_attributes(buf);
-        else if (!strncmp("axis", option, 4))
-            dump_axis(buf);
-        else if (!strncmp("bw", option, 2))
-            dprint(buf, ops() / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("cfg", option, 3))
-            dump_config(buf);
-        else if (!strncmp("clocks", option, 6))
-            dprint(buf, t.ticks(mode) / unit);
-        else if (!strncmp("desc", option, 4))
-            dprint(buf, prb_str);
-        else if (!strncmp("DESC", option, 4))
-            dump_descriptor_csv(buf);
-        else if (!strncmp("dir", option, 3))
-            dump_direction(buf);
-        else if (!strncmp("dt", option, 2))
-            dump_data_type(buf);
-        else if (!strncmp("engine", option, 6))
-            dprint(buf, engine_kind2str(engine_tgt_kind));
-        else if (!strncmp("flags", option, 5))
-            dump_flags(buf);
-        else if (!strncmp("flops", option, 5))
-            dprint(buf, ops() / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("freq", option, 4))
-            dprint(buf, t.ticks(mode) / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("group", option, 5))
-            dump_group_size(buf);
-        else if (!strncmp("name", option, 4))
-            dump_descriptor_name(buf);
-        else if (!strncmp("ops", option, 3))
-            dprint(buf, ops() / unit);
-        else if (!strncmp("prop", option, 4))
-            dump_properties(buf);
-        else if (!strncmp("tag", option, 3))
-            dump_tag(buf);
-        else if (!strncmp("time", option, 4))
-            dprint(buf, t.ms(mode) / unit);
-        else
-            SAFE_V(FAIL);
+#       define HANDLE(opt, ...) \
+        if (!strncmp(opt "%", option, strlen(opt) + 1)) { \
+            __VA_ARGS__; \
+            return; \
+        }
+
+        HANDLE("alg", dump_alg(buf));
+        HANDLE("cfg", dump_cfg(buf));
+        HANDLE("DESC", dump_desc_csv(buf));
+        HANDLE("flags", dump_flags(buf));
+
+        HANDLE("attr", if (attr() && !attr()->is_def()) attr2str(attr(), buf));
+        HANDLE("axis", if (axis()) dprint(buf, *axis()));
+        HANDLE("dir", if (dir()) dprint(buf, dir2str(*dir())));
+        HANDLE("dt", if (dt()) dprint(buf, dt2str(*dt())));
+        HANDLE("group", if (group()) dprint(buf, *group()));
+        HANDLE("idt", if (idt()) dprint(buf, dt2str(*idt())));
+        HANDLE("itag", if (itag()) dprint(buf, tag2str(*itag())));
+        HANDLE("name", if (name()) dprint(buf, name()));
+        HANDLE("odt", if (odt()) dprint(buf, dt2str(*odt())));
+        HANDLE("otag", if (otag()) dprint(buf, tag2str(*otag())));
+        HANDLE("prop", if (prop()) dprint(buf, prop2str(*prop())));
+        HANDLE("tag", if (tag()) dprint(buf, tag2str(*tag())));
+
+        HANDLE("bw", dprint(buf, ops() / t.ms(mode) / unit * 1e3));
+        HANDLE("flops", dprint(buf, ops() / t.ms(mode) / unit * 1e3));
+        HANDLE("clocks", dprint(buf, t.ticks(mode) / unit));
+        HANDLE("desc", dprint(buf, prb_str));
+        HANDLE("engine", dprint(buf, engine_kind2str(engine_tgt_kind)));
+        HANDLE("freq", dprint(buf, t.ticks(mode) / t.ms(mode) / unit * 1e3));
+        HANDLE("ops", dprint(buf, ops() / unit));
+        HANDLE("time", dprint(buf, t.ms(mode) / unit));
+
+#       undef HANDLE
+
+        SAFE_V(FAIL);
     }
-
-    virtual void dump_algorithm(char *buf) const { err_msg(); }
-    virtual void dump_attributes(char *buf) const { err_msg(); }
-    virtual void dump_axis(char *buf) const { err_msg(); }
-    virtual void dump_config(char *buf) const { err_msg(); }
-    virtual void dump_data_type(char *buf) const { err_msg(); }
-    virtual void dump_descriptor_csv(char *buf) const { err_msg(); }
-    virtual void dump_descriptor_name(char *buf) const { err_msg(); }
-    virtual void dump_direction(char *buf) const { err_msg(); }
-    virtual void dump_flags(char *buf) const { err_msg(); }
-    virtual void dump_group_size(char *buf) const { err_msg(); }
-    virtual void dump_properties(char *buf) const { err_msg(); }
-    virtual void dump_tag(char *buf) const { err_msg(); }
-
-    virtual double ops() const { return 0.; }
 
     void base_report(const res_t *r, const char *prb_str) const {
         const int max_buf_len = 2 * max_dump_len; // max num of parsed options
@@ -198,6 +176,27 @@ struct base_perf_report_t {
         assert(rem_buf_len >= 0);
         print(0, "%s\n", buffer);
     };
+
+    /* truly common types */
+    virtual double ops() const { return 0.; }
+    virtual const attr_t *attr() const { return nullptr; }
+    virtual const int *axis() const { return nullptr; }
+    virtual const char *name() const { return nullptr; }
+    virtual const int64_t *group() const { return nullptr; }
+    virtual const dir_t *dir() const { return nullptr; }
+    virtual const mkldnn_data_type_t *dt() const { return nullptr; }
+    virtual const mkldnn_data_type_t *idt() const { return nullptr; }
+    virtual const mkldnn_data_type_t *odt() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *itag() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *otag() const { return nullptr; }
+    virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
+
+    /* primitive-specific properties (but with common interface) */
+    virtual void dump_alg(char *buf) const { err_msg(); }
+    virtual void dump_cfg(char *buf) const { err_msg(); }
+    virtual void dump_desc_csv(char *buf) const { err_msg(); }
+    virtual void dump_flags(char *buf) const { err_msg(); }
 
 private:
     const char *pt_;

@@ -78,16 +78,7 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_attributes(char *buf) const override {
-        if (!p_->attr.is_def())
-            attr2str(&p_->attr, buf);
-    }
-
-    virtual void dump_data_type(char *buf) const override {
-        dprint(buf, dt2str(p_->dt));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
+    virtual void dump_desc_csv(char *buf) const override {
         if (p_->id > 1)
             snprintf(buf, max_dump_len,
                     "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT ",%g",
@@ -98,21 +89,15 @@ struct perf_report_t: public base_perf_report_t {
                     p_->mb, p_->ic, p_->ih, p_->iw, p_->eps);
     }
 
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
     virtual void dump_flags(char *buf) const override {
         dprint(buf, flags2str(p_->flags));
     }
 
-    virtual void dump_tag(char *buf) const override {
-        dprint(buf, tag2str(p_->tag));
-    }
+    virtual const attr_t *attr() const override { return &p_->attr; }
+    virtual const char *name() const override { return p_->name; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
+    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_;
