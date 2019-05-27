@@ -80,10 +80,7 @@ const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;

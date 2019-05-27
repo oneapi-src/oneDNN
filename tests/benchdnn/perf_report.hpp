@@ -80,22 +80,7 @@ description can be found internally at each primitive hpp-file.
 
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
-
     virtual ~base_perf_report_t() {}
-
-    benchdnn_timer_t::mode_t modifier2mode(char c) const {
-        if (c == '-') return benchdnn_timer_t::min;
-        if (c == '0') return benchdnn_timer_t::avg;
-        if (c == '+') return benchdnn_timer_t::max;
-        return benchdnn_timer_t::min;
-    };
-
-    double modifier2unit(char c) const {
-        if (c == 'K') return 1e3;
-        if (c == 'M') return 1e6;
-        if (c == 'G') return 1e9;
-        return 1e0;
-    };
 
     // TODO: replace this ugliness with std::string;
     // That big due to dump prb_str of max_prb_len size.
@@ -185,15 +170,6 @@ struct base_perf_report_t {
 
     virtual double ops() const { return 0.; }
 
-    void dump_perf_footer() const {
-        static bool footer_printed = false;
-        if (!footer_printed) {
-            // TODO: improve footer to be more human-readable, not plain dump
-            print(0, "Output template: %s\n", pt_);
-            footer_printed = true;
-        }
-    }
-
     void base_report(const res_t *r, const char *prb_str) const {
         const int max_buf_len = 2 * max_dump_len; // max num of parsed options
         int rem_buf_len = max_buf_len - 1;
@@ -225,6 +201,29 @@ struct base_perf_report_t {
 
 private:
     const char *pt_;
+
+    void dump_perf_footer() const {
+        static bool footer_printed = false;
+        if (!footer_printed) {
+            // TODO: improve footer to be more human-readable, not plain dump
+            print(0, "Output template: %s\n", pt_);
+            footer_printed = true;
+        }
+    }
+
+    static benchdnn_timer_t::mode_t modifier2mode(char c) {
+        if (c == '-') return benchdnn_timer_t::min;
+        if (c == '0') return benchdnn_timer_t::avg;
+        if (c == '+') return benchdnn_timer_t::max;
+        return benchdnn_timer_t::min;
+    }
+
+    static double modifier2unit(char c) {
+        if (c == 'K') return 1e3;
+        if (c == 'M') return 1e6;
+        if (c == 'G') return 1e9;
+        return 1e0;
+    }
 
     static void err_msg() {
         printf("%s is not supported in base_perf_report_t\n",
