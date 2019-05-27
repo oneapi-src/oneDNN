@@ -111,12 +111,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             || (!ok && (r->errors < 10 || verbose >= 10))
             || (verbose >= 50 && i < 30);
         if (dump) {
-            const int ind_str_len = 64;
-            char ind_str[ind_str_len] = {'\0'};
-            snprintf(ind_str, ind_str_len, "" IFMT "," IFMT "," IFMT "",
-                    n, c, sp);
-            print(0, "[%4lu][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, ind_str, fp, dt, diff, rel_diff);
+            print(0, "[%4lu][" IFMT "," IFMT "," IFMT"] "
+                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (unsigned long)i, n, c, sp, fp, dt, diff, rel_diff);
         }
     }
 

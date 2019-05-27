@@ -17,6 +17,8 @@
 #ifndef _SOFTMAX_HPP
 #define _SOFTMAX_HPP
 
+#include <iostream>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -41,8 +43,7 @@ struct prb_t {
     mkldnn_format_tag_t tag;
     int axis;
 };
-
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
     perf_report_t(const char *perf_template) :

@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -56,8 +58,10 @@ void check_correctness() {
     for (const auto &i_axis: axis)
     for (const auto &i_mb: mb) {
         const prb_t p(dims, i_dir, i_dt, i_tag, i_axis, i_mb);
-        char pstr[max_prb_len];
-        prb2str(&p, pstr);
+        std::stringstream ss;
+        ss << p;
+        const std::string cpp_pstr = ss.str();
+        const char *pstr = cpp_pstr.c_str();
 
         res_t res{};
         const int status = doit(&p, &res);

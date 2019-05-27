@@ -14,12 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
-#include "mkldnn.h"
-
 #include "mkldnn_common.hpp"
 #include "mkldnn_debug.hpp"
 
@@ -27,22 +21,19 @@
 
 namespace softmax {
 
-void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char dir_str[32] = "", dt_str[32] = "", tag_str[32] = "", axis_str[32] = "",
-         dims_str[max_desc_len] = "";
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    if (p.dir != FWD_D)
+        s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dt != mkldnn_f32)
+        s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != mkldnn_nchw)
+        s << "--tag=" << tag2str(p.tag) << " ";
+    if (p.axis != 1)
+        s << "--axis=" << p.axis << " ";
 
-    if (p->dir != FWD_D)
-        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    if (p->dt != mkldnn_f32)
-        snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
-    if (p->tag != mkldnn_nchw)
-        snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
-    if (p->axis != 1)
-        snprintf(axis_str, sizeof(axis_str), "--axis=%d ", p->axis);
-    dims2str(p->dims, dims_str);
+    s << p.dims;
 
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s", dir_str, dt_str, tag_str,
-            axis_str, dims_str);
+    return s;
 }
 
 }
