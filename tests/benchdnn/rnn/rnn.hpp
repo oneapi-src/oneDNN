@@ -248,8 +248,7 @@ private:
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };
-
-void prb2str(const prb_t *p, char *buffer);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
     perf_report_t(const char *perf_template) :

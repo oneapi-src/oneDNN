@@ -222,32 +222,27 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
-#define DPRINT(...)                                     \
-    do {                                                \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l;                                    \
-        rem_len -= l;                                   \
-    } while (0)
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    s
+        << "--prop=" << prop2str(p.prop)
+        << " --alg=" << alg2str(p.alg)
+        << " --activation=" << activation2str(p.activation)
+        << " --direction=" << direction2str(p.direction)
+        << " --cfg=" << cfg2str(p.cfg)
+        << " --scaling=" << policy2str(p.scale_policy);
 
-void prb2str(const prb_t *p, char *buffer) {
-    int rem_len = max_prb_len;
+    s << " "
+        << "l" << p.n_layer
+        << "t" << p.n_iter
+        << "mb" << p.mb
+        << "sic" << p.sic
+        << "slc" << p.slc
+        << "dic" << p.dic
+        << "dlc" << p.dlc
+        << "n" << p.name;
 
-    DPRINT("--prop=%s --alg=%s --activation=%s --direction=%s --cfg=%s "
-           "--scaling=%s ",
-            prop2str(p->prop), alg2str(p->alg), activation2str(p->activation),
-            direction2str(p->direction), cfg2str(p->cfg),
-            policy2str(p->scale_policy));
-    DPRINT("l" IFMT "", p->n_layer);
-    DPRINT("t" IFMT "", p->n_iter);
-    DPRINT("mb" IFMT "", p->mb);
-    DPRINT("sic" IFMT "", p->sic);
-    DPRINT("slc" IFMT "", p->slc);
-    DPRINT("dic" IFMT "", p->dic);
-    DPRINT("dlc" IFMT "", p->dlc);
-    DPRINT("n\"%s\"", p->name);
+    return s;
 }
-
-#undef DPRINT
 
 mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
