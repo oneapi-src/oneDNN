@@ -17,6 +17,8 @@
 #ifndef _IP_HPP
 #define _IP_HPP
 
+#include <iostream>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -30,6 +32,8 @@ struct desc_t {
     int64_t mb, oc, ic, id, ih, iw;
     const char *name;
 };
+int str2desc(desc_t *desc, const char *str);
+std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
@@ -70,9 +74,8 @@ struct prb_t : public desc_t {
 
     void generate_oscales();
 };
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-int str2desc(desc_t *desc, const char *str);
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 

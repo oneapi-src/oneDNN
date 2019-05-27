@@ -24,6 +24,7 @@
 #include "mkldnn_debug.hpp"
 
 #include "ip/ip.hpp"
+
 namespace ip {
 
 void prb_t::generate_oscales() {
@@ -104,47 +105,36 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
-void desc2str(const desc_t *d, char *buffer, bool canonical) {
-    int rem_len = max_desc_len;
-#   define DPRINT(...) do { \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l; rem_len -= l; \
-    } while(0)
-#   define is_1d(d) (d->ih == 1 && d->id == 1)
+std::ostream &operator<<(std::ostream &s, const desc_t &d) {
+    const bool canonical = s.flags() & std::ios_base::fixed;
 
-    if (canonical || d->mb != 2) DPRINT("mb" IFMT "", d->mb);
-    DPRINT("oc" IFMT "", d->oc);
-    DPRINT("ic" IFMT "", d->ic);
-    if (d->id > 1) DPRINT("id" IFMT "", d->id);
-    if (canonical || !is_1d(d)) DPRINT("ih" IFMT "", d->ih);
-    if (canonical || d->iw != d->ih || d->id > 1 || is_1d(d))
-        DPRINT("iw" IFMT "", d->iw);
-    DPRINT("n%s", d->name);
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
+    s << "oc" << d.oc << "ic" << d.ic;
 
-#   undef is_1d
-#   undef DPRINT
+    const bool print_d = d.id > 1;
+    const bool print_h = canonical || print_d || d.ih > 1;
+    const bool print_w = canonical || d.id * d.ih * d.iw != 1;
+
+    if (print_d) s << "id" << d.id;
+    if (print_h) s << "ih" << d.ih;
+    if (print_w) s << "iw" << d.iw;
+
+    s << "n" << d.name;
+
+    return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    if (p.dir != FWD_B)
+        s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.cfg != conf_f32)
+        s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (!p.attr.is_def())
+        s << "--attr=\"" << p.attr << "\" ";
 
-void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char dir_str[32] = "", cfg_str[32] = "", attr_buf[max_attr_len] = "",
-         desc_buf[max_desc_len] = "";
+    s << static_cast<const desc_t &>(p);
 
-    if (p->dir != FWD_B)
-        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    if (p->cfg != conf_f32)
-        snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
-    if (!p->attr.is_def()) {
-        int len = snprintf(attr_buf, max_attr_len, "--attr=\"");
-        SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_buf + len);
-        len = (int)strnlen(attr_buf, max_attr_len);
-        snprintf(attr_buf + len, max_attr_len - len, "\" ");
-    }
-    desc2str(p, desc_buf, canonical);
-
-    snprintf(buffer, max_prb_len, "%s%s%s%s", dir_str, cfg_str, attr_buf,
-            desc_buf);
+    return s;
 }
 
 }
