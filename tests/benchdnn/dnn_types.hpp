@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <vector>
+#include <iostream>
 
 #include "common.hpp"
 #include "mkldnn_types.h"
@@ -113,7 +114,13 @@ struct attr_t {
 };
 
 int str2attr(attr_t *attr, const char *str);
+
+/* TODO: remove attr2str() when migration to ostream is done */
 void attr2str(const attr_t *attr, char *buffer);
+
+std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
+std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 mkldnn_format_tag_t get_default_tag(int ndims);
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,

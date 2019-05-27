@@ -20,6 +20,8 @@
 #include <string.h>
 #include <math.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -158,12 +160,6 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
     return OK;
 }
 
-void attr_t::scale_t::scale2str(char *buffer, char **end_b) const {
-    assert(buffer);
-    buffer += sprintf(buffer, "%s:%g", policy2str(this->policy), this->scale);
-    if (end_b) *end_b = buffer;
-}
-
 attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
 #define CASE(_knd) if (!strcasecmp(STRINGIFY(_knd), str)) return _knd
     CASE(SUM);
@@ -283,41 +279,6 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
     return FAIL; /* unreachable */
 }
 
-void attr_t::post_ops_t::to_str(char *buffer, char **end_b) const {
-    assert(buffer);
-
-    buffer += sprintf(buffer, "'");
-    for (int idx = 0; idx < len; ++idx) {
-        buffer += sprintf(buffer, "%s", idx > 0 ? ";" : "");
-        const auto &e = entry[idx];
-
-        switch (e.kind) {
-        case SUM:
-            buffer += sprintf(buffer, "%s:%g", kind2str(e.kind), e.sum.scale);
-            break;
-        case RELU:
-        case TANH:
-        case ELU:
-        case SQUARE:
-        case ABS:
-        case SQRT:
-        case LINEAR:
-        case BRELU:
-        case SRELU:
-        case LOGISTIC:
-            buffer += sprintf(buffer, "%s:%g", kind2str(e.kind), e.eltwise.alpha);
-            if (e.eltwise.beta != 0.f || e.eltwise.scale != 1.f)
-                buffer += sprintf(buffer, ":%g:%g", e.eltwise.beta, e.eltwise.scale);
-            break;
-        default:
-            assert(!"unknown kind");
-            buffer += sprintf(buffer, "unknown_kind");
-        }
-    }
-    buffer += sprintf(buffer, "'");
-    if (end_b) *end_b = buffer;
-}
-
 bool attr_t::is_def() const {
     return true
         && oscale.is_def()
@@ -355,11 +316,60 @@ int str2attr(attr_t *attr, const char *str) {
     return OK;
 }
 
+std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
+    return s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+}
+
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
+    auto kind2str = &attr_t::post_ops_t::kind2str;
+
+    s << "'";
+
+    for (int idx = 0; idx < post_ops.len; ++idx) {
+        if (idx > 0) s << ";";
+        const auto &e = post_ops.entry[idx];
+
+        using pk = attr_t::post_ops_t::kind_t;
+        switch (e.kind) {
+        case pk::SUM:
+            s << kind2str(e.kind) << ":" << e.sum.scale;
+            break;
+        case pk::RELU:
+        case pk::TANH:
+        case pk::ELU:
+        case pk::SQUARE:
+        case pk::ABS:
+        case pk::SQRT:
+        case pk::LINEAR:
+        case pk::BRELU:
+        case pk::SRELU:
+        case pk::LOGISTIC:
+            s << kind2str(e.kind) << ":" << e.eltwise.alpha;
+            if (e.eltwise.beta != 0.f || e.eltwise.scale != 1.f)
+                s << ":" << e.eltwise.beta << ":" << e.eltwise.scale;
+            break;
+        default:
+            assert(!"unknown kind");
+            s << "unknown_kind";
+        }
+    }
+
+    s << "'";
+
+    return s;
+}
+
 void attr2str(const attr_t *attr, char *buffer) {
-    buffer += sprintf(buffer, "oscale=");
-    attr->oscale.scale2str(buffer, &buffer);
-    buffer += sprintf(buffer, ";post_ops=");
-    attr->post_ops.to_str(buffer, &buffer);
+    std::stringstream ss;
+    ss << *attr;
+    std::string str = ss.str();
+    strcpy(buffer, str.c_str());
+}
+
+std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
+    return s
+        << "oscale=" << attr.oscale
+        << ";post_ops=" << attr.post_ops;
 }
 
 mkldnn_engine_kind_t str2engine_kind(const char *str) {
