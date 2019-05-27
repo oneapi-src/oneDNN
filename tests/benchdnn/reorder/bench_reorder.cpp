@@ -16,6 +16,8 @@
 
 #include <string.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
@@ -69,8 +71,10 @@ void check_correctness() {
         for (const auto &i_scale: scale) {
             const prb_t p(reorder_conf, iconf, oconf, attr, alg, i_oflag,
                     i_scale);
-            char pstr[max_prb_len];
-            prb2str(&p, pstr);
+            std::stringstream ss;
+            ss << p;
+            const std::string cpp_pstr = ss.str();
+            const char *pstr = cpp_pstr.c_str();
 
             res_t res{};
             int status = doit(&p, &res);

@@ -17,6 +17,8 @@
 #ifndef _REORDER_HPP
 #define _REORDER_HPP
 
+#include <iostream>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -94,8 +96,7 @@ struct prb_t {
             ops *= reorder.dims[d];
     };
 };
-
-void prb2str(const prb_t *p, char *buffer);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
     perf_report_t(const char *perf_template) :
