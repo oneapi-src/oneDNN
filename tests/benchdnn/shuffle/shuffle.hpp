@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include <limits.h>
 #include <assert.h>
-#include <vector>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -30,8 +29,6 @@
 #include "perf_report.hpp"
 
 namespace shuffle {
-
-using dims_t = std::vector<int64_t>;
 
 struct dt_conf_t {
     mkldnn_data_type_t dt;
@@ -61,8 +58,6 @@ struct prb_t {
     int64_t group;
 };
 
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
 struct perf_report_t: public base_perf_report_t {

@@ -27,34 +27,6 @@
 
 namespace softmax {
 
-dims_t str2dims(const char *str) {
-    dims_t dims;
-    do {
-        int len;
-        int64_t dim;
-        int scan = sscanf(str, IFMT "%n", &dim, &len);
-        SAFE_V(scan == 1 ? OK : FAIL);
-        dims.push_back(dim);
-        str += len;
-        SAFE_V(*str == 'x' || *str == '\0' ? OK : FAIL);
-    } while (*str++ != '\0');
-    return dims;
-}
-
-#define DPRINT(...) do { \
-    int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-    buffer += l; rem_len -= l; \
-} while(0)
-
-void dims2str(const dims_t &dims, char *buffer) {
-    int rem_len = max_desc_len;
-    for (size_t d = 0; d < dims.size() - 1; ++d)
-        DPRINT(IFMT "x", dims[d]);
-    DPRINT(IFMT, dims[dims.size() - 1]);
-}
-
-#undef DPRINT
-
 void prb2str(const prb_t *p, char *buffer, bool canonical) {
     char dir_str[32] = "", dt_str[32] = "", tag_str[32] = "", axis_str[32] = "",
          dims_str[max_desc_len] = "";

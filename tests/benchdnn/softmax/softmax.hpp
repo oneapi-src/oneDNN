@@ -20,13 +20,12 @@
 #include "mkldnn.h"
 
 #include "common.hpp"
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "perf_report.hpp"
 
 namespace softmax {
-
-using dims_t = std::vector<int64_t>;
 
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
@@ -43,8 +42,6 @@ struct prb_t {
     int axis;
 };
 
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
 void prb2str(const prb_t *p, char *buffer, bool canonical = false);
 
 struct perf_report_t: public base_perf_report_t {

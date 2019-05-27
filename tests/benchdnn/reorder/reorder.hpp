@@ -17,8 +17,6 @@
 #ifndef _REORDER_HPP
 #define _REORDER_HPP
 
-#include <vector>
-
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -28,8 +26,6 @@
 #include "perf_report.hpp"
 
 namespace reorder {
-
-using dims_t = std::vector<int64_t>;
 
 enum alg_t { ALG_REF, ALG_BOOT };
 alg_t str2alg(const char *str);
@@ -99,8 +95,6 @@ struct prb_t {
     };
 };
 
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
 void prb2str(const prb_t *p, char *buffer);
 
 struct perf_report_t: public base_perf_report_t {

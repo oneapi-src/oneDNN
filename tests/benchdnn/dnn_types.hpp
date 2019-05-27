@@ -21,8 +21,14 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <vector>
+
 #include "common.hpp"
 #include "mkldnn_types.h"
+
+struct dims_t: public std::vector<int64_t> {};
+dims_t str2dims(const char *str);
+void dims2str(const dims_t &dims, char *buffer);
 
 enum dir_t {
     DIR_UNDEF = 0,
