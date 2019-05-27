@@ -46,18 +46,15 @@ static int check_flags() {
 }
 
 static int check_desc() {
-    char str[max_desc_len];
     desc_t d{0};
     d.mb = 3; d.ic = 4; d.ih = 5; d.iw = 6; d.eps = 7.; d.name = "test";
 
-    desc2str(&d, str);
-    CHECK_CASE_STR_EQ(str, "mb3ic4ih5iw6eps7ntest");
+    CHECK_PRINT_EQ(d, "mb3ic4ih5iw6eps7ntest");
 
     d.mb = 2;
     d.iw = d.ih;
     d.eps = 1.f / 16;
-    desc2str(&d, str);
-    CHECK_CASE_STR_EQ(str, "ic4ih5ntest");
+    CHECK_PRINT_EQ(d, "ic4ih5ntest");
 
 #   define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
     CHECK_EQ(d.mb, _mb); CHECK_EQ(d.ic, _ic); CHECK_EQ(d.ih, _ih); \

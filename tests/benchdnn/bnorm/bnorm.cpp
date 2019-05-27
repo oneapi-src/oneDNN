@@ -20,6 +20,8 @@
 #include <float.h>
 #include <math.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 
 #include "src/common/mkldnn_thread.hpp"
@@ -381,24 +383,21 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             || (!ok && (r->errors < 10 || verbose >= 10))
             || (verbose >= 50 && i < 30);
         if (dump) {
-            const int ind_str_len = 64;
-            char ind_str[ind_str_len] = {'\0'};
+            std::stringstream ss;
             if (kind == DATA) {
                 int64_t mb, c, d, h, w;
                 inv_data_off(p, i, mb, c, d, h, w);
-                snprintf(ind_str, ind_str_len, "" IFMT "," IFMT ",", mb, c);
-                snprintf(ind_str, ind_str_len, "" IFMT "," IFMT "," IFMT "",
-                        d, h, w);
+                ss << mb << "," << c << "," << d << "," << h << "," << w;
             } else if (kind == SS) {
-                snprintf(ind_str, ind_str_len, "" IFMT "," IFMT "",
-                        i / p->ic, i % p->ic);
+                ss << i / p->ic << "," << i % p->ic;
             } else {
-                snprintf(ind_str, ind_str_len, "" IFMT "", i);
+                ss << i;
             }
 
+            std::string ind_str = ss.str();
             print(0, "[%lu][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                     (unsigned long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
-                    ind_str, fp, dt, diff, rel_diff);
+                    ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
     }

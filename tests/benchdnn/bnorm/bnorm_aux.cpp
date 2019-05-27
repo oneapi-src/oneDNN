@@ -120,52 +120,41 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
-void desc2str(const desc_t *d, char *buffer, bool canonical) {
-    int rem_len = max_desc_len;
-#   define DPRINT(...) do { \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l; rem_len -= l; \
-    } while(0)
+std::ostream &operator<<(std::ostream &s, const desc_t &d) {
+    const bool canonical = s.flags() & std::ios_base::fixed;
 
-    if (canonical || d->mb != 2) DPRINT("mb" IFMT "", d->mb);
-    DPRINT("ic" IFMT "", d->ic);
-    if (d->id > 1) DPRINT("id" IFMT "", d->id);
-    DPRINT("ih" IFMT "", d->ih);
-    if (canonical || d->iw != d->ih || d->id > 1) DPRINT("iw" IFMT "", d->iw);
-    if (canonical || d->eps != 1.f/16) DPRINT("eps%g", d->eps);
-    DPRINT("n%s", d->name);
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
-#   undef DPRINT
+    s << "ic" << d.ic;
+
+    if (d.id > 1) s << "id" << d.id;
+    s << "ih" << d.ih;
+    if (canonical || d.iw != d.ih || d.id > 1) s << "iw" << d.iw;
+
+    if (canonical || d.eps != 1.f/16) s << "eps" << d.eps;
+
+    s << "n" << d.name;
+
+    return s;
 }
 
-void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char dir_str[32] = "", dt_str[32] = "", tag_str[32] = "", alg_str[32] = "",
-         flags_str[32] = "", attr_str[max_attr_len] = "",
-         desc_str[max_desc_len] = "";
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    if (p.dir != FWD_D)
+        s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dt != mkldnn_f32)
+        s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != mkldnn_nchw)
+        s << "--tag=" << tag2str(p.tag) << " ";
+    if (p.flags != (flags_t)0)
+        s << "--flags=" << flags2str(p.flags) << " ";
+    if (p.check_alg != ALG_AUTO)
+        s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
+    if (!p.attr.is_def())
+        s << "--attr=\"" << p.attr << "\" ";
 
-    if (p->dir != FWD_D)
-        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    if (p->dt != mkldnn_f32)
-        snprintf(dt_str, sizeof(dt_str), "--dt=%s ", dt2str(p->dt));
-    if (p->tag != mkldnn_nchw)
-        snprintf(tag_str, sizeof(tag_str), "--tag=%s ", tag2str(p->tag));
-    if (p->flags != (flags_t)0)
-        snprintf(flags_str, sizeof(flags_str), "--flags=%s ",
-                flags2str(p->flags));
-    if (p->check_alg != ALG_AUTO)
-        snprintf(alg_str, sizeof(alg_str), "--check-alg=%s ",
-                check_alg2str(p->check_alg));
-    if (!p->attr.is_def()) {
-        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
-        SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_str + len);
-        len = (int)strnlen(attr_str, max_attr_len);
-        snprintf(attr_str + len, max_attr_len - len, "\" ");
-    }
-    desc2str(p, desc_str, canonical);
+    s << static_cast<const desc_t &>(p);
 
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s%s", dir_str, dt_str, tag_str,
-            attr_str, alg_str, flags_str, desc_str);
+    return s;
 }
 
 }

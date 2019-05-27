@@ -20,6 +20,8 @@
 #include <float.h>
 #include <math.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -68,8 +70,10 @@ void check_correctness(const desc_t *c) {
     for (const auto &i_flags: flags)
     for (const auto &i_mb: mb) {
         const prb_t p(*c, i_mb, i_dir, i_dt, i_tag, i_flags, attr, check_alg);
-        char pstr[max_prb_len];
-        prb2str(&p, pstr);
+        std::stringstream ss;
+        ss << p;
+        const std::string cpp_pstr = ss.str();
+        const char *pstr = cpp_pstr.c_str();
 
         if (pattern && !match_regex(pstr, pattern))
             return;
