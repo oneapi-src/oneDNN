@@ -21,6 +21,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <iostream>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
@@ -45,7 +47,7 @@ struct desc_t {
     const char *name;
 };
 int str2desc(desc_t *desc, const char *str);
-void desc2str(const desc_t *d, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 /** configuration structure, that controls initial data filling + error check
  *
@@ -86,7 +88,7 @@ struct prb_t: public desc_t {
     mkldnn_format_tag_t tag;
     alg_t alg;
 };
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
     perf_report_t(const char *perf_template) :
