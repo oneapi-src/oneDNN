@@ -328,7 +328,7 @@ int str2attr(attr_t *attr, const char *str) {
 }
 
 void attr2str(const attr_t *attr, char *buffer) {
-    buffer += sprintf(buffer, ";oscale=");
+    buffer += sprintf(buffer, "oscale=");
     attr->oscale.scale2str(buffer, &buffer);
     buffer += sprintf(buffer, ";post_ops=");
     attr->post_ops.to_str(buffer, &buffer);
