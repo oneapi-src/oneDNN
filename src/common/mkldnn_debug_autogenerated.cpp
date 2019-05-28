@@ -409,10 +409,10 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     return "unknown alg_kind";
 }
 
-const char *mkldnn_mkldnn_rnn_flags_t2str(mkldnn_rnn_flags_t v) {
+const char *mkldnn_rnn_flags2str(mkldnn_rnn_flags_t v) {
     if (v == mkldnn_rnn_flags_undef) return "undef";
-    assert(!"unknown mkldnn_rnn_flags_t");
-    return "unknown mkldnn_rnn_flags_t";
+    assert(!"unknown rnn_flags");
+    return "unknown rnn_flags";
 }
 
 const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
@@ -425,11 +425,11 @@ const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
     return "unknown rnn_direction";
 }
 
-const char *mkldnn_mkldnn_scratchpad_mode_t2str(mkldnn_scratchpad_mode_t v) {
+const char *mkldnn_scratchpad_mode2str(mkldnn_scratchpad_mode_t v) {
     if (v == mkldnn_scratchpad_mode_library) return "scratchpad_mode_library";
     if (v == mkldnn_scratchpad_mode_user) return "scratchpad_mode_user";
-    assert(!"unknown mkldnn_scratchpad_mode_t");
-    return "unknown mkldnn_scratchpad_mode_t";
+    assert(!"unknown scratchpad_mode");
+    return "unknown scratchpad_mode";
 }
 
 

@@ -119,12 +119,12 @@ struct base_perf_report_t {
         HANDLE("dt", if (dt()) s << dt2str(*dt()));
         HANDLE("group", if (group()) s << *group());
         HANDLE("idt", if (idt()) s << dt2str(*idt()));
-        HANDLE("itag", if (itag()) s << tag2str(*itag()));
+        HANDLE("itag", if (itag()) s << fmt_tag2str(*itag()));
         HANDLE("name", if (name()) s << name());
         HANDLE("odt", if (odt()) s << dt2str(*odt()));
-        HANDLE("otag", if (otag()) s << tag2str(*otag()));
+        HANDLE("otag", if (otag()) s << fmt_tag2str(*otag()));
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
-        HANDLE("tag", if (tag()) s << tag2str(*tag()));
+        HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
 
         HANDLE("bw", s << ops() / t.ms(mode) / unit * 1e3);
         HANDLE("flops", s << ops() / t.ms(mode) / unit * 1e3);

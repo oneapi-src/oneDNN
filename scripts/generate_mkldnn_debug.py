@@ -17,13 +17,17 @@
 
 from __future__ import print_function
 
+import os
+import re
 import sys
 import datetime
 import xml.etree.ElementTree as ET
 
-def banner():
-    year_now = datetime.datetime.now().year
-    banner_year = '2018' if year_now == 2018 else '2018-%d' % year_now
+
+def banner(year_from):
+    year_now = str(datetime.datetime.now().year)
+    banner_year = year_from if year_now == year_from else '%s-%s' % (year_from,
+                                                                     year_now)
     return '''\
 /*******************************************************************************
 * Copyright %s Intel Corporation
@@ -46,8 +50,8 @@ def banner():
 ''' % banner_year
 
 
-def template(body):
-    return '%s%s' % (banner(), body)
+def template(body, year_from):
+    return '%s%s' % (banner(year_from), body)
 
 
 def header(body):
@@ -105,6 +109,53 @@ def source(body):
 ''' % body
 
 
+def header_benchdnn(body):
+    return '''\
+#ifndef MKLDNN_DEBUG_HPP
+#define MKLDNN_DEBUG_HPP
+
+#include "mkldnn.h"
+
+%s
+/* status */
+const char *status2str(mkldnn_status_t status);
+
+/* data type */
+const char *dt2str(mkldnn_data_type_t dt);
+
+/* format */
+const char *fmt_tag2str(mkldnn_format_tag_t tag);
+
+#endif
+''' % body
+
+
+def source_benchdnn(body):
+    return '''\
+#include <assert.h>
+#include <string.h>
+
+#include "mkldnn_debug.h"
+#include "mkldnn_debug.hpp"
+
+#include "src/common/z_magic.hpp"
+
+%s
+
+const char *status2str(mkldnn_status_t status) {
+    return mkldnn_status2str(status);
+}
+
+const char *dt2str(mkldnn_data_type_t dt) {
+    return mkldnn_dt2str(dt);
+}
+
+const char *fmt_tag2str(mkldnn_format_tag_t tag) {
+    return mkldnn_fmt_tag2str(tag);
+}
+''' % body.rstrip()
+
+
 def maybe_skip(enum):
     return enum in (
         'mkldnn_batch_normalization_flag_t',
@@ -120,17 +171,14 @@ def maybe_skip(enum):
 
 
 def enum_abbrev(enum):
+    def_enum = re.sub(r'^mkldnn_', '', enum)
+    def_enum = re.sub(r'_t$', '', def_enum)
     return {
-        'mkldnn_status_t': 'status',
         'mkldnn_data_type_t': 'dt',
-        'mkldnn_round_mode_t': 'rmode',
         'mkldnn_format_kind_t': 'fmt_kind',
         'mkldnn_format_tag_t': 'fmt_tag',
-        'mkldnn_prop_kind_t': 'prop_kind',
         'mkldnn_primitive_kind_t': 'prim_kind',
-        'mkldnn_alg_kind_t': 'alg_kind',
-        'mkldnn_rnn_direction_t': 'rnn_direction',
-    }.get(enum, enum)
+    }.get(enum, def_enum)
 
 
 def sanitize_value(v):
@@ -141,7 +189,7 @@ def sanitize_value(v):
     return v
 
 
-def func_decl(enum, is_header=False):
+def func_to_str_decl(enum, is_header=False):
     abbrev = enum_abbrev(enum)
     return 'const char %s*mkldnn_%s2str(%s v)' % \
         ('MKLDNN_API ' if is_header else '', abbrev, enum)
@@ -151,7 +199,7 @@ def func_to_str(enum, values):
     indent = '    '
     abbrev = enum_abbrev(enum)
     func = ''
-    func += func_decl(enum) + ' {\n'
+    func += func_to_str_decl(enum) + ' {\n'
     for v in values:
         func += '%sif (v == %s) return "%s";\n' \
                 % (indent, v, sanitize_value(v))
@@ -160,9 +208,49 @@ def func_to_str(enum, values):
     return func
 
 
-def generate(ifile):
-    h_body = ''
-    s_body = ''
+def str_to_func_decl(enum, is_header=False, is_mkldnn=True):
+    attr = 'MKLDNN_API ' if is_header and is_mkldnn else ''
+    prefix = 'mkldnn_' if is_mkldnn else ''
+    abbrev = enum_abbrev(enum)
+    return '%s %s%sstr2%s(const char *str)' % \
+        (enum, attr, prefix, abbrev)
+
+
+def str_to_func(enum, values, is_mkldnn=True):
+    indent = '    '
+    abbrev = enum_abbrev(enum)
+    func = ''
+    func += str_to_func_decl(enum, is_mkldnn=is_mkldnn) + ' {\n'
+    func += '''#define CASE(_case) do { \\
+    if (!strcmp(STRINGIFY(_case), str) \\
+            || !strcmp("mkldnn_" STRINGIFY(_case), str)) \\
+        return CONCAT2(mkldnn_, _case); \\
+} while (0)
+'''
+    special_values = []
+    for v in values:
+        if 'undef' in v:
+            v_undef = v
+            special_values.append(v)
+            continue
+        if 'any' in v or 'last' in v:
+            special_values.append(v)
+            continue
+        func += '%sCASE(%s);\n' % (indent, sanitize_value(v))
+    func += '#undef CASE\n'
+    for v in special_values:
+        v_short = re.search(r'(any|undef|last)', v).group()
+        func += '''%sif (!strcmp("%s", str) || !strcmp("%s", str))
+        return %s;
+''' % (indent, v_short, v, v)
+    func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
+    func += '%sreturn %s;\n}\n' % (indent, v_undef)
+    return func
+
+
+def generate(ifile, banner_years):
+    h_body, s_body = '', ''
+    h_benchdnn_body, s_benchdnn_body = '', ''
     root = ET.parse(ifile).getroot()
     for v_enum in root.findall('Enumeration'):
         enum = v_enum.attrib['name']
@@ -170,14 +258,25 @@ def generate(ifile):
             continue
         values = [v_value.attrib['name']
                   for v_value in v_enum.findall('EnumValue')]
-        h_body += func_decl(enum, is_header=True) + ';\n'
+        h_body += func_to_str_decl(enum, is_header=True) + ';\n'
         s_body += func_to_str(enum, values) + '\n'
-    return (template(header(h_body)), template(source(s_body)))
+        if enum in ['mkldnn_format_tag_t', 'mkldnn_data_type_t']:
+            h_benchdnn_body += str_to_func_decl(
+                enum, is_header=True, is_mkldnn=False) + ';\n'
+            s_benchdnn_body += str_to_func(
+                enum, values, is_mkldnn=False) + '\n'
+    bodies = [
+        header(h_body),
+        source(s_body),
+        header_benchdnn(h_benchdnn_body),
+        source_benchdnn(s_benchdnn_body)
+    ]
+    return [template(b, y) for b, y in zip(bodies, banner_years)]
 
 
 def usage():
     print('''\
-%s types.xml [output_dir]
+%s types.xml
 
 Generates MKL-DNN debug header and source files with enum to string mapping.
 Input types.xml file can be obtained with CastXML[1]:
@@ -192,15 +291,22 @@ for arg in sys.argv:
     if '-help' in arg:
         usage()
 
+script_root = os.path.dirname(os.path.realpath(__file__))
+
 ifile = sys.argv[1] if len(sys.argv) > 1 else usage()
-odir = sys.argv[2] if len(sys.argv) > 2 else '.'
-ofile_h = odir + '/mkldnn_debug.h'
-ofile_s = odir + '/mkldnn_debug_autogenerated.cpp'
 
-(h, s) = generate(ifile)
+file_paths = (
+    '%s/../include/mkldnn_debug.h' % script_root,
+    '%s/../src/common/mkldnn_debug_autogenerated.cpp' % script_root,
+    '%s/../tests/benchdnn/mkldnn_debug.hpp' % script_root,
+    '%s/../tests/benchdnn/mkldnn_debug_autogenerated.cpp' % script_root)
 
-with open(ofile_h, 'w') as fh:
-    fh.write(h)
+banner_years = []
+for file_path in file_paths:
+    with open(file_path, 'r') as f:
+        m = re.search(r'Copyright (.*) Intel', f.read())
+        banner_years.append(m.group(1).split('-')[0])
 
-with open(ofile_s, 'w') as fs:
-    fs.write(s)
+for file_path, file_body in zip(file_paths, generate(ifile, banner_years)):
+    with open(file_path, 'w') as f:
+        f.write(file_body)

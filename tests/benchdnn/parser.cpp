@@ -37,7 +37,7 @@ bool parse_dt(std::vector<mkldnn_data_type_t> &dt, const char *str,
 
 bool parse_tag(std::vector<mkldnn_format_tag_t> &tag, const char *str,
         const std::string &option_name/* = "tag"*/) {
-    return parse_vector_option(tag, str2tag, str, option_name);
+    return parse_vector_option(tag, str2fmt_tag, str, option_name);
 }
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,

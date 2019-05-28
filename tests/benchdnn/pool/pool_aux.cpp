@@ -218,7 +218,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (p.cfg != conf_f32)
         s << "--cfg=" << cfg2str(p.cfg) << " ";
     if (p.tag != mkldnn_nchw)
-        s << "--tag=" << tag2str(p.tag) << " ";
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.alg != MAX)
         s << "--alg=" << alg2str(p.alg) << " ";
 

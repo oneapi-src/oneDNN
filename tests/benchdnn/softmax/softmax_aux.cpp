@@ -27,7 +27,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (p.dt != mkldnn_f32)
         s << "--dt=" << dt2str(p.dt) << " ";
     if (p.tag != mkldnn_nchw)
-        s << "--tag=" << tag2str(p.tag) << " ";
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.axis != 1)
         s << "--axis=" << p.axis << " ";
 
