@@ -126,7 +126,7 @@ struct perf_report_t: public base_perf_report_t {
     { return &p_->reorder.tag_out; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
     mkldnn_data_type_t idt_, odt_;
 };
 

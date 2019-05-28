@@ -63,7 +63,7 @@ struct perf_report_t: public base_perf_report_t {
     virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 extern const char *skip_impl; /* NULL or "" means do not skip anything */

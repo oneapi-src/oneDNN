@@ -279,7 +279,7 @@ struct perf_report_t: public base_perf_report_t {
     virtual const mkldnn_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &input_m,

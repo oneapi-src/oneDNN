@@ -107,7 +107,7 @@ struct perf_report_t: public base_perf_report_t {
     virtual const dir_t *dir() const override { return &p_->dir; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 inline size_t src_off_f(const prb_t *p,

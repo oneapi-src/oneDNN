@@ -173,7 +173,7 @@ struct perf_report_t: public base_perf_report_t {
     virtual const dir_t *dir() const override { return &p_->dir; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */
