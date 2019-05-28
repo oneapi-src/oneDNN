@@ -96,7 +96,7 @@ A four-gate long short-term memory recurrent cell initialized with
 ~~~
 
 Note that for all tensors with a dimension depending on the gates number, we
-implicitly require the order of these gates to be `i`, `f`, `o`, and `c`. The
+implicitly require the order of these gates to be `i`, `f`, \f$\tilde c\f$, and `o`. The
 following equation gives the mathematical description of these gates and output
 for the forward pass:
 
