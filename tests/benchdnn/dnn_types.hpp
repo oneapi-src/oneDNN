@@ -30,8 +30,6 @@
 struct dims_t: public std::vector<int64_t> {};
 dims_t str2dims(const char *str);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
-/* TODO: remove dims2str() when migration to ostream is done */
-void dims2str(const dims_t &dims, char *buffer);
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -120,10 +118,6 @@ struct attr_t {
 };
 
 int str2attr(attr_t *attr, const char *str);
-
-/* TODO: remove attr2str() when migration to ostream is done */
-void attr2str(const attr_t *attr, char *buffer);
-
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);

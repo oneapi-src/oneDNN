@@ -51,13 +51,6 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     return s;
 }
 
-void dims2str(const dims_t &dims, char *buffer) {
-    std::stringstream ss;
-    ss << dims;
-    std::string str = ss.str();
-    strcpy(buffer, str.c_str());
-}
-
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
     CASE(FWD_D);
@@ -375,13 +368,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
     s << "'";
 
     return s;
-}
-
-void attr2str(const attr_t *attr, char *buffer) {
-    std::stringstream ss;
-    ss << *attr;
-    std::string str = ss.str();
-    strcpy(buffer, str.c_str());
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
