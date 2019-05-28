@@ -112,25 +112,6 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     return alg_kind;
 }
 
-mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
-    if (dir == FWD_D)
-        return mkldnn_forward;
-    if (dir == BWD_DW)
-        return mkldnn_backward;
-    assert(!"unknown dir");
-    return mkldnn_prop_kind_undef;
-}
-
-const char *prop2str(mkldnn_prop_kind_t prop) {
-    if (prop == mkldnn_forward)
-        return "FWD_D";
-    if (prop == mkldnn_backward)
-        return "BWD_DW";
-    assert(!"unknown propagation");
-    return "unknown propagation";
-
-}
-
 mkldnn_rnn_direction_t str2direction(const char *str) {
     if (!strcasecmp("left2right", str))
         return mkldnn_unidirectional_left2right;

@@ -40,9 +40,6 @@ activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
 
-const char *prop2str(mkldnn_prop_kind_t prop);
-mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
-
 mkldnn_rnn_direction_t str2direction(const char *str);
 const char *direction2str(mkldnn_rnn_direction_t direction);
 

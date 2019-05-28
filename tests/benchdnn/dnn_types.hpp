@@ -49,6 +49,10 @@ enum dir_t {
 dir_t str2dir(const char *str);
 const char *dir2str(dir_t dir);
 
+/* TODO: merge prop and dir_t (in favor of prop) */
+const char *prop2str(mkldnn_prop_kind_t prop);
+mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
+
 typedef int data_kind_t;
 enum {
     SRC = 0, WEI, BIA, DST, ACC,

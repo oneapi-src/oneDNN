@@ -86,6 +86,24 @@ const char *dir2str(dir_t dir) {
     return "DIR_UNDEF";
 }
 
+mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
+    if (dir == FWD_D)
+        return mkldnn_forward;
+    if (dir == BWD_DW)
+        return mkldnn_backward;
+    assert(!"unknown dir");
+    return mkldnn_prop_kind_undef;
+}
+
+const char *prop2str(mkldnn_prop_kind_t prop) {
+    if (prop == mkldnn_forward)
+        return "FWD_D";
+    if (prop == mkldnn_backward)
+        return "BWD_DW";
+    assert(!"unknown prop_kind");
+    return "unknown prop_kind";
+}
+
 const char *data_kind2str(data_kind_t kind) {
     switch (kind) {
     case SRC: return "SRC";
