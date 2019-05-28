@@ -29,12 +29,13 @@ namespace parser {
 static const auto eol = std::string::npos;
 
 template <typename T, typename F>
-static bool parse_vector_str(T &vec, F process_func, const char *str) {
+static bool parse_vector_str(T &vec, F process_func, const char *str,
+        const char delimeter = ',') {
     const std::string s = str;
     vec.clear();
-    for (size_t start = 0, comma = 0; comma != eol; start = comma + 1) {
-        comma = s.find_first_of(',', start);
-        size_t val_len = (comma == eol ? s.size() : comma) - start;
+    for (size_t start = 0, delim = 0; delim != eol; start = delim + 1) {
+        delim = s.find_first_of(delimeter, start);
+        size_t val_len = (delim == eol ? s.size() : delim) - start;
         assert(val_len < 32);
         char value[32] = "";
         s.copy(value, val_len, start);
