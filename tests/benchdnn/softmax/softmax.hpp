@@ -53,8 +53,8 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc_csv(char *buf) const override {
-        dims2str(p_->dims, buf);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->dims;
     }
 
     virtual const int *axis() const override { return &p_->axis; }

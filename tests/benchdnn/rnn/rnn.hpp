@@ -255,17 +255,16 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_cfg(char *buf) const override {
-        dprint(buf, cfg2str(p_->cfg));
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << cfg2str(p_->cfg);
     }
 
-    virtual void dump_desc_csv(char *buf) const override {
-        snprintf(buf, max_dump_len,
-                "%s_%s_%s_l" IFMT "d" IFMT "t" IFMT "mb" IFMT "_slc" IFMT "sic"
-               IFMT "dic" IFMT "",
-               alg2str(p_->alg), activation2str(p_->activation),
-               direction2str(p_->direction), p_->n_layer, p_->n_directions(),
-               p_->n_iter, p_->mb, p_->slc, p_->sic, p_->dic);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << alg2str(p_->alg) << "_" << activation2str(p_->activation) << "_"
+            << direction2str(p_->direction);
+        s << "l" << p_->n_layer << "d" << p_->n_directions()
+            << "t" << p_->n_iter << "mb" << p_->mb << "_"
+            << "slc" << p_->slc << "sic" << p_->sic << "dic" << p_->dic;
     }
 
     virtual double ops() const override { return p_->ops; }

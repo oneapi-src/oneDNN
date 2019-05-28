@@ -78,19 +78,14 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc_csv(char *buf) const override {
-        if (p_->id > 1)
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT ",%g",
-                    p_->mb, p_->ic, p_->id, p_->ih, p_->iw, p_->eps);
-        else
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT ",%g",
-                    p_->mb, p_->ic, p_->ih, p_->iw, p_->eps);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->mb << ',' << p_->ic << ',';
+        if (p_->id > 1) s << p_->id << ',';
+        s << p_->ih << ',' << p_->iw << ',' << p_->eps;
     }
 
-    virtual void dump_flags(char *buf) const override {
-        dprint(buf, flags2str(p_->flags));
+    virtual void dump_flags(std::ostream &s) const override {
+        s << flags2str(p_->flags);
     }
 
     virtual const attr_t *attr() const override { return &p_->attr; }

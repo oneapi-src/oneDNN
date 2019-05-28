@@ -108,12 +108,12 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc_csv(char *buf) const override {
-        dims2str(p_->reorder.dims, buf);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->reorder.dims;
     }
 
-    virtual void dump_flags(char *buf) const override {
-        dprint(buf, flag2str(p_->oflag));
+    virtual void dump_flags(std::ostream &s) const override {
+        s << flag2str(p_->oflag);
     }
 
     virtual double ops() const override { return p_->ops; }

@@ -21,6 +21,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <iostream>
+#include <sstream>
+
 #include "mkldnn.h"
 #include "mkldnn_memory.hpp"
 
@@ -81,19 +84,7 @@ struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
     virtual ~base_perf_report_t() {}
 
-    // TODO: replace this ugliness with std::string;
-    // That big due to dump prb_str of max_prb_len size.
-    static constexpr size_t max_dump_len = max_prb_len;
-
-    void dprint(char *buf, const char *str) const {
-        snprintf(buf, max_dump_len, "%s", str);
-    }
-
-    void dprint(char *buf, double val) const {
-        snprintf(buf, max_dump_len, "%g", val);
-    }
-
-    void handle_option(char *buf, const char *option, const res_t *r,
+    void handle_option(std::ostream &s, const char *&option, const res_t *r,
             const char *prb_str) const {
         const auto &t = r->timer;
         benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min; (void)mode;
@@ -113,35 +104,36 @@ struct base_perf_report_t {
 #       define HANDLE(opt, ...) \
         if (!strncmp(opt "%", option, strlen(opt) + 1)) { \
             __VA_ARGS__; \
+            option += strlen(opt) + 1; \
             return; \
         }
 
-        HANDLE("alg", dump_alg(buf));
-        HANDLE("cfg", dump_cfg(buf));
-        HANDLE("DESC", dump_desc_csv(buf));
-        HANDLE("flags", dump_flags(buf));
+        HANDLE("alg", dump_alg(s));
+        HANDLE("cfg", dump_cfg(s));
+        HANDLE("DESC", dump_desc_csv(s));
+        HANDLE("flags", dump_flags(s));
 
-        HANDLE("attr", if (attr() && !attr()->is_def()) attr2str(attr(), buf));
-        HANDLE("axis", if (axis()) dprint(buf, *axis()));
-        HANDLE("dir", if (dir()) dprint(buf, dir2str(*dir())));
-        HANDLE("dt", if (dt()) dprint(buf, dt2str(*dt())));
-        HANDLE("group", if (group()) dprint(buf, *group()));
-        HANDLE("idt", if (idt()) dprint(buf, dt2str(*idt())));
-        HANDLE("itag", if (itag()) dprint(buf, tag2str(*itag())));
-        HANDLE("name", if (name()) dprint(buf, name()));
-        HANDLE("odt", if (odt()) dprint(buf, dt2str(*odt())));
-        HANDLE("otag", if (otag()) dprint(buf, tag2str(*otag())));
-        HANDLE("prop", if (prop()) dprint(buf, prop2str(*prop())));
-        HANDLE("tag", if (tag()) dprint(buf, tag2str(*tag())));
+        HANDLE("attr", if (attr() && !attr()->is_def()) s << *attr());
+        HANDLE("axis", if (axis()) s << *axis());
+        HANDLE("dir", if (dir()) s << dir2str(*dir()));
+        HANDLE("dt", if (dt()) s << dt2str(*dt()));
+        HANDLE("group", if (group()) s << *group());
+        HANDLE("idt", if (idt()) s << dt2str(*idt()));
+        HANDLE("itag", if (itag()) s << tag2str(*itag()));
+        HANDLE("name", if (name()) s << name());
+        HANDLE("odt", if (odt()) s << dt2str(*odt()));
+        HANDLE("otag", if (otag()) s << tag2str(*otag()));
+        HANDLE("prop", if (prop()) s << prop2str(*prop()));
+        HANDLE("tag", if (tag()) s << tag2str(*tag()));
 
-        HANDLE("bw", dprint(buf, ops() / t.ms(mode) / unit * 1e3));
-        HANDLE("flops", dprint(buf, ops() / t.ms(mode) / unit * 1e3));
-        HANDLE("clocks", dprint(buf, t.ticks(mode) / unit));
-        HANDLE("desc", dprint(buf, prb_str));
-        HANDLE("engine", dprint(buf, engine_kind2str(engine_tgt_kind)));
-        HANDLE("freq", dprint(buf, t.ticks(mode) / t.ms(mode) / unit * 1e3));
-        HANDLE("ops", dprint(buf, ops() / unit));
-        HANDLE("time", dprint(buf, t.ms(mode) / unit));
+        HANDLE("bw", s << ops() / t.ms(mode) / unit * 1e3);
+        HANDLE("flops", s << ops() / t.ms(mode) / unit * 1e3);
+        HANDLE("clocks", s << t.ticks(mode) / unit);
+        HANDLE("desc", s << prb_str);
+        HANDLE("engine", s << engine_kind2str(engine_tgt_kind));
+        HANDLE("freq", s << t.ticks(mode) / t.ms(mode) / unit * 1e3);
+        HANDLE("ops", s << ops() / unit);
+        HANDLE("time", s << t.ms(mode) / unit);
 
 #       undef HANDLE
 
@@ -149,32 +141,19 @@ struct base_perf_report_t {
     }
 
     void base_report(const res_t *r, const char *prb_str) const {
-        const int max_buf_len = 2 * max_dump_len; // max num of parsed options
-        int rem_buf_len = max_buf_len - 1;
-        char buffer[max_buf_len], *buf = buffer;
-
         dump_perf_footer();
+
+        std::stringstream ss;
 
         const char *pt = pt_;
         char c;
         while ((c = *pt++) != '\0') {
-            if (c != '%') { *buf++ = c; rem_buf_len--; continue; }
-
-            char opt_dump[max_dump_len] = "", *dump = opt_dump;
-
-            handle_option(dump, pt, r, prb_str);
-
-            int l = snprintf(buf, rem_buf_len, "%s", opt_dump);
-            buf += l; rem_buf_len -= l;
-
-            if ((pt = strchr(pt, '%')) == NULL) // check for KW
-                break;
-            pt++;
+            if (c != '%') { ss << c; continue; }
+            handle_option(ss, pt, r, prb_str);
         }
 
-        *buf = '\0';
-        assert(rem_buf_len >= 0);
-        print(0, "%s\n", buffer);
+        std::string str = ss.str();
+        print(0, "%s\n", str.c_str());
     };
 
     /* truly common types */
@@ -193,10 +172,10 @@ struct base_perf_report_t {
     virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
 
     /* primitive-specific properties (but with common interface) */
-    virtual void dump_alg(char *buf) const { err_msg(); }
-    virtual void dump_cfg(char *buf) const { err_msg(); }
-    virtual void dump_desc_csv(char *buf) const { err_msg(); }
-    virtual void dump_flags(char *buf) const { err_msg(); }
+    virtual void dump_alg(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_cfg(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_desc_csv(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_flags(std::ostream &) const { SAFE_V(FAIL); }
 
 private:
     const char *pt_;
@@ -223,11 +202,6 @@ private:
         if (c == 'G') return 1e9;
         return 1e0;
     }
-
-    static void err_msg() {
-        printf("%s is not supported in base_perf_report_t\n",
-                __PRETTY_FUNCTION__);
-    };
 };
 
 #endif

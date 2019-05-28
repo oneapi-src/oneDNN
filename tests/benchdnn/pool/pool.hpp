@@ -98,29 +98,28 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_alg(char *buf) const override {
-        dprint(buf, alg2str(p_->alg));
+    virtual void dump_alg(std::ostream &s) const override {
+        s << alg2str(p_->alg);
     }
 
-    virtual void dump_cfg(char *buf) const override {
-        dprint(buf, cfg2str(p_->cfg));
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << cfg2str(p_->cfg);
     }
 
-    virtual void dump_desc_csv(char *buf) const override {
-        if (p_->id > 1)
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
-                    p_->mb, p_->ic, p_->id, p_->ih, p_->iw, p_->od,
-                    p_->oh, p_->ow, p_->kd, p_->kh, p_->kw, p_->sd,
-                    p_->sh, p_->sw, p_->pd, p_->ph, p_->pw);
-        else
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
-                    p_->mb, p_->ic, p_->ih, p_->iw, p_->oh, p_->ow,
-                    p_->kh, p_->kw, p_->sh, p_->sw, p_->ph, p_->pw);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        const bool print_d = p_->id > 1;
+
+        s << p_->mb << ',' << p_->ic << ',';
+        if (print_d) s << p_->id << ',';
+        s << p_->ih << ',' << p_->iw << ',';
+        if (print_d) s << p_->od << ',';
+        s << p_->oh << ',' << p_->ow << ',';
+        if (print_d) s << p_->kd << ',';
+        s << p_->kh << ',' << p_->kw << ',';
+        if (print_d) s << p_->sd << ',';
+        s << p_->sh << ',' << p_->sw << ',';
+        if (print_d) s << p_->pd << ',';
+        s << p_->ph << ',' << p_->pw;
     }
 
     virtual const char *name() const override { return p_->name; }
