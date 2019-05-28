@@ -36,9 +36,10 @@
 --attr=post_ops='sum;linear:0.5:1.5' --batch=conv_tails
 --attr=post_ops='sum;brelu:0.5' --batch=conv_tails
 --attr=post_ops='sum;logistic' --batch=conv_tails
---cfg=f32_no_limits # square and srelu might overrun int_max_exact
+--cfg=f32_no_limits # square, srelu and exp might overrun int_max_exact
 --attr=post_ops='sum;square' --batch=conv_tails
 --attr=post_ops='sum;srelu' --batch=conv_tails
+#--attr=post_ops='sum;exp' --batch=conv_tails # don't test exp as output should be scaled to reasonable numbers
 
 # f32_wino
 --reset --alg=wino --cfg=f32_wino

@@ -69,7 +69,8 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = p.alg_kind == eltwise_elu ? data_t(1) : data_t(200);
+                = p.alg_kind == eltwise_elu || p.alg_kind == eltwise_exp
+                ? data_t(1) : data_t(200);
         fill_data<data_t>(n_elems(*data_desc), (data_t *)src->get_data_handle(),
                 data_median, data_deviation);
         check_zero_tail<data_t>(1, *src);

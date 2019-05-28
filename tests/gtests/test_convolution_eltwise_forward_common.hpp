@@ -85,6 +85,7 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
             case eltwise_bounded_relu: d = bounded_relu_fwd(d, elt_alpha); break;
             case eltwise_soft_relu: d = soft_relu_fwd(d); break;
             case eltwise_logistic: d = logistic_fwd(d); break;
+            case eltwise_exp: d = exp_fwd(d); break;
             default: assert(!"unknown alg_kind");
             }
         }

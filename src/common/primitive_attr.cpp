@@ -69,7 +69,8 @@ status_t post_ops_t::append_eltwise(float scale, alg_kind_t alg, float alpha,
     using namespace mkldnn::impl::alg_kind;
     bool known_alg = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic);
+            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+            eltwise_exp);
     if (!known_alg)
         return invalid_arguments;
 

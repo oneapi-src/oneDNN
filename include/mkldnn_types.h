@@ -552,6 +552,8 @@ typedef enum {
     mkldnn_eltwise_soft_relu = 0x9f,
     /** Eltwise: logistic */
     mkldnn_eltwise_logistic = 0xaf,
+    /** Eltwise: exponent */
+    mkldnn_eltwise_exp = 0xbf,
     /** Max pooling */
     mkldnn_pooling_max = 0x1ff,
     /** Average pooling include padding */
@@ -826,8 +828,8 @@ typedef struct {
     /** The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
      * #mkldnn_eltwise_tanh, #mkldnn_eltwise_elu, #mkldnn_eltwise_square,
      * #mkldnn_eltwise_abs, #mkldnn_eltwise_sqrt, #mkldnn_eltwise_linear,
-     * #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu, and
-     * #mkldnn_eltwise_logistic. */
+     * #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu,
+     * #mkldnn_eltwise_logistic and #mkldnn_eltwise_exp. */
     mkldnn_alg_kind_t alg_kind;
     /** Source and destination memory descriptor. */
     mkldnn_memory_desc_t data_desc;
@@ -845,6 +847,7 @@ typedef struct {
      *  - #mkldnn_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
      *  - #mkldnn_eltwise_soft_relu: @p alpha and @p beta ignored
      *  - #mkldnn_eltwise_logistic: @p alpha and @p beta ignored
+     *  - #mkldnn_eltwise_exp: @p alpha and @p beta ignored
      */
     float alpha, beta;
 } mkldnn_eltwise_desc_t;

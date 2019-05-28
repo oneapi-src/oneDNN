@@ -119,6 +119,16 @@ T logistic_bwd(T dd, T s) {
     return dd * v * (1 - v);
 }
 
+template <typename T>
+T exp_fwd(T s) {
+    return (T)(::expf((float)s));
+}
+
+template <typename T>
+T exp_bwd(T dd, T s) {
+    return dd * exp_fwd<T>(s);
+}
+
 struct eltwise_test_params {
     engine::kind engine_kind;
     algorithm alg_kind;
@@ -160,6 +170,7 @@ void ref_eltwise_fwd(const eltwise_test_params &p,
         case eltwise_bounded_relu: ref_d = bounded_relu_fwd(s, p.alpha);  break;
         case eltwise_soft_relu:   ref_d = soft_relu_fwd(s);               break;
         case eltwise_logistic:    ref_d = logistic_fwd(s);                break;
+        case eltwise_exp:         ref_d = exp_fwd(s);                     break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -227,6 +238,7 @@ void check_eltwise_bwd(const eltwise_test_params &p,
             ref_ds = soft_relu_bwd(ref_dd, ref_s);
             break;
         case eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
+        case eltwise_exp:      ref_ds = exp_bwd(ref_dd, ref_s);      break;
         default: assert(!"unknown alg_kind");
         }
         float diff_err = diff_src_data[map_index(diff_data_d, i)] - ref_ds;
