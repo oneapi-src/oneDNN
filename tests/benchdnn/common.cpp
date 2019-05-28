@@ -18,6 +18,11 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <fstream>
+#include <utility>
+#include <string>
+#include <vector>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
@@ -250,8 +255,7 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
     if (skip_impl == NULL || *skip_impl == '\0')
         return false;
 
-    const size_t max_len = 128;
-    char what[max_len] = {0};
+    const std::string impl(impl_str);
 
     const char *s_start = skip_impl;
     while (1) {
@@ -264,12 +268,8 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
         if (s_start[len - 1] == '"' || s_start[len - 1] == '\'')
             --len;
 
-        SAFE(len < max_len ? OK : FAIL, CRIT);
-        len = MIN2(len, max_len - 1);
-        strncpy(what, s_start, len);
-        what[len] = '\0';
-
-        if (strstr(impl_str, what))
+        const std::string what(s_start, s_start + len);
+        if (impl.find(what) != std::string::npos)
             return true;
 
         if (s_end == NULL)
@@ -289,88 +289,80 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
 static char *dirname(char *path) {
     char drive[_MAX_DRIVE];
     char dir[_MAX_DIR];
-    _splitpath(path, drive, dir, NULL, NULL);
+    SAFE_V(_splitpath_s(path, drive, sizeof(drive), dir, sizeof(dir), NULL, 0,
+                NULL, 0) == 0 ? OK : FAIL);
     path[0] = '\0';
-    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
-    if (dir != NULL) strncat(path, dir, MAX_PATH);
-    if (path[0] == '\0') strcat(path, ".");
+    if (drive != NULL)
+        SAFE_V(strncat_s(path, PATH_MAX, drive, _MAX_DRIVE) == 0 ? OK : FAIL);
+    if (dir != NULL)
+        SAFE_V(strncat_s(path, PATH_MAX, dir, _MAX_DIR) == 0 ? OK : FAIL);
+    if (path[0] == '\0') { path[0] = '.'; path[1] = '\0'; }
     return path;
 }
 #else
 #include <libgen.h>
 #endif /* _WIN32 */
 
-FILE *open_batch_file(const char *fname) {
+std::string locate_batch_file(const std::string &fname) {
+    SAFE_V(fname.length() < PATH_MAX ? OK : FAIL);
+
     const int max_paths = 4;
 
     static int n_paths = 0;
-    static char search_paths[max_paths][PATH_MAX] = {{0}};
+    static std::string search_paths[max_paths];
 
-    char *fdir = NULL;
-    char fname_copy[PATH_MAX];
+    std::string fdir;
     {
-        strncpy(fname_copy, fname, PATH_MAX - 1);
-        fname_copy[PATH_MAX - 1] = '\0';
-        fdir = dirname(fname_copy);
+        std::string fname_copy = fname;
+        fname_copy.resize(fname_copy.length() + 1);
+        char *c_fdir = dirname(&fname_copy[0]);
+        fdir = std::string(c_fdir);
     }
 
     bool dir_found = false;
     for (int n = 0; n_paths < max_paths && n < n_paths; ++n)
-        if (!strcmp(fdir, search_paths[n])) {
+        if (search_paths[n].find(fdir) == 0) {
             dir_found = true;
             break;
         }
     if (!dir_found) {
         SAFE_V(n_paths < max_paths ? OK : FAIL);
-        strcpy(search_paths[n_paths++], fdir);
+        search_paths[n_paths++] = std::move(fdir);
     }
 
-    FILE *fp = fopen(fname, "r");
-    if (fp) return fp;
+    std::ifstream ifs(fname);
+    if (ifs.is_open()) return fname;
 
     for (int n = 0; n < n_paths; ++n) {
-        char fullname[PATH_MAX + 2];
-        snprintf(fullname, PATH_MAX + 2, "%s/%s", search_paths[n], fname);
-        fp = fopen(fullname, "r");
-        print(50, "batch file used: %s\n", fullname);
-        if (fp) break;
+        const std::string fullname = search_paths[n] + "/" + fname;
+        ifs.open(fullname);
+        print(50, "batch file used: %s\n", fullname.c_str());
+        if (ifs.is_open()) return fullname;
     }
 
-    return fp;
+    fprintf(stderr, "cannot open file %s\n", fname.c_str());
+    return fname;
 }
 
 int batch(const char *fname, bench_f bench) {
-    FILE *fp = open_batch_file(fname);
-    SAFE(fp ? OK : FAIL, CRIT);
+    std::ifstream ifs(locate_batch_file(std::string(fname)));
+    SAFE_V(ifs.is_open() ? OK : FAIL);
 
-    const size_t maxlen = 1024;
-    char *opts[8*1024] = {0}, buf[maxlen + 1];
-    char line[1024];
-    int n_opts = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        int offset = 0;
-        const char *l = line;
-        while (sscanf(l, "%s%n", buf, &offset) == 1) {
-            if (buf[0] == '#')
-                break; /* stop reading till eol */
-
-            const size_t len = strnlen(buf, maxlen) + 1;
-            opts[n_opts] = (char *)malloc(len);
-            SAFE(opts[n_opts] ? OK : FAIL, CRIT);
-            strncpy(opts[n_opts], buf, len);
-            ++n_opts;
-
-            l += offset;
+    std::vector<std::string> opts;
+    std::string str;
+    while (ifs >> str) {
+        if (str.length() > 0 && str[0] == '#') {
+            std::getline(ifs, str); /* stop reading till eol */
+            continue;
         }
+        opts.push_back(std::move(str));
     }
-    bench(n_opts, opts);
 
-    for (int n = 0; n < n_opts; ++n)
-        free(opts[n]);
+    std::vector<char *> c_opts;
+    for (const auto &opt: opts)
+        c_opts.push_back(const_cast<char *>(opt.c_str()));
 
-    fclose(fp);
-
-    return OK;
+    return bench(static_cast<int>(c_opts.size()), c_opts.data());
 }
 
 int flip_coin(ptrdiff_t seed, float probability) {
