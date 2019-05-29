@@ -61,11 +61,31 @@ struct dnn_mem_t {
             reorder(rhs);
     }
 
-    /* FIXME: ugly RT assert... need better mkldnn memory handling */
-    dnn_mem_t &operator=(const dnn_mem_t &rhs)
-    { []() { SAFE(FAIL, CRIT); return 0; }(); return *this; }
-    dnn_mem_t(const dnn_mem_t &rhs)
-    { []() { SAFE(FAIL, CRIT); return 0; }(); }
+    dnn_mem_t(const dnn_mem_t &rhs) = delete;
+    dnn_mem_t &operator=(const dnn_mem_t &rhs) = delete;
+
+    dnn_mem_t &operator=(dnn_mem_t &&rhs) {
+        if (&rhs == this) return *this;
+        cleanup();
+
+        md_ = rhs.md_;
+        m_ = rhs.m_;
+        data_ = rhs.data_;
+        is_data_owner_ = rhs.is_data_owner_;
+        active_ = rhs.active_;
+        engine_kind_ = rhs.engine_kind_;
+        engine_ = rhs.engine_;
+        is_cpu_native_ = rhs.is_cpu_native_;
+        is_mapped_ = rhs.is_mapped_;
+        mapped_ptr_ = rhs.mapped_ptr_;
+
+        rhs.active_ = false;
+        return *this;
+    }
+    dnn_mem_t(dnn_mem_t &&rhs) : dnn_mem_t() {
+        *this = std::move(rhs);
+    }
+
 
     ~dnn_mem_t() { cleanup(); }
 
