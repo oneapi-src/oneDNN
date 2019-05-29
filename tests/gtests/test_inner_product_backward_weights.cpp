@@ -137,19 +137,26 @@ protected:
         std::shared_ptr<memory> ip_src, ip_diff_dst, ip_diff_weights, ip_diff_bias;
         std::shared_ptr<memory> diff_weights_ref, diff_bias_ref;
 
-        auto ip_src_desc = has_spatial ? p.ndims == 5
-            ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                    data_type, p.src_format)
-            : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                    p.src_format) :
-                create_md({ ipd.mb, ipd.ic }, data_type, p.src_format);
-        auto ip_diff_weights_desc = has_spatial ? p.ndims == 5
-            ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                    data_type, p.diff_weights_format)
-            : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                    p.diff_weights_format) :
-                create_md({ ipd.oc, ipd.ic }, data_type,
-                        p.diff_weights_format);
+        memory::dims src_dims = { ipd.mb, ipd.ic },
+                     diff_wei_dims = { ipd.oc, ipd.ic };
+        if (has_spatial) {
+            if (p.ndims == 5) {
+                src_dims.push_back(ipd.kd);
+                diff_wei_dims.push_back(ipd.kd);
+            }
+            if (p.ndims >= 4) {
+                src_dims.push_back(ipd.kh);
+                diff_wei_dims.push_back(ipd.kh);
+            }
+            if (p.ndims >= 3) {
+                src_dims.push_back(ipd.kw);
+                diff_wei_dims.push_back(ipd.kw);
+            }
+        }
+        auto ip_src_desc =
+                create_md(src_dims, data_type, p.src_format);
+        auto ip_diff_weights_desc
+                = create_md(diff_wei_dims, data_type, p.diff_weights_format);
         auto ip_diff_dst_desc =
             create_md({ ipd.mb, ipd.oc }, data_type, p.diff_dst_format);
         auto ip_diff_bias_desc = with_bias ?
@@ -227,6 +234,8 @@ using inprod_test_params_float = inprod_test_params;
 #define EXPAND_SIZES_3D(...) 5, { __VA_ARGS__ }
 #define EXPAND_SIZES_2D(mb,ic,oc,kh,kw) \
     4, { mb,ic,oc,1,kh,kw }
+#define EXPAND_SIZES_1D(mb,ic,oc,kw) \
+    3, { mb,ic,oc,1,1,kw }
 
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
@@ -291,6 +300,18 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::format_undef, memory::format::any,
                         EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nwc, memory::format::wio,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ncw, memory::format::oiw,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ncw, memory::format::wio,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nhwc, memory::format::hwio,
                         memory::format::format_undef, memory::format::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
@@ -306,6 +327,14 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::nChw8c, memory::format::oIhw8i,
                         memory::format::format_undef, memory::format::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::oIhw16i,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 1000, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw16c, memory::format::any,
+                        memory::format::format_undef, memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 1000, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nChw16c, memory::format::oIhw16i,
                         memory::format::format_undef, memory::format::nc,

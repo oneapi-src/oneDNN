@@ -111,19 +111,26 @@ protected:
         ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
 
         std::shared_ptr<memory> ip_diff_src, ip_diff_dst, ip_weights, diff_src_ref;
-
-        auto ip_diff_src_desc = has_spatial ? p.ndims == 5
-            ? create_md({ ipd.mb, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                    data_type, p.diff_src_format)
-            : create_md({ ipd.mb, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                    p.diff_src_format) :
-                create_md({ ipd.mb, ipd.ic }, data_type, p.diff_src_format);
-        auto ip_weights_desc = has_spatial ? p.ndims == 5
-            ? create_md({ ipd.oc, ipd.ic, ipd.kd, ipd.kh, ipd.kw },
-                    data_type, p.weights_format)
-            : create_md({ ipd.oc, ipd.ic, ipd.kh, ipd.kw }, data_type,
-                    p.weights_format) :
-                create_md({ ipd.oc, ipd.ic }, data_type, p.weights_format);
+        memory::dims diff_src_dims = { ipd.mb, ipd.ic },
+                     wei_dims = { ipd.oc, ipd.ic };
+        if (has_spatial) {
+            if (p.ndims == 5) {
+                diff_src_dims.push_back(ipd.kd);
+                wei_dims.push_back(ipd.kd);
+            }
+            if (p.ndims >= 4) {
+                diff_src_dims.push_back(ipd.kh);
+                wei_dims.push_back(ipd.kh);
+            }
+            if (p.ndims >= 3) {
+                diff_src_dims.push_back(ipd.kw);
+                wei_dims.push_back(ipd.kw);
+            }
+        }
+        auto ip_diff_src_desc
+                = create_md(diff_src_dims, data_type, p.diff_src_format);
+        auto ip_weights_desc =
+                create_md(wei_dims, data_type, p.weights_format);
         auto ip_diff_dst_desc =
             create_md({ ipd.mb, ipd.oc }, data_type,p.diff_dst_format);
 
@@ -181,6 +188,8 @@ using inprod_test_params_float = inprod_test_params;
 #define EXPAND_SIZES_3D(...) 5, { __VA_ARGS__ }
 #define EXPAND_SIZES_2D(mb,ic,oc,kh,kw) \
     4, { mb,ic,oc,1,kh,kw }
+#define EXPAND_SIZES_1D(mb,ic,oc,kw) \
+    3, { mb,ic,oc,1,1,kw }
 
 TEST_P(inner_product_test_float, TestsInnerProduct)
 {
@@ -285,6 +294,18 @@ INSTANTIATE_TEST_CASE_P(
                         memory::format::any,
                         EXPAND_SIZES_2D( 2, 1024, 48, 2, 2 ) },
                 inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nwc, memory::format::wio,
+                        memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 5 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ncw, memory::format::oiw,
+                        memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 5 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::ncw, memory::format::wio,
+                        memory::format::nc,
+                        EXPAND_SIZES_1D( 2, 32, 48, 5 ) },
+                inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nhwc, memory::format::hwio,
                         memory::format::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
@@ -294,6 +315,14 @@ INSTANTIATE_TEST_CASE_P(
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
                         memory::format::nchw, memory::format::oihw,
+                        memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::any, memory::format::oIhw8i,
+                        memory::format::nc,
+                        EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
+                inprod_test_params_float{ engine::kind::cpu,
+                        memory::format::nChw8c, memory::format::any,
                         memory::format::nc,
                         EXPAND_SIZES_2D( 2, 32, 48, 6, 6 ) },
                 inprod_test_params_float{ engine::kind::cpu,
