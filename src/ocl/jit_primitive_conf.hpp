@@ -232,6 +232,21 @@ struct jit_eltwise_conf_t {
     size_t gws_d[3];
 };
 
+/* shuffle */
+struct jit_shuffle_conf_t {
+    data_type_t data_type;
+    int axis;
+    int axis_size;
+    int group_size;
+    int transpose_row;
+    int transpose_col;
+    size_t outer_size;
+    size_t inner_size;
+    size_t dim;
+    int ndims;
+    size_t gws_d[3];
+};
+
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,
         const memory_desc_t &dst_md, const primitive_attr_t &attr) {

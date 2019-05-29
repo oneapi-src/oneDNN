@@ -33,6 +33,7 @@
 #include "ocl/ref_rnn.hpp"
 #include "ocl/ref_softmax.hpp"
 #include "ocl/ref_deconvolution.hpp"
+#include "ocl/ref_shuffle.hpp"
 #include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
@@ -134,6 +135,10 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_rnn_fwd_f16_t),
     INSTANCE(ref_rnn_fwd_f32_t),
     INSTANCE(ref_rnn_bwd_f32_t),
+    /* shuffle */
+    INSTANCE(ref_shuffle_t<4>),
+    INSTANCE(ref_shuffle_t<2>),
+    INSTANCE(ref_shuffle_t<1>),
     nullptr,
 };
 
