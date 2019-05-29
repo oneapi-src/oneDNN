@@ -118,8 +118,8 @@ void gru_fwd(int64_t sic, int64_t slc, int64_t dic, int64_t wc, int64_t batch, i
 
     for (int64_t i = 0; i < batch; i++)
         for (int64_t k = 0; k < dic; k++) {
-            h_dst(i, k) = gates(i, 0, k) * src_iter_h(i, k) +
-                (1 - gates(i, 0, k)) * gates(i, 2, k);
+            h_dst(i, k) = (float) ((double) gates(i, 0, k) * src_iter_h(i, k) +
+                              (1.0 - (double) gates(i, 0, k)) * gates(i, 2, k));
         }
 }
 
