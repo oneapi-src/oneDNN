@@ -62,6 +62,17 @@ endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     file(GLOB example_sources "cpu_*.cpp" "cpu_*.c")
+
+    if(NOT MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
+        foreach(ex_skip
+                cpu_getting_started.cpp
+                cpu_rnn_inference_fp32.cpp
+                cpu_rnn_inference_int8.cpp)
+            get_filename_component(ex_skip_abs_path
+                    ${CMAKE_CURRENT_LIST_DIR}/${ex_skip} ABSOLUTE)
+            list(REMOVE_ITEM example_sources "${ex_skip_abs_path}")
+        endforeach()
+    endif()
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
