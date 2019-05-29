@@ -68,10 +68,6 @@ struct jit_ref_inner_product_fwd_kernel {
         jip.kh = weights_d.dims()[ndims - 2];
         jip.kw = weights_d.dims()[ndims - 1];
 
-        const auto &p = attr.post_ops_;
-        jip.with_relu = p.len_ == 1;
-        jip.relu_negative_slope = p.entry_[0].eltwise.alpha;
-
         jip.src_dt = src_d.data_type();
 
         jip.is_forward = utils::one_of(ipd.prop_kind, prop_kind::forward,
@@ -94,7 +90,8 @@ struct jit_ref_inner_product_fwd_kernel {
     };
 
     static status_t init_const_def(ocl_jit_t &jit,
-            const jit_inner_product_conf_t &jip, const jit_offsets &jit_off) {
+            const jit_inner_product_conf_t &jip, const jit_offsets &jit_off,
+            bool with_eltwise, bool with_sum, alg_kind_t alg) {
 
         jit.set_data_type(jip.src_dt);
         jit.define_int("NDIMS", jip.ndims);
@@ -113,8 +110,6 @@ struct jit_ref_inner_product_fwd_kernel {
         jit.define_int("KW", jip.kw);
         if (jip.with_bias)
             jit.define_int("WITH_BIAS", 1);
-        if (jip.with_relu)
-            jit.define_int("WITH_RELU", 1);
         if (jip.has_spatial)
             jit.define_int("HAS_SPATIAL", 1);
 
@@ -124,6 +119,13 @@ struct jit_ref_inner_product_fwd_kernel {
             jit.define_int("INNER_PRODUCT_BWD_DATA", 1);
         else if (jip.is_backward_weights)
             jit.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
+
+        if (with_eltwise) {
+            def_postops(jit, alg);
+        }
+        jit.define_int("WITH_ELTWISE",with_eltwise);
+        jit.define_int("WITH_SUM",with_sum);
+        jit.define_int("WITH_SUM_ELTWISE",with_sum && with_eltwise);
 
         def_offsets(jit_off.src_off, jit, "SRC", jip.ndims);
         def_offsets(jit_off.wht_off, jit, "WHT", jip.ndims);

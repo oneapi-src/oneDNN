@@ -120,7 +120,7 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
 template <impl::data_type_t type>
 struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(ocl_jit_t &jit, bool trans_a, bool trans_b,
-        bool with_relu) {
+        bool with_eltwise, alg_kind_t alg) {
         auto status = init_cl_options<type>(jit);
         if (status)
             return status;
@@ -129,8 +129,10 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
             jit.add_option("-DTRANS_A");
         if (trans_b)
             jit.add_option("-DTRANS_B");
-        if (with_relu)
-            jit.define_int("WITH_RELU", 1);
+        jit.define_int("WITH_ELTWISE",with_eltwise);
+        if (with_eltwise) {
+            def_postops(jit, alg);
+        }
 
 #ifdef DEBUG_PRINT
         printf("OPT:\n%s\n", jit.get_options());

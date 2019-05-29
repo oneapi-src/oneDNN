@@ -147,7 +147,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     stream_t *s, const memory_storage_t &a, const memory_storage_t &b,
     const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
     int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-    int32_t n, int32_t k, float alpha, float beta, float post_op_param) const {
+    int32_t n, int32_t k, float alpha, float beta,
+    int last_k_block, float eltwise_alpha, float eltwise_beta) const {
 
     auto &kernel = nocopy_kernel_;
 
@@ -166,7 +167,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     kernel.set_arg(11, k);
     kernel.set_arg(12, alpha);
     kernel.set_arg(13, beta);
-    kernel.set_arg(14, post_op_param);
+    kernel.set_arg(14, last_k_block);
+    kernel.set_arg(15, eltwise_alpha);
+    kernel.set_arg(16, eltwise_beta);
 
     bool transa = (pd()->desc()->transa == mkldnn_trans);
     bool transb = (pd()->desc()->transb == mkldnn_trans);
@@ -233,7 +236,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
     auto alpha = pd()->desc()->alpha;
     auto beta = pd()->desc()->beta;
 
-    auto relu_negative_slope = pd()->relu_negative_slope();
+    auto eltwise_alpha = pd()->eltwise_alpha();
+    auto eltwise_beta = pd()->eltwise_beta();
 
     c_t alpha_native, beta_native, one_native;
     alpha_native = alpha;
@@ -300,11 +304,10 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
 
                 if (nocopy_) {
                     float eff_beta = (Bk == 0) ? beta : 1.0f;
-                    float eff_relu_negative_slope = last_k_block ?
-                        relu_negative_slope : 1.0f;
                     status = launch_nocopy(ctx.stream(), a, b, c, off_a_src,
                         off_b_src, off_c, lda, ldb, ldc, size_m, size_n, size_k,
-                        alpha, eff_beta, eff_relu_negative_slope);
+                        alpha, eff_beta, (int)last_k_block, eltwise_alpha,
+                        eltwise_beta);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
                     status = launch_compute(ctx.stream(), size_m, size_n,

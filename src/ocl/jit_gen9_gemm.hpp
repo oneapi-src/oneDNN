@@ -68,22 +68,39 @@ struct jit_gen9_gemm_t : public primitive_t {
                                        && cl_engine->mayiuse(
                                                   cl_device_ext_t::khr_fp16)
                                        && cl_engine->mayiuse(cl_device_ext_t::
-                                                          intel_subgroups_short))
-                    && IMPLICATION(attr()->post_ops_.len_ == 1,
-                        attr()->post_ops_.entry_[0].is_relu(true, false));
+                                                  intel_subgroups_short));
             if (!ok)
                 return status::unimplemented;
 
             return status::success;
         }
 
-        bool with_relu() const {
-            return attr()->post_ops_.len_ == 1;
+        bool with_eltwise() const {
+            return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
         }
 
-        float relu_negative_slope() const {
-            return with_relu() ? attr()->post_ops_.entry_[0].eltwise.alpha
+        float eltwise_alpha() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
                 : 1.0f;
+        }
+
+        float eltwise_beta() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
+                : 0.0f;
+        }
+
+        alg_kind_t eltwise_alg_kind() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
+                : mkldnn_alg_kind_undef;
         }
 
         size_t dyn_offset_a = 0;
@@ -164,7 +181,8 @@ struct jit_gen9_gemm_t : public primitive_t {
         auto jit = ocl_jit_t(gen9_gemm_nocopy_kernel);
 
         auto status = jit_gen9_gemm_nocopy_kernel<c_type>::init_const_def(jit,
-            pd()->desc()->transa, pd()->desc()->transb, pd()->with_relu());
+            pd()->desc()->transa, pd()->desc()->transb, pd()->with_eltwise(),
+            pd()->eltwise_alg_kind());
         if (status != status::success)
             return status;
 
@@ -201,7 +219,7 @@ private:
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        float post_op_param) const;
+        int last_k_block, float eltwise_alpha, float eltwise_beta) const;
 
     ocl_kernel_t compute_kernel_[2];
     ocl_kernel_t copy_kernel_[2][2];
@@ -213,7 +231,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bool use_nocopy() const {
-        return (pd()->with_relu() || ((c_type == data_type::f32) &&
+        return (pd()->with_eltwise() || ((c_type == data_type::f32) &&
             ((pd()->desc()->transa == mkldnn_notrans)
                 || (pd()->desc()->transb == mkldnn_trans))));
     }

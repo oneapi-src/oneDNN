@@ -1,7 +1,21 @@
 # f32
 --reset
+--cfg=f32
+--mb=2
 --dir=FWD_B,BWD_D,BWD_WB --batch=ip_all
 
-# relu w/ and w/o bias (relu may be fused with gemm)
+# f32 + post_ops
+--reset
+--cfg=f32
 --mb=2
---dir=FWD_B,FWD_D --attr=post_ops='relu' --batch=ip_all
+--dir=FWD_B,FWD_D
+--attr=post_ops='sum:2.0;relu:3.0' --batch=ip_1d
+--attr=post_ops='sum:2.0' --batch=ip_all
+--attr=post_ops='linear:3.0:2.0' --batch=ip_1d
+
+# f16
+--reset
+--cfg=f16
+--mb=2
+--dir=FWD_B,FWD_D
+--attr=post_ops='linear:1.0:2.0' --batch=ip_1d

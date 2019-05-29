@@ -15,11 +15,14 @@
 *******************************************************************************/
 
 #include "ocl/ocl_types.h"
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
 
 #if INNER_PRODUCT_FWD == 1
 __kernel void ref_inner_product_fwd_kernel(__global DATA_T *src,
         __global DATA_T *wht, __global DATA_T *bias, __global DATA_T *dst,
-        DATA_T relu_negative_slope) {
+        float eltwise_alpha, float eltwise_beta, float sum_scale) {
 
     const int mb = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;
@@ -42,10 +45,19 @@ __kernel void ref_inner_product_fwd_kernel(__global DATA_T *src,
 #    endif
                     a += src[src_off] * wht[wht_off];
                 }
-#    if WITH_RELU == 1
-    dst[mb * OC + oc] = (a < 0.0f) ? relu_negative_slope * a : a;
+#    if WITH_SUM_ELTWISE == 1
+    a += sum_scale * dst[mb * OC + oc];
+    dst[mb * OC + oc] = fwd_eltwise(a, eltwise_alpha, eltwise_beta);
 #    else
+#    if WITH_ELTWISE == 1
+    dst[mb * OC + oc] = fwd_eltwise(a, eltwise_alpha, eltwise_beta);
+#    endif
+#    if WITH_SUM == 1
+    dst[mb * OC + oc] = dst[mb * OC + oc] * sum_scale + a;
+#    endif
+#    if WITH_ELTWISE == 0 && WITH_SUM == 0
     dst[mb * OC + oc] = a;
+#    endif
 #    endif
 }
 #endif

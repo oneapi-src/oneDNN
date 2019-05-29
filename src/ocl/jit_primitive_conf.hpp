@@ -130,9 +130,8 @@ struct jit_inner_product_conf_t {
     int mb, oc, ic, ic_total;
     int id, ih, iw, od, oh, ow;
     int kd, kh, kw;
-    bool with_bias, with_relu, has_spatial;
+    bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
-    float relu_negative_slope;
     data_type_t src_dt;
 };
 
@@ -405,6 +404,21 @@ inline void def_offsets(const int offs[4][MAX_NDIMS], ocl_jit_t &jit,
         snprintf(tempstr, 32, " %s_D%d", str, d);
         jit.define_int(tempstr, 0);
     }
+}
+
+inline void def_postops(ocl_jit_t &jit, alg_kind_t alg) {
+    jit.define_int("RELU", alg_kind::eltwise_relu);
+    jit.define_int("LINEAR", alg_kind::eltwise_linear);
+    jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
+    jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
+    jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+    jit.define_int("TANH", alg_kind::eltwise_tanh);
+    jit.define_int("ELU", alg_kind::eltwise_elu);
+    jit.define_int("SQUARE", alg_kind::eltwise_square);
+    jit.define_int("SQRT", alg_kind::eltwise_sqrt);
+    jit.define_int("ABS", alg_kind::eltwise_abs);
+    jit.define_int("EXP", alg_kind::eltwise_exp);
+    jit.define_int("ALG_KIND", alg);
 }
 
 } // namespace ocl

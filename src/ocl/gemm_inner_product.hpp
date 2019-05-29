@@ -77,10 +77,10 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
 
-            bool with_relu =  true
+            bool with_eltwise =  true
                 && attr()->output_scales_.has_default_values()
-                && attr()->post_ops_.len_ == 1
-                && attr()->post_ops_.entry_[0].is_relu(true, false);
+                && attr()->post_ops_.find(primitive_kind::eltwise) != -1;
+            bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
 
             bool ok = true
                 && set_default_params() == status::success
@@ -90,7 +90,9 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 && weights_md()->data_type == wei_type
                 && dst_md()->data_type == dst_type
                 && (attr()->has_default_values()
-                        || IMPLICATION(with_relu, !with_bias()))
+                        || IMPLICATION(with_eltwise, !with_bias()))
+                && IMPLICATION(src_type == f16, !with_eltwise)
+                && !with_sum
                 && dense_consitency_check(src_md(), weights_md(), dst_md())
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
