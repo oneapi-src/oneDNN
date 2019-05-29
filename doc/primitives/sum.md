@@ -36,9 +36,7 @@ The sum primitive doesn't support any post-ops or attributes.
 ### Data Types Support
 
 The sum primitive supports arbitrary data types for source and destination
-tensors according to the @ref dev_guide_data_types page. However, it is
-required that all source tensors are of the same data type (but not necessarily
-matching the data type of the destination tensor).
+tensors according to the @ref dev_guide_data_types page.
 
 ### Data Representation
 

@@ -42,7 +42,6 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
 
     const int ndims = src_mds[0].ndims;
     const dims_t &dims = src_mds[0].dims;
-    const data_type_t dt = src_mds[0].data_type;
 
     for (int i = 1; i < n; ++i) {
         if (src_mds[i].ndims != ndims) return invalid_arguments;
@@ -50,7 +49,6 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
             if (src_mds[i].dims[d] != dims[d])
                 return invalid_arguments;
         }
-        if (src_mds[i].data_type != dt) return invalid_arguments;
     }
 
     memory_desc_t dummy_dst_md;
