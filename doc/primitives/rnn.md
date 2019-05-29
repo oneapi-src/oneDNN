@@ -115,6 +115,11 @@ h_t &= tanh(c_t) * o_t
 where \f$W_*\f$ are stored in `weights_layer`, \f$U_*\f$ are stored in
 `weights_iter` and \f$B_*\f$ are stored in `bias`.
 
+@note
+In order for the dimensions to be consistent, we require
+\f$channels(src\_iter\_c) = channels(dst\_iter\_c) =
+channels(dst\_iter)\f$.
+
 ## GRU
 
 A three-gate gated recurrent unit cell, initialized with
