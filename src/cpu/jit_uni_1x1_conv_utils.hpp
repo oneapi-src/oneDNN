@@ -80,8 +80,10 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
             utils::array_set(self->rtus_.conv_d_.padding[1], 0, 2);
         const int ic = src_d->dims[1];
         if (is_bwd_data) {
+            data_type_t data_type = self->rtus_.conv_d_.diff_src_desc.data_type;
             src_d = &(self->rtus_.conv_d_.diff_src_desc = *dst_d);
             self->rtus_.conv_d_.diff_src_desc.dims[1] = ic;
+            self->rtus_.conv_d_.diff_src_desc.data_type = data_type;
             memory_desc_wrapper::compute_blocking(
                     self->rtus_.conv_d_.diff_src_desc, dat_tag);
         } else {
