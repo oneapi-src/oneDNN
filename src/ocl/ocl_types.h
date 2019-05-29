@@ -132,6 +132,8 @@
 #    define BLOCK_DATA8_T uchar8
 #    define AS_BLOCK_DATA_T as_uchar
 #    define AS_BLOCK_DATA8_T as_uchar8
+#elif DT_S32 == 1
+#    define DATA_T int
 #else
 #    error "Unexpected data type"
 #endif

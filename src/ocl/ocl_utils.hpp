@@ -535,6 +535,7 @@ struct ocl_jit_t {
         case data_type::f32: define_int("DT_F32", 1); break;
         case data_type::s8: define_int("DT_S8", 1); break;
         case data_type::u8: define_int("DT_U8", 1); break;
+        case data_type::s32: define_int("DT_S32", 1); break;
         default: assert(!"unknown data type"); break;
         }
     }
