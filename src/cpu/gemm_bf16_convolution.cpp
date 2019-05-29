@@ -69,8 +69,6 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(
         // bf16 is not supported
         return;
 
-    const auto dst_md = memory_desc_wrapper(pd->dst_md());
-
     auto &post_ops = pd->attr()->post_ops_;
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     do_eltwise_ = eltwise_ind != -1;
