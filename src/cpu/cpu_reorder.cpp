@@ -213,6 +213,8 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR(f32, goihw, bf16, gOIhw8i16o2i, fmt_order::keep),
     REG_SR(f32, oihw, bf16, OIhw8o16i2o, fmt_order::keep),
     REG_SR(f32, goihw, bf16, gOIhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, oihw, bf16, IOhw8o16i2o, fmt_order::keep),
+    REG_SR(f32, goihw, bf16, gIOhw8o16i2o, fmt_order::keep),
     REG_SR(f32, oihw, bf16, OIhw16i16o, fmt_order::keep),
     REG_SR(f32, goihw, bf16, gOIhw16i16o, fmt_order::keep),
 

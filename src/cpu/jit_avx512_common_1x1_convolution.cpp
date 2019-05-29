@@ -274,7 +274,6 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     const int ndims = diff_src_d.ndims();
 
-    // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];

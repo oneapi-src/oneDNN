@@ -405,7 +405,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         (tag_i == goihw || tag_i == oihw) &&
         (tag_o == gOIhw16i16o || tag_o == OIhw16i16o
          || tag_o == gOIhw8i16o2i || tag_o == OIhw8i16o2i
-         || tag_o == gOIhw8o16i2o || tag_o == OIhw8o16i2o) &&
+         || tag_o == gOIhw8o16i2o || tag_o == OIhw8o16i2o
+         || tag_o == gIOhw8o16i2o || tag_o == IOhw8o16i2o) &&
         type_i == data_type::f32 && type_o == data_type::bf16)>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -452,7 +453,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 return (ic * blksize + oc);
             else if (utils::one_of(tag_o, gOIhw8i16o2i, OIhw8i16o2i))
                 return ((ic / sblk) * blksize * sblk + sblk * oc + ic % sblk);
-            else if (utils::one_of(tag_o, gOIhw8o16i2o, OIhw8o16i2o))
+            else if (utils::one_of(tag_o, gOIhw8o16i2o, gIOhw8o16i2o,
+                             OIhw8o16i2o, IOhw8o16i2o))
                 return ((oc / sblk) * blksize * sblk + sblk * ic + oc % sblk);
             else
                 assert(!"Invalid weight format");

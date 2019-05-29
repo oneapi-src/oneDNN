@@ -106,6 +106,8 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(Oiw16o);
     CASE(Owi16o);
     CASE(OIw8i16o2i);
+    CASE(OIw8o16i2o);
+    CASE(IOw8o16i2o);
     CASE(OIw4i16o4i);
     CASE(oihw);
     CASE(ihwo);
@@ -118,6 +120,7 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(OIdhw8i16o2i);
     CASE(OIhw4i16o4i);
     CASE(OIhw8o16i2o);
+    CASE(IOhw8o16i2o);
     CASE(OIhw8o8i);
     CASE(OIhw16o16i);
     CASE(IOhw16o16i);
@@ -144,6 +147,7 @@ mkldnn_format_tag_t str2tag(const char *str) {
     CASE(gOIhw2i8o4i);
     CASE(gOIhw4i16o4i);
     CASE(gOIhw8o16i2o);
+    CASE(gIOhw8o16i2o);
     CASE(gOIhw8o8i);
     CASE(gOIhw16o16i);
     CASE(gIOhw16o16i);
