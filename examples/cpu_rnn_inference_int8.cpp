@@ -69,9 +69,6 @@ std::vector<float> alignment_model(
 std::vector<float> alignments(src_seq_length_max *batch, 1.0f);
 std::vector<float> exp_sums(batch, 1.0f);
 
-const float onef = 1.0, zerof = 0.0;
-const dim_t onei = 1;
-
 void compute_weighted_annotations(float *weighted_annotations,
         dim_t src_seq_length_max, dim_t batch, dim_t feature_size,
         float *weights_annot, float *annotations) {
@@ -80,9 +77,9 @@ void compute_weighted_annotations(float *weighted_annotations,
 
     dim_t num_weighted_annotations = src_seq_length_max * batch;
     // annotation[i] = GEMM(weights_annot, enc_dst_layer[i]);
-    mkldnn_sgemm("N", "N", &feature_size, &num_weighted_annotations,
-            &feature_size, &onef, weights_annot, &feature_size, annotations,
-            &feature_size, &zerof, weighted_annotations, &feature_size);
+    mkldnn_sgemm('N', 'N', num_weighted_annotations, feature_size, feature_size,
+            1.f, annotations, feature_size, weights_annot, feature_size,
+            0.f, weighted_annotations, feature_size);
 }
 
 void compute_sum_of_rows(
@@ -115,13 +112,12 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
     // p is (n, 1)
 
     // first we precompute the weighted_dec_src_layer
-    int8_t ao = 0;
-    int8_t bo = 0;
     int32_t co = 0;
-    mkldnn_gemm_s8u8s32("N", "N", "F", &feature_size, &batch, &feature_size,
-            &onef, weights_src_layer, &feature_size, &ao, dec_src_layer,
-            &feature_size, &bo, &zerof, weighted_src_layer.data(),
-            &feature_size, &co);
+    mkldnn_gemm_u8s8s32('N', 'N', 'F', batch, feature_size, feature_size,
+            1.f,
+            dec_src_layer, feature_size, 0,
+            weights_src_layer, feature_size, 0,
+            0.f, weighted_src_layer.data(), feature_size, &co);
 
     // then we compute the alignment model
     float *alignment_model_ptr = alignment_model.data();
@@ -145,9 +141,9 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
 
     // gemv with alignments weights. the resulting alignments are in alignments
     dim_t num_weighted_annotations = src_seq_length_max * batch;
-    mkldnn_sgemm("N", "N", &onei, &num_weighted_annotations, &feature_size,
-            &onef, weights_alignments, &onei, alignment_model_ptr,
-            &feature_size, &zerof, alignments.data(), &onei);
+    mkldnn_sgemm('N', 'N', num_weighted_annotations, 1, feature_size,
+            1.f, alignment_model_ptr, feature_size, weights_alignments, 1,
+            0.f, alignments.data(), 1);
 
 // softmax on alignments. the resulting context weights are in alignments
 #ifdef _OPENMP

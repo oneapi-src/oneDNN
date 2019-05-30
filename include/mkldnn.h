@@ -1923,8 +1923,8 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
 ///  - A, B and C are matrices, with op( A ) an m by k matrix, op( B ) a k by n matrix
 ///    and C an m by n matrix.
 ///
-/// The matrices are assumed to be stored in column-major order (the elements
-/// in a matrix columns are contiguous in memory).
+/// The matrices are assumed to be stored in row-major order (the elements
+/// in a matrix rows are contiguous in memory).
 ///
 /// @note
 ///      The API is different from the standard BLAS routine
@@ -1932,11 +1932,11 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
 mkldnn_status_t MKLDNN_API mkldnn_sgemm(
-        const char *transa, const char *transb,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha, const float *A, const mkldnn_dim_t *lda,
-        const float *B, const mkldnn_dim_t *ldb,
-        const float *beta, float *C, const mkldnn_dim_t *ldc);
+        char transa, char transb,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha, const float *A, mkldnn_dim_t lda,
+        const float *B, mkldnn_dim_t ldb,
+        float beta, float *C, mkldnn_dim_t ldc);
 
 /// gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
 /// operation and add the result to a scalar-matrix product. For the final
@@ -1964,23 +1964,21 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(
 ///      because it returns mkldnn_status_t for error handling.
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
-mkldnn_status_t MKLDNN_API mkldnn_gemm_s8u8s32(
-        const char *transa, const char *transb, const char *offsetc,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha,
-        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
-        const uint8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
-        const float *beta,
-        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
+mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
+        char transa, char transb, char offsetc,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha,
+        const uint8_t *A, mkldnn_dim_t lda, int8_t ao,
+        const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 
 mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
-        const char *transa, const char *transb, const char *offsetc,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha,
-        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
-        const int8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
-        const float *beta,
-        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
+        char transa, char transb, char offsetc,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha,
+        const int8_t *A, mkldnn_dim_t lda, int8_t ao,
+        const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 /// @}
 
 /// @}
