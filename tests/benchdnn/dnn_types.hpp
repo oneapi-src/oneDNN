@@ -30,6 +30,10 @@
 struct dims_t: public std::vector<int64_t> {};
 dims_t str2dims(const char *str);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_data_type_t> &v_dt);
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_format_tag_t> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,

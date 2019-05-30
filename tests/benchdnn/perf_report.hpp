@@ -118,8 +118,8 @@ struct base_perf_report_t {
         HANDLE("dir", if (dir()) s << dir2str(*dir()));
         HANDLE("dt", if (dt()) s << dt2str(*dt()));
         HANDLE("group", if (group()) s << *group());
-        HANDLE("idt", if (idt()) s << dt2str(*idt()));
-        HANDLE("itag", if (itag()) s << fmt_tag2str(*itag()));
+        HANDLE("idt", if (idt()) s << *idt());
+        HANDLE("itag", if (itag()) s << *itag());
         HANDLE("name", if (name()) s << name());
         HANDLE("odt", if (odt()) s << dt2str(*odt()));
         HANDLE("otag", if (otag()) s << fmt_tag2str(*otag()));
@@ -164,10 +164,12 @@ struct base_perf_report_t {
     virtual const int64_t *group() const { return nullptr; }
     virtual const dir_t *dir() const { return nullptr; }
     virtual const mkldnn_data_type_t *dt() const { return nullptr; }
-    virtual const mkldnn_data_type_t *idt() const { return nullptr; }
+    virtual const std::vector<mkldnn_data_type_t> *idt() const
+    { return nullptr; }
     virtual const mkldnn_data_type_t *odt() const { return nullptr; }
     virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
-    virtual const mkldnn_format_tag_t *itag() const { return nullptr; }
+    virtual const std::vector<mkldnn_format_tag_t> *itag() const
+    { return nullptr; }
     virtual const mkldnn_format_tag_t *otag() const { return nullptr; }
     virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
 

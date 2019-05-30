@@ -51,6 +51,22 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_data_type_t> &v_dt) {
+    s << dt2str(v_dt[0]);
+    for (size_t d = 1; d < v_dt.size(); ++d)
+        s << ":" << dt2str(v_dt[d]);
+    return s;
+}
+
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_format_tag_t> &v_tag) {
+    s << fmt_tag2str(v_tag[0]);
+    for (size_t d = 1; d < v_tag.size(); ++d)
+        s << ":" << fmt_tag2str(v_tag[d]);
+    return s;
+}
+
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
     CASE(FWD_D);

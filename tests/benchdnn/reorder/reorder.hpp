@@ -103,8 +103,9 @@ struct perf_report_t: public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
-        idt_ = cfg2dt(p_->conf_in);
+        idt_ = {cfg2dt(p_->conf_in)};
         odt_ = cfg2dt(p_->conf_out);
+        itag_ = {p_->reorder.tag_in};
         base_report(r, prb_str);
     }
 
@@ -118,16 +119,19 @@ struct perf_report_t: public base_perf_report_t {
 
     virtual double ops() const override { return p_->ops; }
     virtual const attr_t *attr() const override { return &p_->attr; }
-    virtual const mkldnn_data_type_t *idt() const override { return &idt_; }
+    virtual const std::vector<mkldnn_data_type_t> *idt() const override
+    { return &idt_; }
     virtual const mkldnn_data_type_t *odt() const override { return &odt_; }
-    virtual const mkldnn_format_tag_t *itag() const override
-    { return &p_->reorder.tag_in; }
+    virtual const std::vector<mkldnn_format_tag_t> *itag() const override
+    { return &itag_; }
     virtual const mkldnn_format_tag_t *otag() const override
     { return &p_->reorder.tag_out; }
 
 private:
     const prb_t *p_ = NULL;
-    mkldnn_data_type_t idt_, odt_;
+    std::vector<mkldnn_data_type_t> idt_;
+    mkldnn_data_type_t odt_;
+    std::vector<mkldnn_format_tag_t> itag_;
 };
 
 int doit(const prb_t *p, res_t *res);
