@@ -105,6 +105,7 @@ enum prim_t {
     RNN,
     SOFTMAX,
     POOL,
+    SUM,
     DEF = CONV,
 };
 

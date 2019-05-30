@@ -127,6 +127,10 @@ register_benchdnn_test(test_benchdnn_softmax
     cpu "--softmax --batch=inputs/softmax/test_softmax_all")
 register_benchdnn_test(test_benchdnn_pool
     cpu "--pool --batch=inputs/pool/test_pool_all")
+register_benchdnn_test(test_benchdnn_sum
+    cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
+register_benchdnn_test(test_benchdnn_sum_bf16
+    cpu "-v1 --sum --batch=inputs/sum/test_sum_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "--conv --batch=inputs/test_conv_regression"
@@ -150,6 +154,9 @@ if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
         gpu "--rnn --batch=inputs/rnn/test_rnn_gpu")
     register_benchdnn_test(test_benchdnn_pool
         gpu "--pool --batch=inputs/pool/test_pool_gpu")
+# fp16 produces nans
+#    register_benchdnn_test(test_benchdnn_sum
+#        gpu "--sum --batch=inputs/sum/test_sum_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
