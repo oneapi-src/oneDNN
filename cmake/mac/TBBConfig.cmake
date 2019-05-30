@@ -78,7 +78,7 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
         # - install TBB runtime
         if (_tbb_component STREQUAL tbb)
             set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
-            # TODO: remove this once BOM mapping is enabled
+            # TODO: remove this as soon as the build system is no longer responsible for that
             if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
                 install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
             endif()

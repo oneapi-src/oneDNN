@@ -75,7 +75,6 @@ endif()
 
 #set conveniance variable to locate TBB files (these are used for a PSXE install)
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
-get_filename_component(_tbb_dll_path "${_tbb_root}/../redist/${_tbb_arch_subdir}/tbb/${_tbb_compiler_subdir}" ABSOLUTE)
 get_filename_component(_tbb_inc_path "${_tbb_root}/include/" ABSOLUTE)
 
 
@@ -106,10 +105,15 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
         # - install TBB runtime
         if (_tbb_component STREQUAL tbb)
             set(TBB_INCLUDE_DIRS "${_tbb_inc_path}")
-            # TODO: remove this once BOM mapping is enabled
+            # TODO: remove this as soon as the build system is no longer responsible for that
             if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+                get_filename_component(_tbb_dll_path "${_tbb_root}/bin/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
+                set(_tbb_release_dll "${_tbb_dll_path}/${_tbb_component}.dll")
+                if (NOT EXISTS "${_tbb_release_dll}")
+                    message(FATAL_ERROR "Missed required Intel TBB component: ${_tbb_component}.dll")
+                endif()
+                install(PROGRAMS ${_tbb_release_dll} DESTINATION ${CMAKE_INSTALL_BINDIR})
                 install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-                install(PROGRAMS "${_tbb_dll_path}/${_tbb_component}.dll" DESTINATION ${CMAKE_INSTALL_BINDIR})
             endif()
         endif()
 
