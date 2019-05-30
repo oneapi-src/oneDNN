@@ -313,8 +313,18 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                     kernel[isBeta0][no_col_offset][no_row_offset] =
                         new jit_avx2_kernel_sgemm_kern(isBeta0);
                 }
-                break;
+            } else if (mayiuse(avx)) {
+                kernel[no_beta0][no_col_offset][no_row_offset] =
+                    new jit_avx_kernel_sgemm_kern;
+                kernel[do_beta0][no_col_offset][no_row_offset] =
+                    new jit_avx_kernel_b0_sgemm_kern();
+            } else if (mayiuse(sse41)) {
+                kernel[no_beta0][no_col_offset][no_row_offset] =
+                    new jit_sse41_kernel_sgemm_kern;
+                kernel[do_beta0][no_col_offset][no_row_offset] =
+                    new jit_sse41_kernel_b0_sgemm_kern();
             }
+            break;
         }
 
         static jit_avx512_core_gemv_s8u8s32_kern *gemv_s8u8s32_kernel = NULL;
