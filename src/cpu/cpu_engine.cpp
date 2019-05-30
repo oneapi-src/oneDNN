@@ -135,7 +135,6 @@ static const pd_create_f cpu_impl_list[] = {
     /* conv (bfloat16) */
     INSTANCE(jit_avx512_core_bf16_convolution_fwd_t),
     INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t),
-    INSTANCE(jit_avx512_core_bf16_convolution_bwd_data_t),
     INSTANCE(gemm_bf16_convolution_fwd_t<f32>),
     INSTANCE(gemm_bf16_convolution_fwd_t<bf16>),
     INSTANCE(gemm_bf16_convolution_bwd_data_t<f32>),

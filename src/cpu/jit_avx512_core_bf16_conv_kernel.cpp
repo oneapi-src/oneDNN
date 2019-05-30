@@ -495,6 +495,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
 
     jcp = zero<decltype(jcp)>();
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    jcp.ver = ver_vnni;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -582,7 +583,6 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    jcp.ver = ver_vnni;
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
 
@@ -902,6 +902,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
         return status::unimplemented;
 
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    jcp.ver = ver_vnni;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -1001,7 +1002,6 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
     int n_oi = jcp.iw / jcp.ur_w;
     if (r_overflow1 > 0) n_oi--;
 
-    jcp.ver = ver_vnni;
     jcp.typesize_in = types::data_type_size(diff_dst_d.data_type());
     jcp.typesize_out = types::data_type_size(diff_src_d.data_type());
 

@@ -49,7 +49,7 @@ struct jit_avx512_core_bf16_fwd_kernel : public jit_generator {
                     bf16_emu_reserv_4, bf16_emu_reserv_5);
 
         generate();
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
+        jit_ker = (decltype(jit_ker))getCode();
     }
 
     ~jit_avx512_core_bf16_fwd_kernel() {
@@ -147,7 +147,7 @@ private:
     }
 
     size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
-        size_t scale = jcp.ver == ver_vnni ? 2 : 1;
+        size_t scale = 2; //bf16 vnni is used
         size_t iw_str = jcp.ic_block;
         size_t ic_str = 1;
         return (size_t)jcp.typesize_in
@@ -158,7 +158,7 @@ private:
 
     size_t get_kernel_offset(int ki, int ic,
                                     int n_oc_block, int ker_number) {
-        int scale = jcp.ver == ver_vnni ? 2 : 1;
+        int scale = 2; //bf16 vnni is used
         size_t oc_block_stride = (size_t)jcp.nb_ic
                                * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
         return jcp.typesize_in * jcp.oc_block
@@ -191,7 +191,7 @@ struct jit_avx512_core_bf16_bwd_data_kernel: public jit_generator {
                     bf16_emu_reserv_3, bf16_emu_scratch,
                     bf16_emu_reserv_4, bf16_emu_reserv_5);
         generate();
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
+        jit_ker = (decltype(jit_ker))getCode();
     }
 
     ~jit_avx512_core_bf16_bwd_data_kernel() {
