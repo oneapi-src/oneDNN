@@ -336,6 +336,16 @@ struct jit_softmax_t: public jit_generator {
 
 // keep two sse41 functions separately to have common part human-friendly code
 template <>
+void jit_softmax_t<sse41>::uni_vmovups_tail(
+        const Operand &dst, const Operand &src) = delete;
+template <>
+void jit_softmax_t<sse41>::uni_vmovups_tail_avx2(
+        const Operand &dst, const Operand &src) = delete;
+template <>
+void jit_softmax_t<sse41>::uni_vmovups_tail_avx512(
+        const Operand &dst, const Operand &src) = delete;
+
+template <>
 void jit_softmax_t<sse41>::get_horizontal_op(Vmm &v, Vmm &vtmp, op_t op) {
     uni_vmovups(vtmp, v);
     shufps(vtmp, vtmp, 0x4E); // 64/128-bit shuffle
