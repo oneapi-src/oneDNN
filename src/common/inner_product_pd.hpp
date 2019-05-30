@@ -146,16 +146,28 @@ protected:
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             memory_desc_t *bias_md) {
         using namespace format_tag;
-        if (src_md.format_kind == format_kind::any) {
-            CHECK(memory_desc_init_by_tag(src_md,
-                        utils::pick(ndims() - 2, nc, ncw, nchw, ncdhw)));
-        }
+
+        auto matching_tag = [&](memory_desc_t md) {
+            if (memory_desc_matches_one_of_tag(md, ba, cba, cdba, cdeba))
+                return utils::pick(ndims() - 2, ab, acb, acdb, acdeb);
+            if (memory_desc_matches_one_of_tag(md, acb, acdb, acdeb))
+                return utils::pick(ndims() - 3, cba, cdba, cdeba);
+            auto src_tag = memory_desc_matches_one_of_tag(md, ab, abc, abcd,
+                    abcde, aBcd16b, aBcde16b, aBcd8b, aBcde8b, aBcd4b, aBcde4b);
+            return src_tag;
+        };
+        if (src_md.format_kind == format_kind::any
+                && weights_md.format_kind == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(
+                    src_md, utils::pick(ndims() - 2, nc, ncw, nchw, ncdhw)));
+            CHECK(memory_desc_init_by_tag(weights_md,
+                    utils::pick(ndims() - 2, oi, oiw, oihw, oidhw)));
+        } else if (src_md.format_kind == format_kind::any)
+             CHECK(memory_desc_init_by_tag(src_md, matching_tag(weights_md)));
+        else if (weights_md.format_kind == format_kind::any)
+             CHECK(memory_desc_init_by_tag(weights_md, matching_tag(src_md)));
         if (dst_md.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(dst_md, nc));
-        if (weights_md.format_kind == format_kind::any) {
-            CHECK(memory_desc_init_by_tag(weights_md,
-                        utils::pick(ndims() - 2, oi, oiw, oihw, oidhw)));
-        }
         if (bias_md->format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(*bias_md, x));
         return status::success;
