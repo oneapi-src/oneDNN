@@ -65,7 +65,7 @@ static int check_desc() {
     CHECK_EQ(str2desc(&d, "ic8ih9ntest3"), OK);
     CHECK_D(2, 8, 9, 9, 1.f / 16, "test3");
     CHECK_EQ(str2desc(&d, "ic8iw9ntest3"), OK);
-    CHECK_D(2, 8, 9, 9, 1.f / 16, "test3");
+    CHECK_D(2, 8, 1, 9, 1.f / 16, "test3");
 #   undef CHECK_D
     return OK;
 }

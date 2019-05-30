@@ -43,19 +43,19 @@ static int check_attr2str() {
     attr_t attr;
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_PRINT_EQ(attr, "oscale=none:1;post_ops=''");
+    CHECK_PRINT_EQ(attr, "");
 
     attr.oscale.policy = attr_t::scale_t::policy_t::COMMON;
     attr.oscale.scale = 2.4;
-    CHECK_PRINT_EQ(attr, "oscale=common:2.4;post_ops=''");
+    CHECK_PRINT_EQ(attr, "oscale=common:2.4;");
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_OC;
     attr.oscale.scale = 3.2;
-    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2;post_ops=''");
+    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2;");
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_DIM_01;
     attr.oscale.scale = 3.2;
-    CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;post_ops=''");
+    CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;");
 
     return OK;
 }

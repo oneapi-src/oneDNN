@@ -375,9 +375,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
-    return s
-        << "oscale=" << attr.oscale
-        << ";post_ops=" << attr.post_ops;
+    if (!attr.oscale.is_def())
+        s << "oscale=" << attr.oscale << ";";
+    if (!attr.post_ops.is_def())
+        s << "post_ops=" << attr.post_ops << ";";
+    return s;
 }
 
 mkldnn_engine_kind_t str2engine_kind(const char *str) {
