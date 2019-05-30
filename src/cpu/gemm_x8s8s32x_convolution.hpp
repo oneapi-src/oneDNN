@@ -198,7 +198,7 @@ private:
             const char *bia_base, dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    int nthr_;
+    int nthr_ = 0;
     pp_ker_t *pp_ker_;
 
 };
