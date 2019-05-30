@@ -307,7 +307,7 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     if (jcp.with_relu)
         jcp.negative_slope = jcp.eltwise.alpha;
 
-    if (p.len_ == 2) {
+    if (p.len_ == 2 && sum_idx != -1) {
         jcp.with_sum_relu = p.entry_[sum_idx].is_sum(jcp.sum_scale == 1.0)
                 && p.entry_[1].is_relu();
     } else {

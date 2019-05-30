@@ -226,7 +226,7 @@ private:
     ocl_kernel_t beta_kernel_;
     ocl_kernel_t nocopy_kernel_;
 
-    bool nocopy_;
+    bool nocopy_ = false;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 

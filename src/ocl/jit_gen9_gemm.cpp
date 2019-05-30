@@ -129,7 +129,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(stream_t *s,
     while (nthreads_y % lws_y)
         lws_y--;
 
-    size_t gws[3] = { size_t(nthreads_x * 8), size_t(nthreads_y), 1 };
+    size_t gws[3] = { size_t(nthreads_x) * 8, size_t(nthreads_y), 1 };
     size_t lws[3] = { 8, size_t(lws_y), 1 };
 
     if (c_type == data_type::f16)

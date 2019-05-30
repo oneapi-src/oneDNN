@@ -369,7 +369,7 @@ struct ocl_kernel_t {
 
     void set_arg(int index, const memory_storage_t &mem_storage) const {
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(mem_storage);
     }
 
@@ -381,13 +381,13 @@ struct ocl_kernel_t {
                 "Type size is too large");
 
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(value);
     }
 
     void set_arg(int index, size_t sz, std::nullptr_t) const {
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(sz, nullptr);
     }
 
