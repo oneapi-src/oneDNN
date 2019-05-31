@@ -21,18 +21,19 @@
 
 #include "gemm_driver.hpp"
 
+#include "common/bfloat16.hpp"
 #include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "gemm_info.hpp"
 #include "gemm_threading.hpp"
+#include "gemv_driver.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "s8x8s32/gemv.hpp"
 #include "utils.hpp"
-#include "common/bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -1519,6 +1520,10 @@ static mkldnn_status_t gemm_threading_driver(
 
     if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
             && gemm_s8u8s32_jump_to_gemv_s8u8s32(arg))
+        return mkldnn_success;
+
+    if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
+            && jump_to_gemv(arg) == mkldnn_success)
         return mkldnn_success;
 
     if (is_a_packed && is_b_packed)
