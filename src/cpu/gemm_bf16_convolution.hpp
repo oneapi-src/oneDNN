@@ -198,7 +198,7 @@ private:
         Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
         Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(28);
         Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(29);
-        Xbyak::Reg64 bf16_emu_reserv_4 = r11;
+        Xbyak::Reg64 bf16_emu_reserv_4 = r15;
         Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 

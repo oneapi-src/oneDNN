@@ -133,6 +133,10 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
     auto compute = [&](size_t offset, int idx, bool apply_mask) {
         auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
         auto vreg_dst_ = vreg_dst(idx);
+
+        if (dst_data_type == data_type::bf16 && isa_ != avx512_core_bf16)
+            bf16_emu_->init_vcvtneps2bf16();
+
         if (apply_mask)
             vreg_dst_ = vreg_dst_ | kreg_rem_mask;
         vmovups(vreg_dst_, acc_addr);
