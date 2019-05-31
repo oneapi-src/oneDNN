@@ -144,7 +144,8 @@ set(MKLDNN_CPU_BACKEND "NATIVE" CACHE STRING
 
 set(MKLDNN_GPU_BACKEND "NONE" CACHE STRING
     "specifies the type of backend for GPU engines.
-    Can be NONE (no GPU backend) or OPENCL (OpenCL GPU backend).")
+    Can be NONE (no GPU backend), OPENCL (OpenCL GPU backend) or
+    SYCL (SYCL GPU backend).")
 
 option(MKLDNN_ENABLE_SYCL_VPTR
     "Enable virtual pointers support for SYCL."

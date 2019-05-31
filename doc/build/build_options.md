@@ -11,7 +11,7 @@ Intel MKL-DNN supports the following build-time options.
 | MKLDNN_THREADING            | **OMP**, OMP:INTEL, OMP:COMP, TBB    | Defines the threading type
 | MKLDNN_USE_MKL              | **DEF**, NONE, ML, FULL, FULL:STATIC | Defines the binary dependency on Intel MKL
 | MKLDNN_CPU_BACKEND          | **NONE**, SYCL                       | Defines the backend for CPU engine
-| MKLDNN_GPU_BACKEND          | **NONE**, OPENCL                     | Defines the backend for GPU engine
+| MKLDNN_GPU_BACKEND          | **NONE**, OPENCL, SYCL               | Defines the backend for GPU engine
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | MKLDNN_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | MKLDNN_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
