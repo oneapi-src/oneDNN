@@ -154,9 +154,7 @@ struct dnn_mem_t {
         case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
         case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
         case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
-        case mkldnn_bf16:
-            elem = static_cast<mkldnn::impl::bfloat16_t *>(data)[idx];
-            break;
+        case mkldnn_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
         default: assert(!"bad data type");
         }
         return elem;
@@ -169,9 +167,7 @@ struct dnn_mem_t {
             case mkldnn_u8: ((uint8_t *)data)[idx] = value; break;
             case mkldnn_s32: ((int32_t *)data)[idx] = value; break;
             case mkldnn_f32: ((float *)data)[idx] = value; break;
-            case mkldnn_bf16:
-                ((mkldnn::impl::bfloat16_t *)data)[idx] = value;
-                break;
+            case mkldnn_bf16: ((bfloat16_t *)data)[idx] = value; break;
             default: assert(!"bad data type");
         }
     }

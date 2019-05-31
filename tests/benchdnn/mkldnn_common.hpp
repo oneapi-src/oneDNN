@@ -55,8 +55,9 @@
 } while(0)
 
 /* aux */
+using bfloat16_t = mkldnn::impl::bfloat16_t;
 template <mkldnn_data_type_t> struct prec_traits;
-template <> struct prec_traits<mkldnn_bf16> { typedef mkldnn::impl::bfloat16_t type; };
+template <> struct prec_traits<mkldnn_bf16> { typedef bfloat16_t type; };
 template <> struct prec_traits<mkldnn_f16> { typedef mkldnn::impl::float16_t type; };
 template <> struct prec_traits<mkldnn_f32> { typedef float type; };
 template <> struct prec_traits<mkldnn_s32> { typedef int32_t type; };
@@ -98,6 +99,28 @@ inline int digits_dt(mkldnn_data_type_t dt) {
 }
 
 #undef CASE_ALL
+
+template <mkldnn_data_type_t dt> inline float saturate(float val) {
+    return MAX2(mkldnn::impl::nstl::numeric_limits<
+            typename prec_traits<dt>::type>::lowest(),
+            MIN2(mkldnn::impl::nstl::numeric_limits<
+                typename prec_traits<dt>::type>::max(), mxcsr_round(val)));
+}
+
+inline float maybe_saturate(mkldnn_data_type_t dt, float value) {
+    if (dt == mkldnn_s32 || dt == mkldnn_s8 || dt == mkldnn_u8) {
+        switch (dt) {
+#       define CASE(dt) case dt: { return saturate<dt>(value); }
+        CASE(mkldnn_s32);
+        CASE(mkldnn_s8);
+        CASE(mkldnn_u8);
+#       undef CASE
+        default: assert(!"bad data_type");
+        }
+        return 0;
+    }
+    return value;
+}
 
 /* simplification */
 extern mkldnn_engine_kind_t engine_tgt_kind;
