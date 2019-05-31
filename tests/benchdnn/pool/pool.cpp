@@ -43,33 +43,17 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     auto nelems = mem_dt.nelems();
 
-    diff_norm_t diff_norm;
-
     r->errors = 0;
     r->total = nelems;
 
     for (auto i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-
-        float fp = fp0;
-        if (p->cfg[kind].dt != mkldnn_f32)
-            fp = mxcsr_round(fp0);
+        const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-
-        bool ok = false;
-        if (fp <= p->cfg[kind].min) {
-            diff_norm.update(p->cfg[kind].min, dt);
-            ok = dt <= p->cfg[kind].min;
-        } else if (fp >= p->cfg[kind].max) {
-            diff_norm.update(p->cfg[kind].max, dt);
-            ok = dt >= p->cfg[kind].max;
-        } else {
-            diff_norm.update(fp, dt);
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
-        }
+        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
 
         r->errors += !ok;
 
@@ -89,23 +73,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         }
     }
 
-    diff_norm.done();
-    if (r->errors) {
+    if (r->errors)
         r->state = FAILED;
-
-        print(2, "@@@ diff: err:%d, l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                (int)r->errors,
-                diff_norm.rel_diff(norm_t::L0),
-                diff_norm.a_[norm_t::L1], diff_norm.b_[norm_t::L1],
-                diff_norm.diff_[norm_t::L1], diff_norm.rel_diff(norm_t::L1),
-                diff_norm.a_[norm_t::L2], diff_norm.b_[norm_t::L2],
-                diff_norm.diff_[norm_t::L2], diff_norm.rel_diff(norm_t::L2),
-                diff_norm.a_[norm_t::L8], diff_norm.b_[norm_t::L8],
-                diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
-    }
 
     if (r->state == UNTESTED)
         r->state = PASSED; /* optimism */
