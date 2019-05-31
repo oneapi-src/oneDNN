@@ -17,10 +17,18 @@
 GPU_INST_TEST_CASE(Dilation,
     PARAMS(NChw16n16c, FMT_WEIGHTS_GPU_BLOCKED16x16, FMT_BIAS, NChw16n16c, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
     PARAMS(nChw16c, FMT_WEIGHTS_GPU_BLOCKED16, FMT_BIAS, nChw16c, 2, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
-    PARAMS(nChw16c, FMT_WEIGHTS_GPU_BLOCKED16, FMT_BIAS, nChw16c, 1, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
-    /* TODO: uncomment these testcases when reference implementation is done*/
-//    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 1, 1, 1, 1, 0, 0),
-//    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
+    PARAMS(nChw16c, FMT_WEIGHTS_GPU_BLOCKED16, FMT_BIAS, nChw16c, 1, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 1, 1, 1, 1, 0, 0),
+    PARAMS(nchw, Ohwi16o, FMT_BIAS, nChw16c, 2, 1, 3, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
+    );
+
+GPU_INST_TEST_CASE(Simple_ref,
+    PARAMS(chwn, iohw, FMT_BIAS, NChw16n16c, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(nhwc, hwigo, FMT_BIAS, nchw, 2, 2, 4, 1, 1, 4, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0),
+    PARAMS(nChw4c, Ohwi4o, FMT_BIAS, nChw8c, 2, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(chwn, iohw, FMT_NO_BIAS, NChw16n16c, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5),
+    PARAMS(nhwc, hwigo, FMT_NO_BIAS, nchw, 2, 2, 4, 1, 1, 4, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0),
+    PARAMS(nChw4c, Ohwi4o, FMT_NO_BIAS, nChw8c, 2, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6, 6, 1, 1, 5, 5)
     );
 
 CPU_INST_TEST_CASE(Simple_ZeroDim,
