@@ -26,6 +26,7 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 #include "ocl/ref_batch_normalization.hpp"
+#include "ocl/ref_convolution.hpp"
 #include "ocl/ref_eltwise.hpp"
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_lrn.hpp"
@@ -102,6 +103,9 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(jit_gen9_common_convolution_fwd_t<f32>),
     INSTANCE(jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>),
+    INSTANCE(ref_convolution_fwd_t),
+    INSTANCE(ref_convolution_bwd_data_t),
+    INSTANCE(ref_convolution_bwd_weights_t),
     /*bnorm*/
     INSTANCE(ref_batch_normalization_fwd_t<f16>),
     INSTANCE(ref_batch_normalization_fwd_t<f32>),

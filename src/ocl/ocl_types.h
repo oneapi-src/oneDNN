@@ -24,8 +24,8 @@
 #    define DATA_MIN -DATA_MAX
 #    define DATA_ZERO 0.0f
 #    define DATA_ONE 1.0f
-#    define ACC_DATA_T float
-#    define ACC_DATA8_T float8
+#    define DEF_ACC_DATA_T float
+#    define DEF_ACC_DATA8_T float8
 #    define TO_DATA_T(v) (float)(v)
 #    define CONVERT_DATA_T convert_float
 #    define CONVERT_DATA8_T convert_float8
@@ -55,8 +55,8 @@
 #    define DATA_MIN -DATA_MAX
 #    define DATA_ZERO 0.0h
 #    define DATA_ONE 1.0h
-#    define ACC_DATA_T half
-#    define ACC_DATA8_T half8
+#    define DEF_ACC_DATA_T half
+#    define DEF_ACC_DATA8_T half8
 #    define TO_DATA_T(v) (half)(v)
 #    define CONVERT_DATA_T convert_half
 #    define CONVERT_DATA8_T convert_half8
@@ -83,8 +83,8 @@
 #    define DATA_MIN CHAR_MIN
 #    define DATA_ZERO 0
 #    define DATA_ONE 1
-#    define ACC_DATA_T int
-#    define ACC_DATA8_T int8
+#    define DEF_ACC_DATA_T int
+#    define DEF_ACC_DATA8_T int8
 #    define TO_DATA_T(v) (char)(v)
 #    define CONVERT_DATA_T convert_char
 #    define CONVERT_DATA8_T convert_char8
@@ -111,8 +111,8 @@
 #    define DATA_MIN 0
 #    define DATA_ZERO 0
 #    define DATA_ONE 1
-#    define ACC_DATA_T int
-#    define ACC_DATA8_T int8
+#    define DEF_ACC_DATA_T int
+#    define DEF_ACC_DATA8_T int8
 #    define TO_DATA_T(v) (uchar)(v)
 #    define CONVERT_DATA_T convert_uchar
 #    define CONVERT_DATA8_T convert_uchar8
@@ -140,7 +140,7 @@
 
 #if VECT_DT_N == 1
 #    define VECT_DATA_T DATA_T
-#    define VECT_ACC_DATA_T ACC_DATA_T
+#    define VECT_DEF_ACC_DATA_T DEF_ACC_DATA_T
 #    define AS_VECT_DATA_T AS_DATA_T
 #    define VECT_BLOCK_READ BLOCK_READ
 #    define VECT_BLOCK_WRITE BLOCK_WRITE
@@ -155,7 +155,7 @@
 #    define AS_VECT_UINT_T as_uint
 #elif VECT_DT_N == 8
 #    define VECT_DATA_T DATA8_T
-#    define VECT_ACC_DATA_T ACC_DATA8_T
+#    define VECT_DEF_ACC_DATA_T DEF_ACC_DATA8_T
 #    define AS_VECT_DATA_T AS_DATA8_T
 #    define VECT_BLOCK_READ BLOCK_READ8
 #    define VECT_BLOCK_WRITE BLOCK_WRITE8
@@ -185,7 +185,7 @@
 #       define WHT_OFF(g, x0, x1, d, h, x2)                              \
             (((x0) % WHT_B0) * WHT_SB0 + ((x0) / WHT_B0) * WHT_S0 \
                     + ((x1) % WHT_B1) * WHT_SB1 + ((x1) / WHT_B1) * WHT_S1 \
-                    + ((x2) % WHT_B2) * WHT_SB2 + ((x2 / WHT_B2) * WHT_S2)
+                    + ((x2) % WHT_B2) * WHT_SB2 + ((x2) / WHT_B2) * WHT_S2)
 #    endif
 
 #    define DST_OFF(x0, x1, d, h, x2)                                  \

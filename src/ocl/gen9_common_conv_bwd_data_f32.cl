@@ -286,51 +286,5 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
     SAVE_SRC_DIFF(blockC01, src_write0, 8);
 
 #    endif
-
-#    if VER_REF == 1
-    const uint iw = get_global_id(0) * IW_BLOCK;
-    const uint ihd = get_global_id(1);
-    const uint id = ihd / IH;
-    const uint ih = ihd % IH;
-    const uint mb = get_global_id(2) / (G * IC);
-    const uint ic = get_global_id(2) % (G * IC);
-
-    const int g = ic / (IC / IC_BLOCK);
-    const int gic = ic % (IC / IC_BLOCK);
-
-    diff_dst += g * OC * OD * OH * OW;
-    wei += g * IC * OC * KD * KH * KW;
-
-    float d = 0.0;
-    const uint diff_src_off = mb * IC * G * ID * IH * IW + gic * ID * IH * IW
-            + g * IC * ID * IH * IW + id * IH * IW + ih * IW + iw;
-    for (int oc = 0; oc < OC; ++oc)
-        for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
-                for (int kw = 0; kw < KW; ++kw) {
-                    if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
-                            || id + PD < kd * (1 + DD))
-                        continue;
-                    int ow = iw - kw * (1 + DW) + PW;
-                    int oh = ih - kh * (1 + DH) + PH;
-                    int od = id - kd * (1 + DD) + PD;
-                    if (ow % SW != 0 || oh % SH != 0 || od % SD != 0)
-                        continue;
-
-                    ow /= SW;
-                    oh /= SH;
-                    od /= SD;
-                    if (oh < OH && ow < OW && od < OD) {
-                        const uint diff_dst_off = mb * OC * G * OD * OH * OW
-                                + oc * OD * OH * OW + od * OH * OW + oh * OW
-                                + ow;
-                        const uint wei_off = oc * IC * KD * KH * KW
-                                + gic * KD * KH * KW + kd * KH * KW + kh * KW
-                                + kw;
-                        d += diff_dst[diff_dst_off] * wei[wei_off];
-                    }
-                }
-    diff_src[diff_src_off] = d;
-#    endif
 }
 #endif

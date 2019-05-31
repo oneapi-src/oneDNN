@@ -56,6 +56,12 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
 
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            bool with_relu = (eltwise_idx != -1)
+                ? attr()->post_ops_.entry_[eltwise_idx].is_relu(true, false)
+                : false;
+
             bool ok = true
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                                forward_inference)
@@ -83,7 +89,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
                                        && cl_engine->mayiuse(
                                                   cl_device_ext_t::khr_fp16)
                                        && cl_engine->mayiuse(cl_device_ext_t::
-                                                          intel_subgroups_short));
+                                                          intel_subgroups_short))
+                    && IMPLICATION(eltwise_idx != -1, with_relu);
             if (!ok)
                 return status::unimplemented;
 

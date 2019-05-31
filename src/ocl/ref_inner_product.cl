@@ -37,7 +37,7 @@ __kernel void ref_inner_product_fwd_kernel(__global DATA_T *src,
             for (int kh = 0; kh < KH; ++kh)
                 for (int kw = 0; kw < KW; ++kw) {
                     const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
-                    const uint wht_off = WHT_OFF(oc, ic, kd, kh, kw);
+                    const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
 #    else
     for (int ic = 0; ic < IC_TOTAL; ++ic) {
         const uint src_off = mb * IC_TOTAL + ic;
