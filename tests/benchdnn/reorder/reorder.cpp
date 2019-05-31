@@ -68,13 +68,10 @@ int fill_scales(const prb_t *p, float *scales, int64_t count) {
     return OK;
 }
 
-inline float saturate(float value, float min, float max) {
-    return MAX2(min, MIN2(max, value));
-}
-
 int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
         const attr_t &attr) {
     const dt_conf_t c_src = p->conf_in;
+    const auto dt = c_src->dt;
     const int range = c_src->range;
     const int max = c_src->min + range - 1;
     int scale_mask = get_scale_mask(mem.md_, attr);
@@ -95,8 +92,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
             (float)scale,
         };
 
-        float value = saturate(gen[idx % 7], c_src->min, max);
-        mem.set_elem(idx, value);
+        mem.set_elem(idx, maybe_saturate(dt, gen[idx % 7]));
     }
 
     return OK;
@@ -109,44 +105,21 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
     int64_t nelems = src.nelems();
 
-    /* calculate min max for data_type */
     /* TODO: add dst range support */
 //    const auto c_dst = p->conf_out;
 //    const float dst_conf_min = c_dst.min;
 //    const float dst_conf_max = dst_conf_min + c_dst.range - 1;
-
-    auto dst_width = (dst_dt == mkldnn_bf16
-        ? sizeof_dt(mkldnn_f32)
-        : dst.sizeof_dt()) * 8;
-
-    const float dst_dt_min = dst_dt == mkldnn_u8
-        ? 0.f : -(float)(1l << (dst_width - 1));
-    const float dst_dt_max = dst_dt == mkldnn_u8
-        ? 255.f : (float)((1l << (dst_width - 1)) - 1);
-
-    /* TODO: add dst range support */
 //    const float dst_max = MIN2(dst_conf_max, dst_dt_max);
 //    const float dst_min = MAX2(dst_conf_min, dst_dt_min);
-    const float dst_max = dst_dt_max;
-    const float dst_min = dst_dt_min;
 
     const int scale_mask = get_scale_mask(src.md_, p->attr);
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         float src_ = src.get_elem(idx);
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
-
         const float scale = scales[scale_idx];
 
-        float dst_ = saturate(src_ * scale, dst_min, dst_max);
-
-        /* parse round mode and round value*/
-        if (dst_dt != mkldnn_f32 && dst_dt != mkldnn_bf16) {
-            dst_ = mxcsr_round(dst_);
-            dst_ = saturate(dst_, dst_min, dst_max);
-        }
-
-        dst.set_elem(idx, dst_);
+        dst.set_elem(idx, maybe_saturate(dst_dt, src_ * scale));
     }
 
     return OK;

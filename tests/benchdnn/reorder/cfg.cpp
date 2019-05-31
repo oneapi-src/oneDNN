@@ -32,11 +32,11 @@ const int int_max_exact = 1<<24;
 const dt_conf_s CONCAT2(_conf_,dt) = {CONCAT2(mkldnn_,dt), min, range}; \
 const dt_conf_t CONCAT2(conf_,dt) = &CONCAT2(_conf_,dt);
 
-REG(f32, -int_max_exact, 2 * int_max_exact);
+REG( f32, -int_max_exact, 2 * int_max_exact);
 REG(bf16, -int_max_exact, 2 * int_max_exact);
-REG(s32, -int_max_exact, 2 * int_max_exact);
-REG( s8,       INT8_MIN,     -2 * INT8_MIN);
-REG( u8,              0,         UINT8_MAX);
+REG( s32, -int_max_exact, 2 * int_max_exact);
+REG(  s8,       INT8_MIN,     -2 * INT8_MIN);
+REG(  u8,              0,         UINT8_MAX);
 
 #undef REG
 
