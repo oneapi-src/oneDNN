@@ -105,15 +105,9 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                               IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
                               INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
 
-        # Intel MKL-DNN changes:
-        # - set TBB_INCLUDE_DIRS to use it for include_directories()
-        # - install TBB runtime
+        # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
         if (_tbb_component STREQUAL tbb)
             set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
-            # TODO: remove this once BOM mapping is enabled
-            if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-                install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-            endif()
         endif()
 
         # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc

@@ -75,7 +75,6 @@ endif()
 
 #set conveniance variable to locate TBB files (these are used for a PSXE install)
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
-get_filename_component(_tbb_dll_path "${_tbb_root}/../redist/${_tbb_arch_subdir}/tbb/${_tbb_compiler_subdir}" ABSOLUTE)
 get_filename_component(_tbb_inc_path "${_tbb_root}/include/" ABSOLUTE)
 
 
@@ -101,16 +100,9 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                               IMPORTED_IMPLIB_DEBUG         "${_tbb_debug_lib}"
                               INTERFACE_COMPILE_DEFINITIONS "__TBB_NO_IMPLICIT_LINKAGE=1")
 
-        # Intel MKL-DNN changes:
-        # - set TBB_INCLUDE_DIRS to use it for include_directories()
-        # - install TBB runtime
+        # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
         if (_tbb_component STREQUAL tbb)
             set(TBB_INCLUDE_DIRS "${_tbb_inc_path}")
-            # TODO: remove this once BOM mapping is enabled
-            if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-                install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-                install(PROGRAMS "${_tbb_dll_path}/${_tbb_component}.dll" DESTINATION ${CMAKE_INSTALL_BINDIR})
-            endif()
         endif()
 
         # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
