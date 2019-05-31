@@ -51,9 +51,7 @@ static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
 
         const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
         const int64_t l = l_base + sp;
-        s[sp] = (l % 256) - 128;
-        if (p->dt == mkldnn_s8)
-            s[sp] = saturate_and_round(s[sp]);
+        s[sp] = maybe_saturate(p->dt, (l % 256) - 128);
 
         ((float *)mean)[c] = 4 * ((c % 5) - 2);
         ((float *)var)[c] = ((c % 7) << 1);

@@ -116,11 +116,6 @@ inline void inv_data_off(const prb_t *p, size_t off,
     assert(off == 0);
 }
 
-inline float saturate_and_round(float value) {
-    // hard code for s8 data type
-    return MAX2(INT8_MIN, MIN2(INT8_MAX, mxcsr_round(value)));
-}
-
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,

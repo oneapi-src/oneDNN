@@ -40,9 +40,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
             float &D = ((float *)dst)[off];
             if ((p->flags & FUSE_BN_RELU) && res < 0) res = 0;
             maybe_post_ops(res, D, p->attr);
-            D = res;
-            if (p->dt == mkldnn_s8)
-                D = saturate_and_round(res);
+            D = maybe_saturate(p->dt, res);
         }
     });
 }
