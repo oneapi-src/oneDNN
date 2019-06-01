@@ -74,6 +74,7 @@ int str2desc(desc_t *desc, const char *str) {
         if (!strncmp(p, s, strlen(p))) { \
             ok = 1; s += strlen(p); \
             char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
+            if (d. c < 0) return FAIL; \
             /* printf("@@@debug: %s: %d\n", p, d. c); */ \
         } \
     } while (0)
