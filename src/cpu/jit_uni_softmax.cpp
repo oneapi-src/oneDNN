@@ -231,8 +231,8 @@ struct jit_softmax_t: public jit_generator {
                         uni_vmaxps(vmax | ktail_mask, vmax, src_ptr(vlen * i));
                     else if (isa == avx2) {
                         vtmp = Vmm(i + 1);
-                        uni_vmovups(vtmp, vneg_flt_max);
-                        uni_vblendvps(vtmp, vtmp, src_ptr(vlen * i), vtail_mask);
+                        uni_vmovups_tail(vtmp, src_ptr(vlen * i));
+                        uni_vblendvps(vtmp, vneg_flt_max, vtmp, vtail_mask);
                         uni_vmaxps(vmax, vmax, vtmp);
                     }
                 }
