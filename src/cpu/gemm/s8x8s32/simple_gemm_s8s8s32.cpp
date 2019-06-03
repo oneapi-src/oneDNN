@@ -157,6 +157,7 @@ mkldnn_status_t simple_gemm_s8s8s32(
     int ld = transb ? N : K;
 
     uint8_t *b_u8 = (uint8_t *)malloc(sizeof(uint8_t) * K * N, 64);
+    uint8_t ob_u8 = 0;
     int32_t *compensation = (int32_t *)malloc(sizeof(int32_t) * M, 64);
 
     if (utils::any_null(b_u8, compensation)) {
@@ -170,7 +171,7 @@ mkldnn_status_t simple_gemm_s8s8s32(
     copy_and_shift_b(transb, K, N, b_u8, ld, b, *ldb);
 
     gemm_s8x8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa, b_u8,
-        &ld, ob, beta, c, ldc, compensation);
+        &ld, &ob_u8, beta, c, ldc, compensation);
 
     if ((*offsetC == 'R' || *offsetC == 'r'))
         parallel_nd(M, N,

@@ -138,7 +138,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 
     if (data_traits<a_type>::data_type == data_type::s8) {
         a_type ao = arg->ao;
-        a_type bo = arg->bo;
+        b_type bo = arg->bo;
         c_type co_0 = offsetc == NO_OFFSET ? 0 : co[0];
 
         if (bo != 0 || offsetc == COL_OFFSET)
@@ -168,7 +168,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 
             if (bo != 0) {
                 for (dim_t i = 0; i < m; i++)
-                    col_offset[i] += bo * a_row_sum[i];
+                    col_offset[i] -= bo * a_row_sum[i];
             }
         }
 
@@ -183,7 +183,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 
             if (ao != 0) {
                 for (dim_t i = 0; i < n; i++)
-                    row_offset[i] += ao * b_col_sum[i];
+                    row_offset[i] -= ao * b_col_sum[i];
             }
         }
 
@@ -1434,7 +1434,7 @@ mkldnn_status_t gemm_driver(
         const char *transA, const char *transB, const char *offsetC,
         const int *m, const int *n, const int *k,
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
-        const b_type *b, const int *ldb, const a_type *ob,
+        const b_type *b, const int *ldb, const b_type *ob,
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 
@@ -1482,7 +1482,7 @@ mkldnn_status_t gemm_driver<int8_t, uint8_t, int32_t>(
         const char *transA, const char *transB, const char *offsetC,
         const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
-        const uint8_t *b, const int *ldb, const int8_t *ob,
+        const uint8_t *b, const int *ldb, const uint8_t *ob,
         const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
         const bool force_nocopy);
 

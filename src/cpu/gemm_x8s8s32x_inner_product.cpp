@@ -46,7 +46,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const int M = OC;
     const int N = MB;
     const int K = pd()->IC_total_padded();
-    const int8_t off_a = 0, off_b = 0;
+    const int8_t off_a = 0;
+    const src_data_t off_b = 0;
     const int32_t off_c = 0;
 
     const float *scales = pd()->attr()->output_scales_.scales_;

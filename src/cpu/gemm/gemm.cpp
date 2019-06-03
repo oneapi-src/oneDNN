@@ -162,9 +162,20 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
 mkldnn_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        const uint8_t *B, const int *LDB, const uint8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
 #if USE_MKL_IGEMM
+    // cblas_gemm_s8u8s32 uses `+` to apply offsets,
+    // hence we need to inverse ao and b0.
+    if (*ao == -128 || *bo > 128)
+        return mkldnn_unimplemented;
+
+    assert(-127 <= *ao && *ao <= 127);
+    assert(*bo <= 128);
+
+    int8_t ao_s8 = -(*ao);
+    int8_t bo_s8 = (int8_t)(-(int32_t)*bo);
+
     bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
     bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
     bool AisN = (*transa == 'N' || *transa == 'n');
@@ -176,7 +187,7 @@ mkldnn_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
         ? CblasRowOffset
         : (OCisC ? CblasColOffset : CblasFixOffset);
     cblas_gemm_s8u8s32(CblasColMajor, Cblas_trA, Cblas_trB, Cblas_offsetc,
-            *M, *N, *K, *alpha, A, *LDA, *ao, B, *LDB, *bo,
+            *M, *N, *K, *alpha, A, *LDA, ao_s8, B, *LDB, bo_s8,
             *beta, C, *LDC, co);
     return mkldnn_success;
 #else
@@ -188,7 +199,7 @@ template <>
 mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        const uint8_t *B, const int *LDB, const uint8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     mkldnn_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb,
         M, N, K, LDA, LDB, LDC, alpha, beta, false);
@@ -314,7 +325,7 @@ const char *c2f_offsetC(const char *offC) {
 mkldnn_status_t mkldnn_gemm_u8s8s32(
         char transa, char transb, char offsetc,
         int64_t M, int64_t N, int64_t K,
-        float alpha, const uint8_t *A, int64_t lda, int8_t ao,
+        float alpha, const uint8_t *A, int64_t lda, uint8_t ao,
         const int8_t *B, int64_t ldb, int8_t bo,
         float beta, int32_t *C, int64_t ldc, const int32_t *co) {
     int M_s32 = (int)M;

@@ -1943,7 +1943,7 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(
 /// result, a vector is added to each row or column of the output matrix.
 /// The operation is defined as:
 ///
-/// C := alpha*(op(A) + A_offset) * (op(B) + B_offset) + beta*C + C_offset
+/// C := alpha*(op(A) - A_offset) * (op(B) - B_offset) + beta*C + C_offset
 ///
 /// where
 ///  - op( X ) = X or op( X ) = X**T,
@@ -1968,7 +1968,7 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
         char transa, char transb, char offsetc,
         mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
         float alpha,
-        const uint8_t *A, mkldnn_dim_t lda, int8_t ao,
+        const uint8_t *A, mkldnn_dim_t lda, uint8_t ao,
         const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
         float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 

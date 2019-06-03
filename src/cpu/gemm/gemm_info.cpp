@@ -40,7 +40,7 @@ template <typename a_type, typename b_type, typename c_type>
 gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         const char *transB, const char *offsetC, const int *m, const int *n,
         const int *k, const float *alpha, const a_type *a, const int *lda,
-        const a_type *oa, const b_type *b, const int *ldb, const a_type *ob,
+        const a_type *oa, const b_type *b, const int *ldb, const b_type *ob,
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
         const bool force_nocopy) {
 

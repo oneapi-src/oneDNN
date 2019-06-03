@@ -609,7 +609,8 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
         const int LDA = M * jcp.ngroups;
         const int LDB = jcp.im2col_sz ? N : K;
         const char *BT = jcp.im2col_sz ? "T" : "N";
-        const int8_t off_a = 0, off_b = 0;
+        const int8_t off_a = 0;
+        const uint8_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
         gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F",
@@ -699,7 +700,8 @@ execute_backward_data_thr(const int ithr, const int nthr,
         const int M = jcp.ks * jcp.ic;
         const int N = jcp.os;
         const int K = jcp.oc;
-        const int8_t off_a = 0, off_b = 0;
+        const int8_t off_a = 0;
+        const diff_dst_data_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
         const int LD = K * jcp.ngroups;

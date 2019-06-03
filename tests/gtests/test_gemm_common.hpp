@@ -352,8 +352,8 @@ struct ref_gemm<a_dt, int8_t, int32_t> {
         mkldnn::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
             double c_elem = 0;
             for (int64_t k = 0; k < p.K; k++) {
-                const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) + oa;
-                const double b_elem = (tr_b ? pb(n, k) : pb(k, n)) + ob;
+                const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) - oa;
+                const double b_elem = (tr_b ? pb(n, k) : pb(k, n)) - ob;
                 c_elem += a_elem * b_elem;
             }
 
@@ -542,7 +542,8 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
         auto B = map_memory<int8_t>(b_mem);
         auto C = map_memory<int32_t>(c_mem);
         auto oc = map_memory<int32_t>(oc_mem);
-        int8_t oa = p.igemm_params.oa();
+        assert(p.igemm_params.oa() >= 0);
+        uint8_t oa = (uint8_t)p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
         return mkldnn_gemm_u8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob,

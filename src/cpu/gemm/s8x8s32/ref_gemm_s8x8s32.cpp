@@ -33,7 +33,7 @@ template <typename b_dt>
 mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const b_dt *B, const int *LDB, const int8_t *bo, const float *beta,
+        const b_dt *B, const int *LDB, const b_dt *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
 
     if (*M == 0 || *N == 0 || *K == 0)
@@ -71,7 +71,7 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
     mkldnn::impl::parallel_nd(a_cols, a_rows, [&](int j, int i) {
         da_setter(i, j,
             static_cast<double>(ia_accessor(i, j))
-            + static_cast<double>(ao[0]));
+            - static_cast<double>(ao[0]));
     });
 
     const int b_rows = BisN ? k : n;
@@ -79,7 +79,7 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
     mkldnn::impl::parallel_nd(b_cols, b_rows, [&](int j, int i) {
         db_setter(i, j,
             static_cast<double>(ib_accessor(i, j))
-            + static_cast<double>(bo[0]));
+            - static_cast<double>(bo[0]));
     });
     double one = 1.0, zero = 0.0;
     ref_gemm<double>(transa, transb, M, N, K, &one, dA, LDA, dB, LDB, &zero,
@@ -105,7 +105,7 @@ template mkldnn_status_t ref_gemm_s8x8s32<uint8_t>(
         const char *transa, const char *transb, const char *offsetc,
         const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const uint8_t *B, const int *LDB, const int8_t *bo,
+        const uint8_t *B, const int *LDB, const uint8_t *bo,
         const float *beta, int32_t *C, const int *LDC, const int32_t *co);
 
 template mkldnn_status_t ref_gemm_s8x8s32<int8_t>(
