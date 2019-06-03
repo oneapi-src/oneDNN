@@ -22,43 +22,7 @@ if(OpenCL_cmake_included)
 endif()
 set(OpenCL_cmake_included true)
 
-if(NOT OPENCLROOT STREQUAL "")
-    message(STATUS "Path to OpenCL is specified: trying ${OPENCLROOT}")
-endif()
+find_package(OpenCL REQUIRED)
 
-find_path(OpenCL_INCLUDE_DIR
-    NAMES CL/cl.h
-    PATHS
-        ${OPENCLROOT}
-        $ENV{OPENCLROOT}
-        $ENV{INTELOPENCLSDK}
-        $ENV{INTELOCLSDKROOT}
-    PATH_SUFFIXES
-        include)
-
-find_library(OpenCL_LIBRARY
-    NAMES OpenCL
-    PATHS
-        ${OPENCLROOT}
-        $ENV{OPENCLROOT}
-        $ENV{INTELOPENCLSDK}
-        $ENV{INTELOCLSDKROOT}
-    PATH_SUFFIXES
-        lib64
-        lib
-        lib/x64)
-
-mark_as_advanced(
-    OpenCL_INCLUDE_DIR
-    OpenCL_LIBRARY)
-
-if(NOT OpenCL_INCLUDE_DIR OR NOT OpenCL_LIBRARY)
-    message(FATAL_ERROR
-        "Could NOT find OpenCL (missing: OpenCL_LIBRARY OpenCL_INCLUDE_DIR)")
-endif()
-
-message(STATUS "OpenCL include: ${OpenCL_INCLUDE_DIR}")
-message(STATUS "OpenCL library: ${OpenCL_LIBRARY}")
-
-include_directories(${OpenCL_INCLUDE_DIR})
-list(APPEND EXTRA_SHARED_LIBS ${OpenCL_LIBRARY})
+include_directories(${OpenCL_INCLUDE_DIRS})
+list(APPEND EXTRA_SHARED_LIBS ${OpenCL_LIBRARIES})
