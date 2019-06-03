@@ -230,11 +230,6 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Set leading dimensions for input weights arrays depending on input format
      */
-    rnn.weights_layer_is_packed
-            = weights_layer_d.format_kind() == format_kind::rnn_packed;
-    rnn.weights_iter_is_packed
-            = weights_iter_d.format_kind() == format_kind::rnn_packed;
-
     auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
         ld = 0; nld = 0;
         if (md.is_blocking_desc()) {

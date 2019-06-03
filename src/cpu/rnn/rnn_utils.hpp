@@ -104,7 +104,6 @@ struct rnn_conf_t {
     int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
     size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
             part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
-    bool weights_layer_is_packed, weights_iter_is_packed;
     /* Size of packed data in bytes */
     size_t weights_layer_comp_offset, weights_layer_pack_size,
         weights_iter_comp_offset, weights_iter_pack_size;
