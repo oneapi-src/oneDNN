@@ -27,7 +27,7 @@
 #include "ocl/ocl_utils.hpp"
 
 extern const char *gen9_common_conv_fwd_data_f32_kernel;
-extern const char *gen9_common_conv_bwd_data_f32_kernel;
+extern const char *gen9_common_conv_bwd_data_kernel;
 extern const char *gen9_common_conv_bwd_wht_f32_kernel;
 extern const char *gen9_common_conv_fwd_data_f16_kernel;
 
@@ -200,7 +200,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(gen9_common_conv_bwd_data_f32_kernel);
+        auto jit = ocl_jit_t(gen9_common_conv_bwd_data_kernel);
 
         auto status = jit_gen9_common_conv_bwd_data_kernel::init_const_def(
                 jit, pd()->jcp_);

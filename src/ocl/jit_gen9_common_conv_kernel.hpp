@@ -719,6 +719,8 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jit.define_int("LWS_1", jcp.lws_d[1]);
         jit.define_int("LWS_2", jcp.lws_d[2]);
 
+        jit.set_data_type(jcp.src_data_type);
+
         switch (jcp.ver) {
         case ver_16mb16c: jit.define_int("VER_16MB16C", 1); break;
         case ver_8ow16c: jit.define_int("VER_8OW16C", 1); break;

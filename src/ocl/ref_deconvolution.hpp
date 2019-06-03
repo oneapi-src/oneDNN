@@ -142,10 +142,14 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             bool ok = true && is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->post_ops_.has_default_values()
-                    && utils::everyone_is(data_type::f32,
+                    && (utils::everyone_is(data_type::f32,
                             desc()->src_desc.data_type,
                             desc()->weights_desc.data_type,
-                            desc()->dst_desc.data_type);
+                            desc()->dst_desc.data_type)
+                        || utils::everyone_is(data_type::f16,
+                            desc()->src_desc.data_type,
+                            desc()->weights_desc.data_type,
+                            desc()->dst_desc.data_type));
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any) {

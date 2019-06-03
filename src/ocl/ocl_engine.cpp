@@ -101,6 +101,7 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f32>),
+    INSTANCE(jit_gen9_common_convolution_bwd_data_t<f16, f16, f16, f16>),
     INSTANCE(jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>),
     INSTANCE(ref_convolution_fwd_t),

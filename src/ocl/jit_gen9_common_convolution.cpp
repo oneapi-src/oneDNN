@@ -149,6 +149,7 @@ using namespace data_type;
 template struct jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>;
 template struct jit_gen9_common_convolution_fwd_t<f16>;
 template struct jit_gen9_common_convolution_fwd_t<f32>;
+template struct jit_gen9_common_convolution_bwd_data_t<f16, f16, f16, f16>;
 template struct jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>;
 template struct jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>;
 
