@@ -26,6 +26,23 @@
 #include "mkldnn.h"
 
 #include "common.hpp"
+
+// BENCHDNN_MEMORY_CHECK macro enables guarding mechanism for memory allocation:
+// memory block is allocated on a page boundary and the page after the block is
+// protected to catch possible invalid accesses.
+//
+// Note that the macro affects the correctness mode only.
+#ifdef __unix__
+// TODO: enable BENCHDNN_MEMORY_CHECK when all invalid accesses are resolved
+// #define BENCHDNN_MEMORY_CHECK
+#endif
+
+#ifdef BENCHDNN_MEMORY_CHECK
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
         "MODE_UNDEF", "CORR", "PERF", "CORR+PERF"
@@ -188,7 +205,65 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
 
 /* misc */
 
+#ifdef BENCHDNN_MEMORY_CHECK
+static void *zmalloc_protect(size_t size) {
+    const size_t page_sz = getpagesize();
+
+    const size_t block_sz = size + 2 * sizeof(void *);
+    const size_t total_sz = div_up(block_sz, page_sz) * page_sz + page_sz;
+
+    void *mem_ptr;
+    int rc = ::posix_memalign(&mem_ptr, page_sz, total_sz);
+    if (rc != 0)
+        return nullptr;
+
+    uint8_t *ptr_start = (uint8_t *)mem_ptr;
+    uint8_t *ptr = ptr_start + total_sz - page_sz - size;
+
+    // Aligned on a page boundary
+    void *ptr_protect = ptr + size;
+
+    // Layout of the allocated region:
+    // ptr_start   <- start of the allocated region
+    // ptr[-16]    <- stores start address: ptr_start
+    // ptr[-8]     <- stores protected address: ptr_protect
+    // ptr         <- pointer to be returned from the function
+    // ptr_protect <- pointer to the block to protect
+
+    // Protect one page right after the block of size bytes
+    int err = mprotect(ptr_protect, page_sz, PROT_NONE);
+    if (err != 0) {
+        ::free(ptr_start);
+        return nullptr;
+    }
+
+    // Save pointers for zfree_protect
+    ((void **)ptr)[-2] = ptr_start;
+    ((void **)ptr)[-1] = ptr_protect;
+
+    return ptr;
+}
+
+static void zfree_protect(void *ptr) {
+    const size_t page_sz = getpagesize();
+
+    // Restore read-write access for the protected region
+    void *ptr_protect = ((void **)ptr)[-1];
+    mprotect(ptr_protect, page_sz, PROT_READ | PROT_WRITE);
+
+    // Deallocate the whole region
+    void *ptr_start = ((void **)ptr)[-2];
+    ::free(ptr_start);
+}
+#endif
+
 void *zmalloc(size_t size, size_t align) {
+#ifdef BENCHDNN_MEMORY_CHECK
+    if (bench_mode & CORR) {
+        return zmalloc_protect(size);
+    }
+#endif
+
     void *ptr;
 #ifdef _WIN32
     ptr = _aligned_malloc(size, align);
@@ -204,6 +279,13 @@ void *zmalloc(size_t size, size_t align) {
 }
 
 void zfree(void *ptr) {
+#ifdef BENCHDNN_MEMORY_CHECK
+    if (bench_mode & CORR) {
+        zfree_protect(ptr);
+        return;
+    }
+#endif
+
 #ifdef _WIN32
     _aligned_free(ptr);
 #else
@@ -372,7 +454,7 @@ int flip_coin(ptrdiff_t seed, float probability) {
     return (seed % big_prime) < (probability * big_prime);
 }
 
-int div_up(const int a, const int b){
+int64_t div_up(const int64_t a, const int64_t b){
     SAFE_V(b != 0 ? OK : FAIL);
     return (a + b - 1) / b;
 }

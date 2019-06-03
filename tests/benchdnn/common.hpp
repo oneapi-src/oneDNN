@@ -192,7 +192,7 @@ int batch(const char *fname, bench_f bench);
 /* returns 1 with given probability */
 int flip_coin(ptrdiff_t seed, float probability);
 
-int div_up(const int a, const int b);
+int64_t div_up(const int64_t a, const int64_t b);
 int mxcsr_round(float f);
 
 /* set '0' across *arr:+size */
