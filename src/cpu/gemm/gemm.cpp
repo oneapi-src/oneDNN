@@ -136,11 +136,37 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     }
 }
 
-template <typename b_dt>
+// Tries calling Intel MKL cblas_gemm_s8u8s32 if applicable and available
+mkldnn_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co) {
+#if USE_MKL_IGEMM
+    bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
+    bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
+    bool AisN = (*transa == 'N' || *transa == 'n');
+    bool BisN = (*transb == 'N' || *transb == 'n');
+
+    CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
+    CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
+    CBLAS_OFFSET Cblas_offsetc = OCisR
+        ? CblasRowOffset
+        : (OCisC ? CblasColOffset : CblasFixOffset);
+    cblas_gemm_s8u8s32(CblasColMajor, Cblas_trA, Cblas_trB, Cblas_offsetc,
+            *M, *N, *K, *alpha, A, *LDA, *ao, B, *LDB, *bo,
+            *beta, C, *LDC, co);
+    return mkldnn_success;
+#else
+    return mkldnn_unimplemented;
+#endif
+}
+
+template <>
 mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const b_dt *B, const int *LDB, const int8_t *bo, const float *beta,
+        const uint8_t *B, const int *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     mkldnn_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb,
         M, N, K, LDA, LDB, LDC, alpha, beta, false);
@@ -150,71 +176,47 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
 
-#if USE_MKL_IGEMM
-        bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
-        bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
-        bool AisN = (*transa == 'N' || *transa == 'n');
-        bool BisN = (*transb == 'N' || *transb == 'n');
+    status = try_cblas_gemm_s8u8s32(transa, transb, offsetc, M, N, K,
+            alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+    if (status == mkldnn_success)
+        return status;
 
-    if (data_traits<b_dt>::data_type == data_type::u8) {
-        CBLAS_TRANSPOSE Cblas_trA = AisN ? CblasNoTrans : CblasTrans;
-        CBLAS_TRANSPOSE Cblas_trB = BisN ? CblasNoTrans : CblasTrans;
-        CBLAS_OFFSET Cblas_offsetc =
-            OCisR
-            ? CblasRowOffset
-            : OCisC
-            ? CblasColOffset
-            : CblasFixOffset;
-        cblas_gemm_s8u8s32(CblasColMajor, Cblas_trA, Cblas_trB, Cblas_offsetc,
-                *M, *N, *K, *alpha, A, *LDA, *ao, (uint8_t *)B, *LDB, *bo,
-                *beta, C, *LDC, co);
+    if (mayiuse(avx512_core))
+        status = gemm_driver(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
+    else
+        status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+
+    return status;
+}
+
+template <>
+mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+        const char *offsetc, const int *M, const int *N, const int *K,
+        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
+        const int8_t *B, const int *LDB, const int8_t *bo, const float *beta,
+        int32_t *C, const int *LDC, const int32_t *co) {
+    mkldnn_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb,
+        M, N, K, LDA, LDB, LDC, alpha, beta, false);
+    if (status != mkldnn_success)
+        return status;
+
+    if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
-    } else {
-        assert(data_traits<b_dt>::data_type == data_type::s8);
-        // TODO CBLAS implementation of gemm_s8s8s32 goes here.
-        // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
-        if (utils::everyone_is(0, *ao, *bo)) {
-            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
-                    N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
-                    C, LDC, co);
-        } else {
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
-                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
-        }
-    }
-#else
-    cpu_isa_t isa = isa_any;
-    if (mayiuse(avx512_core_vnni)) {
-        isa = avx512_core_vnni;
-    } else if (mayiuse(avx512_core)) {
-        isa = avx512_core;
-    }
 
-    if (data_traits<b_dt>::data_type == data_type::u8) {
-        switch (isa) {
-        case avx512_core:
-        case avx512_core_vnni:
-            return gemm_driver(transa, transb, offsetc, M,
-                    N, K, alpha, A, LDA, ao, (uint8_t *)B, LDB, bo, beta,
-                    C, LDC, co, false);
-        default:
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
-                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
-        }
-    } else {
-        assert(data_traits<b_dt>::data_type == data_type::s8);
-        // mkldnn_gemm_s8s8s32 doesn't support non-zero ao and bo
-        if ((mayiuse(avx512_core) || mayiuse(avx512_core_vnni))
-                && *ao == 0 && *bo == 0) {
-            return simple_gemm_s8s8s32(transa, transb, offsetc, M,
-                    N, K, alpha, A, LDA, ao, (int8_t *)B, LDB, bo, beta,
-                    C, LDC, co);
-        } else {
-            return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
-                    alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
-        }
-    }
-#endif
+    bool use_s8u8 = true
+        && utils::everyone_is(0, *ao, *bo) // so far a requirement
+        && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(avx512_core));
+
+    if (use_s8u8)
+        status = simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+    else
+        status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
+
+    return status;
 }
 
 }
