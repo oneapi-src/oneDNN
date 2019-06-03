@@ -44,7 +44,6 @@ struct jit_softmax_t: public jit_generator {
         // keep all sizes at 8 bytes -- jit code expects this
         const data_t *src, *dst;
         size_t soff_max;
-        data_t one = 1.0f, neg_flt_max = -FLT_MAX;
     };
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
 
@@ -75,7 +74,9 @@ struct jit_softmax_t: public jit_generator {
 
     Vmm vtmp; // assigned at placed where used
     Vmm vtail_mask = Vmm(0);
+    Xmm xneg_flt_max = Xmm(12);
     Vmm vneg_flt_max = Vmm(isa == avx512_common ? 28 : 12);
+    Xmm xone = Xmm(13);
     Vmm vone = Vmm(isa == avx512_common ? 29 : 13);
     Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
     Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
@@ -97,11 +98,14 @@ struct jit_softmax_t: public jit_generator {
     }
 
     void load_common_params() {
-#       define PARAM_OFF(x) offsetof(call_params_t, x)
-        uni_vbroadcastss(vone, vmmword[reg_param + PARAM_OFF(one)]);
-        uni_vbroadcastss(vneg_flt_max,
-                vmmword[reg_param + PARAM_OFF(neg_flt_max)]);
+        mov(reg_tmp, float2int(1.0f));
+        movq(xone, reg_tmp);
+        uni_vbroadcastss(vone, xone);
+        mov(reg_tmp, float2int(-FLT_MAX));
+        movq(xneg_flt_max, reg_tmp);
+        uni_vbroadcastss(vneg_flt_max, xneg_flt_max);
 
+#       define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_soff_max, ptr[reg_param + PARAM_OFF(soff_max)]);
         mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
