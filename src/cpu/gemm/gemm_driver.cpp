@@ -1305,10 +1305,8 @@ static mkldnn_status_t gemm_threading_driver(
                 (float *) arg->co);
     }
 
-    if (data_traits<a_type>::data_type == data_type::s8) {
-        if (gemm_s8u8s32_jump_to_gemv_s8u8s32(arg)) {
-            return mkldnn_success;
-        }
+    if (gemm_s8u8s32_jump_to_gemv_s8u8s32(arg)) {
+        return mkldnn_success;
     }
 
     int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
