@@ -51,6 +51,7 @@ register_exe(cpu-rnn-training-f32 cpu_rnn_training_f32.cpp "test")
 if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_exe(gpu-getting-started-c gpu_getting_started.c "test")
     register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
+    register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
 endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")

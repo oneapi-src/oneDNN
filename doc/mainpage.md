@@ -74,6 +74,7 @@ Data manipulation:
 |                |          | @ref cpu_memory_format_propagation_cpp |                              |
 |                |          | @ref cpu_performance_profiling_cpp     |                              |
 |                | GPU      | @ref gpu_getting_started_cpp           | @ref gpu_getting_started_c   |
+|                | GPU      | @ref gpu_opencl_interop_cpp            | 			          |
 | f32 inference  | CPU      | @ref cpu_cnn_inference_f32_cpp         | @ref cpu_cnn_inference_f32_c |
 |                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
 | int8 inference | CPU      | @ref cpu_cnn_inference_int8_cpp        |                              |
