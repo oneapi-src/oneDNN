@@ -248,6 +248,11 @@ private:
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     CRIT);
+            // Init reference float type memory with NANs
+            if (engine == engine_ref && dt == mkldnn_f32)
+                for (int64_t i = 0; i < nelems(); i++)
+                    ((float *)data_)[i] = NAN;
+
             DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
         } else {
             is_data_owner_ = false;

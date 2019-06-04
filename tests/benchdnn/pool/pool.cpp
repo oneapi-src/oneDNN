@@ -286,7 +286,6 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t diff_dst_fp(dst_d, fp, tag, engine_ref);
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
-    SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
 
     args_t args_fwd, args_bwd;
     args_fwd.set(MKLDNN_ARG_SRC, src_dt.m_);
@@ -303,7 +302,6 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
     } else if (p->dir & FLAG_BWD) {
-        SAFE(fill_src(p, diff_src_dt, diff_src_fp, r), WARN);
         SAFE(fill_dst(p, diff_dst_dt, diff_dst_fp, r), WARN);
 
         args_bwd.set(MKLDNN_ARG_DIFF_DST, diff_dst_dt.m_);
