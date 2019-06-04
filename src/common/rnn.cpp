@@ -83,9 +83,9 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
     data_type_t weights_layer_dt = weights_layer_desc->data_type;
 
     bool cell_state_check = IMPLICATION(!is_zero_md(src_iter_c_desc),
-                                    src_iter_c_desc->data_type == f32)
+                          one_of(src_iter_c_desc->data_type, f32, f16))
             && IMPLICATION(!is_zero_md(dst_iter_c_desc),
-                       dst_iter_c_desc->data_type == f32);
+                          one_of(dst_iter_c_desc->data_type, f32, f16));
 
     bool is_f32 = everyone_is(f32, src_layer_dt, dst_layer_dt, weights_iter_dt,
                           weights_layer_dt)
