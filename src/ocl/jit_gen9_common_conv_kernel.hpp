@@ -591,11 +591,11 @@ struct jit_gen9_common_conv_bwd_data_kernel {
             jcp.ih_block = 1;
             jcp.iw_block = 1;
             jcp.sub_group_size = 16;
-            jcp.lws_d[0] = 16;
-            jcp.lws_d[1] = 1;
+            jcp.lws_d[0] = 1;
+            jcp.lws_d[1] = 16;
             jcp.lws_d[2] = 1;
-            jcp.gws_d[0] = jcp.ic * jcp.ngroups;
-            jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
+            jcp.gws_d[0] = jcp.ih * jcp.iw * jcp.id;
+            jcp.gws_d[1] = jcp.ic * jcp.ngroups;
             jcp.gws_d[2] = jcp.mb / 16;
             break;
         case ver_8ow16c:
@@ -604,14 +604,15 @@ struct jit_gen9_common_conv_bwd_data_kernel {
             jcp.ic_block = 16;
             jcp.od_block = 1;
             jcp.ih_block = 1;
-            jcp.iw_block = 1;
+            jcp.iw_block = nstl::max(8, utils::max_div(jcp.iw, 16));
             jcp.sub_group_size = 16;
-            jcp.lws_d[0] = 16;
-            jcp.lws_d[1] = 1;
+            jcp.lws_d[0] = 1;
+            jcp.lws_d[1] = 16;
             jcp.lws_d[2] = 1;
-            jcp.gws_d[0] = jcp.ic * jcp.ngroups;
-            jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
-            jcp.gws_d[2] = utils::div_up(jcp.mb, 16);
+            jcp.gws_d[0] = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block)
+                * jcp.id;
+            jcp.gws_d[1] = jcp.ic * jcp.ngroups;
+            jcp.gws_d[2] = jcp.mb;
             break;
         default: status = status::unimplemented;
         }
@@ -702,10 +703,9 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jit.define_int("DW", jcp.dilate_w);
         jit.define_int("OC_PADDED", jcp.oc);
         jit.define_int("MB_BLOCK", jcp.mb_block);
-        jit.define_int("MB_LAST", utils::rnd_dn(jcp.mb, 16));
         jit.define_int("IH_BLOCK", jcp.ih_block);
         jit.define_int("IW_BLOCK", jcp.iw_block);
-        jit.define_int("IW_LAST", utils::rnd_dn(jcp.iw, jcp.iw_block));
+        jit.define_int("IWB", utils::div_up(jcp.iw, jcp.iw_block));
         jit.define_int("WITH_BIAS", jcp.with_bias);
         jit.define_int("WITH_RELU", jcp.with_relu);
         jit.define_int("WITH_SUM", jcp.with_sum);
