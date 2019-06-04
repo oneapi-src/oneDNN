@@ -35,6 +35,7 @@
 #include "ref_rnn.hpp"
 #include "../gemm/gemm.hpp"
 #include "../simple_q10n.hpp"
+#include "gemm/gemm_pack.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -82,51 +83,16 @@ rnn_gemm_sig((ref_rnn_fwd_u8s8_t::gemm)) {
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
-#if (USE_MKL_PACKED_GEMM)
-    assert(transA == 'N');
-    cblas_sgemm_compute(CblasColMajor, CblasPacked,
-            (transB == 'T') ? CblasTrans : CblasNoTrans, m, n, k, a_, ldA, b_,
-            ldB, beta, c_, ldC);
-#else
-    UNUSED(transA);
-    UNUSED(transB);
-    UNUSED(m);
-    UNUSED(n);
-    UNUSED(k);
-    UNUSED(alpha);
-    UNUSED(ldA);
-    UNUSED(b_);
-    UNUSED(ldB);
-    UNUSED(beta);
-    UNUSED(c_);
-    UNUSED(ldC);
-    assert(!"packed gemm is disabled");
-#endif
+    assert(transA == 'N' && transB == 'N' && alpha == 1.);
+    sgemm_compute("P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_fwd_u8s8_t::packed_gemm)) {
-#if (USE_MKL_PACKED_GEMM)
-    int8_t offseta = 0, offsetb = 0;
+    assert(transA == 'N' && transB == 'N' && alpha == 1.);
     int32_t offsetc = 0;
-    cblas_gemm_s8u8s32_compute(CblasColMajor, (CBLAS_TRANSPOSE)CblasPacked,
-            CblasNoTrans, CblasFixOffset, m, n, k, alpha, a_, ldA, offseta, b_,
-            ldB, offsetb, beta, c_, ldC, &offsetc);
-#else
-    UNUSED(transA);
-    UNUSED(transB);
-    UNUSED(m);
-    UNUSED(n);
-    UNUSED(k);
-    UNUSED(alpha);
-    UNUSED(ldA);
-    UNUSED(b_);
-    UNUSED(ldB);
-    UNUSED(beta);
-    UNUSED(c_);
-    UNUSED(ldC);
-    assert(!"packed gemm is disabled");
-#endif
+    gemm_s8u8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_, &ldB, &beta,
+            c_, &ldC, &offsetc);
 }
 
 //*************** Grid computations strategy: linear ***************//

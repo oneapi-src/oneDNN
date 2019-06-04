@@ -24,7 +24,7 @@
 #include "utils.hpp"
 #include "simple_q10n.hpp"
 #include "cpu_reorder_pd.hpp"
-#include "../gemm/os_blas.hpp"
+#include "gemm/gemm_pack.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -94,9 +94,6 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
-#if !USE_MKL_PACKED_GEMM
-            return status::unimplemented;
-#endif
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
@@ -159,7 +156,6 @@ private:
     rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-#if USE_MKL_PACKED_GEMM
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
@@ -184,6 +180,8 @@ private:
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
         const int mask = pd()->attr()->rnn_weights_qparams_.mask_;
 
+        /* Quantized weights have ldigo layot and transposition will happen
+         * if user's data is in ldgoi */
         if (is_igo) {
             int nthr = mkldnn_get_max_threads();
             int LD_nthr = nstl::min(L * D, nthr);
@@ -231,7 +229,7 @@ private:
                     int8_t q = qz_b0<in_data_t, out_data_t>()(
                             input[ld * G * O * I + go * I + i], s);
                     compensation += (int32_t)q;
-                    quantized[ld * G * O * I + go * I + i] = q;
+                    quantized[ld * I * G * O + i * G * O + go] = q;
                 }
                 comp[ld * G * O + go] = saturate<float>(compensation);
             });
@@ -241,31 +239,27 @@ private:
         auto off_igo = [&](int l, int d, int i, int g, int o) {
             return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
         };
-        auto off_goi = [&](int l, int d, int i, int g, int o) {
-            return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
-        };
         int n_parts = output_d.rnn_packed_desc().n_parts;
         const size_t *size_packed_cell
                 = output_d.rnn_packed_desc().part_pack_size;
         const int *parts = output_d.rnn_packed_desc().parts;
         const int n = output_d.rnn_packed_desc().n;
+        const int ldb = output_d.rnn_packed_desc().ldb;
         char *to_pack = output;
+
         for (int l = 0; l < L; l++) {
             for (int d = 0; d < D; d++) {
                 for (int p = 0; p < n_parts; p++) {
                     int g = (p > 0) ? parts[p - 1] : 0;
                     int m_p = parts[p] * O;
                     int k_p = I;
-                    cblas_gemm_s8u8s32_pack(CblasColMajor, CblasAMatrix,
-                            is_igo ? CblasNoTrans : CblasTrans, m_p, n, k_p,
-                            &quantized[is_igo ? off_igo(l, d, 0, g, 0) :
-                                                off_goi(l, d, g, 0, 0)],
-                            is_igo ? G * O : I, to_pack);
+                    int lda = G * O;
+                    gemm_s8u8s32_pack("A", "N", "N", &m_p, &n, &k_p, &lda, &ldb,
+                            &quantized[off_igo(l, d, 0, g, 0)], to_pack);
                     to_pack += size_packed_cell[p];
                 }
             }
         }
-#endif
         return status::success;
     }
 
@@ -284,9 +278,6 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
-#if !USE_MKL_PACKED_GEMM
-            return status::unimplemented;
-#endif
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == data_type::f32
@@ -313,13 +304,44 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
         }
 
         format_tag_t itag_;
+
+        status_t init() {
+            status_t status = cpu_reorder_pd_t::init();
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+    private:
+        void init_scratchpad() {
+            const memory_desc_wrapper id(src_md());
+            const memory_desc_wrapper od(dst_md());
+            const rnn_packed_desc_t &rnn_pdata = od.rnn_packed_desc();
+
+            format_tag_t itag = id.matches_one_of_tag(
+                    format_tag::ldigo, format_tag::ldgoi);
+            bool cross_case
+                    = (itag == format_tag::ldigo
+                              && rnn_pdata.format == rnn_packed_format::ldgoi_p)
+                    || (itag == format_tag::ldgoi
+                                       && rnn_pdata.format
+                                               == rnn_packed_format::ldigo_p);
+            const size_t sz
+                    = cross_case ? id.nelems() * sizeof(float) : 0;
+
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(key_reorder_rnn_weights_transposition, sz);
+        }
+
     };
 
 private:
     rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-#if USE_MKL_PACKED_GEMM
         auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(float *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
@@ -333,40 +355,52 @@ private:
         const int O = dims[4];
 
         /* Pack */
-        bool cross_case = false
-            || (pd()->itag_ == format_tag::ldigo
-                    && rnn_pdata.format == mkldnn_ldgoi_p)
-            || (pd()->itag_ == format_tag::ldgoi
-                    && rnn_pdata.format == mkldnn_ldigo_p);
-        auto trans = cross_case ? CblasTrans : CblasNoTrans;
+        const bool from_igo = pd()->itag_ == format_tag::ldigo;
+        const bool to_igo = rnn_pdata.format == mkldnn_ldigo_p;
         int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
         const int n = rnn_pdata.n;
 
-        const bool is_igo = pd()->itag_ == format_tag::ldigo;
+        /* Transpose weights prior to packing to ensure that packed GEMM
+         * algorithm will be dispatched*/
+        float *input_tr = (float *)input;
+        if (from_igo != to_igo) {
+            input_tr = (float *)scratchpad(ctx).template get<void>(
+                    memory_tracking::names::
+                            key_reorder_rnn_weights_transposition);
+            const int M = to_igo ? G * O : I;
+            const int N = to_igo ? I : G * O;
+            parallel_nd(L * D, N, [&](int ld, int i) {
+                for (int j = 0; j < M; j++) {
+                    input_tr[ld * M * N + i * M  + j]
+                            = input[ld * M * N + j * N + i];
+                }
+            });
+        }
+
         auto off_igo = [&](int l, int d, int i, int g, int o) {
             return l * D * I * G * O + d * I * G * O + i * G * O + g * O + o;
         };
         auto off_goi = [&](int l, int d, int i, int g, int o) {
             return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
         };
+        const int lda = to_igo ? G * O : I;
+        const int ldb = rnn_pdata.ldb;
         for (int l = 0; l < L; l++) {
             for (int d = 0; d < D; d++) {
                 for (int p = 0; p < n_parts; p++) {
                     int g = (p > 0) ? parts[p - 1] : 0;
-                    int m_p = is_igo ? parts[p] * O : I;
-                    int k_p = is_igo ? I : parts[p] * O;
-                    int ld = is_igo ? G * O : I;
-                    cblas_sgemm_pack(CblasColMajor, CblasAMatrix, trans, m_p, n,
-                            k_p, 1.0f, &input[is_igo ? off_igo(l, d, 0, g, 0) :
-                                                       off_goi(l, d, 0, g, 0)],
-                            ld, output);
+                    int m_p = to_igo ? parts[p] * O : I;
+                    int k_p = to_igo ? I : parts[p] * O;
+                    sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda, &ldb,
+                            &input_tr[to_igo ? off_igo(l, d, 0, g, 0)
+                                                     : off_goi(l, d, 0, g, 0)],
+                            output);
                     output += size_packed_cell[p] / sizeof(float);
                 }
             }
         }
-#endif
         return status::success;
     }
 

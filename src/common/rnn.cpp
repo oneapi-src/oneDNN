@@ -103,7 +103,6 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
                           dst_iter_desc->data_type == f16)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f16);
 
-#if USE_MKL_PACKED_GEMM
     bool is_u8u8u8 = src_layer_dt == u8
             && IMPLICATION(!is_zero_md(src_iter_desc),
                              src_iter_desc->data_type == u8)
@@ -133,9 +132,6 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
             || ((is_u8u8u8 || is_f32u8f32) && is_lstm && is_inference))
             ? success
             : unimplemented;
-#else
-    return cell_state_check && (is_f32 || is_f16) ? success : unimplemented;
-#endif
 }
 
 status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,

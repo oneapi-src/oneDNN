@@ -125,6 +125,7 @@ inline bool rnn_packed_desc_is_equal(
         const rnn_packed_desc_t &lhs, const rnn_packed_desc_t &rhs) {
     bool ok = true
         && lhs.format == rhs.format
+        && lhs.ldb == rhs.ldb
         && lhs.n_parts == rhs.n_parts
         && lhs.offset_compensation == rhs.offset_compensation
         && lhs.size == rhs.size

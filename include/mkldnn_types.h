@@ -815,10 +815,13 @@ typedef struct {
     mkldnn_rnn_packed_memory_format_t format;
     int n_parts;
     int n;
+    int ldb;
     int parts[MKLDNN_RNN_MAX_N_PARTS];
     size_t part_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    unsigned pack_part[MKLDNN_RNN_MAX_N_PARTS];
     size_t offset_compensation;
     size_t size;
+    char reserved[200];
 } mkldnn_rnn_packed_desc_t;
 
 /// Flags for memory special features
