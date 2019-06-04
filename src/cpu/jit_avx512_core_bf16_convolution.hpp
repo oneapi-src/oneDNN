@@ -178,12 +178,19 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
+        if (pd()->ndims() < 5)
+            execute_backward_data(ctx);
+        else if (pd()->ndims() == 5)
+            execute_backward_data_3d(ctx);
+        else
+            assert(!"invalid dimension");
+
         return status::success;
     }
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
+    void execute_backward_data_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_bf16_bwd_data_kernel *kernel_;
 };
