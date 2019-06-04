@@ -271,7 +271,7 @@ void *zmalloc(size_t size, size_t align) {
 #else
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if (size < align)
+    if ((bench_mode & PERF) && (size < align))
         size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
