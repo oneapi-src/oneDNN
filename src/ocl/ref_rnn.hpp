@@ -458,8 +458,11 @@ struct _ref_rnn_common_t : public primitive_t {
         free(offset_wei_input_);
         free(offset_wei_state_);
 
-        gemm_state_->release();
-        gemm_input_->release();
+        if (gemm_state_)
+            gemm_state_->release();
+
+        if (gemm_input_)
+            gemm_input_->release();
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
