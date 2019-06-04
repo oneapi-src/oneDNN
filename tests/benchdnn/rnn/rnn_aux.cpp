@@ -374,8 +374,11 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+        const float diff_threshold = p->cfg[kind].dt == mkldnn_f16 ? 1e-2
+            : 1e-5;
 
-        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
+        const bool ok
+            = (fabs(fp) > diff_threshold ? rel_diff : diff) <= p->cfg[kind].eps;
 
         if (!ok) {
             r->errors++;

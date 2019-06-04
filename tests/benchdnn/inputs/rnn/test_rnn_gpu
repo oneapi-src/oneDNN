@@ -15,11 +15,11 @@
 --alg=VANILLA_LSTM --batch=rnn_small
 
 # f16
-#--cfg=f16
-#--prop=FWD_D
-#--direction=left2right
+--cfg=f16
+--prop=FWD_D
+--direction=left2right
 
 # RNN
-#--alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC --batch=rnn_small
-#--alg=VANILLA_LSTM --activation=TANH               --batch=rnn_small
+--alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC --batch=rnn_small
+--alg=VANILLA_LSTM --activation=TANH               --batch=rnn_small
 
