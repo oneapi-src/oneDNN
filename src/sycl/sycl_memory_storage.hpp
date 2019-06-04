@@ -68,7 +68,7 @@ public:
         vptr_ = handle;
 #else
         auto *untyped_buf_ptr = static_cast<untyped_sycl_buffer_t *>(handle);
-        buffer_.reset(new untyped_sycl_buffer_t(std::move(*untyped_buf_ptr)));
+        buffer_.reset(new untyped_sycl_buffer_t(*untyped_buf_ptr));
 #endif
         return status::success;
     }

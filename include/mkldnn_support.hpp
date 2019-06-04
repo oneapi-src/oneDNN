@@ -45,7 +45,7 @@ class untyped_sycl_buffer_t
 {
 public:
     template <typename T, int ndims>
-    untyped_sycl_buffer_t(cl::sycl::buffer<T, ndims> &buf) {
+    untyped_sycl_buffer_t(const cl::sycl::buffer<T, ndims> &buf) {
         static_assert(ndims == 1, "Only 1D buffers supported");
         buf_ptr_ = new cl::sycl::buffer<T, ndims>(buf);
 
@@ -116,8 +116,10 @@ public:
         }
     }
 
-    untyped_sycl_buffer_t(const untyped_sycl_buffer_t &) = delete;
-    untyped_sycl_buffer_t &operator=(untyped_sycl_buffer_t &) = delete;
+    untyped_sycl_buffer_t(const untyped_sycl_buffer_t &other)
+        : untyped_sycl_buffer_t(other.reinterpret<uint8_t, 1>()) {}
+
+    untyped_sycl_buffer_t &operator=(untyped_sycl_buffer_t &other) = delete;
 
     mkldnn_data_type_t data_type() const { return data_type_; }
 
