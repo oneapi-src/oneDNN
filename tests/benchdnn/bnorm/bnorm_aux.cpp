@@ -111,10 +111,12 @@ int str2desc(desc_t *desc, const char *str) {
 #   undef CASE_NN
 #   undef CASE_N
 
+    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0))
+        return FAIL;
+
     if (d.id == 0) d.id = 1;
-    if (d.ih == 0) d.ih = d.iw;
+    if (d.ih == 0) d.ih = 1;
     if (d.iw == 0) d.iw = d.ih;
-    if (d.ic == 0 || d.ih == 0 || d.iw == 0) return FAIL;
 
     *desc = d;
 

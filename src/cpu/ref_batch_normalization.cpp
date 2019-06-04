@@ -31,6 +31,8 @@
         if (has_spatial) {                                                  \
             if (is_3d)                                                      \
                 return data_d.off(n, c, d, h, w);                           \
+            else if (is_1d)                                                 \
+                return data_d.off(n, c, w);                                 \
             else                                                            \
                 return data_d.off(n, c, h, w);                              \
         } else {                                                            \
@@ -89,7 +91,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const dim_t N = pd()->MB();
     const dim_t C = pd()->C();
     dim_t H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
+    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
     if (has_spatial) {
         D = pd()->D();
         H = pd()->H();
@@ -108,6 +110,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
         return (with_relu && res < 0.0f) ? 0.0f : res;
     };
     const bool is_3d = data_d.ndims() == 5;
+    const bool is_1d = data_d.ndims() == 3;
 
     // auto data_offset(const memory_desc_wrapper &, int, int, int, int, int)
     DECLARE_DATA_OFFSET;
@@ -212,7 +215,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
 
     const dim_t N = pd()->MB();
     dim_t H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 4, 5);
+    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
     if (has_spatial) {
         D = pd()->D();
         H = pd()->H();
@@ -225,6 +228,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
     const bool fuse_bn_relu = pd()->fuse_bn_relu();
 
     const bool is_3d = data_d.ndims() == 5;
+    const bool is_1d = data_d.ndims() == 3;
 
     // auto data_offset(const memory_desc_wrapper &, int, int, int, int, int)
     DECLARE_DATA_OFFSET;

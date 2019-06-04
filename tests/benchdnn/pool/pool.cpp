@@ -35,6 +35,10 @@ inline bool is_3d(const prb_t *p) {
     return p->id > 1;
 }
 
+inline bool is_1d(const prb_t *p) {
+    return !is_3d(p) && p->ih == 1;
+}
+
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     auto nelems = mem_dt.nelems();
@@ -174,19 +178,28 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
         mkldnn_primitive_desc_t &ppd,
         const mkldnn_primitive_desc_t &fwd_pd_hint, res_t *r) {
     mkldnn_memory_desc_t src_d, dst_d;
-    int ndims = is_3d(p) ? 5 : 4;
 
-    mkldnn_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
+    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
 
-    mkldnn_dims_t dst_2d_dims = {p->mb, p->ic, p->oh, p->ow};
-    mkldnn_dims_t dst_3d_dims = {p->mb, p->ic, p->od, p->oh, p->ow};
+    mkldnn_dims_t src_1d_dims = { p->mb, p->ic, p->iw };
+    mkldnn_dims_t src_2d_dims = { p->mb, p->ic, p->ih, p->iw };
+    mkldnn_dims_t src_3d_dims = { p->mb, p->ic, p->id, p->ih, p->iw };
+    mkldnn_dim_t *src_dims
+            = is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims;
 
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
-        is_3d(p) ? src_3d_dims : src_2d_dims, p->cfg[SRC].dt, p->tag), WARN);
+    mkldnn_dims_t dst_1d_dims = { p->mb, p->ic, p->ow };
+    mkldnn_dims_t dst_2d_dims = { p->mb, p->ic, p->oh, p->ow };
+    mkldnn_dims_t dst_3d_dims = { p->mb, p->ic, p->od, p->oh, p->ow };
+    mkldnn_dim_t *dst_dims
+            = is_3d(p) ? dst_3d_dims : is_1d(p) ? dst_1d_dims : dst_2d_dims;
 
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, ndims,
-        is_3d(p) ? dst_3d_dims : dst_2d_dims, p->cfg[DST].dt, p->tag), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &src_d, ndims, src_dims, p->cfg[SRC].dt, p->tag),
+            WARN);
+
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &dst_d, ndims, dst_dims, p->cfg[DST].dt, p->tag),
+            WARN);
 
     mkldnn_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     mkldnn_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
@@ -265,28 +278,20 @@ int doit(const prb_t *p, res_t *r) {
         return OK;
     }
 
-    dnn_mem_t *p_ws_dt = NULL;
-    dnn_mem_t *p_ws_fp = NULL;
+    dnn_mem_t ws_dt, ws_fp;
     if (p->alg == MAX && !(p->dir & FLAG_INF)) {
         // process ws before fwd_pd destroy
         auto &ws_d = *mkldnn_primitive_desc_query_md(pfpd, mkldnn_query_workspace_md, 0);
-        p_ws_dt = new dnn_mem_t(ws_d, engine_tgt);
-        p_ws_fp = new dnn_mem_t(ws_d, engine_ref);
+        ws_dt = dnn_mem_t(ws_d, engine_tgt);
+        ws_fp = dnn_mem_t(ws_d, engine_ref);
         // to catch usage of uninitialized values in the library
-        SAFE(fill_ws(p, *p_ws_dt, *p_ws_fp, r), WARN);
+        SAFE(fill_ws(p, ws_dt, ws_fp, r), WARN);
     }
-    dnn_mem_t &ws_dt = *p_ws_dt;
-    dnn_mem_t &ws_fp = *p_ws_fp;
 
     if (p->dir & FLAG_BWD) {
         SAFE(init_pd(p, pbd, pbpd, pfpd, r), WARN);
-        if (r->state == SKIPPED || r->state == UNIMPLEMENTED) {
-            if (p->alg == MAX && !(p->dir & FLAG_INF)) {
-                delete p_ws_dt;
-                delete p_ws_fp;
-            }
+        if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
             return OK;
-        }
 
         DNN_SAFE(mkldnn_primitive_create(&pb, pbpd), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(pbpd), CRIT);
@@ -368,11 +373,6 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(mkldnn_primitive_destroy(pf), CRIT);
     if (p->dir & FLAG_BWD)
         DNN_SAFE(mkldnn_primitive_destroy(pb), CRIT);
-
-    if (p->alg == MAX && !(p->dir & FLAG_INF)) {
-        delete p_ws_dt;
-        delete p_ws_fp;
-    }
 
     return OK;
 }

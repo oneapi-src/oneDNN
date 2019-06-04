@@ -34,6 +34,14 @@
 
 namespace bnorm {
 
+inline bool is_3d(const prb_t *p) {
+    return p->id > 1;
+}
+
+inline bool is_1d(const prb_t *p) {
+    return !is_3d(p) && p->ih == 1;
+}
+
 static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
     mkldnn::impl::parallel_nd(p->ic, p->mb, p->id, p->ih, p->iw,
@@ -498,10 +506,19 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
 static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
         mkldnn_primitive_desc_t &bpd, res_t *r) {
     mkldnn_memory_desc_t data_d;
-    mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, is_bnorm_3d(p) ? 5 : 4,
-        is_bnorm_3d(p) ? data_dims_3d : data_dims, p->dt, p->tag), WARN);
+
+    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
+
+    mkldnn_dims_t data_dims_1d = { p->mb, p->ic, p->iw };
+    mkldnn_dims_t data_dims_2d = { p->mb, p->ic, p->ih, p->iw };
+    mkldnn_dims_t data_dims_3d = { p->mb, p->ic, p->id, p->ih, p->iw };
+
+    mkldnn_dim_t *data_dims
+            = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
+
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &data_d, ndims, data_dims, p->dt, p->tag),
+            WARN);
 
     auto flags = (mkldnn_batch_normalization_flags_t)p->flags;
     if (p->dir & FLAG_FWD) {
@@ -565,12 +582,16 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
 /** converts benchdnn-understandable mask of {0, 1} to workspace */
 static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
         dnn_mem_t &ws_dt) {
-    mkldnn_dims_t data_dims = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
 
-    dnn_mem_t data(is_bnorm_3d(p) ? 5 : 4,
-            is_bnorm_3d(p) ? data_dims_3d : data_dims, mkldnn_f32, p->tag,
-            engine_tgt);
+    mkldnn_dims_t data_dims_1d = { p->mb, p->ic, p->iw };
+    mkldnn_dims_t data_dims_2d = { p->mb, p->ic, p->ih, p->iw };
+    mkldnn_dims_t data_dims_3d = { p->mb, p->ic, p->id, p->ih, p->iw };
+
+    mkldnn_dim_t *data_dims
+            = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
+
+    dnn_mem_t data(ndims, data_dims, mkldnn_f32, p->tag, engine_tgt);
     SAFE(data.reorder(mask_fp), WARN);
 
     dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x, engine_tgt);
@@ -624,9 +645,11 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = mkldnn_f32;
     auto &data_dt_d = bd.data_desc;
 
-    const mkldnn_dims_t dims1d = {p->ic};
-    const mkldnn_dims_t dims2d = {2, p->ic};
-    const auto src_tag = is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw;
+    const mkldnn_dims_t dims1d = { p->ic };
+    const mkldnn_dims_t dims2d = { 2, p->ic };
+
+    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
+    const auto src_tag = get_default_tag(ndims);
 
     dnn_mem_t data_fp(data_dt_d, fp, src_tag, engine_ref),
             data_dt(data_dt_d, engine_tgt);
@@ -644,16 +667,13 @@ int doit(const prb_t *p, res_t *r) {
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
     dnn_mem_t ws_fp(data_fp.md_, engine_ref);
-    dnn_mem_t *p_ws_dt = NULL;
+    dnn_mem_t ws_dt;
     if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md = mkldnn_primitive_desc_query_md(bpd,
                 mkldnn_query_workspace_md, 0);
         SAFE(ws_md != NULL ? OK : FAIL, WARN);
-        p_ws_dt = new dnn_mem_t(*ws_md, engine_tgt);
-    } else {
-        p_ws_dt = new dnn_mem_t();
+        ws_dt = dnn_mem_t(*ws_md, engine_tgt);
     }
-    dnn_mem_t &ws_dt = *p_ws_dt;
 
     DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
@@ -748,8 +768,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
                 d_ss_dt.unmap();
             }
-            dnn_mem_t d_data(d_data_dt, fp,
-                    is_bnorm_3d(p) ? mkldnn_ncdhw : mkldnn_nchw, engine_ref);
+            dnn_mem_t d_data(d_data_dt, fp, src_tag, engine_ref);
             SAFE(compare(p, DATA, d_data_fp, d_data, r), WARN);
         }
     }
@@ -769,7 +788,6 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    delete p_ws_dt;
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 
     return OK;

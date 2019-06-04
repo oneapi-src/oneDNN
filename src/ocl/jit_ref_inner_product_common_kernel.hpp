@@ -40,7 +40,7 @@ struct jit_ref_inner_product_fwd_kernel {
         const int ndims = src_d.ndims();
 
         jip.ndims = ndims;
-        jip.has_spatial = utils::one_of(jip.ndims, 4, 5);
+        jip.has_spatial = utils::one_of(jip.ndims, 3, 4, 5);
 
         const auto &src_dims = src_d.padded_dims();
 
@@ -48,7 +48,7 @@ struct jit_ref_inner_product_fwd_kernel {
         jip.ic = src_dims[1];
         if (jip.has_spatial) {
             jip.id = (ndims == 5) ? src_dims[2] : 1;
-            jip.ih = src_dims[ndims - 2];
+            jip.ih = (ndims == 3) ? 1 : src_dims[ndims - 2];
             jip.iw = src_dims[ndims - 1];
         } else {
             jip.id = 1;
@@ -61,11 +61,11 @@ struct jit_ref_inner_product_fwd_kernel {
 
         jip.oc = dst_dims[1];
         jip.od = (ndims == 5) ? dst_dims[2] : 1;
-        jip.oh = dst_dims[ndims - 2];
+        jip.oh = (ndims == 3) ? 1 : dst_dims[ndims - 2];
         jip.ow = dst_dims[ndims - 1];
 
         jip.kd = (ndims == 5) ? weights_d.dims()[2] : 1;
-        jip.kh = weights_d.dims()[ndims - 2];
+        jip.kh = (ndims == 3) ? 1 : weights_d.dims()[ndims - 2];
         jip.kw = weights_d.dims()[ndims - 1];
 
         jip.src_dt = src_d.data_type();
