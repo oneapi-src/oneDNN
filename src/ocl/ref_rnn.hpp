@@ -25,7 +25,7 @@
 #include "common/utils.hpp"
 #include "common/primitive_iterator.hpp"
 
-#include "ocl/ocl_engine.hpp"
+#include "ocl/cl_engine.hpp"
 #include "ocl/ocl_rnn_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_memory_storage.hpp"
@@ -107,8 +107,8 @@ struct _ref_rnn_common_t : public primitive_t {
             using namespace format_tag;
 
             assert(this->engine()->kind() == engine_kind::gpu);
-            auto *ocl_engine
-                = utils::downcast<const ocl_engine_t *>(this->engine());
+            auto *cl_engine
+                = utils::downcast<const cl_engine_t *>(this->engine());
 
 
             const alg_kind_t cell_kind = this->desc()->cell_kind;
@@ -133,10 +133,10 @@ struct _ref_rnn_common_t : public primitive_t {
                     && this->set_default_params() == status::success
                     && IMPLICATION(src_type == data_type::f16,
                         this->desc()->prop_kind == forward_inference)
-                    && ocl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
                     && IMPLICATION(src_type == data_type::f16, true
-                            && ocl_engine->mayiuse(cl_device_ext_t::khr_fp16)
-                            && ocl_engine->mayiuse(
+                            && cl_engine->mayiuse(cl_device_ext_t::khr_fp16)
+                            && cl_engine->mayiuse(
                                 cl_device_ext_t::intel_subgroups_short));
             if (!ok) {
                 return status::unimplemented;
