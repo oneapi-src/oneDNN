@@ -392,7 +392,7 @@ struct ocl_kernel_t {
     }
 
 private:
-    static constexpr int max_args = 17;
+    static constexpr int max_args = 20;
 
     cl_kernel kernel_ = nullptr;
     size_t nargs_ = 0;
