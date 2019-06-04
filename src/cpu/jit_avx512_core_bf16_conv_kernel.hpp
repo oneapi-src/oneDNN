@@ -387,6 +387,8 @@ private:
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_step_disp();
     inline void compute_loop();
+    inline void compute_oh_loop_common();
+    inline void compute_od_loop_common();
 
     void generate();
 
