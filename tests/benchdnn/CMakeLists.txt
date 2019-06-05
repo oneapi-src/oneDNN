@@ -140,6 +140,8 @@ register_benchdnn_test(test_benchdnn_regression_large
 if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
         gpu "-v1 --conv --batch=inputs/test_conv_gpu")
+    register_benchdnn_test(test_benchdnn_deconv
+        gpu "-v1 --deconv --batch=inputs/deconv/test_deconv_gpu")
     register_benchdnn_test(test_benchdnn_bnorm
         gpu "--bnorm --batch=inputs/bnorm/test_bnorm_gpu")
     register_benchdnn_test(test_benchdnn_ip
