@@ -28,7 +28,7 @@ namespace mkldnn {
 
 #if MKLDNN_ENABLE_SYCL_VPTR
 
-TEST(sycl_memory_usm_test, Service) {
+TEST(sycl_memory_vptr_test, Service) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
             "GPU devices not found.");
 
@@ -45,7 +45,7 @@ TEST(sycl_memory_usm_test, Service) {
     sycl_free(ptr);
 }
 
-TEST(sycl_memory_usm_test, Constructor) {
+TEST(sycl_memory_vptr_test, Constructor) {
     engine eng(engine::kind::cpu, 0);
     memory::dim n = 100;
     memory::desc mem_d({ n }, memory::data_type::f32, memory::format_tag::x);
