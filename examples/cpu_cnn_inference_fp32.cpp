@@ -113,7 +113,7 @@ void simple_net(int times = 100) {
 
 /// Create memory descriptors with layout tag::any. The `any` format enables
 /// the convolution primitive to choose the data format that will result in
-/// best performance based on  for its input parameters (convolution kernel
+/// best performance based on its input parameters (convolution kernel
 /// sizes, strides, padding, and so on). If the resulting format is different
 /// from `nchw`, the user data must be transformed to the format required for
 /// the convolution (as explained below).
@@ -126,12 +126,12 @@ void simple_net(int times = 100) {
     auto conv1_dst_md = memory::desc({ conv1_dst_tz }, dt::f32, tag::any);
 //[Create convolution memory descriptors]
 
-/// Create a convolution descriptor by specifying the
-/// algorithm([convolution algorithms](@ref dev_guide_convolution), propagation
-/// kind, shapes of input, weights, bias, output, convolution strides,
-/// padding, and kind of padding. Propagation kind is set to
-/// prop_kind::forward_inference to optimize for inference execution and omit
-/// computations that are necessary only for backward propagation.
+/// Create a convolution descriptor by specifying propagation kind,
+/// [convolution algorithm](@ref dev_guide_convolution), shapes of input,
+/// weights, bias, output, convolution strides, padding, and kind of padding.
+/// Propagation kind is set to prop_kind::forward_inference to optimize for
+/// inference execution and omit computations that are necessary only for 
+/// backward propagation.
 /// @snippet cpu_cnn_inference_fp32.cpp Create convolution descriptor
 //[Create convolution descriptor]
     auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
