@@ -495,12 +495,20 @@ static void test_free(char *ptr) {
 }
 #undef TEST_MALLOC_OFFSET
 
+extern "C" mkldnn_status_t mkldnn_engine_get_backend_kind(
+        mkldnn_engine_t engine, int *backend_kind);
+
 class test_memory {
 public:
     test_memory(const memory::desc &d, const mkldnn::engine &e) {
-        size_ = d.get_size();
+        int backend_kind;
+        mkldnn::error::wrap_c_api(
+                mkldnn_engine_get_backend_kind(e.get(), &backend_kind),
+                "internal error");
         bool is_cpu_native = (e.get_kind() == mkldnn::engine::kind::cpu)
-                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
+                && (backend_kind == 0);
+
+        size_ = d.get_size();
         if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
             mem_ = memory(d, e, data_.get());

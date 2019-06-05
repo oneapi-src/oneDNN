@@ -237,8 +237,10 @@ private:
         }
         engine_ = engine;
         DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
-        is_cpu_native_ = (engine_kind_ == mkldnn_cpu)
-                && (MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE);
+
+        int backend_kind;
+        DNN_SAFE_V(mkldnn_engine_get_backend_kind(engine_, &backend_kind));
+        is_cpu_native_ = (engine_kind_ == mkldnn_cpu) && (backend_kind == 0);
 
         if (is_cpu_native_) {
             // Allocate memory for native backend directly

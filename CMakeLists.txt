@@ -109,9 +109,6 @@ enable_testing()
 
 include_directories(include)
 
-# XXX: this is temporary
-set(MKLDNN_CPU_BACKEND "NATIVE")
-set(MKLDNN_GPU_BACKEND ${MKLDNN_GPU_RUNTIME})
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/mkldnn_config.h.in"
     "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"

@@ -134,6 +134,8 @@ extern mkldnn_stream_t stream_tgt;
 extern "C" mkldnn_status_t mkldnn_engine_create_with_backend(
         mkldnn_engine_t *engine, mkldnn_engine_kind_t kind, int backend_kind,
         size_t index);
+extern "C" mkldnn_status_t mkldnn_engine_get_backend_kind(
+        mkldnn_engine_t engine, int *backend_kind);
 
 inline int init() {
     /* Create engine with CPU native backend: backend_kind == 0 */

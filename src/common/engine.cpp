@@ -97,7 +97,7 @@ status_t mkldnn_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
     return success;
 }
 
-status_t mkldnn_engine_get_backend_kind(
+extern "C" status_t MKLDNN_API mkldnn_engine_get_backend_kind(
         engine_t *engine, backend_kind_t *backend_kind) {
     bool args_ok = !any_null(engine, backend_kind);
     if (!args_ok)
