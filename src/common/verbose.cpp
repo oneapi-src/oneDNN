@@ -36,7 +36,7 @@ const verbose_t *mkldnn_verbose() {
     if (!initialized) {
         const int len = 2;
         char val[len] = {0};
-        if (mkldnn_getenv(val, "MKLDNN_VERBOSE", len) == 1)
+        if (mkldnn_getenv("MKLDNN_VERBOSE", val, len) == 1)
             verbose.level = atoi(val);
         initialized = 1;
     }
