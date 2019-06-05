@@ -25,12 +25,14 @@
 #include "mkldnn_types.h"
 #include "bf16/common_s16.hpp"
 #include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
+#include "common/bfloat16.hpp"
 #include "f32/common_f32.hpp"
 #include "f32/jit_avx2_kernel_sgemm_kern.hpp"
+#include "f32/jit_avx_gemv_t_f32_kern.hpp"
+#include "f32/jit_sse41_gemv_t_f32_kern.hpp"
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
-#include "common/bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -131,13 +133,14 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     }
 
     bool is_sgemm = data_traits<a_type>::data_type == data_type::f32;
+    bool is_gemv = this->m == 1 || this->n == 1;
 
     // Copy-based sgemm doesn't support force-nocopy for ISAs older
     // than Intel AVX.
     this->force_nocopy = is_sgemm && force_nocopy && mayiuse(avx);
     this->force_nocopy |= mayiuse(avx512_mic);
 
-    if (!this->force_nocopy) {
+    if (!this->force_nocopy || is_gemv) {
         this->jit_init();
     }
 }
@@ -168,6 +171,11 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             const float *alpha, const a_type *a, const b_type *b, c_type *c,
             const dim_t ldc, const c_type *col_offset,
             const c_type *row_offset) = {{{NULL}}};
+
+    // gemv_kern[trans]
+    static void (*gemv_kern[2])(const dim_t *m, const dim_t *n,
+            const float *alpha, const a_type*a, const dim_t *lda,
+            const b_type *x, const dim_t *incy, c_type *y) = {NULL};
 
     static void (*gemv_s8u8s32_kern)(const dim_t, const dim_t, const float,
             const int8_t *, const dim_t, const uint8_t *, const float,
@@ -378,6 +386,15 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             break;
         }
 
+        static jit_generator *gemv_kernel[2] = {NULL};
+        if (data_traits<a_type>::data_type == data_type::f32) {
+            if (mayiuse(avx)) {
+                gemv_kernel[do_trans] = new jit_avx_gemv_t_f32_kern();
+            } else if (mayiuse(sse41)) {
+                gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
+            }
+        }
+
         static jit_avx512_core_gemv_s8u8s32_kern *gemv_s8u8s32_kernel = NULL;
         static jit_avx512_core_gemv_s8u8s32_kern *gemv_u8s8s32_kernel = NULL;
         if (data_traits<a_type>::data_type == data_type::s8) {
@@ -419,6 +436,19 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                                     const c_type *)>();
                 }
 
+        // Set gemv floating point kernels
+        if (data_traits<a_type>::data_type == data_type::f32) {
+            for (int isTrans : {no_trans, do_trans}) {
+                auto *p_gemv_kernel = gemv_kernel[isTrans];
+                if (p_gemv_kernel != NULL)
+                    gemv_kern[isTrans] = p_gemv_kernel->getCode<
+                void (*)(const dim_t *, const dim_t *, const float *,
+                        const a_type *, const dim_t *, const b_type *,
+                        const dim_t *, c_type *)>();
+
+            }
+        }
+
         // Set gemv integer gemm kernels
         if (data_traits<a_type>::data_type == data_type::s8) {
             gemv_s8u8s32_kern = gemv_s8u8s32_kernel->generate<
@@ -429,6 +459,7 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                 jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>(
                         mayiuse(avx512_core_vnni));
         }
+
     });
 
     int doSumA = this->bo != 0 ? do_sum : no_sum;
@@ -445,6 +476,9 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             for (int isRowOffset : {no_row_offset, do_row_offset})
                 this->kernel[isBeta0][isColOffset][isRowOffset] =
                     kern[isBeta0][isColOffset][isRowOffset];
+
+    for (int isTrans : {no_trans, do_trans})
+        this->gemv_kernel[isTrans] = gemv_kern[isTrans];
 
     this->gemv_s8u8s32_kernel = NULL;
     this->gemv_u8s8s32_kernel = NULL;
@@ -497,6 +531,10 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
                     return false;
 
             if (!this->copyA || !this->copyB)
+                return false;
+
+            // We only need transpose case for performance.
+            if (!this->gemv_kernel[do_trans])
                 return false;
 
         }

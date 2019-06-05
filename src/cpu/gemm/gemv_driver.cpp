@@ -58,24 +58,28 @@ static void gemv_t_kernel(const dim_t m, const dim_t n, float alpha,
         const dim_t incy, c_t * __restrict y,
         const gemm_info_t<a_t, b_t, c_t> *arg) {
 
-    if (incy == 1) {
-        for (dim_t i = 0; i < n; i++) {
-            c_t temp = (c_t) 0;
-            for (dim_t j = 0; j < m; j++) {
-                temp += x[j] * a[j + i * lda];
-            }
-            y[i] += temp * alpha;
-        }
+    if (mayiuse(sse41)) {
+        arg->gemv_kernel[do_trans](&m, &n, &alpha, a, &lda, x, &incy, y);
     } else {
-        dim_t idy = incy < 0 ? (1 - n) * incy : 0;
-        for (dim_t i = 0; i < n; i++) {
-            c_t temp = (c_t) 0;
-            for (dim_t j = 0; j < m; j++) {
-                temp += x[j] * a[j + i * lda];
+        if (incy == 1) {
+            for (dim_t i = 0; i < n; i++) {
+                c_t temp = (c_t) 0;
+                for (dim_t j = 0; j < m; j++) {
+                    temp += x[j] * a[j + i * lda];
+                }
+                y[i] += temp * alpha;
             }
-            y[idy] += temp * alpha;
+        } else {
+            dim_t idy = incy < 0 ? (1 - n) * incy : 0;
+            for (dim_t i = 0; i < n; i++) {
+                c_t temp = (c_t) 0;
+                for (dim_t j = 0; j < m; j++) {
+                    temp += x[j] * a[j + i * lda];
+                }
+                y[idy] += temp * alpha;
 
-            idy += incy;
+                idy += incy;
+            }
         }
     }
 }
