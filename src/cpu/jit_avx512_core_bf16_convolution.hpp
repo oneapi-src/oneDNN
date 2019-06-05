@@ -160,16 +160,16 @@ struct _jit_avx512_core_bf16_convolution_bwd_data_t: public cpu_primitive_t {
             assert(this->engine()->kind() == engine_kind::cpu);
             bool ok = true
                 && mayiuse(avx512_core)
-                && this->set_default_params() == status::success
-                && utils::one_of(this->desc()->prop_kind, backward_data) // XXX (this->!)
+                && utils::one_of(this->desc()->prop_kind, backward_data)
                 && utils::one_of(this->desc()->alg_kind,
                            alg_kind::convolution_auto,
                            alg_kind::convolution_direct)
-                && !this->has_zero_dim_memory()
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && this->desc()->diff_dst_desc.data_type == data_type::bf16
                 && this->desc()->weights_desc.data_type == data_type::bf16
-                && this->desc()->diff_src_desc.data_type == diff_src_type;
+                && this->desc()->diff_src_desc.data_type == diff_src_type
+                && this->set_default_params() == status::success
+                && !this->has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
@@ -183,15 +183,16 @@ struct _jit_avx512_core_bf16_convolution_bwd_data_t: public cpu_primitive_t {
 
             return status::success;
         }
-
-        inline int ndims() { return this->desc()->diff_src_desc.ndims; }
-
-        inline memory_format_t src_format()
+        jit_conv_conf_t jcp_;
+        
+    protected:
+        memory_format_t src_format()
         {
             using namespace memory_format;
             return utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
         }
-        inline memory_format_t wei_format()
+
+        memory_format_t wei_format()
         {
             using namespace memory_format;
             return  this->with_groups()
@@ -201,9 +202,6 @@ struct _jit_avx512_core_bf16_convolution_bwd_data_t: public cpu_primitive_t {
                               OIhw8o16i2o, OIdhw8o16i2o);
         }
 
-        jit_conv_conf_t jcp_;
-
-    protected:
         virtual status_t set_default_params() override {
             using namespace memory_format;
 
@@ -230,12 +228,19 @@ struct _jit_avx512_core_bf16_convolution_bwd_data_t: public cpu_primitive_t {
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
     virtual void execute(event_t *e) const {
-        execute_backward_data();
+        if (pd()->ndims() < 5)
+            execute_backward_data();
+        else if (pd()->ndims() == 5)
+            execute_backward_data_3d();
+        else
+            assert(!"invalid dimension");
+
         e->set_state(event_t::ready);
     }
 
 private:
     void execute_backward_data() const;
+    void execute_backward_data_3d() const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_bf16_bwd_data_kernel *kernel_;
 };

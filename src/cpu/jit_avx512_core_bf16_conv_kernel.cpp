@@ -804,7 +804,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
     Label kh_label, skip_compute_label;
 
     auto kernel_offset = [=](int icb, int oc, int ki) {
-        size_t blk_idx = (size_t)icb * jcp.kh * jcp.kw + ki;
+        size_t blk_idx = (size_t)icb * jcp.kd * jcp.kh * jcp.kw + ki;
         size_t blk_offset = blk_idx * jcp.oc_block * jcp.ic_block;
         size_t oc_offset = (size_t)oc * jcp.oc_block;
         return jcp.typesize_in * (blk_offset + oc_offset);
@@ -819,8 +819,21 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
     mov(reg_ocb, jcp.nb_oc);
     L(ocb_label);
 
-    mov(aux_reg_dst, reg_dst);
-    mov(aux_reg_ker, reg_ker);
+    if (jcp.ndims < 5) {
+        mov(aux_reg_dst, reg_dst);
+        mov(aux_reg_ker, reg_ker);
+    }
+    Label kd_label;
+    if (jcp.ndims == 5) {
+        push(reg_src);
+        mov(reg_ki, ptr[param + GET_OFF(kd_padding)]);
+        mov(aux_reg_dst_d, reg_dst);
+        mov(aux_reg_ker_d, reg_ker);
+
+        L(kd_label);
+        mov(aux_reg_dst, aux_reg_dst_d);
+        mov(aux_reg_ker, aux_reg_ker_d);
+    }
 
     mov(reg_kj, reg_kh);
     L(kh_label); {
@@ -883,9 +896,21 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
         jg(kh_label, T_NEAR);
     }
 
+   if (jcp.ndims == 5) {
+       sub(aux_reg_dst_d,
+           jcp.typesize_in * (jcp.dilate_d + 1) * jcp.oh * jcp.ow * ic_block);
+       add(aux_reg_ker_d, jcp.typesize_in * jcp.stride_d * jcp.kw * jcp.kh
+           * oc_block * ic_block);
+                     
+       dec(reg_ki);
+       cmp(reg_ki, 0);
+       jg(kd_label, T_NEAR);
+       pop(reg_src);
+   }
+  
     // End of OC Loop
-    size_t diff_dst_step = (size_t)jcp.oh * jcp.ow * jcp.oc_block;
-    size_t ker_step = (size_t)jcp.ic * jcp.kh * jcp.kw * jcp.oc_block;
+    size_t diff_dst_step = (size_t)jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
+    size_t ker_step = (size_t)jcp.ic * jcp.kd * jcp.kh * jcp.kw * jcp.oc_block;
     add(reg_dst, jcp.typesize_in * diff_dst_step);
     add(reg_ker, jcp.typesize_in * ker_step);
 
@@ -1079,9 +1104,6 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
     jcp.typesize_in = sizeof(mkldnn_bfloat16_t);
     jcp.typesize_out = (diff_src_d.data_type() == data_type::f32)
         ? sizeof(float) : sizeof(mkldnn_bfloat16_t);
-
-    if (ndims != 4)
-        return status::unimplemented;
 
     /* Find the best blocking with maximum number of compute instructions
        per ur_w * nb_ic_blocking compute loops. Number of required registers

@@ -958,7 +958,7 @@ status_t fill_gOIdhw16i16o(memory_desc_t &md) {
 }
 
 status_t fill_OIdhw8o16i2o(memory_desc_t &md) {
-    if (md.ndims != 4) return invalid_arguments;
+    if (md.ndims != 5) return invalid_arguments;
 
     const dims_t block_dims = {16, 16, 1, 1, 1};
     const int perm[] = {
@@ -968,7 +968,7 @@ status_t fill_OIdhw8o16i2o(memory_desc_t &md) {
 }
 
 status_t fill_IOdhw8o16i2o(memory_desc_t &md) {
-    if (md.ndims != 4) return invalid_arguments;
+    if (md.ndims != 5) return invalid_arguments;
 
     const dims_t block_dims = {16, 16, 1, 1, 1};
     const int perm[] = {
