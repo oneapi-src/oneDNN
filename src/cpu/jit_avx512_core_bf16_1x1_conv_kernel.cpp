@@ -165,7 +165,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
     };
 
     auto store = [=]() {
-        if (!jcp.bf16_ISA())
+        if (!isa_has_bf16(jcp.isa))
             bf16_emu_->init_vcvtneps2bf16();
         if (jcp.prop_kind == backward_weights) {
         Label store_noadd;
@@ -226,7 +226,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     }
                 }
             } else if (jcp.dst_dt == data_type::bf16) {
-                if (jcp.bf16_ISA()) {
+                if (isa_has_bf16(jcp.isa)) {
                     for (int i_load = 0; i_load < load_loop_blk; i_load++) {
                         int n_2bf2ps = (ur / 2) * 2, i_ur = 0;
                         for (i_ur = 0; i_ur < n_2bf2ps; i_ur += 2) {
@@ -304,7 +304,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                 vmovups(ptr[rsp + broadcast_space], bcast_values);
             }
 #endif
-            if (jcp.bf16_ISA()) {
+            if (isa_has_bf16(jcp.isa)) {
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
 #ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
                     if (jcp.prop_kind == backward_weights) {
@@ -332,7 +332,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                             bcast_ptr(i_reduce, i_ur, false));
                 }
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    if (!jcp.bf16_ISA()) {
+                    if (!isa_has_bf16(jcp.isa)) {
 #ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
                         if (jcp.prop_kind == backward_weights) {
                             vmovdqu16(vreg_load(i_load) | load_mask | T_z,
@@ -344,7 +344,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                     }
                     if (jcp.ver == ver_avx512_core && jcp.expl_bcast
                             && load_loop_blk > 1) {
-                            if (!jcp.bf16_ISA()) {
+                            if (!isa_has_bf16(jcp.isa)) {
                                 auto acc = vreg_accum(i_load, i_ur);
                                 auto wei = vreg_load(i_load);
                                 bf16_emu_->r_vdpbf16ps(acc, wei, vreg_bcast);
@@ -352,7 +352,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(int load_loop_blk,
                                 vdpbf16ps(vreg_accum(i_load, i_ur),
                                         vreg_load(i_load), vreg_bcast);
                     } else {
-                        if (!jcp.bf16_ISA()) {
+                        if (!isa_has_bf16(jcp.isa)) {
 #ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
                             if (jcp.prop_kind == backward_weights)
                                 vpbroadcastd(zmm_tmp2,
@@ -585,6 +585,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
     jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -769,7 +770,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             if (jcp.load_dim > 128 && jcp.load_dim < BIG_LOAD_DIM
                     && spatial > SMALL_SPATIAL && spatial < BIG_SPATIAL) {
                 max_regs = 6;
-                min_regs = (jcp.bf16_ISA()) ? 5 : 4;
+                min_regs = isa_has_bf16(jcp.isa) ? 5 : 4;
             }
         }
         else {
@@ -780,7 +781,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             jcp.expl_bcast = false;
         }
         jcp.ur = 1;
-        if (!jcp.bf16_ISA()) {
+        if (!isa_has_bf16(jcp.isa)) {
             int adj_max_regs = max_regs / 3;
             max_regs =  (adj_max_regs < min_regs) ? min_regs : adj_max_regs;
         }

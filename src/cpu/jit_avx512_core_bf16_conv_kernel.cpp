@@ -82,7 +82,7 @@ void jit_avx512_core_bf16_fwd_kernel::prepare_output(int ur_w)
 void jit_avx512_core_bf16_fwd_kernel::store_output(int ur_w)
 {
     Label store_label;
-    if (!jcp.bf16_ISA())
+    if (!isa_has_bf16(jcp.isa))
         bf16_emu_->init_vcvtneps2bf16();
     if (jcp.with_sum) {
         for (int k = 0; k < jcp.nb_oc_blocking; k++) {
@@ -142,7 +142,7 @@ void jit_avx512_core_bf16_fwd_kernel::store_output(int ur_w)
                 vmovups(addr, zmm);
             }
     } else if (jcp.dst_dt == data_type::bf16) {
-        if (jcp.bf16_ISA()) {
+        if (isa_has_bf16(jcp.isa)) {
             for (int k = 0; k < jcp.nb_oc_blocking; k++) {
                 int n_2bf2ps = (ur_w / 2) * 2, j = 0;
                 for (j = 0; j < n_2bf2ps; j += 2) {
@@ -242,7 +242,7 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
             int ow_end = get_ow_end(ur_w, ki, pad_r);
             for (int ic = 0;
                  ic < div_up(nstl::min(jcp.ic_block, jcp.ic), 2); ic++) {
-                if (jcp.bf16_ISA()) {
+                if (isa_has_bf16(jcp.isa)) {
                     for (int oi = ow_start; oi < ow_end; oi++) {
                         size_t input_offset =
                             get_input_offset(ki, ic, oi, pad_l);
@@ -252,11 +252,11 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
                 }
                 for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
                     size_t kernel_offset = get_kernel_offset(ki, ic, kk, 0);
-                    if (jcp.bf16_ISA())
+                    if (isa_has_bf16(jcp.isa))
                         vmovups(zmm_wei,
                             EVEX_compress_addr(aux_reg_ker, kernel_offset));
                     for (int oi = ow_start; oi < ow_end; oi++) {
-                        if (!jcp.bf16_ISA()) {
+                        if (!isa_has_bf16(jcp.isa)) {
                             size_t input_offset =
                                 get_input_offset(ki, ic, oi, pad_l);
                             vpbroadcastd(zmm_inp(oi, jcp.nb_oc_blocking),
@@ -544,6 +544,9 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
     int ndims = src_d.ndims();
 
     jcp = zero<decltype(jcp)>();
+
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -578,7 +581,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
     jcp.back_pad = (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
 
-    const int regs = jcp.bf16_ISA() ? 31 /* expl_bcast case */ : 26;
+    const int regs = isa_has_bf16(jcp.isa) ? 31 /* expl_bcast case */ : 26;
 
     jcp.oc_block = simd_w;
     jcp.ic_block = simd_w;
@@ -720,7 +723,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::prepare_output(int ur_w)
 
 void jit_avx512_core_bf16_bwd_data_kernel::store_output(int ur_w)
 {
-    if (!jcp.bf16_ISA())
+    if (!isa_has_bf16(jcp.isa))
         bf16_emu_->init_vcvtneps2bf16();
 
     if (jcp.dsrc_dt == data_type::f32) {
@@ -734,7 +737,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::store_output(int ur_w)
                 vmovups(addr, zmm);
             }
     } else if (jcp.dsrc_dt == data_type::bf16) {
-        if (jcp.bf16_ISA()) {
+        if (isa_has_bf16(jcp.isa)) {
             int store_idx = 0;
             const int max_regs = 32;
             const int free_regs_start_idx = jcp.ur_w * jcp.nb_ic_blocking;
@@ -833,7 +836,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
 
             for (int oc = 0;
                  oc < div_up(nstl::min(oc_block, jcp.oc), 2); oc++) {
-                if (jcp.bf16_ISA()) {
+                if (isa_has_bf16(jcp.isa)) {
                     for (int jj = jj_start; jj < jj_end; jj += stride_w) {
                         assert((jj + jcp.l_pad - ki * dilate_w) % stride_w == 0);
                         size_t aux_dst_offset = jcp.typesize_in
@@ -846,7 +849,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
                 }
                 for (int kk = 0; kk < jcp.nb_ic_blocking; kk++) {
                     size_t aux_kernel_offset = kernel_offset(kk, 2 * oc, ki);
-                    if (jcp.bf16_ISA()) {
+                    if (isa_has_bf16(jcp.isa)) {
                         vmovups(zmm_wei,
                             EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
                     }
@@ -855,7 +858,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
                         auto inp = zmm_inp(jj / stride_w);
                         auto acc = zmm_out(jj, kk);
 
-                        if (!jcp.bf16_ISA()) {
+                        if (!isa_has_bf16(jcp.isa)) {
                             size_t aux_dst_offset = jcp.typesize_in
                                 * ((jj + jcp.l_pad - ki * dilate_w) / stride_w
                                        * oc_block
@@ -982,6 +985,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     int ndims = diff_src_d.ndims();
 
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -1061,7 +1065,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
 
     /* Maximun number of registers available for result accumulation and delta
        dst data. One additional register is reserved for weights data. */
-    const int max_regs = jcp.bf16_ISA() ? 31 : 26; /* In case of bf16 emulation
+    const int max_regs = isa_has_bf16(jcp.isa) ? 31 : 26; /* In case of bf16 emulation
                                                   additional 5 registers are
                                                   reserved */
     int l_overflow = nstl::max(0, ((jcp.kw - 1) * (jcp.dilate_w + 1)
@@ -1180,7 +1184,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
     auto zmm_out = [=](int i_iw) {
         // TODO: move reg calc to global member funcs
         const int out_zmm_base_idx = 24;
-        const int num_out_zmm_regs = !jcp.bf16_ISA() ? 2 : 4;
+        const int num_out_zmm_regs = !isa_has_bf16(jcp.isa) ? 2 : 4;
         return Zmm(out_zmm_base_idx + i_iw % num_out_zmm_regs);
     };
 
@@ -1227,7 +1231,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
                 for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                     int i_iw = 2 * i_ur + i_kw / str_w
                                  + s * inp_stride_w_shift;
-                    if (!jcp.bf16_ISA()) {
+                    if (!isa_has_bf16(jcp.isa)) {
                         auto inp = Zmm(26);
                         vpbroadcastd(inp, inp_addr(i_iw, i_ic, 0));
                         auto acc = zmm_ker(i_kw, i_ic);
@@ -1305,7 +1309,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
             vmovups(ptr[rsp], bcast_values);
 
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
-                if (!jcp.bf16_ISA()) {
+                if (!isa_has_bf16(jcp.isa)) {
                     auto zmm_src = Zmm(28);
                     vpbroadcastd(zmm_src, ptr[rsp + jcp.typesize_in * 2 * i_ic]);
                     bf16_emu_->r_vdpbf16ps(Zmm(i_kw * ic_block_step + i_ic),
@@ -1813,6 +1817,9 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
+
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 

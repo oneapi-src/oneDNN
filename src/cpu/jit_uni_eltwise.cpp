@@ -859,7 +859,7 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
             }
         }
         auto store_data =[&] (opmask_t _kmask, int i) {
-            if (!is_cpx_)
+            if (!mayiuse(avx512_core_bf16))
                 bf16_emu_->r_vcvtneps2bf16(Ymm_src(2 * uf + i + 1),
                     Zmm(2 * uf + i + 1));
             else
@@ -892,9 +892,8 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
 
         Reg64 param = abi_param1;
 
-        is_cpx_ = mayiuse(avx512_core_bf16);
         is_bf16_ = (desc.data_desc.data_type == data_type::bf16);
-        if (!is_cpx_ && is_bf16_)
+        if (!mayiuse(avx512_core_bf16) && is_bf16_)
             bf16_emu_ = new bf16_emulation_t(this,
                     bf16_emu_reserv_1, bf16_emu_reserv_2,
                     bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -924,7 +923,7 @@ struct jit_uni_relu_kernel_f32 : public jit_uni_eltwise_kernel_f32,
             mov(mask_reg, 0xffff);
             kmovd(k_full_mask, mask_reg);
         }
-        if (!is_cpx_ && is_bf16_)
+        if (!mayiuse(avx512_core_bf16) && is_bf16_)
             bf16_emu_->init_vcvtneps2bf16();
 
         mov(reg_from, ptr[param + GET_OFF(from)]);
@@ -1023,7 +1022,6 @@ private:
     Label idx_table;
 
     bool is_bf16_;
-    bool is_cpx_;
 
     bf16_emulation_t *bf16_emu_;
 };
@@ -1038,10 +1036,9 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         , jit_generator()
         , bf16_emu_(nullptr) {
 
-        is_cpx_ = mayiuse(avx512_core_bf16);
         bool is_bf16_ = (desc.data_desc.data_type == data_type::bf16);
 
-        if (!is_cpx_ && is_bf16_)
+        if (!mayiuse(avx512_core_bf16) && is_bf16_)
             bf16_emu_ = new bf16_emulation_t(this,
                     bf16_emu_reserv_1, bf16_emu_reserv_2,
                     bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -1070,7 +1067,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
             mov(mask_reg, 0xffff);
             kmovd(k_full_mask, mask_reg);
         }
-        if (!is_cpx_ && is_bf16_)
+        if (!mayiuse(avx512_core_bf16) && is_bf16_)
             bf16_emu_->init_vcvtneps2bf16();
 
         Reg64 param = abi_param1;
@@ -1093,7 +1090,7 @@ struct jit_uni_kernel_fwd_f32: public jit_uni_eltwise_kernel_f32,
         L(vectorized_loop_start);
 
         auto store_data =[&] (opmask_t _kmask) {
-            if (!is_cpx_)
+            if (!mayiuse(avx512_core_bf16))
                 bf16_emu_->r_vcvtneps2bf16(ymm_src, zmm_src_1);
             else
                 vcvtneps2bf16(ymm_src, vmm_src);
@@ -1195,8 +1192,6 @@ private:
     Reg64 bf16_emu_reserv_4 = r14;
     Zmm bf16_emu_reserv_5 = Zmm(29);
     Zmm bf16_emu_reserv_6 = Zmm(29);
-
-    bool is_cpx_;
 
     opmask_t k_mask = k7;
     opmask_t k_tail_mask = k6;

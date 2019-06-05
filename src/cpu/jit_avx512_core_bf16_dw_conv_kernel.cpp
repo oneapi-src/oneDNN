@@ -91,7 +91,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter(
                     /* zero-extend bf16 to packed 32-bit int */
                     vpmovzxwd(zmm_src_reg,
                             ptr[aux1_reg_input + inp_off * jcp.typesize_in]);
-                    if (!jcp.bf16_ISA()) {
+                    if (!isa_has_bf16(jcp.isa)) {
                         bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
                     } else {
                         vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
@@ -144,7 +144,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
                     /* zero-extend bf16 to packed 32-bit int */
                     vpmovzxwd(zmm_src_reg,
                             ptr[aux_reg_input + inp_off * jcp.typesize_in]);
-                    if (!jcp.bf16_ISA()) {
+                    if (!isa_has_bf16(jcp.isa)) {
                         bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
                     } else {
                         vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
@@ -175,7 +175,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_activation(
 void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
     int ch_blk = jcp.ch_block;
 
-    if (jcp.dst_dt == data_type::bf16 && (!jcp.bf16_ISA()))
+    if (jcp.dst_dt == data_type::bf16 && (!isa_has_bf16(jcp.isa)))
         bf16_emu_->init_vcvtneps2bf16();
 
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
@@ -187,7 +187,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
                         zmm_dst);
             }
         } else if (jcp.dst_dt == data_type::bf16) {
-            if (jcp.bf16_ISA()) {
+            if (isa_has_bf16(jcp.isa)) {
                 int n_2bf2ps = (ur_w / 2) * 2;
                 int j = 0;
                 for (; j < n_2bf2ps; j += 2) {
@@ -369,7 +369,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
                     vpmovzxwd(zmm_dst_reg,
                             ptr[aux1_reg_ddst + ddst_off * jcp.typesize_in]);
 
-                    if (!jcp.bf16_ISA()) {
+                    if (!isa_has_bf16(jcp.isa)) {
                         bf16_emu_->r_vdpbf16ps(
                                 zmm_acc, zmm_dst_reg, zmm_ker_reg);
                     } else {
@@ -404,7 +404,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
     int ih = jcp.ih;
     int stride_w = jcp.stride_w;
 
-    if (jcp.dsrc_dt == data_type::bf16 && (!jcp.bf16_ISA()))
+    if (jcp.dsrc_dt == data_type::bf16 && (!isa_has_bf16(jcp.isa)))
         bf16_emu_->init_vcvtneps2bf16();
 
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
@@ -417,7 +417,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
                         ptr[reg_dsrc + dsrc_off * jcp.typesize_out], zmm_dsrc);
             } else if (jcp.dsrc_dt == data_type::bf16) {
                 auto ymm_dsrc = Ymm(zmm_dsrc.getIdx());
-                if (jcp.bf16_ISA()) {
+                if (isa_has_bf16(jcp.isa)) {
                     vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
                 } else {
                     bf16_emu_->r_vcvtneps2bf16(ymm_dsrc, zmm_dsrc);
@@ -581,7 +581,7 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
 
             Zmm zmm_input = get_input_reg(io_overlap - l_pad);
             Zmm zmm_acc = get_acc_reg(i_kw);
-            if (!jcp.bf16_ISA()) {
+            if (!isa_has_bf16(jcp.isa)) {
                 bf16_emu_->r_vdpbf16ps(zmm_acc, zmm_input, zmm_out_reg);
             } else {
                 vdpbf16ps(zmm_acc, zmm_input, zmm_out_reg);

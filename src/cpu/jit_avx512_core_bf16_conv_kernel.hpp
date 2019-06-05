@@ -307,7 +307,7 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
         jit_generator(nullptr, ker_code_size),
         jcp(ajcp), bf16_emu_(nullptr)
     {
-        if (!jcp.bf16_ISA()) {
+        if (!isa_has_bf16(jcp.isa)) {
             bf16_emu_ = new bf16_emulation_t(this, one, even, selector, scratch,
                                         tmp0, tmp1);
         }

@@ -134,6 +134,11 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     }
     return false;
 }
+
+inline bool isa_has_bf16(cpu_isa_t isa) {
+    return isa == avx512_core_bf16;
+}
+
 }
 
 /* whatever is required to generate string literals... */

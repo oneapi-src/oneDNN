@@ -77,9 +77,7 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(
 
     vlen_ = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
 
-    is_cpx_ = mayiuse(avx512_core_bf16);
-
-    if (!is_cpx_) {
+    if (!mayiuse(avx512_core_bf16)) {
         max_data_reg_idx_ = 26;
         bf16_emu_ = new bf16_emulation_t(this,
                             bf16_emu_reserv_1, bf16_emu_reserv_2,
@@ -122,7 +120,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
         auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
         auto vreg_dst_ = vreg_dst(idx);
 
-        if (dst_data_type == data_type::bf16 && !is_cpx_)
+        if (dst_data_type == data_type::bf16 && !mayiuse(avx512_core_bf16))
             bf16_emu_->init_vcvtneps2bf16();
 
         if (apply_mask)
@@ -161,7 +159,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
         if (dst_data_type == data_type::bf16) {
             // TODO: implement store by zmm registers for bf16
             auto vreg_dst_ymm_ = vreg_dst_ymm(idx);
-            if (is_cpx_)
+            if (mayiuse(avx512_core_bf16))
                 vcvtneps2bf16(vreg_dst_ymm_, vreg_dst(idx));
             else
                 bf16_emu_->r_vcvtneps2bf16(vreg_dst_ymm_, vreg_dst(idx));

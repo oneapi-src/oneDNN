@@ -137,9 +137,7 @@ struct jit_conv_conf_t {
     bool signed_input;
     float wei_adj_scale;
 
-    bool bf16_ISA() {
-        return mayiuse(avx512_core_bf16);
-    }
+    cpu_isa_t isa;
 };
 
 struct jit_conv_conf_2x3_wino_t {
@@ -406,9 +404,7 @@ struct jit_1x1_conv_conf_t {
     bool signed_input;
     float wei_adj_scale;
 
-    bool bf16_ISA() {
-        return mayiuse(avx512_core_bf16);
-    }
+    cpu_isa_t isa;
 };
 
 struct jit_gemm_conv_conf_t {
@@ -484,7 +480,7 @@ struct jit_pool_conf_t {
     bool is_bf16;
     int dt_size;
 
-    bool is_cpx;
+    cpu_isa_t isa;
 };
 
 struct jit_pool_call_s {

@@ -236,7 +236,6 @@ private:
         int max_data_reg_idx_, max_unroll_, compute_reg_step_;
         int data_reg_base_idx_;
         size_t vlen_;
-        bool is_cpx_;
         bf16_emulation_t *bf16_emu_;
         jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 

@@ -97,6 +97,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.dst_dt = cd.dst_desc.data_type;
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
 
+    jcp.isa = is_bf16 && mayiuse(avx512_core_bf16) ? avx512_core_bf16 : isa;
+
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
         return status::unimplemented;
 
@@ -180,7 +182,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             ? sizeof(mkldnn_bfloat16_t)
             : sizeof(float);
 
-    jcp.ur_w = is_bf16 ? (jcp.bf16_ISA() ? 6 : 4)
+    jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.ch_block = simd_w;
@@ -248,6 +250,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     jcp.dsrc_dt = cd.diff_src_desc.data_type;
     const bool is_bf16 = diff_dst_d.data_type() == data_type::bf16;
+
+    jcp.isa = is_bf16 && mayiuse(avx512_core_bf16) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
         return status::unimplemented;
@@ -326,7 +330,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             ? sizeof(mkldnn_bfloat16_t)
             : sizeof(float);
 
-    jcp.ur_w = is_bf16 ? (jcp.bf16_ISA() ? 6 : 4)
+    jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
 
     jcp.ch_block = simd_w;
@@ -391,6 +395,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
 
     jcp.dwei_dt = cd.diff_weights_desc.data_type;
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
+
+    jcp.isa = is_bf16 && mayiuse(avx512_core_bf16) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
         return status::unimplemented;

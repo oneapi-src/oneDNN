@@ -315,7 +315,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             switch (odt) {
             case bf16:
                 if (idt == f32) {
-                    if (is_cpx_) {
+                    if (mayiuse(avx512_core_bf16)) {
                         vcvtneps2bf16(xmm, xmm);
                     } else {
                         bf16_emu_->r_vcvtneps2bf16(
@@ -671,8 +671,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         itype_sz = data_type_size(prb_.itype);
         otype_sz = data_type_size(prb_.otype);
         stype_sz = sizeof(float);
-        is_cpx_ = mayiuse(avx512_core_bf16);
-        if (prb_.otype == data_type::bf16 && !is_cpx_) {
+        if (prb_.otype == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
             bf16_emu_ = new bf16_emulation_t(this, vcvt_bf16_one, vcvt_bf16_eve,
                     vcvt_bf16_sel, reg_bf16_scratch, vcvt_bf16_tmp, vcvt_bf16_tmp);
             bf16_emu_->init_vcvtneps2bf16();
@@ -727,7 +726,6 @@ private:
     Xmm xmm_tmp = xmm12;
 
     /* bf16 support */
-    bool is_cpx_;
     bf16_emulation_t *bf16_emu_;
     Reg64 reg_bf16_scratch = reg_tmp;
     Zmm vcvt_bf16_one = Zmm(16);
