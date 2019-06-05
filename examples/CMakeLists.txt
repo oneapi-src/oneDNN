@@ -47,7 +47,7 @@ register_exe(cpu-rnn-inference-fp32-cpp cpu_rnn_inference_fp32.cpp "test")
 register_exe(cpu-rnn-inference-int8 cpu_rnn_inference_int8.cpp "test")
 register_exe(cpu-rnn-training-fp32 cpu_rnn_training_fp32.cpp "test")
 
-if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_exe(gpu-getting-started-c gpu_getting_started.c "test")
     register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
 endif()

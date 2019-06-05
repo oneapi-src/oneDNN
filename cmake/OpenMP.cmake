@@ -69,7 +69,7 @@ else()
     append_if(OpenMP_C_FOUND CMAKE_SRC_CCXX_FLAGS "${OpenMP_C_FLAGS}")
 endif()
 
-if (MKLDNN_THREADING MATCHES "OMP")
+if (MKLDNN_CPU_RUNTIME MATCHES "OMP")
     if (OpenMP_CXX_FOUND)
         set_threading("OMP")
         append(CMAKE_TEST_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")

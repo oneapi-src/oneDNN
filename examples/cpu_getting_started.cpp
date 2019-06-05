@@ -433,8 +433,8 @@ void cpu_getting_started_tutorial() {
     ///     The @ref mkldnn::memory::get_data_handle() returns a raw handle
     ///     to the buffer which type is engine specific. For CPU engine the
     ///     buffer is always a pointer to `void` which can safely be used.
-    ///     However, for engines other than CPU the handle might be backend
-    ///     specific type, such as `cl_mem` in case of GPU/OpenCL.
+    ///     However, for engines other than CPU the handle might be
+    ///     runtime-specific type, such as `cl_mem` in case of GPU/OpenCL.
     ///
     /// @snippet cpu_getting_started.cpp Check the results
     // [Check the results]

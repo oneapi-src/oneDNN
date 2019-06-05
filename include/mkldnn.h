@@ -510,7 +510,7 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
 /// For a @p memory, maps the data of the memory to @p mapped_ptr.
 ///
 /// Mapping allows to read/write directly from/to the memory contents for
-/// backends that do not support direct accessing.
+/// engines that do not support direct memory access.
 ///
 /// Mapping is an exclusive operation - a memory object cannot be used in other
 /// operations until this memory object is unmapped.

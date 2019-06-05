@@ -1540,7 +1540,7 @@ typedef enum {
 /// @brief Stream flags.
 typedef enum {
     /// Default order execution. Either in-order or out-of-order depending on
-    /// the backend.
+    /// the runtime.
     mkldnn_stream_default_order = 0x1U,
     /// In-order execution.
     mkldnn_stream_in_order = 0x2U,

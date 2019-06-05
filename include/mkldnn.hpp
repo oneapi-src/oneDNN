@@ -899,7 +899,7 @@ struct stream: public handle<mkldnn_stream_t> {
     /// @brief Stream flags.
     enum class flags : unsigned {
         /// Default order execution. Either in-order or out-of-order depending
-        /// on the backend.
+        /// on the engine runtime
         default_order = mkldnn_stream_default_order,
         /// In-order execution.
         in_order = mkldnn_stream_default_order,
@@ -1438,7 +1438,7 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Maps the data of the memory.
     ///
     /// Mapping allows to read/write directly from/to the memory contents for
-    /// backends that do not support direct accessing.
+    /// engines that do not support direct memory access.
     ///
     /// Mapping is an exclusive operation - a memory object cannot be used in
     /// other operations until this memory object is unmapped.

@@ -8,8 +8,8 @@ Intel MKL-DNN supports the following build-time options.
 | Option                      | Supported values (defaults in bold)  | Description
 | :---                        | :---                                 | :---
 | MKLDNN_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
-| MKLDNN_THREADING            | **OMP**, TBB                         | Defines the threading type
-| MKLDNN_GPU_BACKEND          | **NONE**, OPENCL                     | Defines the backend for GPU engine
+| MKLDNN_CPU_RUNTIME          | **OMP**, TBB                         | Defines the threading runtime for CPU engines
+| MKLDNN_GPU_RUNTIME          | **NONE**, OPENCL                     | Defines the offload runtime for GPU engines
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | MKLDNN_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | MKLDNN_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
@@ -44,21 +44,21 @@ portable.
 
 ## GPU support (experimental)
 
-To enable GPU support in Intel MKL-DNN you need to specify the GPU backend
+To enable GPU support in Intel MKL-DNN you need to specify the GPU runtime
 to use. Currently the only supported one is implemented using OpenCL\* and
 requires Intel(R) SDK for OpenCL\* applications. You can explicitly specify
 the pass to the SDK using `-DOPENCLROOT` cmake option.
 
 ~~~sh
-cmake -DMKLDNN_GPU_BACKEND=OPENCL -DOPENCLROOT=/path/to/opencl/sdk ..
+cmake -DMKLDNN_GPU_RUNTIME=OPENCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~
 
 ## Threading
 
 Intel MKL-DNN can use the OpenMP or TBB threading runtimes. OpenMP threading
 is the default build mode and is recommended for the best performance. TBB
-support is experimental. This behavior is controlled by the `MKLDNN_THREADING`
-CMake option.
+support is experimental. This behavior is controlled by the
+`MKLDNN_CPU_RUNTIME` CMake option.
 
 ### OpenMP
 

@@ -78,6 +78,16 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+if(MKLDNN_THREADING)
+    set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the CPU runtime")
+endif()
+
+if(MKLDNN_GPU_BACKEND)
+    set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the GPU runtime")
+endif()
+
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
 include("cmake/OpenMP.cmake")
@@ -88,7 +98,7 @@ include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
     message(STATUS "GPU support is enabled (OpenCL)")
     include("cmake/OpenCL.cmake")
 else()
@@ -99,6 +109,9 @@ enable_testing()
 
 include_directories(include)
 
+# XXX: this is temporary
+set(MKLDNN_CPU_BACKEND "NATIVE")
+set(MKLDNN_GPU_BACKEND ${MKLDNN_GPU_RUNTIME})
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/mkldnn_config.h.in"
     "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"
