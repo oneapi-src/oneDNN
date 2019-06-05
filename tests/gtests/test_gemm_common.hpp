@@ -71,16 +71,60 @@ mkldnn_status_t mkldnn_gemm_bf16bf16f32(
         float beta, float *C, mkldnn_dim_t ldc);
 }
 
+// Declare packed GEMM interfaces for testing
+namespace mkldnn {
+namespace impl {
+namespace cpu {
+
+extern mkldnn_status_t sgemm_pack_get_size(const char *identifier,
+        const char *transa, const char *transb,  const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, size_t *size,
+        bool *pack = nullptr);
+
+extern mkldnn_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, size_t *size,
+        bool *pack = nullptr);
+
+extern mkldnn_status_t sgemm_pack(const char *identifier,
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb,
+        const float *src, float *dst);
+
+extern mkldnn_status_t gemm_s8u8s32_pack(const char *identifier,
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, const void *src,
+        void *dst);
+
+extern mkldnn_status_t sgemm_compute(const char *transa, const char *transb,
+        const int *M, const int *N, const int *K, const float *A,
+        const int *lda, const float *B, const int *ldb, const float *beta,
+        float *C, const int *ldc);
+
+extern mkldnn_status_t gemm_s8u8s32_compute(const char *transa,
+        const char *transb, const char *offsetc, const int *M, const int *N,
+        const int *K, const int8_t *A, const int *lda, const uint8_t *B,
+        const int *ldb, const float *beta, int32_t *C, const int *ldc,
+        const int32_t *co);
+}
+}
+}
+
 namespace mkldnn {
 
 struct test_igemm_params {
     char offsetc;
-    bool zero_oa;
-    bool zero_ob;
-    bool zero_oc;
+    bool nonzero_oa;
+    bool nonzero_ob;
+    bool nonzero_oc;
 
-    int8_t oa() const { return (int8_t)(zero_oa ? 0 : 4); }
-    int8_t ob() const { return (int8_t)(zero_ob ? 0 : 3); }
+    int8_t oa() const { return (int8_t)(nonzero_oa ? 4 : 0); }
+    int8_t ob() const { return (int8_t)(nonzero_ob ? 3 : 0); }
+};
+
+struct test_pack_params {
+    bool pack_a;
+    bool pack_b;
 };
 
 struct gemm_offset {
@@ -102,6 +146,7 @@ struct test_params {
     int64_t ldc;
 
     test_igemm_params igemm_params;
+    test_pack_params pack_params;
     bool expect_to_fail;
     mkldnn_status_t expected_status;
 
@@ -126,6 +171,13 @@ inline test_params make_test_params_with_offset(
     return params;
 }
 
+template <typename... TArgs>
+inline test_params make_test_params_pack(
+        const test_pack_params &pack_params, TArgs &&... args) {
+    test_params params{ std::forward<TArgs>(args)... };
+    params.pack_params = pack_params;
+    return params;
+}
 /* Test implementation description.
  *
  * To reduce the time spent in GEMM validation the test matrices A, B, and C
@@ -446,16 +498,16 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
     if (oc_mem.get_size() == 0)
         return;
 
-    if (p.igemm_params.zero_oc) {
-        auto oc = map_memory<c_dt>(oc_mem);
-        for (int64_t i = 0; i < p.size_oc(); i++) oc[i] = 0;
-    } else {
+    if (p.igemm_params.nonzero_oc) {
         fill_data<c_dt>(p.size_oc(), oc_mem.get(), (c_dt)1, (c_dt)0);
         if (p.oc_is_R()) {
             extend_matrix_cols<c_dt>(oc_mem, 0, 1, p.N, p.N, mapper_n);
         } else if (p.oc_is_C()) {
             extend_matrix_rows<c_dt>(oc_mem, 0, p.M, 1, 1, mapper_m);
         }
+    } else {
+        auto oc = map_memory<c_dt>(oc_mem);
+        for (int64_t i = 0; i < p.size_oc(); i++) oc[i] = 0;
     }
 }
 
@@ -490,9 +542,80 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
 
 template <>
 struct mkldnn_gemm<float, float, float> {
+    static mkldnn_status_t call_packed(const test_params &p,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem) {
+        /* Alas, the internal API still uses Fortran notation.
+         * So in addition to the changes for pack API, we also need to take
+         * care of conversions and layouts */
+
+        using namespace mkldnn::impl::cpu;
+
+        assert(p.alpha == 1.f);
+
+        /* Prepare for Fortran style, hence A <-> B */
+        char trans_a = p.transB, trans_b = p.transA;
+
+        int m = p.N, n = p.M, k = p.K;
+        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+
+        std::vector<float> a_pack_buf, b_pack_buf;
+        float *A = map_memory<float>(b_mem), *a_eff = A;
+        float *B = map_memory<float>(a_mem), *b_eff = B;
+        float *C = map_memory<float>(c_mem);
+
+        bool pack_a = p.pack_params.pack_b;
+        bool pack_b = p.pack_params.pack_a;
+
+        mkldnn_status_t status = mkldnn_success;
+
+        if (pack_a) {
+            size_t a_sz;
+            status = sgemm_pack_get_size("A", &trans_a, &trans_b, &m, &n, &k,
+                    &lda, &ldb, &a_sz, &pack_a);
+            if (status != mkldnn_success) return status;
+
+            if (pack_a) {
+                a_pack_buf.resize(a_sz / sizeof(float));
+                a_eff = a_pack_buf.data();
+
+                status = sgemm_pack("A", &trans_a, &trans_b, &m, &n, &k,
+                        &lda, &ldb, A, a_eff);
+                if (status != mkldnn_success) return status;
+            }
+        }
+
+        if (pack_b) {
+            size_t b_sz;
+            status = sgemm_pack_get_size("B", &trans_a, &trans_b, &m, &n, &k,
+                    &lda, &ldb, &b_sz, &pack_b);
+            if (status != mkldnn_success) return status;
+
+            if (pack_b) {
+                b_pack_buf.resize(b_sz / sizeof(float));
+                b_eff = b_pack_buf.data();
+
+                status = sgemm_pack("B", &trans_a, &trans_b, &m, &n, &k,
+                        &lda, &ldb, B, b_eff);
+                if (status != mkldnn_success) return status;
+            }
+        }
+
+        if (pack_a) trans_a = 'P';
+        if (pack_b) trans_b = 'P';
+
+        status = sgemm_compute(&trans_a, &trans_b, &m, &n, &k, a_eff, &lda,
+                b_eff, &ldb, &p.beta, C, &ldc);
+
+        return status;
+    }
+
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
+        if (p.pack_params.pack_a || p.pack_params.pack_b)
+            return call_packed(p, a_mem, b_mem, c_mem);
+
 #if MKLDNN_WITH_OPENCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = a_mem.get().get_engine();
@@ -509,6 +632,7 @@ struct mkldnn_gemm<float, float, float> {
         auto A = map_memory<float>(a_mem);
         auto B = map_memory<float>(b_mem);
         auto C = map_memory<float>(c_mem);
+
         return mkldnn_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A,
                 p.lda, B, p.ldb, p.beta, C, p.ldc);
     }
@@ -534,17 +658,103 @@ struct mkldnn_gemm<int8_t, int8_t, int32_t> {
 
 template <>
 struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
+    static mkldnn_status_t call_packed(const test_params &p,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem, const test_memory &oc_mem) {
+        /* Alas, the internal API still uses Fortran notation.
+         * So in addition to the changes for pack API, we also need to take
+         * care of conversions and layouts */
+
+        using namespace mkldnn::impl::cpu;
+
+        assert(p.alpha == 1.f);
+        assert(p.igemm_params.oa() == 0);
+        assert(p.igemm_params.ob() == 0);
+
+        /* Prepare for Fortran style, hence A <-> B */
+        char trans_a = p.transB, trans_b = p.transA;
+
+        int m = p.N, n = p.M, k = p.K;
+        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+
+        int8_t *A = map_memory<int8_t>(b_mem), *a_eff = A;
+        uint8_t *B = map_memory<uint8_t>(a_mem), *b_eff = B;
+
+        auto C = map_memory<int32_t>(c_mem);
+        auto oc = map_memory<int32_t>(oc_mem);
+
+        char offset_c = '\0';
+        switch (p.igemm_params.offsetc) {
+        case 'R': offset_c = 'C'; break;
+        case 'r': offset_c = 'c'; break;
+        case 'C': offset_c = 'R'; break;
+        case 'c': offset_c = 'r'; break;
+        default: offset_c = p.igemm_params.offsetc;
+        }
+
+        std::vector<int8_t> a_pack_buf;
+        std::vector<uint8_t> b_pack_buf;
+        bool pack_a = p.pack_params.pack_b;
+        bool pack_b = p.pack_params.pack_a;
+
+        mkldnn_status_t status = mkldnn_success;
+
+        if (pack_a) {
+            size_t a_sz;
+            status = gemm_s8u8s32_pack_get_size("A", &trans_a, &trans_b,
+                    &m, &n, &k, &lda, &ldb, &a_sz);
+            if (status != mkldnn_success) return status;
+
+            if (pack_a) {
+                a_pack_buf.resize(a_sz);
+                a_eff = a_pack_buf.data();
+
+                status = gemm_s8u8s32_pack("A", &trans_a, &trans_b, &m, &n,
+                        &k, &lda, &ldb, A, a_eff);
+                if (status != mkldnn_success) return status;
+            }
+        }
+
+        if (pack_b) {
+            size_t b_sz;
+
+            status = gemm_s8u8s32_pack_get_size("B", &trans_a, &trans_b,
+                    &m, &n, &k, &lda, &ldb, &b_sz);
+
+            if (pack_b) {
+                b_pack_buf.resize(b_sz);
+                b_eff = b_pack_buf.data();
+
+                status = gemm_s8u8s32_pack("B", &trans_a, &trans_b, &m, &n,
+                        &k, &lda, &ldb, B, b_eff);
+                if (status != mkldnn_success) return status;
+            }
+        }
+
+        if (pack_a) trans_a = 'P';
+        if (pack_b) trans_b = 'P';
+
+        status = gemm_s8u8s32_compute(&trans_a, &trans_b, &offset_c,
+                &m, &n, &k, a_eff, &lda, b_eff, &ldb, &p.beta, C, &ldc, oc);
+
+        return status;
+    }
+
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &oc_mem) {
+        assert(p.igemm_params.oa() >= 0);
+
+        if (p.pack_params.pack_a || p.pack_params.pack_b)
+            return call_packed(p, a_mem, b_mem, c_mem, oc_mem);
 
         auto A = map_memory<uint8_t>(a_mem);
         auto B = map_memory<int8_t>(b_mem);
         auto C = map_memory<int32_t>(c_mem);
         auto oc = map_memory<int32_t>(oc_mem);
-        assert(p.igemm_params.oa() >= 0);
         uint8_t oa = (uint8_t)p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
+
         return mkldnn_gemm_u8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob,
                 p.beta, C, p.ldc, oc);
@@ -632,6 +842,15 @@ protected:
                 "GPU does not support bfloat16 data type.");
         SKIP_IF(is_bfloat16 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "Skip test for systems that do not support avx512_core.");
+
+        bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && pack,
+                "GPU does not support packed GEMM.");
+        SKIP_IF(data_traits<a_dt>::data_type == memory::data_type::s8 && pack,
+                "Packed s8s8s32 GEMM is not supported.");
+        SKIP_IF((p.alpha != 1.f || p.igemm_params.oa() != 0
+                    || p.igemm_params.ob() != 0) && pack,
+                "Packed GEMM doesn't support alpha or non-zero offset{A,B}.");
 
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);

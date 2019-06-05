@@ -17,6 +17,8 @@
 #ifndef GEMM_DRIVER_HPP
 #define GEMM_DRIVER_HPP
 
+#include "gemm_info.hpp"
+#include "gemm_pack_storage.hpp"
 #include "mkldnn_types.h"
 
 namespace mkldnn {
@@ -30,7 +32,14 @@ mkldnn_status_t gemm_driver(
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
         const b_type *b, const int *ldb, const b_type *ob,
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
-        const bool force_jit_nocopy_gemm);
+        const bool force_jit_nocopy_gemm, pack_type packing = pack_type::none,
+        gemm_pack_storage_t *pack_dst = NULL, bool measure_only = false);
+
+void prep_ref_gemm_s8u8s32_pack(bool do_a, dim_t rows, dim_t cols,
+        gemm_pack_storage_t *pack_dst);
+
+mkldnn_status_t ref_gemm_s8u8s32_pack(const void *src, dim_t ld_src,
+        dim_t rows, dim_t cols, int trans, gemm_pack_storage_t *dst_pack);
 
 }
 }

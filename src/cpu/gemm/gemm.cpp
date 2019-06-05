@@ -69,21 +69,24 @@ mkldnn_status_t check_gemm_input(const char *transa, const char *transb,
     if (with_bias && *beta != 0)
         return mkldnn_unimplemented;
     bool consistency = true
-        && utils::one_of(*transa, 'T', 't', 'N', 'n')
-        && utils::one_of(*transb, 'T', 't', 'N', 'n')
+        && utils::one_of(*transa, 'T', 't', 'N', 'n', 'P', 'p')
+        && utils::one_of(*transb, 'T', 't', 'N', 'n', 'P', 'p')
         && *M >= 0
         && *N >= 0
         && *K >= 0;
 
     if (!consistency)
         return mkldnn_invalid_arguments;
-    bool isTransA = utils::one_of(*transa, 'T', 't');
-    bool isTransB = utils::one_of(*transb, 'T', 't');
-    int nrowA = isTransA ? *K : *M;
-    int nrowB = isTransB ? *N : *K;
+
+    bool is_packed_a = utils::one_of(*transa, 'P', 'p');
+    bool is_packed_b = utils::one_of(*transb, 'P', 'p');
+    bool is_trans_a = utils::one_of(*transa, 'T', 't');
+    bool is_trans_b = utils::one_of(*transb, 'T', 't');
+    int nrow_a = is_trans_a ? *K : *M;
+    int nrow_b = is_trans_b ? *N : *K;
     consistency = true
-        && *lda >= nstl::max(1, nrowA)
-        && *ldb >= nstl::max(1, nrowB)
+        && (is_packed_a || *lda >= nstl::max(1, nrow_a))
+        && (is_packed_b || *ldb >= nstl::max(1, nrow_b))
         && *ldc >= nstl::max(1, *M);
     if (!consistency)
         return mkldnn_invalid_arguments;
@@ -136,22 +139,24 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     else
 #endif
     {
-        if (mayiuse(avx512_mic)) {
-            status = jit_avx512_common_gemm_f32(transa, transb,
-                    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-        } else if (mayiuse(sse41)) {
-            float *dummy_ao = NULL;
-            float *dummy_bo = NULL;
+    if (mayiuse(avx512_mic)) {
+        if (utils::one_of(*transa, 'p', 'P')
+                || utils::one_of(*transb, 'p', 'P'))
+            return mkldnn_unimplemented;
+        status = jit_avx512_common_gemm_f32(transa, transb,
+                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
+    } else if (mayiuse(sse41)) {
+        float *dummy_ao = NULL;
+        float *dummy_bo = NULL;
 
-            status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K,
-                    alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc,
-                    bias, force_jit_nocopy_gemm);
-        } else {
-            status = ref_gemm<float>(transa, transb,
-                    M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-        }
+        status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
+                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
+                force_jit_nocopy_gemm);
+    } else {
+        status = ref_gemm<float>(transa, transb,
+                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
     }
-
+    }
 
     if (status == mkldnn_success)
         msan_unpoison_matrix(C, *M, *N, *ldc, sizeof(*C));
