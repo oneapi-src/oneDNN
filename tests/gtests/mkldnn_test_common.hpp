@@ -323,7 +323,8 @@ static void compare_data(
             const float threshold_f32 = static_cast<float>(threshold);
             const float ref_f32 = static_cast<float>(ref);
             const float got_f32 = static_cast<float>(got);
-            const float diff_f32 = got_f32 - ref_f32;
+            const float diff_f32 = (got_f32 == ref_f32) ? 0.0f
+                : got_f32 - ref_f32;
             const float e = (std::abs(ref_f32) > threshold_f32)
                 ? diff_f32 / ref_f32 : diff_f32;
             ASSERT_NEAR(e, 0.0, threshold_f32)

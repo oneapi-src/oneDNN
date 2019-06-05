@@ -235,7 +235,8 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         default: assert(!"unknown alg_kind");
         }
 
-        const data_t diff = diff_src_data[diff_data_mdw.off_l(i)] - ref_ds;
+        auto tgt = diff_src_data[diff_data_mdw.off_l(i)];
+        const data_t diff = tgt == ref_ds ? 0 : tgt - ref_ds;
         const data_t error = (std::abs(ref_ds) > eps)
             ? static_cast<data_t>(diff / ref_ds)
             : diff;
