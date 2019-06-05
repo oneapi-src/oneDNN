@@ -33,9 +33,7 @@ mb1ic96_ih103iw9_oh52ow7_kh3kw3_sh2sw1_ph1pw0
 
 # Tensorflow pooling corner problems
 mb1ic1_ih32oh6_kh6sh6ph2
-mb1ic32_ih1oh1kh1sh1ph0_iw32ow6kw6sw6pw2
 mb1ic1_ih32oh6kh6sh6ph2_iw2ow1kw1sw1pw0
-mb1ic2_ih1oh1kh1sh1ph0_iw32ow6kw6sw6pw2
 
 # Stride along the width is large
 ic35_iw42ih20_ow14oh17_kw3kh4_sw3sh1
@@ -53,7 +51,7 @@ ic35_iw18ih20_ow14oh17_pw1ph0_kw6kh4_sw1sh1
 ic35_iw16ih19_ow14oh17_pw0ph1_kw3kh4_sw1sh1
 ic35_iw19ih19_ow14oh17_pw0ph1_kw6kh4_sw1sh1
 
-# Stride dimension is more than the kernel dimension 
+# Stride dimension is more than the kernel dimension
 ic35_iw10ih19_ow3oh17_pw0ph1_kw2kh4_sw4sh1
 ic35_iw10ih9_ow3oh3_pw0ph1_kw2kh2_sw4sh4
 
