@@ -8,7 +8,7 @@ Intel MKL-DNN supports the following build-time options.
 | Option                      | Supported values (defaults in bold)  | Description
 | :---                        | :---                                 | :---
 | MKLDNN_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
-| MKLDNN_THREADING            | **OMP**, OMP:INTEL, OMP:COMP, TBB    | Defines the threading type
+| MKLDNN_THREADING            | **OMP**, TBB                         | Defines the threading type
 | MKLDNN_USE_MKL              | **DEF**, NONE, ML, FULL, FULL:STATIC | Defines the binary dependency on Intel MKL
 | MKLDNN_GPU_BACKEND          | **NONE**, OPENCL                     | Defines the backend for GPU engine
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
@@ -59,21 +59,15 @@ CMake option.
 
 ### OpenMP
 
-Intel MKL-DNN can use the Intel, GNU, or Clang OpenMP runtimes. Because
-different OpenMP runtimes may not be binary-compatible, it's important to
-ensure that only one OpenMP runtime is used throughout the application. Having
-more than one OpenMP runtime linked to an executable may lead to undefined
-behavior including incorrect results or crashes.
+Intel MKL-DNN uses OpenMP runtime library provided by the compiler.
 
-The Intel MKL-DNN library linked with Intel MKL (full or small libraries
-version) link to the Intel OpenMP runtime included with the Intel MKL. The
-Intel OpenMP runtime is binary compatible with the GNU OpenMP and Clang OpenMP
-runtimes and is recommended for the best performance results.
-
-If Intel MKL-DNN library is built standalone, it will link to the OpenMP
-library supplied by the compiler. This means that there would be no conflicts
-as long as both the library and the application use the same or compatible
-compilers.
+@warning
+Because different OpenMP runtimes may not be binary-compatible, it's important
+to ensure that only one OpenMP runtime is used throughout the application.
+Having more than one OpenMP runtime linked to an executable may lead to
+undefined behavior including incorrect results or crashes. However as long as
+both the library and the application use the same or compatible compilers there
+would be no conflicts.
 
 ### TBB
 
