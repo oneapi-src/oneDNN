@@ -137,7 +137,9 @@ namespace format_tag {
     const format_tag_t ba = mkldnn_ba;
     const format_tag_t bac = mkldnn_bac;
     const format_tag_t bacd = mkldnn_bacd;
+    const format_tag_t bca = mkldnn_bca;
     const format_tag_t bcda = mkldnn_bcda;
+    const format_tag_t bcdea = mkldnn_bcdea;
     const format_tag_t cba = mkldnn_cba;
     const format_tag_t cdba = mkldnn_cdba;
     const format_tag_t cdeba = mkldnn_cdeba;
@@ -267,6 +269,7 @@ namespace format_tag {
     const format_tag_t oiw = mkldnn_oiw;
     const format_tag_t wio = mkldnn_wio;
     const format_tag_t owi = mkldnn_owi;
+    const format_tag_t iwo = mkldnn_iwo;
     const format_tag_t oihw = mkldnn_oihw;
     const format_tag_t hwio = mkldnn_hwio;
     const format_tag_t ohwi = mkldnn_ohwi;
@@ -275,6 +278,7 @@ namespace format_tag {
     const format_tag_t oidhw = mkldnn_oidhw;
     const format_tag_t dhwio = mkldnn_dhwio;
     const format_tag_t odhwi = mkldnn_odhwi;
+    const format_tag_t idhwo = mkldnn_idhwo;
     const format_tag_t goiw = mkldnn_goiw;
     const format_tag_t goihw = mkldnn_goihw;
     const format_tag_t hwigo = mkldnn_hwigo;

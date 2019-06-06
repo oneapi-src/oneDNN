@@ -72,7 +72,9 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_ba) return "ba";
     if (v == mkldnn_bac) return "bac";
     if (v == mkldnn_bacd) return "bacd";
+    if (v == mkldnn_bca) return "bca";
     if (v == mkldnn_bcda) return "bcda";
+    if (v == mkldnn_bcdea) return "bcdea";
     if (v == mkldnn_cba) return "cba";
     if (v == mkldnn_cdba) return "cdba";
     if (v == mkldnn_cdeba) return "cdeba";
@@ -201,6 +203,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_oiw) return "oiw";
     if (v == mkldnn_owi) return "owi";
     if (v == mkldnn_wio) return "wio";
+    if (v == mkldnn_iwo) return "iwo";
     if (v == mkldnn_oihw) return "oihw";
     if (v == mkldnn_hwio) return "hwio";
     if (v == mkldnn_ohwi) return "ohwi";
@@ -209,6 +212,7 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_oidhw) return "oidhw";
     if (v == mkldnn_dhwio) return "dhwio";
     if (v == mkldnn_odhwi) return "odhwi";
+    if (v == mkldnn_idhwo) return "idhwo";
     if (v == mkldnn_goiw) return "goiw";
     if (v == mkldnn_goihw) return "goihw";
     if (v == mkldnn_hwigo) return "hwigo";
