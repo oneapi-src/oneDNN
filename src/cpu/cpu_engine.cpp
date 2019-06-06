@@ -304,13 +304,17 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(ref_pooling_bwd_t<s16>),
 
     /* lrn */
-    INSTANCE(jit_avx512_common_lrn_fwd_t),
-    INSTANCE(jit_avx512_common_lrn_bwd_t),
+    INSTANCE(jit_avx512_common_lrn_fwd_t<f32>),
+    INSTANCE(jit_avx512_common_lrn_bwd_t<f32>),
+    INSTANCE(jit_avx512_common_lrn_fwd_t<bf16>),
+    INSTANCE(jit_avx512_common_lrn_bwd_t<bf16>),
     INSTANCE(jit_uni_lrn_fwd_t<avx2>),
     INSTANCE(jit_uni_lrn_bwd_t<avx2>),
     INSTANCE(jit_uni_lrn_fwd_t<sse42>),
     INSTANCE(ref_lrn_fwd_t<f32>),
     INSTANCE(ref_lrn_bwd_t<f32>),
+    INSTANCE(ref_lrn_fwd_t<bf16>),
+    INSTANCE(ref_lrn_bwd_t<bf16>),
     /* batch normalization */
     INSTANCE(jit_uni_batch_normalization_fwd_t<avx512_common, f32>),
     INSTANCE(jit_uni_batch_normalization_bwd_t<avx512_common, f32>),
