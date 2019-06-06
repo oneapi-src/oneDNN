@@ -247,11 +247,12 @@ public:
 	int displayModel; // model + extModel
 
 	unsigned int getNumCores(IntelCpuTopologyLevel level) {
-		if (level != SmtLevel && level != CoreLevel) throw Error(ERR_BAD_PARAMETER);
 		if (!x2APIC_supported_) throw Error(ERR_X2APIC_IS_NOT_SUPPORTED);
-		return (level == CoreLevel)
-			? numCores_[level - 1] / numCores_[SmtLevel - 1]
-			: numCores_[level - 1];
+		switch (level) {
+		case SmtLevel: return numCores_[level - 1];
+		case CoreLevel: return numCores_[level - 1] / numCores_[SmtLevel - 1];
+		default: throw Error(ERR_X2APIC_IS_NOT_SUPPORTED);
+		}
 	}
 
 	unsigned int getDataCacheLevels() const { return dataCacheLevels_; }
@@ -377,7 +378,8 @@ public:
 	static const Type tAVX512_VNNI = uint64(1) << 54;
 	static const Type tAVX512_BITALG = uint64(1) << 55;
 	static const Type tAVX512_VPOPCNTDQ = uint64(1) << 56;
-	static const Type tAVX512_BF = uint64(1) << 57;
+	static const Type tAVX512_BF16 = uint64(1) << 57;
+	static const Type tAVX512_VP2INTERSECT = uint64(1) << 58;
 
 	Cpu()
 		: type_(NONE)
@@ -457,9 +459,8 @@ public:
 						if (ECX & (1U << 14)) type_ |= tAVX512_VPOPCNTDQ;
 						if (EDX & (1U << 2)) type_ |= tAVX512_4VNNIW;
 						if (EDX & (1U << 3)) type_ |= tAVX512_4FMAPS;
-
-						getCpuidEx(7, 1, data); // Read CPUID.7.1.EAX[5]
-						if (EAX & (1U << 5)) type_ |= tAVX512_BF;
+						if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
+						if (EDX & (1U << 8)) type_ |= tAVX512_VP2INTERSECT;
 					}
 				}
 			}
