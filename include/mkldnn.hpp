@@ -1443,10 +1443,13 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Mapping is an exclusive operation - a memory object cannot be used in
     /// other operations until this memory object is unmapped.
     /// @tparam T Type of the pointer to be mapped.
-    //
+    ///
     /// @note Any primitives working with the memory should be completed before
-    //        mapping. Use stream::wait() to synchronize the corresponding
-    //        execution stream.
+    ///       mapping. Use stream::wait() to synchronize the corresponding
+    ///       execution stream.
+    ///
+    /// @note Map/unmap API is provided mainly for debug/testing purposes and
+    ///       its performance may be suboptimal.
     template <typename T = void>
     T *map_data() const {
         void *mapped_ptr;
@@ -1460,6 +1463,9 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Any changes of the mapped data are synchronized back to the memory
     /// after the call is complete. The mapped pointer must be
     /// obtained through a map_data() call.
+    ///
+    /// @note Map/unmap API is provided mainly for debug/testing purposes and
+    ///       its performance may be suboptimal.
     void unmap_data(void *mapped_ptr) const {
         error::wrap_c_api(mkldnn_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap the data");

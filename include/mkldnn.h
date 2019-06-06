@@ -514,10 +514,13 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_engine(
 ///
 /// Mapping is an exclusive operation - a memory object cannot be used in other
 /// operations until this memory object is unmapped.
-//
+///
 /// @note Any primitives working with @p memory should be completed before
-//        mapping the memory. Use mkldnn_stream_wait to synchronize the
-//        corresponding execution stream.
+///       mapping the memory. Use mkldnn_stream_wait to synchronize the
+///       corresponding execution stream.
+///
+/// @note Map/unmap API is provided mainly for debug/testing purposes and its
+///       performance may be suboptimal.
 mkldnn_status_t MKLDNN_API mkldnn_memory_map_data(
         const_mkldnn_memory_t memory, void **mapped_ptr);
 
@@ -526,6 +529,9 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_map_data(
 /// Any changes of the mapped data are synchronized back to the memory after the
 /// call is complete. The mapped pointer must be obtained through a
 /// mkldnn_memory_map_data call.
+///
+/// @note Map/unmap API is provided mainly for debug/testing purposes and its
+///       performance may be suboptimal.
 mkldnn_status_t MKLDNN_API mkldnn_memory_unmap_data(
         const_mkldnn_memory_t memory, void *mapped_ptr);
 
