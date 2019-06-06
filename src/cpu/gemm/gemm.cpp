@@ -35,14 +35,6 @@
 #include "os_blas.hpp"
 #include "common/bfloat16.hpp"
 
-/* USE_MKL      USE_CBLAS       effect
- * -------      ---------       ------
- * yes          yes             use Intel(R) MKL CBLAS
- * yes          no              use jit
- * no           yes             system-dependent CBLAS
- * no           no              use jit
- */
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -128,7 +120,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
 
         if (bias) {
             // Add bias if necessary (bias is applied to columns of C)
-            cblas_int incx = 1, incy = 1;
+            int incx = 1, incy = 1;
             parallel_nd(*N, [&](int n) {
                 ptrdiff_t offset = (ptrdiff_t)n * (*ldc);
                 cblas_saxpy(*M, 1.0, bias, incx, C + offset, incy);
