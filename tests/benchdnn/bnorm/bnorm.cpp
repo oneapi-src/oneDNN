@@ -565,10 +565,10 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
     } else {
         print(5, "mkldnn implementation: %s\n", impl_str);
         if (!strstr(impl_str, "jit")) {
-            print(1, "WARNING: %s",
+            print(2, "WARNING: %s",
                     "accuracy of the implementation being tested "
                     "depends on the compiler and might give false-positives.\n");
-            print(1, "         %s",
+            print(2, "         %s",
                     "please consider recompiling the sources with"
                     " `-prec-div -fp-model precise` for a reliable testing.\n");
         }

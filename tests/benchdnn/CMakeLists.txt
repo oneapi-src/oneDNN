@@ -112,33 +112,33 @@ register_benchdnn_test(test_benchdnn_deconv_bf16
 register_benchdnn_test(test_benchdnn_rnn
     cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder
-    cpu "--reorder --batch=inputs/reorder/test_default")
+    cpu "-v1 --reorder --batch=inputs/reorder/test_default")
 register_benchdnn_test(test_benchdnn_bnorm
-    cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
+    cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_bnorm_bf16
-    cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_bfloat16")
+    cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_bfloat16")
 register_benchdnn_test(test_benchdnn_ip
-    cpu "--ip --batch=inputs/ip/test_ip_all")
+    cpu "-v1 --ip --batch=inputs/ip/test_ip_all")
 register_benchdnn_test(test_benchdnn_ip_bf16
-    cpu "--ip --batch=inputs/ip/test_ip_bfloat16")
+    cpu "-v1 --ip --batch=inputs/ip/test_ip_bfloat16")
 register_benchdnn_test(test_benchdnn_shuffle
-    cpu "--shuffle --batch=inputs/shuffle/test_shuffle_all")
+    cpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_all")
 register_benchdnn_test(test_benchdnn_softmax
-    cpu "--softmax --batch=inputs/softmax/test_softmax_all")
+    cpu "-v1 --softmax --batch=inputs/softmax/test_softmax_all")
 register_benchdnn_test(test_benchdnn_pool
-    cpu "--pool --batch=inputs/pool/test_pool_all")
+    cpu "-v1 --pool --batch=inputs/pool/test_pool_all")
 register_benchdnn_test(test_benchdnn_sum
     cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
 register_benchdnn_test(test_benchdnn_sum_bf16
     cpu "-v1 --sum --batch=inputs/sum/test_sum_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
-    "--conv --batch=inputs/test_conv_regression"
-    "--bnorm --batch=inputs/bnorm/test_bnorm_regressions"
+    "-v1 --conv --batch=inputs/test_conv_regression"
+    "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
 register_benchdnn_test(test_benchdnn_regression_large
     cpu
-    "--bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
+    "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
 
 if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
@@ -147,16 +147,16 @@ if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_deconv
         gpu "-v1 --deconv --batch=inputs/deconv/test_deconv_gpu")
     register_benchdnn_test(test_benchdnn_bnorm
-        gpu "--bnorm --batch=inputs/bnorm/test_bnorm_gpu")
+        gpu "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_gpu")
     register_benchdnn_test(test_benchdnn_ip
-        gpu "--ip --batch=inputs/ip/test_ip_gpu")
+        gpu "-v1 --ip --batch=inputs/ip/test_ip_gpu")
     register_benchdnn_test(test_benchdnn_rnn
-        gpu "--rnn --batch=inputs/rnn/test_rnn_gpu")
+        gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_gpu")
     register_benchdnn_test(test_benchdnn_pool
-        gpu "--pool --batch=inputs/pool/test_pool_gpu")
+        gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
 # fp16 produces nans
 #    register_benchdnn_test(test_benchdnn_sum
-#        gpu "--sum --batch=inputs/sum/test_sum_gpu")
+#        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
