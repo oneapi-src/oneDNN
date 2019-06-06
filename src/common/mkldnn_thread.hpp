@@ -20,22 +20,7 @@
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-#define MKLDNN_THR_SEQ 0
-#define MKLDNN_THR_OMP 1
-#define MKLDNN_THR_TBB 2
-
-/* Ideally this condition below should never happen (if the library is built
- * using regular cmake). For the 3rd-party projects that build the library
- * from the sources on their own try to guess the right threading... */
-#if !defined(MKLDNN_THR)
-#   if defined(_OPENMP)
-#       define MKLDNN_THR MKLDNN_THR_OMP
-#   else
-#       define MKLDNN_THR MKLDNN_THR_SEQ
-#   endif
-#endif
-
-#if MKLDNN_THR == MKLDNN_THR_SEQ
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
 #define MKLDNN_THR_SYNC 1
 inline int mkldnn_get_max_threads() { return 1; }
 inline int mkldnn_get_num_threads() { return 1; }
@@ -45,7 +30,7 @@ inline void mkldnn_thr_barrier() {}
 
 #define PRAGMA_OMP(...)
 
-#elif MKLDNN_THR == MKLDNN_THR_OMP
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
 #include <omp.h>
 #define MKLDNN_THR_SYNC 1
 
@@ -59,7 +44,7 @@ inline void mkldnn_thr_barrier() {
 
 #define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 
-#elif MKLDNN_THR == MKLDNN_THR_TBB
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
 #include "tbb/task_arena.h"
 #include "tbb/parallel_for.h"
 #define MKLDNN_THR_SYNC 0

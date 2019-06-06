@@ -22,7 +22,15 @@ if(OpenCL_cmake_included)
 endif()
 set(OpenCL_cmake_included true)
 
+if(MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
+    message(STATUS "GPU support is enabled (OpenCL)")
+else()
+    message(STATUS "GPU support is disabled")
+    return()
+endif()
+
 find_package(OpenCL REQUIRED)
 
+set(MKLDNN_GPU_RUNTIME_CURRENT ${MKLDNN_GPU_RUNTIME})
 include_directories(${OpenCL_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS ${OpenCL_LIBRARIES})

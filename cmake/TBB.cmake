@@ -43,7 +43,7 @@ elseif(UNIX)
     find_package(TBB REQUIRED tbb HINTS cmake/lnx)
 endif()
 
-set_threading("TBB")
+set(MKLDNN_CPU_RUNTIME_CURRENT "TBB")
 include_directories(${TBB_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 

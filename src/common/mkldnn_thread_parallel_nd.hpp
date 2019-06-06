@@ -39,14 +39,14 @@ namespace impl {
 template <typename F>
 void parallel(int nthr, F f) {
     if (nthr == 0) nthr = mkldnn_get_max_threads();
-#if MKLDNN_THR == MKLDNN_THR_SEQ
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
     assert(nthr == 1);
     f(0, 1);
-#elif MKLDNN_THR == MKLDNN_THR_OMP
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
     if (nthr == 1) { f(0, 1); return; }
 #   pragma omp parallel num_threads(nthr)
     f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-#elif MKLDNN_THR == MKLDNN_THR_TBB
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
     if (nthr == 1) { f(0, 1); return; }
     tbb::parallel_for(0, nthr, [&](int ithr) { f(ithr, nthr); });
 #endif
@@ -152,12 +152,12 @@ constexpr size_t get_work_amount(const T &v, Args &&...args)
 
 /* parallel_nd and parallel_nd_in_omp section */
 
-#if MKLDNN_THR != MKLDNN_THR_TBB
+#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_TBB
 template <typename ...Args>
 void parallel_nd(Args &&...args) {
-#if MKLDNN_THR == MKLDNN_THR_SEQ
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif MKLDNN_THR == MKLDNN_THR_OMP
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
     const bool do_parallel = get_work_amount(utils::forward<Args>(args)...) > 1;
 #   pragma omp parallel if (do_parallel)
     {
@@ -167,7 +167,7 @@ void parallel_nd(Args &&...args) {
     }
 #endif
 }
-#else // MKLDNN_THR != MKLDNN_THR_TBB
+#else // MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_TBB
 
 // gcc 4.8 has a bug with passing parameter pack to lambdas.
 // So have to explicitly instantiate all the cases.
@@ -227,12 +227,12 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
 
 template <typename ...Args>
 void parallel_nd_in_omp(Args &&...args) {
-#if MKLDNN_THR == MKLDNN_THR_SEQ
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif MKLDNN_THR == MKLDNN_THR_OMP
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
     for_nd(mkldnn_get_thread_num(), mkldnn_get_num_threads(),
             utils::forward<Args>(args)...);
-#elif MKLDNN_THR == MKLDNN_THR_TBB
+#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
     assert(!"unsupported parallel_nd_in_omp()");
 #endif
 }

@@ -71,7 +71,7 @@ endif()
 
 if (MKLDNN_CPU_RUNTIME MATCHES "OMP")
     if (OpenMP_CXX_FOUND)
-        set_threading("OMP")
+        set(MKLDNN_CPU_RUNTIME_CURRENT "OMP")
         append(CMAKE_TEST_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
         append(CMAKE_EXAMPLE_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
     else()
