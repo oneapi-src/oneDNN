@@ -559,6 +559,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 for (int c = 0; c < input_overlap; ++c) {
                     int off_input
                             = ((c - pad_offset) * reg_repeats + r) * simd_w;
+                    if (off_input < 0 && unroll_w == jcp.ow)
+                        continue;
                     Vmm vmm_input
                             = get_input_reg((c % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -570,6 +572,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     int off_input
                             = ((overlap + c - pad_offset) * reg_repeats + r)
                             * simd_w;
+                    if (off_input < 0 || overlap + c + l_pad > right_border)
+                        continue;
                     Vmm vmm_input = get_input_reg(
                             ((overlap + c) % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -584,7 +588,6 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 if (io_overlap - l_pad < 0
                         || io_overlap - jcp.l_pad >= right_border)
                     continue;
-
                 Vmm vmm_input = get_input_reg(
                         ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
                 Vmm vmm_acc = get_acc_reg(i_kw * reg_repeats + r);

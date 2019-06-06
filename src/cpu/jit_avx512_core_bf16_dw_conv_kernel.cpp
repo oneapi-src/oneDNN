@@ -553,6 +553,8 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
         if (i_ur == 0) {
             for (int c = 0; c < input_overlap; ++c) {
                 int off_input = (c - pad_offset) * jcp.ch_block;
+                if (off_input < 0 && unroll_w == jcp.ow)
+                        continue;
                 Zmm zmm_input = get_input_reg(c);
                 vpmovzxwd(zmm_input,
                         ptr[reg_tmp_input + off_input * jcp.typesize_in]);
@@ -561,6 +563,8 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
             for (int c = 0; c < cascade_input; ++c) {
                 int overlap = (i_ur - 1) * jcp.stride_w + input_overlap;
                 int off_input = (overlap + c - pad_offset) * jcp.ch_block;
+                if (off_input < 0 || overlap + c + l_pad > right_border)
+                    continue;
                 Zmm zmm_input = get_input_reg(overlap + c);
                 vpmovzxwd(zmm_input,
                         ptr[reg_tmp_input + off_input * jcp.typesize_in]);
