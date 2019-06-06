@@ -119,7 +119,6 @@ The software dependencies are:
 * Optional dependencies:
   * GNU\* OpenMP\*, LLVM OpenMP, or Intel OpenMP
   * Threading Building Blocks (TBB) 2017 or later
-  * Intel MKL 2017 Update 1 or Intel MKL small libraries
 
 The additional software dependencies for Intel(R) Processor Graphics support:
 * OpenCL\* runtime library (OpenCL\* version 1.2 or later)

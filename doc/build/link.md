@@ -23,8 +23,6 @@ and one or several libraries depending on how Intel MKL-DNN was built.
 | :---                  | :---
 | lib/libmkldnn.so      | Intel MKL-DNN dynamic library
 | lib/libmkldnn.a       | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
-| lib/libmklml_gnu.so   | Intel MKL small library for GNU OpenMP runtime (if built with `MKLDNN_USE_MKL=ML`)
-| lib/libmklml_intel.so | Intel MKL small library for Intel OpenMP runtime (if built with `MKLDNN_USE_MKL=ML`)
 
 ### macOS
 
@@ -32,17 +30,13 @@ and one or several libraries depending on how Intel MKL-DNN was built.
 | :---                     | :---
 | lib/libmkldnn.dylib      | Intel MKL-DNN dynamic library
 | lib/libmkldnn.a          | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
-| lib/libmklml_gnu.dylib   | Intel MKL small library for GNU OpenMP runtime (if built with `MKLDNN_USE_MKL=ML`)
-| lib/libmklml_intel.dylib | Intel MKL small library for Intel OpenMP runtime (if built with `MKLDNN_USE_MKL=ML`)
 
 ### Windows
 
 | File              | Description
 | :---              | :---
 | bin\libmkldnn.dll | Intel MKL-DNN dynamic library
-| bin\libmklml.dll  | Intel MKL small library (if built with `MKLDNN_USE_MKL=ML`)
 | lib\libmkldnn.lib | Intel MKL-DNN import library
-| lib\libmklml.lib  | Intel MKL small library import library (if built with `MKLDNN_USE_MKL=ML`)
 
 ## Linking to Intel MKL-DNN
 

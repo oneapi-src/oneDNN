@@ -9,12 +9,15 @@ Intel MKL-DNN supports the following build-time options.
 | :---                        | :---                                 | :---
 | MKLDNN_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
 | MKLDNN_THREADING            | **OMP**, TBB                         | Defines the threading type
-| MKLDNN_USE_MKL              | **DEF**, NONE, ML, FULL, FULL:STATIC | Defines the binary dependency on Intel MKL
 | MKLDNN_GPU_BACKEND          | **NONE**, OPENCL                     | Defines the backend for GPU engine
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | MKLDNN_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | MKLDNN_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
 | MKLDNN_ENABLE_JIT_PROFILING | **ON**, OFF                          | Enables integration with Intel(R) VTune(TM) Amplifier
+
+All other building options that can be found in CMake files are dedicated for
+the development/debug purposes and are subject to change without any notice.
+Please avoid using them.
 
 ## Targeting Specific Architecture
 
@@ -93,43 +96,3 @@ to limited parallelism):
 * Convolution backward by weights,
 * Inner product,
 * `mkldnn_*gemm()`.
-
-## Linking to Intel(R) MKL
-
-Intel MKL-DNN can be configured to use Intel MKL via the `MKLDNN_USE_MKL`
-CMake option. Using Intel MKL may improve performance on older platforms not
-supported by the matrix-matrix multiplication routine implemented in Intel
-MKL-DNN itself.
-
-If you choose to build Intel MKL-DNN with the binary dependency, download the
-Intel MKL small libraries using the provided script:
-
-* Linux/macOS
-~~~sh
-cd scripts && ./prepare_mkl.sh && cd ..
-~~~
-
-* Windows
-~~~bat
-cd scripts && call prepare_mkl.bat && cd ..
-~~~
-
-You can also download the small libraries from
-[GitHub release section](https://github.com/intel/mkl-dnn/releases). You need
-to unpack the archive in the `external` directory of the repository root or
-set `MKLROOT` environment variable to point to the installation location of
-the small libraries of full Intel MKL library.
-
-@note
-Intel MKL small libraries are currently only compatible with OpenMP threading.
-You need the full Intel MKL library to use Intel MKL and TBB threading.  Using
-Intel MKL or Intel MKL small libraries will introduce additional runtime
-dependencies. For additional information, refer to the Intel MKL
-[system requirements](https://software.intel.com/en-us/articles/intel-math-kernel-library-intel-mkl-2019-system-requirements).
-
-@warning
-If the library is built with TBB threading, the user is expected to set the
-`MKL_THREADING_LAYER` environment variable to either `tbb` or `sequential` in
-order to force Intel MKL to use Intel TBB for parallelization or to be
-sequential, respectively.  Without this setting, Intel MKL (the `mkl_rt`
-library) uses the OpenMP threading by default.
