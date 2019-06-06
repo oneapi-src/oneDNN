@@ -128,7 +128,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa) {
     case avx512_core_bf16:
         return true
             && mayiuse(avx512_core_vnni)
-            && cpu.has(Cpu::tAVX512_BF);
+            && cpu.has(Cpu::tAVX512_BF16);
     case isa_any:
         return true;
     }
