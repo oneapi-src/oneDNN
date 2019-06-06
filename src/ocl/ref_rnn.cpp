@@ -103,97 +103,111 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
     UNUSED(c);
     UNUSED(is_B_trans);
     UNUSED(beta);
+    UNUSED(gemm_kind);
     assert(!"packed gemm is disabled");
 #endif
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
-    /* TODO: This function is suitable for forward only. Backward pass contains
-     * 4 gemms and they cant be dispatched by beta. Ideally this function should
-     * be changed to something like
-     * gemm_primitive(stream_t *s, primitive_t *gemm), so rnn will always call
-     * primitive for gemm functionality and reference gemm can be removed.
-     */
 
     /* FIXME: This should be created once per execute() instead of creating
      * memory before each gemm call. Each cell type (+prop kind) might have
      * different number of GEMMs.
      * */
-    int ARG_A_INDEX = beta == 0.0
-        ? MKLDNN_ARG_WEIGHTS_LAYER : MKLDNN_ARG_WEIGHTS_ITER;
-
-    memory_t *weights = ctx.input(ARG_A_INDEX);
-    memory_t *workspace = ctx.output(MKLDNN_ARG_WORKSPACE);
-
-    memory_t gemm_mem_A(engine(), weights->md(),
-            memory_flags_t::use_backend_ptr, nullptr);
 
     memory_desc_t scratchpad_md;
     dims_t scratchpad_dims = { static_cast<int64_t>(get_scratchpad_size(*pd())) };
     mkldnn_memory_desc_init_by_tag(&scratchpad_md, 1, scratchpad_dims, src_type,
             format_tag::x);
 
-    memory_t gemm_mem_B(engine(), &scratchpad_md,
-            memory_flags_t::use_backend_ptr, nullptr);
-    memory_t gemm_mem_C(engine(), &scratchpad_md,
-            memory_flags_t::use_backend_ptr, nullptr);
+    void *mem_storage_scratchpad = nullptr;
 
-    void *mem_storage_weights = nullptr, *mem_storage_scratchpad = nullptr;
-    weights->memory_storage()->get_data_handle(&mem_storage_weights);
+    memory_t *workspace = (aprop == prop_kind::forward)
+        ? ctx.output(MKLDNN_ARG_WORKSPACE)
+        : ctx.input(MKLDNN_ARG_WORKSPACE);
+
     if (use_workspace_) {
         workspace->memory_storage()->get_data_handle(&mem_storage_scratchpad);
     } else {
         scratchpad_->get_data_handle(&mem_storage_scratchpad);
     }
-
-    gemm_mem_A.set_data_handle(mem_storage_weights);
-    gemm_mem_B.set_data_handle(mem_storage_scratchpad);
-    gemm_mem_C.set_data_handle(mem_storage_scratchpad);
-
     using src_t = typename prec_traits<src_type>::type;
     using wei_t = typename prec_traits<weights_type>::type;
-    gemm_mem_A.memory_storage()->set_offset(off_a * sizeof(wei_t));
-    gemm_mem_B.memory_storage()->set_offset(off_b * sizeof(src_t));
-    gemm_mem_C.memory_storage()->set_offset(off_c * sizeof(src_t));
-
+    void *mem_storage_weights = nullptr;
+    memory_t *weights = nullptr;
     exec_args_t gemm_args;
-    gemm_args[MKLDNN_ARG_SRC_0] = {&gemm_mem_A, true};
-    gemm_args[MKLDNN_ARG_SRC_1] = {&gemm_mem_B, true};
-    gemm_args[MKLDNN_ARG_DST] = {&gemm_mem_C, false};
+
+    std::shared_ptr<memory_t> gemm_mem_A;
+    std::shared_ptr<memory_t> gemm_mem_B;
+    std::shared_ptr<memory_t> gemm_mem_C;
+
+    switch (gemm_kind) {
+    case gemm_iter:
+    case gemm_layer:
+        weights = (gemm_kind == gemm_layer)
+            ? ctx.input(MKLDNN_ARG_WEIGHTS_LAYER)
+            : ctx.input(MKLDNN_ARG_WEIGHTS_ITER);
+        weights->memory_storage()->get_data_handle(&mem_storage_weights);
+
+        gemm_mem_A.reset(new memory_t(engine(), weights->md(),
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_C.reset(new memory_t(engine(), &scratchpad_md,
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_A->set_data_handle(mem_storage_weights);
+        gemm_mem_B->set_data_handle(mem_storage_scratchpad);
+        gemm_mem_C->set_data_handle(mem_storage_scratchpad);
+        gemm_mem_A->memory_storage()->set_offset(off_a * sizeof(wei_t));
+        gemm_mem_B->memory_storage()->set_offset(off_b * sizeof(src_t));
+        gemm_mem_C->memory_storage()->set_offset(off_c * sizeof(src_t));
+        break;
+    case gemm_diff_wei_iter:
+    case gemm_diff_wei_layer:
+        weights = (gemm_kind == gemm_diff_wei_iter)
+            ? ctx.output(MKLDNN_ARG_DIFF_WEIGHTS_ITER)
+            : ctx.output(MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
+        weights->memory_storage()->get_data_handle(&mem_storage_weights);
+        gemm_mem_A.reset(new memory_t(engine(), &scratchpad_md,
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_C.reset(new memory_t(engine(), weights->md(),
+                memory_flags_t::use_backend_ptr, nullptr));
+        gemm_mem_A->set_data_handle(mem_storage_scratchpad);
+        gemm_mem_B->set_data_handle(mem_storage_scratchpad);
+        gemm_mem_C->set_data_handle(mem_storage_weights);
+        gemm_mem_A->memory_storage()->set_offset(off_a * sizeof(src_t));
+        gemm_mem_B->memory_storage()->set_offset(off_b * sizeof(src_t));
+        gemm_mem_C->memory_storage()->set_offset(off_c * sizeof(wei_t));
+        break;
+    default:
+        assert(!"unknown gemm_kind");
+    }
+
+    gemm_args[MKLDNN_ARG_SRC_0] = {gemm_mem_A.get(), true};
+    gemm_args[MKLDNN_ARG_SRC_1] = {gemm_mem_B.get(), true};
+    gemm_args[MKLDNN_ARG_DST] = {gemm_mem_C.get(), false};
 
     auto gemm_ctx = exec_ctx_t(ctx.stream(), std::move(gemm_args));
 
-    if (beta == 0.0) {
-        gemm_input_->execute(gemm_ctx);
-    } else {
-        gemm_state_->execute(gemm_ctx);
+    switch (gemm_kind) {
+    case gemm_iter:
+        gemm_iter_->execute(gemm_ctx);
+        break;
+    case gemm_layer:
+        gemm_layer_->execute(gemm_ctx);
+        break;
+    case gemm_diff_wei_iter:
+        gemm_diff_wei_iter_->execute(gemm_ctx);
+        break;
+    case gemm_diff_wei_layer:
+        gemm_diff_wei_layer_->execute(gemm_ctx);
+        break;
+    default:
+        assert(!"unknown gemm_kind");
     }
-}
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm)) {
-    stream_t *s = ctx.stream();
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-    gemm_kernel_.set_arg(0, (int)false);
-    gemm_kernel_.set_arg(1, (int)is_B_trans);
-    gemm_kernel_.set_arg(2, k);
-    gemm_kernel_.set_arg(3, a);
-    gemm_kernel_.set_arg(4, off_a);
-    gemm_kernel_.set_arg(5, strideA_m);
-    gemm_kernel_.set_arg(6, strideA_k);
-    gemm_kernel_.set_arg(7, b);
-    gemm_kernel_.set_arg(8, off_b);
-    gemm_kernel_.set_arg(9, strideB_n);
-    gemm_kernel_.set_arg(10, strideB_k);
-    gemm_kernel_.set_arg(11, c);
-    gemm_kernel_.set_arg(12, off_c);
-    gemm_kernel_.set_arg(13, strideC_m);
-    gemm_kernel_.set_arg(14, strideC_n);
-    gemm_kernel_.set_arg(15, beta);
-
-    auto nd_range = cl_nd_range_t({m, n});
-    executor.parallel_for(nd_range, gemm_kernel_);
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
@@ -239,10 +253,12 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
 
         gemm_primitive(ctx, n_gates * dic, batch, slc, n_gates * dic, slc,
                 batch, wic, n_gates * dic, batch, w_input, offset_w_input,
-                workspace, offset_input, workspace, offset_gates, false, 0.0);
+                workspace, offset_input, workspace, offset_gates, false, 0.0f,
+                gemm_layer);
         gemm_primitive(ctx, n_gates * dic, batch, sic, n_gates * dic, sic,
                 batch, wic, n_gates * dic, batch, w_state, offset_w_state,
-                workspace, offset_states, workspace, offset_gates, false, 1.0);
+                workspace, offset_states, workspace, offset_gates, false, 1.0f,
+                gemm_iter);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
                 bias);
@@ -260,41 +276,41 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
         cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0));
         cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0));
 
-        gemm(ctx,
+        gemm_primitive(ctx,
             sic, batch, n_gates * dic, sic, n_gates * dic, batch, n_gates * dic,
             wic, batch, w_state, offset_w_state, workspace, ws_gates_offset_
                 + OFF4(lay, n_layer, dir, n_direction, iter, n_iter, 0,
                         n_gates * batch * dic), workspace,
                     ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
                 n_direction, iter, n_iter + 1, 0, (n_states + 1) * batch * wic),
-            false, 0.0f);
+            false, 0.0f, gemm_iter);
 
-        gemm(ctx,
+        gemm_primitive(ctx,
             sic, batch, n_gates * dic, slc, n_gates * dic, batch, n_gates * dic,
             wic, batch, w_input, offset_w_input, workspace, ws_gates_offset_
                 + OFF4(lay, n_layer, dir, n_direction, iter,
                 n_iter, 0, n_gates * batch * dic), workspace,
             ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir, n_direction,
                 iter, n_iter + 1, 0, (n_states + 1) * batch * wic)
-                    + n_states * (batch * wic), false, 0.0f);
+                    + n_states * (batch * wic), false, 0.0f, gemm_layer);
 
-        gemm(ctx,
+        gemm_primitive(ctx,
             n_gates * dic, slc, batch, n_gates * dic, batch, wic, batch,
             n_gates * dic, slc, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
                 dir, n_direction, iter, n_iter, 0, n_gates * batch * dic),
             workspace, ws_states_offset_ + OFF4(lay, n_layer + 1, dir,
                 n_direction, iter + 1, n_iter + 1, 0, n_states * batch * wic),
             diff_weights_layer, OFF3(lay, n_layer, dir, n_direction, 0,
-                slc * n_gates * dic), true, 1.0f);
+                slc * n_gates * dic), true, 1.0f, gemm_diff_wei_layer);
 
-        gemm(ctx,
+        gemm_primitive(ctx,
             n_gates * dic, sic, batch, n_gates * dic, batch, wic, batch,
             n_gates * dic, sic, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
                 dir, n_direction, iter, n_iter, 0, n_gates * batch * dic),
             workspace, ws_states_offset_ + OFF4(lay + 1, n_layer + 1, dir,
                 n_direction, iter, n_iter + 1, 0, n_states * batch * wic),
             diff_weights_iter, OFF3(lay, n_layer, dir, n_direction, 0,
-                sic * n_gates * dic), true, 1.0f);
+                sic * n_gates * dic), true, 1.0f, gemm_diff_wei_iter);
 
         gates_reduction(ctx, dir, lay, iter, n_gates, dic, batch,
             workspace, diff_bias);

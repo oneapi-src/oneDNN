@@ -61,6 +61,13 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
+enum gemm_kind_t {
+    gemm_iter,
+    gemm_layer,
+    gemm_diff_wei_iter,
+    gemm_diff_wei_layer
+};
+
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
 struct _ref_rnn_common_t : public primitive_t {
@@ -200,12 +207,14 @@ struct _ref_rnn_common_t : public primitive_t {
 
             auto create_gemm_pd = [&](primitive_desc_t **gemm_pd, int m, int n,
                     int k, int lda, int ldb, int ldc, data_type_t a_dt,
-                    data_type_t b_dt, data_type_t c_dt, float beta) -> status_t
+                    data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
+                    float beta) -> status_t
             {
                 gemm_desc_t gemm_desc;
                 gemm_desc.primitive_kind = primitive_kind::gemm;
                 gemm_desc.transa = transpose::notrans;
-                gemm_desc.transb = transpose::notrans;
+                gemm_desc.transb = is_B_trans
+                    ? transpose::trans : transpose::notrans;
                 gemm_desc.m = m;
                 gemm_desc.n = n;
                 gemm_desc.k = k;
@@ -226,10 +235,6 @@ struct _ref_rnn_common_t : public primitive_t {
                         &dummy_attr, this->engine(), nullptr);
             };
 
-            data_type_t a_dt = src_type;
-            data_type_t b_dt = weights_type;
-            data_type_t c_dt = src_type;
-
             int batch = this->MB();
             int n_gates = this->G();
             int slc = this->SLC();
@@ -243,14 +248,28 @@ struct _ref_rnn_common_t : public primitive_t {
             case prop_kind::forward:
                 gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_input_pd_, n_gates * dic,
+                            create_gemm_pd(&gemm_layer_pd_, n_gates * dic,
                                 batch, slc, n_gates * dic, wic, n_gates * dic,
-                                a_dt, b_dt, c_dt, 0.0),
-                            create_gemm_pd(&gemm_state_pd_, n_gates * dic,
+                                weights_type, src_type, src_type, false, 0.0),
+                            create_gemm_pd(&gemm_iter_pd_, n_gates * dic,
                                 batch, sic, n_gates * dic, wic, n_gates * dic,
-                                a_dt, b_dt, c_dt, 1.0));
+                                weights_type, src_type, src_type, false, 1.0));
                 break;
             case prop_kind::backward:
+                gemm_ok = true
+                    && utils::everyone_is(status::success,
+                    create_gemm_pd(&gemm_iter_pd_, sic, batch, n_gates * dic,
+                        slc, n_gates * dic, wic, weights_type, src_type,
+                        src_type, false, 0.0f),
+                    create_gemm_pd(&gemm_layer_pd_, sic, batch, n_gates * dic,
+                        sic, n_gates * dic, wic, weights_type, src_type,
+                        src_type, false, 0.0f),
+                    create_gemm_pd(&gemm_diff_wei_layer_pd_, n_gates * dic, slc,
+                        batch, n_gates * dic, wic, n_gates * dic, src_type,
+                        src_type, weights_type, true, 1.0f),
+                    create_gemm_pd(&gemm_diff_wei_iter_pd_, n_gates * dic, sic,
+                        batch, n_gates * dic, wic, n_gates * dic, src_type,
+                        src_type, weights_type, true, 1.0f));
                 break;
             default:
                 assert(!"unknown prop_kind");
@@ -267,8 +286,10 @@ struct _ref_rnn_common_t : public primitive_t {
         jit_rnn_conf_t jrnn_;
         jit_rnn_offsets jit_off_;
 
-        primitive_desc_t *gemm_state_pd_ = nullptr;
-        primitive_desc_t *gemm_input_pd_ = nullptr;
+        primitive_desc_t *gemm_iter_pd_ = nullptr;
+        primitive_desc_t *gemm_layer_pd_ = nullptr;
+        primitive_desc_t *gemm_diff_wei_layer_pd_ = nullptr;
+        primitive_desc_t *gemm_diff_wei_iter_pd_ = nullptr;
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
@@ -280,15 +301,21 @@ struct _ref_rnn_common_t : public primitive_t {
         void copy_from(const pd_t &other) {
             jrnn_ = other.jrnn_;
             jit_off_ = other.jit_off_;
-            gemm_input_pd_ = other.gemm_input_pd_
-                ? other.gemm_input_pd_->clone() : nullptr;
-            gemm_state_pd_ = other.gemm_state_pd_
-                ? other.gemm_state_pd_->clone() : nullptr;
+            gemm_layer_pd_ = other.gemm_layer_pd_
+                ? other.gemm_layer_pd_->clone() : nullptr;
+            gemm_iter_pd_ = other.gemm_iter_pd_
+                ? other.gemm_iter_pd_->clone() : nullptr;
+            gemm_diff_wei_layer_pd_ = other.gemm_diff_wei_layer_pd_
+                ? other.gemm_diff_wei_layer_pd_->clone() : nullptr;
+            gemm_diff_wei_iter_pd_ = other.gemm_diff_wei_iter_pd_
+                ? other.gemm_diff_wei_iter_pd_->clone() : nullptr;
         }
 
         void clear() {
-            delete gemm_input_pd_;
-            delete gemm_state_pd_;
+            delete gemm_layer_pd_;
+            delete gemm_iter_pd_;
+            delete gemm_diff_wei_layer_pd_;
+            delete gemm_diff_wei_iter_pd_;
         }
 
     };  // struct pd_t : public base_pd_t
@@ -318,8 +345,6 @@ struct _ref_rnn_common_t : public primitive_t {
         if (!elemwise_fwd_kernel_) return status::runtime_error;
         elemwise_bwd_kernel_ = jit.get_kernel("ref_rnn_elemwise_bwd_kernel");
         if (!elemwise_bwd_kernel_) return status::runtime_error;
-        gemm_kernel_ = jit.get_kernel("ref_rnn_gemm_kernel");
-        if (!gemm_kernel_) return status::runtime_error;
         gates_reduction_kernel_
             = jit.get_kernel("ref_rnn_gates_reduction_kernel");
         if (!gates_reduction_kernel_) return status::runtime_error;
@@ -330,10 +355,17 @@ struct _ref_rnn_common_t : public primitive_t {
         case prop_kind::forward:
             gemm_ok = true
                 && utils::everyone_is(status::success,
-                        pd()->gemm_input_pd_->create_primitive(&gemm_input_),
-                        pd()->gemm_state_pd_->create_primitive(&gemm_state_));
+                        pd()->gemm_layer_pd_->create_primitive(&gemm_layer_),
+                        pd()->gemm_iter_pd_->create_primitive(&gemm_iter_));
             break;
         case prop_kind::backward:
+            gemm_ok = true
+                && utils::everyone_is(status::success,
+                        pd()->gemm_iter_pd_->create_primitive(&gemm_iter_),
+                        pd()->gemm_layer_pd_->create_primitive(&gemm_layer_),
+                        pd()->gemm_diff_wei_layer_pd_->create_primitive(&gemm_diff_wei_layer_),
+                        pd()->gemm_diff_wei_iter_pd_->create_primitive(&gemm_diff_wei_iter_)
+                    );
             break;
         default:
             assert(!"unknown prop_kind");
@@ -375,17 +407,18 @@ struct _ref_rnn_common_t : public primitive_t {
 
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
-            g = packed_gemm ? &class_name::packed_gemm : &class_name::gemm;
+            g = packed_gemm ? &class_name::packed_gemm
+                : &class_name::gemm_primitive;
             p = pack_w ? &class_name::pack_weights :
                              &class_name::no_pack_weights;
             f = pack_w ? &class_name::free_packed_weights :
                              &class_name::free_no_packed_weights;
         };
 
-        set_pack_funcs(false, gemm_state_func, false, weights_state_pack_func,
+        set_pack_funcs(false, gemm_iter_func, false, weights_state_pack_func,
                 weights_state_free_packed_func);
 
-        set_pack_funcs(false, gemm_input_func, false, weights_input_pack_func,
+        set_pack_funcs(false, gemm_layer_func, false, weights_input_pack_func,
                 weights_input_free_packed_func);
 
         switch (pd()->cell_kind()) {
@@ -469,8 +502,10 @@ struct _ref_rnn_common_t : public primitive_t {
         free(offset_wei_input_);
         free(offset_wei_state_);
 
-        delete gemm_state_;
-        delete gemm_input_;
+        delete gemm_iter_;
+        delete gemm_layer_;
+        delete gemm_diff_wei_layer_;
+        delete gemm_diff_wei_iter_;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -489,7 +524,6 @@ private:
     elemwise_sig(rnn_elemwise);
     elemwise_sig(lstm_elemwise);
     elemwise_sig(gru_lbr_elemwise);
-    gemm_sig(gemm);
     gemm_sig(gemm_primitive);
     gemm_sig(packed_gemm);
     packing_sig(pack_weights);
@@ -534,12 +568,13 @@ private:
     ocl_kernel_t ws_set_kernel_;
     ocl_kernel_t elemwise_fwd_kernel_;
     ocl_kernel_t elemwise_bwd_kernel_;
-    ocl_kernel_t gemm_kernel_;
     ocl_kernel_t gates_reduction_kernel_;
 
     /* GEMM primitives */
-    primitive_t *gemm_input_ = nullptr;
-    primitive_t *gemm_state_ = nullptr;
+    primitive_t *gemm_layer_ = nullptr;
+    primitive_t *gemm_iter_ = nullptr;
+    primitive_t *gemm_diff_wei_layer_ = nullptr;
+    primitive_t *gemm_diff_wei_iter_ = nullptr;
 
     bool use_workspace_;
     bool use_scratchpad_;
@@ -548,7 +583,6 @@ private:
 
     bool use_layer_packed_gemm_;
     bool use_iter_packed_gemm_;
-
 
     cl_ulong ws_gates_offset_;      // used as params to ocl kernel
     cl_ulong ws_states_offset_;
@@ -561,7 +595,6 @@ private:
     size_t *offset_wei_input_;
     size_t *offset_wei_state_;
 
-
     rnn_utils::execution_direction exec_dir;
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
@@ -569,8 +602,8 @@ private:
     packing_t weights_input_pack_func;
     packing_t weights_state_pack_func;
 
-    gemm_t gemm_input_func;
-    gemm_t gemm_state_func;
+    gemm_t gemm_iter_func;
+    gemm_t gemm_layer_func;
     elemwise_f elemwise_func;
 
     free_packed_t weights_input_free_packed_func;

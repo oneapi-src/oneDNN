@@ -67,7 +67,7 @@
             const memory_storage_t &a, size_t off_a, \
             const memory_storage_t &b, size_t off_b, \
             const memory_storage_t &c, size_t off_c, \
-            bool is_B_trans, float beta) const
+            bool is_B_trans, float beta, gemm_kind_t gemm_kind) const
 
 #define packing_sig(f)                                               \
     void f(int n_layer, int n_direction, int n_weights, int n_gates, \
