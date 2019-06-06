@@ -44,6 +44,19 @@ dims_t str2dims(const char *str) {
     return dims;
 }
 
+// returns dims with current @p off values using actual values from @p dims
+dims_t off2dims_idx(const dims_t &dims, int64_t off) {
+    dims_t dims_idx;
+    dims_idx.reserve(dims.size());
+
+    for (int i = (int)dims.size() - 1; i >= 0; --i) {
+        dims_idx.insert(dims_idx.begin(), off % dims[i]);
+        off /= dims[i];
+    }
+    assert(off == 0);
+    return dims_idx;
+}
+
 std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     s << dims[0];
     for (size_t d = 1; d < dims.size(); ++d)
