@@ -82,10 +82,4 @@
 #    error "BOTH MKLDNN_CPU_RUNTIME and MKLDNN_GPU_RUNTIME must be defined"
 #endif
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
-#    define MKLDNN_WITH_OPENCL 1
-#else
-#    define MKLDNN_WITH_OPENCL 0
-#endif
-
 #endif
