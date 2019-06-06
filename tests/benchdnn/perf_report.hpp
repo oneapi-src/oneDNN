@@ -27,58 +27,7 @@
 #include "mkldnn.h"
 #include "mkldnn_memory.hpp"
 
-#if 0
-**benchdnn** supports custom performance report. Template is passed via
-command line and consists of terminal and nonterminal symbols. Nonterminal
-symbols are printed as is. Description of terminal symbols is given below.
-There is also a notion of modifiers (marked as @) that change meaning of
-terminal symbols, e.g. sign '-' means minimum of (in terms of time). See
-table of modifiers below.
-
-> **caution:** threads have to be pinned in order to get consistent frequency
-
-Options supported:
-| Syntax        | Primitives               | Description
-| :--           | :--                      | :--
-| %alg%         | Conv                     | Primitive algorithm
-| %attr%        | Bnorm, Conv, IP          | Primitive attributes
-| %axis%        | Shuffle, Softmax         | Shuffle and softmax axis
-| %@bw%         | All with ops             | Bytes per second (modifier extended)
-| %cfg%         | Conv, IP, RNN            | Config, describes data types and filling rules
-| %@clocks%     | All                      | Time in clocks (modifier extended)
-| %desc%        | All                      | Problem descriptor (dimensions and other options included)
-| %DESC%        | All                      | CSV-style problem descriptor (mostly dimensions)
-| %dir%         | All, except RNN, Reorder | Primitive direction
-| %dt%          | Bnorm, Shuffle, Softmax  | Data type (precision)
-| %idt%/%odt%   | Reorder                  | Input/Output data types (precision)
-| %engine%      | All                      | Engine kind
-| %flags%       | Bnorm                    | Batch normalization flags
-| %@flops%      | All with ops             | Ops per second (modifier extended)
-| %@freq%       | All                      | Effective cpu frequency computed as clocks[@] / time[@]
-| %group%       | Shuffle                  | Shuffle group
-| %name%        | All with desc_t          | Problem name
-| %@ops%        | All with ops             | Number of ops required (padding is not taken into account)
-| %prop%        | RNN                      | RNN properties
-| %tag%         | Bnorm, Shuffle, Softmax  | Data format tag (physical memory layout)
-| %itag%/%otag% | Reorder                  | Input/Output data format tag (physical memory layout)
-| %@time%       | All                      | Time in ms (modifier extended)
-
-Modifiers supported:
-| Name  | Description
-| :--   | :--
-| Time: |
-| -     | min (time) -- default
-| 0     | avg (time)
-| +     | max (time)
-|       |
-| Unit: |      (1e0) -- default
-| K     | Kilo (1e3)
-| M     | Mega (1e6)
-| G     | Giga (1e9)
-
-Each primitive has its own descriptor type with options supported. Dimensions
-description can be found internally at each primitive hpp-file.
-#endif
+// Please update doc/knobs_perf_report.md in case of any changes!
 
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
