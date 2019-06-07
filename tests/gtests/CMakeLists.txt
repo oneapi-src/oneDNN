@@ -102,7 +102,7 @@ endforeach()
 
 add_subdirectory(api)
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 

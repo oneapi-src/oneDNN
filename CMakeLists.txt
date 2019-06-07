@@ -78,14 +78,26 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# Tentative remapping of old options to the new one.
+# CAUTION: The old options will soon be removed.
+
 if(MKLDNN_THREADING)
     set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
     message(WARNING "Using the obsolete way to specify the CPU runtime")
 endif()
 
 if(MKLDNN_GPU_BACKEND)
+    if (MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+        set(MKLDNN_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
+        message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+    endif()
     set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
     message(WARNING "Using the obsolete way to specify the GPU runtime")
+endif()
+
+if (MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
+    set(MKLDNN_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the OpenCL runtime")
 endif()
 
 include("cmake/utils.cmake")

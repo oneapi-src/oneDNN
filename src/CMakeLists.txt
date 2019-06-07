@@ -66,7 +66,7 @@ endif()
 add_subdirectory(common)
 add_subdirectory(cpu)
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 

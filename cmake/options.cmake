@@ -107,7 +107,7 @@ set(TBBROOT "" CACHE STRING
 
 set(MKLDNN_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
-    Can be NONE (default; no GPU engines) or OPENCL (OpenCL GPU engines).
+    Can be NONE (default; no GPU engines) or OCL (OpenCL GPU engines).
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
     installed in a non-standard location.")

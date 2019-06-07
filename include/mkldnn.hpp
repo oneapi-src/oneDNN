@@ -32,7 +32,7 @@
 
 #include "mkldnn.h"
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 #include <CL/cl.h>
 #endif
 
@@ -815,7 +815,7 @@ struct engine: public handle<mkldnn_engine_t> {
         reset(aengine);
     }
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     engine(kind akind, cl_device_id device, cl_context context) {
         mkldnn_engine_t aengine;
         error::wrap_c_api(mkldnn_engine_create_ocl(&aengine,
@@ -844,7 +844,7 @@ struct engine: public handle<mkldnn_engine_t> {
         return static_cast<engine::kind>(akind);
     }
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     cl_context get_ocl_context() const {
         cl_context context = nullptr;
         error::wrap_c_api(mkldnn_engine_get_ocl_context(get(), &context),
@@ -921,7 +921,7 @@ struct stream: public handle<mkldnn_stream_t> {
         reset(astream);
     }
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     stream(const engine &eng, cl_command_queue queue) {
         mkldnn_stream_t astream;
         error::wrap_c_api(mkldnn_stream_create_ocl(&astream, eng.get(), queue),
@@ -1465,7 +1465,7 @@ struct memory: public handle<mkldnn_memory_t> {
                 "could not unmap the data");
     }
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     cl_mem get_ocl_mem_object() const {
         cl_mem mem_object;
         error::wrap_c_api(mkldnn_memory_get_ocl_mem_object(get(), &mem_object),

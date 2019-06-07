@@ -25,7 +25,7 @@
 #include "mkldnn_version.h"
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 #   include <CL/cl.h>
 #endif
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -539,7 +539,7 @@ mkldnn_status_t MKLDNN_API mkldnn_memory_get_data_handle(
 mkldnn_status_t MKLDNN_API mkldnn_memory_set_data_handle(
         mkldnn_memory_t memory, void *handle);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 /// For a @p memory returns the OpenCL memory object associated with it.
 mkldnn_status_t MKLDNN_API mkldnn_memory_get_ocl_mem_object(
         const_mkldnn_memory_t memory, cl_mem *mem_object);
@@ -1818,7 +1818,7 @@ size_t MKLDNN_API mkldnn_engine_get_count(mkldnn_engine_kind_t kind);
 mkldnn_status_t MKLDNN_API mkldnn_engine_create(mkldnn_engine_t *engine,
         mkldnn_engine_kind_t kind, size_t index);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 /// Creates an @p engine of particular @p kind associated with a given OpenCL
 /// @p device and @p context objects.
 mkldnn_status_t MKLDNN_API mkldnn_engine_create_ocl(mkldnn_engine_t *engine,
@@ -1829,7 +1829,7 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_create_ocl(mkldnn_engine_t *engine,
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_kind(mkldnn_engine_t engine,
         mkldnn_engine_kind_t *kind);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 /// Returns an OpenCL @p context associated with an @p engine.
 mkldnn_status_t MKLDNN_API mkldnn_engine_get_ocl_context(
         mkldnn_engine_t engine, cl_context *context);
@@ -1855,7 +1855,7 @@ mkldnn_status_t MKLDNN_API mkldnn_engine_destroy(mkldnn_engine_t engine);
 mkldnn_status_t MKLDNN_API mkldnn_stream_create(mkldnn_stream_t *stream,
         mkldnn_engine_t engine, unsigned flags);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 /// Creates an execution @p stream for a given @p engine associated with
 /// an OpenCL command @p queue.
 mkldnn_status_t MKLDNN_API mkldnn_stream_create_ocl(mkldnn_stream_t *stream,

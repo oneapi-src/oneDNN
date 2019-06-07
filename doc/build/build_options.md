@@ -9,7 +9,7 @@ Intel MKL-DNN supports the following build-time options.
 | :---                        | :---                                 | :---
 | MKLDNN_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
 | MKLDNN_CPU_RUNTIME          | **OMP**, TBB                         | Defines the threading runtime for CPU engines
-| MKLDNN_GPU_RUNTIME          | **NONE**, OPENCL                     | Defines the offload runtime for GPU engines
+| MKLDNN_GPU_RUNTIME          | **NONE**, OCL                        | Defines the offload runtime for GPU engines
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | MKLDNN_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | MKLDNN_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
@@ -50,7 +50,7 @@ requires Intel(R) SDK for OpenCL\* applications. You can explicitly specify
 the pass to the SDK using `-DOPENCLROOT` cmake option.
 
 ~~~sh
-cmake -DMKLDNN_GPU_RUNTIME=OPENCL -DOPENCLROOT=/path/to/opencl/sdk ..
+cmake -DMKLDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~
 
 ## Threading

@@ -61,7 +61,7 @@
 // TBB runtime (CPU only)
 #define MKLDNN_RUNTIME_TBB 4u
 // OpenCL runtime
-#define MKLDNN_RUNTIME_OPENCL 256u
+#define MKLDNN_RUNTIME_OCL 256u
 
 // MKL-DNN CPU engine runtime
 #cmakedefine MKLDNN_CPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_CPU_RUNTIME_CURRENT}
@@ -71,11 +71,11 @@
 
 #if defined(MKLDNN_CPU_RUNTIME) && defined(MKLDNN_GPU_RUNTIME)
 #    if (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_NONE) \
-            || (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OPENCL)
+            || (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OCL)
 #        error "Unexpected MKLDNN_CPU_RUNTIME"
 #    endif
 #    if (MKLDNN_GPU_RUNTIME != MKLDNN_RUNTIME_NONE) \
-            && (MKLDNN_GPU_RUNTIME != MKLDNN_RUNTIME_OPENCL)
+            && (MKLDNN_GPU_RUNTIME != MKLDNN_RUNTIME_OCL)
 #        error "Unexpected MKLDNN_GPU_RUNTIME"
 #    endif
 #else

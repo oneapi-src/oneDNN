@@ -42,7 +42,7 @@
 #define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(str,TEST_CASE_NAME_PREFIX), __VA_ARGS__)
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 
 // Declare OpenCL GEMM interfaces for testing
 extern "C" {
@@ -523,7 +523,7 @@ template <>
 struct mkldnn_gemm<float16_t, float16_t, float16_t> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem, const test_memory &) {
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng(get_test_engine_kind(), 0);
             stream s(eng);
@@ -616,7 +616,7 @@ struct mkldnn_gemm<float, float, float> {
         if (p.pack_params.pack_a || p.pack_params.pack_b)
             return call_packed(p, a_mem, b_mem, c_mem);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = a_mem.get().get_engine();
             stream s(eng);
