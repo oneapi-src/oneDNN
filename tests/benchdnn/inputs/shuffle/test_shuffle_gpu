@@ -1,0 +1,8 @@
+--reset
+
+--group=4
+
+--dir=FWD_D,BWD_D
+--dt=f32,f16
+--tag=nchw --axis=1,2 1x68x56x56
+

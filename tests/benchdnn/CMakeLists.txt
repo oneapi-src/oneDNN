@@ -158,6 +158,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_gpu")
     register_benchdnn_test(test_benchdnn_pool
         gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
+    register_benchdnn_test(test_benchdnn_shuffle
+        gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
 # fp16 produces nans
 #    register_benchdnn_test(test_benchdnn_sum
 #        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
