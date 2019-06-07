@@ -49,8 +49,9 @@
                       "AVX-512)"
 #define AVX512_CORE "Intel(R) Advanced Vector Extensions 512 (Intel(R) " \
                     "AVX-512) with AVX512BW, AVX512VL, and AVX512DQ extensions"
-#define AVX512_CORE_VNNI "Intel(R) AVX512-Deep Learning Boost (Intel(R) " \
-                         "AVX512-DL Boost)"
+#define AVX512_CORE_VNNI "Intel(R) Advanced Vector Instructions (Intel(R) " \
+                         "AVX512) and Intel Deep Learning Boost (Intel(R) " \
+                         "DL Boost)"
 #define AVX512_MIC "Intel(R) Advanced Vector Extensions 512 (Intel(R) " \
                    "AVX-512) with AVX512CD, AVX512ER, and AVX512PF extensions"
 #define AVX512_MIC_4OPS "Intel(R) Advanced Vector Extensions 512 (Intel(R) " \
