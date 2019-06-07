@@ -19,7 +19,9 @@ All other building options that can be found in CMake files are dedicated for
 the development/debug purposes and are subject to change without any notice.
 Please avoid using them.
 
-## Targeting Specific Architecture
+## CPU Options
+
+### Targeting Specific Architecture
 
 Intel MKL-DNN uses JIT code generation to implement most of its functionality
 and will choose the best code based on detected processor features. However,
@@ -42,25 +44,14 @@ compatible with the target instruction set. Therefore, `ARCH_OPT_FLAGS`
 should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
-## GPU support (experimental)
-
-To enable GPU support in Intel MKL-DNN you need to specify the GPU runtime
-to use. Currently the only supported one is implemented using OpenCL\* and
-requires Intel(R) SDK for OpenCL\* applications. You can explicitly specify
-the pass to the SDK using `-DOPENCLROOT` cmake option.
-
-~~~sh
-cmake -DMKLDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
-~~~
-
-## Threading
+### Runtimes
 
 Intel MKL-DNN can use the OpenMP or TBB threading runtimes. OpenMP threading
 is the default build mode and is recommended for the best performance. TBB
 support is experimental. This behavior is controlled by the
 `MKLDNN_CPU_RUNTIME` CMake option.
 
-### OpenMP
+#### OpenMP
 
 Intel MKL-DNN uses OpenMP runtime library provided by the compiler.
 
@@ -72,7 +63,7 @@ undefined behavior including incorrect results or crashes. However as long as
 both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
-### TBB
+#### TBB
 
 TBB support is experimental.
 
@@ -81,7 +72,7 @@ variable to point to the TBB installation path or pass the path directly to
 cmake:
 
 ~~~sh
-$ cmake -DTBBROOT=/opt/intel/path/tbb ..
+$ cmake -DMKLDNN_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
 ~~~
 
 Intel MKL-DNN has limited optimizations for Intel TBB and has some functional
@@ -96,3 +87,20 @@ to limited parallelism):
 * Convolution backward by weights,
 * Inner product,
 * `mkldnn_*gemm()`.
+
+## GPU Options
+
+### Runtimes
+
+To enable GPU support you need to specify the GPU runtime by setting
+`MKLDNN_GPU_RUNTIME` CMake option. The default value is `"NONE"` which
+corresponds to no GPU support in the library.
+
+#### OpenCL\*
+
+OpenCL runtime requires Intel(R) SDK for OpenCL\* applications. You can
+explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
+
+~~~sh
+cmake -DMKLDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
+~~~
