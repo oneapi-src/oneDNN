@@ -93,17 +93,15 @@ Intel MKL-DNN supports systems meeting the following requirements:
 Configurations of CPU and GPU engines may introduce additional build time
 dependencies.
 
-### CPU support
+### CPU Support
 Intel Architecture Processors and compatible devices are supported
 Intel MKL-DNN's CPU engine. The CPU engine is built by default and cannot
-be disabled at build time. The engine can be configured to use one of the
-following threading runtimes at build time:
-
-| CPU runtime   |
-| :--           | :--
-| OMP (default) | C++ compiler with OpenMP 2.0 or later standard support
-| TBB           | Threading Building Blocks (TBB) 2017 or later
-| SEQ           | No additional dependencies
+be disabled at build time. The engine can be configured to use OpenMP or
+TBB threading runtime. The following additional requirements apply:
+* OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support
+* TBB runtime requires
+[Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
+2017 or later.
 
 The library is optimized for systems based on
 * Intel Atom processor with Intel SSE4.1 support
@@ -144,7 +142,7 @@ on macOS\* 10.13 (High Sierra) with
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   18.0 and 19.0
 
-### GPU support
+### GPU Support
 Intel Processor Graphics is supported by Intel MKL-DNNs GPU engine. GPU engine
 is disabled in the default build configuration. The following
 additional requirements apply when GPU engine is enabled:

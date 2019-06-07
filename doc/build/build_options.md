@@ -1,8 +1,6 @@
 Build Options {#dev_guide_build_options}
 ====================================
 
-## Configuring the Build
-
 Intel MKL-DNN supports the following build-time options.
 
 | Option                      | Supported values (defaults in bold)  | Description
@@ -20,9 +18,11 @@ the development/debug purposes and are subject to change without any notice.
 Please avoid using them.
 
 ## CPU Options
+Intel Architecture Processors and compatible devices are supported
+Intel MKL-DNN's CPU engine. The CPU engine is built by default and cannot
+be disabled at build time.
 
 ### Targeting Specific Architecture
-
 Intel MKL-DNN uses JIT code generation to implement most of its functionality
 and will choose the best code based on detected processor features. However,
 some Intel MKL-DNN functionality will still benefit from targeting a specific
@@ -45,14 +45,12 @@ should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
 ### Runtimes
-
-Intel MKL-DNN can use the OpenMP or TBB threading runtimes. OpenMP threading
+CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
 is the default build mode and is recommended for the best performance. TBB
 support is experimental. This behavior is controlled by the
 `MKLDNN_CPU_RUNTIME` CMake option.
 
 #### OpenMP
-
 Intel MKL-DNN uses OpenMP runtime library provided by the compiler.
 
 @warning
@@ -64,7 +62,6 @@ both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
 #### TBB
-
 TBB support is experimental.
 
 To build Intel MKL-DNN with TBB support, set the `TBBROOT` environmental
@@ -89,15 +86,15 @@ to limited parallelism):
 * `mkldnn_*gemm()`.
 
 ## GPU Options
+Intel Processor Graphics is supported by Intel MKL-DNNs GPU engine. GPU engine
+is disabled in the default build configuration. 
 
 ### Runtimes
-
 To enable GPU support you need to specify the GPU runtime by setting
 `MKLDNN_GPU_RUNTIME` CMake option. The default value is `"NONE"` which
 corresponds to no GPU support in the library.
 
 #### OpenCL\*
-
 OpenCL runtime requires Intel(R) SDK for OpenCL\* applications. You can
 explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
 
