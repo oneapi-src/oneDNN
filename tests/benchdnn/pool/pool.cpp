@@ -317,22 +317,9 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    if (bench_mode & PERF) {
-        auto &t = r->timer;
-        t.reset();
-        while (true) {
-            mkldnn_primitive_t pl = p->dir & FLAG_BWD ? pb : pf;
-            args_t args = p->dir & FLAG_FWD ? args_fwd : args_bwd;
-            DNN_SAFE(execute_and_wait(pl, stream_tgt, args.size(), args), WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
+    mkldnn_primitive_t pl = p->dir & FLAG_FWD ? pf : pb;
+    args_t args = p->dir & FLAG_FWD ? args_fwd : args_bwd;
+    measure_perf(r->timer, pl, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(pf), CRIT);
     if (p->dir & FLAG_BWD)
