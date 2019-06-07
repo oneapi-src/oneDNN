@@ -58,23 +58,23 @@ mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const prb_t *p) {
 int fill_memory(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         dnn_mem_t &mem2) {
 #ifdef CALL_MKLDNN_RNN
-    const size_t nelems = mem1.nelems();
+    const auto nelems = mem1.nelems();
     assert(mem1.nelems() == mem2.nelems());
 #else
-    const size_t nelems = mem2.nelems();
+    const auto nelems = mem2.nelems();
 #endif
 
     dt_conf_t c = p->cfg[kind];
     float mean = c.f_mean, var = c.f_var, min = c.f_min, max = c.f_max;
     mkldnn::impl::parallel(0, [&](int ithr, int nthr) {
-        size_t chunk_size = (nelems + nthr - 1) / nthr;
-        size_t idx_start = ithr * chunk_size;
-        size_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        int64_t chunk_size = (nelems + nthr - 1) / nthr;
+        int64_t idx_start = ithr * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
         msr.seed((unsigned long int)kind);
         std::normal_distribution<float> gen(mean, var);
         msr.discard(idx_start);
-        for (size_t idx = idx_start; idx < idx_end; ++idx) {
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (c.dt == mkldnn_f32) ? gen(msr) : round(gen(msr));
             mem2.set_elem(idx, MAX2(MIN2(val, max), min));
         }

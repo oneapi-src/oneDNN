@@ -41,12 +41,12 @@ inline bool is_1d(const prb_t *p) {
 
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
-    auto nelems = mem_dt.nelems();
+    const auto nelems = mem_dt.nelems();
 
     r->errors = 0;
     r->total = nelems;
 
-    for (auto i = 0; i < nelems; ++i) {
+    for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
         const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
@@ -64,12 +64,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                 case SRC: inv_src_off_f(p, i, mb, ic, d, h, w); break;
                 case DST: inv_dst_off_f(p, i, mb, ic, d, h, w); break;
                 }
-                print(0, "[%4lu]"
-                        "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
+                print(0, "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
                         "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (unsigned long)i,
-                        mb, ic, d, h, w,
-                        fp, fp0, dt, diff, rel_diff);
+                        (long)i, mb, ic, d, h, w, fp, fp0, dt, diff, rel_diff);
         }
     }
 

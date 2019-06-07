@@ -122,9 +122,13 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             || (!ok && (r->errors < 10 || verbose >= 10))
             || (verbose >= 50 && i < 30);
         if (dump) {
-            print(0, "[%4lu][" IFMT "," IFMT "," IFMT"] "
-                    "fp:%12g dt:%12g diff:%12g rdiff:%12g\n",
-                    (unsigned long)i, n, c, sp, fp, dt, diff, rel_diff);
+            std::stringstream ss;
+            dims_t dims_idx = off2dims_idx(p->dims, i);
+            ss << dims_idx;
+            std::string ind_str = ss.str();
+
+            print(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
 
@@ -138,7 +142,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 }
 
 int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const int64_t nelems = src.nelems();
+    const auto nelems = src.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             int64_t mb{0}, c{0};
@@ -157,7 +161,7 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
 }
 
 int fill_data_bwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const int64_t nelems = src.nelems();
+    const auto nelems = src.nelems();
 
     // keep all values negative to have sum and sub of same sign, avoiding
     // cancellation error.

@@ -348,7 +348,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     const int64_t N = kind == DATA ? p->mb : 1;
     const int64_t C = kind == DATA ? p->ic : p->ic * (kind == SS ? 2 : 1);
     const int64_t SP = kind == DATA ? p->id * p->ih * p->iw : 1;
-    const int64_t nelems = N * C * SP;
+    const auto nelems = N * C * SP;
     r->total += rely_on_norm ? 1 : nelems;
 
     diff_norm_t diff_norm;
@@ -408,9 +408,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             }
 
             std::string ind_str = ss.str();
-            print(0, "[%lu][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
-                    ind_str.c_str(), fp, dt, diff, rel_diff);
+            print(0, "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, p->dir & FLAG_BWD ? "D_" : "", skind, ind_str.c_str(),
+                    fp, dt, diff, rel_diff);
         }
     }
     }
@@ -453,7 +453,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
-    const int64_t nelems = data_dt.nelems(true);
+    const auto nelems = data_dt.nelems(true);
     const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
@@ -478,8 +478,8 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
                 || (!ok && (r->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30);
             if (dump) {
-                print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
-                        (unsigned long)(i + j), want, bit_set, data, data);
+                print(0, "[%4ld] ws exp:%d got:%d (data:%g:%a)\n",
+                        (long)(i + j), want, bit_set, data, data);
             }
 
             // XXX: GPU implementation uses int32_t for workspace

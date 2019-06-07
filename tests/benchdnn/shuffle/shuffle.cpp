@@ -49,10 +49,10 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     const int range = c_src.range;
     const int max = c_src.min + range - 1;
 
-    const size_t nelems = mem_dt.nelems();
+    const auto nelems = mem_dt.nelems();
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    for (size_t idx = 0; idx < nelems; ++idx) {
+    for (int64_t idx = 0; idx < nelems; ++idx) {
         float value = saturate((float)(idx % c_src.range), c_src.min, max);
         mem_00.set_elem(idx, value);
     }
@@ -64,7 +64,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
 
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
-    int64_t nelems = fp_mem.nelems();
+    const auto nelems = fp_mem.nelems();
     assert(nelems == dt_mem.nelems());
     r->errors = 0;
 
@@ -72,9 +72,23 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const float fp = fp_mem.get_elem(i);
         const float dt = dt_mem.get_elem(i);
         const float diff = fabsf(fp - dt);
-        if (r->errors < 10 && diff != 0.0) {
-            printf("idx: " IFMT " fp:%f dt:%f\n", i, fp, dt);
-            r->errors++;
+        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+
+        r->errors += !ok;
+
+        const bool dump = false
+            || (!ok && (r->errors < 10 || verbose >= 10))
+            || (verbose >= 50 && i < 30)
+            || (verbose >= 99);
+        if (dump) {
+            std::stringstream ss;
+            dims_t dims_idx = off2dims_idx(p->dims, i);
+            ss << dims_idx;
+            std::string ind_str = ss.str();
+
+            print(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
 

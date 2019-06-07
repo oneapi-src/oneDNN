@@ -23,7 +23,7 @@ namespace sum {
 void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
         dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
-    int64_t nelems = dst.nelems();
+    const auto nelems = dst.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t k) {
         dst_ptr[k] = 0;

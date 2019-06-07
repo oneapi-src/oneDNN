@@ -67,7 +67,7 @@ static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
 
 static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
         const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *r) {
-    auto nelems = dt_mem.nelems();
+    const auto nelems = dt_mem.nelems();
     r->errors = 0;
     r->total = nelems;
     const float trh = 1e-7 * p->n_inputs();
@@ -93,9 +93,8 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
             ss << dims_idx;
             std::string ind_str = ss.str();
 
-            print(0, "[%4lu][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, ind_str.c_str(), fp0, fp, dt, diff,
-                    rel_diff);
+            print(0, "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
         }
     }
 
@@ -124,7 +123,7 @@ int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         return -get_range(dt) / 2;
     };
 
-    const int64_t nelems = mem_fp.nelems();
+    const auto nelems = mem_fp.nelems();
     const auto dt = p->idt[input_idx];
     const int range = get_range(dt);
     const int f_min = get_f_min(dt);

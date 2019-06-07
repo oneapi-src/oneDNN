@@ -76,7 +76,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
     const int max = c_src->min + range - 1;
     int scale_mask = get_scale_mask(mem.md_, attr);
 
-    const int64_t nelems = mem.nelems();
+    const auto nelems = mem.nelems();
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         const int64_t mask_idx = mem.get_scale_idx(idx, scale_mask);
@@ -103,7 +103,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
         const float *scales) {
     auto dst_dt = dst.dt();
 
-    int64_t nelems = src.nelems();
+    const auto nelems = src.nelems();
 
     /* TODO: add dst range support */
 //    const auto c_dst = p->conf_out;
@@ -151,7 +151,7 @@ int compare_bootstrap(
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         const float *scales, int64_t count, res_t *r){
-    int64_t nelems = mem_expected.nelems();
+    const auto nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
     r->errors = 0;

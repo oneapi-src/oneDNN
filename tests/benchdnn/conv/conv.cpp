@@ -134,7 +134,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         || (p->alg & WINO)
         || post_ops_require_integral_check(p);
 
-    size_t nelems = mem_dt.nelems();
+    const auto nelems = mem_dt.nelems();
 
     const char *skind = data_kind2str(kind);
 
@@ -147,7 +147,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     r->errors = 0;
     r->total = nelems;
 
-    for (size_t i = 0; i < nelems; ++i) {
+    for (int64_t i = 0; i < nelems; ++i) {
         const float dt = ((float*)mem_dt)[i];
         const float fp0 = ((float*)mem_fp)[i];
         const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
@@ -182,13 +182,12 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                 case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
                 case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
                 }
-                print(0, "[%4lu][%s%s]"
+                print(0, "[%4ld][%s%s]"
                         "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                         "] "
                         "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (unsigned long)i,
-                        final_compare == false ? "REORDER " : "",
-                        skind, mb_or_g, g_or_oc, c, d, h, w,
+                        (long)i, final_compare ? "" : "REORDER ", skind,
+                        mb_or_g, g_or_oc, c, d, h, w,
                         fp, fp0, dt, diff, rel_diff);
             }
         }
@@ -203,11 +202,10 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             case DST: inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w); break;
             }
 
-            print(0, "[%4lu][%s]"
+            print(0, "[%4ld][%s]"
                     "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
                     "fp:%8g fp0:%8g dt:%8g\n",
-                    (unsigned long)i,
-                    skind, mb_or_g, g_or_oc, c, d, h, w, fp, fp0, dt);
+                    (long)i, skind, mb_or_g, g_or_oc, c, d, h, w, fp, fp0, dt);
         }
 
         non_zero += fp != 0;
