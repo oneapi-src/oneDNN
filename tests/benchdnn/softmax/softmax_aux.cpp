@@ -30,6 +30,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.axis != 1)
         s << "--axis=" << p.axis << " ";
+    if (p.inplace != true)
+        s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << p.dims;
 

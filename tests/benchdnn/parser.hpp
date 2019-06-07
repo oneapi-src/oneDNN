@@ -114,6 +114,9 @@ bool parse_axis(std::vector<int> &axis, const char *str,
 bool parse_test_pattern_match(const char *&match, const char *str,
         const std::string &option_name = "match");
 
+bool parse_inplace(std::vector<bool> &inplace, const char *str,
+        const std::string &option_name = "inplace");
+
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name = "skip-impl");
 

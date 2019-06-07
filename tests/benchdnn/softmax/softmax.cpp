@@ -187,42 +187,56 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = mkldnn_f32;
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = sd.data_desc;
-    dnn_mem_t data_fp(data_desc, fp, tag, engine_ref),
-              data_dt(data_desc, engine_tgt);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
+              src_dt(data_desc, engine_tgt);
+
+    dnn_mem_t dst_fp, dst_dt;
+    if (!p->inplace) {
+        dst_fp = dnn_mem_t(data_desc, fp, tag, engine_ref);
+        dst_dt = dnn_mem_t(data_desc, engine_tgt);
+    }
 
     auto &diff_desc = sd.diff_desc;
-    dnn_mem_t d_data_fp(diff_desc, fp, tag, engine_ref),
-              d_data_dt(diff_desc, engine_tgt);
+    dnn_mem_t d_dst_fp(diff_desc, fp, tag, engine_ref),
+              d_dst_dt(diff_desc, engine_tgt);
+
+    dnn_mem_t d_src_fp, d_src_dt;
+    if (!p->inplace) {
+        d_src_fp = dnn_mem_t(diff_desc, fp, tag, engine_ref);
+        d_src_dt = dnn_mem_t(diff_desc, engine_tgt);
+    }
 
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        SAFE(fill_data_fwd(p, data_dt, data_fp), WARN);
+        SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
-        args.set(MKLDNN_ARG_SRC, data_dt.m_);
-        args.set(MKLDNN_ARG_DST, data_dt.m_);
+        args.set(MKLDNN_ARG_SRC, src_dt.m_);
+        args.set(MKLDNN_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
 
         DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, data_fp, data_fp);
-            dnn_mem_t data(data_dt, fp, tag, engine_ref);
-            SAFE(compare(p, data_fp, data, r), WARN);
+            compute_ref_fwd(p, src_fp, p->inplace ? src_fp : dst_fp);
+            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_ref);
+            SAFE(compare(p, p->inplace ? src_fp : dst_fp, dst, r), WARN);
         }
     } else {
-        SAFE(fill_data_bwd(p, data_dt, data_fp), WARN);
-        SAFE(fill_data_bwd(p, d_data_dt, d_data_fp), WARN);
+        SAFE(fill_data_bwd(p, src_dt, src_fp), WARN);
+        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
-        args.set(MKLDNN_ARG_DST, data_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_DST, d_data_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, d_data_dt.m_);
+        args.set(MKLDNN_ARG_DST, src_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_DST, d_dst_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
 
         DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd(p, data_fp, d_data_fp, d_data_fp);
-            dnn_mem_t data(d_data_dt, fp, tag, engine_ref);
-            SAFE(compare(p, data, d_data_fp, r), WARN);
+            compute_ref_bwd(p, src_fp, d_dst_fp,
+                    p->inplace ? d_dst_fp : d_src_fp);
+            dnn_mem_t d_src(p->inplace ? d_dst_dt : d_src_dt, fp, tag,
+                    engine_ref);
+            SAFE(compare(p, p->inplace ? d_dst_fp : d_src_fp, d_src, r), WARN);
         }
     }
 
