@@ -169,7 +169,8 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_deconvolution:", avx512_core, ""),
+                JIT_IMPL_NAME_HELPER("jit_deconvolution:", ( (jcp_.ver 
+                == ver_vnni) ? avx512_core_vnni : avx512_core), ""),
                 _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type, dst_type>);
 
         status_t init() {
