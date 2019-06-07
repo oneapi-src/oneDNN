@@ -76,12 +76,6 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
 
 static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                 const dnn_mem_t &dt_mem, res_t *r) {
-    const int64_t N = p->dims[0];
-    const int64_t C = p->dims[1];
-    int64_t SP = 1;
-    for (size_t i = 2; i < p->dims.size(); i++)
-        SP *= p->dims[i];
-
     // FWD
     // When axis_size is big, significant values will be only in points with the
     // biggest values are. So we adjust machine epsilon to the amount of such
@@ -102,13 +96,11 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     const float trh = 1e-7 * (p->dir & FLAG_FWD
         ? num_significant_values : (p->dims[p->axis] + 1));
 
+    const auto nelems = dt_mem.nelems();
     r->errors = 0;
-    r->total = dt_mem.nelems();
+    r->total = nelems;
 
-    for (int64_t n = 0; n < N; ++n)
-    for (int64_t c = 0; c < C; ++c)
-    for (int64_t sp = 0; sp < SP; ++sp) {
-        const int64_t i = (n * C + c) * SP + sp;
+    for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp = fp_mem.get_elem(i);
 
@@ -120,7 +112,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 
         const bool dump = false
             || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30);
+            || (verbose >= 50 && i < 30)
+            || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             dims_t dims_idx = off2dims_idx(p->dims, i);
