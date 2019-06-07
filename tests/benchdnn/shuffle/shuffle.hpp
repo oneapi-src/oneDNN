@@ -32,20 +32,6 @@
 
 namespace shuffle {
 
-struct dt_conf_t {
-    mkldnn_data_type_t dt;
-    int min;
-    int range;
-};
-
-const int int_max_exact = 1<<24;
-
-const dt_conf_t conf_f32 = {mkldnn_f32, -int_max_exact, 2*int_max_exact};
-const dt_conf_t conf_bf16 = {mkldnn_bf16, -int_max_exact, -2*int_max_exact};
-const dt_conf_t conf_s8 = {mkldnn_s8, INT8_MIN, -2*INT8_MIN};
-const dt_conf_t conf_u8 = {mkldnn_u8, 0, UINT8_MAX};
-const dt_conf_t conf_s32 = {mkldnn_s32, -int_max_exact, 2*int_max_exact};
-
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, int axis, int64_t group)
