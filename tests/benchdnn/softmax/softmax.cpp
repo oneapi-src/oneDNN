@@ -74,8 +74,8 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
     return OK;
 }
 
-static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
-                const dnn_mem_t &dt_mem, res_t *r) {
+static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
+        const dnn_mem_t &dt_mem, res_t *r) {
     // FWD
     // When axis_size is big, significant values will be only in points with the
     // biggest values are. So we adjust machine epsilon to the amount of such
@@ -134,8 +134,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const auto nelems = src.nelems();
+int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             int64_t mb{0}, c{0};
@@ -146,24 +146,28 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
                 : -global_fill_range / 2;
             const float gen = ((11 * i) + 37) % global_fill_range;
             const float value = f_min + gen;
-            ((float *)src)[i] = value;
+            mem_fp.set_elem(i, value);
         }
     );
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
-int fill_data_bwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const auto nelems = src.nelems();
+int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
 
     // keep all values negative to have sum and sub of same sign, avoiding
     // cancellation error.
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             const float gen = ((11 * i) + 37) % global_fill_range;
             const float value = -gen / global_fill_range;
-            ((float *)src)[i] = value;
+            mem_fp.set_elem(i, value);
         }
     );
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
@@ -182,17 +186,18 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto fp = mkldnn_f32;
     const auto tag = get_default_tag((int)p->dims.size());
-    auto &data_dt_d = sd.data_desc;
-    dnn_mem_t data_fp(data_dt_d, fp, tag, engine_ref),
-              data_dt(data_dt_d, engine_tgt);
-    dnn_mem_t d_data_fp(data_dt_d, fp, tag, engine_ref),
-              d_data_dt(data_dt_d, engine_tgt);
+    auto &data_desc = sd.data_desc;
+    dnn_mem_t data_fp(data_desc, fp, tag, engine_ref),
+              data_dt(data_desc, engine_tgt);
+
+    auto &diff_desc = sd.diff_desc;
+    dnn_mem_t d_data_fp(diff_desc, fp, tag, engine_ref),
+              d_data_dt(diff_desc, engine_tgt);
 
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        SAFE(fill_data_fwd(p, data_fp, r), WARN);
-        SAFE(data_dt.reorder(data_fp), WARN);
+        SAFE(fill_data_fwd(p, data_dt, data_fp), WARN);
 
         args.set(MKLDNN_ARG_SRC, data_dt.m_);
         args.set(MKLDNN_ARG_DST, data_dt.m_);
@@ -202,14 +207,11 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_fwd(p, data_fp, data_fp);
             dnn_mem_t data(data_dt, fp, tag, engine_ref);
-            SAFE(compare(p, DATA, data_fp, data, r), WARN);
+            SAFE(compare(p, data_fp, data, r), WARN);
         }
     } else {
-        SAFE(fill_data_bwd(p, data_fp, r), WARN);
-        SAFE(data_dt.reorder(data_fp), WARN);
-
-        SAFE(fill_data_bwd(p, d_data_fp, r), WARN);
-        SAFE(d_data_dt.reorder(d_data_fp), WARN);
+        SAFE(fill_data_bwd(p, data_dt, data_fp), WARN);
+        SAFE(fill_data_bwd(p, d_data_dt, d_data_fp), WARN);
 
         args.set(MKLDNN_ARG_DST, data_dt.m_);
         args.set(MKLDNN_ARG_DIFF_DST, d_data_dt.m_);
@@ -220,7 +222,7 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_bwd(p, data_fp, d_data_fp, d_data_fp);
             dnn_mem_t data(d_data_dt, fp, tag, engine_ref);
-            SAFE(compare(p, DATA, data, d_data_fp, r), WARN);
+            SAFE(compare(p, data, d_data_fp, r), WARN);
         }
     }
 
