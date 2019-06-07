@@ -369,8 +369,8 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     r->total = nelems;
 
     for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = ((float *)mem_dt)[i];
-        const float fp = ((float *)mem_fp)[i];
+        const float dt = mem_dt.get_elem(i);
+        const float fp = mem_fp.get_elem(i);
         diff_norm.update(fp, dt);
 
         const float diff = fabsf(fp - dt);

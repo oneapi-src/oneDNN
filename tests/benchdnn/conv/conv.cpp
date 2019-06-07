@@ -148,8 +148,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     r->total = nelems;
 
     for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = ((float*)mem_dt)[i];
-        const float fp0 = ((float*)mem_fp)[i];
+        const float dt = mem_dt.get_elem(i);
+        const float fp0 = mem_fp.get_elem(i);
         const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
 
         const float diff = fabsf(fp - dt);

@@ -356,8 +356,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     for (int64_t c = 0; c < C; c++) {
     for (int64_t sp = 0; sp < SP; ++sp) {
         int64_t i = (n * C + c) * SP + sp;
-        const float fp = ((const float *)fp_mem)[i];
-        const float dt = ((const float *)dt_mem)[i];
+        const float dt = dt_mem.get_elem(i);
+        const float fp = fp_mem.get_elem(i);
         diff_norm.update(fp, dt);
 
         if (rely_on_norm)
