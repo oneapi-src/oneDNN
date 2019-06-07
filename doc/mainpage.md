@@ -29,6 +29,7 @@ on Intel CPUs and GPUs.
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
  * @ref dev_guide_c_and_cpp_apis
+ * @ref dev_guide_opencl_interoperability
 
 
 # Primitives
