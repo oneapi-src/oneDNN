@@ -57,7 +57,7 @@ bool parse_mb(std::vector<int64_t> &mb, const char *str,
 
 bool parse_attr(attr_t &attr, const char *str,
         const std::string &option_name/* = "attr"*/) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
         SAFE_V(str2attr(&attr, str + pattern.size()));
         return true;
@@ -72,7 +72,7 @@ bool parse_axis(std::vector<int> &axis, const char *str,
 
 bool parse_test_pattern_match(const char *&match, const char *str,
         const std::string &option_name/* = "match"*/) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
         match = str + pattern.size();
         return true;
@@ -82,7 +82,7 @@ bool parse_test_pattern_match(const char *&match, const char *str,
 
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name/* = "skip-impl"*/) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
         skip_impl = str + pattern.size();
         return true;
@@ -99,7 +99,7 @@ bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name/* = "perf-template"*/) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
         const std::string csv_pattern = "csv";
         const std::string def_pattern = "def";
@@ -117,8 +117,8 @@ bool parse_perf_template(const char *&pt, const char *pt_def,
 
 bool parse_reset(void (*reset_func)(), const char *str,
         const std::string &option_name/* = "reset"*/) {
-    const std::string pattern = "--" + option_name;
-    if (pattern.find(str, 0, pattern.size()) != eol) {
+    const std::string pattern = get_pattern(option_name);
+    if (pattern.find(str, 0, pattern.size() - 1) != eol) {
         reset_func();
         return true;
     }
@@ -127,7 +127,7 @@ bool parse_reset(void (*reset_func)(), const char *str,
 
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name/* = "batch"*/) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol) {
         SAFE_V(batch(str + pattern.size(), bench));
         return true;
