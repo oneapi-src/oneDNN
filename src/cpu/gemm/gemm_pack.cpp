@@ -117,9 +117,9 @@ static mkldnn_status_t gemm_pack_driver(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const float *alpha, const int *lda, const int *ldb,
         const void *src, gemm_pack_storage_t *pack_dst, bool measure_only) {
-    // Dummy offset to ensure row/column sums are computed
-    a_dt oa = 1;
-    b_dt ob = 1;
+
+    a_dt oa = 0;
+    b_dt ob = 0;
 
     const a_dt *a = nullptr;
     const b_dt *b = nullptr;

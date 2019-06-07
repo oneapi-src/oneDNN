@@ -890,7 +890,6 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
 
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
     bool isSgemm = data_traits<a_type>::data_type == data_type::f32;
-    bool packing = (arg->packing != pack_type::none);
 
     int nthrs = *p_nthrs;
     dim_t m = arg->m;
@@ -965,8 +964,7 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
 
         // If A or B offset are non-zero, we need to keep 1D_copya to reduce update
         // overhead for integer case.
-        if (isInteger && (arg->ao != 0 || arg->bo != 0)
-                && (condition_2D_bsrc || !packing)) {
+        if (isInteger && (arg->ao != 0 || arg->bo != 0)) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
