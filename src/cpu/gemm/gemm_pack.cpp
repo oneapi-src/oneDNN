@@ -62,6 +62,10 @@ static inline CBLAS_OFFSET cblas_offset(const char *offset) {
 #endif
 
 #if !USE_MKL_PACKED_GEMM
+static inline bool pack_sgemm_supported() {
+    return mayiuse(sse41);
+}
+
 static inline bool use_reference_igemm() {
     return !(mayiuse(avx512_core) || mayiuse(avx512_core_vnni));
 }
@@ -141,6 +145,9 @@ static mkldnn_status_t gemm_pack_driver(const char *identifier,
 mkldnn_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
         const int *lda, const int *ldb, size_t *size, bool *pack) {
+
+    if (!pack_sgemm_supported())
+        return mkldnn_unimplemented;
 
     mkldnn_status_t result;
     *size = 0;
@@ -226,6 +233,9 @@ mkldnn_status_t sgemm_pack(const char *identifier, const char *transa,
         const int *lda, const int *ldb, const float *src, float *dst) {
     float one = 1.f, *alpha = &one;
 
+    if (!pack_sgemm_supported())
+        return mkldnn_unimplemented;
+
     auto result = check_pack_input(identifier, transa, transb, M, N, K, alpha,
             lda, ldb, src, dst);
     if (result != mkldnn_success)
@@ -295,6 +305,9 @@ mkldnn_status_t sgemm_compute(const char *transa, const char *transb,
             *ldc);
     return mkldnn_success;
 #else
+    if (!pack_sgemm_supported())
+        return mkldnn_unimplemented;
+
     float one = 1.0f;
 
     return extended_sgemm(transa, transb, M, N, K, &one, A, lda, B, ldb, beta, C,

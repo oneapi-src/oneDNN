@@ -131,13 +131,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
     else
 #endif
     {
-    if (mayiuse(avx512_mic)) {
-        if (utils::one_of(*transa, 'p', 'P')
-                || utils::one_of(*transb, 'p', 'P'))
-            return mkldnn_unimplemented;
-        status = jit_avx512_common_gemm_f32(transa, transb,
-                M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, bias);
-    } else if (mayiuse(sse41)) {
+    if (mayiuse(sse41)) {
         float *dummy_ao = NULL;
         float *dummy_bo = NULL;
 
