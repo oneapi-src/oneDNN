@@ -367,7 +367,6 @@ the convolution.)
 
 3. **GPU**
     - No support for Winograd algorithm
-    - No support for backward propagation for deconvolution
 
 
 ## Performance Tips
