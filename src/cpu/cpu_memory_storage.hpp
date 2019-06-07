@@ -68,6 +68,8 @@ public:
 private:
     void *data_ = nullptr;
     bool is_owned_ = false;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
 };
 
 } // namespace cpu

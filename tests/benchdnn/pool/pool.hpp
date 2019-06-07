@@ -87,6 +87,8 @@ struct prb_t: public desc_t {
     const dt_conf_t *cfg;
     mkldnn_format_tag_t tag;
     alg_t alg;
+
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

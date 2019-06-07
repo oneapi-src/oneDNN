@@ -47,6 +47,8 @@ struct concurrent_scratchpad_t : public scratchpad_t {
 private:
     char *scratchpad_;
     size_t size_;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(concurrent_scratchpad_t);
 };
 
 /*

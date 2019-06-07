@@ -50,8 +50,7 @@ struct scales_t: public c_compatible {
     ~scales_t() { cleanup(); }
 
     scales_t &operator=(const scales_t &rhs) {
-        if (&rhs == this)
-            return *this;
+        MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
         status_t status = set(rhs.count_, rhs.mask_, rhs.scales_);
         assert(status == status::success);
         (void)status;

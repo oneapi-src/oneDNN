@@ -128,6 +128,15 @@ struct ref_deconvolution_fwd_t: public cpu_primitive_t {
             , dst_tag_(other.dst_tag_)
         {}
 
+        pd_t &operator=(const pd_t &other) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            delete conv_pd_;
+            conv_pd_ = other.conv_pd_->clone();
+            conv_supports_bias_ = other.conv_supports_bias_;
+            dst_tag_ = other.dst_tag_;
+            return *this;
+        }
+
         ~pd_t() { delete conv_pd_; }
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
@@ -274,6 +283,13 @@ struct ref_deconvolution_bwd_data_t: public cpu_primitive_t {
             : cpu_deconvolution_bwd_data_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
+        pd_t &operator=(const pd_t &other) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            delete conv_pd_;
+            conv_pd_ = other.conv_pd_->clone();
+            return *this;
+        }
+
         ~pd_t() { delete conv_pd_; }
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
@@ -376,6 +392,13 @@ struct ref_deconvolution_bwd_weights_t: public cpu_primitive_t {
             , conv_pd_(other.conv_pd_->clone())
             , dst_tag_(other.dst_tag_)
         {}
+
+        pd_t &operator=(const pd_t &other) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            delete conv_pd_;
+            conv_pd_ = other.conv_pd_->clone();
+            return *this;
+        }
 
         ~pd_t() { delete conv_pd_; }
 

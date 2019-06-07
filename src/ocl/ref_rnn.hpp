@@ -85,19 +85,16 @@ struct _ref_rnn_common_t : public primitive_t {
 
         using base_pd_t::base_pd_t;
 
-        pd_t(const pd_t &other) : base_pd_t(other) {
-            jrnn_ = other.jrnn_;
-            jit_off_ = other.jit_off_;
-            gemm_input_pd_ = other.gemm_input_pd_
-                ? other.gemm_input_pd_->clone() : nullptr;
-            gemm_state_pd_ = other.gemm_state_pd_
-                ? other.gemm_state_pd_->clone() : nullptr;
+        pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
+
+        pd_t &operator=(const pd_t &other) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            clear();
+            copy_from(other);
+            return *this;
         }
 
-        ~pd_t() {
-            delete gemm_input_pd_;
-            delete gemm_state_pd_;
-        }
+        ~pd_t() { clear(); }
 
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
@@ -278,6 +275,20 @@ struct _ref_rnn_common_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
+        }
+
+        void copy_from(const pd_t &other) {
+            jrnn_ = other.jrnn_;
+            jit_off_ = other.jit_off_;
+            gemm_input_pd_ = other.gemm_input_pd_
+                ? other.gemm_input_pd_->clone() : nullptr;
+            gemm_state_pd_ = other.gemm_state_pd_
+                ? other.gemm_state_pd_->clone() : nullptr;
+        }
+
+        void clear() {
+            delete gemm_input_pd_;
+            delete gemm_state_pd_;
         }
 
     };  // struct pd_t : public base_pd_t

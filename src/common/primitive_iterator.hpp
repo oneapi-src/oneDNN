@@ -74,6 +74,14 @@ private:
         : idx_(last_idx), engine_(engine), pd_(nullptr)
         , op_desc_(nullptr), hint_fwd_pd_(nullptr)
         , impl_list_(nullptr), last_idx_(last_idx) {}
+
+    mkldnn_primitive_desc_iterator(mkldnn_primitive_desc_iterator &&other)
+    : idx_(other.idx_), engine_(other.engine_), pd_(other.pd_)
+    , op_desc_(other.op_desc_), attr_(other.attr_)
+    , hint_fwd_pd_(other.hint_fwd_pd_), impl_list_(other.impl_list_)
+    { other.pd_ = nullptr; }
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_primitive_desc_iterator);
 };
 
 #endif

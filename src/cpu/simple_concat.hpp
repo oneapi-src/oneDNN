@@ -31,11 +31,13 @@ struct simple_concat_t: public cpu_primitive_t {
     struct pd_t: public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) {
-            int ndims = rhs.dst_md_.ndims;
-            utils::array_copy(perm_, rhs.perm_, ndims);
-            utils::array_copy(iperm_, rhs.iperm_, ndims);
-            utils::array_copy(blocks_, rhs.blocks_, ndims);
+        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) { copy_from(rhs); }
+
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            cpu_concat_pd_t::operator=(rhs);
+            copy_from(rhs);
+            return *this;
         }
 
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
@@ -135,6 +137,13 @@ struct simple_concat_t: public cpu_primitive_t {
             scratchpad.book(key_concat_nelems, sizeof(dim_t) * n_inputs());
             scratchpad.book(key_concat_istrides,
                     sizeof(strides_t) * n_inputs());
+        }
+
+        void copy_from(const pd_t &rhs) {
+            int ndims = rhs.dst_md_.ndims;
+            utils::array_copy(perm_, rhs.perm_, ndims);
+            utils::array_copy(iperm_, rhs.iperm_, ndims);
+            utils::array_copy(blocks_, rhs.blocks_, ndims);
         }
     };
 

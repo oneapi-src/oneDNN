@@ -77,6 +77,8 @@ struct prb_t : public desc_t {
     };
 
     void generate_oscales();
+
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

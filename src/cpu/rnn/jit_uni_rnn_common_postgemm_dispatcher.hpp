@@ -205,6 +205,8 @@ private:
     jit_uni_rnn_postgemm *rnn_postgemm_part2_;
     postgemm_f postgemm_func;
     postgemm_f postgemm_part2_func;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(rnn_postgemm_dispatcher);
 };
 
 using rnn_postgemm_fwd_f32_t = rnn_postgemm_dispatcher<prop_kind::forward, data_type::f32>;

@@ -74,10 +74,7 @@ private:
     mkldnn::impl::status_t typed_zero_pad() const;
 
     mkldnn_memory() = delete;
-    mkldnn_memory(const mkldnn_memory &) = delete;
-    mkldnn_memory(mkldnn_memory &&) = delete;
-    mkldnn_memory &operator=(const mkldnn_memory &) = delete;
-    mkldnn_memory &operator=(mkldnn_memory &&) = delete;
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_memory);
 
     std::unique_ptr<mkldnn::impl::memory_storage_t> memory_storage_;
 };

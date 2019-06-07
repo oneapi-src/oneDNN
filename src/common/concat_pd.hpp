@@ -39,8 +39,6 @@ struct concat_pd_t: public primitive_desc_t {
         for (int i = 0; i < n_; ++i) src_mds_.push_back(src_mds[i]);
     }
 
-    concat_pd_t(const concat_pd_t &rhs) = default;
-
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {

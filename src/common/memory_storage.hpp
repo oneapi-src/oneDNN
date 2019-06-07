@@ -35,9 +35,6 @@ struct memory_storage_t : public c_compatible {
     memory_storage_t(engine_t *engine) : engine_(engine) {}
     virtual ~memory_storage_t() = default;
 
-    memory_storage_t(const memory_storage_t &) = delete;
-    memory_storage_t &operator=(const memory_storage_t &) = delete;
-
     engine_t *engine() const { return engine_; }
 
     void *data_handle() const {
@@ -79,6 +76,8 @@ struct memory_storage_t : public c_compatible {
 private:
     engine_t *engine_;
     size_t offset_ = 0;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };
 
 struct empty_memory_storage_t : public memory_storage_t {
