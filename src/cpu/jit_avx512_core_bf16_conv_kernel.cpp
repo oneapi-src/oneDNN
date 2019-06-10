@@ -1221,7 +1221,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
 
             for (int i_kw = kw_start; i_kw < kw; i_kw += str_w)
                 for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
-                    int i_iw = 2 * i_ur + i_kw / str_w
+                    int i_iw = 2 * i_ur + (i_kw * (jcp.dilate_w + 1)) / str_w
                                  + s * inp_stride_w_shift;
                     if (!isa_has_bf16(jcp.isa)) {
                         auto inp = Zmm(26);
@@ -1265,6 +1265,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
     auto perm = Zmm(24);
     vmovups(perm, ptr[reg_trans_tmp]);
 
+    const int dw = (jcp.dilate_w + 1);
     Opmask load_mask = Opmask(7);
     for (int i_ur = 0; i_ur < ur_w; i_ur += 2) {
         if (ur_w % 2 && i_ur + 2 >= ur_w)
@@ -1278,14 +1279,14 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
                 jcp.typesize_in * i_ur * oc_block + output_offset));
         vpermw(zmm_dst, perm, zmm_dst);
         for (int i_kw = 0; i_kw < kw; i_kw++) {
-            int iw_1 = (i_ur + i_kw);
-            int iw_2 = (i_ur + 1 == ur_w) ? -1 : (i_ur + 1) + i_kw;
-            iw_1 = (iw_1 - pad_l < 0 || iw_1 > (ur_w - 1) + (kw - 1) - pad_r)
-                ? -1 : iw_1 - pad_l;
-            iw_2 = (iw_2 - pad_l < 0 || iw_2 > (ur_w - 1) + (kw - 1) - pad_r)
-                ? -1 : iw_2 - pad_l;
+            int iw_1 = (i_ur + dw * i_kw);
+            int iw_2 = (i_ur + 1 == ur_w) ? -1 : (i_ur + 1) + dw * i_kw;
+            iw_1 = (iw_1 - pad_l < 0 || iw_1 > (ur_w - 1) + dw
+                     * (kw - 1) - pad_r) ? -1 : iw_1 - pad_l;
+            iw_2 = (iw_2 - pad_l < 0 || iw_2 > (ur_w - 1) + dw
+                     * (kw - 1) - pad_r) ? -1 : iw_2 - pad_l;
 
-            int local_offset = i_ur + i_kw - pad_l;
+            int local_offset = i_ur + dw * i_kw - pad_l;
             if (iw_1 == -1 && iw_2 == -1) continue;
             if (iw_1 != -1 && iw_2 != -1) mov(reg_trans_tmp.cvt32(), 0xffffffff);
             if (iw_1 != -1 && iw_2 == -1) mov(reg_trans_tmp.cvt32(), 0x0000ffff);
@@ -1440,6 +1441,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32
             add(reg_input,
                 jcp.typesize_in * ((jcp.dilate_h + 1) * jcp.tr_iw - 1) * ic_block);
         }
+#else
+        if (jcp.dilate_h > 0)
+            add(reg_input, jcp.typesize_in * jcp.tr_iw * jcp.dilate_h * ic_block);
 #endif
         add(reg_kernel, jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
         dec(kj);
@@ -1566,6 +1570,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32
             add(reg_input, jcp.typesize_in
                     * ((jcp.dilate_h + 1 ) * jcp.tr_iw - 1) * ic_block);
         }
+#else
+        if (jcp.dilate_h > 0)
+            add(reg_input, jcp.typesize_in * jcp.tr_iw * jcp.dilate_h * ic_block);
 #endif
         add(reg_kernel, jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
         dec(kj);
@@ -2049,10 +2056,16 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h
             + (jcp.kh - 1) * (jcp.dilate_h + 1) - (jcp.ih + jcp.t_pad - 1));
 
-    /* XXX: currently, does not support stride_d > 1 or dilation > 0 */
+    /* XXX: currently, does not support stride_d > 1 or dilation_d > 0 */
     if (ndims == 5)
         if (jcp.stride_d > 1 || jcp.dilate_d > 0)
             return status::unimplemented;
+
+// A temporary work around to avoid segmentation fault
+#ifdef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+    if (ndims == 5)
+        return status::unimplemented;
+#endif
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
@@ -2117,7 +2130,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     if (mkldnn_thr_syncable()
             && one_of(ndims, 3, 4, 5)
-            && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
             && everyone_is(data_type::bf16,
                                src_d.data_type(), diff_dst_d.data_type())
             && one_of(diff_weights_d.data_type(),
