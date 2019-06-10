@@ -173,12 +173,16 @@ void format_prb_desc_str(char *str, int len, const memory_desc_t *md) {
         mkldnn_md2dim_str(str, len, md);
 }
 
-void verbose_templ(char *buffer, mkldnn_primitive_kind_t prim_kind,
-        const char *impl_str, mkldnn_prop_kind_t prop_kind,
-        const char *data_str, const char *aux_str, const char *prb_str) {
+void verbose_templ(char *buffer, mkldnn_engine_t engine,
+        mkldnn_primitive_kind_t prim_kind, const char *impl_str,
+        mkldnn_prop_kind_t prop_kind, const char *data_str,
+        const char *aux_str, const char *prb_str) {
     MAYBE_UNUSED(verbose_templ);
     int written = 0;
-    DPRINT(buffer, MKLDNN_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s",
+    mkldnn_engine_kind_t engine_kind;
+    mkldnn_engine_get_kind(engine, &engine_kind);
+    DPRINT(buffer, MKLDNN_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s",
+            mkldnn_engine_kind2str(engine_kind),
             mkldnn_prim_kind2str(prim_kind), impl_str,
             mkldnn_prop_kind2str(prop_kind), data_str, aux_str, prb_str);
 }
@@ -208,8 +212,8 @@ template <typename pd_t> static void init_info_bnorm(pd_t *s, char *buffer) {
 
     format_prb_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_md());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
@@ -292,8 +296,8 @@ template <typename pd_t> static void init_info_conv(pd_t *s, char *buffer) {
                 s->IW(), s->OW(), s->KW(), s->KSW(), s->KDW(), s->padL());
     }
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
@@ -313,8 +317,8 @@ template <typename pd_t> static void init_info_shuffle(pd_t *s, char *buffer) {
 
     mkldnn_md2dim_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, md);
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
@@ -342,8 +346,8 @@ template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
 
     mkldnn_md2dim_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_md());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_gemm(pd_t *s, char *buffer) {
@@ -357,8 +361,8 @@ template <typename pd_t> static void init_info_gemm(pd_t *s, char *buffer) {
              mkldnn_dt2str(s->desc()->c_type),
              s->desc()->alpha, s->desc()->beta);
 
-    verbose_templ(buffer, s->kind(), s->name(), prop_kind::undef, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            prop_kind::undef, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
@@ -401,8 +405,8 @@ template <typename pd_t> static void init_info_iprod(pd_t *s, char *buffer) {
     DPRINT(prb_str, MKLDNN_VERBOSE_PRB_LEN, prb_written,
             "mb" DFMT "ic" DFMT "oc" DFMT, s->MB(), s->IC_total(), s->OC());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_lrn(pd_t *s, char *buffer) {
@@ -430,8 +434,8 @@ template <typename pd_t> static void init_info_lrn(pd_t *s, char *buffer) {
 
     format_prb_desc_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_md());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_mem(pd_t *s, char *buffer) {
@@ -460,8 +464,8 @@ template <typename pd_t> static void init_info_mem(pd_t *s, char *buffer) {
 
     mkldnn_md2dim_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->dst_md());
 
-    verbose_templ(buffer, s->kind(), s->name(), prop_kind::undef, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            prop_kind::undef, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
@@ -514,8 +518,8 @@ template <typename pd_t> static void init_info_pool(pd_t *s, char *buffer) {
             s->IW(), s->OW(), s->KW(), s->KSW(), s->padL());
     }
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
@@ -543,8 +547,8 @@ template <typename pd_t> static void init_info_softmax(pd_t *s, char *buffer) {
     DPRINT(aux_str, MKLDNN_VERBOSE_AUX_LEN, aux_written,
             "axis:%d", s->axis());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
@@ -612,8 +616,8 @@ template <typename pd_t> static void init_info_rnn(pd_t *s, char *buffer) {
              s->L(), s->T(), s->MB(),
              s->SIC(), s->SLC(), s->DIC(), s->DLC());
 
-    verbose_templ(buffer, s->kind(), s->name(), s->desc()->prop_kind, dat_str,
-            aux_str, prb_str);
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
 #undef DPRINT

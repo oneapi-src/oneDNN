@@ -425,6 +425,14 @@ const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
     return "unknown rnn_direction";
 }
 
+const char *mkldnn_engine_kind2str(mkldnn_engine_kind_t v) {
+    if (v == mkldnn_any_engine) return "any_engine";
+    if (v == mkldnn_cpu) return "cpu";
+    if (v == mkldnn_gpu) return "gpu";
+    assert(!"unknown engine_kind");
+    return "unknown engine_kind";
+}
+
 const char *mkldnn_scratchpad_mode2str(mkldnn_scratchpad_mode_t v) {
     if (v == mkldnn_scratchpad_mode_library) return "scratchpad_mode_library";
     if (v == mkldnn_scratchpad_mode_user) return "scratchpad_mode_user";
