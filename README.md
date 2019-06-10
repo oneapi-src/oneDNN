@@ -94,8 +94,8 @@ Configurations of CPU and GPU engines may introduce additional build time
 dependencies.
 
 ### CPU Support
-Intel Architecture Processors and compatible devices are supported
-Intel MKL-DNN's CPU engine. The CPU engine is built by default and cannot
+Intel Architecture Processors and compatible devices are supported by
+Intel MKL-DNN CPU engine. The CPU engine is built by default and cannot
 be disabled at build time. The engine can be configured to use OpenMP or
 TBB threading runtime. The following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support

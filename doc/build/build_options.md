@@ -18,8 +18,8 @@ the development/debug purposes and are subject to change without any notice.
 Please avoid using them.
 
 ## CPU Options
-Intel Architecture Processors and compatible devices are supported
-Intel MKL-DNN's CPU engine. The CPU engine is built by default and cannot
+Intel Architecture Processors and compatible devices are supported by
+Intel MKL-DNN CPU engine. The CPU engine is built by default and cannot
 be disabled at build time.
 
 ### Targeting Specific Architecture
