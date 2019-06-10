@@ -22,6 +22,7 @@
 
 #include "mkldnn.h"
 
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_debug.hpp"
 #include "conv/conv.hpp"
@@ -125,6 +126,17 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     const bool no_d = (d.id | d.kd | d.od | d.dd) == 0 && d.sd == 1 && d.pd < 1;
     const bool no_h = (d.ih | d.kh | d.oh | d.dh) == 0 && d.sh == 1 && d.ph < 1;
     const bool no_w = (d.iw | d.kw | d.ow | d.dw) == 0 && d.sw == 1 && d.pw < 1;
+    if (no_d && no_h && no_w) return FAIL;
+
+    if (!no_d) {
+        if (!d.id || !d.kd) return FAIL;
+        if (!d.od) {
+            d.pd = 0;
+            d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
+        } else if (d.pd < 0)
+            d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
+    }
+
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
@@ -143,29 +155,26 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
-    if (!no_d && d.id) {
-        if (!d.id || !d.kd) return FAIL;
-        if (!d.od) {
-            d.pd = 0;
-            d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
-        } else if (d.pd < 0)
-            d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
-    }
-    if (no_w && no_h && d.id) {
+    if (no_w && no_h && d.id > 0) {
+        // User specified values for the d dimesion but not values h and w
+        // dimensions. Propagate *d values to h and w dimesions.
         d.iw = d.ih = d.id;
         d.kw = d.kh = d.kd;
         d.ow = d.oh = d.od;
         d.pw = d.ph = d.pd;
         d.sw = d.sh = d.sd;
         d.dw = d.dh = d.dd;
-    } else if (no_w) {
+    } else if (no_w && d.ih > 0) {
+        /* user specified values for h dimesion but not w
+         * dimension. propagate *h values to the w dimension. */
         d.iw = d.ih;
         d.kw = d.kh;
         d.ow = d.oh;
         d.pw = d.ph;
         d.sw = d.sh;
         d.dw = d.dh;
-    } else if (no_h) {
+    } else if (no_h && !no_w) {
+        /* this is a 1D convolution. set default values for the h dimension  */
         d.ih = 1;
         d.kh = 1;
         d.oh = 1;
@@ -173,61 +182,62 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
         d.sh = 1;
         d.dh = 0;
     }
-    if (d.id<1) {d.id = 1; d.kd = 1; d.od = 1; d.sd = 1; d.pd = 0; d.dd = 0;}
+
+    if (no_d) {
+        /* user did not specify values for the d dimension. set them
+         * to defaults. this also happens for 1D convolutions. */
+        d.id = 1;
+        d.kd = 1;
+        d.od = 1;
+        d.sd = 1;
+        d.pd = 0;
+        d.dd = 0;
+    }
 
     *desc = d;
 
     return OK;
 }
 
-void desc2str(const desc_t *d, char *buffer, bool canonical) {
-    int rem_len = max_desc_len;
-#   define DPRINT(...) do { \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l; rem_len -= l; \
-    } while(0)
+std::ostream &operator<<(std::ostream &s, const desc_t &d) {
+    const bool canonical = s.flags() & std::ios_base::fixed;
 
-    if (canonical || d->has_groups) DPRINT("g" IFMT "", d->g);
-    if (canonical || d->mb != 2) DPRINT("mb" IFMT "", d->mb);
+    if (canonical || d.has_groups) s << "g" << d.g;
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
-    const bool half_form = (d->ih == d->iw && d->kh == d->kw && d->oh == d->ow
-        && d->sh == d->sw && d->ph == d->pw && d->dh == d->dw) && d->id == 1;
+    const bool half_form = (d.ih == d.iw && d.kh == d.kw && d.oh == d.ow
+        && d.sh == d.sw && d.ph == d.pw && d.dh == d.dw) && d.id == 1;
 
-    if (!canonical && half_form) {
-        DPRINT("ic" IFMT "ih" IFMT "oc" IFMT "oh" IFMT "kh" IFMT "",
-                d->ic, d->ih, d->oc, d->oh, d->kh);
-        if (d->sh != 1) DPRINT("sh" IFMT "", d->sh);
-        if (d->ph != 0) DPRINT("ph" IFMT "", d->ph);
-        if (d->dh != 0) DPRINT("dh" IFMT "", d->dh);
-    } else {
-        if( d->id == 1 )
-        {
-            DPRINT("ic" IFMT "ih" IFMT "iw" IFMT "oc" IFMT
-                    "oh" IFMT "ow" IFMT "kh" IFMT "kw" IFMT "",
-                    d->ic, d->ih, d->iw, d->oc, d->oh, d->ow, d->kh, d->kw);
-            if (canonical || d->sh != 1 || d->sw != 1)
-                DPRINT("sh" IFMT "sw" IFMT "", d->sh, d->sw);
-            if (canonical || d->ph != 0 || d->pw != 0)
-                DPRINT("ph" IFMT "pw" IFMT "", d->ph, d->pw);
-            if (canonical || d->dh != 0 || d->dw != 0)
-                DPRINT("dh" IFMT "dw" IFMT "", d->dh, d->dw);
-        } else {
-            DPRINT("ic" IFMT "id" IFMT "ih" IFMT "iw" IFMT "oc" IFMT "od" IFMT
-                    "oh" IFMT "ow" IFMT "kd" IFMT "kh" IFMT "kw" IFMT "",
-                    d->ic, d->id, d->ih, d->iw, d->oc, d->od, d->oh, d->ow,
-                    d->kd, d->kh, d->kw);
-            if (canonical || d->sh != 1 || d->sw != 1 || d->sd != 1)
-                DPRINT("sd" IFMT "sh" IFMT "sw" IFMT "", d->sd, d->sh, d->sw);
-            if (canonical || d->ph != 0 || d->pw != 0 || d->pd != 0)
-                DPRINT("pd" IFMT "ph" IFMT "pw" IFMT "", d->pd, d->ph, d->pw);
-            if (canonical || d->dh != 0 || d->dw != 0 || d->dd != 0)
-                DPRINT("dd" IFMT "dh" IFMT "dw" IFMT "", d->dd, d->dh, d->dw);
-        }
-    }
+    const bool print_d = d.id > 1;
+    const bool print_w = canonical || print_d || !half_form;
 
-    DPRINT("n%s", d->name);
+    auto print_spatial = [&](
+            const char *sd, int64_t vd,
+            const char *sh, int64_t vh,
+            const char *sw, int64_t vw) {
+        if (print_d) s << sd << vd;
+        s << sh << vh;
+        if (print_w) s << sw << vw;
+    };
 
-#   undef DPRINT
+    s << "ic" << d.ic;
+    print_spatial("id", d.id, "ih", d.ih, "iw", d.iw);
+    s << "oc" << d.oc;
+    print_spatial("od", d.od, "oh", d.oh, "ow", d.ow);
+    print_spatial("kd", d.kd, "kh", d.kh, "kw", d.kw);
+
+    if (canonical || d.sh != 1 || d.sw != 1 || d.sd != 1)
+        print_spatial("sd", d.sd, "sh", d.sh, "sw", d.sw);
+
+    if (canonical || d.ph != 0 || d.pw != 0 || d.pd != 0)
+        print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
+
+    if (canonical || d.dh != 0 || d.dw != 0 || d.dd != 0)
+        print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
+
+    s << "n" << d.name;
+
+    return s;
 }
 
 void prb_t::count_ops() {
@@ -285,27 +295,19 @@ void prb_t::generate_oscales() {
     }
 }
 
-void prb2str(const prb_t *p, char *buffer, bool canonical) {
-    char dir_str[32] = "", cfg_str[32] = "", alg_str[32] = "",
-         desc_str[max_desc_len] = "", attr_str[max_attr_len] = "";
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    if (p.dir != FWD_B)
+        s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.cfg != conf_f32)
+        s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (p.alg != DIRECT)
+        s << "--alg=" << alg2str(p.alg) << " ";
+    if (!p.attr.is_def())
+        s << "--attr=\"" << p.attr << "\" ";
 
-    if (p->dir != FWD_B)
-        snprintf(dir_str, sizeof(dir_str), "--dir=%s ", dir2str(p->dir));
-    if (p->cfg != conf_f32)
-        snprintf(cfg_str, sizeof(cfg_str), "--cfg=%s ", cfg2str(p->cfg));
-    if (p->alg != DIRECT)
-        snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-    if (!p->attr.is_def()) {
-        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
-        SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_str + len);
-        len = (int)strnlen(attr_str, max_attr_len);
-        snprintf(attr_str + len, max_attr_len - len, "\" ");
-    }
-    desc2str(p, desc_str, canonical);
+    s << static_cast<const desc_t &>(p);
 
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s", dir_str, cfg_str, alg_str,
-            attr_str, desc_str);
+    return s;
 }
 
 }

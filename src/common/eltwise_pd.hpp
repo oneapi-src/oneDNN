@@ -104,9 +104,9 @@ struct eltwise_fwd_pd_t: public eltwise_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
@@ -138,11 +138,11 @@ struct eltwise_bwd_pd_t: public eltwise_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 2; }
     virtual int n_outputs() const override { return 1; }

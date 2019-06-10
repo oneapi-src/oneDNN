@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -113,7 +114,12 @@ struct jit_conv_conf_t {
     int ur_ow_max, ur_ow, ur_ow_tail;
     int ur_ow_nsteps;
     data_type_t bia_dt;
+    /* bf16 data-type for output */
     data_type_t dst_dt;
+    /* bf16 weights update */
+    data_type_t wei_dt;
+    data_type_t dsrc_dt;
+    data_type_t dwei_dt;
     /* avx512: max possible value is nregs(32) - aux_regs(4) */
     int src_offsets[28];
     int src_count;
@@ -130,6 +136,10 @@ struct jit_conv_conf_t {
     // s8s8 convolution
     bool signed_input;
     float wei_adj_scale;
+
+    cpu_isa_t isa;
+    // bf16 bwdw conv
+    int tr_ow;
 };
 
 struct jit_conv_conf_2x3_wino_t {
@@ -395,6 +405,8 @@ struct jit_1x1_conv_conf_t {
     data_type_t dst_dt;
     bool signed_input;
     float wei_adj_scale;
+
+    cpu_isa_t isa;
 };
 
 struct jit_gemm_conv_conf_t {

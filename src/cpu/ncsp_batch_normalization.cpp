@@ -17,13 +17,13 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include "c_types_map.hpp" // common
+#include "type_helpers.hpp" // common
 
-#include "cpu_batch_normalization_utils.hpp"
-#include "jit_generator.hpp"
+#include "jit_generator.hpp" //cpu
+#include "cpu_batch_normalization_utils.hpp" // cpu
+#include "ncsp_batch_normalization.hpp" // cpu
 
-#include "ncsp_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)
@@ -37,8 +37,10 @@ namespace impl {
 namespace cpu {
 
 using namespace memory_tracking::names;
+using namespace data_type;
 
-void ncsp_batch_normalization_fwd_t::execute_forward(
+template <data_type_t d_type>
+void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     const bool calculate_stats = !pd()->stats_is_src();
     const bool save_stats = pd()->is_training();
@@ -46,39 +48,43 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
     const bool fuse_bn_relu = pd()->fuse_bn_relu();
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad(ctx);
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+    auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
 
-    data_t *mean, *variance;
+    acc_data_t *mean, *variance;
     if (!calculate_stats) {
-        mean = const_cast<data_t *>(
-                CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN));
-        variance = const_cast<data_t *>(
-                CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE));
+        mean = const_cast<acc_data_t *>(
+                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN));
+        variance = const_cast<acc_data_t *>(
+                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = CTX_OUT_MEM(data_t *, MKLDNN_ARG_MEAN);
-            variance = CTX_OUT_MEM(data_t *, MKLDNN_ARG_VARIANCE);
+            mean = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_MEAN);
+            variance = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_VARIANCE);
         } else {
-            mean = scratchpad.get<data_t>(key_bnorm_tmp_mean);
-            variance = scratchpad.get<data_t>(key_bnorm_tmp_var);
+            mean = scratchpad.template get<acc_data_t>(key_bnorm_tmp_mean);
+            variance = scratchpad.template get<acc_data_t>(key_bnorm_tmp_var);
         }
     }
 
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
+    acc_data_t *bf16_src_cvt_wsp
+            = scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt);
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
     const bool with_relu = pd()->with_relu_post_op();
     auto maybe_post_op
-            = [&](data_t res) { return (with_relu && res < 0) ? 0 : res; };
+            = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
     const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
-    dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
-    dim_t N = pd()->MB();
-    dim_t C = pd()->C();
+    const dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    const dim_t simd_w = 16;
+    const dim_t SP_cl_align = utils::rnd_up(SP, simd_w);
+    const dim_t N = pd()->MB();
+    const dim_t C = pd()->C();
 
     int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
@@ -136,21 +142,41 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
             size_t ws_iter_off = (mkldnn_thr_syncable() ? 0 : 1) * C_off;
 
             if (calculate_stats) {
-                data_t *mean_blk = mean + C_off;
-                data_t *variance_blk = variance + C_off;
+                acc_data_t *mean_blk = mean + C_off;
+                acc_data_t *variance_blk = variance + C_off;
                 for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = (c + C_off) * SP;
-                    data_t sum = 0;
-                    for (dim_t n = N_s; n < N_e; ++n)
+                    acc_data_t sum = 0;
+                    for (dim_t n = N_s; n < N_e; ++n) {
+                        const acc_data_t *scr_fp32;
+                        size_t soff = off + n * C * SP;
+                        if (d_type == bf16) {
+                            // convert src from b16 to f32
+                            acc_data_t *tmp_src
+                                    = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                            /*TODO: remove this conversion if performance
+                            doesn't degrade, since bfloat16_t supports +=
+                            operator with implicit conversions from bf16 to
+                            float */
+                            cvt_bfloat16_to_float(tmp_src,
+                                    (bfloat16_t *)src + soff,
+                                    nstl::max(dim_t(0), S_e - S_s));
+                            scr_fp32 = tmp_src;
+                        } else {
+                            scr_fp32 = reinterpret_cast<const acc_data_t *>(
+                                    src + soff);
+                        }
                         PRAGMA_OMP_SIMD(reduction(+ : sum))
                         for (dim_t sp = S_s; sp < S_e; ++sp) {
-                            sum += src[off + n * C * SP + sp];
+                            sum += scr_fp32[sp];
                         }
+                    }
                     ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
-                        = sum;
+                            = sum;
                 }
 
-                if (SP_N_nthr > 1) mkldnn_thr_barrier();
+                if (SP_N_nthr > 1)
+                    mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     mean_blk[c] = 0.;
@@ -160,23 +186,43 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
                     mean_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1) mkldnn_thr_barrier();
+                if (SP_N_nthr > 1)
+                    mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = c + C_off;
-                    data_t sum = 0.;
-                    for (dim_t n = N_s; n < N_e; ++n)
+                    acc_data_t sum = 0.;
+                    for (dim_t n = N_s; n < N_e; ++n) {
+                        const acc_data_t *_src;
+                        size_t soff = off * SP + n * C * SP;
+                        if (d_type == bf16) {
+                            // convert src from b16 to f32
+                            acc_data_t *tmp_src
+                                    = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                            /*TODO: remove this conversion if performance
+                            doesn't degrade, since bfloat16_t supports +=
+                            operator with implicit conversions from bf16 to
+                            float */
+                            cvt_bfloat16_to_float(tmp_src,
+                                    (bfloat16_t *)src + soff,
+                                    nstl::max(dim_t(0), S_e - S_s));
+                            _src = tmp_src;
+                        } else {
+                            _src = reinterpret_cast<const acc_data_t *>(
+                                    src + soff);
+                        }
                         PRAGMA_OMP_SIMD(reduction(+ : sum))
                         for (dim_t sp = S_s; sp < S_e; ++sp) {
-                            data_t m = src[off * SP + n * C * SP + sp]
-                                    - mean[off];
+                            acc_data_t m = _src[sp] - mean[off];
                             sum += m * m;
                         }
+                    }
                     ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
-                        = sum;
+                            = sum;
                 }
 
-                if (SP_N_nthr > 1) mkldnn_thr_barrier();
+                if (SP_N_nthr > 1)
+                    mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     variance_blk[c] = 0.;
@@ -186,23 +232,48 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
                     variance_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1) mkldnn_thr_barrier();
+                if (SP_N_nthr > 1)
+                    mkldnn_thr_barrier();
             }
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
-                data_t sqrt_variance
-                        = static_cast<data_t>(sqrtf(variance[off] + eps));
-                data_t sm = (use_scaleshift ? scaleshift[off] : 1.0f) / sqrt_variance;
-                data_t sv = use_scaleshift ? scaleshift[C + off] : 0;
-                for (dim_t n = N_s; n < N_e; ++n)
+                acc_data_t sqrt_variance
+                        = static_cast<acc_data_t>(sqrtf(variance[off] + eps));
+                acc_data_t sm = (use_scaleshift ? (acc_data_t)scaleshift[off]
+                                                : (acc_data_t)1.0f)
+                        / sqrt_variance;
+                acc_data_t sv = use_scaleshift ? (acc_data_t)scaleshift[C + off]
+                                               : (acc_data_t)0;
+                for (dim_t n = N_s; n < N_e; ++n) {
+                    acc_data_t *_dst;
+                    const acc_data_t *_src;
+                    size_t s_off = off * SP + n * C * SP;
+                    if (d_type == bf16) {
+                        // store dst to f32 buffer
+                        _dst = bf16_src_cvt_wsp + ithr * SP_cl_align;
+                        // convert src from b16 to f32
+                        acc_data_t *tmp_src = bf16_src_cvt_wsp
+                                + (nthr + ithr) * SP_cl_align;
+                        /*TODO: remove this conversion if performance
+                        doesn't degrade, since bfloat16_t supports +=
+                        operator with implicit conversions from bf16 to
+                        float */
+                        cvt_bfloat16_to_float(tmp_src,
+                                (bfloat16_t *)src + s_off,
+                                nstl::max(dim_t(0), S_e - S_s));
+                        _src = tmp_src;
+                    } else {
+                        _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
+                        _src = reinterpret_cast<const acc_data_t *>(
+                                src + s_off);
+                    }
 #if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
 #endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
-                        size_t d_off = off * SP + n * C * SP + sp;
-                        data_t bn_res
-                                = sm * (src[d_off] - mean[off]) + sv;
+                        size_t d_off = s_off + sp;
+                        acc_data_t bn_res = sm * (_src[sp] - mean[off]) + sv;
                         if (fuse_bn_relu) {
                             if (bn_res <= 0) {
                                 bn_res = 0;
@@ -213,34 +284,50 @@ void ncsp_batch_normalization_fwd_t::execute_forward(
                                     ws[d_off] = 1;
                             }
                         }
-                        dst[d_off] = maybe_post_op(bn_res);
+                        _dst[sp] = maybe_post_op(bn_res);
                     }
+                    if (d_type == bf16) {
+                        // convert dst from f32 to b16
+                        cvt_float_to_bfloat16((bfloat16_t *)dst + s_off, _dst,
+                                nstl::max(dim_t(0), S_e - S_s));
+                    }
+                }
             }
         }
     });
 }
 
-void ncsp_batch_normalization_bwd_t::execute_backward(
+template struct ncsp_batch_normalization_fwd_t<f32>;
+template struct ncsp_batch_normalization_fwd_t<bf16>;
+
+template <data_type_t d_type>
+void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto mean = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MEAN);
-    auto variance = CTX_IN_MEM(const data_t *, MKLDNN_ARG_VARIANCE);
+    auto mean = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE);
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto scaleshift = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
     auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
 
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
-    auto diff_scaleshift = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto diff_scaleshift
+            = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = this->scratchpad(ctx);
-    auto *ws_reduce = scratchpad.get<data_t>(key_bnorm_reduction);
+    auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
+    acc_data_t *tmp_data_
+            = scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt);
 
     if (diff_scaleshift == nullptr)
-        diff_scaleshift = scratchpad.get<data_t>(key_bnorm_tmp_diff_ss);
+        diff_scaleshift
+                = scratchpad.template get<acc_data_t>(key_bnorm_tmp_diff_ss);
 
     const bool has_spatial = utils::one_of(pd()->ndims(), 4, 5);
-    dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
-    dim_t C = pd()->C(), N = pd()->MB();
+    const dim_t SP = (has_spatial) ? pd()->H() * pd()->W() * pd()->D() : 1;
+    const dim_t simd_w = 16; //??
+    const dim_t SP_cl_align = utils::rnd_up(SP, simd_w);
+    const dim_t C = pd()->C(), N = pd()->MB();
     const bool use_scaleshift = pd()->use_scaleshift();
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool calculate_diff_stats = !pd()->use_global_stats();
@@ -302,26 +389,51 @@ void ncsp_batch_normalization_bwd_t::execute_backward(
             // iteration if threads are not synced by the algorithm.
             size_t ws_iter_off = (mkldnn_thr_syncable() ? 0 : 1) * 2 * C_off;
 
-            data_t *diff_gamma_blk = diff_scaleshift + C_off;
-            data_t *diff_beta_blk = diff_scaleshift + C + C_off;
+            acc_data_t *diff_gamma_blk = diff_scaleshift + C_off;
+            acc_data_t *diff_beta_blk = diff_scaleshift + C + C_off;
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
-                data_t diff_gamma = 0.0, diff_beta = 0.0;
-                data_t v_mean = mean[off];
-                for (dim_t n = N_s; n < N_e; ++n)
+                acc_data_t diff_gamma = 0.0, diff_beta = 0.0;
+                acc_data_t v_mean = mean[off];
+                for (dim_t n = N_s; n < N_e; ++n) {
+                    const acc_data_t *_diff_dst;
+                    const acc_data_t *_src;
+                    dim_t s_off = off * SP + n * C * SP;
+                    if (d_type == bf16) {
+                        // convert diff_dst from b16 to f32
+                        acc_data_t *tmp_diff_dst
+                                = tmp_data_ + ithr * SP_cl_align;
+                        cvt_bfloat16_to_float(tmp_diff_dst,
+                                (bfloat16_t *)diff_dst + s_off,
+                                nstl::max(dim_t(0), S_e - S_s));
+                        _diff_dst = tmp_diff_dst;
+                        // convert src from b16 to f32
+                        acc_data_t *tmp_src
+                                = tmp_data_ + (nthr + ithr) * SP_cl_align;
+                        cvt_bfloat16_to_float(tmp_src,
+                                (bfloat16_t *)src + s_off,
+                                nstl::max(dim_t(0), S_e - S_s));
+                        _src = tmp_src;
+                    } else {
+                        _diff_dst = reinterpret_cast<const acc_data_t *>(
+                                diff_dst + s_off);
+                        _src = reinterpret_cast<const acc_data_t *>(
+                                src + s_off);
+                    }
                     PRAGMA_OMP_SIMD(reduction(+ : diff_gamma, diff_beta))
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
-                        const size_t d_off = off * SP + n * C * SP + sp;
-                        data_t dd;
-                        if (fuse_bn_relu)
-                            dd = (!ws[d_off]) ? 0 : diff_dst[d_off];
+                        const dim_t d_off = s_off + sp;
+                        acc_data_t dd;
+                        if (fuse_bn_relu && !ws[d_off])
+                            dd = 0;
                         else
-                            dd = diff_dst[d_off];
-                        diff_gamma += (src[d_off] - v_mean) * dd;
+                            dd = _diff_dst[sp];
+                        diff_gamma += (_src[sp] - v_mean) * dd;
                         diff_beta += dd;
                     }
+                }
                 ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
-                    = diff_gamma;
+                        = diff_gamma;
                 ws_reduce[ws_iter_off + SP_N_nthr * C_blks_per_iter
                         + SP_N_ithr * C_blks_per_iter + c] = diff_beta;
             }
@@ -329,7 +441,7 @@ void ncsp_batch_normalization_bwd_t::execute_backward(
             if (SP_N_nthr > 1) mkldnn_thr_barrier();
 
             for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
-                data_t sqrt_variance = static_cast<data_t>(
+                acc_data_t sqrt_variance = static_cast<acc_data_t>(
                         1.0f / sqrtf(variance[c + C_off] + eps));
                 diff_gamma_blk[c] = 0.;
                 diff_beta_blk[c] = 0.;
@@ -347,34 +459,75 @@ void ncsp_batch_normalization_bwd_t::execute_backward(
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
-                data_t gamma = use_scaleshift ? scaleshift[off] : 1;
-                data_t sqrt_variance
-                        = static_cast<data_t>(1.0f / sqrtf(variance[off] + eps));
-                data_t v_mean = mean[off];
-                for (dim_t n = N_s; n < N_e; ++n)
+                acc_data_t gamma = use_scaleshift ? scaleshift[off] : 1;
+                acc_data_t sqrt_variance = static_cast<acc_data_t>(
+                        1.0f / sqrtf(variance[off] + eps));
+                acc_data_t v_mean = mean[off];
+                for (dim_t n = N_s; n < N_e; ++n) {
+                    acc_data_t *_diff_src;
+                    const acc_data_t *_diff_dst;
+                    const acc_data_t *_src;
+                    dim_t s_off = off * SP + n * C * SP;
+                    if (d_type == bf16) {
+                        // store diff_src to f32 buffer
+                        _diff_src = tmp_data_ + ithr * SP_cl_align;
+                        // convert diff_dst from b16 to f32
+                        acc_data_t *tmp_diff_dst
+                                = tmp_data_ + ithr * SP_cl_align;
+                        cvt_bfloat16_to_float(tmp_diff_dst,
+                                (bfloat16_t *)diff_dst + s_off,
+                                nstl::max(dim_t(0), S_e - S_s));
+                        _diff_dst = tmp_diff_dst;
+                        if (calculate_diff_stats) {
+                            // convert src from b16 to f32
+                            acc_data_t *tmp_src = tmp_data_
+                                    + (2 * nthr + ithr) * SP_cl_align;
+                            cvt_bfloat16_to_float(tmp_src,
+                                    (bfloat16_t *)src + s_off,
+                                    nstl::max(dim_t(0), S_e - S_s));
+                            _src = tmp_src;
+                        } else
+                            _src = nullptr; // to avoid compiler warning w/
+                                            // gcc483
+                    } else {
+                        _diff_src = reinterpret_cast<acc_data_t *>(
+                                diff_src + s_off);
+                        _diff_dst = reinterpret_cast<const acc_data_t *>(
+                                diff_dst + s_off);
+                        _src = reinterpret_cast<const acc_data_t *>(
+                                src + s_off);
+                    }
 #if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
 #endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
-                        const size_t d_off = off * SP + n * C * SP + sp;
-
-                        data_t v_diff_src;
-                        if (fuse_bn_relu)
-                            v_diff_src = (!ws[d_off]) ? 0 : diff_dst[d_off];
+                        const dim_t d_off = s_off + sp;
+                        acc_data_t v_diff_src;
+                        if (fuse_bn_relu && !ws[d_off])
+                            v_diff_src = 0;
                         else
-                            v_diff_src = diff_dst[d_off];
+                            v_diff_src = _diff_dst[sp];
                         if (calculate_diff_stats) {
                             v_diff_src -= diff_beta_blk[c] / (SP * N)
-                                    + (src[d_off] - v_mean) * diff_gamma_blk[c]
+                                    + (_src[sp] - v_mean) * diff_gamma_blk[c]
                                             * sqrt_variance / (SP * N);
                         }
                         v_diff_src *= gamma * sqrt_variance;
-                        diff_src[d_off] = v_diff_src;
+                        _diff_src[sp] = v_diff_src;
                     }
+                    if (d_type == bf16) {
+                        // convert diff_src from f32 to b16
+                        cvt_float_to_bfloat16((bfloat16_t *)diff_src + s_off,
+                                _diff_src, nstl::max(dim_t(0), S_e - S_s));
+                    }
+                }
             }
         }
     });
 }
+
+template struct ncsp_batch_normalization_bwd_t<f32>;
+template struct ncsp_batch_normalization_bwd_t<bf16>;
 }
 }
 }

@@ -41,6 +41,13 @@ using convolution_test_s8s8s32f32 =
         CONCAT_WITH_UNDERSCORE(CONCAT_WITH_UNDERSCORE(Convolution, \
         str), eltwise), test,  __VA_ARGS__)
 
+#define GPU_INST_TEST_CASE_(str, test, ...) GPU_INSTANTIATE_TEST_SUITE_P( \
+        str, test, ::testing::Values(__VA_ARGS__))
+
+#define GPU_INST_TEST_CASE(str, test, ...) GPU_INST_TEST_CASE_( \
+        CONCAT_WITH_UNDERSCORE(CONCAT_WITH_UNDERSCORE(Convolution, \
+        str), eltwise), test,  __VA_ARGS__)
+
 #define EXPAND_ARGS(args) args
 
 #define PARAMS(...) \
@@ -54,6 +61,8 @@ using convolution_test_s8s8s32f32 =
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_bounded_relu, __VA_ARGS__)), \
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_soft_relu, __VA_ARGS__)), \
     EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_logistic, __VA_ARGS__))
+//  Not testing due to not scaled output
+//  EXPAND_ARGS(PARAMS_CONV(algorithm::eltwise_exp, __VA_ARGS__))
 
 #define ELTWISE_ALPHA 0.5f
 #define ELTWISE_BETA 0.f
@@ -74,4 +83,16 @@ PARAMS(nhwc, OIhw4i16o4i, x, nhwc, 2, 1, 32, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 
 
 CPU_INST_TEST_CASE_P(convolution_test_s8s8s32f32);
 CPU_INST_TEST_CASE_P(convolution_test_u8s8s32f32);
+
+#define GPU_INST_TEST_CASE_P(test) \
+TEST_P(test, GPU_TestConvolutionEltwise) {} \
+GPU_INST_TEST_CASE(SimpleSmall_Blocked16, test, \
+PARAMS(nhwc, oihw, x, nhwc, 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1), \
+PARAMS(nhwc, Goihw16g, x, nhwc, 2, 32, 32, 13, 13, 32, 13, 13, 1, 1, 0, 0, 1, 1), \
+PARAMS(nhwc, iohw, x, nhwc, 2, 1, 32, 13, 13, 32, 13, 13, 3, 3, 1, 1, 1, 1) \
+);
+
+GPU_INST_TEST_CASE_P(convolution_test_s8s8s32f32);
+GPU_INST_TEST_CASE_P(convolution_test_u8s8s32f32);
+
 }

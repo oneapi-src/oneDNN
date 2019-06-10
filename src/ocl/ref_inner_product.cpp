@@ -38,11 +38,17 @@ status_t ref_inner_product_fwd_t<src_type, wei_type, dst_type,
 
     const auto &jip = ker_->jip;
 
+    auto eltwise_alpha = pd()->eltwise_alpha();
+    auto eltwise_beta = pd()->eltwise_beta();
+    auto sum_scale = pd()->sum_scale();
+
     kernel_.set_arg(0, src);
     kernel_.set_arg(1, weights);
     kernel_.set_arg(2, bias);
     kernel_.set_arg(3, dst);
-    kernel_.set_arg(4, jip.relu_negative_slope);
+    kernel_.set_arg(4, eltwise_alpha);
+    kernel_.set_arg(5, eltwise_beta);
+    kernel_.set_arg(6, sum_scale);
 
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());

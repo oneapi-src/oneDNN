@@ -133,23 +133,13 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     r->total = nelems;
 
     for (size_t i = 0; i < nelems; ++i) {
-        float dt = ((float*)mem_dt)[i];
-        float fp0 = ((float *)mem_fp)[i];
+        const float dt = mem_dt.get_elem(i);
+        const float fp0 = mem_fp.get_elem(i);
+        const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
 
-        float fp = fp0;
-        if (p->cfg[kind].dt != mkldnn_f32)
-            fp = mxcsr_round(fp0);
-
-        float diff = fabsf(fp - dt);
-        float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-
-        bool ok = true;
-        if (fp < p->cfg[kind].min)
-            ok = dt == p->cfg[kind].min;
-        else if (fp > p->cfg[kind].max)
-            ok = dt == p->cfg[kind].max;
-        else
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
+        const float diff = fabsf(fp - dt);
+        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
 
         if (!ok) {
             r->errors++;

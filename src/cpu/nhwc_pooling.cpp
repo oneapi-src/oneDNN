@@ -280,12 +280,8 @@ void nhwc_pooling_bwd_t<data_type>::execute_backward(
                                                 ih, diff_src_h_stride,
                                                 iw, diff_src_w_stride);
 
-        // check if kernel windows are disjoint, in this case there's no
-        // update needed and we just write there once, no initialization
-        // required.
-        if (!(KD == SD && KH == SH && KW == SW))
-            for (int oc = 0; oc < OC; ++oc)
-                diff_src[src_offset_init + oc] = data_type_t(0);
+        for (int oc = 0; oc < OC; ++oc)
+            diff_src[src_offset_init + oc] = data_type_t(0);
 
         // Find out which output cells may correspond to current
         // input position. Current input postition divided by

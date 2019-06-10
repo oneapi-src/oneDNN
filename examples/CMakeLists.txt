@@ -40,6 +40,7 @@ if(MKLDNN_CPU_BACKEND STREQUAL "NATIVE")
     register_exe(cpu-getting-started cpu_getting_started.cpp "test")
 endif()
 register_exe(cpu-memory-format-propagation cpu_memory_format_propagation.cpp "test")
+register_exe(cpu-performance-profiling-cpp cpu_performance_profiling.cpp "test")
 
 register_exe(cpu-cnn-inference-fp32-c cpu_cnn_inference_fp32.c "test")
 register_exe(cpu-cnn-inference-fp32-cpp cpu_cnn_inference_fp32.cpp "test")

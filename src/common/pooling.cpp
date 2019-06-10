@@ -72,8 +72,8 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     }
 
     bool consistency = true
-        && utils::one_of(src_desc->ndims, 4, 5)
-        && utils::one_of(dst_desc->ndims, 4, 5)
+        && utils::one_of(src_desc->ndims, 3, 4, 5)
+        && utils::one_of(dst_desc->ndims, 3, 4, 5)
         && src_desc->dims[0] == dst_desc->dims[0]
         && src_desc->dims[1] == dst_desc->dims[1];
     

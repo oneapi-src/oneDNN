@@ -40,18 +40,22 @@ struct jit_offsets {
 struct jit_rnn_offsets {
     int src_layer_off[3][MAX_NDIMS];
     int src_iter_off[3][MAX_NDIMS];
+    int src_iter_c_off[3][MAX_NDIMS];
     int weights_layer_off[3][MAX_NDIMS];
     int weights_iter_off[3][MAX_NDIMS];
     int bias_off[3][MAX_NDIMS];
     int dst_layer_off[3][MAX_NDIMS];
     int dst_iter_off[3][MAX_NDIMS];
+    int dst_iter_c_off[3][MAX_NDIMS];
     int diff_src_layer_off[3][MAX_NDIMS];
     int diff_src_iter_off[3][MAX_NDIMS];
+    int diff_src_iter_c_off[3][MAX_NDIMS];
     int diff_weights_layer_off[3][MAX_NDIMS];
     int diff_weights_iter_off[3][MAX_NDIMS];
     int diff_bias_off[3][MAX_NDIMS];
     int diff_dst_layer_off[3][MAX_NDIMS];
     int diff_dst_iter_off[3][MAX_NDIMS];
+    int diff_dst_iter_c_off[3][MAX_NDIMS];
     int ws_off[3][MAX_NDIMS];
 };
 
@@ -61,7 +65,6 @@ enum conv_version_t {
     ver_1stconv,
     ver_16mb16c,
     ver_8ow16c,
-    ver_ref
 };
 
 struct jit_conv_conf_t {
@@ -91,7 +94,6 @@ struct jit_conv_conf_t {
     bool with_eltwise;
     bool with_relu;
     post_ops_t::entry_t::eltwise_t eltwise;
-    float negative_slope;
 
     bool is_depthwise;
     float relu_negative_slope;
@@ -101,7 +103,12 @@ struct jit_conv_conf_t {
     format_tag_t src_tag, dst_tag, wei_tag;
     bool is_nchw;
     bool is_nhwc;
+
     data_type_t src_data_type;
+    data_type_t weights_data_type;
+    data_type_t bias_data_type;
+    data_type_t dst_data_type;
+    data_type_t acc_data_type;
 };
 
 /* pooling */
@@ -126,9 +133,8 @@ struct jit_inner_product_conf_t {
     int mb, oc, ic, ic_total;
     int id, ih, iw, od, oh, ow;
     int kd, kh, kw;
-    bool with_bias, with_relu, has_spatial;
+    bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
-    float relu_negative_slope;
     data_type_t src_dt;
 };
 
@@ -139,7 +145,9 @@ struct jit_rnn_conf_t {
     int direction_kind;
     bool with_bias;
     bool with_src_iter;
+    bool with_src_iter_c;
     bool with_dst_iter;
+    bool with_dst_iter_c;
     bool is_lbr;
     bool is_forward;
     data_type_t src_dt;
@@ -163,17 +171,21 @@ struct jit_rnn_conf_t {
     int n_parts_wei_st, n_parts_wei_i;
     int src_layer_ndims;
     int src_iter_ndims;
+    int src_iter_c_ndims;
     int weights_layer_ndims;
     int weights_iter_ndims;
     int dst_layer_ndims;
     int dst_iter_ndims;
+    int dst_iter_c_ndims;
     int bias_ndims;
     int diff_src_layer_ndims;
     int diff_src_iter_ndims;
+    int diff_src_iter_c_ndims;
     int diff_weights_layer_ndims;
     int diff_weights_iter_ndims;
     int diff_dst_layer_ndims;
     int diff_dst_iter_ndims;
+    int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
 
     size_t ws_gates_offset;
@@ -223,6 +235,21 @@ struct jit_eltwise_conf_t {
     size_t gws_d[3];
 };
 
+/* shuffle */
+struct jit_shuffle_conf_t {
+    data_type_t data_type;
+    int axis;
+    int axis_size;
+    int group_size;
+    int transpose_row;
+    int transpose_col;
+    size_t outer_size;
+    size_t inner_size;
+    size_t dim;
+    int ndims;
+    size_t gws_d[3];
+};
+
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,
         const memory_desc_t &dst_md, const primitive_attr_t &attr) {
@@ -255,22 +282,6 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
     jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
 
-    const bool is_1stconv = jcp.ic_without_padding == 3;
-    const bool is_depthwise = with_groups && (jcp.ic_without_padding == 1)
-            && (jcp.oc_without_padding == 1);
-    jcp.is_depthwise = is_depthwise;
-
-    if (is_1stconv || with_groups) {
-        jcp.ic = jcp.ic_without_padding;
-        jcp.oc = jcp.oc_without_padding;
-    } else {
-        jcp.ic = utils::rnd_up(jcp.ic_without_padding, 16);
-        jcp.oc = utils::rnd_up(jcp.oc_without_padding, 16);
-    }
-
-    if (is_depthwise)
-        jcp.ngroups = utils::rnd_up(jcp.ngroups, 16);
-
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
     jcp.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
     jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
@@ -296,9 +307,8 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.with_relu
             = (jcp.with_eltwise && jcp.eltwise.alg == alg_kind::eltwise_relu);
     if (jcp.with_relu)
-        jcp.negative_slope = jcp.eltwise.alpha;
-
-    if (p.len_ == 2) {
+        jcp.relu_negative_slope = jcp.eltwise.alpha;
+    if (p.len_ == 2 && sum_idx != -1) {
         jcp.with_sum_relu = p.entry_[sum_idx].is_sum(jcp.sum_scale == 1.0)
                 && p.entry_[1].is_relu();
     } else {
@@ -321,28 +331,28 @@ inline void set_offsets(
     for (int d = 0; d < md.ndims(); ++d) {
         const int block = block_dims[d];
 
-        snprintf(tempstr, 32, " %s_B%d", str, d);
+        snprintf(tempstr, 32, "%s_B%d", str, d);
         jit.define_int(tempstr, block);
 
-        snprintf(tempstr, 32, " %s_S%d", str, d);
+        snprintf(tempstr, 32, "%s_S%d", str, d);
         jit.define_int(tempstr, strides_compat[0][d]);
 
-        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        snprintf(tempstr, 32, "%s_SB%d", str, d);
         jit.define_int(tempstr, strides_compat[1][d]);
     }
     for (int d = md.ndims(); d < 6; ++d) {
 
-        snprintf(tempstr, 32, " %s_B%d", str, d);
+        snprintf(tempstr, 32, "%s_B%d", str, d);
         jit.define_int(tempstr, 1);
 
-        snprintf(tempstr, 32, " %s_S%d", str, d);
+        snprintf(tempstr, 32, "%s_S%d", str, d);
         jit.define_int(tempstr, 0);
 
-        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        snprintf(tempstr, 32, "%s_SB%d", str, d);
         jit.define_int(tempstr, 0);
     }
 
-    snprintf(tempstr, 32, " %s_OFFSET_PAD", str);
+    snprintf(tempstr, 32, "%s_OFFSET_PAD", str);
     jit.define_int(tempstr, md.md_->offset0);
 }
 
@@ -369,31 +379,73 @@ inline void def_offsets(const int offs[4][MAX_NDIMS], ocl_jit_t &jit,
 
     for (int d = 0; d < ndims; d++) {
         char tempstr[32];
-        snprintf(tempstr, 32, " %s_B%d", str, d);
+        snprintf(tempstr, 32, "%s_B%d", str, d);
         jit.define_int(tempstr, offs[0][d]);
 
-        snprintf(tempstr, 32, " %s_S%d", str, d);
+        snprintf(tempstr, 32, "%s_S%d", str, d);
         jit.define_int(tempstr, offs[1][d]);
 
-        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        snprintf(tempstr, 32, "%s_SB%d", str, d);
         jit.define_int(tempstr, offs[2][d]);
 
-        snprintf(tempstr, 32, " %s_D%d", str, d);
+        snprintf(tempstr, 32, "%s_D%d", str, d);
         jit.define_int(tempstr, offs[3][d]);
     }
     for (int d = ndims; d < 6; ++d) {
         char tempstr[32];
-        snprintf(tempstr, 32, " %s_B%d", str, d);
+        snprintf(tempstr, 32, "%s_B%d", str, d);
         jit.define_int(tempstr, 1);
 
-        snprintf(tempstr, 32, " %s_S%d", str, d);
+        snprintf(tempstr, 32, "%s_S%d", str, d);
         jit.define_int(tempstr, 0);
 
-        snprintf(tempstr, 32, " %s_SB%d", str, d);
+        snprintf(tempstr, 32, "%s_SB%d", str, d);
         jit.define_int(tempstr, 0);
 
-        snprintf(tempstr, 32, " %s_D%d", str, d);
+        snprintf(tempstr, 32, "%s_D%d", str, d);
         jit.define_int(tempstr, 0);
+    }
+}
+
+inline void def_postops(ocl_jit_t &jit, alg_kind_t alg) {
+    jit.define_int("RELU", alg_kind::eltwise_relu);
+    jit.define_int("LINEAR", alg_kind::eltwise_linear);
+    jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
+    jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
+    jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+    jit.define_int("TANH", alg_kind::eltwise_tanh);
+    jit.define_int("ELU", alg_kind::eltwise_elu);
+    jit.define_int("SQUARE", alg_kind::eltwise_square);
+    jit.define_int("SQRT", alg_kind::eltwise_sqrt);
+    jit.define_int("ABS", alg_kind::eltwise_abs);
+    jit.define_int("EXP", alg_kind::eltwise_exp);
+    jit.define_int("ALG_KIND", alg);
+}
+
+inline void def_data_type(ocl_jit_t &jit, data_type_t dt, const char *str) {
+    char tempstr[32];
+    switch (dt) {
+    case data_type::f16:
+        snprintf(tempstr, 32, "-D%s_DATA_T=half -D%s_DT_F16", str, str);
+        jit.add_option(tempstr);
+        break;
+    case data_type::f32:
+        snprintf(tempstr, 32, "-D%s_DATA_T=float -D%s_DT_F32", str, str);
+        jit.add_option(tempstr);
+        break;
+    case data_type::s8:
+        snprintf(tempstr, 32, "-D%s_DATA_T=char -D%s_DT_S8", str, str);
+        jit.add_option(tempstr);
+        break;
+    case data_type::u8:
+        snprintf(tempstr, 32, "-D%s_DATA_T=uchar -D%s_DT_U8", str, str);
+        jit.add_option(tempstr);
+        break;
+    case data_type::s32:
+        snprintf(tempstr, 32, "-D%s_DATA_T=int -D%s_DT_S32", str, str);
+        jit.add_option(tempstr);
+        break;
+    default: assert(!"unsupported data type"); break;
     }
 }
 

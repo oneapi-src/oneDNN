@@ -80,9 +80,9 @@ __kernel void ref_pooling_fwd_kernel(
         VECT_DATA_T blockD1 = DATA_MIN;
 #            endif
 #        else // POOLING_MAX
-        VECT_ACC_DATA_T blockD0 = DATA_ZERO;
+        VECT_DEF_ACC_DATA_T blockD0 = DATA_ZERO;
 #            ifdef MB16
-        VECT_ACC_DATA_T blockD1 = DATA_ZERO;
+        VECT_DEF_ACC_DATA_T blockD1 = DATA_ZERO;
 #            endif
 #        endif // POOLING_MAX
         for (int kd = 0; kd < KD; ++kd)
@@ -147,7 +147,7 @@ __kernel void ref_pooling_fwd_kernel(
         const int id_end = min(od * SD - PD + KD, ID);
         const int ih_end = min(oh * SH - PH + KH, IH);
         const int iw_end = min(ow * SW - PW + KW, IW);
-        const ACC_DATA_T num_summands
+        const DEF_ACC_DATA_T num_summands
                 = (ih_end - ih_start) * (iw_end - iw_start) * (id_end - id_start);
         blockD0 = ROUND((VECT_ACC_FLOAT_T)blockD0 / num_summands);
 #            ifdef MB16

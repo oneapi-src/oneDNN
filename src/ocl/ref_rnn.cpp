@@ -373,24 +373,26 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
-        const stream_t *s, int n_layer, int n_direction, int n_states,
+        const stream_t *s, int n_layer, int n_direction,
         int batch, int sic, int dic, const memory_storage_t &ws,
-        const memory_storage_t &firstit_states,
-        const memory_storage_t &diff_dst_iter) const {
+        const memory_storage_t &firstit_states, const memory_storage_t &firstit_c_states,
+        const memory_storage_t &diff_dst_iter, const memory_storage_t &diff_dst_iter_c) const {
 
     auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
 
     if (aprop == prop_kind::forward) {
         copy_init_iter_kernel_.set_arg(0, ws);
         copy_init_iter_kernel_.set_arg(1, firstit_states);
+        copy_init_iter_kernel_.set_arg(2, firstit_c_states);
         executor.parallel_for(cl_nd_range_t(
-            {sic, n_states * batch, n_layer * n_direction}),
+            {sic, batch, n_layer * n_direction}),
             copy_init_iter_kernel_);
     } else {
         copy_init_iter_kernel_.set_arg(0, ws);
         copy_init_iter_kernel_.set_arg(1, diff_dst_iter);
+        copy_init_iter_kernel_.set_arg(2, diff_dst_iter_c);
         executor.parallel_for(cl_nd_range_t(
-            {dic, n_states * batch, n_layer * n_direction}),
+            {dic, batch, n_layer * n_direction}),
             copy_init_iter_kernel_);
     }
 }
@@ -421,22 +423,24 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
-        const stream_t *s, int n_layer, int n_direction, int n_states,
-        int batch, int sic, int dic, const memory_storage_t &dst_last_iter,
-        const memory_storage_t &diff_src_iter, const memory_storage_t &ws) const {
+        const stream_t *s, int n_layer, int n_direction,
+        int batch, int sic, int dic, const memory_storage_t &dst_last_iter, const memory_storage_t &dst_last_iter_c,
+        const memory_storage_t &diff_src_iter, const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws) const {
 
     auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
     if (aprop == prop_kind::forward) {
         copy_res_iter_kernel_.set_arg(0, ws);
         copy_res_iter_kernel_.set_arg(1, dst_last_iter);
+        copy_res_iter_kernel_.set_arg(2, dst_last_iter_c);
         executor.parallel_for(cl_nd_range_t(
-            {dic, n_states * batch, n_layer * n_direction}),
+            {dic, batch, n_layer * n_direction}),
             copy_res_iter_kernel_);
     } else {
         copy_res_iter_kernel_.set_arg(0, ws);
         copy_res_iter_kernel_.set_arg(1, diff_src_iter);
+        copy_res_iter_kernel_.set_arg(2, diff_src_iter_c);
         executor.parallel_for(cl_nd_range_t(
-            {sic, n_states * batch, n_layer * n_direction}),
+            {sic, batch, n_layer * n_direction}),
             copy_res_iter_kernel_);
     }
 }
@@ -521,7 +525,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     int n_iter = rnn->T();
     int n_gates = rnn->G();
     int n_bias = n_gates + rnn->is_lbr();
-    int n_states = rnn->S();
+    int n_states = rnn->jrnn_.n_states;
     int n_weights_input = rnn->SLC();
     int n_weights_state = rnn->SIC();
     int batch = rnn->MB();
@@ -541,6 +545,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     auto &input_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_LAYER);
     auto &states_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_ITER);
+    auto &c_states_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_ITER_C);
     auto &w_input_native_ = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS_LAYER);
     auto &w_state_native_ = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS_ITER);
     auto &bias_native_ = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
@@ -551,9 +556,13 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto &dst_last_iter_native_ = rnn->is_fwd()
         ? CTX_OUT_STORAGE(MKLDNN_ARG_DST_ITER)
         : CTX_IN_STORAGE(MKLDNN_ARG_DST_ITER);
+    auto &dst_last_iter_c_native_ = rnn->is_fwd()
+        ? CTX_OUT_STORAGE(MKLDNN_ARG_DST_ITER_C)
+        : CTX_IN_STORAGE(MKLDNN_ARG_DST_ITER_C);
 
     auto &diff_dst_layer_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_LAYER);
     auto &diff_dst_iter_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_ITER);
+    auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_ITER_C);
 
     auto &workspace_ = is_training(*pd())
         ? rnn->is_fwd()
@@ -567,6 +576,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_ITER);
+    auto &diff_src_iter_c_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_ITER_C);
 
     auto &diff_weights_layer_native_ =
         CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
@@ -604,13 +614,15 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     DPRINT("  n_parts_wei_st  = %d\n",n_parts_wei_st );
     DPRINT("  parts_wei_st    = %d\n",parts_wei_st   );
     DPRINT("%s\n","+++++++++++++++");
-    DPRINT("  is_fwd            = %s\n",is_fwd      ?"yes":"no");
-    DPRINT("  is_orig_gru       = %s\n",is_orig_gru ?"yes":"no");
-    DPRINT("  use_scratchpad_        = %s\n",use_scratchpad_ ?"yes":"no");
+    DPRINT("  is_fwd          = %s\n",is_fwd      ?"yes":"no");
+    DPRINT("  is_orig_gru     = %s\n",is_orig_gru ?"yes":"no");
+    DPRINT("  use_scratchpad_ = %s\n",use_scratchpad_ ?"yes":"no");
     DPRINT("%s\n","+++++++++++++++");
-    DPRINT("  with_src_iter = %s\n",rnn->with_src_iter() ?"yes":"no");
-    DPRINT("  with_bias     = %s\n",rnn->with_bias() ?"yes":"no");
-    DPRINT("  with_dst_ier  = %s\n",rnn->with_dst_iter() ?"yes":"no");
+    DPRINT("  with_src_iter   = %s\n",rnn->with_src_iter() ?"yes":"no");
+    DPRINT("  with_src_iter_c = %s\n",rnn->with_src_iter_c() ?"yes":"no");
+    DPRINT("  with_bias       = %s\n",rnn->with_bias() ?"yes":"no");
+    DPRINT("  with_dst_iter   = %s\n",rnn->with_dst_iter() ?"yes":"no");
+    DPRINT("  with_dst_iter_c = %s\n",rnn->with_dst_iter_c() ?"yes":"no");
     DPRINT("%s\n","+++++++++++++++");
     };
 
@@ -642,8 +654,9 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     // we first need to copy the initial states and input into ws
     copy_init_layer(s, is_lr, is_rl, n_iter, batch, slc,
         workspace_, input_native_, diff_dst_layer_native_);
-    copy_init_iter(s, n_layer, n_direction, n_states, batch, sic, dic,
-        workspace_, states_native_, diff_dst_iter_native_);
+    copy_init_iter(s, n_layer, n_direction, batch, sic, dic,
+        workspace_, states_native_, c_states_native_, diff_dst_iter_native_,
+        diff_dst_iter_c_native_);
 
     // run the execution on the grid
     (this->*grid_computation)(
@@ -665,8 +678,9 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     copy_res_layer(s, is_lr, is_rl, n_iter, batch, slc, dic,
         dst_last_layer_native_, diff_src_layer_native_, workspace_);
-    copy_res_iter(s, n_layer, n_direction, n_states, batch, sic, dic,
-        dst_last_iter_native_, diff_src_iter_native_, workspace_);
+    copy_res_iter(s, n_layer, n_direction, batch, sic, dic,
+        dst_last_iter_native_, dst_last_iter_c_native_, diff_src_iter_native_,
+        diff_src_iter_c_native_,workspace_);
 
     /* NOT USED YET */
 #if 0

@@ -55,9 +55,9 @@ struct concat_pd_t: public primitive_desc_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index < n_inputs() ? &src_mds_[index] : nullptr; }
+    { return index < n_inputs() ? &src_mds_[index] : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : nullptr; }
+    { return index == 0 ? &dst_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return n_; }
     virtual int n_outputs() const override { return 1; }
@@ -65,7 +65,7 @@ struct concat_pd_t: public primitive_desc_t {
     int concat_dim() const { return concat_dim_; }
 
     const memory_desc_t *src_image_md(int index = 0) const
-    { return index < n_inputs() ? &src_image_mds_[index] : nullptr; }
+    { return index < n_inputs() ? &src_image_mds_[index] : &glob_zero_md; }
 
 protected:
     int n_, concat_dim_;

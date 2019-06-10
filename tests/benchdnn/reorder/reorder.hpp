@@ -17,7 +17,7 @@
 #ifndef _REORDER_HPP
 #define _REORDER_HPP
 
-#include <vector>
+#include <iostream>
 
 #include "mkldnn.h"
 
@@ -28,8 +28,6 @@
 #include "perf_report.hpp"
 
 namespace reorder {
-
-using dims_t = std::vector<int64_t>;
 
 enum alg_t { ALG_REF, ALG_BOOT };
 alg_t str2alg(const char *str);
@@ -98,55 +96,42 @@ struct prb_t {
             ops *= reorder.dims[d];
     };
 };
-
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
-void prb2str(const prb_t *p, char *buffer);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        idt_ = {cfg2dt(p_->conf_in)};
+        odt_ = cfg2dt(p_->conf_out);
+        itag_ = {p_->reorder.tag_in};
         base_report(r, prb_str);
     }
 
-    virtual void dump_algorithm(char *buf) const override {
-        dprint(buf, alg2str(p_->alg));
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->reorder.dims;
     }
 
-    virtual void dump_attributes(char *buf) const override {
-        if (!p_->attr.is_def())
-            attr2str(&p_->attr, buf);
+    virtual void dump_flags(std::ostream &s) const override {
+        s << flag2str(p_->oflag);
     }
 
-    virtual void dump_data_type(char *buf) const override {
-        snprintf(buf, max_dump_len, "%s,%s", dt2str(cfg2dt(p_->conf_in)),
-                dt2str(cfg2dt(p_->conf_out)));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
-        dims2str(p_->reorder.dims, buf);
-    }
-
-    virtual void dump_flags(char *buf) const override {
-        dprint(buf, flag2str(p_->oflag));
-    }
-
-    virtual void dump_tag(char *buf) const override {
-        snprintf(buf, max_dump_len, "%s,%s", tag2str(p_->reorder.tag_in),
-                tag2str(p_->reorder.tag_out));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const attr_t *attr() const override { return &p_->attr; }
+    virtual const std::vector<mkldnn_data_type_t> *idt() const override
+    { return &idt_; }
+    virtual const mkldnn_data_type_t *odt() const override { return &odt_; }
+    virtual const std::vector<mkldnn_format_tag_t> *itag() const override
+    { return &itag_; }
+    virtual const mkldnn_format_tag_t *otag() const override
+    { return &p_->reorder.tag_out; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
+    std::vector<mkldnn_data_type_t> idt_;
+    mkldnn_data_type_t odt_;
+    std::vector<mkldnn_format_tag_t> itag_;
 };
 
 int doit(const prb_t *p, res_t *res);

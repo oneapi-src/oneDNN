@@ -21,6 +21,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <iostream>
+#include <sstream>
+
 #include "mkldnn.h"
 #include "mkldnn_memory.hpp"
 
@@ -35,35 +38,34 @@ table of modifiers below.
 > **caution:** threads have to be pinned in order to get consistent frequency
 
 Options supported:
-| Syntax    | Primitives       | Description
-|:----------|:-----------------|:-----------
-| %alg%     | Conv             | Primitive algorithm
-| %attr%    | Bnorm, Conv, IP  | Primitive attributes
-| %axis%    | Shuffle, Softmax | Shuffle and softmax axis
-| %@bw%     | All with ops     | Bytes per second (modifier extended)
-| %cfg%     | Conv, IP, RNN    | Config, describes data types and filling rules
-| %@clocks% | All              | Time in clocks (modifier extended)
-| %desc%    | All              | Problem descriptor (dimensions and other options included)
-| %DESC%    | All              | CSV-style problem descriptor (mostly dimensions)
-| %dir%     | All, except RNN, | Primitive direction
-|           |   Reorder        |
-| %dt%      | Bnorm, Shuffle,  | Data type (precision)
-|           |   Softmax        |
-| %engine%  | All              | Engine kind
-| %flags%   | Bnorm            | Batch normalization flags
-| %@flops%  | All with ops     | Ops per second (modifier extended)
-| %@freq%   | All              | Effective cpu frequency computed as clocks[@] / time[@]
-| %group%   | Shuffle          | Shuffle group
-| %name%    | All with desc_t  | Problem name
-| %@ops%    | All with ops     | Number of ops required (padding is not taken into account)
-| %prop%    | RNN              | RNN properties
-| %tag%     | Bnorm, Shuffle,  | Data format tag (physical memory layout)
-|           |   Softmax        |
-| %@time%   | All              | Time in ms (modifier extended)
+| Syntax        | Primitives               | Description
+| :--           | :--                      | :--
+| %alg%         | Conv                     | Primitive algorithm
+| %attr%        | Bnorm, Conv, IP          | Primitive attributes
+| %axis%        | Shuffle, Softmax         | Shuffle and softmax axis
+| %@bw%         | All with ops             | Bytes per second (modifier extended)
+| %cfg%         | Conv, IP, RNN            | Config, describes data types and filling rules
+| %@clocks%     | All                      | Time in clocks (modifier extended)
+| %desc%        | All                      | Problem descriptor (dimensions and other options included)
+| %DESC%        | All                      | CSV-style problem descriptor (mostly dimensions)
+| %dir%         | All, except RNN, Reorder | Primitive direction
+| %dt%          | Bnorm, Shuffle, Softmax  | Data type (precision)
+| %idt%/%odt%   | Reorder                  | Input/Output data types (precision)
+| %engine%      | All                      | Engine kind
+| %flags%       | Bnorm                    | Batch normalization flags
+| %@flops%      | All with ops             | Ops per second (modifier extended)
+| %@freq%       | All                      | Effective cpu frequency computed as clocks[@] / time[@]
+| %group%       | Shuffle                  | Shuffle group
+| %name%        | All with desc_t          | Problem name
+| %@ops%        | All with ops             | Number of ops required (padding is not taken into account)
+| %prop%        | RNN                      | RNN properties
+| %tag%         | Bnorm, Shuffle, Softmax  | Data format tag (physical memory layout)
+| %itag%/%otag% | Reorder                  | Input/Output data format tag (physical memory layout)
+| %@time%       | All                      | Time in ms (modifier extended)
 
 Modifiers supported:
-| Name  | description
-|:----  |:-----------
+| Name  | Description
+| :--   | :--
 | Time: |
 | -     | min (time) -- default
 | 0     | avg (time)
@@ -80,36 +82,9 @@ description can be found internally at each primitive hpp-file.
 
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
-
     virtual ~base_perf_report_t() {}
 
-    benchdnn_timer_t::mode_t modifier2mode(char c) const {
-        if (c == '-') return benchdnn_timer_t::min;
-        if (c == '0') return benchdnn_timer_t::avg;
-        if (c == '+') return benchdnn_timer_t::max;
-        return benchdnn_timer_t::min;
-    };
-
-    double modifier2unit(char c) const {
-        if (c == 'K') return 1e3;
-        if (c == 'M') return 1e6;
-        if (c == 'G') return 1e9;
-        return 1e0;
-    };
-
-    // TODO: replace this ugliness with std::string;
-    // That big due to dump prb_str of max_prb_len size.
-    static constexpr size_t max_dump_len = max_prb_len;
-
-    void dprint(char *buf, const char *str) const {
-        snprintf(buf, max_dump_len, "%s", str);
-    }
-
-    void dprint(char *buf, double val) const {
-        snprintf(buf, max_dump_len, "%g", val);
-    }
-
-    void handle_option(char *buf, const char *option, const res_t *r,
+    void handle_option(std::ostream &s, const char *&option, const res_t *r,
             const char *prb_str) const {
         const auto &t = r->timer;
         benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min; (void)mode;
@@ -126,64 +101,86 @@ struct base_perf_report_t {
             c = *(++option);
         }
 
-        if (!strncmp("alg", option, 3))
-            dump_algorithm(buf);
-        else if (!strncmp("attr", option, 4))
-            dump_attributes(buf);
-        else if (!strncmp("axis", option, 4))
-            dump_axis(buf);
-        else if (!strncmp("bw", option, 2))
-            dprint(buf, ops() / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("cfg", option, 3))
-            dump_config(buf);
-        else if (!strncmp("clocks", option, 6))
-            dprint(buf, t.ticks(mode) / unit);
-        else if (!strncmp("desc", option, 4))
-            dprint(buf, prb_str);
-        else if (!strncmp("DESC", option, 4))
-            dump_descriptor_csv(buf);
-        else if (!strncmp("dir", option, 3))
-            dump_direction(buf);
-        else if (!strncmp("dt", option, 2))
-            dump_data_type(buf);
-        else if (!strncmp("engine", option, 6))
-            dprint(buf, engine_kind2str(engine_tgt_kind));
-        else if (!strncmp("flags", option, 5))
-            dump_flags(buf);
-        else if (!strncmp("flops", option, 5))
-            dprint(buf, ops() / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("freq", option, 4))
-            dprint(buf, t.ticks(mode) / t.ms(mode) / unit * 1e3);
-        else if (!strncmp("group", option, 5))
-            dump_group_size(buf);
-        else if (!strncmp("name", option, 4))
-            dump_descriptor_name(buf);
-        else if (!strncmp("ops", option, 3))
-            dprint(buf, ops() / unit);
-        else if (!strncmp("prop", option, 4))
-            dump_properties(buf);
-        else if (!strncmp("tag", option, 3))
-            dump_tag(buf);
-        else if (!strncmp("time", option, 4))
-            dprint(buf, t.ms(mode) / unit);
-        else
-            SAFE_V(FAIL);
+#       define HANDLE(opt, ...) \
+        if (!strncmp(opt "%", option, strlen(opt) + 1)) { \
+            __VA_ARGS__; \
+            option += strlen(opt) + 1; \
+            return; \
+        }
+
+        HANDLE("alg", dump_alg(s));
+        HANDLE("cfg", dump_cfg(s));
+        HANDLE("DESC", dump_desc_csv(s));
+        HANDLE("flags", dump_flags(s));
+
+        HANDLE("attr", if (attr() && !attr()->is_def()) s << *attr());
+        HANDLE("axis", if (axis()) s << *axis());
+        HANDLE("dir", if (dir()) s << dir2str(*dir()));
+        HANDLE("dt", if (dt()) s << dt2str(*dt()));
+        HANDLE("group", if (group()) s << *group());
+        HANDLE("idt", if (idt()) s << *idt());
+        HANDLE("itag", if (itag()) s << *itag());
+        HANDLE("name", if (name()) s << name());
+        HANDLE("odt", if (odt()) s << dt2str(*odt()));
+        HANDLE("otag", if (otag()) s << fmt_tag2str(*otag()));
+        HANDLE("prop", if (prop()) s << prop2str(*prop()));
+        HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
+
+        HANDLE("bw", s << ops() / t.ms(mode) / unit * 1e3);
+        HANDLE("flops", s << ops() / t.ms(mode) / unit * 1e3);
+        HANDLE("clocks", s << t.ticks(mode) / unit);
+        HANDLE("desc", s << prb_str);
+        HANDLE("engine", s << engine_kind2str(engine_tgt_kind));
+        HANDLE("freq", s << t.ticks(mode) / t.ms(mode) / unit * 1e3);
+        HANDLE("ops", s << ops() / unit);
+        HANDLE("time", s << t.ms(mode) / unit);
+
+#       undef HANDLE
+
+        SAFE_V(FAIL);
     }
 
-    virtual void dump_algorithm(char *buf) const { err_msg(); }
-    virtual void dump_attributes(char *buf) const { err_msg(); }
-    virtual void dump_axis(char *buf) const { err_msg(); }
-    virtual void dump_config(char *buf) const { err_msg(); }
-    virtual void dump_data_type(char *buf) const { err_msg(); }
-    virtual void dump_descriptor_csv(char *buf) const { err_msg(); }
-    virtual void dump_descriptor_name(char *buf) const { err_msg(); }
-    virtual void dump_direction(char *buf) const { err_msg(); }
-    virtual void dump_flags(char *buf) const { err_msg(); }
-    virtual void dump_group_size(char *buf) const { err_msg(); }
-    virtual void dump_properties(char *buf) const { err_msg(); }
-    virtual void dump_tag(char *buf) const { err_msg(); }
+    void base_report(const res_t *r, const char *prb_str) const {
+        dump_perf_footer();
 
+        std::stringstream ss;
+
+        const char *pt = pt_;
+        char c;
+        while ((c = *pt++) != '\0') {
+            if (c != '%') { ss << c; continue; }
+            handle_option(ss, pt, r, prb_str);
+        }
+
+        std::string str = ss.str();
+        print(0, "%s\n", str.c_str());
+    };
+
+    /* truly common types */
     virtual double ops() const { return 0.; }
+    virtual const attr_t *attr() const { return nullptr; }
+    virtual const int *axis() const { return nullptr; }
+    virtual const char *name() const { return nullptr; }
+    virtual const int64_t *group() const { return nullptr; }
+    virtual const dir_t *dir() const { return nullptr; }
+    virtual const mkldnn_data_type_t *dt() const { return nullptr; }
+    virtual const std::vector<mkldnn_data_type_t> *idt() const
+    { return nullptr; }
+    virtual const mkldnn_data_type_t *odt() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
+    virtual const std::vector<mkldnn_format_tag_t> *itag() const
+    { return nullptr; }
+    virtual const mkldnn_format_tag_t *otag() const { return nullptr; }
+    virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
+
+    /* primitive-specific properties (but with common interface) */
+    virtual void dump_alg(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_cfg(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_desc_csv(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_flags(std::ostream &) const { SAFE_V(FAIL); }
+
+private:
+    const char *pt_;
 
     void dump_perf_footer() const {
         static bool footer_printed = false;
@@ -194,42 +191,19 @@ struct base_perf_report_t {
         }
     }
 
-    void base_report(const res_t *r, const char *prb_str) const {
-        const int max_buf_len = 2 * max_dump_len; // max num of parsed options
-        int rem_buf_len = max_buf_len - 1;
-        char buffer[max_buf_len], *buf = buffer;
+    static benchdnn_timer_t::mode_t modifier2mode(char c) {
+        if (c == '-') return benchdnn_timer_t::min;
+        if (c == '0') return benchdnn_timer_t::avg;
+        if (c == '+') return benchdnn_timer_t::max;
+        return benchdnn_timer_t::min;
+    }
 
-        dump_perf_footer();
-
-        const char *pt = pt_;
-        char c;
-        while ((c = *pt++) != '\0') {
-            if (c != '%') { *buf++ = c; rem_buf_len--; continue; }
-
-            char opt_dump[max_dump_len] = "", *dump = opt_dump;
-
-            handle_option(dump, pt, r, prb_str);
-
-            int l = snprintf(buf, rem_buf_len, "%s", opt_dump);
-            buf += l; rem_buf_len -= l;
-
-            if ((pt = strchr(pt, '%')) == NULL) // check for KW
-                break;
-            pt++;
-        }
-
-        *buf = '\0';
-        assert(rem_buf_len >= 0);
-        print(0, "%s\n", buffer);
-    };
-
-private:
-    const char *pt_;
-
-    static void err_msg() {
-        printf("%s is not supported in base_perf_report_t\n",
-                __PRETTY_FUNCTION__);
-    };
+    static double modifier2unit(char c) {
+        if (c == 'K') return 1e3;
+        if (c == 'M') return 1e6;
+        if (c == 'G') return 1e9;
+        return 1e0;
+    }
 };
 
 #endif

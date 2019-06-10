@@ -226,6 +226,7 @@ typedef enum {
     /// 3D tensor blocked by 2nd dimension with block size 8
     mkldnn_aBc8b,
     mkldnn_ABc8b16a2b,
+    mkldnn_BAc8a16b2a,
     mkldnn_ABc8b8a,
     mkldnn_Abcd16a,
     mkldnn_ABcd16a16b,
@@ -248,13 +249,17 @@ typedef enum {
     mkldnn_aBcd8b,
     mkldnn_ABcd8b16a2b,
     mkldnn_aBCd8b16c2b,
+    mkldnn_BAcd8a16b2a,
     /// 4D tensor blocked by 1st and 2nd dimension with block size 8
     mkldnn_ABcd8b8a,
     mkldnn_aBCd8b8c,
     mkldnn_aBCd8c16b2c,
+    mkldnn_ABcde8a16b2a,
+    mkldnn_aCBd8b16c2b,
     mkldnn_aBCd8c8b,
     mkldnn_Abcde16a,
     mkldnn_ABcde16a16b,
+    mkldnn_BAcde8a16b2a,
     /// 5D tensor blocked by 2nd dimension with block size 16
     mkldnn_aBcde16b,
     mkldnn_ABcde16b16a,
@@ -275,6 +280,7 @@ typedef enum {
     mkldnn_aBcde8b,
     mkldnn_ABcde8b16a2b,
     mkldnn_aBCde8b16c2b,
+    mkldnn_aCBde8b16c2b,
     mkldnn_ABcde8b8a,
     mkldnn_aBCde8b8c,
     mkldnn_ABcd4a8b8a4b,
@@ -292,6 +298,8 @@ typedef enum {
     mkldnn_aBCdef4c4b,
     mkldnn_aBCdef8b8c,
     mkldnn_aBCdef8c16b2c,
+    mkldnn_aBCdef8b16c2b,
+    mkldnn_aCBdef8b16c2b,
     mkldnn_aBCdef8c8b,
     mkldnn_aBdc16b,
     mkldnn_aBdc4b,
@@ -393,9 +401,9 @@ typedef enum {
     mkldnn_tnc = mkldnn_abc,
     /// 3D RNN data tensor in the format (batch, seq_length, input channels).
     mkldnn_ntc = mkldnn_bac,
-    /// 5D RNN states tensor in the format (num_layers, num_directions,
-    /// num_states, batch, state channels).
-    mkldnn_ldsnc = mkldnn_abcde,
+    /// 4D RNN states tensor in the format (num_layers, num_directions,
+    /// batch, state channels).
+    mkldnn_ldnc = mkldnn_abcd,
     /// 5D RNN weights tensor in the format (num_layers, num_directions,
     ///  input_channels, num_gates, output_channels).
     ///
@@ -466,6 +474,7 @@ typedef enum {
     mkldnn_OIw8i16o2i = mkldnn_ABc8b16a2b,
     mkldnn_OIw8i8o = mkldnn_ABc8b8a,
     mkldnn_OIw8o16i2o = mkldnn_ABc8a16b2a,
+    mkldnn_IOw8o16i2o = mkldnn_BAc8a16b2a,
     mkldnn_OIw8o8i = mkldnn_ABc8a8b,
     mkldnn_Owi16o = mkldnn_Acb16a,
     mkldnn_Owi4o = mkldnn_Acb4a,
@@ -487,6 +496,7 @@ typedef enum {
     mkldnn_OIhw8i16o2i = mkldnn_ABcd8b16a2b,
     mkldnn_OIhw8i8o = mkldnn_ABcd8b8a,
     mkldnn_OIhw8o16i2o = mkldnn_ABcd8a16b2a,
+    mkldnn_IOhw8o16i2o = mkldnn_BAcd8a16b2a,
     mkldnn_OIhw8o8i = mkldnn_ABcd8a8b,
 
     // weights, 5D
@@ -500,6 +510,8 @@ typedef enum {
     mkldnn_Oidhw4o = mkldnn_Abcde4a,
     mkldnn_OIdhw8i16o2i = mkldnn_ABcde8b16a2b,
     mkldnn_OIdhw8i8o = mkldnn_ABcde8b8a,
+    mkldnn_OIdhw8o16i2o = mkldnn_ABcde8a16b2a,
+    mkldnn_IOdhw8o16i2o = mkldnn_BAcde8a16b2a,
     mkldnn_OIdhw8o8i = mkldnn_ABcde8a8b,
     mkldnn_IOdhw16i16o = mkldnn_BAcde16b16a,
 
@@ -516,6 +528,7 @@ typedef enum {
     mkldnn_gOIw8i16o2i = mkldnn_aBCd8c16b2c,
     mkldnn_gOIw8i8o = mkldnn_aBCd8c8b,
     mkldnn_gOIw8o16i2o = mkldnn_aBCd8b16c2b,
+    mkldnn_gIOw8o16i2o = mkldnn_aCBd8b16c2b,
     mkldnn_gOIw8o8i = mkldnn_aBCd8b8c,
     mkldnn_gOwi16o = mkldnn_aBdc16b,
     mkldnn_gOwi4o = mkldnn_aBdc4b,
@@ -541,6 +554,7 @@ typedef enum {
     mkldnn_gOIhw8i16o2i = mkldnn_aBCde8c16b2c,
     mkldnn_gOIhw8i8o = mkldnn_aBCde8c8b,
     mkldnn_gOIhw8o16i2o = mkldnn_aBCde8b16c2b,
+    mkldnn_gIOhw8o16i2o = mkldnn_aCBde8b16c2b,
     mkldnn_gOIhw8o8i = mkldnn_aBCde8b8c,
 
     mkldnn_OIhw4o8i8o4i = mkldnn_ABcd4a8b8a4b,
@@ -560,6 +574,8 @@ typedef enum {
     mkldnn_gOidhw4o = mkldnn_aBcdef4b,
     mkldnn_gOIdhw8i16o2i = mkldnn_aBCdef8c16b2c,
     mkldnn_gOIdhw8i8o = mkldnn_aBCdef8c8b,
+    mkldnn_gOIdhw8o16i2o = mkldnn_aBCdef8b16c2b,
+    mkldnn_gIOdhw8o16i2o = mkldnn_aCBdef8b16c2b,
     mkldnn_gOIdhw8o8i = mkldnn_aBCdef8b8c,
     mkldnn_Goidhw16g = mkldnn_Abcdef16a,
 } mkldnn_format_tag_t;
@@ -658,6 +674,8 @@ typedef enum {
     mkldnn_eltwise_soft_relu = 0x9f,
     /// Eltwise: logistic
     mkldnn_eltwise_logistic = 0xaf,
+    /// Eltwise: exponent
+    mkldnn_eltwise_exp = 0xbf,
     /// Max pooling
     mkldnn_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -799,10 +817,13 @@ typedef struct {
     mkldnn_rnn_packed_memory_format_t format;
     int n_parts;
     int n;
+    int ldb;
     int parts[MKLDNN_RNN_MAX_N_PARTS];
     size_t part_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    unsigned pack_part[MKLDNN_RNN_MAX_N_PARTS];
     size_t offset_compensation;
     size_t size;
+    char reserved[200];
 } mkldnn_rnn_packed_desc_t;
 
 /// Flags for memory special features
@@ -979,8 +1000,8 @@ typedef struct {
     /// The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
     /// #mkldnn_eltwise_tanh, #mkldnn_eltwise_elu, #mkldnn_eltwise_square,
     /// #mkldnn_eltwise_abs, #mkldnn_eltwise_sqrt, #mkldnn_eltwise_linear,
-    /// #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu, and
-    /// #mkldnn_eltwise_logistic.
+    /// #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu,
+    /// #mkldnn_eltwise_logistic and #mkldnn_eltwise_exp.
     mkldnn_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     mkldnn_memory_desc_t data_desc;
@@ -998,6 +1019,7 @@ typedef struct {
     ///  - #mkldnn_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
     ///  - #mkldnn_eltwise_soft_relu: @p alpha and @p beta ignored
     ///  - #mkldnn_eltwise_logistic: @p alpha and @p beta ignored
+    ///  - #mkldnn_eltwise_exp: @p alpha and @p beta ignored
     float alpha, beta;
 } mkldnn_eltwise_desc_t;
 
@@ -1169,8 +1191,10 @@ typedef struct {
     mkldnn_rnn_direction_t direction;
     /// Source layer memory descriptor.
     mkldnn_memory_desc_t src_layer_desc;
-    /// Source iteration memory descriptor.
+    /// Source iteration memory descriptor for hidden state.
     mkldnn_memory_desc_t src_iter_desc;
+    /// Source iteration memory descriptor for cell state.
+    mkldnn_memory_desc_t src_iter_c_desc;
     /// Weights layer memory descriptor.
     mkldnn_memory_desc_t weights_layer_desc;
     /// Weights iteration memory descriptor.
@@ -1179,16 +1203,20 @@ typedef struct {
     mkldnn_memory_desc_t bias_desc;
     /// Destination layer memory descriptor.
     mkldnn_memory_desc_t dst_layer_desc;
-    /// Destination iter memory descriptor.
+    /// Destination iter memory descriptor for hidden state.
     mkldnn_memory_desc_t dst_iter_desc;
+    /// Destination iter memory descriptor for cell state.
+    mkldnn_memory_desc_t dst_iter_c_desc;
     /// Placeholders
     mkldnn_memory_desc_t placeholder_desc;
     mkldnn_memory_desc_t placeholder2_desc;
 
     /// Source gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_src_layer_desc;
-    /// Source gradient iter memory descriptor.
+    /// Source gradient iter memory descriptor for hidden state.
     mkldnn_memory_desc_t diff_src_iter_desc;
+    /// Source gradient iter memory descriptor for cell state.
+    mkldnn_memory_desc_t diff_src_iter_c_desc;
     /// Weights gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_weights_layer_desc;
     /// Weights gradient iter memory descriptor.
@@ -1197,8 +1225,10 @@ typedef struct {
     mkldnn_memory_desc_t diff_bias_desc;
     /// Destination gradient layer memory descriptor.
     mkldnn_memory_desc_t diff_dst_layer_desc;
-    /// Destination gradient iteration memory descriptor.
+    /// Destination gradient iteration memory descriptor for hidden state.
     mkldnn_memory_desc_t diff_dst_iter_desc;
+    /// Destination gradient iteration memory descriptor for cell state.
+    mkldnn_memory_desc_t diff_dst_iter_c_desc;
     /// Placeholders
     mkldnn_memory_desc_t diff_placeholder_desc;
     mkldnn_memory_desc_t diff_placeholder2_desc;
@@ -1348,6 +1378,9 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 #define MKLDNN_ARG_SRC_1                2
 #define MKLDNN_ARG_SRC_ITER             MKLDNN_ARG_SRC_1
 
+#define MKLDNN_ARG_SRC_2                3
+#define MKLDNN_ARG_SRC_ITER_C           MKLDNN_ARG_SRC_2
+
 #define MKLDNN_ARG_DST_0                17
 #define MKLDNN_ARG_DST                  MKLDNN_ARG_DST_0
 #define MKLDNN_ARG_TO                   MKLDNN_ARG_DST_0
@@ -1355,6 +1388,9 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 
 #define MKLDNN_ARG_DST_1                18
 #define MKLDNN_ARG_DST_ITER             MKLDNN_ARG_DST_1
+
+#define MKLDNN_ARG_DST_2                19
+#define MKLDNN_ARG_DST_ITER_C           MKLDNN_ARG_DST_2
 
 #define MKLDNN_ARG_WEIGHTS_0            33
 #define MKLDNN_ARG_WEIGHTS              MKLDNN_ARG_WEIGHTS_0
@@ -1379,12 +1415,18 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 #define MKLDNN_ARG_DIFF_SRC_1           130
 #define MKLDNN_ARG_DIFF_SRC_ITER        MKLDNN_ARG_DIFF_SRC_1
 
+#define MKLDNN_ARG_DIFF_SRC_2           131
+#define MKLDNN_ARG_DIFF_SRC_ITER_C      MKLDNN_ARG_DIFF_SRC_2
+
 #define MKLDNN_ARG_DIFF_DST_0           145
 #define MKLDNN_ARG_DIFF_DST             MKLDNN_ARG_DIFF_DST_0
 #define MKLDNN_ARG_DIFF_DST_LAYER       MKLDNN_ARG_DIFF_DST_0
 
 #define MKLDNN_ARG_DIFF_DST_1           146
 #define MKLDNN_ARG_DIFF_DST_ITER        MKLDNN_ARG_DIFF_DST_1
+
+#define MKLDNN_ARG_DIFF_DST_2           147
+#define MKLDNN_ARG_DIFF_DST_ITER_C      MKLDNN_ARG_DIFF_DST_2
 
 #define MKLDNN_ARG_DIFF_WEIGHTS_0       161
 #define MKLDNN_ARG_DIFF_WEIGHTS         MKLDNN_ARG_DIFF_WEIGHTS_0

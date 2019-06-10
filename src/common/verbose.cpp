@@ -437,15 +437,18 @@ template <typename pd_t> static void init_info_mem(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     if (1) { // src
-        auto md = s->src_md();
-        DPRINT(dat_str, MKLDNN_VERBOSE_DAT_LEN, dat_written, "src_");
-        int l = mkldnn_md2fmt_str(dat_str + dat_written,
-                MKLDNN_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0) dat_written += l; else clear_buf(dat_str, dat_written);
+        for (int i = 0; i < s->n_inputs(); ++i) {
+            auto md = s->src_md(i);
+            DPRINT(dat_str, MKLDNN_VERBOSE_DAT_LEN, dat_written, "src_");
+            int l = mkldnn_md2fmt_str(dat_str + dat_written,
+                    MKLDNN_VERBOSE_DAT_LEN - dat_written, md);
+            if (l >= 0) dat_written += l; else clear_buf(dat_str, dat_written);
+            DPRINT(dat_str, MKLDNN_VERBOSE_DAT_LEN, dat_written, " ");
+        }
     }
     if (1) { // dst
         auto md = s->dst_md();
-        DPRINT(dat_str, MKLDNN_VERBOSE_DAT_LEN, dat_written, " dst_");
+        DPRINT(dat_str, MKLDNN_VERBOSE_DAT_LEN, dat_written, "dst_");
         int l = mkldnn_md2fmt_str(dat_str + dat_written,
                 MKLDNN_VERBOSE_DAT_LEN - dat_written, md);
         if (l >= 0) dat_written += l; else clear_buf(dat_str, dat_written);

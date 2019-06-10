@@ -20,7 +20,8 @@
 #include <stdint.h>
 #include <limits.h>
 #include <assert.h>
-#include <vector>
+
+#include <iostream>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -30,8 +31,6 @@
 #include "perf_report.hpp"
 
 namespace shuffle {
-
-using dims_t = std::vector<int64_t>;
 
 struct dt_conf_t {
     mkldnn_data_type_t dt;
@@ -60,48 +59,28 @@ struct prb_t {
     int axis;
     int64_t group;
 };
-
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
     }
 
-    virtual void dump_axis(char *buf) const override {
-        dprint(buf, p_->axis);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->dims;
     }
 
-    virtual void dump_data_type(char *buf) const override {
-        dprint(buf, dt2str(p_->dt));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
-        dims2str(p_->dims, buf);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual void dump_group_size(char *buf) const override {
-        dprint(buf, p_->group);
-    }
-
-    virtual void dump_tag(char *buf) const override {
-        dprint(buf, tag2str(p_->tag));
-    }
+    virtual const int *axis() const override { return &p_->axis; }
+    virtual const int64_t *group() const override { return &p_->group; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
+    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 inline size_t data_off(const prb_t *p,
@@ -111,8 +90,6 @@ inline size_t data_off(const prb_t *p,
 }
 
 void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
-
-int fill_memory(const prb_t *p, dnn_mem_t &src);
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 }

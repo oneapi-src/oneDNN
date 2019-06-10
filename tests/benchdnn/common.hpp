@@ -105,6 +105,7 @@ enum prim_t {
     RNN,
     SOFTMAX,
     POOL,
+    SUM,
     DEF = CONV,
 };
 
@@ -112,12 +113,6 @@ enum bench_mode_t { MODE_UNDEF = 0x0, CORR = 0x1, PERF = 0x2, };
 const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
 extern bench_mode_t bench_mode;
-
-/* string length constants */
-constexpr size_t max_attr_len = 128;
-constexpr size_t max_desc_len = 160;
-constexpr size_t max_base_prb_len = 196;
-constexpr size_t max_prb_len = max_attr_len + max_desc_len + max_base_prb_len;
 
 /* perf */
 extern double max_ms_per_prb; /** maximum time spends per prb in ms */
@@ -177,7 +172,7 @@ struct res_t {
 };
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, char *pstr);
+        int status, const char *pstr);
 
 /* misc */
 void init_fp_mode();
@@ -198,7 +193,7 @@ int batch(const char *fname, bench_f bench);
 /* returns 1 with given probability */
 int flip_coin(ptrdiff_t seed, float probability);
 
-int div_up(const int a, const int b);
+int64_t div_up(const int64_t a, const int64_t b);
 int mxcsr_round(float f);
 
 /* set '0' across *arr:+size */

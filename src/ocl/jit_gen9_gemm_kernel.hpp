@@ -24,21 +24,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t type>
-struct jit_gen9_gemm_kernel_params {};
-
-template <>
-struct jit_gen9_gemm_kernel_params<data_type::f32> {
-    static constexpr auto unroll_m = 16;
-    static constexpr auto unroll_n = 32;
-};
-
-template <>
-struct jit_gen9_gemm_kernel_params<data_type::f16> {
-    static constexpr auto unroll_m = 16;
-    static constexpr auto unroll_n = 32;
-};
-
 struct jit_gen9_gemm_kernel {
     template <impl::data_type_t type>
     static status_t init_cl_options(ocl_jit_t &jit) {
@@ -59,6 +44,11 @@ struct jit_gen9_gemm_kernel {
 #endif
         return status::success;
     }
+
+    struct copy_params {
+        static constexpr auto unroll_m = 16;
+        static constexpr auto unroll_n = 32;
+    };
 };
 
 template <impl::data_type_t type>
@@ -83,8 +73,7 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
             return status;
 
         jit.define_int("COPY_UNROLL",
-                !outer ? jit_gen9_gemm_kernel_params<type>::unroll_m
-                       : jit_gen9_gemm_kernel_params<type>::unroll_n);
+                !outer ? copy_params::unroll_m : copy_params::unroll_n);
 
         jit.add_option(trans ? "-DUSE_TRANS" : "-DUSE_NOTRANS");
 
@@ -92,6 +81,11 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
         printf("OPT:\n%s\n", jit.get_options());
 #endif
         return status::success;
+    }
+
+    static void get_unrolls(int &unroll_m, int &unroll_n) {
+        unroll_m = copy_params::unroll_m;
+        unroll_n = copy_params::unroll_n;
     }
 };
 
@@ -105,22 +99,26 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
         if (beta0)
             jit.add_option("-DBETA_ZERO");
 
-        jit.define_int(
-                "UNROLL_M", jit_gen9_gemm_kernel_params<type>::unroll_m);
-        jit.define_int(
-                "UNROLL_N", jit_gen9_gemm_kernel_params<type>::unroll_n);
+        jit.define_int("UNROLL_M", copy_params::unroll_m);
+        jit.define_int("UNROLL_N", copy_params::unroll_n);
 
 #ifdef DEBUG_PRINT
         printf("OPT:\n%s\n", jit.get_options());
 #endif
         return status::success;
     }
+
+    static void get_unrolls(int &unroll_m, int &unroll_n) {
+        unroll_m = copy_params::unroll_m;
+        unroll_n = copy_params::unroll_n;
+    }
 };
 
 template <impl::data_type_t type>
 struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(ocl_jit_t &jit, bool trans_a, bool trans_b,
-        bool with_relu) {
+            bool with_eltwise, alg_kind_t alg) {
+
         auto status = init_cl_options<type>(jit);
         if (status)
             return status;
@@ -129,8 +127,10 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
             jit.add_option("-DTRANS_A");
         if (trans_b)
             jit.add_option("-DTRANS_B");
-        if (with_relu)
-            jit.define_int("WITH_RELU", 1);
+
+        jit.define_int("WITH_ELTWISE", with_eltwise);
+        if (with_eltwise)
+            def_postops(jit, alg);
 
 #ifdef DEBUG_PRINT
         printf("OPT:\n%s\n", jit.get_options());
@@ -139,7 +139,7 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     }
 
     static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
-        int &unroll_n) {
+            int &unroll_n) {
         static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
         static constexpr int unroll_n_table[2][2] = {{16, 16}, {32, 32}};
 
@@ -147,6 +147,28 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
         unroll_n = unroll_n_table[trans_a][trans_b];
     }
 };
+
+template <impl::data_type_t type>
+struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
+    static status_t init_const_def(ocl_jit_t &jit, bool trans_a, bool trans_b,
+            bool with_eltwise, alg_kind_t alg) {
+
+        if (trans_a)
+            return status::unimplemented;
+
+        return jit_gen9_gemm_nocopy_kernel<type>::init_const_def(jit, trans_a,
+                trans_b, with_eltwise, alg);
+    }
+
+    static void get_unrolls(bool trans_a, bool trans_b, int (&unroll_m)[2],
+            int &unroll_n) {
+
+        unroll_m[0] = 32;
+        unroll_m[1] = 16;
+        unroll_n = 16;
+    }
+};
+
 
 } // namespace ocl
 } // namespace impl

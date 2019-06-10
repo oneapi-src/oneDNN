@@ -23,29 +23,44 @@
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
+#include "bf16/common_s16.hpp"
+#include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include "f32/common_f32.hpp"
+#include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
-#include "f32/jit_avx2_kernel_sgemm_kern.hpp"
+#include "common/bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+static inline int decode_trans(char trans)
+{
+    switch (trans) {
+        case 'T':
+        case 't':
+            return do_trans;
+        case 'P':
+        case 'p':
+            return packed;
+        default:
+            return no_trans;
+    }
+}
+
 template <typename a_type, typename b_type, typename c_type>
 gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         const char *transB, const char *offsetC, const int *m, const int *n,
         const int *k, const float *alpha, const a_type *a, const int *lda,
-        const a_type *oa, const b_type *b, const int *ldb, const a_type *ob,
+        const a_type *oa, const b_type *b, const int *ldb, const b_type *ob,
         const float *beta, c_type *c, const int *ldc, const c_type *oc,
-        const bool force_nocopy) {
+        bool force_nocopy, pack_type packing, gemm_pack_storage_t *pack_dst,
+        bool measure_only) {
 
-    char transa = *transA;
-    char transb = *transB;
-
-    this->transa = (transa == 'N' || transa == 'n') ? no_trans : do_trans;
-    this->transb = (transb == 'N' || transb == 'n') ? no_trans : do_trans;
+    this->transa = decode_trans(*transA);
+    this->transb = decode_trans(*transB);
 
     this->m = *m;
     this->n = *n;
@@ -55,33 +70,62 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     this->b = b;
     this->c = c;
 
-    this->lda = *lda;
-    this->ldb = *ldb;
-    this->ldc = *ldc;
+    this->lda = lda ? *lda : 0;
+    this->ldb = ldb ? *ldb : 0;
+    this->ldc = ldc ? *ldc : 0;
 
     this->ao = 0;
     this->bo = 0;
     this->co = NULL;
 
-    this->alpha = alpha;
-    this->beta = beta;
+    this->alpha = alpha ? *alpha : 1.0f;
+    this->beta = beta ? *beta : 1.0f;
 
-    this->offsetc = NO_OFFSET;
+    this->offsetc = offset_type::none;
 
-    if (data_traits<a_type>::data_type == data_type::s8) {
-        this->ao = *oa;
-        this->bo = *ob;
+    this->packing = packing;
+    this->pack_dst = pack_dst;
+    this->measure_only = measure_only && pack_dst
+        && (packing != pack_type::none);
+    this->a_packed = NULL;
+    this->b_packed = NULL;
+
+    if (this->transa == packed) {
+        dim_t cols;
+
+        this->a_packed = new gemm_pack_storage_t(a);
+        if (this->a_packed->get_nocopy(this->lda, cols)) {
+            this->a = this->a_packed->template matrix<a_type>();
+            this->transa = no_trans;
+            delete this->a_packed;
+            this->a_packed = NULL;
+        }
+    }
+    if (this->transb == packed) {
+        dim_t rows;
+
+        this->b_packed = new gemm_pack_storage_t(b);
+        if (this->b_packed->get_nocopy(this->ldb, rows)) {
+            this->b = this->b_packed->template matrix<b_type>();
+            this->transb = no_trans;
+            delete this->b_packed;
+            this->b_packed = NULL;
+        }
     }
 
+    if (data_traits<a_type>::data_type == data_type::s8) {
+        this->ao = oa ? *oa : a_type(0);
+        this->bo = ob ? *ob : b_type(0);
+    }
 
     if (offsetC != NULL) {
         char offsetc = *offsetC;
         if (offsetc == 'F' || offsetc == 'f') {
-            this->offsetc = FIX_OFFSET;
+            this->offsetc = offset_type::fixed;
         } else if (offsetc == 'R' || offsetc == 'r') {
-            this->offsetc = ROW_OFFSET;
+            this->offsetc = offset_type::row;
         } else { // offsetc == 'C' || offsetc == 'c'
-            this->offsetc = COL_OFFSET;
+            this->offsetc = offset_type::column;
         }
         this->co = oc;
     }
@@ -91,6 +135,7 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     // Copy-based sgemm doesn't support force-nocopy for ISAs older
     // than Intel AVX.
     this->force_nocopy = is_sgemm && force_nocopy && mayiuse(avx);
+    this->force_nocopy |= mayiuse(avx512_mic);
 
     if (!this->force_nocopy) {
         this->jit_init();
@@ -98,18 +143,27 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
 }
 
 template<typename a_type, typename b_type, typename c_type>
+gemm_info_t<a_type, b_type, c_type>::~gemm_info_t() {
+    delete this->a_packed;
+    delete this->b_packed;
+}
+
+template<typename a_type, typename b_type, typename c_type>
 void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
+    // copyA[trans][sum]
     static void (*copyA[2][2])(const dim_t *m, const dim_t *n,
             const a_type *src, const dim_t *ldsrc, const float *alpha,
             a_type *dst, const dim_t *dummy1, const dim_t *dummy2,
             c_type *row_col_sum) = {{NULL}};
 
+    // copyB[trans][sum]
     static void (*copyB[2][2])(const dim_t *m, const dim_t *n,
             const b_type *src, const dim_t *ldsrc, const float *alpha,
             b_type *dst, const dim_t *dummy1, const dim_t *dummy2,
             c_type *row_col_sum) = {{NULL}};
 
+    // kern[beta0][col_off][row_off]
     static void (*kern[2][2][2])(const dim_t *m, const dim_t *n, const dim_t *k,
             const float *alpha, const a_type *a, const b_type *b, c_type *c,
             const dim_t ldc, const c_type *col_offset,
@@ -136,6 +190,21 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             this->bk_traditional = 384;
             this->blocking_small_k =  48;
             this->bn_small_k =  24;
+        }
+        break;
+
+    case data_type::bf16:
+        if (mayiuse(avx512_core)) {
+            this->um = 48;
+            this->un = 8;
+            this->uk = 1;
+            this->bm = 9984;
+            this->bn = 384;
+            this->bk = 768;
+
+            this->bk_traditional = 384;
+            this->blocking_small_k = 48;
+            this->bn_small_k = 24;
         }
         break;
 
@@ -219,6 +288,20 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             }
             break;
 
+        case data_type::bf16:
+            if (mayiuse(avx512_core)) {
+                copy_a[no_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_an_kern();
+                copy_a[do_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_at_kern();
+
+                copy_b[no_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_bn_kern();
+                copy_b[do_trans][no_sum] =
+                    new jit_avx512_core_s16_copy_bt_kern();
+            }
+            break;
+
         case data_type::f32:
             if (mayiuse(avx512_core)) {
                 copy_a[no_trans][no_sum] =
@@ -266,12 +349,21 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             }
             break;
 
+        case data_type::bf16:
+            if (mayiuse(avx512_core)) {
+                for (int isBeta0 : {no_beta0, do_beta0}) {
+                    kernel[isBeta0][no_col_offset][no_row_offset] =
+                        new jit_avx512_core_gemm_bf16bf16f32_kern(isBeta0);
+                }
+            }
+            break;
+
         case data_type::f32:
             if (mayiuse(avx2)) {
-                kernel[no_beta0][no_col_offset][no_row_offset] =
-                    new jit_avx2_kernel_sgemm_kern(false);
-                kernel[do_beta0][no_col_offset][no_row_offset] =
-                    new jit_avx2_kernel_sgemm_kern(true);
+                for (int isBeta0 : {no_beta0, do_beta0}) {
+                    kernel[isBeta0][no_col_offset][no_row_offset] =
+                        new jit_avx2_kernel_sgemm_kern(isBeta0);
+                }
             } else if (mayiuse(avx)) {
                 kernel[no_beta0][no_col_offset][no_row_offset] =
                     new jit_avx_kernel_sgemm_kern;
@@ -342,8 +434,11 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
     int doSumA = this->bo != 0 ? do_sum : no_sum;
     int doSumB = this->ao != 0 ? do_sum : no_sum;
 
-    this->copyA = copyA[this->transa][doSumA];
-    this->copyB = copyB[this->transb][doSumB];
+    int copy_trans_a = (this->transa == do_trans) ? do_trans : no_trans;
+    int copy_trans_b = (this->transb == do_trans) ? do_trans : no_trans;
+
+    this->copyA = copyA[copy_trans_a][doSumA];
+    this->copyB = copyB[copy_trans_b][doSumB];
 
     for (int isBeta0 : {no_beta0, do_beta0})
         for (int isColOffset : {no_col_offset, do_col_offset})
@@ -362,6 +457,7 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 // Check if copy algorithm kernels were generated on supported ISAs.
 // Copy algorithm supported for:
 //      s8  : Intel AVX512, Intel DL Boost
+//      bf16 : Intel AVX512, Intel AVX512 BF16
 //      f32 : Intel SSE4.1, Intel AVX, Intel AVX2, Intel AVX512
 template <typename a_type, typename b_type, typename c_type>
 bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
@@ -379,6 +475,18 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
 
             if (!this->copyA || !this->copyB)
                 return false;
+        }
+        break;
+
+    case data_type::bf16:
+        if (mayiuse(avx512_core)) {
+            for (int isBeta0 : {no_beta0, do_beta0})
+                if (!this->kernel[isBeta0][no_col_offset][no_row_offset])
+                    return false;
+
+            if (!this->copyA || !this->copyB)
+                return false;
+
         }
         break;
 
@@ -402,6 +510,9 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
 // Instantiate the gemm_info_t templates needed.
 template // For gemm_s8u8s32
 struct gemm_info_t<int8_t, uint8_t, int32_t>;
+
+template // For gemm_bf16bf16f32
+struct gemm_info_t<bfloat16_t, bfloat16_t, float>;
 
 template // For sgemm.
 struct gemm_info_t<float, float, float>;

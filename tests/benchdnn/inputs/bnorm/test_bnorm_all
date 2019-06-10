@@ -17,3 +17,5 @@
 
 --tag=nhwc  --dir=FWD_I --flags=G,GSR --batch=bnorm_topo
 --tag=ndhwc --dir=FWD_I --flags=G,GSR --batch=bnorm_3d
+# bfloat16
+--batch=test_bnorm_bfloat16

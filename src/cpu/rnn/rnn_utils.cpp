@@ -22,6 +22,7 @@
 #include "ref_rnn.hpp"
 #include "rnn_utils.hpp"
 #include "type_helpers.hpp"
+#include "gemm/gemm_pack.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -96,7 +97,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.n_iter = src_layer_d.dims()[0];
     rnn.n_dir = weights_layer_d.dims()[1];
     rnn.n_gates = weights_layer_d.dims()[3];
-    rnn.n_states = mkldnn::impl::rnn::get_states_count(rd.cell_kind);
+    rnn.n_states = rd.cell_kind == mkldnn_vanilla_lstm ? 2 : 1;
     rnn.n_bias = rnn.n_gates + rnn.is_lbr;
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];
@@ -139,7 +140,6 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide to copy bias */
     rnn.copy_bias = rnn.dt_conf != all_f32;
 
-#if USE_MKL_PACKED_GEMM
     rnn.use_layer_packed_gemm
         = (utils::one_of(weights_layer_d.format_kind(), format_kind::any,
                    format_kind::rnn_packed)
@@ -150,13 +150,17 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                    format_kind::rnn_packed)
            && is_inference && rnn.mb >= 16)
         || is_int8;
-#else
-    rnn.use_layer_packed_gemm = false;
-    rnn.use_iter_packed_gemm = false;
-#endif
+
+    int sizeof_states_dt
+            = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
+    rnn.states_ws_ld
+            = get_good_ld(nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)),
+                sizeof_states_dt);
 
     /* Set packed gemm sizes */
+    /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
     if (rnn.use_layer_packed_gemm) {
+        bool pack = true;
         rnn.weights_layer_pack_size = 0;
         for (int p = 0; p < rnn.n_parts_weights_layer; p++) {
             int m_p = rnn.is_fwd
@@ -166,30 +170,28 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 ? rnn.slc
                 : (rnn.parts_weights_layer[p] * rnn.dic);
             int n_p = rnn.merge_gemm_layer ? rnn.mb * rnn.n_iter : rnn.mb;
+            bool pack_part = true;
 
-#if USE_MKL_PACKED_GEMM
             if (rnn.dt_conf == all_f32)
-                rnn.part_weights_layer_pack_size[p] = cblas_sgemm_pack_get_size(
-                        CblasAMatrix, m_p, n_p, k_p);
+                sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p, &m_p,
+                        &rnn.states_ws_ld, &rnn.part_weights_layer_pack_size[p],
+                        &pack_part);
             else
-                rnn.part_weights_layer_pack_size[p]
-                        = cblas_gemm_s8u8s32_pack_get_size(
-                                CblasAMatrix, m_p, n_p, k_p);
-#else
-            UNUSED(m_p);
-            UNUSED(k_p);
-            UNUSED(n_p);
-            rnn.part_weights_layer_pack_size[p] = 0;
-#endif
+                gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
+                        &m_p, &rnn.states_ws_ld,
+                        &rnn.part_weights_layer_pack_size[p], &pack_part);
             rnn.weights_layer_pack_size += rnn.n_layer * rnn.n_dir
                     * rnn.part_weights_layer_pack_size[p];
+            pack = pack && pack_part;
         }
+        rnn.use_layer_packed_gemm = pack;
         rnn.weights_layer_comp_offset = rnn.weights_layer_pack_size;
         rnn.weights_layer_pack_size += rnn.dt_conf == all_f32 ? 0 : rnn.n_layer
                         * rnn.n_dir * rnn.n_gates * rnn.dlc * sizeof(float);
     }
 
     if (rnn.use_iter_packed_gemm) {
+        bool pack = true;
         rnn.weights_iter_pack_size = 0;
         for (int p = 0; p < rnn.n_parts_weights_iter; p++) {
             int m_p = rnn.is_fwd ? (rnn.parts_weights_iter[p] * rnn.dic) :
@@ -197,24 +199,21 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             int k_p = rnn.is_fwd ? rnn.sic :
                                    (rnn.parts_weights_iter[p] * rnn.dic);
             int n_p = rnn.merge_gemm_iter ? rnn.mb * rnn.n_iter : rnn.mb;
+            bool pack_part = true;
 
-#if USE_MKL_PACKED_GEMM
             if (rnn.dt_conf == all_f32)
-                rnn.part_weights_iter_pack_size[p] = cblas_sgemm_pack_get_size(
-                        CblasAMatrix, m_p, n_p, k_p);
+                sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p, &m_p,
+                        &rnn.states_ws_ld, &rnn.part_weights_iter_pack_size[p],
+                        &pack);
             else
-                rnn.part_weights_iter_pack_size[p]
-                        = cblas_gemm_s8u8s32_pack_get_size(
-                                CblasAMatrix, m_p, n_p, k_p);
-#else
-            UNUSED(m_p);
-            UNUSED(k_p);
-            UNUSED(n_p);
-            rnn.part_weights_iter_pack_size[p] = 0;
-#endif
+                gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
+                        &m_p, &rnn.states_ws_ld,
+                        &rnn.part_weights_iter_pack_size[p], &pack);
             rnn.weights_iter_pack_size += rnn.n_layer * rnn.n_dir
                     * rnn.part_weights_iter_pack_size[p];
+            pack = pack && pack_part;
         }
+        rnn.use_iter_packed_gemm = pack;
         rnn.weights_iter_comp_offset = rnn.weights_iter_pack_size;
         rnn.weights_iter_pack_size += rnn.dt_conf == all_f32 ? 0 : rnn.n_layer
                         * rnn.n_dir * rnn.n_gates * rnn.dic * sizeof(float);
@@ -230,11 +229,6 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Set leading dimensions for input weights arrays depending on input format
      */
-    rnn.weights_layer_is_packed
-            = weights_layer_d.format_kind() == format_kind::rnn_packed;
-    rnn.weights_iter_is_packed
-            = weights_iter_d.format_kind() == format_kind::rnn_packed;
-
     auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
         ld = 0; nld = 0;
         if (md.is_blocking_desc()) {
@@ -259,9 +253,6 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     int sizeof_states_dt
             = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
-    rnn.states_ws_ld
-            = get_good_ld(nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)),
-                sizeof_states_dt);
     rnn.gates_ws_ld = get_good_ld(rnn.gates_ld, sizeof(float));
 
     /* Set workspace sizes to store:
@@ -397,6 +388,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         weights_md.format_kind = format_kind::rnn_packed;
         rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
         rnn_pdata.format = rnn.is_fwd ? mkldnn_ldigo_p : mkldnn_ldgoi_p;
+        rnn_pdata.ldb = rnn.states_ws_ld;
         if (is_iter) {
             rnn_pdata.n = rnn.mb;
             rnn_pdata.n_parts = rnn.n_parts_weights_iter;

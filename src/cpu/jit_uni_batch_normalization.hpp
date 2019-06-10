@@ -34,22 +34,19 @@ namespace cpu {
 namespace bnorm_impl { template <cpu_isa_t isa> struct driver_t; }
 
 template <cpu_isa_t isa>
-struct jit_uni_batch_normalization_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_batch_normalization_fwd_pd_t {
+struct jit_uni_batch_normalization_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("bnorm_jit:", isa, ""),
                 jit_uni_batch_normalization_fwd_t<isa>);
 
         status_t init();
     };
-
-    typedef typename prec_traits<data_type::f32>::type data_t;
 
     jit_uni_batch_normalization_fwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_fwd_t();
@@ -63,22 +60,19 @@ private:
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_batch_normalization_bwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_batch_normalization_bwd_pd_t {
+struct jit_uni_batch_normalization_bwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
             : cpu_batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
         {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("bnorm_jit:", isa, ""),
                 jit_uni_batch_normalization_bwd_t<isa>);
 
         status_t init();
     };
-
-    typedef typename prec_traits<data_type::f32>::type data_t;
 
     jit_uni_batch_normalization_bwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_bwd_t();

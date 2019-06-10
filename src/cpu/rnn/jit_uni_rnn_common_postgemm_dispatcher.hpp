@@ -50,7 +50,9 @@ struct rnn_postgemm_dispatcher {
         rnn_postgemm_part2_ = nullptr;
         switch (pd->cell_kind()) {
         case alg_kind::vanilla_lstm:
+            // ref path
             postgemm_func = &class_name::lstm_postgemm;
+            // jitted path
             if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
@@ -65,12 +67,22 @@ struct rnn_postgemm_dispatcher {
                         new jit_uni_lstm_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
             }
-            if (rnn_postgemm_)
-                rnn_postgemm_->init();
-            else
-                postgemm_func = &class_name::lstm_postgemm;
             break;
         case alg_kind::vanilla_rnn:
+            // ref path
+            postgemm_func = &class_name::rnn_postgemm;
+            switch (pd->activation_kind()) {
+            case alg_kind::eltwise_relu:
+                activation_func = &activation<alg_kind::eltwise_relu, aprop>;
+                break;
+            case alg_kind::eltwise_tanh:
+                activation_func = &activation<alg_kind::eltwise_tanh, aprop>;
+                break;
+            case alg_kind::eltwise_logistic:
+                activation_func = &activation<alg_kind::eltwise_logistic, aprop>;
+                break;
+            default: assert(!"Unsupported activation function"); break;
+            }
 	    // jitted path
 	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core))
@@ -86,27 +98,12 @@ struct rnn_postgemm_dispatcher {
                         new jit_uni_rnn_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
             }
-            if (rnn_postgemm_)
-                rnn_postgemm_->init();
-            else {
-                // ref path
-            postgemm_func = &class_name::rnn_postgemm;
-            switch (pd->activation_kind()) {
-            case alg_kind::eltwise_relu:
-                activation_func = &activation<alg_kind::eltwise_relu, aprop>;
-                break;
-            case alg_kind::eltwise_tanh:
-                activation_func = &activation<alg_kind::eltwise_tanh, aprop>;
-                break;
-            case alg_kind::eltwise_logistic:
-                activation_func = &activation<alg_kind::eltwise_logistic, aprop>;
-                break;
-            default: break;
-            }
-            }
             break;
         case alg_kind::vanilla_gru:
-	    // jitted path
+            // ref path
+            postgemm_func = &class_name::gru_part1_postgemm;
+            postgemm_part2_func = &class_name::gru_part2_postgemm;
+            // jitted path
 	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core)) {
                     rnn_postgemm_ =
@@ -131,15 +128,9 @@ struct rnn_postgemm_dispatcher {
                             rnn, pd);
                 }
             }
-            if (rnn_postgemm_ && rnn_postgemm_part2_) {
-                rnn_postgemm_->init();
-                rnn_postgemm_part2_->init();
-            } else {
-                postgemm_func = &class_name::gru_part1_postgemm;
-                postgemm_part2_func = &class_name::gru_part2_postgemm;   
-            }
             break;
         case alg_kind::lbr_gru:
+            // ref path
             postgemm_func = &class_name::gru_lbr_postgemm;
 	    // jitted path
 	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
@@ -156,13 +147,14 @@ struct rnn_postgemm_dispatcher {
                         new jit_uni_gru_lbr_cell_postgemm_fwd<sse41, src_type>(
                             rnn, pd);
                 assert(rnn_postgemm_ != nullptr);
-                rnn_postgemm_->init();
             }
             break;
         default:
             assert(!"Unsupported algorithm kind");
             break;
         }
+        if (rnn_postgemm_) rnn_postgemm_->init();
+        if (rnn_postgemm_part2_) rnn_postgemm_part2_->init();
     }
 
     ~rnn_postgemm_dispatcher(){

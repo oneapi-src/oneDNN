@@ -64,15 +64,10 @@ struct ref_inner_product_fwd_t : public primitive_t {
                                desc()->accum_data_type,
                                desc()->dst_desc.data_type)
                     && utils::one_of(desc()->src_desc.data_type, f16, f32)
-                    && IMPLICATION(desc()->src_desc.data_type == f16,
-                               desc()->prop_kind == forward_inference)
                     && IMPLICATION(with_bias(),
                                utils::one_of(
                                        desc()->bias_desc.data_type, f32, f16))
                     && attr()->output_scales_.has_default_values()
-                    && attr()->post_ops_.len_ <= 1
-                    && IMPLICATION(attr()->post_ops_.len_ == 1,
-                               attr()->post_ops_.entry_[0].is_relu(true, false))
                     && dense_consitency_check(
                                src_md(), weights_md(), dst_md())
                     && IMPLICATION(src_type == data_type::f16,
@@ -83,6 +78,46 @@ struct ref_inner_product_fwd_t : public primitive_t {
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
                     src_md(), weights_md(), dst_md(), *this->attr(), jit_off_);
         }
+        bool with_eltwise() const {
+            return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
+        }
+
+        bool with_sum() const {
+            return attr()->post_ops_.find(primitive_kind::sum) != -1;
+        }
+
+        float eltwise_alpha() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
+                : 1.0f;
+        }
+
+        float eltwise_beta() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
+                : 0.0f;
+        }
+
+        float sum_scale() const {
+            const int sum_idx =
+                attr()->post_ops_.find(primitive_kind::sum);
+            return with_sum()
+                ? attr()->post_ops_.entry_[sum_idx].sum.scale
+                : 1.0f;
+        }
+
+        alg_kind_t eltwise_alg_kind() const {
+            const int eltwise_idx =
+                attr()->post_ops_.find(primitive_kind::eltwise);
+            return with_eltwise()
+                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
+                : mkldnn_alg_kind_undef;
+        }
+
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;
     };
@@ -90,7 +125,8 @@ struct ref_inner_product_fwd_t : public primitive_t {
     status_t init() override {
         auto jit = ocl_jit_t(ref_inner_product_kernel);
         jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_);
+                jit, pd()->jip_, pd()->jit_off_, pd()->with_eltwise(),
+                pd()->with_sum(), pd()->eltwise_alg_kind());
 
         status_t status = jit.build(engine());
         if (status != status::success)
@@ -163,7 +199,8 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
     virtual status_t init() override {
         auto jit = ocl_jit_t(ref_inner_product_kernel);
         jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_);
+                jit, pd()->jip_, pd()->jit_off_, false, false,
+                mkldnn_alg_kind_undef);
 
         status_t status = jit.build(engine());
         if (status != status::success)
@@ -239,7 +276,8 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
     status_t init() override {
         auto jit = ocl_jit_t(ref_inner_product_kernel);
         jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_);
+                jit, pd()->jip_, pd()->jit_off_, false, false,
+                mkldnn_alg_kind_undef);
 
         status_t status = jit.build(engine());
         if (status != status::success)

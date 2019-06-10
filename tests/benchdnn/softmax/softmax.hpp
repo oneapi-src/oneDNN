@@ -17,16 +17,17 @@
 #ifndef _SOFTMAX_HPP
 #define _SOFTMAX_HPP
 
+#include <iostream>
+
 #include "mkldnn.h"
 
 #include "common.hpp"
+#include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
 #include "perf_report.hpp"
 
 namespace softmax {
-
-using dims_t = std::vector<int64_t>;
 
 struct prb_t {
     prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
@@ -42,45 +43,30 @@ struct prb_t {
     mkldnn_format_tag_t tag;
     int axis;
 };
-
-dims_t str2dims(const char *str);
-void dims2str(const dims_t &dims, char *buffer);
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
     }
 
-    virtual void dump_axis(char *buf) const override {
-        dprint(buf, p_->axis);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->dims;
     }
 
-    virtual void dump_data_type(char *buf) const override {
-        dprint(buf, dt2str(p_->dt));
-    }
-
-    virtual void dump_descriptor_csv(char *buf) const override {
-        dims2str(p_->dims, buf);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual void dump_tag(char *buf) const override {
-        dprint(buf, tag2str(p_->tag));
-    }
+    virtual const int *axis() const override { return &p_->axis; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
+    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
+
+extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline void map_off_to_mb_ic(const prb_t *p, int64_t off, int64_t &mb,
         int64_t &ic) {

@@ -19,14 +19,14 @@
 __kernel void ref_deconv_forward_bias(
         __global DATA_T *dst, __global DATA_T *bias) {
 
-    const int mb = get_global_id(1);
-    const int g = get_global_id(2) / OC;
-    const int oc = get_global_id(2) % OC;
+    const int g = get_global_id(0) / OC;
+    const int oc = get_global_id(0) % OC;
     DATA_T b = bias[g * OC + oc];
-    for (int od = 0; od < OD; ++od)
-        for (int oh = 0; oh < OH; ++oh)
-            for (int ow = 0; ow < OW; ++ow) {
-                uint dst_off = DST_OFF(mb, oc, od, oh, ow);
-                dst[dst_off] += b;
-            }
+    for (int mb = 0; mb < MB; ++mb)
+        for (int od = 0; od < OD; ++od)
+            for (int oh = 0; oh < OH; ++oh)
+                for (int ow = 0; ow < OW; ++ow) {
+                    uint dst_off = DST_OFF(mb, g * OC + oc, od, oh, ow);
+                    dst[dst_off] += b;
+                }
 }

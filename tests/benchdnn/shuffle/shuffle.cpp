@@ -35,7 +35,9 @@ inline float saturate(float value, float min, float max) {
     return MAX2(min, MIN2(max, value));
 }
 
-int fill_memory(const prb_t *p, dnn_mem_t &mem) {
+int fill_memory(const prb_t *p, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, get_default_tag(mem_dt.md_.ndims),
+        engine_ref);
     dt_conf_t c_src;
     switch (p->dt) {
         case mkldnn_u8: c_src = conf_u8; break;
@@ -47,12 +49,15 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem) {
     const int range = c_src.range;
     const int max = c_src.min + range - 1;
 
-    const size_t nelems = mem.nelems();
+    const size_t nelems = mem_dt.nelems();
+    assert(mem_dt.nelems() == mem_fp.nelems());
 
     for (size_t idx = 0; idx < nelems; ++idx) {
         float value = saturate((float)(idx % c_src.range), c_src.min, max);
-        mem.set_elem(idx, value);
+        mem_00.set_elem(idx, value);
     }
+    SAFE(mem_dt.reorder(mem_00), WARN);
+    SAFE(mem_fp.reorder(mem_dt), WARN);
 
     return OK;
 }
@@ -134,7 +139,7 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(mkldnn_primitive_create(&s, spd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
 
-    const auto fp = p->dt;
+    const auto fp = mkldnn_f32;
     auto &src_dt_d = sd.data_desc;
 
     const int ndims = (int)p->dims.size();
@@ -145,8 +150,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_fp(src_dt_d, fp, src_tag, engine_ref),
             dst_dt(src_dt_d, engine_tgt);
 
-    SAFE(fill_memory(p, src_fp), WARN);
-    SAFE(src_dt.reorder(src_fp), WARN);
+    SAFE(fill_memory(p, src_dt, src_fp), WARN);
 
     const int i_arg = p->dir == FWD_D ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
     const int o_arg = p->dir == FWD_D ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;

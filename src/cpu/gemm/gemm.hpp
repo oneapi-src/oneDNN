@@ -19,6 +19,7 @@
 
 #include "mkldnn_types.h"
 #include "os_blas.hpp"
+#include "bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,8 +35,17 @@ template <typename b_dt>
 mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *lda, const int8_t *ao,
-        const b_dt *B, const int *ldb, const int8_t *bo, const float *beta,
+        const b_dt *B, const int *ldb, const b_dt *bo, const float *beta,
         int32_t *c, const int *ldc, const int32_t *co);
+
+mkldnn_status_t gemm_bf16bf16f32(
+        const char *transa, const char *transb,
+        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
+        const float *alpha,
+        const bfloat16_t *A, const mkldnn_dim_t *lda,
+        const bfloat16_t *B, const mkldnn_dim_t *ldb,
+        const float *beta,
+        float *C, const mkldnn_dim_t *ldc);
 
 #ifdef USE_CBLAS
 #define GEMM_IMPL_STR "gemm:blas"

@@ -82,10 +82,10 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
             if (jcp.im2col_sz && do_im2col) {
                 if (jcp.id == 1)
-                    jit_gemm_convolution_utils::im2col(jcp, _src, _col, curr.sp,
+                    jit_gemm_convolution_utils::im2col<float>(jcp, _src, _col, curr.sp,
                             step.sp, curr.ic, step.ic);
                 else
-                    jit_gemm_convolution_utils::im2col_3d(
+                    jit_gemm_convolution_utils::im2col_3d<float>(
                             jcp, _src, _col, curr.od);
             }
             const data_t one = 1.0;
@@ -111,6 +111,9 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             extended_sgemm("N", "N", &m, &N, &K, &one, _source, &LDA, _weights,
                     &LDB, &beta, _dst, &M);
             if (curr.ic == jcp.ic - step.ic) {
+                // TODO: for "outer threading" we have parallel section within
+                // outermost "parallel". It is not good. Consider to use
+                // "parallel" here with number of threads passed as parameter
                 const int oc_start = curr.g * jcp.oc + curr.oc;
                 if (eltwise_) {
                     // fast branch for ReLU case
@@ -314,10 +317,10 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
 
                     if (jcp.im2col_sz) {
                         if (jcp.id == 1)
-                            jit_gemm_convolution_utils::im2col(
+                            jit_gemm_convolution_utils::im2col<float>(
                                     jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                         else
-                            jit_gemm_convolution_utils::im2col_3d(
+                            jit_gemm_convolution_utils::im2col_3d<float>(
                                     jcp, _src, _col, od);
                     }
 

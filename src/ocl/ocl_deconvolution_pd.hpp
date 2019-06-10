@@ -27,6 +27,15 @@ struct ocl_deconvolution_fwd_pd_t : public deconvolution_fwd_pd_t {
     using deconvolution_fwd_pd_t::deconvolution_fwd_pd_t;
 };
 
+struct ocl_deconvolution_bwd_data_pd_t : public deconvolution_bwd_data_pd_t {
+    using deconvolution_bwd_data_pd_t::deconvolution_bwd_data_pd_t;
+};
+
+struct ocl_deconvolution_bwd_weights_pd_t
+    : public deconvolution_bwd_weights_pd_t {
+    using deconvolution_bwd_weights_pd_t::deconvolution_bwd_weights_pd_t;
+};
+
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

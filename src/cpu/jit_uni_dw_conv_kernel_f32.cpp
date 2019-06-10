@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::prop_kind;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
@@ -181,7 +180,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_activation(
         int ur_ch_blocks, int ur_w) {
     if (this->jcp.with_eltwise) {
         int repeats = isa == sse41 ? 2 : 1;
-        eltwise_injector_->compute_vector_range(4, repeats * ur_w * ur_ch_blocks + 4);
+        eltwise_injector_->compute_vector_range(4,
+                repeats * ur_w * ur_ch_blocks + 4);
     }
 }
 
@@ -293,124 +293,6 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
 
     if (jcp.with_eltwise)
         eltwise_injector_->prepare_table();
-}
-
-template <cpu_isa_t isa>
-bool jit_uni_dw_conv_fwd_kernel_f32<isa>::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-
-    switch (p.len_) {
-    case 0: return true; // no post_ops
-    case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-    case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-    default: return false;
-    }
-
-    return false;
-}
-
-template <cpu_isa_t isa>
-status_t jit_uni_dw_conv_fwd_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
-        const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        const primitive_attr_t &attr)
-{
-    if (!mayiuse(isa)) return status::unimplemented;
-
-    const int simd_w = isa == avx512_common ? 16 : 8;
-
-    jcp.prop_kind = cd.prop_kind;
-
-    const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    if (!with_groups) return status::unimplemented;
-
-    jcp.ngroups = weights_d.dims()[0];
-    jcp.mb = src_d.dims()[0];
-
-    jcp.oc = dst_d.dims()[1];
-    jcp.oc_without_padding = jcp.oc;
-    jcp.ic = src_d.dims()[1];
-
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[3];
-
-    jcp.kh = weights_d.dims()[3];
-    jcp.kw = weights_d.dims()[4];
-
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
-    jcp.b_pad = cd.padding[1][0];
-    jcp.r_pad = cd.padding[1][1];
-
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
-
-    jcp.dilate_h = cd.dilates[0];
-    jcp.dilate_w = cd.dilates[1];
-
-    jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-
-    if (!post_ops_ok(jcp, attr))
-        return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise)
-        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-
-    bool ok_to_pad_channels = true
-        && jcp.oc == jcp.ngroups
-        && jcp.ic == jcp.ngroups
-        && one_of(isa, avx512_common, avx2);
-    if (ok_to_pad_channels) {
-        jcp.oc = rnd_up(jcp.oc, simd_w);
-        jcp.ic = rnd_up(jcp.oc, simd_w);
-        jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
-    }
-
-    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
-    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
-
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
-
-    bool args_ok = true
-        && jcp.oc == jcp.ngroups
-        && jcp.ic == jcp.ngroups
-        && jcp.ngroups % simd_w == 0
-        && jcp.src_tag == dat_tag
-        && jcp.wei_tag == wei_tag
-        && jcp.dst_tag == dat_tag
-        && jcp.ic <= src_d.padded_dims()[1]
-        && jcp.oc <= dst_d.padded_dims()[1]
-        && jcp.ngroups <= weights_d.padded_dims()[0];
-    if (!args_ok) return status::unimplemented;
-
-    jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
-
-    jcp.ch_block = simd_w;
-    jcp.nb_ch = jcp.oc / jcp.ch_block;
-    jcp.nb_ch_blocking = isa == avx512_common ? 4 : isa == avx2 ? 3 : 2;
-    if (jcp.nb_ch < jcp.nb_ch_blocking)
-        jcp.nb_ch_blocking = jcp.nb_ch;
-
-    return status::success;
-}
-
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
-    if (jcp.with_bias && jcp.oc_without_padding != jcp.oc)
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
 }
 
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
@@ -610,99 +492,6 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
     this->postamble();
 }
 
-template <cpu_isa_t isa>
-status_t jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_conf(
-        jit_conv_conf_t &jcp, const convolution_desc_t &cd,
-        const memory_desc_wrapper &diff_src_d,
-        const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &diff_dst_d) {
-    if (!mayiuse(isa)) return status::unimplemented;
-
-    const int simd_w = isa == avx512_common ? 16 : 8;
-
-    const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
-    if (!with_groups) return status::unimplemented;
-
-    jcp.ngroups = weights_d.dims()[0];
-    jcp.mb = diff_src_d.dims()[0];
-
-    jcp.oc = diff_dst_d.dims()[1];
-    jcp.oc_without_padding = jcp.oc;
-    jcp.ic = diff_src_d.dims()[1];
-
-    jcp.ih = diff_src_d.dims()[2];
-    jcp.iw = diff_src_d.dims()[3];
-    jcp.oh = diff_dst_d.dims()[2];
-    jcp.ow = diff_dst_d.dims()[3];
-
-    jcp.kh = weights_d.dims()[3];
-    jcp.kw = weights_d.dims()[4];
-
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
-    jcp.b_pad = cd.padding[1][0];
-    jcp.r_pad = cd.padding[1][1];
-
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
-
-    jcp.dilate_h = cd.dilates[0];
-    jcp.dilate_w = cd.dilates[1];
-
-    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
-    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
-
-    bool ok_to_pad_channels = true
-        && jcp.oc == jcp.ngroups
-        && jcp.ic == jcp.ngroups
-        && one_of(isa, avx512_common, avx2);
-    if (ok_to_pad_channels) {
-        jcp.oc = rnd_up(jcp.oc, simd_w);
-        jcp.ic = rnd_up(jcp.oc, simd_w);
-        jcp.ngroups = rnd_up(jcp.ngroups, simd_w);
-    }
-
-    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
-    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
-
-    jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag);
-    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
-
-    bool args_ok = true
-        && jcp.oc == jcp.ngroups
-        && jcp.ic == jcp.ngroups
-        && jcp.ngroups % simd_w == 0
-        && jcp.dilate_h == 0
-        && jcp.dilate_w == 0
-        && jcp.src_tag == dat_tag
-        && jcp.wei_tag == wei_tag
-        && jcp.dst_tag == dat_tag
-        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
-        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1
-        && jcp.ic <= diff_src_d.padded_dims()[1]
-        && jcp.oc <= diff_dst_d.padded_dims()[1]
-        && jcp.ngroups <= weights_d.padded_dims()[0];
-    if (!args_ok) return status::unimplemented;
-
-    jcp.ur_w = isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
-
-    jcp.ch_block = simd_w;
-    jcp.nb_ch = jcp.ic / jcp.ch_block;
-    jcp.nb_ch_blocking = isa == avx512_common ? 4 : isa == avx2 ? 3 : 2;
-    if (jcp.nb_ch < jcp.nb_ch_blocking)
-        jcp.nb_ch_blocking = jcp.nb_ch;
-
-    return status::success;
-}
-
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
-    UNUSED(scratchpad);
-    UNUSED(jcp);
-}
-
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx512_common>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<avx2>;
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<sse41>;
@@ -770,6 +559,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 for (int c = 0; c < input_overlap; ++c) {
                     int off_input
                             = ((c - pad_offset) * reg_repeats + r) * simd_w;
+                    if (off_input < 0 && unroll_w == jcp.ow)
+                        continue;
                     Vmm vmm_input
                             = get_input_reg((c % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -781,6 +572,8 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     int off_input
                             = ((overlap + c - pad_offset) * reg_repeats + r)
                             * simd_w;
+                    if (off_input < 0 || overlap + c + l_pad > right_border)
+                        continue;
                     Vmm vmm_input = get_input_reg(
                             ((overlap + c) % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -795,7 +588,6 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 if (io_overlap - l_pad < 0
                         || io_overlap - jcp.l_pad >= right_border)
                     continue;
-
                 Vmm vmm_input = get_input_reg(
                         ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
                 Vmm vmm_acc = get_acc_reg(i_kw * reg_repeats + r);
@@ -872,15 +664,15 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_bias_loop(
     L(oh_label);
     {
 
-        mov(iter_ow_blk, unroll_w_trips);
+        mov(reg_iter_ow_blk, unroll_w_trips);
         L(ow_blk_label);
         {
 
             compute_bias_step_unroll(unroll_w);
             add(reg_tmp_output, unroll_w * ch_offset * sizeof(float));
 
-            dec(iter_ow_blk);
-            cmp(iter_ow_blk, 0);
+            dec(reg_iter_ow_blk);
+            cmp(reg_iter_ow_blk, 0);
             jg(ow_blk_label, T_NEAR);
         }
 
@@ -1133,7 +925,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
      * than once */
     bool do_ow_blk_loop = unroll_w_trips > 1;
     if (do_ow_blk_loop) {
-        mov(iter_ow_blk, unroll_w_trips);
+        mov(reg_iter_ow_blk, unroll_w_trips);
         L(ow_blk_label);
     }
     if (unroll_w_trips > 0) {
@@ -1143,8 +935,8 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
                 unroll_w * jcp.stride_w * ch_offset * sizeof(float));
     }
     if (do_ow_blk_loop) {
-        dec(iter_ow_blk);
-        cmp(iter_ow_blk, 0);
+        dec(reg_iter_ow_blk);
+        cmp(reg_iter_ow_blk, 0);
         jg(ow_blk_label, T_NEAR);
     }
 
@@ -1168,129 +960,6 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     compute_ow_block_unroll();
 
     this->postamble();
-}
-
-template <cpu_isa_t isa>
-status_t jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_conf(
-        jit_conv_conf_t &jcp, const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &diff_weights_d,
-        const memory_desc_wrapper &diff_dst_d, int nthreads) {
-    if (!mayiuse(isa))
-        return status::unimplemented;
-
-    jcp.ngroups = diff_weights_d.dims()[0];
-    jcp.oc = diff_dst_d.dims()[1] / jcp.ngroups;
-    jcp.ic = src_d.dims()[1] / jcp.ngroups;
-
-    const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
-
-    jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.oc, jcp.ic);
-
-    if (!jcp.is_depthwise)
-        return status::unimplemented;
-
-    jcp.ch_block = isa == avx512_common ? 16 : 8;
-
-    jcp.mb = src_d.dims()[0];
-
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = diff_dst_d.dims()[2];
-    jcp.ow = diff_dst_d.dims()[3];
-
-    jcp.kh = diff_weights_d.dims()[3];
-    jcp.kw = diff_weights_d.dims()[4];
-
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
-
-    jcp.t_pad = cd.padding[0][0];
-    jcp.b_pad = cd.padding[1][0];
-
-    jcp.l_pad = cd.padding[0][1];
-    jcp.r_pad = cd.padding[1][1];
-
-    jcp.dilate_h = cd.dilates[0];
-    jcp.dilate_w = cd.dilates[1];
-
-    jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
-    jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
-
-    jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
-
-    auto dat_tag = isa == avx512_common ? nChw16c : nChw8c;
-    auto wei_tag = isa == avx512_common ? Goihw16g : Goihw8g;
-
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
-
-    bool args_ok = true
-        && jcp.src_tag == dat_tag
-        && jcp.wei_tag == wei_tag
-        && jcp.dst_tag == dat_tag
-        && jcp.ngroups % jcp.ch_block == 0 && jcp.dilate_h == 0
-        && jcp.dilate_w == 0 && jcp.kw <= 3
-        && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
-        && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
-    if (!args_ok)
-        return status::unimplemented;
-
-    jcp.nb_ch = jcp.ngroups / jcp.ch_block;
-
-    /* kernel applicability check wrt boundaries
-     * the conditions are quite general across the kernels we have,
-     * but ideally the check should belong to a specific kernel... */
-    const int max_hpad = (jcp.kh - 1 + 1) / 2;
-    const int max_wpad = (jcp.kw - 1 + 1) / 2;
-    const bool boundaries_ok = true && jcp.t_pad <= max_hpad
-            && jcp.b_pad <= max_hpad && jcp.l_pad <= max_wpad
-            && jcp.r_pad <= max_wpad;
-    if (!boundaries_ok)
-        return status::unimplemented;
-
-    balance(jcp, nthreads);
-
-    return status::success;
-}
-
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
-    /* Notes: if splitting thread work on 'mb', then a reduction has to take
-     * place. Hence, book a per-thread, local weights-buffer for the
-     * reduction */
-    if (jcp.nthr_mb > 1) {
-        const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-        scratchpad.book(key_conv_wei_reduction,
-                sizeof(float) * wei_size * (jcp.nthr_mb - 1));
-
-        if (jcp.with_bias)
-            scratchpad.book(key_conv_bia_reduction,
-                    sizeof(float) * jcp.ngroups * (jcp.nthr_mb - 1));
-    }
-}
-
-template <cpu_isa_t isa>
-void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::balance(jit_conv_conf_t &jcp,
-        int nthreads) {
-    jcp.nthr = nthreads;
-    jcp.nthr_g = jcp.nthr_mb = 1;
-
-    /* Basic-Heuristics for parallel strategy:
-     * 1) Tries to parallel on the number of Groups (g) where tasks are
-     * independent. Otherwise,
-     * 2) Tries to split the work across g and MiniBatch (mb).
-     * Parallelizing on mb requires computing a reduction for weights.
-     *
-     * NOTE: because of 'task partitioning' scheme, there will be unbalanced
-     * per-thread load when the number of threads is high (e.g. > 16).
-     */
-    jcp.nthr_g = nstl::min(jcp.nb_ch, jcp.nthr);
-    jcp.nthr_mb = nstl::min(nstl::max(1, jcp.nthr / jcp.nthr_g), jcp.mb);
-
-    jcp.nthr = jcp.nthr_g * jcp.nthr_mb;
 }
 
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<avx512_common>;

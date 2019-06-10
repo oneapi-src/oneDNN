@@ -16,6 +16,9 @@
 
 #ifndef BFLOAT16_HPP
 #define BFLOAT16_HPP
+#include <cmath>
+#include <cstdint>
+#include <limits>
 #include "mkldnn_config.h"
 namespace mkldnn {
 namespace impl {
@@ -31,7 +34,7 @@ struct bfloat16_t {
     MKLDNN_API operator float() const;
 
     bfloat16_t &operator+=(bfloat16_t a) {
-        (*this) = float(float() + (float)a);
+        (*this) = (float)(*this) + (float)a;
         return *this;
     }
 };
@@ -40,6 +43,12 @@ static_assert(sizeof(bfloat16_t) == 2, "bfloat16_t must be 2 bytes");
 
 void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t size);
 void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t size);
+
+// performs element-by-element sum of inp and add float arrays and stores
+// result to bfloat16 out array with downconversion
+void add_floats_and_cvt_to_bfloat16(bfloat16_t *out, const float *inp0,
+        const float *inp1, size_t size);
+
 }
 }
 

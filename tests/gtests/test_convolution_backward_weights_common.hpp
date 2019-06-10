@@ -138,6 +138,8 @@ protected:
 
         test_convolution_sizes_t cd = p.sizes;
 
+        bool with_bias = p.formats.bias_format != memory::format_tag::undef;
+
         auto c_src_desc = create_md({ cd.mb, cd.ic, cd.ih, cd.iw },
             data_type_src, p.formats.src_format);
         auto c_diff_weights_desc = cd.ng > 1
@@ -218,10 +220,12 @@ protected:
                 c_diff_weights.get());
         check_zero_tail<data_t_diff_weights>(1, c_diff_weights.get());
 
-        compute_ref_conv_bwd_bias<data_t_src, data_t_diff_dst,
-            data_t_diff_bias>(cd, c_diff_dst.get(), ref_diff_bias);
+        if (with_bias) {
+            compute_ref_conv_bwd_bias<data_t_src, data_t_diff_dst,
+                data_t_diff_bias>(cd, c_diff_dst.get(), ref_diff_bias);
 
-        compare_data<data_t_diff_bias>(ref_diff_bias, c_diff_bias.get());
+            compare_data<data_t_diff_bias>(ref_diff_bias, c_diff_bias.get());
+        }
     }
 };
 

@@ -20,6 +20,8 @@
 #include <float.h>
 #include <math.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
@@ -60,8 +62,11 @@ void check_correctness(const desc_t *c) {
     for (const auto &i_alg: alg)
     for (const auto &i_mb: mb) {
         const prb_t p(*c, i_dir, i_cfg, i_tag, i_alg, i_mb);
-        char pstr[max_prb_len];
-        prb2str(&p, pstr);
+        std::stringstream ss;
+        ss << p;
+        const std::string cpp_pstr = ss.str();
+        const char *pstr = cpp_pstr.c_str();
+        print(1, "run: %s\n", pstr);
 
         res_t res{};
         const int status = doit(&p, &res);

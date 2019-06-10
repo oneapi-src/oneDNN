@@ -115,6 +115,14 @@ struct convolution_pd_t: public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
+    bool is_bwd_d() const {
+        return desc_.prop_kind == prop_kind::backward_data;
+    }
+
+    bool is_bwd_w() const {
+        return desc_.prop_kind == prop_kind::backward_weights;
+    }
+
     bool has_zero_dim_memory() const {
         const auto s_d = memory_desc_wrapper(*_src_md());
         const auto d_d = memory_desc_wrapper(*_dst_md());
@@ -206,13 +214,13 @@ struct convolution_fwd_pd_t: public convolution_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : nullptr; }
+    { return index == 0 ? &src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : nullptr; }
+    { return index == 0 ? &dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override { return 2 + with_bias(); }
@@ -257,13 +265,13 @@ struct convolution_bwd_data_pd_t: public convolution_pd_t {
     }
 
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_src_md_ : nullptr; }
+    { return index == 0 ? &diff_src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override { return 2 + with_bias(); }
@@ -313,13 +321,13 @@ struct convolution_bwd_weights_pd_t: public convolution_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : nullptr; }
+    { return index == 0 ? &src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_md_;
         if (index == 1 && with_bias()) return &diff_bias_md_;
-        return nullptr;
+        return &glob_zero_md;
     }
 
     virtual int n_inputs() const override { return 2; }

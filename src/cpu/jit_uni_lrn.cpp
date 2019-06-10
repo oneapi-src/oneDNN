@@ -67,7 +67,7 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
             ker_last_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
                         nchw_across(C, H*W, remind), A, K, pk);
         }
-    } else if (true /* XXX: why */) {
+    } else {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(nhwc_across(C), A, K, pk);
     }
 }

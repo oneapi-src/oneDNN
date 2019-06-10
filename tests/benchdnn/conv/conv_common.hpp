@@ -21,6 +21,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <iostream>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
@@ -53,7 +55,7 @@ struct desc_t {
     const char *name;
 };
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
-void desc2str(const desc_t *d, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 /** configuration structure, that controls initial data filling + error check
  *
@@ -94,6 +96,10 @@ extern const _dt_conf_t conf_u8s8f32s32_wino;
 extern const _dt_conf_t conf_u8s8s32s32_wino;
 extern const _dt_conf_t conf_u8s8s8s32_wino;
 extern const _dt_conf_t conf_u8s8u8s32_wino;
+extern const _dt_conf_t conf_bf16bf16f32;
+extern const _dt_conf_t conf_bf16bf16bf16;
+extern const _dt_conf_t conf_f32bf16bf16;
+extern const _dt_conf_t conf_bf16f32bf16;
 
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
@@ -126,67 +132,48 @@ private:
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
     }
 
-    virtual void dump_algorithm(char *buf) const override {
-        dprint(buf, alg2str(p_->alg));
+    virtual void dump_alg(std::ostream &s) const override {
+        s << alg2str(p_->alg);
     }
 
-    virtual void dump_attributes(char *buf) const override {
-        if (!p_->attr.is_def())
-            attr2str(&p_->attr, buf);
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << cfg2str(p_->cfg);
     }
 
-    virtual void dump_config(char *buf) const override {
-        dprint(buf, cfg2str(p_->cfg));
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        const bool print_d = p_->id > 1;
+
+        s << p_->mb << ',' << p_->ic << ',';
+        if (print_d) s << p_->id << ',';
+        s << p_->ih << ',' << p_->iw << ',';
+        s << p_->oc << ',';
+        if (print_d) s << p_->od << ',';
+        s << p_->oh << ',' << p_->ow << ',';
+        if (print_d) s << p_->kd << ',';
+        s << p_->kh << ',' << p_->kw << ',';
+        if (print_d) s << p_->sd << ',';
+        s << p_->sh << ',' << p_->sw << ',';
+        if (print_d) s << p_->pd << ',';
+        s << p_->ph << ',' << p_->pw;
     }
 
-    virtual void dump_descriptor_csv(char *buf) const override {
-        if (p_->id > 1)
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "",
-                    p_->g, p_->mb, p_->ic, p_->id, p_->ih, p_->iw,
-                    p_->oc, p_->od, p_->oh, p_->ow, p_->kd, p_->kh,
-                    p_->kw, p_->sd, p_->sh, p_->sw, p_->pd, p_->ph,
-                    p_->pw);
-        else
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "",
-                    p_->g, p_->mb, p_->ic, p_->ih, p_->iw, p_->oc,
-                    p_->oh, p_->ow, p_->kh, p_->kw, p_->sh, p_->sw,
-                    p_->ph, p_->pw);
-    }
-
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const attr_t *attr() const override { return &p_->attr; }
+    virtual const char *name() const override { return p_->name; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */

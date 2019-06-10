@@ -48,6 +48,9 @@ public:
 
     bool mayiuse(cl_device_ext_t ext) const { return device_info_.has(ext); }
 
+    int get_eu_count() const { return device_info_.eu_count(); }
+    int get_hw_threads() const { return device_info_.hw_threads(); }
+
 private:
     cl_device_info_t device_info_;
 };

@@ -80,8 +80,10 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
             utils::array_set(self->rtus_.conv_d_.padding[1], 0, 2);
         const int ic = src_d->dims[1];
         if (is_bwd_data) {
+            data_type_t data_type = self->rtus_.conv_d_.diff_src_desc.data_type;
             src_d = &(self->rtus_.conv_d_.diff_src_desc = *dst_d);
             self->rtus_.conv_d_.diff_src_desc.dims[1] = ic;
+            self->rtus_.conv_d_.diff_src_desc.data_type = data_type;
             memory_desc_wrapper::compute_blocking(
                     self->rtus_.conv_d_.diff_src_desc, dat_tag);
         } else {
@@ -127,10 +129,6 @@ struct rtus_driver_t: public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(rtus_driver_t)
 
-    /* cpu specific part */
-    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
-          Xbyak::Zmm>::type;
-
     Xbyak::Reg64 reg_ws = abi_param1;
     Xbyak::Reg64 reg_src = abi_not_param1;
     Xbyak::Reg64 reg_icb = rdx;
@@ -145,8 +143,9 @@ struct rtus_driver_t: public jit_generator {
     int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
     bool src_to_ws_;
     size_t typesize_;
-    Vmm reg_zero;
-    Vmm reg_v;
+
+    Xbyak::Xmm reg_zero;
+    Xbyak::Xmm reg_v;
 
     rtus_driver_t(int iw, int stride_w, int src_step_h,
             int src_step_icb, int ws_step_icb, bool src_to_ws, size_t typesize)
@@ -155,16 +154,51 @@ struct rtus_driver_t: public jit_generator {
         , src_to_ws_(src_to_ws), typesize_(typesize)
     {
         using namespace Xbyak;
-        vlen_ = cpu_isa_traits<isa>::vlen;
-        vlen_shift_ = cpu_isa_traits<isa>::vlen_shift;
-        if (typesize_ == 2) {
-            vlen_ /= 2;
-            vlen_shift_--;
-        }
 
-        reg_zero = Vmm(0);
-        reg_v = Vmm(1);
+        /*FIXME: derive Vmm type on compile time.
+         * changing register type  on runtime
+         * seems dangerous,and some xbyak functions might
+         * fail to work on reg_v, reg_zero because of this
+         * data_type change, e.g. uni_vpxor doen't
+         * work on reg_zero now*/
+        auto Vmm = [=](int idx, int typesize) {
+            Xmm res;
+            switch (isa) {
+            case avx2:
+                switch (typesize) {
+                case 4: res = Ymm(idx); break;
+                case 2: res = Xmm(idx); break;
+                default:
+                    assert(!"Not supported typesize");
+                    res = Ymm(idx);
+                }
+                break;
+            case avx512_common:
+            case avx512_core:
+            case avx512_mic:
+                switch (typesize) {
+                case 4: res = Zmm(idx); break;
+                case 2: res = Ymm(idx); break;
+                case 1: res = Xmm(idx); break;
+                default:
+                    assert(!"Not supported typesize");
+                    res = Zmm(idx);
+                }
+            }
+            return res;
+        };
 
+        reg_zero = Vmm(0, typesize);
+        reg_v = Vmm(1, typesize);
+
+        vlen_ = reg_v.getBit() / 8;
+        vlen_shift_ = 0;
+
+        int tvlen = vlen_;
+        while (tvlen > 1) {
+            tvlen /= 2;
+            vlen_shift_++;
+         }
         generate();
     }
 
@@ -248,8 +282,26 @@ struct rtus_driver_t: public jit_generator {
 
         shl(reg_os, vlen_shift_);
 
-        if (!src_to_ws_)
-            uni_vpxor(reg_zero, reg_zero, reg_zero);
+        if (!src_to_ws_) {
+            switch (reg_zero.getBit() / 8) {
+            case 16 /*xmm*/:
+                uni_vpxor(reg_zero, reg_zero, reg_zero);
+                break;
+            case 32 /*ymm*/:
+                {
+                Xbyak::Ymm ymm_z(reg_zero.getIdx());
+                uni_vpxor(ymm_z, ymm_z, ymm_z);
+                break;
+                }
+            case 64 /*zmm*/:
+                {
+                Xbyak::Zmm zmm_z(reg_zero.getIdx());
+                uni_vpxor(zmm_z, zmm_z, zmm_z);
+                break;
+                }
+            default: assert(!"rtus kernel failure");
+            }
+        }
 
         Label icb_loop;
         L(icb_loop);

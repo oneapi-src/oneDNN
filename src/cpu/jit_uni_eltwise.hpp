@@ -47,7 +47,8 @@ struct jit_uni_eltwise_injector_f32 {
         assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic));
+                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                    eltwise_exp));
     }
 
     // note that eltwise.scale is ignored
@@ -77,6 +78,7 @@ struct jit_uni_eltwise_injector_f32 {
 private:
     // if only the injector was inherited from jit_generator...
     enum {
+        _cmp_lt_os = jit_generator::_cmp_lt_os,
         _cmp_le_os = jit_generator::_cmp_le_os,
         _cmp_nle_us = jit_generator::_cmp_nle_us,
         _op_floor = jit_generator::_op_floor,

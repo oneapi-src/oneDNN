@@ -104,8 +104,8 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
 
 /// Queries primitive descriptor
 ///
-/// One of the most typical use cases is to query a convolution primitive
-/// descriptor created with source, weights, and destination formats equal
+/// One of the most typical use cases is to query a primitive descriptor
+/// created with source, weights, and destination formats equal
 /// to #mkldnn_format_tag_any about the corresponding memory descriptors
 /// (@p what equals #mkldnn_query_src_md, #mkldnn_query_weights_md, and
 /// #mkldnn_query_dst_md respectively) to be able to prepare memory and
@@ -115,6 +115,10 @@ mkldnn_status_t MKLDNN_API mkldnn_primitive_desc_destroy(
 /// descriptor for a workspace (@p what equals #mkldnn_query_workspace_md).
 /// The returned status #mkldnn_not_required indicates that a workspace is
 /// not required.
+///
+/// @note When querying a memory descriptor for a scratchpad, a
+/// workspace, or an optional parameter, the query will return a
+/// zero_md if the parameter is not needed.
 ///
 /// A few other possibilities:
 ///  - query an operation primitive descriptor for the underlying operation
@@ -1533,6 +1537,7 @@ mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_backward_desc_init(
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
 ///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - src_iter_c (#mkldnn_query_src_md, 2), if used
 ///  - weights_layer (#mkldnn_query_weights_md, 0)
 ///  - weights_iter (#mkldnn_query_weights_md, 1)
 ///  - bias (#mkldnn_query_weights_md, 2), if used
@@ -1540,6 +1545,7 @@ mkldnn_status_t MKLDNN_API mkldnn_vanilla_rnn_backward_desc_init(
 /// Outputs:
 ///  - dst_layer (#mkldnn_query_dst_md, 0)
 ///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - dst_iter_c (#mkldnn_query_dst_md, 2), if used
 ///  - workspace (#mkldnn_query_workspace_md, 0),
 ///      if @p prop_kind equals #mkldnn_forward_training
 mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
@@ -1547,11 +1553,13 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         unsigned flags);
 
 /// Initializes an LSTM descriptor @p rnn_desc for backward propagation
@@ -1572,18 +1580,22 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_forward_desc_init(
 /// Inputs:
 ///  - src_layer (#mkldnn_query_src_md, 0)
 ///  - src_iter (#mkldnn_query_src_md, 1), if used
+///  - src_iter_c (#mkldnn_query_src_md, 2), if used
 ///  - weights_layer (#mkldnn_query_weights_md, 0)
 ///  - weights_iter (#mkldnn_query_weights_md, 1)
 ///  - bias (#mkldnn_query_weights_md, 2), if used
 ///  - dst_layer (#mkldnn_query_dst_md, 0)
 ///  - dst_iter (#mkldnn_query_dst_md, 1), if used
+///  - dst_iter_c (#mkldnn_query_dst_md, 2), if used
 ///  - diff_dst_layer (#mkldnn_query_diff_dst_md, 0)
 ///  - diff_dst_iter (#mkldnn_query_diff_dst_md, 1), if used
+///  - diff_dst_iter_c (#mkldnn_query_diff_dst_md, 2), if used
 ///  - workspace (#mkldnn_query_workspace_md, 0)
 ///
 /// Outputs:
 ///  - diff_src_layer (#mkldnn_query_diff_src_md, 0)
 ///  - diff_src_iter (#mkldnn_query_diff_src_md, 1), if used
+///  - diff_src_iter_c (#mkldnn_query_diff_src_md, 2), if used
 ///  - diff_weights_layer (#mkldnn_query_diff_weights_md, 0)
 ///  - diff_weights_iter (#mkldnn_query_diff_weights_md, 1)
 ///  - diff_bias (#mkldnn_query_diff_weights_md, 2), if used
@@ -1592,18 +1604,22 @@ mkldnn_status_t MKLDNN_API mkldnn_lstm_backward_desc_init(
         mkldnn_rnn_direction_t direction,
         const mkldnn_memory_desc_t *src_layer_desc,
         const mkldnn_memory_desc_t *src_iter_desc,
+        const mkldnn_memory_desc_t *src_iter_c_desc,
         const mkldnn_memory_desc_t *weights_layer_desc,
         const mkldnn_memory_desc_t *weights_iter_desc,
         const mkldnn_memory_desc_t *bias_desc,
         const mkldnn_memory_desc_t *dst_layer_desc,
         const mkldnn_memory_desc_t *dst_iter_desc,
+        const mkldnn_memory_desc_t *dst_iter_c_desc,
         const mkldnn_memory_desc_t *diff_src_layer_desc,
         const mkldnn_memory_desc_t *diff_src_iter_desc,
+        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
         const mkldnn_memory_desc_t *diff_weights_layer_desc,
         const mkldnn_memory_desc_t *diff_weights_iter_desc,
         const mkldnn_memory_desc_t *diff_bias_desc,
         const mkldnn_memory_desc_t *diff_dst_layer_desc,
         const mkldnn_memory_desc_t *diff_dst_iter_desc,
+        const mkldnn_memory_desc_t *diff_dst_iter_c_desc,
         unsigned flags);
 
 /// Initializes a GRU descriptor @p rnn_desc for forward propagation
@@ -1907,8 +1923,8 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
 ///  - A, B and C are matrices, with op( A ) an m by k matrix, op( B ) a k by n matrix
 ///    and C an m by n matrix.
 ///
-/// The matrices are assumed to be stored in column-major order (the elements
-/// in a matrix columns are contiguous in memory).
+/// The matrices are assumed to be stored in row-major order (the elements
+/// in a matrix rows are contiguous in memory).
 ///
 /// @note
 ///      The API is different from the standard BLAS routine
@@ -1916,18 +1932,18 @@ const mkldnn_version_t MKLDNN_API *mkldnn_version();
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
 mkldnn_status_t MKLDNN_API mkldnn_sgemm(
-        const char *transa, const char *transb,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha, const float *A, const mkldnn_dim_t *lda,
-        const float *B, const mkldnn_dim_t *ldb,
-        const float *beta, float *C, const mkldnn_dim_t *ldc);
+        char transa, char transb,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha, const float *A, mkldnn_dim_t lda,
+        const float *B, mkldnn_dim_t ldb,
+        float beta, float *C, mkldnn_dim_t ldc);
 
 /// gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
 /// operation and add the result to a scalar-matrix product. For the final
 /// result, a vector is added to each row or column of the output matrix.
 /// The operation is defined as:
 ///
-/// C := alpha*(op(A) + A_offset) * (op(B) + B_offset) + beta*C + C_offset
+/// C := alpha*(op(A) - A_offset) * (op(B) - B_offset) + beta*C + C_offset
 ///
 /// where
 ///  - op( X ) = X or op( X ) = X**T,
@@ -1948,23 +1964,21 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(
 ///      because it returns mkldnn_status_t for error handling.
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
-mkldnn_status_t MKLDNN_API mkldnn_gemm_s8u8s32(
-        const char *transa, const char *transb, const char *offsetc,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha,
-        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
-        const uint8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
-        const float *beta,
-        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
+mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
+        char transa, char transb, char offsetc,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha,
+        const uint8_t *A, mkldnn_dim_t lda, uint8_t ao,
+        const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 
 mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
-        const char *transa, const char *transb, const char *offsetc,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha,
-        const int8_t *A, const mkldnn_dim_t *lda, const int8_t *ao,
-        const int8_t *B, const mkldnn_dim_t *ldb, const int8_t *bo,
-        const float *beta,
-        int32_t *c, const mkldnn_dim_t *ldc, const int32_t *co);
+        char transa, char transb, char offsetc,
+        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
+        float alpha,
+        const int8_t *A, mkldnn_dim_t lda, int8_t ao,
+        const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 /// @}
 
 /// @}

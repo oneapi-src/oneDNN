@@ -31,9 +31,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+template <data_type_t d_type>
 struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
-        using cpu_batch_normalization_fwd_pd_t::cpu_batch_normalization_fwd_pd_t;
+        using cpu_batch_normalization_fwd_pd_t::
+                cpu_batch_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ncsp_bnorm:any", ncsp_batch_normalization_fwd_t);
 
@@ -45,7 +47,8 @@ struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
             bool ok = true
                 && is_fwd()
                 && !has_zero_dim_memory()
-                && src_md()->data_type == f32
+                && src_md()->data_type == d_type
+                && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                 && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
                 && memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, nc)
                 && (attr()->has_default_values() || this->with_relu_post_op());
@@ -64,17 +67,30 @@ struct ncsp_batch_normalization_fwd_t : public cpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
                 scratchpad.book(key_bnorm_reduction,
-                        sizeof(data_t) * C() * mkldnn_get_max_threads());
+                        sizeof(acc_data_t) * C() * mkldnn_get_max_threads());
 
                 if (!is_training()) {
-                    scratchpad.book(key_bnorm_tmp_mean, sizeof(data_t) * C());
-                    scratchpad.book(key_bnorm_tmp_var, sizeof(data_t) * C());
+                    scratchpad.book(
+                            key_bnorm_tmp_mean, sizeof(acc_data_t) * C());
+                    scratchpad.book(
+                            key_bnorm_tmp_var, sizeof(acc_data_t) * C());
                 }
+            }
+
+            if (d_type == data_type::bf16) {
+                const int simd_w = 16;
+                const bool has_spatial = utils::one_of(ndims(), 4, 5);
+                const int SP = has_spatial ? D() * H() * W() : 1;
+                const int nbufs = 2;
+                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
+                        * mkldnn_get_max_threads() * utils::rnd_up(SP, simd_w);
+                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
+    typedef float acc_data_t;
 
     ncsp_batch_normalization_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~ncsp_batch_normalization_fwd_t() {}
@@ -89,9 +105,11 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+template <data_type_t d_type>
 struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
-        using cpu_batch_normalization_bwd_pd_t::cpu_batch_normalization_bwd_pd_t;
+        using cpu_batch_normalization_bwd_pd_t::
+                cpu_batch_normalization_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ncsp_bnorm:any", ncsp_batch_normalization_bwd_t);
 
@@ -99,18 +117,20 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
             using namespace data_type;
             using namespace format_tag;
 
-            bool ok = true
-                && is_bwd()
-                && !has_zero_dim_memory()
-                && utils::everyone_is(f32, src_md()->data_type,
-                        diff_src_md()->data_type)
-                && IMPLICATION(use_scaleshift(),
-                        utils::everyone_is(f32,
-                            weights_md()->data_type,
-                            diff_weights_md()->data_type))
-                && memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, nc)
-                && memory_desc_matches_one_of_tag(*diff_src_md(), ncdhw, nchw, nc)
-                && attr()->has_default_values();
+            bool ok = true 
+                    && is_bwd() 
+                    && !has_zero_dim_memory()
+                    && utils::everyone_is(d_type, src_md()->data_type,
+                               diff_src_md()->data_type)
+                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+                    && IMPLICATION(use_scaleshift(),
+                               utils::everyone_is(f32, weights_md()->data_type,
+                                       diff_weights_md()->data_type))
+                    && memory_desc_matches_one_of_tag(
+                               *src_md(), ncdhw, nchw, nc)
+                    && memory_desc_matches_one_of_tag(
+                               *diff_src_md(), ncdhw, nchw, nc)
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (fuse_bn_relu()) {
@@ -129,14 +149,25 @@ struct ncsp_batch_normalization_bwd_t : public cpu_primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_bnorm_reduction,
-                    sizeof(data_t) * 2 * C() * mkldnn_get_max_threads());
+                    sizeof(acc_data_t) * 2 * C() * mkldnn_get_max_threads());
             if (!(use_scaleshift() && desc()->prop_kind == prop_kind::backward))
-                scratchpad.book(key_bnorm_tmp_diff_ss,
-                        sizeof(data_t) * 2 * C());
+                scratchpad.book(
+                        key_bnorm_tmp_diff_ss, sizeof(acc_data_t) * 2 * C());
+
+            if (d_type == data_type::bf16) {
+                const int simd_w = 16;
+                const bool has_spatial = utils::one_of(ndims(), 4, 5);
+                const int SP = has_spatial ? D() * H() * W() : 1;
+                const int nbufs = 2 + !use_global_stats();
+                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
+                        * mkldnn_get_max_threads() * utils::rnd_up(SP, simd_w);
+                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
+            }
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
+    typedef float acc_data_t;
 
     ncsp_batch_normalization_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~ncsp_batch_normalization_bwd_t() {}

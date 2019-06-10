@@ -112,25 +112,6 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     return alg_kind;
 }
 
-mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
-    if (dir == FWD_D)
-        return mkldnn_forward;
-    if (dir == BWD_DW)
-        return mkldnn_backward;
-    assert(!"unknown dir");
-    return mkldnn_prop_kind_undef;
-}
-
-const char *prop2str(mkldnn_prop_kind_t prop) {
-    if (prop == mkldnn_forward)
-        return "FWD_D";
-    if (prop == mkldnn_backward)
-        return "BWD_DW";
-    assert(!"unknown propagation");
-    return "unknown propagation";
-
-}
-
 mkldnn_rnn_direction_t str2direction(const char *str) {
     if (!strcasecmp("left2right", str))
         return mkldnn_unidirectional_left2right;
@@ -222,38 +203,35 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
-#define DPRINT(...)                                     \
-    do {                                                \
-        int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-        buffer += l;                                    \
-        rem_len -= l;                                   \
-    } while (0)
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    s
+        << "--prop=" << prop2str(p.prop)
+        << " --alg=" << alg2str(p.alg)
+        << " --activation=" << activation2str(p.activation)
+        << " --direction=" << direction2str(p.direction)
+        << " --cfg=" << cfg2str(p.cfg)
+        << " --scaling=" << policy2str(p.scale_policy);
 
-void prb2str(const prb_t *p, char *buffer) {
-    int rem_len = max_prb_len;
+    s << " "
+        << "l" << p.n_layer
+        << "t" << p.n_iter
+        << "mb" << p.mb
+        << "sic" << p.sic
+        << "slc" << p.slc
+        << "dic" << p.dic
+        << "dlc" << p.dlc
+        << "n" << p.name;
 
-    DPRINT("--prop=%s --alg=%s --activation=%s --direction=%s --cfg=%s "
-           "--scaling=%s ",
-            prop2str(p->prop), alg2str(p->alg), activation2str(p->activation),
-            direction2str(p->direction), cfg2str(p->cfg),
-            policy2str(p->scale_policy));
-    DPRINT("l" IFMT "", p->n_layer);
-    DPRINT("t" IFMT "", p->n_iter);
-    DPRINT("mb" IFMT "", p->mb);
-    DPRINT("sic" IFMT "", p->sic);
-    DPRINT("slc" IFMT "", p->slc);
-    DPRINT("dic" IFMT "", p->dic);
-    DPRINT("dlc" IFMT "", p->dlc);
-    DPRINT("n\"%s\"", p->name);
+    return s;
 }
-
-#undef DPRINT
 
 mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+       mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
-       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d) {
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *dst_iter_c_d) {
     mkldnn_alg_kind_t kind = alg2kind(p->alg);
     mkldnn_alg_kind_t f = activation2kind(p->activation);
 
@@ -267,8 +245,9 @@ mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
         break;
     case mkldnn_vanilla_lstm:
         init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+                p->direction, src_layer_d, src_iter_d, src_iter_c_d,
+                weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                dst_iter_d, dst_iter_c_d, p->flags);
         break;
     case mkldnn_vanilla_gru:
         init_status = mkldnn_gru_forward_desc_init(rd, prop_kind,
@@ -288,16 +267,20 @@ mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
 
 mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+       mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
        mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *dst_iter_c_d,
        mkldnn_memory_desc_t *diff_src_layer_d,
        mkldnn_memory_desc_t *diff_src_iter_d,
+       mkldnn_memory_desc_t *diff_src_iter_c_d,
        mkldnn_memory_desc_t *diff_weights_layer_d,
        mkldnn_memory_desc_t *diff_weights_iter_d,
        mkldnn_memory_desc_t *diff_bias_d,
        mkldnn_memory_desc_t *diff_dst_layer_d,
-       mkldnn_memory_desc_t *diff_dst_iter_d) {
+       mkldnn_memory_desc_t *diff_dst_iter_d,
+       mkldnn_memory_desc_t *diff_dst_iter_c_d) {
     mkldnn_alg_kind_t kind = alg2kind(p->alg);
     mkldnn_alg_kind_t f = activation2kind(p->activation);
 
@@ -313,11 +296,12 @@ mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
         break;
     case mkldnn_vanilla_lstm:
         init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
-                p->flags);
+                p->direction, src_layer_d, src_iter_d, src_iter_c_d,
+                weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                dst_iter_d, dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
+                diff_src_iter_c_d, diff_weights_layer_d, diff_weights_iter_d,
+                diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
+                diff_dst_iter_c_d, p->flags);
         break;
     case mkldnn_vanilla_gru:
         init_status = mkldnn_gru_backward_desc_init(rd, prop_kind,
@@ -390,13 +374,16 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+        const float diff_threshold = p->cfg[kind].dt == mkldnn_f16 ? 1e-2
+            : 1e-5;
 
-        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
+        const bool ok
+            = (fabs(fp) > diff_threshold ? rel_diff : diff) <= p->cfg[kind].eps;
 
         if (!ok) {
             r->errors++;
             if (r->errors < 10 || verbose >= 10) {
-                int64_t n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0,
+                int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                     oc = 0, b = 0;
                 switch (kind) {
                 case input:
@@ -408,12 +395,12 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                             t, c, fp, dt, diff, rel_diff);
                     break;
                 case states:
-                    inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
+                    inv_ldnc_off_f(p, i, l, d, n, c);
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
-                            d, s, n, c, fp, dt, diff, rel_diff);
+                            d, n, c, fp, dt, diff, rel_diff);
                     break;
                 case weights_input:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
@@ -440,20 +427,21 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                             d, b, c, fp,  dt, diff, rel_diff);
                     break;
                 case dst_last_layer:
-                    inv_tnc_off_f(p, i, s, t, n, c);
-                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
+                    inv_tnc_off_f(p, i, t, n, c);
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
-                            final_compare == false ? "REORDER " : "", skind, s,
+                            final_compare == false ? "REORDER " : "", skind,
                             t, n, c, fp, dt, diff, rel_diff);
                     break;
                 case dst_last_iteration:
-                    inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT " "
+                case dst_c_last_iteration:
+                    inv_ldnc_off_f(p, i, l, d, n, c);
+                    print(0, "%lu, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
                              "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                             (unsigned long)i,
                             final_compare == false ? "REORDER " : "", skind, l,
-                            d, s, n, c, fp, dt, diff, rel_diff);
+                            d, n, c, fp, dt, diff, rel_diff);
                     break;
                 default: assert("unknown data kind"); return FAIL;
                 }
@@ -463,7 +451,7 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 #if 1
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50) {
-            int64_t n = 0, t = 0, c = 0, s = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
+            int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
                 b = 0;
 
             switch (kind) {
@@ -473,9 +461,9 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         (unsigned long)i, skind, n, t, c, fp, dt);
                 break;
             case states:
-                inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (unsigned long)i, skind, l, d, s, n, c, fp, dt);
+                inv_ldnc_off_f(p, i, l, d, n, c);
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, n, c, fp, dt);
                 break;
             case weights_input:
                 inv_ldigo_off_f(p, i, l, d, w, ic, oc);
@@ -493,14 +481,15 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, l, d, b, c, fp, dt);
             case dst_last_layer:
-                inv_tnc_off_f(p, i, s, t, n, c);
+                inv_tnc_off_f(p, i, t, n, c);
                 print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
                         (unsigned long)i, skind, n, t, c, fp, dt);
                 break;
             case dst_last_iteration:
-                inv_ldsnc_off_f(p, i, l, d, s, n, c);
-                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (unsigned long)i, skind, l, d, s, n, c, fp, dt);
+            case dst_c_last_iteration:
+                inv_ldnc_off_f(p, i, l, d, n, c);
+                print(0, "[%4lu][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
+                        (unsigned long)i, skind, l, d, n, c, fp, dt);
                 break;
             default:
                 print(0, "[%4lu][unknown] fp:%8g dt:%8g\n",
@@ -566,6 +555,11 @@ int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
 int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_iteration, mem_dt, mem_fp, r, final_compare);
+}
+
+int compare_dst_c_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+    return compare_dat(p, dst_c_last_iteration, mem_dt, mem_fp, r, final_compare);
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {

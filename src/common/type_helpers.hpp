@@ -31,6 +31,9 @@
 namespace mkldnn {
 namespace impl {
 
+// Global zero memory descriptor. Mostly used for queries to return
+extern memory_desc_t glob_zero_md;
+
 template <typename T>
 status_t safe_ptr_assign(T * &lhs, T* rhs) {
     if (rhs == nullptr) return status::out_of_memory;
@@ -122,6 +125,7 @@ inline bool rnn_packed_desc_is_equal(
         const rnn_packed_desc_t &lhs, const rnn_packed_desc_t &rhs) {
     bool ok = true
         && lhs.format == rhs.format
+        && lhs.ldb == rhs.ldb
         && lhs.n_parts == rhs.n_parts
         && lhs.offset_compensation == rhs.offset_compensation
         && lhs.size == rhs.size
@@ -190,6 +194,10 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     using namespace mkldnn::impl::utils;
+    // quick path for zero_mds
+    if (utils::everyone_is(0, lhs.ndims, rhs.ndims))
+        return true;
+
     bool base_equal = true
         && lhs.ndims == rhs.ndims
         && array_cmp(lhs.dims, rhs.dims, lhs.ndims)

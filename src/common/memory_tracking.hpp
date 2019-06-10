@@ -144,6 +144,8 @@ namespace memory_tracking {
 namespace names {
 enum {
     key_none = 0,
+    key_barrier,
+    key_bnorm_bf16cvt,
     key_bnorm_tmp_mean,
     key_bnorm_tmp_var,
     key_bnorm_tmp_diff_ss,
@@ -155,6 +157,8 @@ enum {
     key_concat_optrs,
     key_conv_adjusted_scales,
     key_conv_bia_reduction,
+    key_conv_bias_bf16_convert_wsp,
+    key_conv_dst_bf16_convert_wsp,
     key_conv_gemm_col,
     key_conv_gemm_imtr,
     key_conv_int_dat_in_acc_dt,
@@ -167,6 +171,8 @@ enum {
     key_conv_wei_reduction,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
+    key_iprod_bias_bf16_convert_wsp,
+    key_iprod_dst_bf16_convert_wsp,
     key_iprod_int_dat_in_acc_dt,
     key_reducer_space,
     key_reducer_space_bctx,
@@ -175,15 +181,17 @@ enum {
     key_reorder_wino_transform_space,
     key_reorder_rnn_weights_quantization,
     key_reorder_rnn_weights_reduction,
+    key_reorder_rnn_weights_transposition,
     key_rnn_space,
     key_rnn_ptrs_bia,
     key_rnn_ptrs_wei_layer,
     key_rnn_ptrs_wei_iter,
     key_softmax_reduction,
+    key_sum_reduction,
+    key_sum_srcs_cvt,
     key_wino_U,
     key_wino_V,
     key_wino_M,
-    key_barrier,
 };
 
 enum {

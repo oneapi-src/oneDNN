@@ -14,6 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "ocl/ocl_types.h"
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
+
 #if DT_F32 != 1
     #error "Only f32 implemented."
 #endif
@@ -60,9 +65,9 @@
 #endif
 #endif
 
-#if defined(WITH_RELU)
+#if WITH_ELTWISE == 1
 #define POST_OP(val) do { \
-    if (val < 0.0f) val = post_op_param * val; \
+    if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
 } while (0)
 #else
 #define POST_OP(val)
@@ -208,7 +213,7 @@ __attribute__((intel_reqd_sub_group_size(16)))
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
-    float post_op_param)
+    int last_k_block, float eltwise_alpha, float eltwise_beta)
 {
     float2 a[4];    // 32 x 4  block of A, 4x 32x1 block accesses   [col major]
     float4 b;        // 4  x 16 block of B, 1x 4x16 scattered access [row major]
@@ -285,7 +290,7 @@ __attribute__((intel_reqd_sub_group_size(16)))
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
-    float post_op_param)
+    int last_k_block, float eltwise_alpha, float eltwise_beta)
 {
     float2 a[2];    // 32 x 2  block of A, 2x 32x1 block accesses   [col major]
     float  b[2];    // 2  x 16 block of B, 2x 1x16 block accesses   [row major]
@@ -361,7 +366,7 @@ __attribute__((intel_reqd_sub_group_size(16)))
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
-    float post_op_param)
+    int last_k_block, float eltwise_alpha, float eltwise_beta)
 {
     float4 a;          // 16 x 4  block of A, 1x     16x4 scattered [col major]
     float4 b[2];    // 4  x 32 block of B, 2x     4x16 scattered [row major]
@@ -438,7 +443,7 @@ __attribute__((intel_reqd_sub_group_size(16)))
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
-    float post_op_param)
+    int last_k_block, float eltwise_alpha, float eltwise_beta)
 {
     float4 a;          // 16 x 4  block of A, 1x     16x4 scattered [col major]
     float2 b[4];    // 4  x 32 block of B, 4x     1x32 block     [row major]

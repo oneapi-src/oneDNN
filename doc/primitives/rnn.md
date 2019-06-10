@@ -96,7 +96,7 @@ A four-gate long short-term memory recurrent cell initialized with
 ~~~
 
 Note that for all tensors with a dimension depending on the gates number, we
-implicitly require the order of these gates to be `i`, `f`, `o`, and `c`. The
+implicitly require the order of these gates to be `i`, `f`, \f$\tilde c\f$, and `o`. The
 following equation gives the mathematical description of these gates and output
 for the forward pass:
 
@@ -114,6 +114,11 @@ h_t &= tanh(c_t) * o_t
 
 where \f$W_*\f$ are stored in `weights_layer`, \f$U_*\f$ are stored in
 `weights_iter` and \f$B_*\f$ are stored in `bias`.
+
+@note
+In order for the dimensions to be consistent, we require
+\f$channels(src\_iter\_c) = channels(dst\_iter\_c) =
+channels(dst\_iter)\f$.
 
 ## GRU
 

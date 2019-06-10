@@ -21,8 +21,20 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <vector>
+#include <iostream>
+
 #include "common.hpp"
 #include "mkldnn_types.h"
+
+struct dims_t: public std::vector<int64_t> {};
+dims_t str2dims(const char *str);
+dims_t off2dims_idx(const dims_t &dims, int64_t off);
+std::ostream &operator<<(std::ostream &s, const dims_t &dims);
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_data_type_t> &v_dt);
+std::ostream &operator<<(std::ostream &s,
+        const std::vector<mkldnn_format_tag_t> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -39,6 +51,10 @@ enum dir_t {
 };
 dir_t str2dir(const char *str);
 const char *dir2str(dir_t dir);
+
+/* TODO: merge prop and dir_t (in favor of prop) */
+const char *prop2str(mkldnn_prop_kind_t prop);
+mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
 
 typedef int data_kind_t;
 enum {
@@ -71,8 +87,21 @@ struct attr_t {
     };
 
     struct post_ops_t {
-        enum kind_t { SUM, RELU, TANH, ELU, SQUARE, ABS, SQRT, LINEAR, BRELU,
-            SRELU, LOGISTIC, KIND_TOTAL };
+        enum kind_t {
+            SUM,
+            RELU,
+            TANH,
+            ELU,
+            SQUARE,
+            ABS,
+            SQRT,
+            LINEAR,
+            BRELU,
+            SRELU,
+            LOGISTIC,
+            EXP,
+            KIND_TOTAL
+        };
         static kind_t str2kind(const char *str);
         static const char *kind2str(kind_t kind);
         static mkldnn_alg_kind_t kind2mkldnn_kind(kind_t kind);
@@ -107,7 +136,9 @@ struct attr_t {
 };
 
 int str2attr(attr_t *attr, const char *str);
-void attr2str(const attr_t *attr, char *buffer);
+std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
+std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 mkldnn_format_tag_t get_default_tag(int ndims);
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,

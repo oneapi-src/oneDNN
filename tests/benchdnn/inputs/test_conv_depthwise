@@ -1,7 +1,7 @@
 # f32
 --reset
 --mb=2
---dir=FWD_D,BWD_D --batch=conv_mobilenet_dw
+--dir=FWD_D,BWD_D,BWD_WB --batch=conv_mobilenet_dw
 
 #post-ops
 --dir=FWD_D

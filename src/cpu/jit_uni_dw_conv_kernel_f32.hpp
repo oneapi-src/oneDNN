@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,33 +29,20 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa>
-struct jit_uni_dw_conv_fwd_kernel_f32: public jit_generator {
+struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_fwd_kernel_f32)
 
     jit_uni_dw_conv_fwd_kernel_f32(jit_conv_conf_t ajcp)
-        : jcp(ajcp), eltwise_injector_(nullptr)
-    {
+        : jcp(ajcp), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
-                    jcp.eltwise);
+            eltwise_injector_
+                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
 
         this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
+        jit_ker = (void (*)(jit_conv_call_s *)) this->getCode();
     }
 
-    ~jit_uni_dw_conv_fwd_kernel_f32() {
-        delete eltwise_injector_;
-    }
-
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
-
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_conv_conf_t &jcp);
+    ~jit_uni_dw_conv_fwd_kernel_f32() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -109,16 +96,6 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32: public jit_generator {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
-
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &diff_src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &diff_dst_d);
-
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_conv_conf_t &jcp);
-
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
 
@@ -165,16 +142,6 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
         jit_ker = (void (*)(jit_dw_conv_call_s *)) this->getCode();
     }
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &diff_weights_d,
-            const memory_desc_wrapper &diff_dst_d, int nthreads);
-
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_conv_conf_t &jcp);
-
-    static void balance(jit_conv_conf_t &jcp, int nthreads);
-
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_dw_conv_call_s *);
 
@@ -207,7 +174,7 @@ private:
     reg64_t reg_oh_worksize = r14;
     reg64_t reg_oh = rax;
 
-    reg64_t iter_ow_blk = r11;
+    reg64_t reg_iter_ow_blk = r11;
 
     reg64_t reg_kh = rsi;
     reg64_t reg_kh_count = rdx;
@@ -246,6 +213,7 @@ private:
 
     void generate();
 };
+
 }
 }
 }

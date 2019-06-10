@@ -16,6 +16,8 @@
 
 #include <string.h>
 
+#include <sstream>
+
 #include "mkldnn.h"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
@@ -35,7 +37,7 @@ alg_t alg = ALG_REF;
 attr_t attr;
 bool allow_unimpl = false;
 const char *perf_template_csv =
-    "perf,%engine%,%dt%,%tag%,%alg%,%flags%,%attr%,%DESC%,"
+    "perf,%engine%,%idt%,%odt%,%itag%,%otag%,%flags%,%attr%,%DESC%,"
     "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template_def =
     "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
@@ -69,8 +71,11 @@ void check_correctness() {
         for (const auto &i_scale: scale) {
             const prb_t p(reorder_conf, iconf, oconf, attr, alg, i_oflag,
                     i_scale);
-            char pstr[max_prb_len];
-            prb2str(&p, pstr);
+            std::stringstream ss;
+            ss << p;
+            const std::string cpp_pstr = ss.str();
+            const char *pstr = cpp_pstr.c_str();
+            print(1, "run: %s\n", pstr);
 
             res_t res{};
             int status = doit(&p, &res);

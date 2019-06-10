@@ -159,6 +159,14 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward(const data_t *diff_dst,
     };
 
     parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
+        auto src_diff_base_ptr = &diff_src[diff_src_d.blk_off(n, b_c, 0)];
+        auto block_size = (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw 
+            * (ptrdiff_t)jpp.c_block;
+
+        for (ptrdiff_t idx = 0; idx != block_size; ++idx) {
+            src_diff_base_ptr[idx] = 0.0;
+        }
+
         for (int oh = 0; oh < jpp.oh; ++oh) {
             ker(n, b_c, oh);
         }
@@ -207,6 +215,11 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d(const data_t *diff_dst,
         (*kernel_)(&arg);
     };
 
+    ptrdiff_t nelems = (ptrdiff_t)jpp.mb * (ptrdiff_t)jpp.c 
+        * (ptrdiff_t)jpp.id * (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw;
+
+    parallel_nd(nelems, [&](ptrdiff_t i) { diff_src[i] = 0.f; });
+
     if (jpp.simple_alg) {
 
         parallel_nd(jpp.mb, jpp.nb_c, jpp.od,
@@ -224,11 +237,6 @@ void jit_uni_pooling_bwd_t<isa>::execute_backward_3d(const data_t *diff_dst,
             }
         });
     } else {
-        ptrdiff_t nelems = (ptrdiff_t)jpp.mb * (ptrdiff_t)jpp.c
-            * (ptrdiff_t)jpp.id * (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw;
-
-        parallel_nd(nelems, [&](ptrdiff_t i) { diff_src[i] = 0.f; });
-
         for (int kd = 0; kd < jpp.kd; ++kd) {
             parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
                 for (int od = 0; od < jpp.od; ++od) {

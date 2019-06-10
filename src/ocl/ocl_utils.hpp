@@ -372,7 +372,7 @@ struct ocl_kernel_t {
 
     void set_arg(int index, const memory_storage_t &mem_storage) const {
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(mem_storage);
     }
 
@@ -384,18 +384,18 @@ struct ocl_kernel_t {
                 "Type size is too large");
 
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(value);
     }
 
     void set_arg(int index, size_t sz, std::nullptr_t) const {
         assert(index < max_args);
-        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index + 1));
+        ((size_t &)(nargs_)) = nstl::max(nargs_, size_t(index) + 1);
         ((ocl_kernel_arg_t *)args_)[index].set_value(sz, nullptr);
     }
 
 private:
-    static constexpr int max_args = 16;
+    static constexpr int max_args = 20;
 
     cl_kernel kernel_ = nullptr;
     size_t nargs_ = 0;
@@ -468,10 +468,8 @@ private:
 };
 
 struct ocl_jit_t {
-    ocl_jit_t(const char *code) : code_(), options_(), program_(nullptr) {
-        size_t code_sz = strlen(code);
-        code_.resize(code_sz + 1);
-        memcpy(code_.data(), code, sizeof(char) * code_sz);
+    ocl_jit_t(const char *code) : code_(code), options_(), program_(nullptr) {
+        code_size_ = strlen(code_);
 
         options_.reserve(256);
         options_.push_back('\0');
@@ -488,25 +486,28 @@ struct ocl_jit_t {
     ocl_jit_t &operator=(const ocl_jit_t &) = delete;
 
     ocl_jit_t(ocl_jit_t &&other) {
-        code_ = std::move(other.code_);
+        code_ = other.code_;
+        code_size_ = other.code_size_;
         options_ = std::move(other.options_);
         program_ = other.program_;
 
-        other.program_ = nullptr;
+        other.reset();
     }
 
     ocl_jit_t &operator=(ocl_jit_t &&other) {
         code_ = std::move(other.code_);
+        code_size_ = other.code_size_;
         options_ = std::move(other.options_);
         program_ = other.program_;
 
-        other.program_ = nullptr;
+        other.reset();
+
         return *this;
     }
 
-    const char *get_code() const { return code_.data(); }
+    const char *get_code() const { return code_; }
     const char *get_options() const { return options_.data(); }
-    size_t get_code_size() const { return code_.size(); }
+    size_t get_code_size() const { return code_size_; }
 
     void define_int(const char *variable, int64_t value) {
         int var_sz = snprintf(nullptr, 0, " -D%s=%" PRId64, variable, value);
@@ -550,6 +551,7 @@ struct ocl_jit_t {
         case data_type::f32: define_int("DT_F32", 1); break;
         case data_type::s8: define_int("DT_S8", 1); break;
         case data_type::u8: define_int("DT_U8", 1); break;
+        case data_type::s32: define_int("DT_S32", 1); break;
         default: assert(!"unknown data type"); break;
         }
     }
@@ -570,7 +572,14 @@ private:
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
     }
 
-    std::vector<char> code_;
+    void reset() {
+        code_ = nullptr;
+        code_size_ = 0;
+        program_ = nullptr;
+    }
+
+    const char *code_;
+    size_t code_size_;
     std::vector<char> options_;
     cl_program program_;
 };

@@ -321,6 +321,8 @@ enum class algorithm {
     eltwise_soft_relu = mkldnn_eltwise_soft_relu,
     /// Eltwise: logistic
     eltwise_logistic = mkldnn_eltwise_logistic,
+    /// Eltwise: exponent
+    eltwise_exp = mkldnn_eltwise_exp,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = mkldnn_lrn_across_channels,
     /// LRN within a single channel
@@ -1235,7 +1237,7 @@ struct memory: public handle<mkldnn_memory_t> {
         goidhw = mkldnn_goidhw,
         tnc = mkldnn_tnc,
         ntc = mkldnn_ntc,
-        ldsnc = mkldnn_ldsnc,
+        ldnc = mkldnn_ldnc,
         ldigo = mkldnn_ldigo,
         ldgoi = mkldnn_ldgoi,
         ldgo = mkldnn_ldgo,
@@ -1407,6 +1409,9 @@ struct memory: public handle<mkldnn_memory_t> {
         /// Returns the number of bytes required to allocate the memory
         /// described including the padding area.
         size_t get_size() const { return mkldnn_memory_desc_get_size(&data); }
+
+        /// Returns true if the memory descriptor describes an empty memory
+        bool is_zero() const { return data.ndims == 0; }
 
         bool operator==(const desc &other) const {
             return mkldnn_memory_desc_equal(&data, &other.data) != 0;
@@ -1641,11 +1646,10 @@ struct reorder : public primitive {
         /// Queries scratchpad memory descriptor.
         ///
         /// @sa @ref dev_guide_attributes_scratchpad
+        /// Returns a zero_md if no scratchpad is required.
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1737,20 +1741,16 @@ struct concat : public primitive {
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
-            error::wrap_c_api(
-                    cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
-                    "could not get a dst memory descriptor");
             return memory::desc(*cdesc);
         }
 
         /// Queries scratchpad memory descriptor.
         ///
         /// @sa @ref dev_guide_attributes_scratchpad
+        /// Returns a zero_md if no scratchpad is required.
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1826,20 +1826,16 @@ struct sum : public primitive {
         memory::desc dst_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::dst_md), 0);
-            error::wrap_c_api(
-                    cdesc == nullptr ? mkldnn_runtime_error : mkldnn_success,
-                    "could not get a dst memory descriptor");
             return memory::desc(*cdesc);
         }
 
         /// Queries scratchpad memory descriptor.
         ///
         /// @sa @ref dev_guide_attributes_scratchpad
+        /// Returns a zero_md if no scratchpad is required.
         memory::desc scratchpad_desc() const {
             const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                     get(), mkldnn::convert_to_c(query::scratchpad_md), 0);
-            if (cdesc == nullptr)
-                return memory::desc();
             return memory::desc(*cdesc);
         }
 
@@ -1939,14 +1935,13 @@ struct primitive_desc : public handle<mkldnn_primitive_desc_t> {
 
         const mkldnn_memory_desc_t *cdesc = mkldnn_primitive_desc_query_md(
                 get(), mkldnn::convert_to_c(what), idx);
-        if (cdesc == nullptr) return memory::desc();
-
         return memory::desc(*cdesc);
     }
 
     /// Queries scratchpad memory descriptor.
     ///
     /// @sa @ref dev_guide_attributes_scratchpad
+    /// Returns a zero_md if no scratchpad is required.
     memory::desc scratchpad_desc() const {
         return query_md(query::scratchpad_md, 0);
     }
@@ -2120,6 +2115,9 @@ struct convolution_forward: public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 1);
         }
@@ -2546,6 +2544,9 @@ struct deconvolution_forward: public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 1);
         }
@@ -2870,6 +2871,8 @@ struct lrn_forward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -2926,6 +2929,8 @@ struct lrn_backward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3000,6 +3005,8 @@ struct pooling_forward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3062,6 +3069,8 @@ struct pooling_backward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3375,6 +3384,8 @@ struct batch_normalization_forward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3483,6 +3494,8 @@ struct batch_normalization_backward : public primitive {
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3570,6 +3583,9 @@ struct inner_product_forward: public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 1);
         }
@@ -3787,7 +3803,10 @@ struct rnn_forward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
             return query_md(query::src_md, 1);
         }
@@ -3803,6 +3822,9 @@ struct rnn_forward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -3813,11 +3835,16 @@ struct rnn_forward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -3905,7 +3932,10 @@ struct rnn_backward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
             return query_md(query::src_md, 1);
         }
@@ -3921,6 +3951,9 @@ struct rnn_backward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -3931,15 +3964,19 @@ struct rnn_backward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
-
 
         /// Queries diff source layer memory descriptor.
         memory::desc diff_src_layer_desc() const {
@@ -3947,6 +3984,9 @@ struct rnn_backward : public primitive {
         }
 
         /// Queries diff source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_src_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_src_iter_desc() const {
             return query_md(query::diff_src_md, 1);
         }
@@ -3972,6 +4012,9 @@ struct rnn_backward : public primitive {
         }
 
         /// Queries diff destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_dst_iter_desc() const {
             return query_md(query::diff_dst_md, 1);
         }
@@ -3996,9 +4039,10 @@ struct lstm_forward : public primitive {
         /// @p flags is a parameter to the LSTM descriptor and is currently
         /// ignored.
         ///
-        /// @p src_iter_desc, @p bias_desc, and @p dst_iter_desc are allowed
-        /// to point to a zero memory descriptor, which would indicate that
-        /// the LSTM primitive should not use them.
+        /// @p src_iter_desc, @p src_iter_c_desc, @p bias_desc, @p
+        /// dst_iter_desc and @p dst_iter_c_desc are allowed to point
+        /// to a zero memory descriptor, which would indicate that the
+        /// LSTM primitive should not use them.
         ///
         /// @note
         ///     All memory descriptors except @p src_iter_desc can be
@@ -4008,19 +4052,23 @@ struct lstm_forward : public primitive {
                 rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &src_iter_c_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_layer_desc,
                 const memory::desc &dst_iter_desc,
+                const memory::desc &dst_iter_c_desc,
                 rnn_flags flags = rnn_flags::undef) {
             error::wrap_c_api(mkldnn_lstm_forward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         mkldnn::convert_to_c(direction),
                         &src_layer_desc.data, &src_iter_desc.data,
+                        &src_iter_c_desc.data,
                         &weights_layer_desc.data, &weights_iter_desc.data,
                         &bias_desc.data,
                         &dst_layer_desc.data, &dst_iter_desc.data,
+                        &dst_iter_c_desc.data,
                         mkldnn::convert_to_c(flags)),
                     "could not create an LSTM forward descriptor");
         }
@@ -4042,9 +4090,18 @@ struct lstm_forward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
+        }
+
+        /// Queries source recurrent cell state memory descriptor.
+        memory::desc src_iter_c_desc() const {
+            return query_md(query::src_md, 2);
         }
 
         /// Queries weights layer memory descriptor.
@@ -4058,6 +4115,9 @@ struct lstm_forward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4067,12 +4127,22 @@ struct lstm_forward : public primitive {
             return query_md(query::dst_md, 0);
         }
 
-        /// Queries destination iteration memory descriptor.
+        /// Queries destination recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
+        /// Queries destination recurrent cell state memory descriptor.
+        memory::desc dst_iter_c_desc() const {
+            return query_md(query::dst_md, 2);
+        }
+
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4100,39 +4170,46 @@ struct lstm_backward : public primitive {
         /// @note All memory descriptors are allowed to be initialized with
         ///       #mkldnn::memory::format_tag::any value of @p format_kind.
         ///
-        /// @p src_iter_desc (simultaneously with @p diff_src_iter_desc), @p
-        /// bias_desc (simultaneously with @p diff_bias_desc), and @p
-        /// dst_iter_desc (simultaneously with @p diff_src_iter_desc) are
-        /// allowed point to a zero memory descriptor, which would indicate
-        /// that the LSTM primitive should not use them and consider them to be
-        /// zero values.
+        /// @p src_iter_desc (simultaneously with @p
+        /// diff_src_iter_desc), @p src_iter_c_desc (simultaneously
+        /// with @p diff_src_iter_c_desc), @p bias_desc
+        /// (simultaneously with @p diff_bias_desc), @p dst_iter_desc
+        /// (simultaneously with @p diff_src_iter_desc) and @p dst_iter_c_desc
+        /// (simultaneously with @p diff_src_iter_c_desc) are allowed
+        /// point to a zero memory descriptor, which would indicate
+        /// that the LSTM primitive should not use them and consider
+        /// them to be zero values.
         desc(prop_kind aprop_kind, rnn_direction direction,
                 const memory::desc &src_layer_desc,
                 const memory::desc &src_iter_desc,
+                const memory::desc &src_iter_c_desc,
                 const memory::desc &weights_layer_desc,
                 const memory::desc &weights_iter_desc,
                 const memory::desc &bias_desc,
                 const memory::desc &dst_layer_desc,
                 const memory::desc &dst_iter_desc,
+                const memory::desc &dst_iter_c_desc,             
                 const memory::desc &diff_src_layer_desc,
                 const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_src_iter_c_desc,
                 const memory::desc &diff_weights_layer_desc,
                 const memory::desc &diff_weights_iter_desc,
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_layer_desc,
                 const memory::desc &diff_dst_iter_desc,
+                const memory::desc &diff_dst_iter_c_desc,             
                 rnn_flags flags = rnn_flags::undef) {
             error::wrap_c_api(mkldnn_lstm_backward_desc_init(&data,
                         mkldnn::convert_to_c(aprop_kind),
                         mkldnn::convert_to_c(direction),
-                        &src_layer_desc.data, &src_iter_desc.data,
+                        &src_layer_desc.data, &src_iter_desc.data, &src_iter_c_desc.data,
                         &weights_layer_desc.data, &weights_iter_desc.data,
                         &bias_desc.data,
-                        &dst_layer_desc.data, &dst_iter_desc.data,
-                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,
+                        &dst_layer_desc.data, &dst_iter_desc.data, &dst_iter_c_desc.data,
+                        &diff_src_layer_desc.data, &diff_src_iter_desc.data,  &diff_src_iter_c_desc.data,
                         &diff_weights_layer_desc.data,
                         &diff_weights_iter_desc.data, &diff_bias_desc.data,
-                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data,
+                        &diff_dst_layer_desc.data, &diff_dst_iter_desc.data, &diff_dst_iter_c_desc.data,
                         mkldnn::convert_to_c(flags)),
                     "could not create an LSTM backward descriptor");
         }
@@ -4156,9 +4233,18 @@ struct lstm_backward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
+        }
+
+        /// Queries source recurrent cell state memory descriptor.
+        memory::desc src_iter_c_desc() const {
+            return query_md(query::src_md, 2);
         }
 
         /// Queries weights layer memory descriptor.
@@ -4172,6 +4258,9 @@ struct lstm_backward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4181,12 +4270,22 @@ struct lstm_backward : public primitive {
             return query_md(query::dst_md, 0);
         }
 
-        /// Queries destination iteration memory descriptor.
+        /// Queries destination recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
+        /// Queries destination recurrent cell state memory descriptor.
+        memory::desc dst_iter_c_desc() const {
+            return query_md(query::dst_md, 2);
+        }
+
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4197,9 +4296,17 @@ struct lstm_backward : public primitive {
             return query_md(query::diff_src_md, 0);
         }
 
-        /// Queries diff source iteration memory descriptor.
+        /// Queries diff source recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_src_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_src_iter_desc() const {
             return query_md(query::diff_src_md, 1);
+        }
+
+        /// Queries diff source recurrent cell state memory descriptor.
+        memory::desc diff_src_iter_c_desc() const {
+            return query_md(query::diff_src_md, 2);
         }
 
         /// Queries diff weights layer memory descriptor.
@@ -4222,9 +4329,17 @@ struct lstm_backward : public primitive {
             return query_md(query::diff_dst_md, 0);
         }
 
-        /// Queries diff destination iteration memory descriptor.
+        /// Queries diff destination recurrent hidden state memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_dst_iter_desc() const {
             return query_md(query::diff_dst_md, 1);
+        }
+
+        /// Queries diff destination recurrent cell state memory descriptor.
+        memory::desc diff_dst_iter_c_desc() const {
+            return query_md(query::diff_dst_md, 2);
         }
     };
 
@@ -4295,8 +4410,12 @@ struct gru_forward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
         }
 
@@ -4311,6 +4430,9 @@ struct gru_forward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4321,11 +4443,16 @@ struct gru_forward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4409,8 +4536,12 @@ struct gru_backward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iter memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
         }
 
@@ -4425,6 +4556,9 @@ struct gru_backward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4435,11 +4569,16 @@ struct gru_backward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4451,6 +4590,9 @@ struct gru_backward : public primitive {
         }
 
         /// Queries diff source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_src_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_src_iter_desc() const {
             return query_md(query::diff_src_md, 1);
         }
@@ -4476,6 +4618,9 @@ struct gru_backward : public primitive {
         }
 
         /// Queries diff destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_dst_iter_desc() const {
             return query_md(query::diff_dst_md, 1);
         }
@@ -4548,8 +4693,12 @@ struct lbr_gru_forward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
         }
 
@@ -4564,6 +4713,9 @@ struct lbr_gru_forward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4574,11 +4726,16 @@ struct lbr_gru_forward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4662,8 +4819,12 @@ struct lbr_gru_backward : public primitive {
             return query_md(query::src_md, 0);
         }
 
-        /// Queries source layer memory descriptor.
+        /// Queries source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no src_iter was specified at op_desc
+        /// creation time.
         memory::desc src_iter_desc() const {
+
             return query_md(query::src_md, 1);
         }
 
@@ -4678,6 +4839,9 @@ struct lbr_gru_backward : public primitive {
         }
 
         /// Queries bias memory descriptor.
+        ///
+        /// Returns a zero_md if no bias was specified at op_desc
+        /// creation time.
         memory::desc bias_desc() const {
             return query_md(query::weights_md, 2);
         }
@@ -4688,11 +4852,16 @@ struct lbr_gru_backward : public primitive {
         }
 
         /// Queries destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no dst_iter was specified at op_desc
+        /// creation time.
         memory::desc dst_iter_desc() const {
             return query_md(query::dst_md, 1);
         }
 
         /// Queries workspace memory descriptor.
+        ///
+        /// Returns a zero_md if no worspace is required.
         memory::desc workspace_desc() const {
             return query_md(query::workspace_md, 0);
         }
@@ -4704,6 +4873,9 @@ struct lbr_gru_backward : public primitive {
         }
 
         /// Queries diff source iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_src_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_src_iter_desc() const {
             return query_md(query::diff_src_md, 1);
         }
@@ -4729,6 +4901,9 @@ struct lbr_gru_backward : public primitive {
         }
 
         /// Queries diff destination iteration memory descriptor.
+        ///
+        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
+        /// creation time.
         memory::desc diff_dst_iter_desc() const {
             return query_md(query::diff_dst_md, 1);
         }

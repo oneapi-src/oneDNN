@@ -39,22 +39,29 @@ typedef enum { action_copy = 0, action_sum, action_concat } rnn_action_t;
 
 mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+       mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
-       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d);
+       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *dst_iter_c_d);
 
 mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *weights_layer_d,
+       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+       mkldnn_memory_desc_t *weights_layer_d,
        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
        mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+       mkldnn_memory_desc_t *dst_iter_c_d,
        mkldnn_memory_desc_t *diff_src_layer_d,
        mkldnn_memory_desc_t *diff_src_iter_d,
+       mkldnn_memory_desc_t *diff_src_iter_c_d,
        mkldnn_memory_desc_t *diff_weights_layer_d,
        mkldnn_memory_desc_t *diff_weights_iter_d,
        mkldnn_memory_desc_t *diff_bias_d,
        mkldnn_memory_desc_t *diff_dst_layer_d,
-       mkldnn_memory_desc_t *diff_dst_iter_d);
+       mkldnn_memory_desc_t *diff_dst_iter_d,
+       mkldnn_memory_desc_t *diff_dst_iter_c_d
+    );
 
 void init_buffer(float *buf, int64_t size, float value);
 
@@ -82,5 +89,7 @@ int compare_bias(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
 int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r, bool final_compare);
+int compare_dst_c_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
 };

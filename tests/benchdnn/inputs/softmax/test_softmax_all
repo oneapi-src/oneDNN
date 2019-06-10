@@ -1,5 +1,5 @@
 --reset
 
 --dir=FWD_D,BWD_D
---tag=nc          --axis=1,0     --batch=softmax_2d
---tag=nchw,nChw8c --axis=1,0,2,3 --batch=softmax_4d
+--tag=nc                       --axis=1,0     --batch=softmax_2d_all
+--tag=nchw,nhwc,nChw8c,nChw16c --axis=1,0,2,3 --batch=softmax_4d

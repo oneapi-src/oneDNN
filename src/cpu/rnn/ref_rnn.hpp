@@ -245,20 +245,20 @@ private:
 
     template <typename input_data_t>
     void copy_init_iter(const rnn_utils::rnn_conf_t &rnn,
-            src_data_t *ws_states_, float *ws_c_states, float *ws_diff_states_,
-            const input_data_t *firstit_states_,
-            const float *diff_dst_iter) const;
+            src_data_t *ws_states_, float *ws_c_states_, float *ws_diff_states_,
+            const input_data_t *firstit_states_, const float *firstit_c_states_,
+            const float *diff_dst_iter_, const float *diff_dst_iter_c_) const;
 
     template <typename dst_data_t>
     void copy_res_layer(const rnn_utils::rnn_conf_t &rnn,
-            dst_data_t *dst_layer_, float *diff_src_layer,
+            dst_data_t *dst_layer_, float *diff_src_layer_,
             const src_data_t *ws_states_, const float *ws_diff_states_) const;
 
     template <typename output_data_t>
     void copy_res_iter(const rnn_utils::rnn_conf_t &rnn,
-            output_data_t *dst_iter_, float *diff_src_iter,
-            const src_data_t *ws_states_, float *ws_c_states,
-            const float *ws_diff_states_) const;
+            output_data_t *dst_iter_, float *dst_iter_c_, float *diff_src_iter_,
+            float *diff_src_iter_c_, const src_data_t *ws_states_,
+            float *ws_c_states, const float *ws_diff_states_) const;
 
     void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
             const acc_data_t *ws_gates_, float *diff_bias_) const;

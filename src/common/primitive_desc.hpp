@@ -67,7 +67,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
 #   define DECLARE_MD_STUB(stub) \
     virtual const mkldnn::impl::memory_desc_t *stub(int idx = 0) const \
-    { return nullptr; }
+    { return &mkldnn::impl::glob_zero_md; }
 
     DECLARE_MD_STUB(input_md); DECLARE_MD_STUB(output_md);
     DECLARE_MD_STUB(src_md); DECLARE_MD_STUB(diff_src_md);
@@ -77,7 +77,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 #   undef DECLARE_MD_STUB
 
     const mkldnn::impl::memory_desc_t *scratchpad_md(int idx = 0) const {
-        return idx == 0 ? &scratchpad_md_ : nullptr;
+        return idx == 0 ? &scratchpad_md_ : &mkldnn::impl::glob_zero_md;
     }
 
     virtual void init_scratchpad_md() {

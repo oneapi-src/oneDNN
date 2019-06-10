@@ -1,0 +1,4 @@
+# 2d dataset
+
+--batch=softmax_2d
+--batch=softmax_nlp

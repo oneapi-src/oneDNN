@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "ocl/ocl_types.h"
+
 #if ID > 1
 #    define CASE_3D 1
 #else
@@ -26,8 +28,8 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 #    if VER_16MB16C == 1 || VER_8OW16C == 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #    endif
-__kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
-        __global float *wei, __global float *diff_dst) {
+__kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
+        __global DATA_T *wei, __global DATA_T *diff_dst) {
 
 #    if VER_16MB16C == 1 || VER_8OW16C == 1
     const int mb_unroll = 16;
@@ -57,8 +59,8 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
 
     diff_dst += mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
 
-    float8 blockC00 = 0.0f;
-    float8 blockC01 = 0.0f;
+    DATA8_T blockC00 = 0.0f;
+    DATA8_T blockC01 = 0.0f;
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
@@ -92,20 +94,20 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
                     if (oh >= OH || ow >= OW)
                         continue;
 
-                    const __global float *diff_dst1 = diff_dst
+                    const __global DATA_T *diff_dst1 = diff_dst
                             + ow * OC_BLOCK * MB_BLOCK
                             + oh * OW * OC_BLOCK * MB_BLOCK;
 #            if CASE_3D
                     diff_dst1 += od * OH * OW * OC_BLOCK * MB_BLOCK;
 #            endif
 #            if IS_DW
-                    const __global float *wei1 = wei
+                    const __global DATA_T *wei1 = wei
 #                if CASE_3D
                             + kd * KH * KW * OC_BLOCK
 #                endif
                             + kh * KW * OC_BLOCK + kw * OC_BLOCK;
 #            else
-                    const __global float *wei1 = wei
+                    const __global DATA_T *wei1 = wei
 #                if CASE_3D
                             + kd * KH * KW * OC_BLOCK * IC_BLOCK
 #                endif
@@ -137,19 +139,19 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
 #            if SW != 1 || SH != 1 || SD != 1 || PH != 0 || PW != 0 || PD != 0
         if (do_ker) {
 #            endif
-            const __global float *diff_dst1 = diff_dst
+            const __global DATA_T *diff_dst1 = diff_dst
                     + ow * OC_BLOCK * MB_BLOCK + oh * OW * OC_BLOCK * MB_BLOCK;
 #            if CASE_3D
             diff_dst1 += od * OH * OW * OC_BLOCK * MB_BLOCK;
 #            endif
-            const __global float *wei1 = wei;
+            const __global DATA_T *wei1 = wei;
 #        endif
 
 #        if MB == MB_LAST
 #            define LOAD_DIFF_DST(_block, _diff_dst, mb_chunk)        \
                 {                                                     \
-                    (_block) = as_float8(intel_sub_group_block_read8( \
-                            (const __global uint *)((_diff_dst)       \
+                    (_block) = AS_DATA8_T(BLOCK_READ8( \
+                            (const __global BLOCK_DATA_T *)((_diff_dst)       \
                                     + (mb_chunk)*OC_BLOCK)));         \
                 }
 #        else
@@ -158,14 +160,14 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
                     if (mb == MB_LAST) {                                       \
                         for (int i = 0; i < min(8, MB - MB_LAST - (mb_chunk)); \
                                 i++)                                           \
-                            (_block)[i] = as_float(intel_sub_group_block_read( \
-                                    (const __global uint *)(&(                 \
+                            (_block)[i] = AS_DATA_T(BLOCK_READ( \
+                                    (const __global BLOCK_DATA_T *)(&(                 \
                                             _diff_dst)[((mb_chunk) + i) * OC   \
                                             * G * OD * OH * OW])));            \
                     } else {                                                   \
                         for (int i = 0; i < 8; i++)                            \
-                            (_block)[i] = as_float(intel_sub_group_block_read( \
-                                    (const __global uint *)(&(                 \
+                            (_block)[i] = AS_DATA_T(BLOCK_READ( \
+                                    (const __global BLOCK_DATA_T *)(&(                 \
                                             _diff_dst)[((mb_chunk) + i) * OC   \
                                             * G * OD * OH * OW])));            \
                     }                                                          \
@@ -175,10 +177,10 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
 #        if MB == MB_LAST
 #            define SAVE_SRC_DIFF(_block, _diff_src, mb_chunk)        \
                 {                                                     \
-                    intel_sub_group_block_write8(                     \
+                    BLOCK_WRITE8(                     \
                             (__global unsigned int *)(&(              \
                                     _diff_src)[(mb_chunk)*IC_BLOCK]), \
-                            as_uint8((_block)));                      \
+                            AS_UINT8_T((_block)));                      \
                 }
 #        else
 #            define SAVE_SRC_DIFF(_block, _diff_src, mb_chunk)                 \
@@ -186,28 +188,40 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
                     if (mb == MB_LAST) {                                       \
                         for (int i = 0; i < min(8, MB - MB_LAST - (mb_chunk)); \
                                 i++) {                                         \
-                            intel_sub_group_block_write(                       \
+                            BLOCK_WRITE(                       \
                                     (__global unsigned int *)(&(               \
                                             _diff_src)[((mb_chunk) + i) * IC   \
                                             * G * ID * IH * IW]),              \
-                                    as_uint((_block)[i]));                     \
+                                    AS_UINT_T((_block)[i]));                     \
                         }                                                      \
                     } else {                                                   \
                         for (int i = 0; i < 8; i++) {                          \
-                            intel_sub_group_block_write(                       \
+                            BLOCK_WRITE(                       \
                                     (__global unsigned int *)(&(               \
                                             _diff_src)[((mb_chunk) + i) * IC   \
                                             * G * ID * IH * IW]),              \
-                                    as_uint((_block)[i]));                     \
+                                    AS_UINT_T((_block)[i]));                     \
                         }                                                      \
                     }                                                          \
                 }
 #        endif
 
+#        if DT_F32
 #        define TRANSPOSE_8(_block, _col) \
-            (float8)(intel_sub_group_shuffle(_block, _col))
+            (DATA8_T)(intel_sub_group_shuffle(_block, _col))
+#        else
+#        define TRANSPOSE_8(_block, _col)                     \
+            (DATA8_T)(intel_sub_group_shuffle(_block[0], _col), \
+                    intel_sub_group_shuffle(_block[1], _col), \
+                    intel_sub_group_shuffle(_block[2], _col), \
+                    intel_sub_group_shuffle(_block[3], _col), \
+                    intel_sub_group_shuffle(_block[4], _col), \
+                    intel_sub_group_shuffle(_block[5], _col), \
+                    intel_sub_group_shuffle(_block[6], _col), \
+                    intel_sub_group_shuffle(_block[7], _col))
+#        endif
 
-#        define FMA8(a, b, c) fma((float8)(a), (float8)b, (float8)c)
+#        define FMA8(a, b, c) fma((DATA8_T)(a), (DATA8_T)b, (DATA8_T)c)
 
 #        define MULTIPLY_BLOCKS_8x8(_result, _blockA, _blockB, _blockB1)       \
             {                                                                  \
@@ -236,19 +250,19 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
             }
 
 #        if IS_DW
-                    float blockB00 = as_float(intel_sub_group_block_read(
-                            (const __global uint *)wei1));
+                    DATA_T blockB00 = AS_DATA_T(BLOCK_READ(
+                            (const __global BLOCK_DATA_T *)wei1));
 #        else
-            float8 blockB00 = as_float8(
-                    intel_sub_group_block_read8((const __global uint *)wei1));
-            float8 blockB01 = as_float8(intel_sub_group_block_read8(
-                    (const __global uint *)(wei1 + 8 * IC_BLOCK)));
+            DATA8_T blockB00 = AS_DATA8_T(
+                    BLOCK_READ8((const __global BLOCK_DATA_T *)wei1));
+            DATA8_T blockB01 = AS_DATA8_T(BLOCK_READ8(
+                    (const __global BLOCK_DATA_T *)(wei1 + 8 * IC_BLOCK)));
 #        endif
-                    float8 blockA;
+                    DATA8_T blockA;
 
                     LOAD_DIFF_DST(blockA, diff_dst1, 0);
 #        if IS_DW
-                    blockC00 = fma(blockA, (float8)blockB00, blockC00);
+                    blockC00 = fma(blockA, (DATA8_T)blockB00, blockC00);
 #        else
             MULTIPLY_BLOCKS_8x8(blockC00, blockA, blockB00, blockB01);
 #        endif
@@ -256,7 +270,7 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
                     LOAD_DIFF_DST(blockA, diff_dst1, 8);
                     if ((mb != MB_LAST) || (MB % 16 > 8)) {
 #        if IS_DW
-                        blockC01 = fma(blockA, (float8)blockB00, blockC01);
+                        blockC01 = fma(blockA, (DATA8_T)blockB00, blockC01);
 #        else
                 MULTIPLY_BLOCKS_8x8(blockC01, blockA, blockB00, blockB01);
 #        endif
@@ -276,7 +290,7 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
         ocb += OC_BLOCK;
     } while (ocb < OC);
 
-    __global float *src_write0 = diff_src + mb * IC * G * ID * IH * IW
+    __global DATA_T *src_write0 = diff_src + mb * IC * G * ID * IH * IW
             + gic * ID * IH * IW * IC_BLOCK * MB_BLOCK
             + g * IC * ID * IH * IW * MB_BLOCK
             + id * IH * IW * IC_BLOCK * MB_BLOCK + ih * IW * IC_BLOCK * MB_BLOCK
@@ -285,52 +299,6 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global float *diff_src,
     SAVE_SRC_DIFF(blockC00, src_write0, 0);
     SAVE_SRC_DIFF(blockC01, src_write0, 8);
 
-#    endif
-
-#    if VER_REF == 1
-    const uint iw = get_global_id(0) * IW_BLOCK;
-    const uint ihd = get_global_id(1);
-    const uint id = ihd / IH;
-    const uint ih = ihd % IH;
-    const uint mb = get_global_id(2) / (G * IC);
-    const uint ic = get_global_id(2) % (G * IC);
-
-    const int g = ic / (IC / IC_BLOCK);
-    const int gic = ic % (IC / IC_BLOCK);
-
-    diff_dst += g * OC * OD * OH * OW;
-    wei += g * IC * OC * KD * KH * KW;
-
-    float d = 0.0;
-    const uint diff_src_off = mb * IC * G * ID * IH * IW + gic * ID * IH * IW
-            + g * IC * ID * IH * IW + id * IH * IW + ih * IW + iw;
-    for (int oc = 0; oc < OC; ++oc)
-        for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
-                for (int kw = 0; kw < KW; ++kw) {
-                    if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
-                            || id + PD < kd * (1 + DD))
-                        continue;
-                    int ow = iw - kw * (1 + DW) + PW;
-                    int oh = ih - kh * (1 + DH) + PH;
-                    int od = id - kd * (1 + DD) + PD;
-                    if (ow % SW != 0 || oh % SH != 0 || od % SD != 0)
-                        continue;
-
-                    ow /= SW;
-                    oh /= SH;
-                    od /= SD;
-                    if (oh < OH && ow < OW && od < OD) {
-                        const uint diff_dst_off = mb * OC * G * OD * OH * OW
-                                + oc * OD * OH * OW + od * OH * OW + oh * OW
-                                + ow;
-                        const uint wei_off = oc * IC * KD * KH * KW
-                                + gic * KD * KH * KW + kd * KH * KW + kh * KW
-                                + kw;
-                        d += diff_dst[diff_dst_off] * wei[wei_off];
-                    }
-                }
-    diff_src[diff_src_off] = d;
 #    endif
 }
 #endif

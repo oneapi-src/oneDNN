@@ -26,6 +26,7 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 #include "ocl/ref_batch_normalization.hpp"
+#include "ocl/ref_convolution.hpp"
 #include "ocl/ref_eltwise.hpp"
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_lrn.hpp"
@@ -33,6 +34,7 @@
 #include "ocl/ref_rnn.hpp"
 #include "ocl/ref_softmax.hpp"
 #include "ocl/ref_deconvolution.hpp"
+#include "ocl/ref_shuffle.hpp"
 #include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
@@ -94,12 +96,18 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_eltwise_bwd_t),
     /*deconv*/
     INSTANCE(ref_deconvolution_fwd_t),
+    INSTANCE(ref_deconvolution_bwd_data_t),
+    INSTANCE(ref_deconvolution_bwd_weights_t),
     /*conv*/
     INSTANCE(jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f16>),
     INSTANCE(jit_gen9_common_convolution_fwd_t<f32>),
+    INSTANCE(jit_gen9_common_convolution_bwd_data_t<f16, f16, f16, f16>),
     INSTANCE(jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>),
     INSTANCE(jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>),
+    INSTANCE(ref_convolution_fwd_t),
+    INSTANCE(ref_convolution_bwd_data_t),
+    INSTANCE(ref_convolution_bwd_weights_t),
     /*bnorm*/
     INSTANCE(ref_batch_normalization_fwd_t<f16>),
     INSTANCE(ref_batch_normalization_fwd_t<f32>),
@@ -134,6 +142,10 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_rnn_fwd_f16_t),
     INSTANCE(ref_rnn_fwd_f32_t),
     INSTANCE(ref_rnn_bwd_f32_t),
+    /* shuffle */
+    INSTANCE(ref_shuffle_t<4>),
+    INSTANCE(ref_shuffle_t<2>),
+    INSTANCE(ref_shuffle_t<1>),
     nullptr,
 };
 

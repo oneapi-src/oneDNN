@@ -47,7 +47,7 @@ struct jit_ref_bnorm_common_kernel {
 
         jbn.ic = data_mdw.dims()[1];
         jbn.id = (ndims == 5) ? data_mdw.dims()[2] : 1;
-        jbn.ih = data_mdw.dims()[ndims - 2];
+        jbn.ih = (ndims == 3) ? 1 : data_mdw.dims()[ndims - 2];
         jbn.iw = data_mdw.dims()[ndims - 1];
 
         jbn.is_forward = utils::one_of(bd.prop_kind,
@@ -81,9 +81,10 @@ struct jit_ref_bnorm_common_kernel {
 
         const bool has_padding = !data_mdw.is_dense();
         if (!has_padding
-                && data_mdw.matches_one_of_tag(
-                    NChw16n16c, nChw16c, NCdhw16n16c, nCdhw16c)) {
-            jbn.mb_block = data_mdw.matches_one_of_tag(NChw16n16c, NCdhw16n16c)
+                && data_mdw.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c,
+                        NCw16n16c, NChw16n16c, NCdhw16n16c)) {
+            jbn.mb_block = data_mdw.matches_one_of_tag(
+                                   NCw16n16c, NChw16n16c, NCdhw16n16c)
                     ? 16
                     : 1;
             jbn.mb_chunk = nstl::min((jbn.mb / jbn.mb_block), 256);

@@ -72,15 +72,12 @@ status_t ocl_jit_t::build(const engine_t *engine) {
 
     cl_int err = CL_SUCCESS;
 
-    const char *src_str = code_.data();
-    const char *opt_str = options_.data();
-    const size_t src_len = code_.size();
-
-    program_ = clCreateProgramWithSource(ctx, 1, &src_str, &src_len, &err);
+    program_ = clCreateProgramWithSource(ctx, 1, &code_, &code_size_, &err);
     status_t status = ocl_utils::convert_to_mkldnn(err);
     if (status != status::success)
         return status;
 
+    const char *opt_str = options_.data();
     if (mkldnn_verbose()->level >= 4) {
         printf("[mkldnn_trace] clBuildProgram\n");
         printf("[mkldnn_trace]     options: %s\n", opt_str);

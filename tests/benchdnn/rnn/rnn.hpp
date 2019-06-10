@@ -40,9 +40,6 @@ activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
 mkldnn_alg_kind_t activation2kind(activation_t alg);
 
-const char *prop2str(mkldnn_prop_kind_t prop);
-mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
-
 mkldnn_rnn_direction_t str2direction(const char *str);
 const char *direction2str(mkldnn_rnn_direction_t direction);
 
@@ -105,17 +102,21 @@ int str2desc(desc_t *desc, const char *str);
 enum rnn_data_kind_t {
     input,
     states,
+    c_states,
     weights_input,
     weights_states,
     bias,
     dst_last_iteration,
+    dst_c_last_iteration,
     dst_last_layer,
     dst_diff_input,
     dst_diff_states,
+    dst_diff_c_states,
     dst_diff_weights_input,
     dst_diff_weights_states,
     dst_diff_bias,
     diff_last_iteration,
+    diff_c_last_iteration,
     diff_last_layer,
     data_kind_total // should be last to provide the total number of data kinds
 };
@@ -129,6 +130,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
     case bias: return "BIAS";
     case dst_last_layer: return "DST_LAST_LAYER";
     case dst_last_iteration: return "DST_LAST_ITERATION";
+    case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
     default:
         assert(!"incorrect rnn data kind");
         return "incorrect rnn data kind";
@@ -185,6 +187,8 @@ struct prb_t : public desc_t {
         , direction(direction)
         , flags(flags)
         , activation(activation)
+        , alpha(alpha)
+        , beta(beta)
         , attr(attr)
         , scale_policy(scale_policy)
         , ops(0.0) {
@@ -248,61 +252,50 @@ private:
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };
-
-void prb2str(const prb_t *p, char *buffer);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
     }
 
-    virtual void dump_config(char *buf) const override {
-        dprint(buf, cfg2str(p_->cfg));
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << cfg2str(p_->cfg);
     }
 
-    virtual void dump_descriptor_csv(char *buf) const override {
-        snprintf(buf, max_dump_len,
-                "%s_%s_%s_l" IFMT "d" IFMT "t" IFMT "mb" IFMT "_slc" IFMT "sic"
-               IFMT "dic" IFMT "",
-               alg2str(p_->alg), activation2str(p_->activation),
-               direction2str(p_->direction), p_->n_layer, p_->n_directions(),
-               p_->n_iter, p_->mb, p_->slc, p_->sic, p_->dic);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << alg2str(p_->alg) << "_" << activation2str(p_->activation) << "_"
+            << direction2str(p_->direction);
+        s << "l" << p_->n_layer << "d" << p_->n_directions()
+            << "t" << p_->n_iter << "mb" << p_->mb << "_"
+            << "slc" << p_->slc << "sic" << p_->sic << "dic" << p_->dic;
     }
 
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_properties(char *buf) const override {
-        dprint(buf, prop2str(p_->prop));
-    }
-
-    virtual double ops() const override {
-        return p_->ops;
-    }
+    virtual double ops() const override { return p_->ops; }
+    virtual const char *name() const override { return p_->name; }
+    virtual const mkldnn_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &input_m,
-        dnn_mem_t &states_m, dnn_mem_t &weights_input_m,
+        dnn_mem_t &states_m, dnn_mem_t &c_states_m, dnn_mem_t &weights_input_m,
         dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,
         dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        mkldnn_rnn_direction_t direction);
+        dnn_mem_t &dst_c_last_iteration_m, mkldnn_rnn_direction_t direction);
 
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &input_m,
-        dnn_mem_t &states_m, dnn_mem_t &diff_last_layer_m,
-        dnn_mem_t &diff_last_iteration_m, dnn_mem_t &weights_input_m,
+        dnn_mem_t &states_m, dnn_mem_t &c_states_m,
+        dnn_mem_t &diff_last_layer_m, dnn_mem_t &diff_last_iteration_m,
+        dnn_mem_t &diff_c_last_iteration_m, dnn_mem_t &weights_input_m,
         dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,
         dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        dnn_mem_t &dst_diff_input_m, dnn_mem_t &dst_diff_states_m,
+        dnn_mem_t &dst_c_last_iteration_m, dnn_mem_t &dst_diff_input_m,
+        dnn_mem_t &dst_diff_states_m, dnn_mem_t &dst_diff_c_states_m,
         dnn_mem_t &dst_diff_weights_input_m,
         dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m,
         mkldnn_rnn_direction_t direction);
@@ -323,21 +316,19 @@ inline void inv_ntc_off_f(const prb_t *p,
     assert(off == 0);
 }
 
-// mkldnn_ldsnc
-inline size_t ldsnc_off_f(const prb_t *p,
-        int64_t l, int64_t d, int64_t s, int64_t n, int64_t c) {
-    return (((l * p->n_directions() + d) * p->n_states() + s) * p->mb + n)
+// mkldnn_ldnc
+inline size_t ldnc_off_f(const prb_t *p,
+        int64_t l, int64_t d, int64_t n, int64_t c) {
+    return ((l * p->n_directions() + d) * p->mb + n)
             * p->sic + c;
 }
 
-inline void inv_ldsnc_off_f(const prb_t *p, size_t off,
-        int64_t &l, int64_t &d, int64_t &s, int64_t &n, int64_t &c) {
+inline void inv_ldnc_off_f(const prb_t *p, size_t off,
+        int64_t &l, int64_t &d, int64_t &n, int64_t &c) {
     c = off % p->sic;
     off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
-    s = off % p->n_states();
-    off /= p->n_states();
     d = off % p->n_directions();
     off /= p->n_directions();
     l = off % p->n_layer;
@@ -409,21 +400,18 @@ inline void inv_ldgo_off_f(const prb_t *p, size_t off,
 }
 
 // dst_last_layer: mkldnn_tnc
-inline size_t tnc_off_f(const prb_t *p,
-        int64_t s, int64_t t, int64_t n, int64_t c) {
-    return ((s * p->n_iter + t) * p->mb + n) * p->sic + c;
+inline size_t tnc_off_f(const prb_t *p, int64_t t, int64_t n, int64_t c) {
+    return (t * p->mb + n) * p->sic + c;
 }
 
 inline void inv_tnc_off_f(
-        const prb_t *p, size_t off, int64_t &s, int64_t &t, int64_t &n, int64_t &c) {
+        const prb_t *p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
     c = off % p->sic;
     off /= p->sic;
     n = off % p->mb;
     off /= p->mb;
     t = off % p->n_iter;
     off /= p->n_iter;
-    s = off % p->n_states();
-    off /= p->n_states();
     assert(off == 0);
 }
 

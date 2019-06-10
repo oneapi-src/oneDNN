@@ -21,6 +21,8 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <iostream>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
@@ -45,7 +47,7 @@ struct desc_t {
     const char *name;
 };
 int str2desc(desc_t *desc, const char *str);
-void desc2str(const desc_t *d, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 /** configuration structure, that controls initial data filling + error check
  *
@@ -86,58 +88,46 @@ struct prb_t: public desc_t {
     mkldnn_format_tag_t tag;
     alg_t alg;
 };
-void prb2str(const prb_t *p, char *buffer, bool canonical = false);
+std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t: public base_perf_report_t {
-    perf_report_t(const char *perf_template) :
-        base_perf_report_t(perf_template) {}
-
-    virtual ~perf_report_t() {}
+    using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
     }
 
-    virtual void dump_algorithm(char *buf) const override {
-        dprint(buf, alg2str(p_->alg));
+    virtual void dump_alg(std::ostream &s) const override {
+        s << alg2str(p_->alg);
     }
 
-    virtual void dump_config(char *buf) const override {
-        dprint(buf, cfg2str(p_->cfg));
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << cfg2str(p_->cfg);
     }
 
-    virtual void dump_descriptor_csv(char *buf) const override {
-        if (p_->id > 1)
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
-                    p_->mb, p_->ic, p_->id, p_->ih, p_->iw, p_->od,
-                    p_->oh, p_->ow, p_->kd, p_->kh, p_->kw, p_->sd,
-                    p_->sh, p_->sw, p_->pd, p_->ph, p_->pw);
-        else
-            snprintf(buf, max_dump_len,
-                    "" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT ","
-                    IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT "",
-                    p_->mb, p_->ic, p_->ih, p_->iw, p_->oh, p_->ow,
-                    p_->kh, p_->kw, p_->sh, p_->sw, p_->ph, p_->pw);
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        const bool print_d = p_->id > 1;
+
+        s << p_->mb << ',' << p_->ic << ',';
+        if (print_d) s << p_->id << ',';
+        s << p_->ih << ',' << p_->iw << ',';
+        if (print_d) s << p_->od << ',';
+        s << p_->oh << ',' << p_->ow << ',';
+        if (print_d) s << p_->kd << ',';
+        s << p_->kh << ',' << p_->kw << ',';
+        if (print_d) s << p_->sd << ',';
+        s << p_->sh << ',' << p_->sw << ',';
+        if (print_d) s << p_->pd << ',';
+        s << p_->ph << ',' << p_->pw;
     }
 
-    virtual void dump_descriptor_name(char *buf) const override {
-        dprint(buf, p_->name);
-    }
-
-    virtual void dump_direction(char *buf) const override {
-        dprint(buf, dir2str(p_->dir));
-    }
-
-    virtual void dump_tag(char *buf) const override {
-        dprint(buf, tag2str(p_->tag));
-    }
+    virtual const char *name() const override { return p_->name; }
+    virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
-    const prb_t *p_;
+    const prb_t *p_ = NULL;
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */

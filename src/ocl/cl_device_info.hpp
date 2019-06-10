@@ -82,14 +82,29 @@ public:
         std::vector<char> c_name(size_name / sizeof(char));
         err = clGetDeviceInfo(
                 device_, CL_DEVICE_NAME, size_name, &c_name[0], &size_name);
-        return err;
+        if (err != CL_SUCCESS)
+            return err;
+
+        cl_uint eu_count;
+        err = clGetDeviceInfo(device_, CL_DEVICE_MAX_COMPUTE_UNITS,
+                sizeof(cl_uint), &eu_count, NULL);
+        eu_count_ = (err == CL_SUCCESS) ? eu_count : 0;
+
+        static constexpr auto threads_per_eu = 7;   /* Gen9 value, for now */
+        hw_threads_ = eu_count_ * threads_per_eu;
+
+        return CL_SUCCESS;
     }
 
     bool has(cl_device_ext_t ext) const { return ext_ & (uint64_t)ext; }
 
+    int eu_count() const { return eu_count_; }
+    int hw_threads() const { return hw_threads_; }
+
 private:
     cl_device_id device_;
     uint64_t ext_;
+    int32_t eu_count_, hw_threads_;
 };
 
 } // namespace ocl

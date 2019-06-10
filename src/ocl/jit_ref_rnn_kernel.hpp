@@ -36,18 +36,22 @@ struct jit_ref_rnn_kernel {
             const rnn_pd_t *rnn_pd,
             const memory_desc_wrapper &src_layer_d,
             const memory_desc_wrapper &src_iter_d,
+            const memory_desc_wrapper &src_iter_c_d,
             const memory_desc_wrapper &weights_layer_d,
             const memory_desc_wrapper &weights_iter_d,
             const memory_desc_wrapper &bias_d,
             const memory_desc_wrapper &dst_layer_d,
             const memory_desc_wrapper &dst_iter_d,
+            const memory_desc_wrapper &dst_iter_c_d,
             const memory_desc_wrapper &diff_src_layer_d,
             const memory_desc_wrapper &diff_src_iter_d,
+            const memory_desc_wrapper &diff_src_iter_c_d,
             const memory_desc_wrapper &diff_weights_layer_d,
             const memory_desc_wrapper &diff_weights_iter_d,
             const memory_desc_wrapper &diff_bias_d,
             const memory_desc_wrapper &diff_dst_layer_d,
             const memory_desc_wrapper &diff_dst_iter_d,
+            const memory_desc_wrapper &diff_dst_iter_c_d,
             const memory_desc_wrapper &ws_d,
             jit_rnn_offsets &jit_off,
             const primitive_attr_t &attr) {
@@ -61,7 +65,7 @@ struct jit_ref_rnn_kernel {
         jrnn.n_iter = src_layer_d.dims()[0];
         jrnn.n_gates = weights_layer_d.dims()[3];
         jrnn.n_bias = jrnn.n_gates + rnn_pd->is_lbr();
-        jrnn.n_states = rnn_pd->S();
+        jrnn.n_states = rnn_pd->cell_kind() == mkldnn_vanilla_lstm ? 2 : 1;
         jrnn.n_weights_input = weights_layer_d.dims()[2];
         jrnn.n_weights_state = weights_iter_d.dims()[2];
         jrnn.batch = src_layer_d.dims()[1];
@@ -77,41 +81,59 @@ struct jit_ref_rnn_kernel {
 
         jrnn.with_bias = rnn_pd->with_bias();
         jrnn.with_src_iter = rnn_pd->with_src_iter();
+        jrnn.with_src_iter_c = rnn_pd->with_src_iter_c();
         jrnn.with_dst_iter = rnn_pd->with_dst_iter();
+        jrnn.with_dst_iter_c = rnn_pd->with_dst_iter_c();
         jrnn.is_lbr = rnn_pd->is_lbr();
 
         jrnn.src_layer_ndims = src_layer_d.ndims();
         jrnn.src_iter_ndims = src_iter_d.ndims();
+        if (jrnn.with_src_iter_c)
+            jrnn.src_iter_c_ndims = src_iter_c_d.ndims();
         jrnn.weights_layer_ndims = weights_layer_d.ndims();
         jrnn.weights_iter_ndims = weights_iter_d.ndims();
         jrnn.dst_layer_ndims = dst_layer_d.ndims();
         jrnn.dst_iter_ndims = dst_iter_d.ndims();
+        if (jrnn.with_dst_iter_c)
+            jrnn.dst_iter_c_ndims = dst_iter_c_d.ndims();
         jrnn.bias_ndims = bias_d.ndims();
 
         set_offsets(src_layer_d, jit_off.src_layer_off);
         set_offsets(src_iter_d, jit_off.src_iter_off);
+        if (jrnn.with_src_iter_c)
+            set_offsets(src_iter_c_d, jit_off.src_iter_c_off);
         set_offsets(weights_layer_d, jit_off.weights_layer_off);
         set_offsets(weights_iter_d, jit_off.weights_iter_off);
         set_offsets(bias_d, jit_off.bias_off);
         set_offsets(dst_layer_d, jit_off.dst_layer_off);
         set_offsets(dst_iter_d, jit_off.dst_iter_off);
+        if (jrnn.with_dst_iter_c)
+            set_offsets(dst_iter_c_d, jit_off.dst_iter_c_off);
 
         if (!jrnn.is_forward) {
             jrnn.diff_src_layer_ndims = diff_src_layer_d.ndims();
             jrnn.diff_src_iter_ndims = diff_src_iter_d.ndims();
+            if (jrnn.with_src_iter_c)
+                jrnn.diff_src_iter_c_ndims = diff_src_iter_c_d.ndims();
             jrnn.diff_weights_layer_ndims = diff_weights_layer_d.ndims();
             jrnn.diff_weights_iter_ndims = diff_weights_iter_d.ndims();
             jrnn.diff_dst_layer_ndims = diff_dst_layer_d.ndims();
             jrnn.diff_dst_iter_ndims = diff_dst_iter_d.ndims();
+            if (jrnn.with_dst_iter_c)
+                jrnn.diff_dst_iter_c_ndims = diff_dst_iter_c_d.ndims();
             jrnn.diff_bias_ndims = diff_bias_d.ndims();
 
             set_offsets(diff_src_layer_d, jit_off.diff_src_layer_off);
             set_offsets(diff_src_iter_d, jit_off.diff_src_iter_off);
+            if (jrnn.with_src_iter_c)
+                set_offsets(diff_src_iter_c_d, jit_off.diff_src_iter_c_off);
             set_offsets(diff_weights_layer_d, jit_off.diff_weights_layer_off);
             set_offsets(diff_weights_iter_d, jit_off.diff_weights_iter_off);
             set_offsets(diff_bias_d, jit_off.diff_bias_off);
             set_offsets(diff_dst_layer_d, jit_off.diff_dst_layer_off);
             set_offsets(diff_dst_iter_d, jit_off.diff_dst_iter_off);
+            if (jrnn.with_dst_iter_c)
+                set_offsets(diff_dst_iter_c_d, jit_off.diff_dst_iter_c_off);
         }
 
         rnn_utils::set_offsets(*rnn_pd, jrnn.ws_gates_offset,
@@ -133,7 +155,9 @@ struct jit_ref_rnn_kernel {
         jit.define_int("IS_FWD", jrnn.is_forward);
         jit.define_int("WITH_BIAS", jrnn.with_bias);
         jit.define_int("WITH_SRC_ITER", jrnn.with_src_iter);
+        jit.define_int("WITH_SRC_ITER_C", jrnn.with_src_iter_c);
         jit.define_int("WITH_DST_ITER", jrnn.with_dst_iter);
+        jit.define_int("WITH_DST_ITER_C", jrnn.with_dst_iter_c);
         jit.define_int("IS_LBR", jrnn.is_lbr);
 
         jit.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
@@ -173,12 +197,18 @@ struct jit_ref_rnn_kernel {
 
         def_offsets(jit_off.src_layer_off, jit, "SRC_L", jrnn.src_layer_ndims);
         def_offsets(jit_off.src_iter_off, jit, "SRC_I", jrnn.src_iter_ndims);
+        if (jrnn.with_src_iter_c)
+            def_offsets(jit_off.src_iter_c_off, jit, "SRC_I_C",
+                    jrnn.src_iter_c_ndims);
         def_offsets(jit_off.weights_layer_off, jit, "WEI_L",
                 jrnn.weights_layer_ndims);
         def_offsets(jit_off.weights_iter_off, jit, "WEI_I",
                 jrnn.weights_iter_ndims);
         def_offsets(jit_off.dst_layer_off, jit, "DST_L", jrnn.dst_layer_ndims);
         def_offsets(jit_off.dst_iter_off, jit, "DST_I", jrnn.dst_iter_ndims);
+        if (jrnn.with_dst_iter_c)
+            def_offsets(jit_off.dst_iter_c_off, jit, "DST_I_C",
+                    jrnn.dst_iter_c_ndims);
         def_offsets(jit_off.bias_off, jit, "BIAS", jrnn.bias_ndims);
 
         if (!jrnn.is_forward) {
@@ -186,6 +216,9 @@ struct jit_ref_rnn_kernel {
                     jrnn.diff_src_layer_ndims);
             def_offsets(jit_off.diff_src_iter_off, jit, "DIFF_SRC_I",
                     jrnn.diff_src_iter_ndims);
+            if (jrnn.with_src_iter_c)
+                def_offsets(jit_off.diff_src_iter_c_off, jit, "DIFF_SRC_I_C",
+                        jrnn.diff_src_iter_c_ndims);
             def_offsets(jit_off.diff_weights_layer_off, jit, "DIFF_WEI_L",
                     jrnn.diff_weights_layer_ndims);
             def_offsets(jit_off.diff_weights_iter_off, jit, "DIFF_WEI_I",
@@ -194,6 +227,9 @@ struct jit_ref_rnn_kernel {
                     jrnn.diff_dst_layer_ndims);
             def_offsets(jit_off.diff_dst_iter_off, jit, "DIFF_DST_I",
                     jrnn.diff_dst_iter_ndims);
+            if (jrnn.with_dst_iter_c)
+                def_offsets(jit_off.diff_dst_iter_c_off, jit, "DIFF_DST_I_C",
+                        jrnn.diff_dst_iter_c_ndims);
             def_offsets(jit_off.diff_bias_off, jit, "DIFF_BIAS",
                     jrnn.diff_bias_ndims);
         }
@@ -220,11 +256,15 @@ inline status_t init_base(jit_rnn_conf_t &jrnn, const rnn_pd_t *rnn_pd,
             rnn_pd,
             rnn_pd->src_md(0),
             rnn_pd->src_md(1),
+            rnn_pd->src_md(2),
             rnn_pd->weights_md(0),
             rnn_pd->weights_md(1),
             rnn_pd->weights_md(2),
             rnn_pd->dst_md(0),
             rnn_pd->dst_md(1),
+            rnn_pd->dst_md(2),
+            fakedesc,
+            fakedesc,
             fakedesc,
             fakedesc,
             fakedesc,
@@ -244,18 +284,22 @@ inline status_t init_base<prop_kind::backward>(jit_rnn_conf_t &jrnn,
     return jit_ref_rnn_kernel::init_conf(jrnn, rnn_pd,
             rnn_pd->src_md(0),
             rnn_pd->src_md(1),
+            rnn_pd->src_md(2),
             rnn_pd->weights_md(0),
             rnn_pd->weights_md(1),
             rnn_pd->weights_md(2),
             rnn_pd->dst_md(0),
             rnn_pd->dst_md(1),
+            rnn_pd->dst_md(2),
             rnn_pd->diff_src_md(0),
             rnn_pd->diff_src_md(1),
+            rnn_pd->diff_src_md(2),
             rnn_pd->diff_weights_md(0),
             rnn_pd->diff_weights_md(1),
             rnn_pd->diff_weights_md(2),
             rnn_pd->diff_dst_md(0),
             rnn_pd->diff_dst_md(1),
+            rnn_pd->diff_dst_md(2),
             rnn_pd->workspace_md(0),
             jit_off,
             *rnn_pd->attr()

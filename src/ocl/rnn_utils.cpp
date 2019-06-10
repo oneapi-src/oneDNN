@@ -31,14 +31,16 @@ bool rnn_utils::is_training(const rnn_pd_t &pd) {
 
 size_t rnn_utils::ws_states_size(const rnn_pd_t &pd) {
     int wic = nstl::max(pd.SLC(), nstl::max(pd.SIC(), pd.DIC()));
+    int n_states = pd.cell_kind() == mkldnn_vanilla_lstm ? 2 : 1;
     return static_cast<size_t>((pd.L() + 1) * pd.D() * (pd.T() + 1)
-            * pd.S() * pd.MB() * wic);
+            * n_states * pd.MB() * wic);
 }
 
 size_t rnn_utils::ws_diff_states_size(const rnn_pd_t &pd) {
     int wic = nstl::max(pd.SLC(), nstl::max(pd.SIC(), pd.DIC()));
+    int n_states = pd.cell_kind() == mkldnn_vanilla_lstm ? 2 : 1;
     return static_cast<size_t>((pd.L() + 1) * pd.D() * (pd.T() + 1)
-            * (pd.S() + 1) * pd.MB() * wic);
+            * (n_states + 1) * pd.MB() * wic);
 }
 
 size_t rnn_utils::ws_gates_size(const rnn_pd_t &pd) {

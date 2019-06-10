@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,20 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
-#include "gtest/gtest.h"
+#include "src/common/mkldnn_thread.hpp"
 
-#include "mkldnn.h"
-#include "test_gemm_common.hpp"
+#include "sum/sum.hpp"
 
-namespace mkldnn {
+namespace sum {
 
-using gemm_test = gemm_test_common<int8_t, uint8_t, int32_t>;
+void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
+        dnn_mem_t &dst) {
+    float *dst_ptr = (float *)dst;
+    int64_t nelems = dst.nelems();
 
-TEST_P(gemm_test, TestGEMM)
-{}
+    mkldnn::impl::parallel_nd(nelems, [&](int64_t k) {
+        dst_ptr[k] = 0;
+        for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
+            const float *src_ptr = (const float *)src[i_input];
+            dst_ptr[k] += (src_ptr[k] * p->scales[i_input]);
+        }
+    });
+}
 
-#define TEST_CASE_NAME_PREFIX s8u8s32
-#define S8U8S32
-#include "gemm_in.h"
 }

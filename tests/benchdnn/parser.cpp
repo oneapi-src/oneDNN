@@ -35,9 +35,19 @@ bool parse_dt(std::vector<mkldnn_data_type_t> &dt, const char *str,
     return parse_vector_option(dt, str2dt, str, option_name);
 }
 
+bool parse_multi_dt(std::vector<std::vector<mkldnn_data_type_t>> &dt,
+        const char *str, const std::string &option_name/* = "idt"*/) {
+    return parse_multivector_option(dt, str2dt, str, option_name);
+}
+
 bool parse_tag(std::vector<mkldnn_format_tag_t> &tag, const char *str,
         const std::string &option_name/* = "tag"*/) {
-    return parse_vector_option(tag, str2tag, str, option_name);
+    return parse_vector_option(tag, str2fmt_tag, str, option_name);
+}
+
+bool parse_multi_tag(std::vector<std::vector<mkldnn_format_tag_t>> &tag,
+        const char *str, const std::string &option_name/* = "itag"*/) {
+    return parse_multivector_option(tag, str2fmt_tag, str, option_name);
 }
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,
@@ -157,8 +167,19 @@ static bool parse_verbose(const char *str,
 
 static bool parse_engine_kind(const char *str,
         const std::string &option_name = "engine") {
-    return parse_single_value_option(engine_tgt_kind, str2engine_kind, str,
-            option_name);
+    if (parse_single_value_option(
+                engine_tgt_kind, str2engine_kind, str, option_name)) {
+
+        DNN_SAFE(mkldnn_stream_destroy(stream_tgt), CRIT);
+        DNN_SAFE(mkldnn_engine_destroy(engine_tgt), CRIT);
+
+        DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
+        DNN_SAFE(mkldnn_stream_create(
+                         &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
+                CRIT);
+        return true;
+    }
+    return false;
 }
 
 bool parse_bench_settings(const char *str) {

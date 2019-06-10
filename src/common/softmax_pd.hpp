@@ -62,13 +62,30 @@ struct softmax_pd_t: public primitive_desc_t {
     dim_t H() const { return ndims() >= 4 ? data_desc().dims[ndims() - 2] : 1; }
     dim_t W() const { return ndims() >= 3 ? data_desc().dims[ndims() - 1] : 1; }
 
-    int axis() const { return desc_.softmax_axis; }
+    dim_t outer_size() const {
+        return utils::array_product(data_desc().dims, axis());
+    }
+    dim_t axis_size() const { return data_desc().dims[axis()]; }
+    dim_t inner_size() const {
+        return utils::array_product(data_desc().dims + axis() + 1,
+                ndims() - 1 - axis());
+    }
 
+    dim_t outer_stride() const {
+        const memory_desc_wrapper data_d(data_desc());
+        return axis() > 0 ? data_d.blocking_desc().strides[axis() - 1] : 1;
+    }
+
+    int axis() const { return desc_.softmax_axis; }
     int ndims() const { return data_desc().ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference);
+    }
+
+    bool has_zero_dim_memory() const {
+        return memory_desc_wrapper(data_desc()).has_zero_dim();
     }
 
 protected:
@@ -99,20 +116,20 @@ struct softmax_fwd_pd_t: public softmax_pd_t {
         if (arg == MKLDNN_ARG_DST)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
-    { return 1 + (workspace_md() != nullptr); }
+    { return 1 + (!types::is_zero_md(workspace_md())); }
 };
 
 struct softmax_bwd_pd_t: public softmax_pd_t {
@@ -134,21 +151,21 @@ struct softmax_bwd_pd_t: public softmax_pd_t {
         if (arg == MKLDNN_ARG_DIFF_SRC)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &data_md_ : nullptr; }
+    { return index == 0 ? &data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_data_md_ : nullptr; }
+    { return index == 0 ? &diff_data_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override
-    { return 2 + (workspace_md() != nullptr); }
+    { return 2 + (!types::is_zero_md(workspace_md())); }
     virtual int n_outputs() const override { return 1; }
 
 protected:

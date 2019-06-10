@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "mkldnn_debug.hpp"
+
 #include "reorder/reorder.hpp"
 
 namespace reorder {
@@ -54,59 +55,22 @@ const char *flag2str(flag_t flag) {
     }
 }
 
-dims_t str2dims(const char *str) {
-    dims_t dims;
-    do {
-        int len;
-        int64_t dim;
-        int scan = sscanf(str, IFMT "%n", &dim, &len);
-        SAFE_V(scan == 1 ? OK : FAIL);
-        dims.push_back(dim);
-        str += len;
-        SAFE_V(*str == 'x' || *str == '\0' ? OK : FAIL);
-    } while (*str++ != '\0');
-    return dims;
-}
+std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    s << "--idt=" << dt2str(cfg2dt(p.conf_in)) << " ";
+    s << "--odt=" << dt2str(cfg2dt(p.conf_out)) << " ";
+    s << "--itag=" << fmt_tag2str(p.reorder.tag_in) << " ";
+    s << "--otag=" << fmt_tag2str(p.reorder.tag_out) << " ";
 
-#define DPRINT(...) do { \
-    int l = snprintf(buffer, rem_len, __VA_ARGS__); \
-    buffer += l; rem_len -= l; \
-} while(0)
+    if (p.alg != ALG_REF)
+        s << "--alg=" << alg2str(p.alg) << " ";
+    if (p.oflag != FLAG_NONE)
+        s << "--oflag=" << flag2str(p.oflag) << " ";
+    if (!p.attr.is_def())
+        s << "--attr=\"" << p.attr << "\" ";
 
-void dims2str(const dims_t &dims, char *buffer) {
-    int rem_len = max_desc_len;
-    for (size_t d = 0; d < dims.size() - 1; ++d)
-        DPRINT(IFMT "x", dims[d]);
-    DPRINT(IFMT, dims[dims.size() - 1]);
-}
+    s << p.reorder.dims;
 
-#undef DPRINT
-
-void prb2str(const prb_t *p, char *buffer) {
-    char dt_str[32] = "", tag_str[32] = "", alg_str[32] = "",
-         oflag_str[32] = "", attr_str[max_attr_len] = "",
-         dims_str[max_desc_len] = "";
-
-    snprintf(dt_str, sizeof(dt_str), "--idt=%s --odt=%s ",
-            dt2str(cfg2dt(p->conf_in)), dt2str(cfg2dt(p->conf_out)));
-    snprintf(tag_str, sizeof(tag_str), "--itag=%s --otag=%s ",
-            tag2str(p->reorder.tag_in), tag2str(p->reorder.tag_out));
-    if (p->alg != ALG_REF)
-        snprintf(alg_str, sizeof(alg_str), "--alg=%s ", alg2str(p->alg));
-    if (p->oflag != FLAG_NONE)
-        snprintf(oflag_str, sizeof(oflag_str), "--oflag=%s ",
-                flag2str(p->oflag));
-    if (!p->attr.is_def()) {
-        int len = snprintf(attr_str, max_attr_len, "--attr=\"");
-        SAFE_V(len >= 0 ? OK : FAIL);
-        attr2str(&p->attr, attr_str + len);
-        len = (int)strnlen(attr_str, max_attr_len);
-        snprintf(attr_str + len, max_attr_len - len, "\" ");
-    }
-    dims2str(p->reorder.dims, dims_str);
-
-    snprintf(buffer, max_prb_len, "%s%s%s%s%s%s", dt_str, tag_str, alg_str,
-            oflag_str, attr_str, dims_str);
+    return s;
 }
 
 }

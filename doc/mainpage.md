@@ -59,6 +59,7 @@ Data manipulation:
  * @ref dev_guide_benchdnn
  * @ref dev_guide_vtune
  * @ref dev_guide_inspecting_jit
+ * @ref cpu_performance_profiling_cpp
 
 # Advanced topics
 

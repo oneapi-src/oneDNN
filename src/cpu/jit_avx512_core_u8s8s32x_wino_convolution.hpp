@@ -49,7 +49,8 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
         {}
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_int8_wino:", avx512_core, ""),
+                JIT_IMPL_NAME_HELPER("jit_int8_wino:", ((jcp_.ver == ver_vnni)
+                    ? avx512_core_vnni : avx512_core), ""),
                 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>);
 
         status_t init() {

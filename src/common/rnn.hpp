@@ -21,7 +21,6 @@ namespace impl {
 namespace rnn {
 
 int get_gates_count(mkldnn_alg_kind_t cell_kind);
-int get_states_count(mkldnn_alg_kind_t cell_kind);
 
 }
 }

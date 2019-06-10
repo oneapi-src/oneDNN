@@ -42,7 +42,7 @@ struct jit_bnorm_t: public jit_generator {
     struct call_params_t {
         // keep int sizes at 8 bytes -- jit code expects this
         size_t coff_max, soff_max;
-        float eps, one;
+        float eps;
         const float *scale_shift, *mean, *var;
         const data_t *src, *dst;
     };
@@ -80,6 +80,7 @@ struct jit_bnorm_t: public jit_generator {
     Vmm vtail_mask = Vmm(isa == avx512_core ? 27 : 11);
     Vmm vbody_mask = Vmm(isa == avx512_core ? 28 : 12);
     Vmm vzero = Vmm(isa == avx512_core ? 29 : 13);
+    Xmm xone = Xmm(14);
     Vmm vone = Vmm(isa == avx512_core ? 30 : 14);
     Vmm veps = Vmm(isa == avx512_core ? 31 : 15);
 
@@ -102,8 +103,11 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     void load_common_params() {
+        mov(reg_tmp, float2int(1.0f));
+        movq(xone, reg_tmp);
+        uni_vbroadcastss(vone, xone);
+
 #       define PARAM_OFF(x) offsetof(call_params_t, x)
-        uni_vbroadcastss(vone, vmmword[reg_param + PARAM_OFF(one)]);
         uni_vbroadcastss(veps, vmmword[reg_param + PARAM_OFF(eps)]);
         uni_vpxor(vzero, vzero, vzero);
 
@@ -484,7 +488,6 @@ struct driver_t: public c_compatible {
         typename jit_bnorm_t<isa>::call_params_t p;
 
         p.eps = bdesc_->desc()->batch_norm_epsilon;
-        p.one = 1.0f;
 
         p.scale_shift = scale_shift;
         p.mean = mean;

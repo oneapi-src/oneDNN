@@ -547,6 +547,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                             vmovss(xmm_tmp, o_addr(o_off[ur]));
                         } else if (utils::one_of(prb_.otype, s8, u8)) {
                             pinsrb(xmm_tmp, o_addr(o_off[ur]), 0x0);
+                        } else if (prb_.otype == bf16) {
+                            pinsrw(xmm_tmp, o_addr(o_off[ur]), 0x0);
                         } else {
                             assert(!"unsupported o_type");
                         }

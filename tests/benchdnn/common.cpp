@@ -18,8 +18,12 @@
 #include <limits.h>
 #include <assert.h>
 
-#ifdef __linux__
 #include <fstream>
+#include <utility>
+#include <string>
+#include <vector>
+
+#ifdef __linux__
 #include <string>
 #include <unistd.h>
 #endif
@@ -27,6 +31,23 @@
 #include "mkldnn.h"
 
 #include "common.hpp"
+
+// BENCHDNN_MEMORY_CHECK macro enables guarding mechanism for memory allocation:
+// memory block is allocated on a page boundary and the page after the block is
+// protected to catch possible invalid accesses.
+//
+// Note that the macro affects the correctness mode only.
+#ifdef __unix__
+// TODO: enable BENCHDNN_MEMORY_CHECK when all invalid accesses are resolved
+// #define BENCHDNN_MEMORY_CHECK
+#endif
+
+#ifdef BENCHDNN_MEMORY_CHECK
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
 const char *bench_mode2str(bench_mode_t mode) {
     const char *modes[] = {
         "MODE_UNDEF", "CORR", "PERF", "CORR+PERF"
@@ -135,7 +156,7 @@ const char *state2str(res_state_t state, bool allow_unimpl) {
 }
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, char *pstr) {
+        int status, const char *pstr) {
     auto &bs = benchdnn_stat;
     const char *state = state2str(res.state, allow_unimpl);
 
@@ -220,7 +241,65 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
 
 /* misc */
 
+#ifdef BENCHDNN_MEMORY_CHECK
+static void *zmalloc_protect(size_t size) {
+    const size_t page_sz = getpagesize();
+
+    const size_t block_sz = size + 2 * sizeof(void *);
+    const size_t total_sz = div_up(block_sz, page_sz) * page_sz + page_sz;
+
+    void *mem_ptr;
+    int rc = ::posix_memalign(&mem_ptr, page_sz, total_sz);
+    if (rc != 0)
+        return nullptr;
+
+    uint8_t *ptr_start = (uint8_t *)mem_ptr;
+    uint8_t *ptr = ptr_start + total_sz - page_sz - size;
+
+    // Aligned on a page boundary
+    void *ptr_protect = ptr + size;
+
+    // Layout of the allocated region:
+    // ptr_start   <- start of the allocated region
+    // ptr[-16]    <- stores start address: ptr_start
+    // ptr[-8]     <- stores protected address: ptr_protect
+    // ptr         <- pointer to be returned from the function
+    // ptr_protect <- pointer to the block to protect
+
+    // Protect one page right after the block of size bytes
+    int err = mprotect(ptr_protect, page_sz, PROT_NONE);
+    if (err != 0) {
+        ::free(ptr_start);
+        return nullptr;
+    }
+
+    // Save pointers for zfree_protect
+    ((void **)ptr)[-2] = ptr_start;
+    ((void **)ptr)[-1] = ptr_protect;
+
+    return ptr;
+}
+
+static void zfree_protect(void *ptr) {
+    const size_t page_sz = getpagesize();
+
+    // Restore read-write access for the protected region
+    void *ptr_protect = ((void **)ptr)[-1];
+    mprotect(ptr_protect, page_sz, PROT_READ | PROT_WRITE);
+
+    // Deallocate the whole region
+    void *ptr_start = ((void **)ptr)[-2];
+    ::free(ptr_start);
+}
+#endif
+
 void *zmalloc(size_t size, size_t align) {
+#ifdef BENCHDNN_MEMORY_CHECK
+    if (bench_mode & CORR) {
+        return zmalloc_protect(size);
+    }
+#endif
+
     void *ptr;
 #ifdef _WIN32
     ptr = _aligned_malloc(size, align);
@@ -228,7 +307,7 @@ void *zmalloc(size_t size, size_t align) {
 #else
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if (size < align)
+    if ((bench_mode & PERF) && (size < align))
         size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
@@ -236,6 +315,13 @@ void *zmalloc(size_t size, size_t align) {
 }
 
 void zfree(void *ptr) {
+#ifdef BENCHDNN_MEMORY_CHECK
+    if (bench_mode & CORR) {
+        zfree_protect(ptr);
+        return;
+    }
+#endif
+
 #ifdef _WIN32
     _aligned_free(ptr);
 #else
@@ -287,8 +373,7 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
     if (skip_impl == NULL || *skip_impl == '\0')
         return false;
 
-    const size_t max_len = 128;
-    char what[max_len] = {0};
+    const std::string impl(impl_str);
 
     const char *s_start = skip_impl;
     while (1) {
@@ -301,12 +386,8 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
         if (s_start[len - 1] == '"' || s_start[len - 1] == '\'')
             --len;
 
-        SAFE(len < max_len ? OK : FAIL, CRIT);
-        len = MIN2(len, max_len - 1);
-        strncpy(what, s_start, len);
-        what[len] = '\0';
-
-        if (strstr(impl_str, what))
+        const std::string what(s_start, s_start + len);
+        if (impl.find(what) != std::string::npos)
             return true;
 
         if (s_end == NULL)
@@ -326,88 +407,80 @@ bool maybe_skip(const char *skip_impl, const char *impl_str) {
 static char *dirname(char *path) {
     char drive[_MAX_DRIVE];
     char dir[_MAX_DIR];
-    _splitpath(path, drive, dir, NULL, NULL);
+    SAFE_V(_splitpath_s(path, drive, sizeof(drive), dir, sizeof(dir), NULL, 0,
+                NULL, 0) == 0 ? OK : FAIL);
     path[0] = '\0';
-    if (drive != NULL) strncat(path, drive, _MAX_DRIVE);
-    if (dir != NULL) strncat(path, dir, MAX_PATH);
-    if (path[0] == '\0') strcat(path, ".");
+    if (drive != NULL)
+        SAFE_V(strncat_s(path, PATH_MAX, drive, _MAX_DRIVE) == 0 ? OK : FAIL);
+    if (dir != NULL)
+        SAFE_V(strncat_s(path, PATH_MAX, dir, _MAX_DIR) == 0 ? OK : FAIL);
+    if (path[0] == '\0') { path[0] = '.'; path[1] = '\0'; }
     return path;
 }
 #else
 #include <libgen.h>
 #endif /* _WIN32 */
 
-FILE *open_batch_file(const char *fname) {
+std::string locate_batch_file(const std::string &fname) {
+    SAFE_V(fname.length() < PATH_MAX ? OK : FAIL);
+
     const int max_paths = 4;
 
     static int n_paths = 0;
-    static char search_paths[max_paths][PATH_MAX] = {{0}};
+    static std::string search_paths[max_paths];
 
-    char *fdir = NULL;
-    char fname_copy[PATH_MAX];
+    std::string fdir;
     {
-        strncpy(fname_copy, fname, PATH_MAX - 1);
-        fname_copy[PATH_MAX - 1] = '\0';
-        fdir = dirname(fname_copy);
+        std::string fname_copy = fname;
+        fname_copy.resize(fname_copy.length() + 1);
+        char *c_fdir = dirname(&fname_copy[0]);
+        fdir = std::string(c_fdir);
     }
 
     bool dir_found = false;
     for (int n = 0; n_paths < max_paths && n < n_paths; ++n)
-        if (!strcmp(fdir, search_paths[n])) {
+        if (search_paths[n].find(fdir) == 0) {
             dir_found = true;
             break;
         }
     if (!dir_found) {
         SAFE_V(n_paths < max_paths ? OK : FAIL);
-        strcpy(search_paths[n_paths++], fdir);
+        search_paths[n_paths++] = std::move(fdir);
     }
 
-    FILE *fp = fopen(fname, "r");
-    if (fp) return fp;
+    std::ifstream ifs(fname);
+    if (ifs.is_open()) return fname;
 
     for (int n = 0; n < n_paths; ++n) {
-        char fullname[PATH_MAX + 2];
-        snprintf(fullname, PATH_MAX + 2, "%s/%s", search_paths[n], fname);
-        fp = fopen(fullname, "r");
-        print(50, "batch file used: %s\n", fullname);
-        if (fp) break;
+        const std::string fullname = search_paths[n] + "/" + fname;
+        ifs.open(fullname);
+        print(50, "batch file used: %s\n", fullname.c_str());
+        if (ifs.is_open()) return fullname;
     }
 
-    return fp;
+    fprintf(stderr, "cannot open file %s\n", fname.c_str());
+    return fname;
 }
 
 int batch(const char *fname, bench_f bench) {
-    FILE *fp = open_batch_file(fname);
-    SAFE(fp ? OK : FAIL, CRIT);
+    std::ifstream ifs(locate_batch_file(std::string(fname)));
+    SAFE_V(ifs.is_open() ? OK : FAIL);
 
-    const size_t maxlen = 1024;
-    char *opts[8*1024] = {0}, buf[maxlen + 1];
-    char line[1024];
-    int n_opts = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        int offset = 0;
-        const char *l = line;
-        while (sscanf(l, "%s%n", buf, &offset) == 1) {
-            if (buf[0] == '#')
-                break; /* stop reading till eol */
-
-            const size_t len = strnlen(buf, maxlen) + 1;
-            opts[n_opts] = (char *)malloc(len);
-            SAFE(opts[n_opts] ? OK : FAIL, CRIT);
-            strncpy(opts[n_opts], buf, len);
-            ++n_opts;
-
-            l += offset;
+    std::vector<std::string> opts;
+    std::string str;
+    while (ifs >> str) {
+        if (str.length() > 0 && str[0] == '#') {
+            std::getline(ifs, str); /* stop reading till eol */
+            continue;
         }
+        opts.push_back(std::move(str));
     }
-    bench(n_opts, opts);
 
-    for (int n = 0; n < n_opts; ++n)
-        free(opts[n]);
+    std::vector<char *> c_opts;
+    for (const auto &opt: opts)
+        c_opts.push_back(const_cast<char *>(opt.c_str()));
 
-    fclose(fp);
-
-    return OK;
+    return bench(static_cast<int>(c_opts.size()), c_opts.data());
 }
 
 int flip_coin(ptrdiff_t seed, float probability) {
@@ -417,7 +490,7 @@ int flip_coin(ptrdiff_t seed, float probability) {
     return (seed % big_prime) < (probability * big_prime);
 }
 
-int div_up(const int a, const int b){
+int64_t div_up(const int64_t a, const int64_t b){
     SAFE_V(b != 0 ? OK : FAIL);
     return (a + b - 1) / b;
 }
@@ -446,11 +519,11 @@ void gemm(const char *layout, const char *transa, const char *transb,
         const float alpha, const float *a, const int64_t lda,
         const float *b, const int64_t ldb,
         const float beta, float *c, const int64_t ldc) {
-    if (*layout == 'F') {
-        mkldnn_sgemm(transa, transb, &m, &n, &k, &alpha, a, &lda, b, &ldb,
-                &beta, c, &ldc);
+    if (*layout == 'C') {
+        mkldnn_sgemm(*transa, *transb, m, n, k, alpha, a, lda, b, ldb,
+                beta, c, ldc);
     } else {
-        mkldnn_sgemm(transb, transa, &n, &m, &k, &alpha, b, &ldb, a, &lda,
-                &beta, c, &ldc);
+        mkldnn_sgemm(*transb, *transa, n, m, k, alpha, b, ldb, a, lda,
+                beta, c, ldc);
     }
 }

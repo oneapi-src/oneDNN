@@ -23,12 +23,6 @@
 #include "type_helpers.hpp"
 
 #include "ref_softmax.hpp"
-#include "gemm/os_blas.hpp"
-
-#ifdef USE_MKL
-#include "mkl_vml_functions.h"
-#include "mkl_vml_defines.h"
-#endif
 
 namespace mkldnn {
 namespace impl {
@@ -40,10 +34,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    const int axis = pd()->desc()->softmax_axis;
-    const memory_desc_wrapper data_d(pd()->src_md());
-    const size_t ou_stride = axis > 0
-        ? data_d.blocking_desc().strides[axis - 1] : 1u;
+    const auto ou_stride = pd()->outer_stride();
 
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
@@ -64,18 +55,19 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    data_t space_max_val = 0, space_denom_val = 0;
-    data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
-    if (inner_size_ > 1) {
-        using namespace memory_tracking::names;
-        space_max = scratchpad(ctx).template get<data_t>(key_softmax_reduction);
-        space_denom = space_max + inner_size_;
-    }
-
     const memory_desc_wrapper data_d(pd()->src_md());
     const size_t dim = channels_ * inner_size_;
 
-    for (int ou = 0; ou < outer_size_; ou++) {
+    parallel_nd(outer_size_, [&](int ou) {
+        data_t space_max_val = 0, space_denom_val = 0;
+        data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
+        if (inner_size_ > 1) {
+            using namespace memory_tracking::names;
+            space_max = scratchpad(ctx).template get<data_t>(
+                key_softmax_reduction) + ou * 2 * inner_size_;
+            space_denom = space_max + inner_size_;
+        }
+
         utils::array_set(space_max, -FLT_MAX, inner_size_);
         utils::array_set(space_denom, 0, inner_size_);
 
@@ -99,7 +91,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
                 dst[off] /= space_denom[in];
             }
         }
-    }
+    });
 }
 
 template <impl::data_type_t data_type>
@@ -165,32 +157,12 @@ void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
         data_t *r) const {
-#ifdef USE_MKL
-    if (data_type == data_type::f32) {
-// TODO: mklml for win doesn't contain vmsExp symbol
-// Remove this limitation once it's updated
-#ifndef _WIN32
-        vmsExp(n, a, r, VML_ERRMODE_NOERR);
-#else
-        vsExp(n, a, r);
-#endif
-        return;
-    }
-#endif
     parallel_nd(n, [&](int c) { r[c] = expf(a[c]); });
 }
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
         data_t *sum_data) const {
-#ifdef USE_CBLAS
-    // Here we are summing x's eg. e^z , which are positives
-    // so we can use BLAS ASUM
-    if (data_type == data_type::f32) {
-        sum_data[0] = cblas_sasum(n, x, 1);
-        return;
-    }
-#endif
     data_t tsum = static_cast<data_t>(0);
     PRAGMA_OMP_SIMD(reduction(+ : tsum))
     for (int c = 0; c < n; ++c)
@@ -200,12 +172,6 @@ void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) const {
-#ifdef USE_CBLAS
-    if (data_type == data_type::f32) {
-        cblas_sscal(n, alpha, x, 1);
-        return;
-    }
-#endif
     parallel_nd(n, [&](int c) { x[c] *= alpha; });
 }
 
@@ -220,10 +186,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    const int axis = pd()->desc()->softmax_axis;
-    const memory_desc_wrapper diff_d(pd()->diff_dst_md());
-    const size_t ou_stride = axis > 0
-        ? diff_d.blocking_desc().strides[axis - 1] : 1u;
+    const auto ou_stride = pd()->outer_stride();
 
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = 0;
@@ -235,7 +198,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
             diff_src[loff] = ldata;
         }
 
-        for(int c = 0; c < channels_; ++c) {
+        for (int c = 0; c < channels_; ++c) {
             size_t loff = off + c;
             diff_src[loff] *= (diff_dst[loff] - sbr);
         }
@@ -254,20 +217,18 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
 
     const size_t dim = channels_ * inner_size_;
 
-    parallel_nd(outer_size_, [&](int ou) {
-        for (int in = 0; in < inner_size_; in++) {
-            data_t sbr = 0;
-            for (int c = 0; c < channels_; c++) {
-                size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
-                size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
-                sbr += diff_dst[off_diff] * dst[off_data];
-            }
+    parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
+        data_t sbr = 0;
+        for (int c = 0; c < channels_; ++c) {
+            size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+            size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
+            sbr += diff_dst[off_diff] * dst[off_data];
+        }
 
-            for(int c=0; c < channels_ ; ++c) {
-              size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
-              size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
-              diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
-            }
+        for (int c = 0; c < channels_ ; ++c) {
+            size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
+            size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
+            diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
         }
     });
 }

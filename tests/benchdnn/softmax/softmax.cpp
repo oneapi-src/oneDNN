@@ -57,6 +57,15 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
     mkldnn_status_t init_status = mkldnn_primitive_desc_create(&spd, &sd,
             NULL, engine_tgt, NULL);
 
+    const char *impl_str = query_impl_info(spd);
+    if (maybe_skip(skip_impl, impl_str)) {
+        print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
+        DNN_SAFE(mkldnn_primitive_desc_destroy(spd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        print(5, "mkldnn implementation: %s\n", impl_str);
+    }
+
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
@@ -81,15 +90,17 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     // When axis_size is small, significant values are coming not only from the
     // biggest input, but also from some smaller. For this case we estimate the
     // amount of such number by log2f(axis_size).
+    // TODO: sse41 exp has lower accuracy, so for now we take max(log2(x), 10).
+    // 10 is taken empirically considering it's close to log2 value.
     // The final criterion picks the max of these numbers.
     // BWD
     // We have sum over axis dim, the worst case for error is amount of elements
-    // times machine eps.
+    // times machine eps and additional subtract.
     const float num_significant_values =
         MAX2(div_up(p->dims[p->axis], global_fill_range),
-                log2f(p->dims[p->axis]));
+                MAX2(log2f(p->dims[p->axis]), 10));
     const float trh = 1e-7 * (p->dir & FLAG_FWD
-        ? num_significant_values : p->dims[p->axis]);
+        ? num_significant_values : (p->dims[p->axis] + 1));
 
     r->errors = 0;
     r->total = dt_mem.nelems();
@@ -111,12 +122,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             || (!ok && (r->errors < 10 || verbose >= 10))
             || (verbose >= 50 && i < 30);
         if (dump) {
-            const int ind_str_len = 64;
-            char ind_str[ind_str_len] = {'\0'};
-            snprintf(ind_str, ind_str_len, "" IFMT "," IFMT "," IFMT "",
-                    n, c, sp);
-            print(0, "[%4lu][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, ind_str, fp, dt, diff, rel_diff);
+            print(0, "[%4lu][" IFMT "," IFMT "," IFMT"] "
+                    "fp:%12g dt:%12g diff:%12g rdiff:%12g\n",
+                    (unsigned long)i, n, c, sp, fp, dt, diff, rel_diff);
         }
     }
 
@@ -149,12 +157,13 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
 }
 
 int fill_data_bwd(const prb_t *p, dnn_mem_t &src, res_t *r) {
-    const float f_min = -1.0;
     const int64_t nelems = src.nelems();
 
+    // keep all values negative to have sum and sub of same sign, avoiding
+    // cancellation error.
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             const float gen = ((11 * i) + 37) % global_fill_range;
-            const float value = f_min + 2 * gen / global_fill_range;
+            const float value = -gen / global_fill_range;
             ((float *)src)[i] = value;
         }
     );

@@ -20,32 +20,38 @@
 #include "mkldnn_common.hpp"
 
 struct dnn_mem_t {
-    dnn_mem_t(): active_(false) {}
+    dnn_mem_t() {}
 
-    dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_engine_t engine)
-        : active_(initialize(md, engine) == OK) {}
+    dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_engine_t engine) {
+        active_ = (initialize(md, engine) == OK);
+    }
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, mkldnn_engine_t engine)
-        : active_(initialize(ndims, dims, dt, tag, engine) == OK) {}
+            mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
+        active_ = (initialize(ndims, dims, dt, tag, engine) == OK);
+    }
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
-            mkldnn_engine_t engine)
-        : active_(initialize(ndims, dims, dt, tag, extra, engine) == OK) {}
+            mkldnn_engine_t engine) {
+        active_ = (initialize(ndims, dims, dt, tag, extra, engine) == OK);
+    }
 
     dnn_mem_t(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
-            const mkldnn_dims_t strides, mkldnn_engine_t engine)
-        : active_(initialize(ndims, dims, dt, strides, engine) == OK) {}
+            const mkldnn_dims_t strides, mkldnn_engine_t engine) {
+        active_ = (initialize(ndims, dims, dt, strides, engine) == OK);
+    }
 
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
-            mkldnn_engine_t engine = engine_ref)
-        : active_(initialize(md, dt, tag, engine) == OK) {}
+            mkldnn_engine_t engine = engine_ref) {
+        active_ = (initialize(md, dt, tag, engine) == OK);
+    }
 
     dnn_mem_t(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
-            mkldnn_engine_t engine = engine_ref)
-        : active_(initialize(md, dt, mkldnn_format_tag_undef, engine) == OK) {}
+            mkldnn_engine_t engine = engine_ref) {
+        active_ = (initialize(md, dt, mkldnn_format_tag_undef, engine) == OK);
+    }
 
     dnn_mem_t(const dnn_mem_t &rhs, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
@@ -55,11 +61,31 @@ struct dnn_mem_t {
             reorder(rhs);
     }
 
-    /* FIXME: ugly RT assert... need better mkldnn memory handling */
-    dnn_mem_t &operator=(const dnn_mem_t &rhs)
-    { []() { SAFE(FAIL, CRIT); return 0; }(); return *this; }
-    dnn_mem_t(const dnn_mem_t &rhs)
-    { []() { SAFE(FAIL, CRIT); return 0; }(); }
+    dnn_mem_t(const dnn_mem_t &rhs) = delete;
+    dnn_mem_t &operator=(const dnn_mem_t &rhs) = delete;
+
+    dnn_mem_t &operator=(dnn_mem_t &&rhs) {
+        if (&rhs == this) return *this;
+        cleanup();
+
+        md_ = rhs.md_;
+        m_ = rhs.m_;
+        data_ = rhs.data_;
+        is_data_owner_ = rhs.is_data_owner_;
+        active_ = rhs.active_;
+        engine_kind_ = rhs.engine_kind_;
+        engine_ = rhs.engine_;
+        is_ref_engine_ = rhs.is_ref_engine_;
+        is_mapped_ = rhs.is_mapped_;
+        mapped_ptr_ = rhs.mapped_ptr_;
+
+        rhs.active_ = false;
+        return *this;
+    }
+    dnn_mem_t(dnn_mem_t &&rhs) : dnn_mem_t() {
+        *this = std::move(rhs);
+    }
+
 
     ~dnn_mem_t() { cleanup(); }
 
@@ -128,9 +154,7 @@ struct dnn_mem_t {
         case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
         case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
         case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
-        case mkldnn_bf16:
-            elem = static_cast<mkldnn::impl::bfloat16_t *>(data)[idx];
-            break;
+        case mkldnn_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
         default: assert(!"bad data type");
         }
         return elem;
@@ -143,9 +167,7 @@ struct dnn_mem_t {
             case mkldnn_u8: ((uint8_t *)data)[idx] = value; break;
             case mkldnn_s32: ((int32_t *)data)[idx] = value; break;
             case mkldnn_f32: ((float *)data)[idx] = value; break;
-            case mkldnn_bf16:
-                ((mkldnn::impl::bfloat16_t *)data)[idx] = value;
-                break;
+            case mkldnn_bf16: ((bfloat16_t *)data)[idx] = value; break;
             default: assert(!"bad data type");
         }
     }
@@ -188,20 +210,21 @@ struct dnn_mem_t {
 
     /* fields */
 
-    mkldnn_memory_desc_t md_;
-    mkldnn_memory_t m_;
+    mkldnn_memory_desc_t md_{};
+    mkldnn_memory_t m_{};
 
 private:
-    void *data_;
-    bool is_data_owner_, active_;
+    void *data_ = NULL;
+    bool is_data_owner_ = false;
+    bool active_ = false;
 
-    mkldnn_engine_kind_t engine_kind_;
-    mkldnn_engine_t engine_;
+    mkldnn_engine_kind_t engine_kind_ = mkldnn_any_engine;
+    mkldnn_engine_t engine_ = NULL;
 
     bool is_ref_engine_;
 
-    bool is_mapped_;
-    void *mapped_ptr_;
+    bool is_mapped_ = false;
+    void *mapped_ptr_ = NULL;
 
     int initialize(const mkldnn_memory_desc_t &md, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
@@ -224,6 +247,11 @@ private:
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     CRIT);
+            // Init reference float type memory with NANs
+            if (engine == engine_ref && dt == mkldnn_f32)
+                for (int64_t i = 0; i < nelems(); i++)
+                    ((float *)data_)[i] = NAN;
+
             DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
         } else {
             is_data_owner_ = false;

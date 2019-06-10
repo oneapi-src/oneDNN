@@ -145,22 +145,22 @@ struct pooling_fwd_pd_t: public pooling_pd_t {
         if (arg == MKLDNN_ARG_DST)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : nullptr; }
+    { return index == 0 ? &src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : nullptr; }
+    { return index == 0 ? &dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : &glob_zero_md; }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override
-    { return 1 + (workspace_md() != nullptr); }
+    { return 1 + (!types::is_zero_md(workspace_md())); }
 
 protected:
     memory_desc_t src_md_;
@@ -198,21 +198,22 @@ struct pooling_bwd_pd_t: public pooling_pd_t {
         if (arg == MKLDNN_ARG_DIFF_SRC)
             return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (workspace_md() != nullptr))
+        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
     virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_src_md_ : nullptr; }
+    { return index == 0 ? &diff_src_md_ : &glob_zero_md; }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : nullptr; }
+    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_ : nullptr; }
+    { return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_
+              : &glob_zero_md; }
 
     virtual int n_inputs() const override
-    { return 1 + (workspace_md() != nullptr); }
+    { return 1 + (!types::is_zero_md(workspace_md())); }
     virtual int n_outputs() const override { return 1; }
 
 protected:

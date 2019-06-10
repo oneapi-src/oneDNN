@@ -26,11 +26,13 @@
 
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
+template <data_type_t d_type>
 struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
@@ -51,7 +53,8 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
                 && mkldnn_thr_syncable()
                 && is_fwd()
                 && !has_zero_dim_memory()
-                && src_md()->data_type == f32
+                && src_md()->data_type == d_type
+                && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                 && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
                 && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                 && (attr()->has_default_values() || this->with_relu_post_op());
@@ -67,17 +70,28 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
     private:
         void init_scratchpad() {
             using namespace memory_tracking::names;
+            using namespace data_type;
+
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
-                dim_t sz = nstl::max<dim_t>(C(), 16) * mkldnn_get_max_threads();
-                scratchpad.book(key_bnorm_reduction, sizeof(data_t) * sz);
-                scratchpad.book(key_bnorm_tmp_mean, sizeof(data_t) * sz);
-                scratchpad.book(key_bnorm_tmp_var, sizeof(data_t) * sz);
+                const size_t stats_buf_sz = sizeof(acc_data_t)
+                        * nstl::max(C(), dim_t(16)) * mkldnn_get_max_threads();
+                scratchpad.book(key_bnorm_reduction, stats_buf_sz);
+                scratchpad.book(key_bnorm_tmp_mean, stats_buf_sz);
+                scratchpad.book(key_bnorm_tmp_var, stats_buf_sz);
+            }
+            if (d_type == bf16) {
+                const int simd_w = 16;
+                const int nbufs = 2;
+                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
+                        * mkldnn_get_max_threads() * utils::rnd_up(C(), simd_w);
+                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
+    typedef float acc_data_t;
 
     nspc_batch_normalization_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~nspc_batch_normalization_fwd_t() {}
@@ -92,6 +106,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
+template <data_type_t d_type>
 struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
@@ -112,8 +127,9 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
                 && mkldnn_thr_syncable()
                 && is_bwd()
                 && !has_zero_dim_memory()
-                && utils::everyone_is(f32, src_md()->data_type,
+                && utils::everyone_is(d_type, src_md()->data_type,
                         diff_src_md()->data_type)
+                && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                 && IMPLICATION(use_scaleshift(),
                         utils::everyone_is(f32,
                             weights_md()->data_type,
@@ -137,15 +153,26 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
     private:
         void init_scratchpad() {
             using namespace memory_tracking::names;
+            using namespace data_type;
+
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_bnorm_reduction,
-                    sizeof(data_t) * 2 * C() * mkldnn_get_max_threads());
-            scratchpad.book(key_bnorm_tmp_diff_ss, sizeof(data_t) * 2 * C()
-                    * (mkldnn_get_max_threads() + 1));
+                    sizeof(acc_data_t) * 2 * C() * mkldnn_get_max_threads());
+            scratchpad.book(key_bnorm_tmp_diff_ss,
+                    sizeof(acc_data_t) * 2 * C()
+                            * (mkldnn_get_max_threads() + 1));
+            if (d_type == bf16) {
+                const int simd_w = 16;
+                const int nbufs = 2 + !use_global_stats();
+                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
+                        * mkldnn_get_max_threads() * utils::rnd_up(C(), simd_w);
+                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
+            }
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
+    typedef float acc_data_t;
 
     nspc_batch_normalization_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
     ~nspc_batch_normalization_bwd_t() {}
