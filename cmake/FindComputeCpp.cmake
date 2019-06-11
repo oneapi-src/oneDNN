@@ -47,16 +47,10 @@ if(ComputeCpp_FOUND AND NOT TARGET Codeplay::ComputeCpp)
   add_library(Codeplay::ComputeCpp UNKNOWN IMPORTED)
   set(COMPUTECPP_FLAGS
       "-sycl-driver -Wno-sycl-undef-func -no-serial-memop -intelspirmetadata")
-  set(interface_opts
-      $<$<COMPILE_LANGUAGE:CXX>:-sycl-driver>
-      $<$<COMPILE_LANGUAGE:CXX>:-Wno-sycl-undef-func>
-      $<$<COMPILE_LANGUAGE:CXX>:-no-serial-memop>
-      $<$<COMPILE_LANGUAGE:CXX>:-intelspirmetadata>)
   set_target_properties(Codeplay::ComputeCpp PROPERTIES
-        INTERFACE_COMPILE_OPTIONS "${interface_opts}"
-        INTERFACE_INCLUDE_DIRECTORIES ${COMPUTECPP_INCLUDE_DIRS}
-        INTERFACE_LINK_LIBRARIES OpenCL::OpenCL
-        IMPORTED_LOCATION ${COMPUTECPP_LIBRARIES}
+        IMPORTED_LINK_INTERFACE_LIBRARIES OpenCL::OpenCL
+        INTERFACE_INCLUDE_DIRECTORIES "${COMPUTECPP_INCLUDE_DIRS}"
+        IMPORTED_LOCATION "${COMPUTECPP_LIBRARIES}"
         IMPORTED_NO_SONAME OFF)
         mark_as_advanced(
             COMPUTECPP_LIBRARIES

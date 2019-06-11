@@ -25,7 +25,7 @@ set(OpenCL_cmake_included true)
 find_package(OpenCL REQUIRED)
 
 include_directories(${OpenCL_INCLUDE_DIRS})
-list(APPEND EXTRA_SHARED_LIBS ${OpenCL_LIBRARIES})
+list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
 
 # Specify OpenCL version to avoid warnings
 add_definitions(-DCL_TARGET_OPENCL_VERSION=220)

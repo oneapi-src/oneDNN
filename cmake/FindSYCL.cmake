@@ -56,8 +56,18 @@ find_package_handle_standard_args(
 
 if(SYCL_FOUND AND NOT TARGET SYCL::SYCL)
     add_library(SYCL::SYCL UNKNOWN IMPORTED)
+
+    get_target_property(imp_libs
+        ${SYCL_TARGET} IMPORTED_LINK_INTERFACE_LIBRARIES)
+    get_target_property(imp_location
+        ${SYCL_TARGET} IMPORTED_LOCATION)
+    get_target_property(imp_include_dirs
+        ${SYCL_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
+
     set_target_properties(SYCL::SYCL PROPERTIES
-        INTERFACE_LINK_LIBRARIES ${SYCL_LIBRARIES})
+        IMPORTED_LINK_INTERFACE_LIBRARIES "${imp_libs}"
+        IMPORTED_LOCATION "${imp_location}"
+        INTERFACE_INCLUDE_DIRECTORIES "${imp_include_dirs}")
 endif()
 
 # Reverting the CMAKE_PREFIX_PATH to its original state

@@ -24,7 +24,7 @@ find_package(SYCL REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
 
 include_directories(${SYCL_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
-list(APPEND EXTRA_SHARED_LIBS ${SYCL_LIBRARIES} ${OpenCL_LIBRARIES})
+list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)
 
 if(MKLDNN_SYCL_INTEL)
     # Specify OpenCL version to avoid warnings

@@ -53,14 +53,13 @@ find_package_handle_standard_args(IntelSYCL
 
 if(IntelSYCL_FOUND AND NOT TARGET Intel::SYCL)
     add_library(Intel::SYCL UNKNOWN IMPORTED)
-      set(interface_libs
-            $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:-fsycl>
-            OpenCL::OpenCL
-            ${INTEL_SYCL_LIBRARIES})
+    set(imp_libs
+        $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:-fsycl>
+        OpenCL::OpenCL)
     set_target_properties(Intel::SYCL PROPERTIES
-        INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:CXX>:-fsycl>"
-        INTERFACE_LINK_LIBRARIES "${interface_libs}"
-        INTERFACE_INCLUDE_DIRECTORIES "${INTEL_SYCL_INCLUDE_DIRS}")
+        IMPORTED_LINK_INTERFACE_LIBRARIES "${imp_libs}"
+        INTERFACE_INCLUDE_DIRECTORIES "${INTEL_SYCL_INCLUDE_DIRS}"
+        IMPORTED_LOCATION "${INTEL_SYCL_LIBRARIES}")
     set(INTEL_SYCL_FLAGS "-fsycl")
     mark_as_advanced(
         INTEL_SYCL_FLAGS

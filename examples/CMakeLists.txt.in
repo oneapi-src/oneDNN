@@ -61,12 +61,14 @@ else()
     endif()
 endif()
 
+find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MKLDNN_COMPILE_FLAGS}")
+
 # Register example
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
 function(register_example name srcs)
     add_executable(${name} ${srcs})
-    find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
     target_link_libraries(${name} MKLDNN::mkldnn ${LIBM})
     add_test(${name} ${name})
     if(WIN32 OR MINGW)

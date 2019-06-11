@@ -125,6 +125,21 @@ install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
+if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+    install(FILES
+        "../cmake/FindOpenCL.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+endif()
+
+if(MKLDNN_CPU_BACKEND STREQUAL "SYCL" OR MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+    install(FILES
+        "../cmake/FindOpenCL.cmake"
+        "../cmake/FindSYCL.cmake"
+        "../cmake/FindIntelSYCL.cmake"
+        "../cmake/FindComputeCpp.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+endif()
+
 # On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
