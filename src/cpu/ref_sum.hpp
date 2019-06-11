@@ -80,7 +80,7 @@ struct ref_sum_t: public cpu_primitive_t {
                 }
             }
 
-            ok = reorder_pds_.size() == (size_t)(n_ + need_output_reorder());
+            ok = reorder_pds_.size() == (size_t)n_ + need_output_reorder();
             if (!ok) return status::unimplemented;
 
             if (need_output_reorder())
