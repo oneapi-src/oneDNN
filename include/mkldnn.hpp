@@ -1003,7 +1003,7 @@ struct memory: public handle<mkldnn_memory_t> {
         undef = mkldnn_data_type_undef,
         /// 16-bit/half-precision floating point.
         f16 = mkldnn_f16,
-        /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+        /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
         bf16 = mkldnn_bf16,
         /// 32-bit/single-precision floating point.
         f32 = mkldnn_f32,

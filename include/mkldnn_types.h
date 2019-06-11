@@ -70,7 +70,7 @@ typedef enum {
     mkldnn_data_type_undef = 0,
     /// 16-bit/half-precision floating point.
     mkldnn_f16 = 1,
-    /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+    /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
     mkldnn_bf16 = 2,
     /// 32-bit/single-precision floating point.
     mkldnn_f32 = 3,

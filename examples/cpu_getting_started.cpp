@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
 /// ~~~cpp
 /// relu.execute(cpu_stream, {
 ///         {MKLDNN_ARG_SRC, src_mem},
-///         // {MKLDNN_ARG_DST, dst_mem}, // Opps, forgot about this one
+///         // {MKLDNN_ARG_DST, dst_mem}, // Oops, forgot about this one
 ///     });
 /// ~~~
 ///

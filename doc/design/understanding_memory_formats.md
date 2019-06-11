@@ -4,7 +4,7 @@ Understanding Memory Formats {#dev_guide_understanding_memory_formats}
 ## Introduction
 
 Most computations are about data: analyzing data, adjusting data, reading and
-storing data, generating data... The DNN domain is no exception. Images,
+storing data, generating data, etc. The DNN domain is no exception. Images,
 weights/filters, sound, and text require efficient representation in computer
 memory to facilitate performing operations fast and in the most convenient way.
 
