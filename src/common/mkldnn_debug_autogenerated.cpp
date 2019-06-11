@@ -24,9 +24,7 @@
 const char *mkldnn_status2str(mkldnn_status_t v) {
     if (v == mkldnn_success) return "success";
     if (v == mkldnn_out_of_memory) return "out_of_memory";
-    if (v == mkldnn_try_again) return "try_again";
     if (v == mkldnn_invalid_arguments) return "invalid_arguments";
-    if (v == mkldnn_not_ready) return "not_ready";
     if (v == mkldnn_unimplemented) return "unimplemented";
     if (v == mkldnn_iterator_ends) return "iterator_ends";
     if (v == mkldnn_runtime_error) return "runtime_error";
