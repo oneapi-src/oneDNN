@@ -48,7 +48,8 @@ static const char *ext2str(cl_device_ext_t ext) {
 }
 struct cl_device_info_t {
 public:
-    cl_device_info_t(cl_device_id device) : device_(device), ext_(0) {}
+    cl_device_info_t(cl_device_id device)
+        : device_(device), ext_(0), eu_count_(0), hw_threads_(0) {}
 
     cl_int init() {
         // Extensions.
@@ -90,7 +91,7 @@ public:
                 sizeof(cl_uint), &eu_count, NULL);
         eu_count_ = (err == CL_SUCCESS) ? eu_count : 0;
 
-        static constexpr auto threads_per_eu = 7;   /* Gen9 value, for now */
+        static constexpr auto threads_per_eu = 7; /* Gen9 value, for now */
         hw_threads_ = eu_count_ * threads_per_eu;
 
         return CL_SUCCESS;
