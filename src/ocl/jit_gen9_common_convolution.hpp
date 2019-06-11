@@ -90,7 +90,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
                                                   cl_device_ext_t::khr_fp16)
                                        && cl_engine->mayiuse(cl_device_ext_t::
                                                           intel_subgroups_short))
-                    && IMPLICATION(eltwise_idx != -1, with_relu);
+                    && IMPLICATION(eltwise_idx != -1, with_relu)
+                    && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
 
@@ -182,7 +183,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
                     && this->desc()->weights_desc.data_type == wei_type
                     && this->desc()->accum_data_type == acc_type
                     && this->desc()->diff_src_desc.data_type == diff_src_type
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups);
+                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
 
@@ -270,7 +272,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                     && IMPLICATION(this->with_bias(),
                                this->desc()->diff_bias_desc.data_type
                                        == diff_wei_type)
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups);
+                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
 

@@ -29,7 +29,7 @@ CPU_INST_TEST_CASE(SimpleSmall_Blocked_Attributes,
         2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1)
 );
 
-GPU_INST_TEST_CASE(Simple_GPU_Small_Blocked_Attributes,
+GPU_INST_TEST_CASE(SimpleSmall_Plain_Attributes,
     PARAMS_ATTR(nhwc, oihw, FMT_NO_BIAS, nchw,
         0.3f, COMMON,
         2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 0, 0, 1, 1),

@@ -399,7 +399,7 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
     CPU_INSTANTIATE_TEST_SUITE_P( \
         TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
 
-CPU_INST_TEST_CASE(SimpleZeroDim,
+INST_TEST_CASE(SimpleZeroDim,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 0, 4, 4, 4),
     PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 0, 4, 2, 2, 2),
@@ -410,7 +410,7 @@ CPU_INST_TEST_CASE(SimpleZeroDim,
         eltwise_test_params{ algorithm::eltwise_##alg, \
         EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), 0.f, 0.f, {d0, d1, d2, d3}, \
         true, mkldnn_invalid_arguments }
-CPU_INST_TEST_CASE(SimpleExpectedFails,
+INST_TEST_CASE(SimpleExpectedFails,
     CASE_EF(relu, -1, 2, 4, 4),
     CASE_EF(sqrt, -1, 2, 4, 4),
     CASE_EF(logistic, -1, 2, 4, 4),
@@ -419,7 +419,7 @@ CPU_INST_TEST_CASE(SimpleExpectedFails,
     CASE_EF(logistic, 1, -2, 4, 4)
 );
 
-CPU_INST_TEST_CASE(Simple_3D,
+INST_TEST_CASE(Simple_3D,
     PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 2, 8, 4, 4, 4),
     PARAMS_ALL_ALG(nCdhw8c, ncdhw, 0.1f, 0.f, 2, 16, 4, 4, 4),
     PARAMS_ALL_ALG(ncdhw, ncdhw, 0.1f, 0.f, 2, 16, 8, 8, 8),

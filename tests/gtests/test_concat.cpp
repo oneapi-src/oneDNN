@@ -91,7 +91,11 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
 
 protected:
     virtual void SetUp() {
-        SKIP_IF(data_traits<data_t>::data_type == impl::data_type::bf16
+        auto data_type = data_traits<data_t>::data_type;
+        SKIP_IF(data_type == memory::data_type::f16
+                && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support f16 data type.");
+        SKIP_IF(data_type == impl::data_type::bf16
                 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "current ISA doesn't support bfloat16 data type");
         concat_test_params p
@@ -158,6 +162,7 @@ protected:
 };
 
 using concat_test_float = concat_test<float>;
+using concat_test_float16 = concat_test<float16_t>;
 using concat_test_s8 = concat_test<int8_t>;
 using concat_test_bf16 = concat_test<bfloat16_t>;
 
@@ -190,7 +195,7 @@ static auto case_ZeroDim = []() {
             concat_test_params{ 1, { fmt::nchw, fmt::nchw }, fmt::nchw,
                     { { 2, 4, 0, 5 }, { 2, 2, 0, 5 } }, { 2, 6, 0, 5 } });
 };
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestConcat_ZeroDim, concat_test_float, case_ZeroDim());
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat_ZeroDim_bf16, concat_test_bf16, case_ZeroDim());
@@ -225,7 +230,7 @@ static auto cases_EF = []() {
                     { { 1, 4, 5, 5 }, { 1, 2, 5, 5 } }, { 1, 6, 6, 5 }, true,
                     mkldnn_invalid_arguments });
 };
-CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, cases_EF());
+INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, cases_EF());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF_bf16, concat_test_bf16, cases_EF());
 
 static auto cases_padded = []() {
@@ -268,7 +273,7 @@ static auto cases_padded = []() {
             concat_test_params{ 2, { fmt::nChw8c, fmt::nChw16c }, fmt::nchw,
                     { { 4, 25, 5, 5 }, { 4, 25, 5, 5 } }, { 4, 25, 10, 5 } });
 };
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestConcat_padded, concat_test_float, cases_padded());
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat_padded_bf16, concat_test_bf16, cases_padded());
@@ -312,7 +317,7 @@ static auto cases_3D = []() {
                     { { 2, 8, 3, 4, 5 }, { 2, 8, 3, 4, 5 } },
                     { 2, 8, 3, 4, 10 } });
 };
-CPU_INSTANTIATE_TEST_SUITE_P(TestConcat3D, concat_test_float, cases_3D());
+INSTANTIATE_TEST_SUITE_P(TestConcat3D, concat_test_float, cases_3D());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat3D_bf16, concat_test_bf16, cases_3D());
 
 static auto cases_concat = []() {
@@ -344,9 +349,9 @@ static auto cases_concat = []() {
                     { { 2, 8, 1, 1 }, { 2, 16, 1, 1 } }, { 2, 24, 1, 1 } });
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, cases_concat());
-INSTANTIATE_TEST_SUITE_P(TestConcat_bf16, concat_test_bf16, cases_concat());
+CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_bf16, concat_test_bf16, cases_concat());
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_s8, ::testing::Values(
+INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_s8, ::testing::Values(
     concat_test_params{1,
     {fmt::nhwc, fmt::nhwc}, fmt::nhwc,
     {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 16, 3, 4}},
@@ -355,7 +360,8 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_s8, ::testing::Values(
     {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 16, 3, 4}}
     ));
 
-GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, ::testing::Values(
+static auto cases_concat_gpu = []() {
+    return ::testing::Values(
     concat_test_params{1, {fmt::nchw}, fmt::nchw,
     {{1, 1, 1, 1}}, {1, 1, 1,  1}},
     concat_test_params{1, {fmt::nchw}, fmt::nhwc,
@@ -378,10 +384,15 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, ::testing::Values(
     {{16, 16, 1, 1}, {16, 16, 1, 1}}, {16, 16,  1,  2}},
     concat_test_params{1, {fmt::NChw16n16c, fmt::NChw16n16c}, fmt::NChw16n16c,
     {{16, 16, 5, 5}, {16, 32, 5, 5}}, {16, 48,  5,  5}},
+    concat_test_params{1, {fmt::NCdhw16n16c, fmt::NCdhw16n16c}, fmt::NCdhw16n16c,
+    {{16, 16, 5, 5, 5}, {16, 32, 5, 5, 5}}, {16, 48, 5, 5, 5}},
     concat_test_params{2, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,
     {{4, 16, 5, 5}, {4, 16, 5, 5}}, {4, 16, 10,  5}},
     concat_test_params{2, {fmt::NChw16n16c, fmt::NChw16n16c}, fmt::nchw,
-    {{16, 16, 5, 5}, {16, 16, 5, 5}}, {16, 16, 10,  5}}
-));
+    {{16, 16, 5, 5}, {16, 16, 5, 5}}, {16, 16, 10,  5}});
+};
+
+GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, cases_concat_gpu());
+GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float16, cases_concat_gpu());
 
 } // namespace mkldnn

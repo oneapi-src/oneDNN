@@ -91,6 +91,10 @@ private:
 
 protected:
     virtual void SetUp() {
+        data_type = data_traits<data_t>::data_type;
+        SKIP_IF(data_type == memory::data_type::f16
+                && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support f16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
@@ -165,12 +169,13 @@ protected:
 };
 
 using shuffle_test_float = shuffle_test<float>;
+using shuffle_test_float16 = shuffle_test<float16_t>;
 using shuffle_test_s8 = shuffle_test<int8_t>;
 using shuffle_test_u8 = shuffle_test<uint8_t>;
 
 #define INST_TEST_CASE(test) \
 TEST_P(test, TestsShuffle) {} \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c, \
+INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c, \
         test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
@@ -224,7 +229,7 @@ INSTANTIATE_TEST_SUITE_P(TestShuffle_NCDHW, test, \
             memory::format_tag::ncdhw, {2, 12, 1, 7, 7}, 1, 4 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffleNHWC, test, \
+INSTANTIATE_TEST_SUITE_P(TestShuffleNHWC, test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
             memory::format_tag::nhwc, {2, 10, 4, 4}, 3, 2 } \
@@ -236,7 +241,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestShuffleNHWC, test, \
             memory::format_tag::nhwc, {2, 10, 4, 4}, 1, 2 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw8c, test, \
+INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw8c, test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
             memory::format_tag::nChw8c, {2, 16, 4, 4}, 2, 4 } \
@@ -252,7 +257,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw8c, test, \
             memory::format_tag::nChw8c, {1, 8, 1, 1}, 1, 2 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_nCdhw16c, test, \
+INSTANTIATE_TEST_SUITE_P(TestShuffle_nCdhw16c, test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
             memory::format_tag::nCdhw16c, \
@@ -292,7 +297,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_nCdhw16c, test, \
             {1, 32, 1, 15, 15}, 3, 5 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_OIHW, \
+INSTANTIATE_TEST_SUITE_P(TestShuffle_OIHW, \
         test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
@@ -317,7 +322,7 @@ INSTANTIATE_TEST_SUITE_P(TestShuffle_NC, test, \
             memory::format_tag::nc, {10, 32}, 0, 5 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffle_NCW, test, \
+INSTANTIATE_TEST_SUITE_P(TestShuffle_NCW, test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
             memory::format_tag::ncw, {10, 8, 5}, 1, 2 } \
@@ -341,7 +346,7 @@ INSTANTIATE_TEST_SUITE_P(TestShuffle_X, test, \
             memory::format_tag::x, {10}, 0, 5 } \
             )); \
  \
-CPU_INSTANTIATE_TEST_SUITE_P(TestShuffleEF_NCHW, \
+INSTANTIATE_TEST_SUITE_P(TestShuffleEF_NCHW, \
         test, \
         ::testing::Values( \
             shuffle_test_params{ prop_kind::forward_training, \
@@ -359,6 +364,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestShuffleEF_NCHW, \
 ));
 
 INST_TEST_CASE(shuffle_test_float)
+INST_TEST_CASE(shuffle_test_float16)
 INST_TEST_CASE(shuffle_test_s8)
 INST_TEST_CASE(shuffle_test_u8)
 

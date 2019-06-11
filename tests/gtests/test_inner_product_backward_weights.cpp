@@ -232,7 +232,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -240,7 +240,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -259,7 +259,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{

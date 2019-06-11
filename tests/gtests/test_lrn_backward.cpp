@@ -638,7 +638,7 @@ static auto RegressionWeightFormat_cases = [](algorithm lk) {
 #define INST_TEST_CASE(test, lk)                                              \
     TEST_P(test, TestsLRN) {}                                                 \
     INSTANTIATE_TEST_SUITE_P(Backward_padded, test, padded_cases(lk));        \
-    CPU_INSTANTIATE_TEST_SUITE_P(BackwardEF, test, EF_cases(lk));             \
+    INSTANTIATE_TEST_SUITE_P(BackwardEF, test, EF_cases(lk));             \
     INSTANTIATE_TEST_SUITE_P(                                                 \
             Backward_nChw16c_padded, test, nChw16c_padded_cases(lk));         \
     INSTANTIATE_TEST_SUITE_P(                                                 \

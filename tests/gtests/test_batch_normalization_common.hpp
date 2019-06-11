@@ -127,9 +127,6 @@ protected:
 
             Backward(prop_kind::backward_data);
             Backward(prop_kind::backward_data, bf::use_global_stats);
-            Backward(prop_kind::backward_data, bf::use_scale_shift);
-            Backward(prop_kind::backward_data,
-                    bf::use_scale_shift | bf::use_global_stats);
             Backward(prop_kind::backward, bf::use_scale_shift);
             Backward(prop_kind::backward,
                     bf::use_scale_shift | bf::use_global_stats);
