@@ -11,7 +11,6 @@
              Minor clean ups;
 - 2019-04-20 [v1.0 Preview Candidate 2](https://github.com/intel/mkl-dnn/releases/tag/v1.0-pc2) is published;
              Introduced support for Intel(R) Processor Graphics;
-             
 
 
 ## Introduction
@@ -282,7 +281,7 @@ convolution_forward::execute(mkldnn::stream &stream,
 
 
 // example C, convolution forward w/ bias
-mkldnn_exec_arg_t conv_exec_args = {
+mkldnn_exec_arg_t conv_exec_args[] = {
     {MKLDNN_ARG_SRC, src_mem},
     {MKLDNN_ARG_WEIGHTS, weights_mem},
     {MKLDNN_ARG_BIAS, bias_mem},
