@@ -167,7 +167,7 @@ void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
     if (data_type == data_type::f32) {
 // TODO: mklml for win doesn't contain vmsExp symbol
 // Remove this limitation once it's updated
-#ifndef _WIN32
+#if !defined(_WIN32) && USE_VML_ERRMODE_NOERR
         vmsExp(n, a, r, VML_ERRMODE_NOERR);
 #else
         vsExp(n, a, r);
