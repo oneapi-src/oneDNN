@@ -153,5 +153,9 @@ mkldnn_engine_kind_t str2engine_kind(const char *str);
 const char *engine_kind2str(mkldnn_engine_kind_t engine);
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
+float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
+        float scale, float alpha, float beta);
+float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
+        float src, float alpha, float beta);
 void maybe_post_ops(float &d, float dst, const attr_t &attr);
 #endif

@@ -135,6 +135,10 @@ register_benchdnn_test(test_benchdnn_sum
     cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
 register_benchdnn_test(test_benchdnn_sum_bf16
     cpu "-v1 --sum --batch=inputs/sum/test_sum_bfloat16")
+register_benchdnn_test(test_benchdnn_eltwise
+    cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_all")
+register_benchdnn_test(test_benchdnn_eltwise_bf16
+    cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "-v1 --conv --batch=inputs/test_conv_regression"
@@ -165,6 +169,9 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
 # fp16 produces nans
 #    register_benchdnn_test(test_benchdnn_sum
 #        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
+# fp16 relu with negative alpha segfaults
+#    register_benchdnn_test(test_benchdnn_eltwise
+#        gpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")

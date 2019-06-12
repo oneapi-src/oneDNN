@@ -531,6 +531,50 @@ void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
     }
 }
 
+float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
+        float scale, float alpha, float beta) {
+    using namespace mkldnn::impl::math;
+    using pk = attr_t::post_ops_t::kind_t;
+
+    switch (kind) {
+    case pk::RELU: return scale * relu_fwd(src, alpha);
+    case pk::TANH: return scale * tanh_fwd(src);
+    case pk::ELU: return scale * elu_fwd(src, alpha);
+    case pk::SQUARE: return scale * square_fwd(src);
+    case pk::ABS: return scale * abs_fwd(src);
+    case pk::SQRT: return scale * sqrt_fwd(src);
+    case pk::LINEAR: return scale * linear_fwd(src, alpha, beta);
+    case pk::BRELU: return scale * bounded_relu_fwd(src, alpha);
+    case pk::SRELU: return scale * soft_relu_fwd(src);
+    case pk::LOGISTIC: return scale * logistic_fwd(src);
+    case pk::EXP: return scale * exp_fwd(src);
+    default: assert(!"unknown attr::post_ops::kind");
+    };
+    return NAN;
+}
+
+float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
+        float src, float alpha, float beta) {
+    using namespace mkldnn::impl::math;
+    using pk = attr_t::post_ops_t::kind_t;
+
+    switch (kind) {
+    case pk::RELU: return relu_bwd(d_dst, src, alpha);
+    case pk::TANH: return tanh_bwd(d_dst, src);
+    case pk::ELU: return elu_bwd(d_dst, src, alpha);
+    case pk::SQUARE: return square_bwd(d_dst, src);
+    case pk::ABS: return abs_bwd(d_dst, src);
+    case pk::SQRT: return sqrt_bwd(d_dst, src);
+    case pk::LINEAR: return linear_bwd(d_dst, src, alpha, beta);
+    case pk::BRELU: return bounded_relu_bwd(d_dst, src, alpha);
+    case pk::SRELU: return soft_relu_bwd(d_dst, src);
+    case pk::LOGISTIC: return logistic_bwd(d_dst, src);
+    case pk::EXP: return exp_bwd(d_dst, src);
+    default: assert(!"unknown attr::post_ops::kind");
+    }
+    return NAN;
+}
+
 void maybe_post_ops(float &d, float dst, const attr_t &attr) {
     using namespace mkldnn::impl::math;
 
@@ -543,20 +587,9 @@ void maybe_post_ops(float &d, float dst, const attr_t &attr) {
         const auto &a = e.eltwise.alpha;
         const auto &b = e.eltwise.beta;
 
-        switch (e.kind) {
-        case pk::SUM: d += e.sum.scale * dst; break;
-        case pk::RELU: d = s * relu_fwd(d, a); break;
-        case pk::TANH: d = s * tanh_fwd(d); break;
-        case pk::ELU: d = s * elu_fwd(d, a); break;
-        case pk::SQUARE: d = s * square_fwd(d); break;
-        case pk::ABS: d = s * abs_fwd(d); break;
-        case pk::SQRT: d = s * sqrt_fwd(d); break;
-        case pk::LINEAR: d = s * linear_fwd(d, a, b); break;
-        case pk::BRELU: d = s * bounded_relu_fwd(d, a); break;
-        case pk::SRELU: d = s * soft_relu_fwd(d); break;
-        case pk::LOGISTIC: d = s * logistic_fwd(d); break;
-        case pk::EXP: d = s * exp_fwd(d); break;
-        default: assert(!"unknown attr::post_ops::kind");
-        }
+        if (e.kind == pk::SUM)
+            d += e.sum.scale * dst;
+        else
+            d = compute_eltwise_fwd(e.kind, d, s, a, b);
     }
 }
