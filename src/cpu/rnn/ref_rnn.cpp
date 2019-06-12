@@ -57,7 +57,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
     };
 
     // @todo block k on simd-width
-#if MKLDNN_THR == MKLDNN_THR_OMP && _OPENMP >= 201307 \
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP && _OPENMP >= 201307 \
     /* icc 17.0 has a problem with simd collapse */ \
     && !((defined __INTEL_COMPILER) && (__INTEL_COMPILER == 1700))
 #pragma omp parallel for simd collapse(2)

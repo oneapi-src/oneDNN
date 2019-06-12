@@ -56,7 +56,7 @@ else()
 endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message("FATAL_ERROR" "Intel(R) MKL-DNN supports 64 bit platforms only")
+    message(FATAL_ERROR "Intel(R) MKL-DNN supports 64 bit platforms only")
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -78,28 +78,47 @@ endif()
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# Tentative remapping of old options to the new one.
+# CAUTION: The old options will soon be removed.
+
+if(MKLDNN_THREADING)
+    set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the CPU runtime")
+endif()
+
+if(MKLDNN_GPU_BACKEND)
+    if (MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+        set(MKLDNN_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
+        message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+    endif()
+    set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the GPU runtime")
+endif()
+
+if(MKLDNN_CPU_BACKEND)
+    set(MKLDNN_CPU_RUNTIME "${MKLDNN_CPU_BACKEND}" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the CPU runtime")
+endif()
+
+if (MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
+    set(MKLDNN_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
+    message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+endif()
+
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
-if(NOT MKLDNN_CPU_BACKEND STREQUAL "SYCL" AND
-   NOT MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND
+   NOT MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     include("cmake/OpenMP.cmake")
 endif()
 include("cmake/TBB.cmake")
+include("cmake/OpenCL.cmake")
+include("cmake/SYCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
-
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
-    message(STATUS "GPU support is enabled (OpenCL)")
-    include("cmake/OpenCL.cmake")
-elseif(MKLDNN_GPU_BACKEND STREQUAL "SYCL")
-    message(STATUS "GPU support is enabled (SYCL)")
-    include("cmake/SYCL.cmake")
-else()
-    message(STATUS "GPU support is disabled")
-endif()
 
 enable_testing()
 

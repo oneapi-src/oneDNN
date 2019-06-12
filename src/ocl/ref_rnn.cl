@@ -502,37 +502,6 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
 #endif
 }
 
-__kernel void ref_rnn_gemm_kernel(int is_A_trans, int is_B_trans, int k,
-        __global DATA_T *a_base, OFFTYPE a_offset, int strideA_m, int strideA_k,
-        __global DATA_T *b_base, OFFTYPE b_offset, int strideB_n, int strideB_k,
-        __global DATA_T *c_base, OFFTYPE c_offset, int strideC_m, int strideC_n,
-        const float beta_) {
-
-    const int i = get_global_id(0); // m
-    const int j = get_global_id(1); // n
-
-    const DATA_T beta = CONVERT_DATA_T(beta_);
-
-    const int lda = strideA_m;
-    const int ldb = is_B_trans ? strideB_n : strideB_k;
-    const int ldc = strideC_m;
-
-    __global DATA_T *a = a_base + a_offset;
-    __global DATA_T *b = b_base + b_offset;
-    __global DATA_T *c = c_base + c_offset;
-
-    DATA_T t = 0.0f;
-    for (int l = 0; l < k; l++) {
-        t += a[i + l*lda] * (is_B_trans ? b[j + l*ldb] : b[l + j*ldb]);
-    }
-
-    if (beta == 0.0) {
-        c[i + j*ldc] = t;
-    } else {
-        c[i + j*ldc] = beta * c[i + j*ldc] + t;
-    }
-}
-
 __kernel void ref_rnn_gates_reduction_kernel(int dir, int lay, int iter,
         __global DATA_T *diff_bias_base, __global DATA_T *ws) {
 #if !IS_FWD

@@ -46,16 +46,16 @@ Intel MKL-DNN implements this functionality only for the platforms that have
 hardware acceleration for these data types. The table below summarizes the
 current support matrix:
 
-| Data type | CPU                                | GPU           |
-| :---      | :---                               | :---          |
-| f32       | any                                | any           |
-| bf16      | Intel(R) DL-Boost with bfloat16    | not supported |
-| f16       | not supported                      | any           |
-| s8, u8    | Intel(R) AVX512, Intel DL-Boost    | not supported |
+| Data type | CPU                             | GPU           |
+| :---      | :---                            | :---          |
+| f32       | any                             | any           |
+| bf16      | Intel(R) DL Boost with bfloat16 | not supported |
+| f16       | not supported                   | any           |
+| s8, u8    | Intel AVX512, Intel DL Boost    | not supported |
 
 @note
-  Intel MKL-DNN can simulate the blfoat16 data type on CPUs with
-  Intel(R) AVX512 BW. The performance of primitives in this case is
-  approximately 3-4x times lower than the corresponding f32.
-  The primary goal is to allow users to try using bfloat16 before the
-  actual HW will become available.
+  Intel MKL-DNN has functional bfloat16 support on processors with
+  Intel AVX512 Byte and Word Instructions (AVX512BW) support for validation
+  purposes. The performance of bfloat16 primitives on platforms without
+  hardware acceleration for bfloat16 is 3-4x lower in comparison to
+  the same operations on the fp32 data type.

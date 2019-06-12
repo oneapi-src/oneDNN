@@ -803,6 +803,8 @@ public:
         mov(out, tmp);
     }
 
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(jit_generator);
+
 public:
     jit_generator(
         void *code_ptr = nullptr,

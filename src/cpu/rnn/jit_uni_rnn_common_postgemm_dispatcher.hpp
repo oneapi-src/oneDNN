@@ -45,7 +45,9 @@ struct rnn_postgemm_dispatcher {
     using class_name = rnn_postgemm_dispatcher<aprop, src_type>;
     typedef rnn_postgemm_sig((class_name::*postgemm_f));
 
-    rnn_postgemm_dispatcher(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd): pd_(pd){
+    rnn_postgemm_dispatcher(const rnn_utils::rnn_conf_t &rnn,
+            const rnn_pd_t *pd): pd_(pd)
+    {
         rnn_postgemm_ = nullptr;
         rnn_postgemm_part2_ = nullptr;
         switch (pd->cell_kind()) {
@@ -83,8 +85,8 @@ struct rnn_postgemm_dispatcher {
                 break;
             default: assert(!"Unsupported activation function"); break;
             }
-	    // jitted path
-	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            // jitted path
+            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_rnn_cell_postgemm_fwd<avx512_core, src_type>(
@@ -104,7 +106,7 @@ struct rnn_postgemm_dispatcher {
             postgemm_func = &class_name::gru_part1_postgemm;
             postgemm_part2_func = &class_name::gru_part2_postgemm;
             // jitted path
-	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core)) {
                     rnn_postgemm_ =
                         new jit_uni_gru_cell_postgemm_part1_fwd<avx512_core, src_type>(
@@ -132,8 +134,8 @@ struct rnn_postgemm_dispatcher {
         case alg_kind::lbr_gru:
             // ref path
             postgemm_func = &class_name::gru_lbr_postgemm;
-	    // jitted path
-	    if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            // jitted path
+            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_gru_lbr_cell_postgemm_fwd<avx512_core, src_type>(
@@ -162,36 +164,34 @@ struct rnn_postgemm_dispatcher {
         delete rnn_postgemm_part2_;
     }
 
-// template <typename src_data_t, typename acc_data_t>
+    // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute) {
-    if (rnn_postgemm_)
-        rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                ws_cell_);
-    else
-        (this->*postgemm_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                ws_cell_);
-}
+        if (rnn_postgemm_)
+            rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
+                    ws_cell_);
+        else
+            (this->*postgemm_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
+                    ws_cell_);
+    }
 
-// template <typename src_data_t, typename acc_data_t>
+    // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute_part2) {
-    if(rnn_postgemm_part2_)
-        rnn_postgemm_part2_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                ws_cell_);
-    else
-        (this->*postgemm_part2_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                ws_cell_);
-}
+        if(rnn_postgemm_part2_)
+            rnn_postgemm_part2_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
+                    ws_cell_);
+        else
+            (this->*postgemm_part2_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
+                    ws_cell_);
+    }
 
-
-    
 private:
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     rnn_postgemm_sig(rnn_postgemm);
@@ -205,6 +205,8 @@ private:
     jit_uni_rnn_postgemm *rnn_postgemm_part2_;
     postgemm_f postgemm_func;
     postgemm_f postgemm_part2_func;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(rnn_postgemm_dispatcher);
 };
 
 using rnn_postgemm_fwd_f32_t = rnn_postgemm_dispatcher<prop_kind::forward, data_type::f32>;

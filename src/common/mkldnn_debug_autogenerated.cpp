@@ -24,9 +24,7 @@
 const char *mkldnn_status2str(mkldnn_status_t v) {
     if (v == mkldnn_success) return "success";
     if (v == mkldnn_out_of_memory) return "out_of_memory";
-    if (v == mkldnn_try_again) return "try_again";
     if (v == mkldnn_invalid_arguments) return "invalid_arguments";
-    if (v == mkldnn_not_ready) return "not_ready";
     if (v == mkldnn_unimplemented) return "unimplemented";
     if (v == mkldnn_iterator_ends) return "iterator_ends";
     if (v == mkldnn_runtime_error) return "runtime_error";
@@ -423,6 +421,14 @@ const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
     if (v == mkldnn_unidirectional) return "unidirectional";
     assert(!"unknown rnn_direction");
     return "unknown rnn_direction";
+}
+
+const char *mkldnn_engine_kind2str(mkldnn_engine_kind_t v) {
+    if (v == mkldnn_any_engine) return "any_engine";
+    if (v == mkldnn_cpu) return "cpu";
+    if (v == mkldnn_gpu) return "gpu";
+    assert(!"unknown engine_kind");
+    return "unknown engine_kind";
 }
 
 const char *mkldnn_scratchpad_mode2str(mkldnn_scratchpad_mode_t v) {

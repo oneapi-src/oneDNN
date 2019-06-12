@@ -44,8 +44,8 @@ struct _gemm_x8s8s32x_convolution_fwd_t: public cpu_primitive_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(IGEMM_S8U8S32_IMPL_STR,
-                _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
+        DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR, 
+            _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>);
 
         status_t init() {
             using namespace data_type;
@@ -212,8 +212,8 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t: public cpu_primitive_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(IGEMM_S8U8S32_IMPL_STR,
-                _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>);
+        DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR,
+            _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>);
 
         status_t init() {
             using namespace data_type;

@@ -28,17 +28,17 @@ namespace ocl {
 struct ref_sum_t: public primitive_t {
     struct pd_t: public ocl_sum_pd_t {
         using ocl_sum_pd_t::ocl_sum_pd_t;
-        pd_t(const pd_t &rhs): ocl_sum_pd_t(rhs) {
-            for (size_t i = 0; i < rhs.scales_.size(); ++i) {
-                scales_.push_back(rhs.scales_[i]);
-            }
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i) {
-                reorder_pds_.push_back(
-                       (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
-            }
-        }
+        pd_t(const pd_t &rhs): ocl_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
-        ~pd_t() { for (auto &rpd: reorder_pds_) delete rpd; }
+        ~pd_t() { clear(); }
+
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_sum_pd_t::operator=(rhs);
+            clear();
+            clone_reorder_pds(rhs);
+            return *this;
+        }
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
@@ -65,6 +65,14 @@ struct ref_sum_t: public primitive_t {
             ok = utils::everyone_is(reorder_pds_.size(), scales_.size());
             return ok ? status::success : status::unimplemented;
         }
+
+        void clone_reorder_pds(const pd_t &rhs) {
+            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
+                reorder_pds_.push_back(
+                       (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
+        }
+
+        void clear() { for (auto &rpd: reorder_pds_) delete rpd; }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };

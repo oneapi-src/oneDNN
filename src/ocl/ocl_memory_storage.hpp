@@ -38,9 +38,6 @@ public:
         other.mem_object_ = nullptr;
     }
 
-    ocl_memory_storage_t(const ocl_memory_storage_t &) = delete;
-    ocl_memory_storage_t &operator=(const ocl_memory_storage_t &) = delete;
-
     virtual ~ocl_memory_storage_t() override {
         if (mem_object_) {
             OCL_CHECK_V(clReleaseMemObject(mem_object_));
@@ -69,6 +66,7 @@ public:
 
 private:
     cl_mem mem_object_ = nullptr;
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
 };
 
 } // namespace ocl

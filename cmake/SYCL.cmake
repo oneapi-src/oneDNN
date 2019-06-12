@@ -19,6 +19,11 @@ if(SYCL_cmake_included)
 endif()
 set(SYCL_cmake_included true)
 
+if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND
+   NOT MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+    return()
+endif()
+
 find_package(SYCL REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")

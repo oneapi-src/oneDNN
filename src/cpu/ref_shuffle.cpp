@@ -65,7 +65,7 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
 
     if (axis == 1 && one_of(tag, nChw16c, nChw8c, nChw4c, nCdhw16c, nCdhw8c,
                 nCdhw4c)) {
-#if MKLDNN_THR == MKLDNN_THR_OMP
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
 #       pragma omp parallel for collapse(3) schedule(static)
         for (int mb = 0; mb < MB; ++mb)
         for (int cb = 0; cb < C; cb += blksize)

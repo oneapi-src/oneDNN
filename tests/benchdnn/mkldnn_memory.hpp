@@ -75,7 +75,7 @@ struct dnn_mem_t {
         active_ = rhs.active_;
         engine_kind_ = rhs.engine_kind_;
         engine_ = rhs.engine_;
-        is_ref_engine_ = rhs.is_ref_engine_;
+        is_cpu_native_ = rhs.is_cpu_native_;
         is_mapped_ = rhs.is_mapped_;
         mapped_ptr_ = rhs.mapped_ptr_;
 
@@ -221,7 +221,7 @@ private:
     mkldnn_engine_kind_t engine_kind_ = mkldnn_any_engine;
     mkldnn_engine_t engine_ = NULL;
 
-    bool is_ref_engine_;
+    bool is_cpu_native_;
 
     bool is_mapped_ = false;
     void *mapped_ptr_ = NULL;
@@ -237,9 +237,12 @@ private:
         }
         engine_ = engine;
         DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
-        is_ref_engine_ = (engine == engine_ref);
 
-        if (is_ref_engine_) {
+        int backend_kind;
+        DNN_SAFE_V(mkldnn_engine_get_backend_kind(engine_, &backend_kind));
+        is_cpu_native_ = (engine_kind_ == mkldnn_cpu) && (backend_kind == 0);
+
+        if (is_cpu_native_) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
             const size_t alignment = 1024 * 1024 * 16;

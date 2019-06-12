@@ -88,7 +88,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     target_link_libraries(${exe} ${LIB_NAME} mkldnn_gtest ${EXTRA_SHARED_LIBS})
     target_compile_definitions(${exe} PUBLIC -DMKLDNN_TEST_WITH_ENGINE_PARAM)
 
-    if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+    if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         add_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
         maybe_configure_windows_test(${exe}_cpu TEST)
 
@@ -102,12 +102,12 @@ endforeach()
 
 add_subdirectory(api)
 
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(MKLDNN_CPU_BACKEND STREQUAL "SYCL" OR
-   MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR
+   MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     add_subdirectory(sycl)
 endif()
 

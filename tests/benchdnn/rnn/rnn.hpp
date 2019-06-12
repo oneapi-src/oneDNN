@@ -85,6 +85,8 @@ private:
     Telem *_base_ptr;
     int64_t _size;
     int64_t *_dims;
+
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(array_offset_calculator);
 };
 
 struct desc_t {

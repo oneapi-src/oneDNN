@@ -126,6 +126,12 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         pd_t(const pd_t &other)
             : ocl_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
+        pd_t &operator=(const pd_t &other) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            delete conv_pd_;
+            conv_pd_ = other.conv_pd_->clone();
+            return *this;
+        }
 
         ~pd_t() { delete conv_pd_; }
 

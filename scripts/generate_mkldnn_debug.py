@@ -164,7 +164,6 @@ def maybe_skip(enum):
         'mkldnn_rnn_cell_flags_t',
         'mkldnn_rnn_packed_memory_format_t',
         'mkldnn_batch_normalization_flags_t',
-        'mkldnn_engine_kind_t',
         'mkldnn_query_t',
         'mkldnn_stream_flags_t',
         )
@@ -178,6 +177,7 @@ def enum_abbrev(enum):
         'mkldnn_format_kind_t': 'fmt_kind',
         'mkldnn_format_tag_t': 'fmt_tag',
         'mkldnn_primitive_kind_t': 'prim_kind',
+        'mkldnn_engine_kind_t': 'engine_kind',
     }.get(enum, def_enum)
 
 

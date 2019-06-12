@@ -80,10 +80,7 @@ private:
     std::atomic<int> counter_;
 
     mkldnn_primitive() = delete;
-    mkldnn_primitive(const mkldnn_primitive &) = delete;
-    mkldnn_primitive(mkldnn_primitive &&) = delete;
-    mkldnn_primitive &operator=(const mkldnn_primitive &) = delete;
-    mkldnn_primitive &operator=(mkldnn_primitive &&) = delete;
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_primitive);
 };
 
 #endif

@@ -128,9 +128,7 @@ struct prb_t: public desc_t {
     void count_ops();
     void generate_oscales();
 
-private:
-    prb_t(const prb_t &) = delete;
-    prb_t &operator=(const prb_t &) = delete;
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

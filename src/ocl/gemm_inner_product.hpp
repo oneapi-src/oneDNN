@@ -69,6 +69,13 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         }
         ~pd_t() { delete gemm_pd_; }
 
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            delete gemm_pd_;
+            gemm_pd_ = rhs.gemm_pd_->clone();
+            return *this;
+        }
+
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
 
         status_t init() {
@@ -174,6 +181,13 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
         }
         ~pd_t() { delete gemm_pd_; }
 
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            delete gemm_pd_;
+            gemm_pd_ = rhs.gemm_pd_->clone();
+            return *this;
+        }
+
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_bwd_data_t);
 
         status_t init() {
@@ -251,6 +265,13 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
         ~pd_t() { delete gemm_pd_; }
+
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            delete gemm_pd_;
+            gemm_pd_ = rhs.gemm_pd_->clone();
+            return *this;
+        }
 
         DECLARE_COMMON_PD_T("gemm:ocl", gemm_inner_product_bwd_weights_t);
 

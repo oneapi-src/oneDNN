@@ -1,16 +1,13 @@
 Build Options {#dev_guide_build_options}
 ====================================
 
-## Configuring the Build
-
 Intel MKL-DNN supports the following build-time options.
 
 | Option                      | Supported values (defaults in bold)  | Description
 | :---                        | :---                                 | :---
 | MKLDNN_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
-| MKLDNN_THREADING            | **OMP**, TBB                         | Defines the threading type
-| MKLDNN_CPU_BACKEND          | **NONE**, SYCL                       | Defines the backend for CPU engine
-| MKLDNN_GPU_BACKEND          | **NONE**, OPENCL, SYCL               | Defines the backend for GPU engine
+| MKLDNN_CPU_RUNTIME          | **OMP**, TBB, SYCL                   | Defines the threading runtime for CPU engines
+| MKLDNN_GPU_RUNTIME          | **NONE**, OCL, SYCL                  | Defines the offload runtime for GPU engines
 | MKLDNN_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | MKLDNN_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | MKLDNN_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
@@ -20,8 +17,12 @@ All other building options that can be found in CMake files are dedicated for
 the development/debug purposes and are subject to change without any notice.
 Please avoid using them.
 
-## Targeting Specific Architecture
+## CPU Options
+Intel Architecture Processors and compatible devices are supported by
+Intel MKL-DNN CPU engine. The CPU engine is built by default and cannot
+be disabled at build time.
 
+### Targeting Specific Architecture
 Intel MKL-DNN uses JIT code generation to implement most of its functionality
 and will choose the best code based on detected processor features. However,
 some Intel MKL-DNN functionality will still benefit from targeting a specific
@@ -43,43 +44,13 @@ compatible with the target instruction set. Therefore, `ARCH_OPT_FLAGS`
 should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
-## GPU support (experimental)
-
-To enable GPU support in Intel MKL-DNN you need to specify the GPU backend
-to use. Currently the only supported one is implemented using OpenCL\* and
-requires Intel(R) SDK for OpenCL\* applications. You can explicitly specify
-the pass to the SDK using `-DOPENCLROOT` cmake option.
-
-~~~sh
-cmake -DMKLDNN_GPU_BACKEND=OPENCL -DOPENCLROOT=/path/to/opencl/sdk ..
-~~~
-
-## SYCL\* support (experimental)
-
-To enable SYCL support in Intel MKL-DNN you need to specify the SYCL backend for
-CPU engine (and for GPU engine to enable GPU support).
-
-SYCL support requires a SYCL compiler with SYCL 1.2.1 standard support.
-
-You need to set C and C++ compilers to point to SYCL compilers. Also you can
-explicitly specify the path to the SYCL installation using `-DSYCLROOT` cmake option.
-
-~~~sh
-export CC=path/to/c/compiler
-export CXX=path/to/cpp/sycl/compiler
-
-cmake -DMKLDNN_CPU_BACKEND=SYCL -DMKLDNN_GPU_BACKEND=SYCL -DSYCLROOT=/path/to/sycl ..
-~~~
-
-## Threading
-
-Intel MKL-DNN can use the OpenMP or TBB threading runtimes. OpenMP threading
+### Runtimes
+CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
 is the default build mode and is recommended for the best performance. TBB
-support is experimental. This behavior is controlled by the `MKLDNN_THREADING`
-CMake option.
+support is experimental. This behavior is controlled by the
+`MKLDNN_CPU_RUNTIME` CMake option.
 
-### OpenMP
-
+#### OpenMP
 Intel MKL-DNN uses OpenMP runtime library provided by the compiler.
 
 @warning
@@ -90,8 +61,7 @@ undefined behavior including incorrect results or crashes. However as long as
 both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
-### TBB
-
+#### TBB
 TBB support is experimental.
 
 To build Intel MKL-DNN with TBB support, set the `TBBROOT` environmental
@@ -99,7 +69,7 @@ variable to point to the TBB installation path or pass the path directly to
 cmake:
 
 ~~~sh
-$ cmake -DTBBROOT=/opt/intel/path/tbb ..
+$ cmake -DMKLDNN_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
 ~~~
 
 Intel MKL-DNN has limited optimizations for Intel TBB and has some functional
@@ -114,3 +84,33 @@ to limited parallelism):
 * Convolution backward by weights,
 * Inner product,
 * `mkldnn_*gemm()`.
+
+## GPU Options
+Intel Processor Graphics is supported by Intel MKL-DNNs GPU engine. GPU engine
+is disabled in the default build configuration. 
+
+### Runtimes
+To enable GPU support you need to specify the GPU runtime by setting
+`MKLDNN_GPU_RUNTIME` CMake option. The default value is `"NONE"` which
+corresponds to no GPU support in the library.
+
+#### OpenCL\*
+OpenCL runtime requires Intel(R) SDK for OpenCL\* applications. You can
+explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
+
+~~~sh
+cmake -DMKLDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
+~~~
+
+## SYCL\* (experimental)
+SYCL runtime requires a SYCL compiler with SYCL 1.2.1 standard support.  You
+can explicitly specify the path to the SYCL installation using `-DSYCLROOT` CMake option.
+
+You need to set C and C++ compilers to point to the SYCL compilers.
+
+~~~sh
+export CC=path/to/c/compiler
+export CXX=path/to/cpp/sycl/compiler
+
+cmake -DMKLDNN_CPU_RUNTIME=SYCL -DMKLDNN_GPU_RUNTIME=SYCL -DSYCLROOT=/path/to/sycl ..
+~~~

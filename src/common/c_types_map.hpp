@@ -34,9 +34,7 @@ using status_t = mkldnn_status_t;
 namespace status {
     const status_t success = mkldnn_success;
     const status_t out_of_memory = mkldnn_out_of_memory;
-    const status_t try_again = mkldnn_try_again;
     const status_t invalid_arguments = mkldnn_invalid_arguments;
-    const status_t not_ready = mkldnn_not_ready;
     const status_t unimplemented = mkldnn_unimplemented;
     const status_t iterator_ends = mkldnn_iterator_ends;
     const status_t runtime_error = mkldnn_runtime_error;

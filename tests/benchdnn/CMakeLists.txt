@@ -141,7 +141,7 @@ register_benchdnn_test(test_benchdnn_regression_large
     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
 
-if(NOT MKLDNN_GPU_BACKEND STREQUAL "NONE")
+if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
         gpu "-v1 --conv --batch=inputs/test_conv_gpu")
     register_benchdnn_test(test_benchdnn_deconv

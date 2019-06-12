@@ -43,6 +43,14 @@
 namespace mkldnn {
 namespace impl {
 
+#define MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other) do { \
+        if (this == &other) return *this; \
+    } while (0)
+
+#define MKLDNN_DISALLOW_COPY_AND_ASSIGN(T) \
+    T(const T&) = delete; \
+    T &operator=(const T&) = delete;
+
 // Sanity check for 64 bits
 static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
 

@@ -54,14 +54,6 @@ set(MKLDNN_INSTALL_MODE "DEFAULT" CACHE STRING
     When BUNDLE option is set MKL-DNN will be installed as a bundle
     which contains examples and benchdnn.")
 
-set(MKLDNN_THREADING "OMP" CACHE STRING
-    "specifies threading type; supports OMP (default) or TBB.
-
-    To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
-    set TBBROOT (either environment variable or CMake option) to the library
-    location")
-
-
 # =============
 # Optimizations
 # =============
@@ -101,25 +93,43 @@ option(MKLDNN_ENABLE_JIT_PROFILING
 # Engine capabilities
 # ===================
 
-set(MKLDNN_CPU_BACKEND "NATIVE" CACHE STRING
-    "specifies the type of backend for CPU engines.
-    Can be NATIVE or SYCL (SYCL CPU backend).")
+set(MKLDNN_CPU_RUNTIME "OMP" CACHE STRING
+    "specifies the threading runtime for CPU engines;
+    supports OMP (default), TBB or SYCL (SYCL CPU engines).
 
-set(MKLDNN_GPU_BACKEND "NONE" CACHE STRING
-    "specifies the type of backend for GPU engines.
-    Can be NONE (no GPU backend), OPENCL (OpenCL GPU backend) or
-    SYCL (SYCL GPU backend).")
+    To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
+    set TBBROOT (either environment variable or CMake option) to the library
+    location.
 
-option(MKLDNN_ENABLE_SYCL_VPTR
-    "Enable virtual pointers support for SYCL."
-    OFF)
+    Using SYCL for CPU requires setting SYCLROOT if the libraries are
+    installed in a non-standard location.")
+
+set(TBBROOT "" CACHE STRING
+    "path to Intel(R) Thread Building Blocks (Intel(R) TBB).
+    Use this option to specify Intel(R) TBB installation locaton.")
+
+set(MKLDNN_GPU_RUNTIME "NONE" CACHE STRING
+    "specifies the runtime to use for GPU engines.
+    Can be NONE (default; no GPU engines), OCL (OpenCL GPU engines)
+    or SYCL (SYCL GPU engines).
+
+    Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
+    installed in a non-standard location.
+
+    Using SYCL for GPU requires setting SYCLROOT if the libraries are
+    installed in a non-standard location.")
 
 set(OPENCLROOT "" CACHE STRING
     "path to Intel(R) SDK for OpenCL(TM).
     Use this option to specify custom location for OpenCL.")
 
 set(SYCLROOT "" CACHE STRING
-    "path to SYCL implementation.")
+    "path to SYCL installation.
+    Use this option to specify custom location for SYCL")
+
+option(MKLDNN_ENABLE_SYCL_VPTR
+    "Enable virtual pointers support for SYCL."
+    OFF)
 
 # =============
 # Miscellaneous

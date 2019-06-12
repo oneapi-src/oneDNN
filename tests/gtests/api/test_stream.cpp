@@ -26,12 +26,12 @@ namespace mkldnn {
 static bool are_valid_flags(mkldnn_engine_kind_t engine_kind,
         mkldnn_stream_flags_t stream_flags) {
     bool ok = true;
-#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     if (engine_kind == mkldnn_gpu
             && (stream_flags & mkldnn_stream_out_of_order))
         ok = false;
 #endif
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
+#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_SYCL
     if (engine_kind == mkldnn_cpu
             && (stream_flags & mkldnn_stream_out_of_order))
         ok = false;

@@ -42,7 +42,7 @@
 #define CPU_INST_TEST_CASE(str, ...) CPU_INST_TEST_CASE_( \
         CONCAT_WITH_UNDERSCORE(str,TEST_CASE_NAME_PREFIX), __VA_ARGS__)
 
-#if MKLDNN_WITH_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 
 // Declare OpenCL GEMM interfaces for testing
 extern "C" {
@@ -525,7 +525,7 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
             const test_memory &b_mem, const test_memory &c_mem, const test_memory &) {
         engine eng(get_test_engine_kind(), 0);
         stream s(eng);
-#if MKLDNN_WITH_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
             auto status = mkldnn_ocl_hgemm(q, p.transA, p.transB, p.M, p.N,
@@ -620,7 +620,7 @@ struct mkldnn_gemm<float, float, float> {
         engine eng = a_mem.get().get_engine();
         stream s(eng);
 
-#if MKLDNN_WITH_OPENCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
             auto status = mkldnn_ocl_sgemm(q, p.transA, p.transB, p.M, p.N,
@@ -835,12 +835,12 @@ protected:
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
 
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
                 "SYCL CPU GEMM not implemented.");
 #endif
 
-#if MKLDNN_GPU_BACKEND == MKLDNN_BACKEND_SYCL
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
                 "SYCL GPU GEMM not implemented.");
 #endif

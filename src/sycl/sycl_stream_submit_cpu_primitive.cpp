@@ -16,7 +16,7 @@
 
 #include "mkldnn.hpp"
 
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
 
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 

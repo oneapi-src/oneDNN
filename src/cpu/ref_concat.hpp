@@ -30,12 +30,17 @@ struct ref_concat_t: public cpu_primitive_t {
     struct pd_t: public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) {
-            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.push_back(
-                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
+        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) { clone_reorder_pds(rhs); }
+
+        ~pd_t() { clear(); }
+
+        pd_t &operator=(const pd_t &rhs) {
+            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            cpu_concat_pd_t::operator=(rhs);
+            clear();
+            clone_reorder_pds(rhs);
+            return *this;
         }
-        ~pd_t() { for (auto &rpd: reorder_pds_) delete rpd; }
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
@@ -60,6 +65,14 @@ struct ref_concat_t: public cpu_primitive_t {
             ok = reorder_pds_.size() == (size_t)n_;
             return ok ? status::success : status::unimplemented;
         }
+
+        void clone_reorder_pds(const pd_t &rhs) {
+            for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
+                reorder_pds_.push_back(
+                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
+        }
+
+        void clear() { for (auto &rpd: reorder_pds_) delete rpd; }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };

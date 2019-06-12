@@ -66,11 +66,12 @@ endif()
 add_subdirectory(common)
 add_subdirectory(cpu)
 
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL" OR MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+    add_subdirectory(ocl)
     add_subdirectory(sycl)
 endif()
 
@@ -125,13 +126,27 @@ install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
-if(MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
+# Install custom find modules for transitive dependencies
+if(MKLDNN_CPU_RUNTIME STREQUAL "TBB")
+    if(WIN32)
+        install(FILES "../cmake/win/TBBConfig.cmake" RENAME "FindTBB.cmake"
+            DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+    elseif(APPLE)
+        install(FILES "../cmake/mac/TBBConfig.cmake" RENAME "FindTBB.cmake"
+            DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+    elseif(UNIX)
+        install(FILES "../cmake/lnx/TBBConfig.cmake" RENAME "FindTBB.cmake"
+            DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+    endif()
+endif()
+
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
-if(MKLDNN_CPU_BACKEND STREQUAL "SYCL" OR MKLDNN_GPU_BACKEND STREQUAL "SYCL")
+if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         "../cmake/FindSYCL.cmake"

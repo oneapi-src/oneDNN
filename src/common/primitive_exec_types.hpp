@@ -49,12 +49,7 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct exec_ctx_t {
-    exec_ctx_t(): stream_(nullptr) {}
-    exec_ctx_t(const exec_ctx_t &) = default;
-    exec_ctx_t &operator=(const exec_ctx_t &) = default;
-    exec_ctx_t(exec_ctx_t &&) = default;
-
-    exec_ctx_t(stream_t *stream): stream_(stream) {}
+    exec_ctx_t(stream_t *stream = nullptr): stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
         : stream_(stream)
         , args_(std::move(args)) {}

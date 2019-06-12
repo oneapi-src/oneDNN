@@ -3,8 +3,9 @@
 
 > **Note**
 >
-> The master branch is now used to work on the upcoming Intel MKL-DNN v1.0 release with
-> changes that are incompatible with v0.x. The changes are described in the following
+> The master branch is now used to work on the upcoming Intel MKL-DNN v1.0
+> release with changes that are incompatible with v0.x. The changes
+> are described in the following
 > [RFC](https://github.com/intel/mkl-dnn/pull/384).
 >
 > For a limited time, the team will maintain
@@ -12,46 +13,32 @@
 > backporting fixes and some of the features from the mainline.
 
 Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
-open-source performance library for deep-learning applications. The library
-accelerates deep-learning applications and frameworks on Intel(R) architecture
-and Intel(R) Processor Graphics Architecture. Intel MKL-DNN contains
-vectorized and threaded building blocks that you can use to implement deep
-neural networks (DNN) with C and C++ interfaces.
+open-source performance library for deep learning applications. The library
+includes basic building blocks for neural networks optimized
+for Intel Architecture Processors and Intel Processor Graphics.
 
 > **Note**
-> Intel(R) MKL-DNN is distinct from Intel(R) MKL, which is general math performance
-> library.
+> Intel MKL-DNN is distinct from Intel MKL, which is general math
+> performance library.
 
-This release contains performance-critical functions that improve performance of the
-following deep learning topologies and variations of these:
-
-| Application                               | Example topology
-|:---                                       |:---
-| Image recognition                         | AlexNet, VGG, GoogleNet, ResNet, MobileNet
-| Image segmentation                        | FCN, SegNet, MaskRCNN, U-Net
-| Volumetric segmentation                   | 3D-Unet
-| Object detection                          | SSD, Faster R-CNN, Yolo
-| Neural machine translation                | GNMT
-| Speech recognition                        | DeepSpeech
-| Adversarial networks                      | DCGAN, 3DGAN
-| Reinforcement learning                    | A3C
-| Text-to-speech                            | WaveNet
-
-Intel MKL-DNN is used in the following software products (please let us know if you are
-using the library inside your appication so we can add to the list):
+Intel MKL-DNN is intended for deep learning applications and framework
+developers intersted in improving application performance
+on Intel CPUs and GPUs. Deep learning practictitioners should use one of the
+applications enabled with Intel MKL-DNN:
+* [Apache\* MXNet](https://mxnet.apache.org)
+* [BigDL](https://github.com/intel-analytics/BigDL)
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Chainer\*](https://chainer.org)
-* [DeepBench](https://github.com/baidu-research/DeepBench)
+* [DeepLearning4J\*](https://deeplearning4j.org)
+* [Intel Nervana Graph](https://github.com/NervanaSystems/ngraph)
+* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
+* [Menoh\*](https://github.com/pfnet-research/menoh)
+* [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
+* [ONNX Runtime](https://github.com/microsoft/onnxruntime)
+* [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
 * [PyTorch\*](https://pytorch.org/)
 * [Tensorflow\*](https://www.tensorflow.org)
-* [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
-* [Apache\* MXNet](https://mxnet.apache.org)
-* [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
-* [Intel Nervana Graph](https://github.com/NervanaSystems/ngraph)
-* [Menoh\*](https://github.com/pfnet-research/menoh)
-* [DeepLearning4J\*](https://deeplearning4j.org)
-* [BigDL](https://github.com/intel-analytics/BigDL)
 
 ## License
 Intel MKL-DNN is licensed under
@@ -80,65 +67,67 @@ Please submit your questions, feature requests, and bug reports on the
 > notification in future releases.
 
 * Threading Building Blocks (TBB) support
-* Intel(R) Processor Graphics support
 * SYCL\* support
 
 ## How to Contribute
-We welcome community contributions to Intel MKL-DNN. If you have an idea on how to improve
-the library:
+We welcome community contributions to Intel MKL-DNN. If you have an idea on how
+to improve the library:
 
-* Share your proposal via
- [GitHub issues](https://github.com/intel/mkl-dnn/issues).
-* Ensure that you can build the product and run all the examples with your patch.
-* In the case of a larger feature, create a test.
+* For changes impacting the public API, submit
+  an [RFC pull request](CONTRIBUTING.md#RFC_pull_requests).
+* Ensure that the changes are consistent with the
+ [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
+ and [coding style](CONTRIBUTING.md#coding_style).
+* Ensure that you can build the product and run all the examples with your
+  patch.
 * Submit a [pull request](https://github.com/intel/mkl-dnn/pulls).
 
-We will review your contribution and, if any additional fixes or modifications
-are necessary, may provide feedback to guide you. When accepted, your pull
-request will be merged to the repository.
+For additional details, see [contribution guidelines](CONTRIBUITING.md).
 
 ## System Requirements
-Intel MKL-DNN supports Intel 64 architecture and compatible architectures.
-The library is optimized for the systems based on
-* Intel Atom(R) processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
-* Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
-Ivy Bridge, Haswell, and Broadwell)
-* Intel(R) Xeon(R) Scalable processors (formerly Skylake and Cascade Lake)
-* Intel(R) Xeon Phi(TM) processors (formerly Knights Landing and Knights Mill)
+Intel MKL-DNN supports systems meeting the following requirements:
+* Intel 64 architecture or compatible
+* C++ compiler with C++11 standard support
+* [CMake](https://cmake.org/download/) 2.8.11 or later
+* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
+
+Configurations of CPU and GPU engines may introduce additional build time
+dependencies.
+
+### CPU Support
+Intel Architecture Processors and compatible devices are supported by
+Intel MKL-DNN CPU engine. The CPU engine is built by default and cannot
+be disabled at build time. The engine can be configured to use OpenMP or
+TBB threading runtime. The following additional requirements apply:
+* OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support
+* TBB runtime requires
+[Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
+2017 or later.
+
+The library is optimized for systems based on
+* Intel Atom processor with Intel SSE4.1 support
+* 4th, 5th, 6th, 7th, and 8th generation Intel Core(TM) processor
+* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
+  Ivy Bridge, Haswell, and Broadwell)
+* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
+* Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
+* future Intel Xeon Scalable processor (code name Cooper Lake)
 
 and compatible processors.
 
-Intel MKL-DNN supports Intel(R) Processor Graphics.
-The library is optimized for the systems based on
-* Intel(R) Iris(R) Pro Graphics.
+Intel MKL-DNN detects instruction set architecture (ISA) in the runtime and uses
+just-in-time (JIT) code generation to deploy the code optimized
+for the latest supported ISA. Some implementations rely on OpenMP 4.0 SIMD
+extensions and we recommend using the Intel C++ Compiler for the best
+performance results.
 
-The software dependencies are:
-* [CMake](https://cmake.org/download/) 2.8.11 or later
-* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
-* C++ compiler with C++11 standard support
-* Optional dependencies:
-  * GNU\* OpenMP\*, LLVM OpenMP, or Intel OpenMP
-  * Threading Building Blocks (TBB) 2017 or later
+> **Warning**
+> In the default build configuration, Intel MKL-DNN targets build system ISA as
+> the minimal supported ISA for the build. To make sure that the build is
+> portable to older systems, you might need to override
+> [MKLDNN_ARCH_OPT_FLAGS](http://intel.github.io/mkl-dnn/dev_guide_build_options.html).
 
-The additional software dependencies for Intel(R) Processor Graphics support:
-* OpenCL\* runtime library (OpenCL\* version 1.2 or later)
-* OpenCL\* driver (with kernel language support for OpenCL\* C 2.0 or later)
-  with Intel(R) subgroups extension support
-
-The additional software dependencies for SYCL support:
-* SYCL compiler with SYCL 1.2.1 support:
-    * [ComputeCpp* Compiler](https://developer.codeplay.com/computecppce/) 1.0.3 or later
-    * [Intel(R) Compiler for SYCL\*](https://soco.intel.com/groups/dpc-incremental-releases-for-internal) May 2019 release or later
-* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3 or later
-    * Not required for Intel Compiler for SYCL - it is distributed with OpenCL libraries
-
-> **Note**
-> Building Intel MKL-DNN with optional dependencies may introduce additional
-> runtime dependencies for the library. For details, refer to the corresponding
-> software system requirements.
-
-The software was validated on RedHat\* Enterprise Linux 7 with
+CPU engine was validated on RedHat\* Enterprise Linux 7 with
 * GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, and 8.1
 * Clang\* 3.8.0
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
@@ -154,23 +143,47 @@ on macOS\* 10.13 (High Sierra) with
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   18.0 and 19.0
 
-Intel(R) Processor Graphics support was validated on Ubuntu\* 18.04 with
+### GPU Support
+Intel Processor Graphics is supported by Intel MKL-DNNs GPU engine. GPU engine
+is disabled in the default build configuration. The following
+additional requirements apply when GPU engine is enabled:
+* OpenCL\* runtime library (OpenCL\* version 1.2 or later)
+* OpenCL\* driver (with kernel language support for OpenCL\* C 2.0 or later)
+  with Intel subgroups extension support
+
+The library is optimized for systems based on
+* Intel HD Graphics
+* Intel UHD Graphics
+* Intel Iris Plus Graphics
+
+GPU engine was validated on Ubuntu\* 18.04 with
 * GNU Compiler Collection 5.4 and 8.1
 * Clang\* 3.8.1
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   19.0
-* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
-* [Intel(R) Graphics Compute Runtime for OpenCL\*](https://github.com/intel/compute-runtime/releases) 19.15.12831
+* [Intel SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
+* [Intel Graphics Compute Runtime for OpenCL\*](https://github.com/intel/compute-runtime/releases) 19.15.12831
 
 on Windows Server\* 2019 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   19.0
-* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
-* [Intel(R) Graphics - Windows\* 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
+* [Intel SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
+* [Intel Graphics - Windows\* 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
 
-The implementation uses OpenMP 4.0 SIMD extensions. We recommend using the
-Intel C++ Compiler for the best performance results.
+### SYCL Support
+The following additional requirements apply when SYCL runtime is used:
+* SYCL compiler with SYCL 1.2.1 support:
+    * [ComputeCpp* Compiler](https://developer.codeplay.com/computecppce/) 1.0.3 or later
+    * [Intel(R) Compiler for SYCL\*](https://soco.intel.com/groups/dpc-incremental-releases-for-internal) June 2019 release or later
+* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3 or later
+    * Not required for Intel Compiler for SYCL - it includes OpenCL libraries
+
+> **Note**
+> Building Intel MKL-DNN with optional dependencies may introduce additional
+> runtime dependencies for the library. For details, refer to the corresponding
+> software system requirements.
+=======
 
 --------
 

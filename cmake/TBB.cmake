@@ -23,16 +23,8 @@ endif()
 set(TBB_cmake_included true)
 include("cmake/Threading.cmake")
 
-if(NOT MKLDNN_THREADING STREQUAL "TBB")
+if(NOT MKLDNN_CPU_RUNTIME STREQUAL "TBB")
     return()
-endif()
-
-if (NOT TBBROOT)
-    if(DEFINED ENV{TBBROOT})
-        set (TBBROOT $ENV{TBBROOT})
-    else()
-        message("FATAL_ERROR" "TBBROOT is unset")
-    endif()
 endif()
 
 if(WIN32)
@@ -43,7 +35,7 @@ elseif(UNIX)
     find_package(TBB REQUIRED tbb HINTS cmake/lnx)
 endif()
 
-set_threading("TBB")
+set(MKLDNN_CPU_RUNTIME_CURRENT "TBB")
 include_directories(${TBB_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 

@@ -94,6 +94,10 @@ extern int verbose;
     } \
 } while (0)
 
+#define BENCHDNN_DISALLOW_COPY_AND_ASSIGN(T) \
+    T(const T&) = delete; \
+    T &operator=(const T&) = delete;
+
 enum prim_t {
     SELF,
     CONV,

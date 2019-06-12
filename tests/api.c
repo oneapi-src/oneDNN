@@ -65,7 +65,7 @@ void test1() {
 
     CHECK(mkldnn_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == NULL);
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_NATIVE
+#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_SYCL
     CHECK(mkldnn_memory_set_data_handle(m, data));
     CHECK(mkldnn_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == data);

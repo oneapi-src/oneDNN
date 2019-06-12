@@ -25,6 +25,7 @@
 #include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 #include "cpu_barrier.hpp"
 
@@ -233,6 +234,8 @@ private:
 
     void reduce_nolock(int ithr, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_t);
 };
 
 template <impl::data_type_t data_type>
@@ -311,6 +314,8 @@ private:
             int ny_start, int nx_start, int ny_step, int nx_step) const;
     void reduce_nolock(int ithr, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_2d_t);
 };
 
 /** simple 1d accumulator: y[:] += x[:] */
@@ -323,6 +328,8 @@ struct cpu_accumulator_1d_t {
     void accumulate(data_t *dst, const data_t *src, size_t size);
 
     reducer_2d_driver_t<data_type> *drv_;
+
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
 };
 
 }

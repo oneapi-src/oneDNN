@@ -28,7 +28,7 @@
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
 
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 #endif
 
@@ -93,7 +93,7 @@ struct sycl_stream_t : public ocl::cl_stream_t {
         auto execute_func = [&]() {
             status_t status = status::success;
             if (engine()->kind() == engine_kind::cpu) {
-#if MKLDNN_CPU_BACKEND == MKLDNN_BACKEND_SYCL
+#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
                 queue_->submit([&](cl::sycl::handler &cgh) {
                     submit_cpu_primitive(this, prim, exec_ctx, cgh);
                 });

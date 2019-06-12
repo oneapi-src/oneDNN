@@ -39,6 +39,14 @@ endif()
 # Intel MKL-DNN changes: use TBBROOT to locate Intel TBB
 # get_filename_component(_tbb_root "${CMAKE_CURRENT_LIST_FILE}" PATH)
 # get_filename_component(_tbb_root "${_tbb_root}" PATH)
+if (NOT TBBROOT)
+    if(DEFINED ENV{TBBROOT})
+        set (TBBROOT $ENV{TBBROOT})
+    else()
+        message("FATAL_ERROR" "TBBROOT is unset")
+    endif()
+endif()
+
 set(_tbb_root ${TBBROOT})
 
 set(_tbb_x32_subdir ia32)
@@ -93,34 +101,42 @@ endif()
 # Now we check that all the needed component are present
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
 
+if (TBB_FOUND)
+    return()
+endif()
+
 foreach (_tbb_component ${TBB_FIND_COMPONENTS})
     set(_tbb_release_lib "${_tbb_lib_path}/lib${_tbb_component}.so.2")
     set(_tbb_debug_lib "${_tbb_lib_path}/lib${_tbb_component}_debug.so.2")
 
     if (EXISTS "${_tbb_release_lib}" AND EXISTS "${_tbb_debug_lib}")
-        add_library(TBB::${_tbb_component} SHARED IMPORTED)
-        set_target_properties(TBB::${_tbb_component} PROPERTIES
-                              IMPORTED_CONFIGURATIONS "RELEASE;DEBUG"
-                              IMPORTED_LOCATION_RELEASE     "${_tbb_release_lib}"
-                              IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
-                              INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
+        if (NOT TARGET TBB::${_tbb_component})
+            add_library(TBB::${_tbb_component} SHARED IMPORTED)
+            set_target_properties(TBB::${_tbb_component} PROPERTIES
+                                  IMPORTED_CONFIGURATIONS "RELEASE;DEBUG"
+                                  IMPORTED_LOCATION_RELEASE     "${_tbb_release_lib}"
+                                  IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
+                                  INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
 
-        # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
-        if (_tbb_component STREQUAL tbb)
-            set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
-            # TODO: remove this as soon as the build system is no longer responsible for that
-            if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-                install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+            # Intel MKL-DNN changes:
+            # - set TBB_INCLUDE_DIRS to use it for include_directories()
+            # - install TBB runtime
+            if (_tbb_component STREQUAL tbb)
+                set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
+                # TODO: remove this as soon as the build system is no longer responsible for that
+                if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+                    install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+                endif()
             endif()
-        endif()
 
-        # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
-        if (_tbb_component STREQUAL tbbmalloc_proxy)
-            set_target_properties(TBB::tbbmalloc_proxy PROPERTIES INTERFACE_LINK_LIBRARIES TBB::tbbmalloc)
-        endif()
+            # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
+            if (_tbb_component STREQUAL tbbmalloc_proxy)
+                set_target_properties(TBB::tbbmalloc_proxy PROPERTIES INTERFACE_LINK_LIBRARIES TBB::tbbmalloc)
+            endif()
 
-        list(APPEND TBB_IMPORTED_TARGETS TBB::${_tbb_component})
-        set(TBB_${_tbb_component}_FOUND 1)
+            list(APPEND TBB_IMPORTED_TARGETS TBB::${_tbb_component})
+            set(TBB_${_tbb_component}_FOUND 1)
+        endif()
     elseif (TBB_FIND_REQUIRED AND TBB_FIND_REQUIRED_${_tbb_component})
         message(FATAL_ERROR "Missed required Intel TBB component: ${_tbb_component}")
     endif()

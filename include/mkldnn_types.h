@@ -54,20 +54,16 @@ typedef enum {
     mkldnn_success = 0,
     /// The operation failed due to an out-of-memory condition
     mkldnn_out_of_memory = 1,
-    /// The operation failed and should be retried
-    mkldnn_try_again = 2,
     /// The operation failed because of incorrect function arguments
-    mkldnn_invalid_arguments = 3,
-    /// The operation failed because a primitive was not ready for execution
-    mkldnn_not_ready = 4,
+    mkldnn_invalid_arguments = 2,
     /// The operation failed because requested functionality is not implemented
-    mkldnn_unimplemented = 5,
+    mkldnn_unimplemented = 3,
     /// Primitive iterator passed over last primitive descriptor
-    mkldnn_iterator_ends = 6,
+    mkldnn_iterator_ends = 4,
     /// Primitive or engine failed on execution
-    mkldnn_runtime_error = 7,
+    mkldnn_runtime_error = 5,
     /// Queried element is not required for given primitive
-    mkldnn_not_required = 8,
+    mkldnn_not_required = 6,
 } mkldnn_status_t;
 
 /// Data type specification
@@ -1542,7 +1538,7 @@ typedef enum {
 /// @brief Stream flags.
 typedef enum {
     /// Default order execution. Either in-order or out-of-order depending on
-    /// the backend.
+    /// the runtime.
     mkldnn_stream_default_order = 0x1U,
     /// In-order execution.
     mkldnn_stream_in_order = 0x2U,
