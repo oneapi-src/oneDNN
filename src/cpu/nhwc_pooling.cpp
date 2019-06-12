@@ -581,8 +581,6 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
                             ? (int)ws[ws_offset_init + oc]
                             : ((int *)ws)[ws_offset_init + oc];
 
-                    //const data_t d = diff_dst[dst_offset_init + oc];
-
                     // Check if kernel windows are disjoint, in this case
                     // there's no update needed and we just write there once
                     // otherwise we add value to the contents.
@@ -610,8 +608,6 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
 
                 PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
-                    //const data_t d = diff_dst[dst_offset_init + oc];
-
                     // Check if kernel windows are disjoint, in this case
                     // there's no update needed and we just write there once
                     // otherwise we add value to the contents.
