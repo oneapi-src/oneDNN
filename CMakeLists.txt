@@ -83,21 +83,25 @@ include(CMakePackageConfigHelpers)
 
 if(MKLDNN_THREADING)
     set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the CPU runtime")
+    message(STATUS "Using the obsolete way to specify the CPU runtime. "
+        "Use MKLDNN_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME} instead.")
 endif()
 
 if(MKLDNN_GPU_BACKEND)
     if (MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
         set(MKLDNN_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
-        message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+        message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
+            "Use MKLDNN_GPU_RUNTIME=OCL instead.")
     endif()
     set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the GPU runtime")
+    message(STATUS "Using the obsolete way to specify the GPU runtime. "
+        "Use MKLDNN_GPU_RUNTME=${MKLDNN_GPU_RUNTIME} instead.")
 endif()
 
 if (MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
     set(MKLDNN_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+    message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
+        "Use MKLDNN_GPU_RUNTIME=OCL instead.")
 endif()
 
 include("cmake/utils.cmake")
