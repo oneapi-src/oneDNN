@@ -106,9 +106,8 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            bool wei_tr = !memory_desc_matches_one_of_tag(*this->weights_md(),
-                    format_tag::io, format_tag::wio, format_tag::hwio,
-                    format_tag::dhwio);
+            const auto &wmd = *this->weights_md();
+            bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
             const int mb = this->MB();
             const int oc = this->OC();
@@ -212,9 +211,8 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            bool wei_tr = memory_desc_matches_one_of_tag(*this->weights_md(),
-                    format_tag::io, format_tag::wio, format_tag::hwio,
-                    format_tag::dhwio);
+            const auto &wmd = *this->weights_md();
+            bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
             const int mb = this->MB();
             const int oc = this->OC();
@@ -321,9 +319,8 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         }
 
         bool wei_tr() const {
-            return  memory_desc_matches_one_of_tag(*this->diff_weights_md(),
-                    format_tag::io, format_tag::wio, format_tag::hwio,
-                    format_tag::dhwio);
+            const auto &wmd = *this->diff_weights_md();
+            return wmd.format_desc.blocking.strides[0] == 1;
         }
 
         primitive_desc_t *gemm_pd_ = nullptr;
