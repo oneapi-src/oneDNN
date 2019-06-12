@@ -16,9 +16,11 @@
 
 #include <cmath>
 
-#include "mkldnn.hpp"
 #include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
+
+#include "cpu_isa_traits.hpp"
+#include "mkldnn.hpp"
 
 namespace mkldnn {
 
@@ -106,7 +108,7 @@ void check_lrn_fwd(const lrn_params &p, const memory::desc &src_d,
             eps = static_cast<acc_data_t>(1.e-3f * 2 * summands);
 
         acc_data_t out = d[0];
-        acc_data_t norm_max = std::max(fabs(out), fabs(ref_out));
+        acc_data_t norm_max = (std::max)(fabs(out), fabs(ref_out));
         if (norm_max < eps)
             norm_max = 1.;
         ASSERT_NEAR(out, ref_out, eps * norm_max);
@@ -126,6 +128,16 @@ class lrn_forward_test : public ::testing::TestWithParam<lrn_params>
 
 protected:
     virtual void SetUp() {
+        memory::data_type data_type = data_traits<data_t>::data_type;
+        SKIP_IF(data_type == memory::data_type::f16
+                && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support f16 data type.");
+        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support bf16 data type.");
+        SKIP_IF(data_type == memory::data_type::bf16
+                && !mkldnn::impl::cpu::mayiuse(mkldnn::impl::cpu::avx512_core),
+                "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

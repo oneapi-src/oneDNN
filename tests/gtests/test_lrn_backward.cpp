@@ -19,6 +19,7 @@
 #include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include "cpu_isa_traits.hpp"
 #include "mkldnn.hpp"
 
 namespace mkldnn {
@@ -249,6 +250,14 @@ private:
 
 protected:
     virtual void SetUp() {
+        data_type = data_traits<data_t>::data_type;
+        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support bf16 data type.");
+        SKIP_IF(data_type == memory::data_type::bf16
+                && !impl::cpu::mayiuse(impl::cpu::avx512_core),
+                "ISA does not support bf16 data type.");
+
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -259,7 +268,6 @@ protected:
 
         eng = engine(get_test_engine_kind(), 0);
         strm = stream(eng);
-        data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(true,
                 mkldnn::impl::utils::one_of(data_type,
                         mkldnn::memory::data_type::f32,
