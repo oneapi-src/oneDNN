@@ -341,8 +341,9 @@ template <typename pd_t> static void init_info_eltwise(pd_t *s, char *buffer) {
         }
     }
 
-    DPRINT(aux_str, MKLDNN_VERBOSE_AUX_LEN, aux_written,
-            "alg:%s", mkldnn_alg_kind2str(s->desc()->alg_kind));
+    DPRINT(aux_str, MKLDNN_VERBOSE_AUX_LEN, aux_written, "alg:%s:%g:%g",
+            mkldnn_alg_kind2str(s->desc()->alg_kind), s->desc()->alpha,
+            s->desc()->beta);
 
     mkldnn_md2dim_str(prb_str, MKLDNN_VERBOSE_PRB_LEN, s->src_md());
 
