@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,9 @@
 
 #include "cpu_pooling_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_isa_traits.hpp"
+
+#include "bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -37,7 +40,7 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
         const size_t _sw);
 }
 
-template <impl::data_type_t data_type>
+template <data_type_t d_type>
 struct nhwc_pooling_fwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
@@ -48,13 +51,17 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
             const format_tag_t desired_fmt_tag =
                 ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
 
+            using namespace prop_kind;
+            using namespace alg_kind;
             bool ok = true
+                && IMPLICATION(d_type == data_type::bf16,
+                        mayiuse(avx512_core))
                 && set_default_params() == status::success
                 && is_fwd()
-                && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
-                        alg_kind::pooling_avg_include_padding,
-                        alg_kind::pooling_avg_exclude_padding)
-                && utils::everyone_is(data_type,
+                && utils::one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
+                && utils::everyone_is(d_type,
                         src_md()->data_type,
                         dst_md()->data_type)
                 && attr()->has_default_values()
@@ -62,17 +69,34 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
                 && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == prop_kind::forward_training;
-            if (desc()->alg_kind == alg_kind::pooling_max && is_training)
+            bool is_training = desc_.prop_kind == forward_training;
+            if (desc()->alg_kind == pooling_max && is_training) {
                 init_default_ws();
+            }
+
+            init_scratchpad();
 
             return status::success;
         }
+
+        private:
+            void init_scratchpad() {
+                using namespace memory_tracking::names;
+                if (src_md()->data_type == data_type::bf16) {
+                    size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                    auto scratchpad = scratchpad_registry().registrar();
+                    scratchpad.book(key_pool_src_bf16cvt,
+                            sizeof(float) * bf16cvt_sz_);
+                    scratchpad.book(key_pool_dst_bf16cvt,
+                            sizeof(float) * bf16cvt_sz_);
+                }
+            }
     };
 
     nhwc_pooling_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits<data_type::f32>::type ker_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -81,23 +105,24 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    void array_div_by_const(const int n, const data_t *src, const size_t num,
-            data_t *dst) const;
-    void array_add(const int n, const data_t *src, data_t *dst) const;
+    void array_div_by_const(const int n, const ker_data_t *src,
+            const size_t num, ker_data_t *dst) const;
+    void array_add(const int n, const ker_data_t *src, ker_data_t *dst) const;
 
     template <bool use_workspace>
-    void array_nhwc_max(const int n, data_t *dst, const data_t *src,
+    void array_nhwc_max(const int n, ker_data_t *dst, const ker_data_t *src,
             unsigned char *ws, const size_t ws_offset, const data_type_t ws_dt,
             const int index) const {
         assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
         PRAGMA_OMP_SIMD()
         for (int oc = 0; oc < n; ++oc) {
             auto s = src[oc];
-            data_t mv = dst[oc];
+            ker_data_t mv = dst[oc];
 
             // update index of maximum
 #if defined __INTEL_COMPILER
             if ((use_workspace) && (s > mv)) {
+                // if (ws && (s > mv)) {
                 assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
                 if (ws_dt == data_type::u8) {
                     assert(0 <= index && index <= 255);
@@ -110,6 +135,7 @@ private:
             // And although the resulting code is ugly, it is still 4 times
             // faster than scalar
             if (use_workspace) {
+                // if (ws) {
                 assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
 
                 if (ws_dt == data_type::u8) {
@@ -117,14 +143,14 @@ private:
                     unsigned char predicate = (s > mv) ? 0xff : 0;
                     unsigned char current_value = ws[ws_offset + oc];
                     current_value = (predicate & (unsigned char)index)
-                        | ((~predicate) & current_value);
+                            | ((~predicate) & current_value);
                     ws[ws_offset + oc] = current_value;
                 } else {
                     auto wint = reinterpret_cast<int *>(ws);
                     unsigned int predicate = (s > mv) ? 0xffffffff : 0;
                     unsigned int current_value = wint[ws_offset + oc];
                     current_value = (predicate & (unsigned int)index)
-                        | ((~predicate) & current_value);
+                            | ((~predicate) & current_value);
                     wint[ws_offset + oc] = current_value;
                 }
             }
@@ -135,7 +161,7 @@ private:
     }
 
     template <bool use_workspace>
-    void array_nhwc_initialize(const int n, data_t *dst, unsigned char *ws,
+    void array_nhwc_initialize(const int n, ker_data_t *dst, unsigned char *ws,
             const size_t ws_offset, const data_type_t ws_dt) const {
         assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
         for (int oc = 0; oc < n; ++oc) {
@@ -150,10 +176,10 @@ private:
         }
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+        const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t d_type>
 struct nhwc_pooling_bwd_t: public cpu_primitive_t {
     struct pd_t: public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
@@ -164,32 +190,52 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
             const format_tag_t desired_fmt_tag =
                 ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
 
+            using namespace prop_kind;
+            using namespace alg_kind;
             bool ok = true
+                && IMPLICATION(d_type == data_type::bf16,
+                        mayiuse(avx512_core))
                 && set_default_params() == status::success
                 && !is_fwd()
-                && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
-                        alg_kind::pooling_avg_include_padding,
-                        alg_kind::pooling_avg_exclude_padding)
-                && utils::everyone_is(data_type,
+                && utils::one_of(desc()->alg_kind, pooling_max,
+                        pooling_avg_include_padding,
+                        pooling_avg_exclude_padding)
+                && utils::everyone_is(d_type,
                         diff_dst_md()->data_type,
                         diff_src_md()->data_type)
                 && attr()->has_default_values()
                 && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
                 && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
-            if (!ok) return status::unimplemented;
+            if (!ok)
+                return status::unimplemented;
 
-            if (desc()->alg_kind == alg_kind::pooling_max) {
+            if (desc()->alg_kind == pooling_max) {
                 init_default_ws();
                 if (!compare_ws(hint_fwd_pd_))
                     return status::unimplemented;
             }
 
+            init_scratchpad();
+
             return status::success;
         }
+
+        private:
+            void init_scratchpad() {
+                using namespace memory_tracking::names;
+                if (diff_src_md()->data_type == data_type::bf16) {
+                    size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                    auto scratchpad = scratchpad_registry().registrar();
+                    scratchpad.book(key_pool_src_bf16cvt,
+                            sizeof(float) * bf16cvt_sz_);
+                    scratchpad.book(key_pool_dst_bf16cvt,
+                            sizeof(float) * bf16cvt_sz_);
+                }
+            }
     };
 
     nhwc_pooling_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
@@ -199,6 +245,7 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+
 };
 
 }// namespace cpu

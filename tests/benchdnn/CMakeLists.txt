@@ -127,6 +127,8 @@ register_benchdnn_test(test_benchdnn_softmax
     cpu "-v1 --softmax --batch=inputs/softmax/test_softmax_all")
 register_benchdnn_test(test_benchdnn_pool
     cpu "-v1 --pool --batch=inputs/pool/test_pool_all")
+register_benchdnn_test(test_benchdnn_pool_bf16
+    cpu "-v1 --pool --batch=inputs/pool/test_pool_bfloat16")
 register_benchdnn_test(test_benchdnn_sum
     cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
 register_benchdnn_test(test_benchdnn_sum_bf16

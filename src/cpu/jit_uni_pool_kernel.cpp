@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "cpu_pooling_pd.hpp"
 
-#include "jit_uni_pool_kernel_f32.hpp"
+#include "jit_uni_pool_kernel.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -32,22 +32,30 @@ using namespace alg_kind;
 #define GET_OFF(field) offsetof(jit_pool_call_s, field)
 
 template <cpu_isa_t isa>
-status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
-        const pooling_pd_t *ppd) {
+status_t jit_uni_pool_kernel<isa>::init_conf(
+        jit_pool_conf_t &jpp, const pooling_pd_t *ppd) {
+
+    jpp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : isa;
+
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(
             ppd->is_fwd() ? ppd->src_md() : ppd->diff_src_md());
     const memory_desc_wrapper dst_d(
             ppd->is_fwd() ? ppd->dst_md() : ppd->diff_dst_md());
 
+    jpp.is_bf16 = (src_d.data_type() == data_type::bf16
+            && dst_d.data_type() == data_type::bf16);
+
     bool args_ok = true
         && mayiuse(isa)
+        && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
         && utils::one_of(pd.alg_kind, pooling_max,
                 pooling_avg_include_padding,
                 pooling_avg_exclude_padding);
     if (!args_ok) return status::unimplemented;
 
-    const int simd_w = isa == avx512_common ? 16 : 8;
+    bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
+    const int simd_w = is_avx512 ? 16 : 8;
     const int ndims = src_d.ndims();
 
     jpp.ndims = ndims;
@@ -75,20 +83,26 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.t_pad = pd.padding[0][ndims-4];
     jpp.l_pad = pd.padding[0][ndims-3];
 
-    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1 - (jpp.iw + jpp.l_pad - 1);
-    int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1 - (jpp.ih + jpp.t_pad - 1);
-    int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd - 1 - (jpp.id + jpp.f_pad - 1);
+    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
+            - (jpp.iw + jpp.l_pad - 1);
+    int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1
+            - (jpp.ih + jpp.t_pad - 1);
+    int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd - 1
+            - (jpp.id + jpp.f_pad - 1);
 
     if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
-         || back_pad >= jpp.kd || bottom_pad >= jpp.kh || right_pad >= jpp.kw)
+            || back_pad >= jpp.kd || bottom_pad >= jpp.kh
+            || right_pad >= jpp.kw)
         return status::unimplemented;
 
     jpp.alg = pd.alg_kind;
 
     jpp.is_training = pd.prop_kind == prop_kind::forward_training;
     jpp.is_backward = pd.prop_kind == prop_kind::backward_data;
-    jpp.ind_dt = ppd->workspace_md()
-        ? ppd->workspace_md()->data_type : data_type::undef;
+    jpp.ind_dt = ppd->workspace_md() ? ppd->workspace_md()->data_type
+                                     : data_type::undef;
+
+    jpp.dt_size = types::data_type_size(src_d.data_type());
 
     jpp.simple_alg = jpp.is_training
         || IMPLICATION(jpp.is_backward, jpp.kd <= jpp.stride_d);
@@ -97,27 +111,31 @@ status_t jit_uni_pool_kernel_f32<isa>::init_conf(jit_pool_conf_t &jpp,
 
     jpp.nb_c = jpp.c / jpp.c_block;
     if (jpp.alg == pooling_max) {
-        jpp.ur_w = isa == avx512_common ? 16 : 4;
+        jpp.ur_w = is_avx512 ? 16 : 4;
         if (jpp.is_training)
-            jpp.ur_w = isa == avx512_common ? 9 : 3;
+            jpp.ur_w = is_avx512 ? 9 : 3;
         else if (jpp.is_backward)
-            jpp.ur_w = isa == avx512_common ? 6 : 3;
+            jpp.ur_w = is_avx512 ? 6 : 3;
     } else {
         if (jpp.is_backward)
-            jpp.ur_w = isa == avx512_common ? 12 : 6;
+            jpp.ur_w = is_avx512 ? 12 : 6;
         else
-            jpp.ur_w = isa == avx512_common ? 24 : 12;
+            jpp.ur_w = is_avx512 ? 24 : 12;
     }
+    if (jpp.is_bf16) {
+        jpp.ur_w = (!isa_has_bf16(jpp.isa))
+                ? jpp.ur_w - 4 // Free registers for AVX512 emulation
+                : jpp.ur_w - 1; // Free register for cvt from bf16 to f32
+    }
+
     if (jpp.ow < jpp.ur_w) jpp.ur_w = jpp.ow;
     if (jpp.l_pad > jpp.ur_w) return status::unimplemented;
-
     jpp.ur_w_tail = jpp.ow % jpp.ur_w;
-
     return status::success;
 }
 
 template <cpu_isa_t isa>
-inline void jit_uni_pool_kernel_f32<isa>::maybe_recalculate_divisor(int jj,
+inline void jit_uni_pool_kernel<isa>::maybe_recalculate_divisor(int jj,
         int ur_w, int pad_l, int pad_r) {
     if (jpp.alg == pooling_avg_exclude_padding) {
         int kw = jpp.kw;
@@ -138,7 +156,7 @@ inline void jit_uni_pool_kernel_f32<isa>::maybe_recalculate_divisor(int jj,
 }
 
 template <cpu_isa_t isa>
-inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
+inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int pad_l,
         int pad_r) {
 
     int iw = jpp.iw;
@@ -149,7 +167,7 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
 
     for (int jj = 0; jj < ur_w; jj++) {
         if (jpp.is_backward) {
-            uni_vmovups(vreg(jj), ptr[reg_output + sizeof(float)*jj*c_block]);
+            load(jj, reg_output, jpp.dt_size * jj * c_block);
             maybe_recalculate_divisor(jj, ur_w, pad_l, pad_r);
             uni_vdivps(vreg(jj), vreg(jj), vmm_tmp);
         } else {
@@ -175,24 +193,41 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
             int jj_start = nstl::max(0, utils::div_up(pad_l - ki, stride_w));
             int jj_end = ur_w
                 - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
+
             for (int jj = jj_start; jj  < jj_end; jj++) {
                 int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
                 if (aux_input_offset > iw * c_block)
                     continue;
-                int input_offset = sizeof(float)*aux_input_offset;
+                int input_offset = jpp.dt_size * aux_input_offset;
                 if (jpp.is_backward) {
-                    uni_vmovups(vreg(ur_w+jj),
-                                ptr[aux_reg_input + input_offset]);
+                    load(ur_w + jj, aux_reg_input, input_offset);
                     uni_vaddps(vreg(ur_w+jj), vreg(ur_w+jj), vreg(jj));
-                    uni_vmovups(vmmword[aux_reg_input + input_offset],
-                                vreg(ur_w+jj));
+                    if (jpp.is_bf16) {
+                        if (!isa_has_bf16(jpp.isa))
+                            bf16_emu_->vcvtneps2bf16(
+                                    yreg(ur_w + jj), zreg(ur_w + jj));
+                        else
+                            vcvtneps2bf16(yreg(ur_w + jj), vreg(ur_w + jj));
+                        vmovdqu16(ptr[aux_reg_input + input_offset],
+                                yreg(ur_w + jj));
+                    } else {
+                        uni_vmovups(vmmword[aux_reg_input + input_offset],
+                                vreg(ur_w + jj));
+                    }
                 } else {
-                    uni_vaddps(vreg(jj), vreg(jj),
-                               ptr[aux_reg_input + input_offset]);
+                    if (jpp.is_bf16) {
+                        vmovups(ymm_tmp_1, ptr[aux_reg_input + input_offset]);
+                        vpermw(vmm_tmp_1 | k_mask_cvt | T_z, vmm_idx(), vmm_tmp_1);
+
+                        uni_vaddps(vreg(jj), vreg(jj), vmm_tmp_1);
+                    } else {
+                        uni_vaddps(vreg(jj), vreg(jj),
+                                   ptr[aux_reg_input + input_offset]);
+                    }
                 }
             }
         }
-        add(aux_reg_input,  sizeof(float) * iw * c_block);
+        add(aux_reg_input,  jpp.dt_size * iw * c_block);
         inc(kj);
         cmp(kj, reg_kh);
         jl(kh_label, T_NEAR);
@@ -200,7 +235,7 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
 
     if (jpp.simple_alg && jpp.ndims == 5)
     {
-        add(aux_reg_input_d,  sizeof(float) * jpp.ih * iw * c_block);
+        add(aux_reg_input_d,  jpp.dt_size * jpp.ih * iw * c_block);
         dec(ki);
         cmp(ki, 0);
         jg(kd_label, T_NEAR);
@@ -212,14 +247,23 @@ inline void jit_uni_pool_kernel_f32<isa>::avg_step(int ur_w, int pad_l,
         for (int jj = 0; jj < ur_w; jj++) {
             maybe_recalculate_divisor(jj, ur_w, pad_l, pad_r);
             uni_vdivps(vreg(jj), vreg(jj), vmm_tmp);
-            uni_vmovups(vmmword[reg_output + sizeof(float)*jj*c_block],
+            if (jpp.is_bf16) {
+                if (!isa_has_bf16(jpp.isa))
+                    bf16_emu_->vcvtneps2bf16(yreg(jj), zreg(jj));
+                else
+                    vcvtneps2bf16(yreg(jj), vreg(jj));
+                vmovdqu16(
+                        ptr[reg_output + jpp.dt_size * jj * c_block], yreg(jj));
+            } else {
+                uni_vmovups(vmmword[reg_output + jpp.dt_size * jj * c_block],
                         vreg(jj));
+            }
         }
     }
 }
 
 template <cpu_isa_t isa>
-inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
+inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int pad_l,
         int pad_r) {
     int iw = jpp.iw;
     int kw = jpp.kw;
@@ -236,12 +280,10 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
         if (jpp.is_training)
             uni_vpxor(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vreg(2*ur_w+jj));
     }
-    if (jpp.is_training)
-    {
+    if (jpp.is_training) {
         movq(xmm_tmp, reg_k_shift);
         uni_vpbroadcastd(vmm_k_offset, xmm_tmp);
     }
-
     if (jpp.ndims == 5) {
         push(reg_input);
         push(reg_output);
@@ -260,31 +302,32 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
             int jj_end = ur_w
                 - utils::div_up(nstl::max(0, ki + pad_r - (kw-1)), stride_w);
             for (int jj = jj_start; jj  < jj_end; jj++) {
-                int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
+                int aux_input_offset = (ki + jj * stride_w - pad_l) * c_block;
                 if (aux_input_offset > iw * c_block)
                     continue;
-                int input_offset = sizeof(float)*aux_input_offset;
-                uni_vmovups(vreg(ur_w+jj), ptr[aux_reg_input + input_offset]);
+                int input_offset = jpp.dt_size * aux_input_offset;
+                load(ur_w + jj, aux_reg_input, input_offset);
                 if (isa == sse41) {
                     movups(vmm_mask, vreg(jj));
-                    cmpps(vmm_mask, vreg(ur_w+jj), _cmp_lt_os);
-                    blendvps(vreg(jj), vreg(ur_w+jj));
+                    cmpps(vmm_mask, vreg(ur_w + jj), _cmp_lt_os);
+                    blendvps(vreg(jj), vreg(ur_w + jj));
                     if (jpp.is_training)
-                        blendvps(vreg(2*ur_w+jj), vmm_k_offset);
+                        blendvps(vreg(2 * ur_w + jj), vmm_k_offset);
                 } else if (isa == avx) {
-                    vcmpps(vreg(3*ur_w+jj), vreg(jj), vreg(ur_w+jj),
-                           _cmp_lt_os);
-                    vblendvps(vreg(jj), vreg(jj), vreg(ur_w+jj),
-                              vreg(3*ur_w+jj));
+                    vcmpps(vreg(3 * ur_w + jj), vreg(jj), vreg(ur_w + jj),
+                            _cmp_lt_os);
+                    vblendvps(vreg(jj), vreg(jj), vreg(ur_w + jj),
+                            vreg(3 * ur_w + jj));
                     if (jpp.is_training)
-                        vblendvps(vreg(2*ur_w+jj), vreg(2*ur_w+jj),
-                                  vmm_k_offset, vreg(3*ur_w+jj));
+                        vblendvps(vreg(2 * ur_w + jj), vreg(2 * ur_w + jj),
+                                vmm_k_offset, vreg(3 * ur_w + jj));
                 } else {
-                    vcmpps(k_store_mask, vreg(jj), vreg(ur_w+jj), _cmp_lt_os);
-                    vblendmps(vreg(jj) | k_store_mask, vreg(jj), vreg(ur_w+jj));
+                    vcmpps(k_store_mask, vreg(jj), vreg(ur_w + jj), _cmp_lt_os);
+                    vblendmps(
+                            vreg(jj) | k_store_mask, vreg(jj), vreg(ur_w + jj));
                     if (jpp.is_training)
-                        vblendmps(vreg(2*ur_w+jj) | k_store_mask,
-                                  vreg(2*ur_w+jj), vmm_k_offset);
+                        vblendmps(vreg(2 * ur_w + jj) | k_store_mask,
+                                vreg(2 * ur_w + jj), vmm_k_offset);
                 }
             }
             if (jpp.is_training) {
@@ -295,7 +338,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
                 }
             }
         }
-        add(aux_reg_input,  sizeof(float) * iw * c_block);
+        add(aux_reg_input,  jpp.dt_size * iw * c_block);
         inc(kj);
         cmp(kj, reg_kh);
         jl(kh_label, T_NEAR);
@@ -303,7 +346,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
 
     if (jpp.ndims == 5)
     {
-        add(aux_reg_input_d,  sizeof(float) * jpp.ih * iw * c_block);
+        add(aux_reg_input_d,  jpp.dt_size * jpp.ih * iw * c_block);
         if (jpp.is_training) {
             mov(tmp_gpr, ptr[reg_param + GET_OFF(kd_padding_shift)]);
             movq(xmm_tmp, tmp_gpr);
@@ -324,7 +367,16 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
     }
 
     for (int jj = 0; jj < ur_w; jj++) {
-        uni_vmovups(vmmword[reg_output + sizeof(float)*jj*c_block], vreg(jj));
+        if (jpp.is_bf16) {
+            if (!isa_has_bf16(jpp.isa))
+                bf16_emu_->vcvtneps2bf16(yreg(jj), zreg(jj));
+            else
+                vcvtneps2bf16(yreg(jj), vreg(jj));
+            vmovups(ptr[reg_output + jpp.dt_size * jj * c_block], yreg(jj));
+        } else {
+            uni_vmovups(
+                    vmmword[reg_output + jpp.dt_size * jj * c_block], vreg(jj));
+        }
         if (jpp.is_training) {
             const size_t step_index
                 = jj * c_block * types::data_type_size(jpp.ind_dt);
@@ -367,7 +419,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_fwd(int ur_w, int pad_l,
 }
 
 template <cpu_isa_t isa>
-inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
+inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int pad_l,
         int pad_r) {
 
     int iw = jpp.iw;
@@ -377,8 +429,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
     Label kd_label, kh_label;
 
     for (int jj = 0; jj < ur_w; jj++) {
-        uni_vmovups(vreg(jj), ptr[reg_output + sizeof(float)*jj*c_block]);
-
+        load(jj, reg_output, jpp.dt_size * jj * c_block);
         const size_t step_index
             = jj * c_block * types::data_type_size(jpp.ind_dt);
         if (jpp.ind_dt == data_type::u8) {
@@ -432,8 +483,8 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                 int aux_input_offset = (ki+jj*stride_w-pad_l)* c_block;
                 if (aux_input_offset > iw * c_block)
                     continue;
-                int input_offset = sizeof(float)*aux_input_offset;
-                uni_vmovups(vreg(2*ur_w+jj), ptr[aux_reg_input + input_offset]);
+                int input_offset = jpp.dt_size * aux_input_offset;
+                load(2 * ur_w + jj, aux_reg_input, input_offset);
                 if (isa == sse41) {
                     mov(dst_ptr, aux_reg_input);
                     add(dst_ptr, input_offset);
@@ -452,11 +503,24 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                     vmaskmovps(vmmword[aux_reg_input + input_offset],
                             vreg(3*ur_w+jj), vreg(2*ur_w+jj));
                 } else {
-                    vpcmpeqd(k_store_mask, vreg(ur_w+jj), vmm_k_offset);
+                    vpcmpeqd(k_store_mask, vreg(ur_w + jj), vmm_k_offset);
                     vblendmps(vmm_tmp | k_store_mask | T_z, vreg(jj), vreg(jj));
-                    vaddps(vreg(2*ur_w+jj), vreg(2*ur_w+jj), vmm_tmp);
-                    vmovups(vmmword[aux_reg_input +
-                        sizeof(float)*aux_input_offset], vreg(2*ur_w+jj));
+                    vaddps(vreg(2 * ur_w + jj), vreg(2 * ur_w + jj), vmm_tmp);
+                    if (jpp.is_bf16) {
+                        if (!isa_has_bf16(jpp.isa))
+                            bf16_emu_->vcvtneps2bf16(
+                                    yreg(2 * ur_w + jj), zreg(2 * ur_w + jj));
+                        else
+                            vcvtneps2bf16(
+                                    yreg(2 * ur_w + jj), vreg(2 * ur_w + jj));
+                        vmovdqu16(ptr[aux_reg_input
+                                          + jpp.dt_size * aux_input_offset],
+                                yreg(2 * ur_w + jj));
+                    } else {
+                        vmovups(vmmword[aux_reg_input
+                                        + jpp.dt_size * aux_input_offset],
+                                vreg(2 * ur_w + jj));
+                    }
                 }
             }
             if (isa == avx && !mayiuse(avx2)) {
@@ -465,14 +529,14 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
                 uni_vpaddd(vmm_k_offset, vmm_k_offset, vmm_one);
             }
         }
-        add(aux_reg_input,  sizeof(float) * iw * c_block);
+        add(aux_reg_input,  jpp.dt_size * iw * c_block);
         inc(kj);
         cmp(kj, reg_kh);
         jl(kh_label, T_NEAR);
     }
     if (jpp.simple_alg && jpp.ndims == 5)
     {
-        add(aux_reg_input_d,  sizeof(float) * jpp.ih * iw * c_block);
+        add(aux_reg_input_d,  jpp.dt_size * jpp.ih * iw * c_block);
 
         mov(tmp_gpr, reg_kd_pad_shift);
         movq(xmm_tmp, tmp_gpr);
@@ -498,7 +562,7 @@ inline void jit_uni_pool_kernel_f32<isa>::max_step_bwd(int ur_w, int pad_l,
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
+void jit_uni_pool_kernel<isa>::maybe_zero_diff_src() {
     assert(jpp.c_block * sizeof(float) % cpu_isa_traits<isa>::vlen == 0);
     Label l_skip, l_zero;
 
@@ -509,11 +573,12 @@ void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
 
     if (jpp.ndims == 5) {
         mov(zero_size, ptr[reg_param + GET_OFF(oh)]);
-        mov(tmp_gpr, jpp.ih * jpp.iw * jpp.c_block * sizeof(float));
+        mov(tmp_gpr, jpp.ih * jpp.iw * jpp.c_block * jpp.dt_size);
         imul(zero_size, tmp_gpr);
     }
 
     auto vzero = vmm_tmp;
+    auto yzero = ymm_tmp;
     uni_vpxor(vzero, vzero, vzero);
 
     auto reg_off = tmp_gpr;
@@ -521,9 +586,16 @@ void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
 
     L(l_zero);
     {
-        const int dim = jpp.iw * jpp.c_block * sizeof(float);
-        for (int i = 0; i < dim; i += cpu_isa_traits<isa>::vlen)
-            uni_vmovups(ptr[reg_input + reg_off + i], vzero);
+        const int dim = jpp.iw * jpp.c_block * jpp.dt_size;
+        int step = (jpp.is_bf16)
+            ? cpu_isa_traits<isa>::vlen / 2
+            : cpu_isa_traits<isa>::vlen;
+        for (int i = 0; i < dim; i += step)
+            if (jpp.is_bf16) {
+                vmovdqu16(ptr[reg_input + reg_off + i], yzero);
+            } else {
+                uni_vmovups(ptr[reg_input + reg_off + i], vzero);
+            }
         add(reg_off, dim);
         if (jpp.ndims == 5) cmp(reg_off, zero_size);
         else cmp(reg_off, jpp.ih * dim);
@@ -534,9 +606,11 @@ void jit_uni_pool_kernel_f32<isa>::maybe_zero_diff_src() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pool_kernel_f32<isa>::generate() {
+void jit_uni_pool_kernel<isa>::generate() {
 
     this->preamble();
+
+    Label idx_table;
 
     int ow = jpp.ow;
     int iw = jpp.iw;
@@ -561,6 +635,8 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     xor_(rcx, rdi);
     xor_(rdi, rcx);
 #endif
+    if (!isa_has_bf16(jpp.isa) && jpp.is_bf16)
+        bf16_emu_->init_vcvtneps2bf16();
 
     mov(reg_input, ptr[reg_param + GET_OFF(src)]);
     mov(reg_output, ptr[reg_param + GET_OFF(dst)]);
@@ -569,6 +645,14 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     mov(reg_kh, ptr[reg_param + GET_OFF(kh_padding)]);
     mov(reg_k_shift, ptr[reg_param + GET_OFF(kh_padding_shift)]);
     mov(reg_ker_area_h, ptr[reg_param + GET_OFF(ker_area_h)]);
+
+    if (jpp.is_bf16) {
+        mov(tmp_gpr.cvt32(), 0xAAAAAAAA);
+        kmovd(k_mask_cvt, tmp_gpr.cvt32());
+
+        mov(tmp_gpr, idx_table);
+        vmovups(vmm_idx(), ptr[tmp_gpr]);
+    }
 
     if (jpp.is_backward)
         maybe_zero_diff_src();
@@ -617,17 +701,18 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
         }
 
         if (isa == sse41) {
-            add(reg_input, sizeof(float)*(ur_w*stride_w-l_pad)*c_block - vlen);
-            add(reg_output, sizeof(float)*ur_w*c_block - vlen);
+            add(reg_input,
+                    jpp.dt_size * (ur_w * stride_w - l_pad) * c_block - vlen);
+            add(reg_output, jpp.dt_size * ur_w * c_block - vlen);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
                 add(reg_index, (2 * ur_w - 1) * c_block / 2
-                        * types::data_type_size(jpp.ind_dt));
+                                * types::data_type_size(jpp.ind_dt));
         } else {
-            add(reg_input, sizeof(float)*(ur_w*stride_w - l_pad)*c_block);
-            add(reg_output, sizeof(float)*ur_w*c_block);
+            add(reg_input, jpp.dt_size * (ur_w * stride_w - l_pad) * c_block);
+            add(reg_output, jpp.dt_size * ur_w * c_block);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
-                add(reg_index, ur_w * c_block
-                        * types::data_type_size(jpp.ind_dt));
+                add(reg_index,
+                        ur_w * c_block * types::data_type_size(jpp.ind_dt));
         }
     }
 
@@ -642,19 +727,19 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
             }
 
             if (isa == sse41) {
-                add(reg_input, sizeof(float)*ur_w*stride_w*c_block - vlen);
-                add(reg_output, sizeof(float)*ur_w*c_block - vlen);
-                if (jpp.alg == pooling_max &&
-                    (jpp.is_training || jpp.is_backward))
+                add(reg_input, jpp.dt_size * ur_w * stride_w * c_block - vlen);
+                add(reg_output, jpp.dt_size * ur_w * c_block - vlen);
+                if (jpp.alg == pooling_max
+                        && (jpp.is_training || jpp.is_backward))
                     add(reg_index, (2 * ur_w - 1) * c_block / 2
-                            * types::data_type_size(jpp.ind_dt));
+                                    * types::data_type_size(jpp.ind_dt));
             } else {
-                add(reg_input, sizeof(float)*ur_w*stride_w*c_block);
-                add(reg_output, sizeof(float)*ur_w*c_block);
-                if (jpp.alg == pooling_max &&
-                    (jpp.is_training || jpp.is_backward))
-                    add(reg_index, ur_w * c_block
-                            * types::data_type_size(jpp.ind_dt));
+                add(reg_input, jpp.dt_size * ur_w * stride_w * c_block);
+                add(reg_output, jpp.dt_size * ur_w * c_block);
+                if (jpp.alg == pooling_max
+                        && (jpp.is_training || jpp.is_backward))
+                    add(reg_index,
+                            ur_w * c_block * types::data_type_size(jpp.ind_dt));
             }
 
             inc(oi_iter);
@@ -671,17 +756,17 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
         }
 
         if (isa == sse41) {
-            add(reg_input, sizeof(float)*ur_w*stride_w*c_block - vlen);
-            add(reg_output, sizeof(float)*ur_w*c_block - vlen);
+            add(reg_input, jpp.dt_size * ur_w * stride_w * c_block - vlen);
+            add(reg_output, jpp.dt_size * ur_w * c_block - vlen);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
                 add(reg_index, (2 * ur_w - 1) * c_block / 2
-                        * types::data_type_size(jpp.ind_dt));
+                                * types::data_type_size(jpp.ind_dt));
         } else {
-            add(reg_input, sizeof(float)*ur_w*stride_w*c_block);
-            add(reg_output, sizeof(float)*ur_w*c_block);
+            add(reg_input, jpp.dt_size * ur_w * stride_w * c_block);
+            add(reg_output, jpp.dt_size * ur_w * c_block);
             if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward))
-                add(reg_index, ur_w * c_block
-                        * types::data_type_size(jpp.ind_dt));
+                add(reg_index,
+                        ur_w * c_block * types::data_type_size(jpp.ind_dt));
         }
     }
 
@@ -694,11 +779,21 @@ void jit_uni_pool_kernel_f32<isa>::generate() {
     }
 
     this->postamble();
+
+    if (jpp.is_bf16) {
+        align(64);
+        L(idx_table);
+        const uint16_t _idx[] = { 0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,
+                                  9,9,10,10,11,11,12,12,13,13,14,14,15,15 };
+        for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
+            dw(_idx[i]);
+    }
 }
 
-template struct jit_uni_pool_kernel_f32<sse41>;
-template struct jit_uni_pool_kernel_f32<avx>; // implements both <avx> and <avx2>
-template struct jit_uni_pool_kernel_f32<avx512_common>;
+template struct jit_uni_pool_kernel<sse41>;
+template struct jit_uni_pool_kernel<avx>; // implements both <avx> and <avx2>
+template struct jit_uni_pool_kernel<avx512_common>;
+template struct jit_uni_pool_kernel<avx512_core>;
 
 }
 }
