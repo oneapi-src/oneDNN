@@ -57,6 +57,11 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
     mkldnn_status_t init_status = mkldnn_primitive_desc_create(&spd, &sd,
             NULL, engine_tgt, NULL);
 
+    if (init_status == mkldnn_unimplemented)
+        return r->state = UNIMPLEMENTED, OK;
+    else
+        SAFE(init_status, WARN);
+
     const char *impl_str = query_impl_info(spd);
     if (maybe_skip(skip_impl, impl_str)) {
         print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
@@ -65,11 +70,6 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
     } else {
         print(5, "mkldnn implementation: %s\n", impl_str);
     }
-
-    if (init_status == mkldnn_unimplemented)
-        return r->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
 
     return OK;
 }
