@@ -235,14 +235,14 @@ inline U soft_relu_bwd(T dd, T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_fwd(T s) {
-    U v = (U)(::expf((float) -s));
-    return 1 / (1 + v);
+    float v = ::expf((float) -s);
+    return (U)(1. / (1 + v));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_bwd(T dd, T s) {
-    U v = logistic_fwd<T, U>(s);
-    return dd * v * (1 - v);
+    float v = logistic_fwd<T, float>(s);
+    return (U)(dd * v * (1 - v));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
