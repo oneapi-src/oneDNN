@@ -300,7 +300,7 @@ int doit(const prb_t *p, res_t *r) {
         }
         pl = pf;
         args = args_fwd;
-    } else if (p->dir & FLAG_BWD) {
+    } else {
         SAFE(fill_dst(p, diff_dst_dt, diff_dst_fp, r), WARN);
 
         args_bwd.set(MKLDNN_ARG_DIFF_DST, diff_dst_dt.m_);
