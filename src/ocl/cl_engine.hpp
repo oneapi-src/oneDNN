@@ -51,6 +51,10 @@ public:
     int get_eu_count() const { return device_info_.eu_count(); }
     int get_hw_threads() const { return device_info_.hw_threads(); }
 
+    const runtime_version_t get_runtime_version() const {
+        return device_info_.runtime_version();
+    }
+
 private:
     cl_device_info_t device_info_;
 };
