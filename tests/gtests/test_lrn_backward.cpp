@@ -106,7 +106,7 @@ void check_lrn_fwd(
         if (data_type == mkldnn::memory::data_type::bf16)
             eps = static_cast<acc_data_t>(1.e-3f * (2 * summands + 5));
         acc_data_t out = d[0];
-        acc_data_t norm_max = std::max(fabs(out), fabs(ref_out));
+        acc_data_t norm_max = (std::max)(fabs(out), fabs(ref_out));
         if (norm_max < eps)
             norm_max = 1.;
         ASSERT_NEAR(out, ref_out, eps * norm_max);
@@ -218,7 +218,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
                     eps = static_cast<acc_data_t>(1.e-3f
                             * ((2 * (2 * local_size + 3) + 6) * local_size
                                       + (2 * local_size + 3) + 9));
-                acc_data_t norm_max = std::max(fabs(A), fabs(B));
+                acc_data_t norm_max = (std::max)(fabs(A), fabs(B));
                 if (norm_max < eps)
                     norm_max = 1.;
                 ASSERT_NEAR(A, B, eps * norm_max);
