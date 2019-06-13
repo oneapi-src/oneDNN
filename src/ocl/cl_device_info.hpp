@@ -171,7 +171,7 @@ public:
         // OpenCL runtime version
         size_t size_driver_version{ 0 };
         err = clGetDeviceInfo(
-                device_, CL_DEVICE_NAME, 0, nullptr, &size_driver_version);
+                device_, CL_DRIVER_VERSION, 0, nullptr, &size_driver_version);
         if (err != CL_SUCCESS)
             return err;
 

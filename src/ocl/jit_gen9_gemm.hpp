@@ -315,6 +315,15 @@ private:
     }
 
     bool use_superkernel() const {
+        auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+        runtime_version_t min_version = {19, 11, 12599};
+
+        // Older OpenCL runtimes spill registers very badly with superkernels
+        //  (~2% resulting efficiency). Avoid using superkernels for these
+        //  versions.
+        if (cl_engine->get_runtime_version() < min_version)
+            return false;
+
         bool transa = (pd()->desc()->transa == mkldnn_trans);
         auto k = pd()->desc()->k;
 
