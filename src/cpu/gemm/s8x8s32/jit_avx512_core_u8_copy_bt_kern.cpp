@@ -21,7 +21,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern() :
+jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(bool s8_case) :
     jit_generator(nullptr, U8_COPY_KERNEL_CODE_SIZE) {
 
 #ifndef _WIN32
@@ -95,6 +95,18 @@ Xbyak::Label lcc;
     mov(B, ptr[ARG_B]);
 #endif
 
+    alignas(16) static unsigned int hbit[]
+        = {0x80808080u, 0x80808080u, 0x80808080u, 0x80808080u};
+    mov(A1, (size_t)&hbit);
+    movdqu(xmm15, xword[A1]);
+
+    auto maybe_perform_s8_shift_xmm = [=](Xbyak::Xmm x)
+    { if (s8_case) xorps(x, xmm15); };
+    auto maybe_perform_s8_shift_r8 = [=](const Xbyak::Reg8 &r)
+    { if (s8_case) xor_(r, (int8_t)0x80); };
+    auto maybe_perform_s8_shift_r16 = [=](const Xbyak::Reg16 &r)
+    { if (s8_case) xor_(r, (int16_t)0x8080); };
+
     mov(M, qword[M]);
     mov(N, qword[N]);
     mov(LDA, qword[LDA]);
@@ -127,6 +139,8 @@ L(l34);
     movdqa(xmm1, xmm0);
     punpcklwd(xmm0, xmm2);
     punpckhwd(xmm1, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
+    maybe_perform_s8_shift_xmm(xmm1);
     movdqu(xword[B-0x80], xmm0);
     movdqu(xword[B-0x70], xmm1);
     movq(xmm0, qword[A1-0x80]);
@@ -142,6 +156,8 @@ L(l34);
     movdqa(xmm1, xmm0);
     punpcklwd(xmm0, xmm2);
     punpckhwd(xmm1, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
+    maybe_perform_s8_shift_xmm(xmm1);
     movdqu(xword[B-0x60], xmm0);
     movdqu(xword[B-0x50], xmm1);
     sub(B, -64);
@@ -165,6 +181,8 @@ L(lcc);
     movdqa(xmm1, xmm0);
     punpcklwd(xmm0, xmm2);
     punpckhwd(xmm1, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
+    maybe_perform_s8_shift_xmm(xmm1);
     movdqu(xword[B-0x80], xmm0);
     movdqu(xword[B-0x70], xmm1);
     sub(B, -32);
@@ -178,6 +196,7 @@ L(l120);
     movq(xmm1, qword[A1-0x80]);
     add(A1, LDA);
     punpcklbw(xmm0, xmm1);
+    maybe_perform_s8_shift_xmm(xmm0);
     movdqu(xword[B-0x80], xmm0);
     sub(B, -16);
     align(4);
@@ -187,6 +206,7 @@ L(l14c);
     jle(l168, T_NEAR);
     movq(xmm0, qword[A1-0x80]);
     add(A1, LDA);
+    maybe_perform_s8_shift_xmm(xmm0);
     movq(qword[B-0x80], xmm0);
     sub(B, -8);
     align(4);
@@ -222,6 +242,7 @@ L(l194);
     punpcklbw(xmm0, xmm1);
     punpcklbw(xmm2, xmm3);
     punpcklwd(xmm0, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
     movdqu(xword[B-0x80], xmm0);
     movd(xmm0, dword[A1-0x80]);
     add(A1, LDA);
@@ -234,6 +255,7 @@ L(l194);
     punpcklbw(xmm0, xmm1);
     punpcklbw(xmm2, xmm3);
     punpcklwd(xmm0, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
     movdqu(xword[B-0x70], xmm0);
     sub(B, -32);
     dec(I);
@@ -254,6 +276,7 @@ L(l20c);
     punpcklbw(xmm0, xmm1);
     punpcklbw(xmm2, xmm3);
     punpcklwd(xmm0, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
     movdqu(xword[B-0x80], xmm0);
     sub(B, -16);
     align(4);
@@ -266,6 +289,7 @@ L(l250);
     movd(xmm1, dword[A1-0x80]);
     add(A1, LDA);
     punpcklbw(xmm0, xmm1);
+    maybe_perform_s8_shift_xmm(xmm0);
     movq(qword[B-0x80], xmm0);
     sub(B, -8);
     align(4);
@@ -274,6 +298,7 @@ L(l27c);
     test(M, 0x1);
     jle(l298, T_NEAR);
     movd(xmm0, dword[A1-0x80]);
+    maybe_perform_s8_shift_xmm(xmm0);
     movd(dword[B-0x80], xmm0);
     sub(B, -4);
     align(4);
@@ -329,6 +354,7 @@ L(l2c8);
     punpcklbw(xmm3, xmm4);
     punpcklwd(xmm1, xmm3);
     punpcklqdq(xmm0, xmm1);
+    maybe_perform_s8_shift_xmm(xmm0);
     movdqu(xword[B-0x80], xmm0);
     sub(B, -16);
     dec(LDA3);
@@ -353,6 +379,7 @@ L(l360);
     punpcklbw(xmm0, xmm1);
     punpcklbw(xmm2, xmm3);
     punpcklwd(xmm0, xmm2);
+    maybe_perform_s8_shift_xmm(xmm0);
     movq(qword[B-0x80], xmm0);
     sub(B, -8);
     align(4);
@@ -367,6 +394,7 @@ L(l3b4);
     add(A1, LDA);
     pinsrw(xmm1, eax, 0x0);
     punpcklbw(xmm0, xmm1);
+    maybe_perform_s8_shift_xmm(xmm0);
     movd(dword[B-0x80], xmm0);
     sub(B, -4);
     align(4);
@@ -375,6 +403,7 @@ L(l3e8);
     test(M, 0x1);
     jle(l400, T_NEAR);
     mov(ax, word[A1-0x80]);
+    maybe_perform_s8_shift_r16(ax);
     mov(word[B-0x80], ax);
     sub(B, -2);
     align(4);
@@ -423,6 +452,7 @@ L(l428);
     mov(al, byte[A1-0x80]);
     add(A1, LDA);
     pinsrb(xmm0, eax, 0x7);
+    maybe_perform_s8_shift_xmm(xmm0);
     movq(qword[B-0x80], xmm0);
     sub(B, -8);
     dec(LDA3);
@@ -444,6 +474,7 @@ L(l4a0);
     mov(al, byte[A1-0x80]);
     add(A1, LDA);
     pinsrb(xmm0, eax, 0x3);
+    maybe_perform_s8_shift_xmm(xmm0);
     movd(dword[B-0x80], xmm0);
     sub(B, -4);
     align(4);
@@ -453,9 +484,11 @@ L(l4e8);
     jle(l50c, T_NEAR);
     mov(al, byte[A1-0x80]);
     add(A1, LDA);
+    maybe_perform_s8_shift_r8(al);
     mov(byte[B-0x80], al);
     mov(al, byte[A1-0x80]);
     add(A1, LDA);
+    maybe_perform_s8_shift_r8(al);
     mov(byte[B-0x7f], al);
     sub(B, -2);
     align(4);
@@ -464,6 +497,7 @@ L(l50c);
     test(M, 0x1);
     jle(l524, T_NEAR);
     mov(al, byte[A1-0x80]);
+    maybe_perform_s8_shift_r8(al);
     mov(byte[B-0x80], al);
     sub(B, -1);
     align(4);

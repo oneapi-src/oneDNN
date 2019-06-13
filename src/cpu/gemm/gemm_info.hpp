@@ -65,7 +65,8 @@ struct gemm_info_t {
     c_type *c;
     const float *alpha, *beta;
 
-    a_type ao, bo;
+    c_type ao;
+    c_type bo;
     const c_type *co;
 
     // Kernel parameters.

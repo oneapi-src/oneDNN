@@ -136,8 +136,8 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
     int row_req = 0;
 
     if (data_traits<a_type>::data_type == data_type::s8) {
-        a_type ao = arg->ao;
-        a_type bo = arg->bo;
+        c_type ao = arg->ao;
+        c_type bo = arg->bo;
         c_type co_0 = offsetc == NO_OFFSET ? 0 : co[0];
 
         if (bo != 0 || offsetc == COL_OFFSET)
@@ -1465,6 +1465,15 @@ mkldnn_status_t gemm_driver<mkldnn_bfloat16_t, mkldnn_bfloat16_t, float>(
         const mkldnn_bfloat16_t *a, const int *lda, const mkldnn_bfloat16_t *oa,
         const mkldnn_bfloat16_t *b, const int *ldb, const mkldnn_bfloat16_t *ob,
         const float *beta, float *c, const int *ldc, const float *oc,
+        const bool force_nocopy);
+
+template // Instantiate gemm_s8s8s32
+mkldnn_status_t gemm_driver<int8_t, int8_t, int32_t>(
+        const char *transA, const char *transB, const char *offsetC,
+        const int *m, const int *n, const int *k,
+        const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
+        const int8_t *b, const int *ldb, const int8_t *ob,
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
         const bool force_nocopy);
 
 template // Instantiate gemm_s8u8s32
