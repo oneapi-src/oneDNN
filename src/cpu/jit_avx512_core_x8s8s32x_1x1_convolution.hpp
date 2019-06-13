@@ -43,7 +43,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_int8_1x1:", ((jcp_.ver == ver_vnni)
-		    ? avx512_core_vnni : avx512_core), ""),
+                        ? avx512_core_vnni : avx512_core), ""),
                 jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
                 src_type, dst_type>);
 

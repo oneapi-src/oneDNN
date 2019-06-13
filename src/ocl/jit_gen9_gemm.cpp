@@ -62,7 +62,7 @@ union plan_element_t {
     };
 };
 static_assert(sizeof(plan_element_t) == 8,
-		"Plan element structure has been padded by the compiler.");
+        "Plan element structure has been padded by the compiler.");
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_beta(stream_t *s,

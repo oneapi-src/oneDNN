@@ -142,7 +142,7 @@ struct jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
                     diff_dst_type>::init_conf(jcp_, *desc(), *diff_src_md(),
-		        *weights_md(), *diff_dst_md());
+                            *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
