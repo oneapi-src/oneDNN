@@ -90,26 +90,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             return false;
         }
 
-        status_t set_default_params() {
-            using namespace format_tag;
-            if (src_md_.format_kind == format_kind::any) {
-                CHECK(memory_desc_init_by_tag(src_md_,
-                            utils::pick(ndims() - 2, nc, nwc, nhwc, ndhwc)));
-            }
-            if (dst_md_.format_kind == format_kind::any)
-                CHECK(memory_desc_init_by_tag(dst_md_, nc));
-            if (weights_md_.format_kind == format_kind::any) {
-                if (MB() > 1) {
-                    CHECK(memory_desc_init_by_tag(weights_md_,
-                            utils::pick(ndims() - 2, io, wio, hwio, dhwio)));
-                } else {
-                    CHECK(memory_desc_init_by_tag(weights_md_,
-                            utils::pick(ndims() - 2, oi, owi, ohwi, odhwi)));
-                }
-            }
-            return inner_product_fwd_pd_t::set_default_params();
-        }
-
     private:
         void init_scratchpad() {
             if (!dst_is_acc_) {

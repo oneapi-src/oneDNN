@@ -61,18 +61,65 @@ inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
             && dst_d.is_dense()
             && wei_d.is_dense(true);
 }
+
+status_t template_set_default_params(memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t *bias_md, int ndims) {
+    using namespace format_tag;
+
+    auto matching_tag = [&](const memory_desc_t &md) {
+        if (memory_desc_matches_one_of_tag(md, ba, cba, cdba, cdeba))
+            return utils::pick(ndims - 2, ab, acb, acdb, acdeb);
+        if (memory_desc_matches_one_of_tag(md, acb, acdb, acdeb))
+            return utils::pick(ndims - 3, cba, cdba, cdeba);
+        auto src_tag = memory_desc_matches_one_of_tag(md, ab, abc, abcd,
+                abcde, aBcd16b, aBcde16b, aBcd8b, aBcde8b, aBcd4b, aBcde4b);
+        return src_tag;
+    };
+
+    if (src_md.format_kind == format_kind::any
+            && weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(
+                src_md, utils::pick(ndims - 2, nc, ncw, nchw, ncdhw)));
+        CHECK(memory_desc_init_by_tag(weights_md,
+                utils::pick(ndims - 2, oi, oiw, oihw, oidhw)));
+    } else if (src_md.format_kind == format_kind::any)
+         CHECK(memory_desc_init_by_tag(src_md, matching_tag(weights_md)));
+    else if (weights_md.format_kind == format_kind::any)
+         CHECK(memory_desc_init_by_tag(weights_md, matching_tag(src_md)));
+    if (dst_md.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(dst_md, nc));
+    if (bias_md->format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(*bias_md, x));
+    return status::success;
+}
 }
 
 struct cpu_inner_product_fwd_pd_t: public inner_product_fwd_pd_t {
     using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
+protected:
+    status_t set_default_params() {
+        return template_set_default_params(src_md_, weights_md_, dst_md_,
+                &bias_md_, ndims());
+    }
 };
 
 struct cpu_inner_product_bwd_data_pd_t: public inner_product_bwd_data_pd_t {
     using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
+protected:
+    status_t set_default_params() {
+        return template_set_default_params(diff_src_md_, weights_md_,
+                diff_dst_md_, &glob_zero_md, ndims());
+    }
 };
 
 struct cpu_inner_product_bwd_weights_pd_t: public inner_product_bwd_weights_pd_t {
     using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
+protected:
+    status_t set_default_params() {
+        return template_set_default_params(src_md_, diff_weights_md_,
+                diff_dst_md_, &diff_bias_md_, ndims());
+    }
 };
 
 }
