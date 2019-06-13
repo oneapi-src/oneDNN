@@ -231,11 +231,18 @@ mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
     if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
 
+    bool use_jit = true
+        && mayiuse(avx512_core)
+        && ((*M) * (*N) > 1); // TODO: handle s8-case in gemv
+
     bool use_s8u8 = true
         && utils::everyone_is(0, *ao, *bo) // so far a requirement
         && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(avx512_core));
 
-    if (use_s8u8)
+    if (use_jit)
+        status = gemm_driver(transa, transb, offsetc, M, N, K,
+                alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co, false);
+    else if (use_s8u8)
         status = simple_gemm_s8s8s32(transa, transb, offsetc, M, N, K,
                 alpha, A, LDA, ao, B, LDB, bo, beta, C, LDC, co);
     else

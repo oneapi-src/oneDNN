@@ -371,6 +371,12 @@ mkldnn_status_t jump_to_gemv(
 
 template <>
 mkldnn_status_t jump_to_gemv(
+        const gemm_info_t<int8_t, int8_t, int32_t> *arg) {
+    return mkldnn_unimplemented;
+}
+
+template <>
+mkldnn_status_t jump_to_gemv(
         const gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
     return mkldnn_unimplemented;
 }

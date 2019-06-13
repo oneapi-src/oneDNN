@@ -62,7 +62,7 @@ struct gemm_info_t {
     float alpha, beta;
 
     a_type ao;
-    b_type bo;
+    uint8_t bo;
     const c_type *co;
 
     pack_type packing;

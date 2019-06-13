@@ -338,7 +338,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 
     if (data_traits<a_type>::data_type == data_type::s8) {
         a_type ao = arg->ao;
-        b_type bo = arg->bo;
+        uint8_t bo = arg->bo;
         c_type co_0 = offsetc == offset_type::none ? 0 : co[0];
 
         if (bo != 0 || offsetc == offset_type::column)
@@ -1770,6 +1770,16 @@ mkldnn_status_t gemm_driver<bfloat16_t, bfloat16_t, float>(
         const bfloat16_t *a, const int *lda, const bfloat16_t *oa,
         const bfloat16_t *b, const int *ldb, const bfloat16_t *ob,
         const float *beta, float *c, const int *ldc, const float *oc,
+        const bool force_nocopy, pack_type packing,
+        gemm_pack_storage_t *pack_dst, bool measure_only);
+
+template // Instantiate gemm_s8s8s32
+mkldnn_status_t gemm_driver<int8_t, int8_t, int32_t>(
+        const char *transA, const char *transB, const char *offsetC,
+        const int *m, const int *n, const int *k,
+        const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
+        const int8_t *b, const int *ldb, const int8_t *ob,
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
         const bool force_nocopy, pack_type packing,
         gemm_pack_storage_t *pack_dst, bool measure_only);
 

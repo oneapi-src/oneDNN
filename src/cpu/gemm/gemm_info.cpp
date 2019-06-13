@@ -52,6 +52,21 @@ static inline int decode_trans(char trans)
     }
 }
 
+namespace {
+template <typename b_type>
+void prepare_bo(uint8_t &bo_gemm_info, const b_type *bo_orig) {
+    UNUSED(bo_orig);
+    bo_gemm_info = 0;
+}
+template <> void prepare_bo(uint8_t &bo_gemm_info, const uint8_t *bo_orig) {
+    bo_gemm_info = bo_orig ? *bo_orig : 0;
+}
+template <> void prepare_bo(uint8_t &bo_gemm_info, const int8_t *bo_orig) {
+    int bo_s32 = bo_orig ? *bo_orig : 0;
+    bo_gemm_info = (uint8_t)(bo_s32 + 128);
+}
+}
+
 template <typename a_type, typename b_type, typename c_type>
 gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         const char *transB, const char *offsetC, const int *m, const int *n,
@@ -111,10 +126,9 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
         }
     }
 
-    if (data_traits<a_type>::data_type == data_type::s8) {
+    if (data_traits<a_type>::data_type == data_type::s8)
         this->ao = oa ? *oa : a_type(0);
-        this->bo = ob ? *ob : b_type(0);
-    }
+    prepare_bo<b_type>(this->bo, ob);
 
     if (offsetC != NULL) {
         char offsetc = *offsetC;
@@ -257,6 +271,7 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
     static std::once_flag initialized;
     std::call_once(initialized, []{
+        const bool b_is_s8 = data_traits<b_type>::data_type == data_type::s8;
 
         static jit_generator *copy_a[2][2] = {{NULL}};
         static jit_generator *copy_b[2][2] = {{NULL}};
@@ -270,9 +285,9 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                     new jit_avx512_core_u8_copy_at_kern();
 
                 copy_b[no_trans][no_sum] =
-                    new jit_avx512_core_u8_copy_bn_kern();
+                    new jit_avx512_core_u8_copy_bn_kern(b_is_s8);
                 copy_b[do_trans][no_sum] =
-                    new jit_avx512_core_u8_copy_bt_kern();
+                    new jit_avx512_core_u8_copy_bt_kern(b_is_s8);
 
                 copy_a[no_trans][do_sum] =
                     new jit_avx512_core_u8_copy_sum_an_kern();
@@ -280,9 +295,9 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                     new jit_avx512_core_u8_copy_sum_at_kern();
 
                 copy_b[no_trans][do_sum] =
-                    new jit_avx512_core_u8_copy_sum_bn_kern();
+                    new jit_avx512_core_u8_copy_sum_bn_kern(b_is_s8);
                 copy_b[do_trans][do_sum] =
-                    new jit_avx512_core_u8_copy_sum_bt_kern();
+                    new jit_avx512_core_u8_copy_sum_bt_kern(b_is_s8);
             }
             break;
 
@@ -538,6 +553,9 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
 // Instantiate the gemm_info_t templates needed.
 template // For gemm_s8u8s32
 struct gemm_info_t<int8_t, uint8_t, int32_t>;
+
+template // For gemm_s8s8s32
+struct gemm_info_t<int8_t, int8_t, int32_t>;
 
 template // For gemm_bf16bf16f32
 struct gemm_info_t<bfloat16_t, bfloat16_t, float>;
