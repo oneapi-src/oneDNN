@@ -141,14 +141,16 @@ inline int init() {
     /* Create engine with CPU native backend: backend_kind == 0 */
     DNN_SAFE(mkldnn_engine_create_with_backend(&engine_ref, mkldnn_cpu, 0, 0),
             CRIT);
-    DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-
     DNN_SAFE(mkldnn_stream_create(
                      &stream_ref, engine_ref, mkldnn_stream_default_flags),
             CRIT);
-    DNN_SAFE(mkldnn_stream_create(
-                     &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
-            CRIT);
+
+    if (!engine_tgt) {
+        DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
+        DNN_SAFE(mkldnn_stream_create(
+                         &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
+                CRIT);
+    }
     return OK;
 }
 
