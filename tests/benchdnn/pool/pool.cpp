@@ -237,7 +237,7 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
 int doit(const prb_t *p, res_t *r) {
     mkldnn_pooling_desc_t pfd, pbd;
     mkldnn_primitive_desc_t pfpd, pbpd;
-    mkldnn_primitive_t pf, pb;
+    mkldnn_primitive_t pf, pb, pl;
 
     SAFE(init_pd(p, pfd, pfpd, NULL, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) {
@@ -284,7 +284,7 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
 
-    args_t args_fwd, args_bwd;
+    args_t args_fwd, args_bwd, args;
     args_fwd.set(MKLDNN_ARG_SRC, src_dt.m_);
     args_fwd.set(MKLDNN_ARG_DST, dst_dt.m_);
     if (p->alg == MAX && !(p->dir & FLAG_INF))
@@ -298,6 +298,8 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
+        pl = pf;
+        args = args_fwd;
     } else if (p->dir & FLAG_BWD) {
         SAFE(fill_dst(p, diff_dst_dt, diff_dst_fp, r), WARN);
 
@@ -315,10 +317,10 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t diff_src(diff_src_dt, fp, tag, engine_ref);
             SAFE(compare_src(p, diff_src, diff_src_fp, r), WARN);
         }
+        pl = pb;
+        args = args_bwd;
     }
 
-    mkldnn_primitive_t pl = p->dir & FLAG_FWD ? pf : pb;
-    args_t args = p->dir & FLAG_FWD ? args_fwd : args_bwd;
     measure_perf(r->timer, pl, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(pf), CRIT);
