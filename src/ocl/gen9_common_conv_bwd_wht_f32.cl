@@ -238,14 +238,15 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
     uint end = (oh_chunk + 1) * OH_BLOCK;
     if (end > OD * OH * OW)
         end = OD * OH * OW;
-    const uint mb = mb_chunk * (MB / MB_CHUNK);
+    const uint mb = mb_chunk * (MB_CHUNK_SIZE);
+    const uint mb_end = min((mb_chunk+1) * (MB_CHUNK_SIZE), (uint)MB);
 
     const bool do_bias = (ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0;
 
     src += ic * ID * IH * IW * IC_BLOCK * MB_BLOCK + mb * IC * G * ID * IH * IW
             + g * IC * ID * IH * IW * MB_BLOCK;
     diff_dst += oc * OD * OH * OW * OC_BLOCK * MB_BLOCK
-            + mb * G * OC * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
+            + g * OC * OD * OH * OW * MB_BLOCK;
 
 #        if WITH_BIAS == 1
     diff_bias += g * OC + oc * OC_BLOCK + local_x + chunk * OC * G;
@@ -260,12 +261,13 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
 #        endif
 
 #        if MB != (MB_CHUNK * MB_BLOCK)
-    uint omb = 0;
+    uint omb = mb;
     do {
         const __global float *diff_dst1 = diff_dst + str * OC_BLOCK * MB_BLOCK
                 + omb * OC * G * OD * OH * OW;
 #        else
-    const __global float *diff_dst1 = diff_dst + str * OC_BLOCK * MB_BLOCK;
+    const __global float *diff_dst1 = diff_dst + str * OC_BLOCK * MB_BLOCK
+        + mb * OC * G * OD * OH * OW;
 #        endif
         for (uint k = str; k < end; k++) {
 #        if CASE_3D
@@ -398,7 +400,7 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
 #        if MB != (MB_CHUNK * MB_BLOCK)
         omb += MB_BLOCK;
         src += IC * G * ID * IH * IW * MB_BLOCK;
-    } while (omb < MB / MB_CHUNK);
+    } while (omb < mb_end);
 #        endif
 
 #        if WITH_BIAS == 1
@@ -458,14 +460,15 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
 
     const int mb_chunk = get_global_id(2);
 
-    const int mb = mb_chunk * (MB / MB_CHUNK);
+    const int mb = mb_chunk * MB_CHUNK_SIZE;
+    const int mb_end = min((mb_chunk + 1) * MB_CHUNK_SIZE, (int)MB);
 
     const bool do_bias = (ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0;
 
     src += ic * ID * IH * IW * IC_BLOCK * MB_BLOCK + mb * IC * G * ID * IH * IW
             + g * IC * ID * IH * IW * MB_BLOCK;
     diff_dst += oc * OD * OH * OW * OC_BLOCK * MB_BLOCK
-            + mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
+            + g * OC * OD * OH * OW * MB_BLOCK;
 
     int dst_bound = MB * OC * G * OD * OH * OW - 16 * 8;
     int src_bound = MB * IC * G * ID * IH * IW - SW * 16 * 8;
@@ -485,11 +488,11 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
 #        endif
 
     int dst_ptr = oc * OD * OH * OW * OC_BLOCK * MB_BLOCK
-            + mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW;
+            + g * OC * OD * OH * OW;
     int src_ptr = ic * ID * IH * IW * IC_BLOCK * MB_BLOCK
-            + mb * IC * G * ID * IH * IW + g * IC * ID * IH * IW;
+            + g * IC * ID * IH * IW;
 
-    int omb = 0;
+    int omb = mb;
     do {
         const __global float *diff_dst1
                 = diff_dst + omb * OC * G * OD * OH * OW;
@@ -662,7 +665,7 @@ __kernel void gen9_common_conv_bwd_weights_kernel(
             }
         omb += MB_BLOCK;
         src += G * IC * ID * IH * IW * MB_BLOCK;
-    } while (omb < MB / MB_CHUNK);
+    } while (omb < mb_end);
 
 #        if WITH_BIAS == 1
     if (do_bias)

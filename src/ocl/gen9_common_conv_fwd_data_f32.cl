@@ -271,11 +271,20 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
 
 #        if WITH_BIAS
     float8 blockC00 = bias[oc * OC_BLOCK + local_id];
+#if OCB == 32
+    float8 blockC01 = bias[oc * OC_BLOCK + local_id + 16];
+#endif
 #        else
 #            if OW_BLOCK != 8
     float blockC00[OW_BLOCK] = { 0.0f };
+#if OCB == 32
+    float blockC01[OW_BLOCK] = { 0.0f };
+#endif
 #            else
     float8 blockC00 = 0.0f;
+#if OCB == 32
+    float8 blockC01 = 0.0f;
+#endif
 #            endif
 #        endif
 
@@ -373,6 +382,21 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
                     MULTIPLY_BLOCKS_8x8(blockC00[i], blockA[i], blockB00,
                             blockB01, blockB02);
                 }
+#                if OCB == 32
+                wei1 += KD * KH * KW * IC * OC_BLOCK;
+                blockB00 = as_float(intel_sub_group_block_read(
+                        (const __global uint *)wei1));
+                blockB01 = as_float(intel_sub_group_block_read(
+                        (const __global uint *)(wei1 + OC_BLOCK)));
+                blockB02 = as_float(intel_sub_group_block_read(
+                        (const __global uint *)(wei1 + 2 * OC_BLOCK)));
+
+                __attribute__((opencl_unroll_hint(OW_BLOCK)))
+                for (int i = 0; i < OW_BLOCK; i++) {
+                    MULTIPLY_BLOCKS_8x8(blockC01[i], blockA[i], blockB00,
+                            blockB01, blockB02);
+                }
+#                endif
 
 #        undef TRANSPOSE_BLOCK_1
 #        undef MULTIPLY_BLOCKS_8x8
@@ -383,55 +407,94 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
             + oc * OC_BLOCK * MB_BLOCK * ODHW_SIZE
             + od * OH * OW * OC_BLOCK * MB_BLOCK + oh * OW * OC_BLOCK * MB_BLOCK
             + ow * OC_BLOCK * MB_BLOCK + (mb % MB_BLOCK) * OC_BLOCK;
-
+#if OCB == 32
+    __global float *dst_write1 = dst_write0 + OC_BLOCK * MB_BLOCK * ODHW_SIZE;
+#endif
 #        if WITH_SUM_RELU == 1
-    float8 blockS00;
+    float8 blockS00, blockS01;
     if (ow == OW_LAST) {
         for (int i = 0; i < OW - OW_LAST; i++) {
             blockS00[i] = as_float(intel_sub_group_block_read((const __global
                             uint *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
+#if OCB == 32
+            blockS01[i] = as_float(intel_sub_group_block_read((const __global
+                            uint *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
+#endif
         }
     } else {
         for (int i = 0; i < OW_BLOCK; i++) {
             blockS00[i] = as_float(intel_sub_group_block_read((const __global
                             uint *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
+#if OCB == 32
+            blockS01[i] = as_float(intel_sub_group_block_read((const __global
+                            uint *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
+#endif
         }
     }
-
-#            if SUM_SCALE == 1
-    blockC00 += blockS00;
-#            else
-    blockC00 = fma(blockS00, (float8)sum_scale, blockC00);
-#            endif
     for (uint i = 0; i < OW_BLOCK; i++) {
+#            if SUM_SCALE == 1
+    blockC00[i] += blockS00[i];
+#if OCB == 32
+    blockC01[i] += blockS01[i];
+#endif
+#            else
+    blockC00[i] = fma(blockS00[i], (float)sum_scale, blockC00[i]);
+#if OCB == 32
+    blockC01[i] = fma(blockS01[i], (float)sum_scale, blockC01[i]);
+#endif
+#            endif
         if (blockC00[i] < 0)
             blockC00[i] *= relu_negative_slope;
+#if OCB == 32
+        if (blockC01[i] < 0)
+            blockC01[i] *= relu_negative_slope;
+#endif
     }
 #        else
 #            if WITH_RELU == 1
     for (uint i = 0; i < OW_BLOCK; i++) {
         if (blockC00[i] < 0)
             blockC00[i] *= relu_negative_slope;
+#if OCB == 32
+        if (blockC01[i] < 0)
+            blockC01[i] *= relu_negative_slope;
+#endif
     }
 #            endif
 #            if WITH_SUM == 1
-    float8 blockS00;
+    float8 blockS00, blockS01;
     if (ow == OW_LAST) {
         for (int i = 0; i < OW - OW_LAST; i++) {
             blockS00[i] = as_float(intel_sub_group_block_read((const __global
                             uint *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
+#if OCB == 32
+            blockS01[i] = as_float(intel_sub_group_block_read((const __global
+                            uint *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
+#endif
         }
     } else {
         for (int i = 0; i < OW_BLOCK; i++) {
             blockS00[i] = as_float(intel_sub_group_block_read((const __global
                             uint *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
+#if OCB == 32
+            blockS01[i] = as_float(intel_sub_group_block_read((const __global
+                            uint *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
+#endif
         }
     }
+    for (int i = 0; i < OW_BLOCK; i++) {
 #                if SUM_SCALE == 1
-    blockC00 += blockS00;
+    blockC00[i] += blockS00[i];
+#if OCB == 32
+    blockC01[i] += blockS01[i];
+#endif
 #                else
-    blockC00 = fma(blockS00, (float8)sum_scale, blockC00);
+    blockC00[i] = fma(blockS00[i], (float)sum_scale, blockC00[i]);
+#if OCB == 32
+    blockC01[i] = fma(blockS01[i], (float)sum_scale, blockC01[i]);
+#endif
 #                endif
+    }
 #            endif
 #        endif
 
@@ -441,6 +504,11 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
             intel_sub_group_block_write((__global unsigned int *)(&dst_write0[i
                                                 * OC_BLOCK * MB_BLOCK]),
                     as_uint(blockC00[i]));
+#if OCB == 32
+            intel_sub_group_block_write((__global unsigned int *)(&dst_write0[i
+                * OC_BLOCK * MB_BLOCK + OC_BLOCK * MB_BLOCK * ODHW_SIZE]),
+                    as_uint(blockC01[i]));
+#endif
         }
     } else {
 #        endif
@@ -448,12 +516,22 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
         __attribute__((opencl_unroll_hint(OW_BLOCK)))
         for (int i = 0; i < OW_BLOCK; i++) {
             intel_sub_group_block_write((__global unsigned int *)(&dst_write0[i
-                                                * OC_BLOCK * MB_BLOCK]),
-                    as_uint(blockC00[i]));
+                * OC_BLOCK * MB_BLOCK]),
+                as_uint(blockC00[i]));
+#if OCB == 32
+            intel_sub_group_block_write((__global unsigned int *)(&dst_write0[i
+                * OC_BLOCK * MB_BLOCK + OC_BLOCK * MB_BLOCK * ODHW_SIZE]),
+                as_uint(blockC01[i]));
+#endif
         }
 #        else
     intel_sub_group_block_write8(
             (__global unsigned int *)(&dst_write0[0]), as_uint8(blockC00));
+#if OCB == 32
+    intel_sub_group_block_write8(
+            (__global unsigned int *)(&dst_write0[
+                OC_BLOCK * MB_BLOCK * ODHW_SIZE]), as_uint8(blockC01));
+#endif
 #        endif
 #        if OW % OW_BLOCK != 0
     }

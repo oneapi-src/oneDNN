@@ -203,6 +203,13 @@ struct jit_gen9_common_conv_fwd_kernel {
                 jcp.oc_block = 16;
                 jcp.ic_block = 16;
                 jcp.ow_block = 8;
+                while (jcp.ow_block > 1) {
+                    if (jcp.stride_w * jcp.ow_block
+                            + jcp.kw * (1 + jcp.dilate_w) > 32)
+                        jcp.ow_block--;
+                    else
+                        break;
+                };
                 jcp.oh_block = 1;
                 jcp.sub_group_size = 16;
                 jcp.lws_d[0] = 16;
@@ -247,6 +254,30 @@ struct jit_gen9_common_conv_fwd_kernel {
                         jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
 #endif
                 break;
+            } else if (!jcp.is_depthwise){
+                jcp.mb_block = (jcp.mb % 16 == 0) ? 16 : 1;
+                jcp.oc_block = 16;
+                jcp.ic_block = 1;
+                jcp.ow_block = 8;
+                while (jcp.ow_block > 1) {
+                    if (jcp.stride_w * jcp.ow_block
+                            + jcp.kw * (1 + jcp.dilate_w) > 32)
+                        jcp.ow_block--;
+                    else
+                        break;
+                };
+                jcp.oh_block = 1;
+                jcp.sub_group_size = 16;
+                jcp.lws_d[0] = 16;
+                jcp.lws_d[1] = 1;
+                jcp.lws_d[2] = 1;
+                jcp.ocb = (jcp.oc % 32 == 0) ? 32 : 16;
+                jcp.gws_d[0] = 16;
+                jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                        * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                jcp.gws_d[2] = jcp.mb * (jcp.oc / jcp.ocb) * jcp.ngroups;
+
+                break;
             }
         case ver_8ow16c:
             switch (src_mdw.data_type()) {
@@ -259,7 +290,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                     jcp.ow_block = utils::max_div(jcp.ow, 8);
                 } else {
                     jcp.ow_block = (jcp.ver == ver_1stconv)
-                            ? 8
+                            ? 4
                             : nstl::max(8, utils::max_div(jcp.ow, 16));
                 }
                 jcp.oh_block = 1;
@@ -803,6 +834,11 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
         status_t status = status::success;
 
+        const int nthr = jcp.is_depthwise
+            ? jcp.kh * jcp.kw * jcp.kd * jcp.ngroups
+            : jcp.kh * jcp.kw * jcp.kd * (jcp.oc / 16) * (jcp.ic / 16) * jcp.ngroups;
+        int opt_chunk = 1;
+
         switch (jcp.ver) {
         case ver_1stconv:
         case ver_8ow16c:
@@ -811,15 +847,13 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             jcp.ic_block = jcp.ver == ver_8ow16c ? 16 : 1;
             jcp.ow_block = 8;
 
-            if (jcp.kd * jcp.kh * jcp.kw
-                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
-                    >= 1024) {
-                jcp.oh_chunk = 1;
-                jcp.mb_chunk = nstl::min(jcp.mb, utils::max_div(jcp.mb, 4));
-            } else {
-                jcp.mb_chunk = jcp.mb;
-                jcp.oh_chunk = 1;
-            }
+            /* 2KB per thread (72 EU and 7 thr/EU)*/
+            opt_chunk =
+            utils::div_up((jcp.ic_block * jcp.ih * jcp.iw * jcp.id
+                + jcp.oc_block * jcp.oh * jcp.ow * jcp.od) * jcp.mb * 4,
+                1024 * 2 * 72 * 7);
+            jcp.oh_chunk = 1;
+            jcp.mb_chunk = utils::div_up(jcp.mb, opt_chunk);
             jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
             jcp.oh_block
                     = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
@@ -843,20 +877,14 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             jcp.ic_block = 16;
             jcp.ow_block = 1;
 
-            if (jcp.kd * jcp.kh * jcp.kw
-                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
-                    >= 1024) {
-                jcp.oh_chunk = 1;
-                jcp.mb_chunk = nstl::min(jcp.mb / 16, 2);
-            } else if (jcp.kd * jcp.kh * jcp.kw
-                            * ((jcp.ic * jcp.oc * jcp.ngroups) / 256)
-                    >= 256) {
-                jcp.oh_chunk = nstl::min(jcp.od * jcp.oh * jcp.ow, 4);
-                jcp.mb_chunk = jcp.mb / 16;
-            } else {
-                jcp.mb_chunk = jcp.mb / 16;
-                jcp.oh_chunk = nstl::min(jcp.od * jcp.oh * jcp.ow, 32);
-            }
+            /* 2KB per thread (72 EU and 7 thr/EU)*/
+            opt_chunk = nstl::max(utils::div_up(4096, nthr),
+                utils::div_up((jcp.ic_block * jcp.ih * jcp.iw * jcp.id
+                + jcp.oc_block * jcp.oh * jcp.ow * jcp.od) * jcp.mb * 4,
+                1024 * 2 * 72 * 7));
+            jcp.oh_chunk = nstl::min(jcp.oh * jcp.ow * jcp.od, opt_chunk);
+            jcp.mb_chunk = nstl::min(jcp.mb / jcp.mb_block,
+                utils::div_up(opt_chunk, jcp.oh_chunk));
             jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
             jcp.oh_block
                     = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
@@ -978,6 +1006,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         jit.define_int("NCHUNK", jcp.nchunk);
         jit.define_int("OH_CHUNK", jcp.oh_chunk);
         jit.define_int("MB_CHUNK", jcp.mb_chunk);
+        jit.define_int("MB_CHUNK_SIZE", utils::div_up(jcp.mb, jcp.mb_chunk));
         jit.define_int("OW_BLOCK", jcp.ow_block);
         jit.define_int("OW_LAST", utils::rnd_dn(jcp.ow, jcp.ow_block));
 
