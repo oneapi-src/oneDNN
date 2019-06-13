@@ -80,3 +80,7 @@ mb1_g2ic16oc32_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1
 mb1_g2ic8oc32_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1
 mb1_g2ic4oc32_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1
 mb1_g2ic22oc32_ih8oh6kh3sh1dh0ph0_iw8ow6kw3sw1dw0pw0
+
+#MFDNN-1707
+--reset --mb=1 --dir=FWD_D --cfg=f32
+mb1_g2ic6oc16_ih5oh5kh1sh1dh0ph0_iw5ow5kw1sw1dw0pw0

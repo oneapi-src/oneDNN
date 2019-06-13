@@ -90,14 +90,13 @@ void jit_sse41_convolution_fwd_t::execute_forward(
                     const int ih = nstl::max(ij - jcp.t_pad
                         + div_up(i_t_overflow,
                                  (jcp.dilate_h+1)) * (jcp.dilate_h + 1), 0);
-                    par_conv.src = &src[src_blk_off(src_d, n,
-                        jcp.ic == 3 ? 0 : _ic, ih, 0)];
+                    par_conv.src = &src[src_blk_off(src_d, n, _ic, ih, 0)];
 
                     par_conv.dst = &dst[src_blk_off(dst_d, n, _oc, oh, 0)];
 
                     const int wh = div_up(i_t_overflow, (jcp.dilate_h + 1));
                     par_conv.filt = &weights[wht_blk_off(weights_d, g, ocb,
-                        jcp.ic == 3 ? 0 : icb, wh, 0)];
+                        icb, wh, 0)];
 
                     if (icb == 0) {
                         if (bias)
