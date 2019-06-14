@@ -125,6 +125,20 @@ Xbyak::Label lfb4;
     mov(B, ptr[ARG_B]);
 #endif
 
+    bool vnni_ver = mayiuse(avx512_core_vnni);
+
+    static const unsigned one_u4 = 0x01010101u;
+    static const int one_s2 = 0x00010001;
+    if (vnni_ver) {
+        mov(A1, (size_t)&one_u4);
+        vbroadcastss(ymm15, ptr[A1]);
+    } else {
+        mov(A1, (size_t)&one_u4);
+        vbroadcastss(zmm15, ptr[A1]);
+        mov(A1, (size_t)&one_s2);
+        vbroadcastss(zmm14, ptr[A1]);
+    }
+
     mov(N, qword[N]);
     mov(M, qword[M]);
     mov(LDA, qword[LDA]);
@@ -148,8 +162,6 @@ L(l20);
     vxorps(ymm11, ymm11, ymm11);
     vxorps(ymm12, ymm12, ymm12);
     vxorps(ymm13, ymm13, ymm13);
-    vxorps(ymm14, ymm14, ymm14);
-    vxorps(ymm15, ymm15, ymm15);
     mov(I, M);
     sar(I, 0x3);
     jle(l5cc, T_NEAR);
@@ -165,8 +177,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B-0x80], xmm0);
-    vmovdqu(xword[B+0x40], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -176,30 +186,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B-0x70], xmm2);
-    vmovdqu(xword[B+0x50], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm8, ymm8, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm8, ymm8, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm8, ymm15, ymm0);
+        vpdpbusd(ymm8, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm8, ymm8, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm8, ymm8, ymm3);
+    }
+    vmovups(yword[B-0x80], ymm0);
+    vmovups(yword[B+0x40], ymm1);
+
     vmovq(xmm0, qword[A2-0x80]);
     vmovq(xmm1, qword[A2+LDA*1-0x80]);
     vmovq(xmm2, qword[A2+LDA*2-0x80]);
@@ -209,8 +213,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B-0x60], xmm0);
-    vmovdqu(xword[B+0x60], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -220,30 +222,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B-0x50], xmm2);
-    vmovdqu(xword[B+0x70], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm9, ymm9, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm9, ymm9, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm9, ymm15, ymm0);
+        vpdpbusd(ymm9, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm9, ymm9, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm9, ymm9, ymm3);
+    }
+    vmovups(yword[B-0x60], ymm0);
+    vmovups(yword[B+0x60], ymm1);
+
     vmovq(xmm0, qword[A2-0x80]);
     vmovq(xmm1, qword[A2+LDA*1-0x80]);
     vmovq(xmm2, qword[A2+LDA*2-0x80]);
@@ -253,8 +249,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B-0x40], xmm0);
-    vmovdqu(xword[B+0x80], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -264,30 +258,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B-0x30], xmm2);
-    vmovdqu(xword[B+0x90], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm10, ymm10, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm10, ymm10, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm10, ymm15, ymm0);
+        vpdpbusd(ymm10, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm10, ymm10, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm10, ymm10, ymm3);
+    }
+    vmovups(yword[B-0x40], ymm0);
+    vmovups(yword[B+0x80], ymm1);
+
     vmovq(xmm0, qword[A2-0x80]);
     vmovq(xmm1, qword[A2+LDA*1-0x80]);
     vmovq(xmm2, qword[A2+LDA*2-0x80]);
@@ -297,8 +285,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B-0x20], xmm0);
-    vmovdqu(xword[B+0xa0], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -308,30 +294,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B-0x10], xmm2);
-    vmovdqu(xword[B+0xb0], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm11, ymm11, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm11, ymm11, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm11, ymm15, ymm0);
+        vpdpbusd(ymm11, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm11, ymm11, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm11, ymm11, ymm3);
+    }
+    vmovups(yword[B-0x20], ymm0);
+    vmovups(yword[B+0xa0], ymm1);
+
     vmovq(xmm0, qword[A2-0x80]);
     vmovq(xmm1, qword[A2+LDA*1-0x80]);
     vmovq(xmm2, qword[A2+LDA*2-0x80]);
@@ -341,8 +321,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B], xmm0);
-    vmovdqu(xword[B+0xc0], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -352,30 +330,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B+0x10], xmm2);
-    vmovdqu(xword[B+0xd0], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm12, ymm12, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm12, ymm12, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm12, ymm15, ymm0);
+        vpdpbusd(ymm12, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm12, ymm12, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm12, ymm12, ymm3);
+    }
+    vmovups(yword[B], ymm0);
+    vmovups(yword[B+0xc0], ymm1);
+
     vmovq(xmm0, qword[A2-0x80]);
     vmovq(xmm1, qword[A2+LDA*1-0x80]);
     vmovq(xmm2, qword[A2+LDA*2-0x80]);
@@ -385,8 +357,6 @@ L(l6c);
     vpunpckldq(xmm3, xmm2, xmm3);
     vpunpcklqdq(xmm0, xmm1, xmm3);
     vpunpckhqdq(xmm1, xmm1, xmm3);
-    vmovdqu(xword[B+0x20], xmm0);
-    vmovdqu(xword[B+0xe0], xmm1);
     vmovq(xmm2, qword[A2-0x80]);
     vmovq(xmm3, qword[A2+LDA*1-0x80]);
     vmovq(xmm4, qword[A2+LDA*2-0x80]);
@@ -396,30 +366,24 @@ L(l6c);
     vpunpckldq(xmm5, xmm4, xmm5);
     vpunpcklqdq(xmm2, xmm3, xmm5);
     vpunpckhqdq(xmm3, xmm3, xmm5);
-    vmovdqu(xword[B+0x30], xmm2);
-    vmovdqu(xword[B+0xf0], xmm3);
-    vpmovsxbw(ymm5, xmm0);
-    vmovhlps(xmm6, xmm0, xmm0);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm2);
-    vmovhlps(xmm7, xmm2, xmm2);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm13, ymm13, ymm5);
-    vpmovsxbw(ymm5, xmm1);
-    vmovhlps(xmm6, xmm1, xmm1);
-    vpmovsxbw(ymm6, xmm6);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxbw(ymm6, xmm3);
-    vmovhlps(xmm7, xmm3, xmm3);
-    vpmovsxbw(ymm7, xmm7);
-    vphaddw(ymm6, ymm6, ymm7);
-    vphaddw(ymm5, ymm5, ymm6);
-    vpmovsxwd(ymm5, xmm5);
-    vpaddd(ymm13, ymm13, ymm5);
+
+    vinserti32x4(ymm0, ymm0, xmm2, 1);
+    vinserti32x4(ymm1, ymm1, xmm3, 1);
+
+    if (vnni_ver) {
+        vpdpbusd(ymm13, ymm15, ymm0);
+        vpdpbusd(ymm13, ymm15, ymm1);
+    } else {
+        vinsertf64x4(zmm0, zmm0, ymm1, 1);
+        vpmaddubsw(zmm2, zmm15, zmm0);
+        vpmaddwd(zmm2, zmm2, zmm14);
+        vpaddd(ymm13, ymm13, ymm2);
+        vextractf64x4(ymm3, zmm2, 1);
+        vpaddd(ymm13, ymm13, ymm3);
+    }
+    vmovups(yword[B+0x20], ymm0);
+    vmovups(yword[B+0xe0], ymm1);
+
     sub(A1, -8);
     sub(B, -384);
     dec(I);
