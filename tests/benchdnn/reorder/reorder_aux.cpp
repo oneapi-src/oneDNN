@@ -56,6 +56,8 @@ const char *flag2str(flag_t flag) {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     s << "--idt=" << dt2str(cfg2dt(p.conf_in)) << " ";
     s << "--odt=" << dt2str(cfg2dt(p.conf_out)) << " ";
     s << "--itag=" << fmt_tag2str(p.reorder.tag_in) << " ";

@@ -205,6 +205,8 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     s
         << "--prop=" << prop2str(p.prop)
         << " --alg=" << alg2str(p.alg)

@@ -143,6 +143,8 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     if (p.dir != FWD_D)
         s << "--dir=" << dir2str(p.dir) << " ";
     if (p.dt != mkldnn_f32)

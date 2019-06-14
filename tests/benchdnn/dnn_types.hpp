@@ -140,6 +140,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
+std::ostream &dump_global_params(std::ostream &s);
+
 mkldnn_format_tag_t get_default_tag(int ndims);
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales);

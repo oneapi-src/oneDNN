@@ -27,6 +27,8 @@ std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     if (!(p.n_inputs() == 2 && p.idt[0] == mkldnn_f32 && p.idt[1] == mkldnn_f32))
         s << "--idt=" << p.idt << " ";
     if (p.odt != mkldnn_f32)
