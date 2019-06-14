@@ -10,6 +10,10 @@ if(MKLDNN_CPU_RUNTIME STREQUAL "TBB")
     find_package(TBB REQUIRED)
 endif()
 
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+    find_package(OpenCL REQUIRED)
+endif()
+
 # Reverting the CMAKE_MODULE_PATH to its original state
 set(CMAKE_MODULE_PATH ${MKLDNN_ORIGINAL_CMAKE_MODULE_PATH})
 

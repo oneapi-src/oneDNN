@@ -135,6 +135,12 @@ if(MKLDNN_CPU_RUNTIME STREQUAL "TBB")
     endif()
 endif()
 
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+    install(FILES
+        "../cmake/FindOpenCL.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+endif()
+
 # On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
