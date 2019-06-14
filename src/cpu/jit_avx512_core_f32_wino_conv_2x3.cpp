@@ -21,7 +21,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_avx512_core_fp32_wino_conv_2x3.hpp"
+#include "jit_avx512_core_f32_wino_conv_2x3.hpp"
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -34,9 +34,9 @@ using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
 /// SRC TRANSFORMS /////////////////////////////////////////////////////////////
-struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t: public jit_generator {
+struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
-            jit_avx512_core_fp32_wino_conv_2x3_src_trans_t)
+            jit_avx512_core_f32_wino_conv_2x3_src_trans_t)
 
     jit_conv_conf_2x3_wino_t jcp;
 
@@ -48,7 +48,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t: public jit_generator {
     };
     void (*ker_)(const call_params_t *);
 
-    jit_avx512_core_fp32_wino_conv_2x3_src_trans_t(
+    jit_avx512_core_f32_wino_conv_2x3_src_trans_t(
         jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp) {
         generate();
@@ -90,7 +90,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t: public jit_generator {
 
 };
 
-void jit_avx512_core_fp32_wino_conv_2x3_src_trans_t::generate() {
+void jit_avx512_core_f32_wino_conv_2x3_src_trans_t::generate() {
     Label ic_block_label;
 
     const int load_block = 16;
@@ -162,9 +162,9 @@ void jit_avx512_core_fp32_wino_conv_2x3_src_trans_t::generate() {
 }
 
 /// DST TRANSFORMS /////////////////////////////////////////////////////////////
-struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t: public jit_generator {
+struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
-            jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t)
+            jit_avx512_core_f32_wino_conv_2x3_dst_trans_t)
 
     jit_conv_conf_2x3_wino_t jcp;
     const primitive_attr_t &attr_;
@@ -180,7 +180,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t: public jit_generator {
     };
     void (*ker_)(const call_params_t *);
 
-    jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t(
+    jit_avx512_core_f32_wino_conv_2x3_dst_trans_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr) {
         generate();
@@ -238,7 +238,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t: public jit_generator {
     Reg64 reg_ptr_sum_scale = rdx;
 };
 
-bool jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::maybe_relu(int position) {
+bool jit_avx512_core_f32_wino_conv_2x3_dst_trans_t::maybe_relu(int position) {
     using namespace primitive_kind;
     const auto &p = attr_.post_ops_;
 
@@ -260,7 +260,7 @@ bool jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::maybe_relu(int position) {
     return false;
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
+void jit_avx512_core_f32_wino_conv_2x3_dst_trans_t::generate() {
     Label oc_block_label;
 
     const int load_block = 16;
@@ -379,8 +379,8 @@ void jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t::generate() {
 }
 
 /// GEMM kernel ////////////////////////////////////////////////////////////////
-struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t: public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t)
+struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t: public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t)
     jit_conv_conf_2x3_wino_t jcp;
 
     struct call_params_t {
@@ -395,7 +395,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t: public jit_generator {
     static bool post_ops_ok(jit_conv_conf_2x3_wino_t &jcp,
                             const primitive_attr_t &attr);
 
-    jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
+    jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp) {
         generate();
@@ -439,7 +439,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t: public jit_generator {
 
 };
 
-bool jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
+bool jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
         jit_conv_conf_2x3_wino_t &jcp, const primitive_attr_t &attr) {
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
@@ -458,7 +458,7 @@ bool jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
     return false;
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::generate() {
+void jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t::generate() {
     Label nnb_loop_label, K_loop_label, mb_loop_label;
 
     preamble();
@@ -567,7 +567,7 @@ bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
 }
 }
 
-status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
+status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
         jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &wei_md,
         memory_desc_t &dst_md, memory_desc_t &bias_md,
@@ -829,33 +829,33 @@ status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::init_conf(
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-status_t jit_avx512_core_fp32_wino_conv_2x3_fwd_t
+status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t
     ::pd_t::jit_conf(memory_desc_t& expect_wei_md) {
-    return jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t::init_conf(
+    return jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t::init_conf(
             jcp_, *this->desc(), this->src_md_, this->weights_md_,
             this->dst_md_,this->bias_md_, *this->attr(), expect_wei_md);
 }
 
-jit_avx512_core_fp32_wino_conv_2x3_fwd_t::
-        jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd)
+jit_avx512_core_f32_wino_conv_2x3_fwd_t::
+        jit_avx512_core_f32_wino_conv_2x3_fwd_t(const pd_t *apd)
     : cpu_primitive_t(apd)
 {
-    kernel_ = new jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t(
+    kernel_ = new jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
-    src_trans_ = new jit_avx512_core_fp32_wino_conv_2x3_src_trans_t(
+    src_trans_ = new jit_avx512_core_f32_wino_conv_2x3_src_trans_t(
             pd()->jcp_, *pd()->attr());
-    dst_trans_ = new jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t(
+    dst_trans_ = new jit_avx512_core_f32_wino_conv_2x3_dst_trans_t(
             pd()->jcp_, *pd()->attr());
 }
 
-jit_avx512_core_fp32_wino_conv_2x3_fwd_t
-    ::~jit_avx512_core_fp32_wino_conv_2x3_fwd_t() {
+jit_avx512_core_f32_wino_conv_2x3_fwd_t
+    ::~jit_avx512_core_f32_wino_conv_2x3_fwd_t() {
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN(
+void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         const float *src, const float *wei, const float *bia, float *dst,
         const memory_tracking::grantor_t &scratchpad) const
 {
@@ -888,12 +888,12 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         auto wino_dst = ptr_M + size_wino_dst * ithr;
 
         auto src_trans_p =
-            jit_avx512_core_fp32_wino_conv_2x3_src_trans_t
+            jit_avx512_core_f32_wino_conv_2x3_src_trans_t
                 ::call_params_t();
         auto dst_trans_p =
-            jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t
+            jit_avx512_core_f32_wino_conv_2x3_dst_trans_t
                 ::call_params_t();
-        auto gemm_p = jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::
+        auto gemm_p = jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::
                 call_params_t();
 
         /* transformation of input tensor to winograd domain */
@@ -982,7 +982,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_mbN(
     });
 }
 
-void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
+void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
         const float *src, const float *wei, const float *bia, float *dst,
         const memory_tracking::grantor_t &scratchpad) const
 {
@@ -1009,7 +1009,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
             int y_in_block = y_in_block_b * 2;
             int x_in_block = x_in_block_b * 2;
 
-            auto src_trans_p = jit_avx512_core_fp32_wino_conv_2x3_src_trans_t ::
+            auto src_trans_p = jit_avx512_core_f32_wino_conv_2x3_src_trans_t ::
                     call_params_t();
 
             unsigned short v_y_masks[4], v_x_masks[4];
@@ -1046,7 +1046,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
 
         /* gemms */
         parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
-            auto gemm_p = jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t ::
+            auto gemm_p = jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::
                     call_params_t();
 
             gemm_p.src = ptr_V + jcp.inp_stride * tile_ij;
@@ -1065,7 +1065,7 @@ void jit_avx512_core_fp32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
             int y_in_block = y_in_block_b * 2;
             int x_in_block = x_in_block_b * 2;
 
-            auto dst_trans_p = jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t ::
+            auto dst_trans_p = jit_avx512_core_f32_wino_conv_2x3_dst_trans_t ::
                     call_params_t();
 
             unsigned short v_y_masks[2], v_x_masks[2];

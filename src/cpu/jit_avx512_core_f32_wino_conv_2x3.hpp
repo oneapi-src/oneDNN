@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_FP32_WINO_CONV_2x3_HPP
-#define CPU_JIT_AVX512_CORE_FP32_WINO_CONV_2x3_HPP
+#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_2x3_HPP
+#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_2x3_HPP
 
 #include <assert.h>
 
@@ -34,11 +34,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t;
-struct jit_avx512_core_fp32_wino_conv_2x3_src_trans_t;
-struct jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t;
+struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t;
+struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t;
+struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t;
 
-struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
+struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -48,7 +48,7 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_fp32_wino_2x3:", avx512_core, ""),
-                jit_avx512_core_fp32_wino_conv_2x3_fwd_t);
+                jit_avx512_core_f32_wino_conv_2x3_fwd_t);
 
         status_t init() {
             bool ok = true
@@ -106,8 +106,8 @@ struct jit_avx512_core_fp32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_2x3_fwd_t(const pd_t *apd);
-    ~jit_avx512_core_fp32_wino_conv_2x3_fwd_t();
+    jit_avx512_core_f32_wino_conv_2x3_fwd_t(const pd_t *apd);
+    ~jit_avx512_core_f32_wino_conv_2x3_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
@@ -132,9 +132,9 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    jit_avx512_core_fp32_wino_conv_2x3_fwd_ker_t *kernel_;
-    jit_avx512_core_fp32_wino_conv_2x3_src_trans_t *src_trans_;
-    jit_avx512_core_fp32_wino_conv_2x3_dst_trans_t *dst_trans_;
+    jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t *kernel_;
+    jit_avx512_core_f32_wino_conv_2x3_src_trans_t *src_trans_;
+    jit_avx512_core_f32_wino_conv_2x3_dst_trans_t *dst_trans_;
 };
 
 }

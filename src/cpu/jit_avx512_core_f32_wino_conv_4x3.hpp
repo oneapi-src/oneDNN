@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_FP32_WINO_CONV_4x3_HPP
-#define CPU_JIT_AVX512_CORE_FP32_WINO_CONV_4x3_HPP
+#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_4x3_HPP
+#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_4x3_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
@@ -23,7 +23,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_primitive.hpp"
 
-#include "jit_avx512_core_fp32_wino_conv_4x3_kernel.hpp"
+#include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -76,15 +76,15 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
 }
 
 template <bool is_fwd>
-struct _jit_avx512_core_fp32_wino_conv_4x3_t {
+struct _jit_avx512_core_f32_wino_conv_4x3_t {
 
-    _jit_avx512_core_fp32_wino_conv_4x3_t(
+    _jit_avx512_core_f32_wino_conv_4x3_t(
             const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
         : kernel_(nullptr), attr_(attr) {
-            kernel_ =  new _jit_avx512_core_fp32_wino_conv_4x3_data_kernel(jcp);
+            kernel_ =  new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(jcp);
         }
 
-    ~_jit_avx512_core_fp32_wino_conv_4x3_t() { delete kernel_; }
+    ~_jit_avx512_core_f32_wino_conv_4x3_t() { delete kernel_; }
 
     protected:
         void weight_transform_data(const jit_conv_winograd_conf_t &jcp,
@@ -108,12 +108,12 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_t {
         void _execute_data_W_SGD(float *inp_ptr, float *out_ptr,
                 float *wei_ptr, float *bias_ptr,
                 const memory_tracking::grantor_t &scratchpad) const;
-        _jit_avx512_core_fp32_wino_conv_4x3_data_kernel *kernel_;
+        _jit_avx512_core_f32_wino_conv_4x3_data_kernel *kernel_;
         const primitive_attr_t *attr_;
 };
 
-struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
-     : _jit_avx512_core_fp32_wino_conv_4x3_t<true>
+struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
+     : _jit_avx512_core_f32_wino_conv_4x3_t<true>
      , public cpu_primitive_t
     {
     struct pd_t : public cpu_convolution_fwd_pd_t {
@@ -125,7 +125,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_fp32_wino_conv_4x3_fwd_t);
+                jit_avx512_core_f32_wino_conv_4x3_fwd_t);
 
         status_t init() {
             bool ok = true
@@ -139,7 +139,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
                 && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_fp32_wino_conv_4x3_fwd_kernel::
+            status_t status = jit_avx512_core_f32_wino_conv_4x3_fwd_kernel::
                 init_conf(jcp_, *desc(), src_md_, weights_md_, dst_md_,
                         *attr());
             if (status != status::success) return status;
@@ -162,8 +162,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_fwd_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_fwd_t(const pd_t *apd)
-        : _jit_avx512_core_fp32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
+    jit_avx512_core_f32_wino_conv_4x3_fwd_t(const pd_t *apd)
+        : _jit_avx512_core_f32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
         , cpu_primitive_t(apd, true)
          {}
 
@@ -196,8 +196,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
-        : _jit_avx512_core_fp32_wino_conv_4x3_t<false>,
+struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
+        : _jit_avx512_core_f32_wino_conv_4x3_t<false>,
         public cpu_primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -208,7 +208,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t);
+                jit_avx512_core_f32_wino_conv_4x3_bwd_data_t);
 
         status_t init() {
             bool ok = true
@@ -222,7 +222,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
                 && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_fp32_wino_conv_4x3_bwd_data_kernel
+            status_t status = jit_avx512_core_f32_wino_conv_4x3_bwd_data_kernel
                 ::init_conf(jcp_, *desc(), *diff_src_md(), *weights_md(),
                         *diff_dst_md());
             if (status != status::success) return status;
@@ -244,8 +244,8 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t(const pd_t *apd)
-        : _jit_avx512_core_fp32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
+    jit_avx512_core_f32_wino_conv_4x3_bwd_data_t(const pd_t *apd)
+        : _jit_avx512_core_f32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
         , cpu_primitive_t(apd, true)
          {}
 
@@ -280,7 +280,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
+struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
         : public cpu_primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -291,7 +291,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t);
+                jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t);
 
         status_t init() {
             bool ok = true
@@ -307,7 +307,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
                 return status::unimplemented;
 
             status_t status =
-                jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel::
+                jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::
                 init_conf(jcp_, *desc(), *src_md(), *diff_dst_md(),
                         *diff_weights_md());
             if (status != status::success) return status;
@@ -329,15 +329,15 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t
         }
     };
 
-    jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
+    jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
         : cpu_primitive_t(apd, true)
         , kernel_(nullptr)
     {
-        kernel_ = new jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(
+        kernel_ = new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
                 pd()->jcp_);
     }
 
-    ~jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t()
+    ~jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t()
     {
         delete kernel_;
     }
@@ -375,7 +375,7 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel *kernel_;
+    jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel *kernel_;
 };
 
 }

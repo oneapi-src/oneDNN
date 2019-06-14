@@ -233,10 +233,10 @@ void simple_net() {
     std::vector<float> net_dst(batch * tgt_seq_length_max * feature_size, 0.1f);
 //[declare net]
 
-    // Quantization factors for fp32 data
+    // Quantization factors for f32 data
 
     ///
-    /// Quantization factors for fp32 data
+    /// Quantization factors for f32 data
     /// @snippet cpu_rnn_inference_int8.cpp quantize
     ///
     const float data_shift = 64.;

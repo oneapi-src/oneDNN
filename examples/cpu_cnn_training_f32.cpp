@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_cnn_training_fp32.cpp
-/// @copybrief cpu_cnn_training_fp32_cpp
-
-/// @page cpu_cnn_training_fp32_cpp CNN fp32 training example
+/// @example cpu_cnn_training_f32.cpp
+/// @copydoc cpu_cnn_training_f32_cpp
+///
+/// @page cpu_cnn_training_f32_cpp CNN f32 training example
 /// This C++ API example demonstrates how to build an AlexNet model training.
 /// The example implements a few layers from AlexNet model.
 ///
-/// @include cpu_cnn_training_fp32.cpp
+/// @include cpu_cnn_training_f32.cpp
 
 #include <assert.h>
 

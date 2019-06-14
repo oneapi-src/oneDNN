@@ -25,7 +25,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_avx512_core_fp32_wino_conv_4x3.hpp"
+#include "jit_avx512_core_f32_wino_conv_4x3.hpp"
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")
@@ -43,7 +43,7 @@ using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
 
 template <bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>
 ::weight_transform_data(const jit_conv_winograd_conf_t &jcp,
         float *wp, float *twp) const
 {
@@ -67,7 +67,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 }
 
 template<bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::output_transform_data
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::output_transform_data
 (int image, const jit_conv_winograd_conf_t &jcp,
     const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias) const {
 
@@ -117,7 +117,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::output_transform_data
 }
 
 template<bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>
 ::output_transform_tileblock_data(int tile_block,
     const jit_conv_winograd_conf_t &jcp, const post_ops_t &p_ops,
     float *toutp, float *outp, float *bias) const {
@@ -168,7 +168,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 
 
 template<bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>
     ::input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
         float *inp, float *tinp) const
 {
@@ -220,7 +220,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 }
 
 template <bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>
     ::input_transform_tileblock_data(int tile_block,
         const jit_conv_winograd_conf_t &jcp,
         float *inp, float *tinp) const
@@ -278,7 +278,7 @@ void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>
 }
 
 template <bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
@@ -401,7 +401,7 @@ PRAGMA_OMP(barrier)
 }
 
 template <bool is_fwd>
-void _jit_avx512_core_fp32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
+void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
@@ -521,8 +521,8 @@ PRAGMA_OMP(for schedule(static))
     }
 }
 
-template struct _jit_avx512_core_fp32_wino_conv_4x3_t<true>;
-template struct _jit_avx512_core_fp32_wino_conv_4x3_t<false>;
+template struct _jit_avx512_core_f32_wino_conv_4x3_t<true>;
+template struct _jit_avx512_core_f32_wino_conv_4x3_t<false>;
 
 namespace {
 
@@ -659,7 +659,7 @@ PRAGMA_OMP(parallel)
 }
 } //bwdw namespace
 
-void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
+void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
 _execute_backward_weights_SDGtWo(const float *ptr_src,
         const float *ptr_diff_dst, float *ptr_diff_weights,
         float *ptr_diff_bias,
@@ -817,7 +817,7 @@ PRAGMA_OMP(for)
     }
 }
 
-void jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t::
+void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
 _execute_backward_weights_S_D_Giot_W(const float *ptr_src,
         const float *ptr_diff_dst, float *ptr_diff_weights,
         float *ptr_diff_bias,

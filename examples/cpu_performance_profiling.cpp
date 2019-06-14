@@ -468,7 +468,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
     /// @page cpu_performance_profiling_cpp
-    /// This implementation complies with best practices for fp32 inference by
+    /// This implementation complies with best practices for f32 inference by
     /// using the Intel MKL-DNN recommended blocked format for convolution and
     /// adding ReLU as a post-op to execute a fused version of conv + ReLU.
     /// The consequence to following best practices can be seen in the execution

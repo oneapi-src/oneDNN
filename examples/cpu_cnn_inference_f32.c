@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_cnn_inference_fp32.c
-/// @copybrief cpu_cnn_inference_fp32_c
-/// > Annotated version: @ref cpu_cnn_inference_fp32_c
+/// @example cpu_cnn_inference_f32.c
+/// @copybrief cpu_cnn_inference_f32_c
+/// > Annotated version: @ref cpu_cnn_inference_f32_c
 
-/// @page cpu_cnn_inference_fp32_c CNN fp32 inference example
+/// @page cpu_cnn_inference_f32_c CNN f32 inference example
 /// This C API example demonstrates how to build an AlexNet neural
 /// network topology for forward-pass inference. 
 ///
@@ -39,7 +39,7 @@
 /// The example implements the AlexNet layers
 /// as numbered primitives (for example, conv1, pool1, conv2).
 ///
-/// @include cpu_cnn_inference_fp32.c
+/// @include cpu_cnn_inference_f32.c
 
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L

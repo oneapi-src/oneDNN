@@ -28,7 +28,7 @@
 
 #include "cpu/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
-#include "cpu/jit_avx512_core_fp32_wino_conv_4x3.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_4x3.hpp"
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
 #include "cpu/jit_avx512_core_x8s8s32x_convolution.hpp"
 #include "cpu/jit_avx512_core_bf16_convolution.hpp"
@@ -67,7 +67,7 @@
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
-#include "cpu/jit_avx512_core_fp32_wino_conv_2x3.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_2x3.hpp"
 #include "cpu/jit_uni_batch_normalization_s8.hpp"
 #include "cpu/jit_uni_softmax.hpp"
 
@@ -103,10 +103,10 @@ static const pd_create_f cpu_impl_list[] = {
     INSTANCE(jit_avx512_common_1x1_convolution_fwd_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_data_f32_t),
     INSTANCE(jit_avx512_common_1x1_convolution_bwd_weights_t),
-    INSTANCE(jit_avx512_core_fp32_wino_conv_2x3_fwd_t),
-    INSTANCE(jit_avx512_core_fp32_wino_conv_4x3_fwd_t),
-    INSTANCE(jit_avx512_core_fp32_wino_conv_4x3_bwd_data_t),
-    INSTANCE(jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_t),
+    INSTANCE(jit_avx512_core_f32_wino_conv_2x3_fwd_t),
+    INSTANCE(jit_avx512_core_f32_wino_conv_4x3_fwd_t),
+    INSTANCE(jit_avx512_core_f32_wino_conv_4x3_bwd_data_t),
+    INSTANCE(jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t),
     INSTANCE(jit_avx512_common_convolution_winograd_fwd_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_data_t),
     INSTANCE(jit_avx512_common_convolution_winograd_bwd_weights_t),

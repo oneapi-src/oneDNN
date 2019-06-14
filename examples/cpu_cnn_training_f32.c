@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_cnn_training_fp32.c
-/// @copybrief cpu_cnn_training_fp32_c
+/// @example cpu_cnn_training_f32.c
+/// @copybrief cpu_cnn_training_f32_c
 
-/// @page cpu_cnn_training_fp32_c CNN fp32 training example
+/// @page cpu_cnn_training_f32_c CNN f32 training example
 /// This C API example demonstrates how to build an AlexNet model training.
 /// The example implements a few layers from AlexNet model.
 ///
-/// @include cpu_cnn_training_fp32.c
+/// @include cpu_cnn_training_f32.c
 
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L
