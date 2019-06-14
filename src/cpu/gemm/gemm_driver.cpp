@@ -366,7 +366,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
                     col_offset[i] += co[i];
             }
 
-            if (bo != 0) {
+            if (bo != 0 && a_row_sum) {
                 for (dim_t i = 0; i < m; i++)
                     col_offset[i] -= bo * a_row_sum[i];
             }
@@ -381,7 +381,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
                     row_offset[i] += co[i];
             }
 
-            if (ao != 0) {
+            if (ao != 0 && b_col_sum) {
                 for (dim_t i = 0; i < n; i++)
                     row_offset[i] -= ao * b_col_sum[i];
             }
@@ -445,8 +445,8 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
 
-    const gemm_pack_storage_t *a_packed = arg->a_packed;
-    const gemm_pack_storage_t *b_packed = arg->b_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
     if (m <= 0 || n <= 0) {
         return mkldnn_success;
@@ -588,8 +588,8 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                     if (sizeN < n)
                         Um_forA = Um;
 
-                    a_type *bufferA_eff;
-                    c_type *a_row_sum_eff;
+                    a_type *bufferA_eff = nullptr;
+                    c_type *a_row_sum_eff = nullptr;
 
                     if (a_packed) {
                         Um_forA = Um;
@@ -665,7 +665,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     float alpha = arg->alpha;
 
-    const gemm_pack_storage_t *b_packed = arg->b_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
     if (m <= 0 || n <= 0) {
         return mkldnn_success;
@@ -1275,7 +1275,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 
     bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
 
-    const gemm_pack_storage_t *a_packed = arg->a_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
 
     // Scaling C matrix.
     if (!isInteger && beta != 1.0f && beta != 0.0f) {
@@ -1395,9 +1395,12 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
             auto a_row_sum_eff = a_packed ?
                 a_packed->row_sums<c_type>(0, Bm, blk_k) : a_row_sum;
 
-            result = kernel_driver_parallel_acopiedbcopy(ithr, sizeM, n, sizeK,
-                    blk_k, Bk, bufferA_eff, b_block, beta, c_block, offsetc,
-                    co + co_stride, a_row_sum_eff, arg);
+            auto this_result = kernel_driver_parallel_acopiedbcopy(ithr, sizeM,
+                    n, sizeK, blk_k, Bk, bufferA_eff, b_block, beta, c_block,
+                    offsetc, co + co_stride, a_row_sum_eff, arg);
+
+            if (this_result != mkldnn_success)
+                result = this_result;
 
             mkldnn_thr_barrier(); // Wait for kernel computations to finish.
         }
@@ -1529,6 +1532,14 @@ static mkldnn_status_t gemm_threading_driver(
     if (is_a_packed && is_b_packed)
        if (arg->a_packed->threading() != arg->b_packed->threading())
           return mkldnn_invalid_arguments;
+
+    if (is_a_packed && arg->bo != 0)
+        if (!arg->a_packed->has_row_sums())
+            return mkldnn_invalid_arguments;
+
+    if (is_b_packed && arg->ao != 0)
+        if (!arg->b_packed->has_col_sums())
+            return mkldnn_invalid_arguments;
 
     int nthr_goal = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
 

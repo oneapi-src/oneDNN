@@ -21,6 +21,7 @@
 #include "c_types_map.hpp"
 #include "gemm_pack_storage.hpp"
 #include "gemm_threading.hpp"
+#include <memory>
 
 namespace mkldnn {
 namespace impl {
@@ -67,7 +68,7 @@ struct gemm_info_t {
     pack_type packing;
     gemm_pack_storage_t *pack_dst;
     bool measure_only;
-    const gemm_pack_storage_t *a_packed, *b_packed;
+    std::shared_ptr<const gemm_pack_storage_t> a_packed, b_packed;
 
     // Kernel parameters.
     dim_t um, un, uk, bm, bn, bk;
@@ -109,8 +110,6 @@ struct gemm_info_t {
             const int *ldc, const c_type *oc, bool force_nocopy,
             pack_type packing, gemm_pack_storage_t *pack_dst,
             bool measure_only);
-
-    ~gemm_info_t();
 
     bool hasKernels(void);
 

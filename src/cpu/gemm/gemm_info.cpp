@@ -89,29 +89,25 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     this->pack_dst = pack_dst;
     this->measure_only = measure_only && pack_dst
         && (packing != pack_type::none);
-    this->a_packed = NULL;
-    this->b_packed = NULL;
 
     if (this->transa == packed) {
         dim_t cols;
 
-        this->a_packed = new gemm_pack_storage_t(a);
+        this->a_packed.reset(new gemm_pack_storage_t(a));
         if (this->a_packed->get_nocopy(this->lda, cols)) {
             this->a = this->a_packed->template matrix<a_type>();
             this->transa = no_trans;
-            delete this->a_packed;
-            this->a_packed = NULL;
+            this->a_packed = nullptr;
         }
     }
     if (this->transb == packed) {
         dim_t rows;
 
-        this->b_packed = new gemm_pack_storage_t(b);
+        this->b_packed.reset(new gemm_pack_storage_t(b));
         if (this->b_packed->get_nocopy(this->ldb, rows)) {
             this->b = this->b_packed->template matrix<b_type>();
             this->transb = no_trans;
-            delete this->b_packed;
-            this->b_packed = NULL;
+            this->b_packed = nullptr;
         }
     }
 
@@ -143,12 +139,6 @@ gemm_info_t<a_type, b_type, c_type>::gemm_info_t(const char *transA,
     if (!this->force_nocopy || is_gemv) {
         this->jit_init();
     }
-}
-
-template<typename a_type, typename b_type, typename c_type>
-gemm_info_t<a_type, b_type, c_type>::~gemm_info_t() {
-    delete this->a_packed;
-    delete this->b_packed;
 }
 
 template<typename a_type, typename b_type, typename c_type>
