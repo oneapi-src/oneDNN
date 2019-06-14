@@ -252,12 +252,12 @@ private:
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     CRIT);
+            DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
+
             // Init reference float type memory with NANs
             if (engine == engine_ref && dt == mkldnn_f32)
-                for (int64_t i = 0; i < nelems(); i++)
+                for (int64_t i = 0; i < (int64_t)(sz / sizeof(float)); i++)
                     ((float *)data_)[i] = NAN;
-
-            DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
         } else {
             is_data_owner_ = false;
             data_ = NULL;
