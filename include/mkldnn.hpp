@@ -816,6 +816,8 @@ struct engine: public handle<mkldnn_engine_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Constructs an engine of particular @p akind associated with the given
+    /// OpenCL @p device and @p context objects.
     engine(kind akind, cl_device_id device, cl_context context) {
         mkldnn_engine_t aengine;
         error::wrap_c_api(mkldnn_engine_create_ocl(&aengine,
@@ -825,9 +827,12 @@ struct engine: public handle<mkldnn_engine_t> {
     }
 #endif
 
+    /// Constructs an engine from other engine @p aengine.
     explicit engine(const mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
+    /// Constructs an engine from the primitive descriptor @p pd
+    /// by querying its engine.
     engine(const handle<mkldnn_primitive_desc_t> &pd) {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
@@ -837,6 +842,7 @@ struct engine: public handle<mkldnn_engine_t> {
         reset(engine_q, true);
     }
 
+    /// Returns the kind of the engine.
     kind get_kind() const {
         mkldnn_engine_kind_t akind;
         error::wrap_c_api(mkldnn_engine_get_kind(get(), &akind),
@@ -845,6 +851,7 @@ struct engine: public handle<mkldnn_engine_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Returns the OpenCL context associated with the engine.
     cl_context get_ocl_context() const {
         cl_context context = nullptr;
         error::wrap_c_api(mkldnn_engine_get_ocl_context(get(), &context),
@@ -852,6 +859,7 @@ struct engine: public handle<mkldnn_engine_t> {
         return context;
     }
 
+    /// Returns the OpenCL device associated with the engine.
     cl_device_id get_ocl_device() const {
         cl_device_id device = nullptr;
         error::wrap_c_api(mkldnn_engine_get_ocl_device(get(), &device),
@@ -922,6 +930,8 @@ struct stream: public handle<mkldnn_stream_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Constructs a stream associated with the engine @p eng and with the
+    /// OpenCL command queue @p queue.
     stream(const engine &eng, cl_command_queue queue) {
         mkldnn_stream_t astream;
         error::wrap_c_api(mkldnn_stream_create_ocl(&astream, eng.get(), queue),
@@ -929,6 +939,7 @@ struct stream: public handle<mkldnn_stream_t> {
         reset(astream);
     }
 
+    /// Returns the OpenCL command queue associated with the stream.
     cl_command_queue get_ocl_command_queue() const {
         cl_command_queue queue = nullptr;
         error::wrap_c_api(mkldnn_stream_get_ocl_command_queue(get(), &queue),
@@ -1472,6 +1483,7 @@ struct memory: public handle<mkldnn_memory_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Returns the OpenCL memory object associated with the memory.
     cl_mem get_ocl_mem_object() const {
         cl_mem mem_object;
         error::wrap_c_api(mkldnn_memory_get_ocl_mem_object(get(), &mem_object),
@@ -1479,6 +1491,7 @@ struct memory: public handle<mkldnn_memory_t> {
         return mem_object;
     }
 
+    /// Sets the OpenCL memory object @p mem_object associated with the memory.
     void set_ocl_mem_object(cl_mem mem_object) {
         error::wrap_c_api(mkldnn_memory_set_ocl_mem_object(get(), mem_object),
                 "could not set OpenCL memory object");
