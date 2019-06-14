@@ -8,7 +8,7 @@
 --idt=f32:f32:f32
 --otag=undef,ncdhw
 --itag=ncdhw,ncdhw,ncdhw
---scales=1.25:3:0.45   16x2x6x4x3
+--scales=1.25:3:0.5    16x2x6x4x3
 
 # f16
 --odt=f16
@@ -19,5 +19,5 @@
 --idt=f16:f16:f16
 --otag=undef,ncdhw
 --itag=ncdhw,ncdhw,ncdhw
---scales=1.25:3:0.45   16x2x6x4x3
+--scales=1.25:3:0.5    16x2x6x4x3
 

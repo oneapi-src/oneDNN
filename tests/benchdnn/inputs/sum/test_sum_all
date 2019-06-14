@@ -11,4 +11,4 @@
 --idt=f32:s32:s8
 --otag=undef,ncdhw,ndhwc,nCdhw8c,nCdhw16c
 --itag=nCdhw8c:ncdhw:ndhwc
---scales=1.25:3:0.45   16x2x6x4x3
+--scales=1.25:3:0.5    16x2x6x4x3
