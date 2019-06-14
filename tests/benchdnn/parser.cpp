@@ -173,7 +173,12 @@ static bool parse_engine_kind(const char *str,
         DNN_SAFE(mkldnn_stream_destroy(stream_tgt), CRIT);
         DNN_SAFE(mkldnn_engine_destroy(engine_tgt), CRIT);
 
-        DNN_SAFE(mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
+        auto st = mkldnn_engine_create(&engine_tgt, engine_tgt_kind, 0);
+        if (engine_tgt_kind == mkldnn_gpu && st != mkldnn_success) {
+            fprintf(stderr, "Could not create a GPU engine, exiting...\n");
+            exit(1);
+        }
+        DNN_SAFE(st, CRIT);
         DNN_SAFE(mkldnn_stream_create(
                          &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
                 CRIT);
