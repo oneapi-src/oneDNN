@@ -55,12 +55,14 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
 
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
         is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims,
-        p->cfg[SRC].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[SRC].dt, p->stag), WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims,
         is_3d(p) ? wei_3d_dims : is_1d(p) ? wei_1d_dims : wei_2d_dims,
-        p->cfg[WEI].dt, mkldnn_format_tag_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_format_tag_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[WEI].dt, p->wtag), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
+                mkldnn_format_tag_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
+                p->dtag), WARN);
 
     switch (p->dir) {
     case FWD_D: case FWD_B:
