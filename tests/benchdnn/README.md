@@ -99,11 +99,16 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | bf16          | 2-byte float (8 bits exp,  7 bits mantissa, 1 bit sign)
 
 |Format tags:   | Physical disposition of elements in memory
-| abcd          | Plain layout. Standard de-facto for training in CNN (aka nchw).
-| acdb          | Plain layout. Standard de-facto for int8 inference in CNN (aka nhwc).
-| aBcd8b        | Internal blocked format for AVX2 systems and below.
-| aBcd16b       | Internal blocked format for AVX512VL systems and above.
+| Plain:        |
+|  abcd         | Standard de-facto for training in CNN (aka nchw).
+|  acdb         | Standard de-facto for int8 inference in CNN (aka nhwc).
+| Blocked:      |
+|  aBcd8b       | Internal blocked format for AVX2 systems and below.
+|  aBcd16b      | Internal blocked format for AVX512VL systems and above.
 | ...           | and some others...
+| Special:      |
+|  any          | mkldnn_format_tag_any. Let the library decide, which layout should be used.
+|  undef        | mkldnn_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
 
 
 ## Issues and Contributions
