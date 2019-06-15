@@ -57,7 +57,11 @@ if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
-        ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
         ${example_sources}
         DESTINATION examples)
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+        install(FILES
+            ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
+            DESTINATION examples)
+    endif()
 endif()
