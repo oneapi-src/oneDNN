@@ -45,7 +45,7 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
-if((WIN32 OR MINGW) AND (NOT MKLDNN_BUILD_FOR_CI))
+if(WIN32 AND (NOT MKLDNN_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
         "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
@@ -78,7 +78,7 @@ function(register_benchdnn_test name engine cmd)
                 "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV3}")
         endif()
 
-        if(WIN32 OR MINGW)
+        if(WIN32)
             set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
             set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
         endif()
