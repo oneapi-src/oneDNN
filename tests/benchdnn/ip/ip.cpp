@@ -233,8 +233,8 @@ int doit(const prb_t *p, res_t *r) {
             ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
             : dnn_mem_t();
 
-    auto src_tag = is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw;
-    auto wei_tag = is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw;
+    const auto src_tag = get_default_tag(src_dt.md_.ndims);
+    const auto wei_tag = get_default_tag(wei_dt.md_.ndims);
     dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
     dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
     dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc, engine_ref);
