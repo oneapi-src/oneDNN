@@ -97,6 +97,9 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     else
         SAFE(init_status, WARN);
 
+    const char *impl_str = query_impl_info(ippd);
+    print(5, "mkldnn implementation: %s\n", impl_str);
+
     auto q = [=](mkldnn_query_t query, int index = 0)
     { return *mkldnn_primitive_desc_query_md(ippd, query, index); };
 

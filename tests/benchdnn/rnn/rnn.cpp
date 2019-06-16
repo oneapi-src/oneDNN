@@ -255,6 +255,9 @@ inline int init_pd(const prb_t *p, mkldnn_rnn_desc_t rd[2],
             return r->state = UNIMPLEMENTED, OK;
         else
             SAFE(init_status, WARN);
+
+        const char *impl_str = query_impl_info(rpd[i]);
+        print(5, "mkldnn implementation: %s\n", impl_str);
     }
     mkldnn_primitive_attr_destroy(mkldnn_attr);
 
