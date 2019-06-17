@@ -27,6 +27,7 @@
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "gemm_info.hpp"
 #include "gemm_threading.hpp"
+#include "gemm_partition.hpp"
 #include "gemv_driver.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
@@ -38,6 +39,21 @@
 namespace mkldnn {
 namespace impl {
 namespace cpu {
+
+template <typename T>
+int get_vector_length() {
+    int v_bytes;
+
+    if (mayiuse(avx512_core))
+        v_bytes = cpu_isa_traits<avx512_core>::vlen;
+    else if (mayiuse(avx))
+        v_bytes = cpu_isa_traits<avx>::vlen;
+    else
+        v_bytes = cpu_isa_traits<sse41>::vlen;
+
+    return v_bytes / sizeof(T);
+}
+
 
 template <typename c_type>
 static inline void round_to_nearest(c_type *rounded_val, double fp_val) {
@@ -144,7 +160,7 @@ static inline dim_t get_m_padd_parallel_a(dim_t m,
     m_padd *= nstl::max(nthrs, multiplier);
     if (m_padd > m)
         m_padd = utils::rnd_up(m, arg->um);
-    
+
     return m_padd;
 }
 
@@ -774,7 +790,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
 }
 
-static inline int nocopy_checker_avx2(const int nthr, const int transa,
+static inline bool nocopy_checker_avx2(const int nthr, const int transa,
         const int transb, const dim_t m, const dim_t n, const dim_t k,
         const dim_t lda, const dim_t ldb, const dim_t ldc) {
     static const dim_t BM_NOCOPY_AVX2 = 64;
@@ -808,7 +824,7 @@ static inline int nocopy_checker_avx2(const int nthr, const int transa,
     return false;
 }
 
-static inline int nocopy_checker_avx512(int nthr, const int transa,
+static inline bool nocopy_checker_avx512(int nthr, const int transa,
         const int transb, const dim_t m, const dim_t n, const dim_t k,
         const dim_t lda, const dim_t ldb, const dim_t ldc) {
     // Constants definition
@@ -886,7 +902,8 @@ static inline bool nocopy_checker(int nthr,
 
 
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
+static inline void set_thread_opts_nopack(int nthrs,
+        gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
     static constexpr dim_t N2D_MAX = 384;
@@ -895,16 +912,167 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
     bool isSgemm = data_traits<a_type>::data_type == data_type::f32;
 
-    int nthrs = *p_nthrs;
     dim_t m = arg->m;
     dim_t n = arg->n;
-    dim_t k = arg->k;
 
     thread_info.nthrs_m = 0;
     thread_info.nthrs_n = 0;
     thread_info.nthrs_k = 0;
-    thread_info.copy = copy_type::nonshared; // By default don't do parallel copy.
+    thread_info.copy = copy_type::nonshared;
     thread_info.partition = partition_type::row_1d;
+
+    // TODO Check if we can use dynamic scheduling for sgemm.
+    // TODO Check if we should use 3D blocking.
+    thread_info.nthrs_k = 1;
+
+    bool condition_2D_bsrc = false;
+    if (isSgemm) {
+        // If m is large and n is small then do 1D partitioning for AVX2.
+        if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN))
+            condition_2D_bsrc = false;
+        else
+            condition_2D_bsrc = ((n > nthrs * N2D_MAX) ||
+                    (n <= nthrs * N2D_MAX / 2)) && (m >= 2 * M2D_MIN);
+    } else {
+        condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
+    }
+
+    // TODO Check if we shoud use k-partitioning.
+
+    int condition_1D_copya = false;
+    if (mayiuse(avx512_core)) {
+        const dim_t thresh = isSgemm ? N2D_MAX / 4 : 68;
+        if (m >= 1000 && (n >= nthrs * thresh)) {
+            condition_2D_bsrc = false;
+            condition_1D_copya = true;
+        }
+    } else {
+        if (m >= 1000 && n >= 4000) {
+            condition_2D_bsrc = false;
+            condition_1D_copya = true;
+        }
+    }
+
+    // If A or B offset are non-zero, we need to keep 1D_copya to reduce
+    // update overhead for integer case.
+    if (isInteger && (arg->ao != 0 || arg->bo != 0)) {
+        condition_2D_bsrc = false;
+        condition_1D_copya = true;
+    }
+
+    if (condition_2D_bsrc) {
+        int nthrs_m = 1;
+        int nthrs_n = nthrs;
+
+        // If A offset is non-zero, we use to keep 1D_copya.
+        // TODO: the reasons seems to be in copy_sum_bx routines. At least,
+        //       after simple optimization of copy_sum_ax, similar restriction
+        //       on offset B became unnecessary. Revisit.
+        if (isInteger && arg->ao != 0) {
+            condition_2D_bsrc = 0;
+            condition_1D_copya = 1;
+        }
+
+        thread_info.nthrs_m = nthrs_m;
+        thread_info.nthrs_n = nthrs_n;
+        thread_info.partition = partition_type::col_major_2d;
+    } else if (condition_1D_copya && mkldnn_thr_syncable()) {
+        // Use parallel copy A algorithm
+        thread_info.copy = copy_type::shared_a;
+        thread_info.partition = partition_type::col_1d;
+        thread_info.nthrs_m = 1;
+        thread_info.nthrs_n = nthrs;
+    } else {
+        auto veclen = get_vector_length<c_type>();
+
+        if (m > n && (m >= nthrs * veclen || n < nthrs)) {
+            thread_info.partition = partition_type::row_1d;
+            thread_info.nthrs_m = nthrs;
+            thread_info.nthrs_n = 1;
+        } else {
+            thread_info.partition = partition_type::col_1d;
+            thread_info.nthrs_m = 1;
+            thread_info.nthrs_n = nthrs;
+        }
+    }
+}
+
+template <typename a_type, typename b_type, typename c_type>
+static inline void set_thread_opts_pack(int nthrs,
+        gemm_threading_t &thread_info,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    bool is_int8 = data_traits<a_type>::data_type == data_type::s8;
+
+    auto m = arg->m, n = arg->n;
+
+    auto &nthr_m = thread_info.nthrs_m;
+    auto &nthr_n = thread_info.nthrs_n;
+    auto &nthr_k = thread_info.nthrs_k;
+
+    static constexpr auto MBLK = 64;
+    static constexpr auto NBLK = 64;
+
+    nthr_m = nthr_n = nthr_k = 1;
+    thread_info.copy = copy_type::nonshared;
+    thread_info.partition = partition_type::col_major_2d;
+
+    if (mayiuse(avx512_core))
+        std::tie(nthr_m, nthr_n) = partition_2d_minblk(
+                m, n, MBLK, NBLK, MBLK / 2, NBLK / 2, nthrs);
+    else
+        std::tie(nthr_m, nthr_n) = partition_2d_minblk(
+                m, n, MBLK, NBLK, arg->um, NBLK / 2, nthrs);
+
+    auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
+
+    int mt, nt;
+    auto &bm = thread_info.bm;
+    auto &bn = thread_info.bn;
+
+    auto choose_m_blocking = [&]() {
+        mt = utils::div_up(m, nthr_m);
+        auto num_blk_m = utils::div_up(mt, arg->bm);
+        bm = utils::div_up(mt, num_blk_m);
+        bm = utils::rnd_up(bm, get_vector_length<a_type>());
+        mt = num_blk_m * bm;
+        if (mt * nthr_m > m) nthr_m = utils::div_up(m, mt);
+    };
+
+    auto choose_n_blocking = [&]() {
+        nt = utils::div_up(n, nthr_n);
+        auto num_blk_n = utils::div_up(nt, arg->bn);
+        bn = utils::div_up(nt, num_blk_n);
+        bn = utils::rnd_up(bn, arg->un);
+        nt = num_blk_n * bn;
+        if (nt * nthr_n > n) nthr_n = utils::div_up(n, nt);
+    };
+
+    choose_m_blocking();
+    choose_n_blocking();
+
+    if (is_int8) {
+        // If we lost a thread in one dimension because we padded the blocking
+        // size, try to rebalance the other dimensions.
+        if ((nthr_n != nthr_n_init) && ((nthr_m + 1) * nthr_n <= nthrs)) {
+            nthr_m++;
+            choose_m_blocking();
+        }
+
+        if ((nthr_m != nthr_m_init) && (nthr_m * (nthr_n + 1) <= nthrs)) {
+            nthr_n++;
+            choose_n_blocking();
+        }
+    }
+
+    printf("Threading: nthr %d x %d, blocking %d x %d\n", int(nthr_m), int(nthr_n), int(bm), int(bn));
+}
+
+template <typename a_type, typename b_type, typename c_type>
+static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    thread_info.bm = thread_info.bn = thread_info.bk = -1;
 
     if (nocopy_checker(nthrs, arg)) {
         thread_info.copy = copy_type::no_copy;
@@ -914,6 +1082,7 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
         int BM = 0;
         int BN = 0;
         int BK = 0;
+        auto m = arg->m, n = arg->n, k = arg->k;
 
         if (mayiuse(avx512_core)) {
             gemm_utils::calc_nthr_nocopy_avx512_common(m, n, k, nthrs,
@@ -925,214 +1094,18 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
 
         // Block information is being ignored. We will create patitioning
         // later.
-
         thread_info.nthrs_m = nthrs_m;
         thread_info.nthrs_n = nthrs_n;
         thread_info.nthrs_k = nthrs_k;
-
-        // Reset the total number of threads that will be used.
-        *p_nthrs = nthrs_m * nthrs_n * nthrs_k;
     } else {
-        // TODO Check if we can use dynamic scheduling for sgemm.
-        // TODO Check if we should use 3D blocking.
-        thread_info.nthrs_k = 1;
-
-        int condition_2D_bsrc = -1;
-        if (isSgemm) {
-            // If m is large and n is small then do 1D partitioning for AVX2.
-            if (!mayiuse(avx512_core) && n <= N2D_MAX && (m >= nthrs * M2D_MIN)) {
-                condition_2D_bsrc = 0;
-            } else {
-                condition_2D_bsrc = ((n > nthrs * N2D_MAX) ||
-                        (n <= nthrs * N2D_MAX / 2)) && (m >= 2 * M2D_MIN);
-            }
-        } else {
-            condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
-        }
-
-        // TODO Check if we shoud use k-partitioning.
-
-        int condition_1D_copya = 0;
-        if (mayiuse(avx512_core)) {
-            const dim_t thresh = isSgemm ? N2D_MAX / 4 : 68;
-            if (m >= 1000 && (n >= nthrs * thresh)) {
-                condition_2D_bsrc = 0;
-                condition_1D_copya = 1;
-            }
-        } else {
-            if (m >= 1000 && n >= 4000) {
-                condition_2D_bsrc = 0;
-                condition_1D_copya = 1;
-            }
-        }
-
-        // If A offset is non-zero, we use to keep 1D_copya.
-        // TODO: the reasons seems to be in copy_sum_bx routines. At least,
-        //       after simple optimization of copy_sum_ax, similar restriction
-        //       on offset B became unnecessary. Revisit.
-        if (isInteger && arg->ao != 0) {
-            condition_2D_bsrc = 0;
-            condition_1D_copya = 1;
-        }
-
-        if (condition_2D_bsrc == 1) {
-            int nthrs_m = 1;
-            int nthrs_n = nthrs;
-
-            while ((nthrs_n % 2 == 0) &&
-                    (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
-                    (m / nthrs_m >= 2 * M2D_MIN) &&
-                    (nthrs_m < 4)) {
-                nthrs_m *= 2;
-                nthrs_n /= 2;
-            }
-
-            thread_info.nthrs_m = nthrs_m;
-            thread_info.nthrs_n = nthrs_n;
-            thread_info.partition = partition_type::col_major_2d;
-
-            // Reset the total number of threads that will be used.
-            *p_nthrs = nthrs_m * nthrs_n;
-        } else if (condition_1D_copya && mkldnn_thr_syncable()) {
-            // Use parallel copy A algorithm
-            thread_info.copy = copy_type::shared_a;
-            thread_info.partition = partition_type::col_1d;
-            thread_info.nthrs_m = 1;
-            thread_info.nthrs_n = nthrs;
-        } else {
-            int veclen = 0;
-            if (mayiuse(avx512_core)) {
-                veclen = cpu_isa_traits<avx512_core>::vlen / sizeof(c_type);
-            } else if (mayiuse(avx)) {
-                veclen = cpu_isa_traits<avx>::vlen / sizeof(c_type);
-            } else {
-                veclen = cpu_isa_traits<sse41>::vlen / sizeof(c_type);
-            }
-
-            if (m > n && (m >= nthrs * veclen || n < nthrs)) {
-                thread_info.partition = partition_type::row_1d;
-                thread_info.nthrs_m = nthrs;
-                thread_info.nthrs_n = 1;
-            } else {
-                thread_info.partition = partition_type::col_1d;
-                thread_info.nthrs_m = 1;
-                thread_info.nthrs_n = nthrs;
-            }
-        }
-    }
-}
-
-static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
-        dim_t *t_offset, dim_t *t_block) {
-
-    dim_t band = n / nthrs;
-
-    dim_t tail = n - (nthrs - 1) * band;
-    if (tail > (band + 1))
-        band++;
-    tail = n - (nthrs - 1) * band;
-
-    if (ithr < (nthrs - 1))
-        *t_block = band;
-    else
-        *t_block = tail;
-
-    *t_offset = ithr * band;
-
-    if (*t_offset >= n) {
-        *t_block = 0;
-        *t_offset = 0;
-    } else if ((*t_offset + *t_block) > n) {
-        *t_block = n - *t_offset;
-    }
-}
-
-static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
-        const int ithr_j, const int nthrs_m, const int nthrs_n, const dim_t m,
-        const dim_t n, dim_t *p_m_disp, dim_t *p_m_band, dim_t *p_n_disp,
-        dim_t *p_n_band) {
-
-    dim_t m_disp = 0, n_disp = 0;
-    dim_t m_band = 0, n_band = 0;
-
-    int mdiv = nthrs_m;
-    int ndiv = nthrs_n;
-
-    dim_t m_bandt = m / mdiv; /* size per thread */
-    dim_t n_bandt = n / ndiv; /* size per thread */
-    int firstmgroup = mdiv - 1;
-    int firstngroup = ndiv - 1;
-    dim_t firstmval = m_bandt;
-    dim_t firstnval = n_bandt;
-
-    int mthr_used = mdiv;
-    if (m - (mdiv - 1) * m_bandt > m_bandt + 1) {
-        if (m - (mdiv - 1) * m_bandt > mdiv)
-            ++m_bandt;
-
-        firstmval = m_bandt + 1;
-        mthr_used = (int) (m / firstmval);
-
-        if (mthr_used * firstmval < m)
-            ++mthr_used;
-
-        firstmgroup = mthr_used - 1;
+        if (arg->packing != pack_type::none
+                && data_traits<a_type>::data_type == data_type::s8)
+            set_thread_opts_pack(nthrs, thread_info, arg);
+        else
+            set_thread_opts_nopack(nthrs, thread_info, arg);
     }
 
-    int nthr_used = ndiv;
-    if (n - (ndiv - 1) * n_bandt > n_bandt + 1) {
-        firstnval = n_bandt + 1;
-        nthr_used = (int) (n / firstnval);
-
-        if (nthr_used * firstnval < n)
-            ++nthr_used;
-
-        firstngroup = nthr_used - 1;
-    }
-
-    *nthrs = mthr_used * nthr_used;
-
-    if (ithr < *nthrs) {
-        if (ithr_i < firstmgroup) {
-            m_band = firstmval;
-            m_disp = ithr_i * firstmval;
-        } else if (ithr_i <= mthr_used - 2) {
-            m_band = m_bandt;
-            m_disp = firstmgroup * firstmval + (ithr_i - firstmgroup) * m_bandt;
-        } else {
-            m_disp = firstmgroup * firstmval
-                + (mthr_used - 1 - firstmgroup) * m_bandt;
-            m_band = nstl::max(dim_t(0), m - m_disp);
-        }
-
-        if (ithr_j < firstngroup) {
-            n_band = firstnval;
-            n_disp = ithr_j * firstnval;
-        } else if (ithr_j <= nthr_used - 2) {
-            n_band = n_bandt;
-            n_disp = firstngroup * firstnval + (ithr_j - firstngroup) * n_bandt;
-        } else {
-            n_disp = firstngroup * firstnval
-                + (nthr_used - 1 - firstngroup) * n_bandt;
-            n_band = nstl::max(dim_t(0), n - n_disp);
-        }
-        m_disp = nstl::max(nstl::min(m_disp, m - 1), dim_t(0));
-        n_disp = nstl::max(nstl::min(n_disp, n - 1), dim_t(0));
-    }
-
-    if (ithr < *nthrs) {
-        *p_m_disp = m_disp;
-        *p_n_disp = n_disp;
-        *p_m_band = m_band;
-        *p_n_band = n_band;
-    } else {
-        *p_m_disp = 0;
-        *p_n_disp = 0;
-        *p_m_band = 0;
-        *p_n_band = 0;
-    }
-
-    return;
+    return thread_info.nthrs_m * thread_info.nthrs_n * thread_info.nthrs_k;
 }
 
 template <typename a_type, typename b_type, typename c_type>
@@ -1424,14 +1397,7 @@ static inline void get_omp_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
     const double omp_intercept_big_core = 4.0e+3;
     const double omp_slope_big_core = 5.0e+2;
 
-    int veclen = 0;
-    if (mayiuse(avx512_core)) {
-        veclen = cpu_isa_traits<avx512_core>::vlen / sizeof(T);
-    } else if (mayiuse(avx)) {
-        veclen = cpu_isa_traits<avx>::vlen / sizeof(T);
-    } else {
-        veclen = cpu_isa_traits<sse41>::vlen / sizeof(T);
-    }
+    auto veclen = get_vector_length<T>();
     const double fp_per_cycle = 2.0 * 2.0 * veclen;
 
     double gemm_cycles = m * n * k / fp_per_cycle;
@@ -1551,7 +1517,7 @@ static mkldnn_status_t gemm_threading_driver(
     // Check if threading is beneficial.
     if (mayiuse(avx2) && !mayiuse(avx512_core)) {
         if (arg->m > 10 * arg->n && arg->n < nthr_goal) {
-            const int veclen = cpu_isa_traits<avx2>::vlen / sizeof(c_type);
+            const int veclen = get_vector_length<c_type>();
             if (arg->m / nthr_goal < veclen * 3) {
                 nthr_goal = nstl::max(arg->m / veclen / 3, dim_t(1));
             }
@@ -1569,8 +1535,10 @@ static mkldnn_status_t gemm_threading_driver(
         else if (arg->transb == packed)
             force_threading = &arg->b_packed->threading();
 
-        if (force_threading)
+        if (force_threading) {
             nthr_goal = force_threading->nthrs();
+            arg->update_blocking(*force_threading);
+        }
     } else {
         // Prepare packed data layout.
         gemm_pack_storage_t *pack_dst = arg->pack_dst;
@@ -1579,13 +1547,14 @@ static mkldnn_status_t gemm_threading_driver(
         pack_dst->which() = do_a ? matrix_id::a : matrix_id::b;
         pack_dst->setup(nthr_goal, do_a && is_integer, !do_a && is_integer);
 
-        auto nthr_eff = nthr_goal;
         auto &thread_info = pack_dst->threading();
+        force_threading = &thread_info;
 
-        set_thread_opts(&nthr_eff, thread_info, arg);
+        nthr_goal = set_thread_opts(nthr_goal, thread_info, arg);
+        arg->update_blocking(thread_info);
 
         if (thread_info.copy != copy_type::no_copy) {
-            for (int ithr = 0; ithr < nthr_eff; ithr++) {
+            for (int ithr = 0; ithr < nthr_goal; ithr++) {
                 const a_type *a = NULL;
                 const b_type *b = NULL;
                 c_type *c = NULL;
@@ -1594,6 +1563,7 @@ static mkldnn_status_t gemm_threading_driver(
                 dim_t n = -1;
                 dim_t k = -1;
 
+                auto nthr_eff = nthr_goal;
                 decompose_matrices(ithr, &nthr_eff, &m, &n, &k, &a, &b, &c, &co,
                     thread_info, arg);
 
@@ -1653,9 +1623,9 @@ static mkldnn_status_t gemm_threading_driver(
             if (force_threading)
                 thread_info = *force_threading;
             else
-                set_thread_opts(&nthr_eff, thread_info, arg);
+                nthr_eff = set_thread_opts(nthr_eff, thread_info, arg);
 
-            for (; ithr < nthr_eff; ithr += nthr_eff) {
+            for (; ithr < nthr_eff; ithr += nthr) {
                 const a_type *a = NULL;
                 const b_type *b = NULL;
                 c_type *c = NULL;

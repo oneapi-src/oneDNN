@@ -113,6 +113,8 @@ struct gemm_info_t {
 
     bool hasKernels(void);
 
+    void update_blocking(const gemm_threading_t &thread_info);
+
 private:
     void jit_init(void);
 };
