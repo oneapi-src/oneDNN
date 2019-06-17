@@ -1,12 +1,16 @@
+--reset
+
 # f32
---reset --dt=f32
+--dt=f32
 --skip-impl=ref
 
+--inplace=false
 --tag=nChw8c,nChw16c
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
 
+--inplace=true
 --tag=nCdhw16c
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_3d
@@ -14,8 +18,11 @@
 
 # i8
 --dt=s8
+--dir=FWD_I
 
---tag=nhwc  --dir=FWD_I --flags=G,GSR --batch=bnorm_topo
---tag=ndhwc --dir=FWD_I --flags=G,GSR --batch=bnorm_3d
+--flags=G,GSR
+--inplace=true  --tag=nhwc  --batch=bnorm_topo
+--inplace=false --tag=ndhwc --batch=bnorm_3d
+
 # bfloat16
 --batch=test_bnorm_bfloat16

@@ -53,10 +53,10 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 struct prb_t: public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, flags_t flags, const attr_t &attr,
-            check_alg_t check_alg)
+            mkldnn_format_tag_t tag, flags_t flags, bool inplace,
+            const attr_t &attr, check_alg_t check_alg)
         : desc_t(desc), check_alg(check_alg), dir(dir), dt(dt), tag(tag)
-        , flags(flags), attr(attr)
+        , flags(flags), inplace(inplace), attr(attr)
     { if (mb) this->mb = mb; }
     ~prb_t() {}
 
@@ -66,6 +66,7 @@ struct prb_t: public desc_t {
     mkldnn_data_type_t dt;
     mkldnn_format_tag_t tag;
     flags_t flags;
+    bool inplace;
     attr_t attr;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);

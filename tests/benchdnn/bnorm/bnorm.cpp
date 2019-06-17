@@ -450,10 +450,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
+int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
-    const auto nelems = data_dt.nelems(true);
+    const auto nelems = dst_dt.nelems(true);
     const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
@@ -462,12 +462,12 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     enum { ws_byte, ws_bit } ws_type;
     ws_type = ws_dt.nelems(true) < nelems ? ws_bit : ws_byte;
 
-    /* more internal knowledge: data_dt and ws_dt are expected to have exactly
-     * the same data layout, and data_dt padded regions are expected to be
+    /* more internal knowledge: dst_dt and ws_dt are expected to have exactly
+     * the same data layout, and dst_dt padded regions are expected to be
      * zero, and the respective ws_dt elements should be set accordingly */
     for (int64_t i = 0; i < nelems; i += 8) {
         for (int64_t j = 0; j < MIN2(8, nelems - i); ++j) {
-            const float data = data_dt.get_elem(i + j);
+            const float data = dst_dt.get_elem(i + j);
             const bool want = data > 0.f;
             const bool bit_set = ws_type == ws_byte ? *ws : !!(*ws & (1 << j));
 
@@ -612,7 +612,7 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine_tgt, NULL),
             WARN);
 
-    mkldnn_primitive_t b{};
+    mkldnn_primitive_t b;
     DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
 
@@ -629,30 +629,40 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
 }
 
 int doit(const prb_t *p, res_t *r) {
-    res_t res_zero{};
-    *r = res_zero;
-
     mkldnn_batch_normalization_desc_t bd;
     mkldnn_primitive_desc_t bpd;
-    mkldnn_primitive_t b{};
+    mkldnn_primitive_t b;
 
     SAFE(init_pd(p, bd, bpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
+    auto &data_desc = bd.data_desc;
+    dnn_mem_t src_dt(data_desc, engine_tgt),
+            d_dst_dt(data_desc, engine_tgt);
+
     const auto fp = mkldnn_f32;
-    auto &data_dt_d = bd.data_desc;
+    const auto tag = get_default_tag(src_dt.md_.ndims);
 
     const mkldnn_dims_t dims1d = { p->ic };
     const mkldnn_dims_t dims2d = { 2, p->ic };
 
-    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-    const auto src_tag = get_default_tag(ndims);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
+            d_dst_fp(data_desc, fp, tag, engine_ref);
 
-    dnn_mem_t data_fp(data_dt_d, fp, src_tag, engine_ref),
-            data_dt(data_dt_d, engine_tgt);
-    dnn_mem_t d_data_fp(data_dt_d, fp, src_tag, engine_ref),
-            d_data_dt(data_dt_d, engine_tgt);
+    dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t dst_dt;
+    if (!p->inplace) {
+        dst_dt = dnn_mem_t(data_desc, engine_tgt);
+        SAFE(dst_dt.reorder(dst_fp), WARN);
+    }
+
+    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t d_src_dt;
+    if (!p->inplace) {
+        d_src_dt = dnn_mem_t(data_desc, engine_tgt);
+        SAFE(d_src_dt.reorder(d_src_fp), WARN);
+    }
 
     dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x, engine_ref),
             mean_dt(mean_fp.md_, engine_tgt);
@@ -664,7 +674,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
-    dnn_mem_t ws_fp(data_fp.md_, engine_ref);
+    dnn_mem_t ws_fp(src_fp.md_, engine_ref);
     dnn_mem_t ws_dt;
     if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md = mkldnn_primitive_desc_query_md(bpd,
@@ -679,14 +689,13 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        if (prepare_fwd(p, data_fp, mean_fp, var_fp, ss_fp) != OK)
+        if (prepare_fwd(p, src_fp, mean_fp, var_fp, ss_fp) != OK)
             return r->state = MISTRUSTED, OK;
 
-        SAFE(data_dt.reorder(data_fp), WARN);
+        SAFE(src_dt.reorder(src_fp), WARN);
 
-        /* always in-place so far... */
-        args.set(MKLDNN_ARG_SRC, data_dt.m_);
-        args.set(MKLDNN_ARG_DST, data_dt.m_);
+        args.set(MKLDNN_ARG_SRC, src_dt.m_);
+        args.set(MKLDNN_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
@@ -707,7 +716,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, data_fp, mean_fp, var_fp, ss_fp, data_fp);
+            compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
                 mean_dt.map();
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
@@ -717,28 +726,33 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
                 var_dt.unmap();
             }
-            dnn_mem_t data(data_dt, fp, src_tag, engine_ref);
-            SAFE(compare(p, DATA, data_fp, data, r, &ss_fp), WARN);
+            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_ref);
+            SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
             if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-                data_dt.map();
+                if (p->inplace)
+                    src_dt.map();
+                else
+                    dst_dt.map();
                 ws_dt.map();
-                SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
-                data_dt.unmap();
+                SAFE(check_fwd_ws(p->inplace ? src_dt : dst_dt, ws_dt, r), WARN);
+                if (p->inplace)
+                    src_dt.unmap();
+                else
+                    dst_dt.unmap();
                 ws_dt.unmap();
             }
         }
     } else {
-        if (prepare_bwd(p, data_fp, d_data_fp, mean_fp, var_fp, ss_fp, ws_fp)
+        if (prepare_bwd(p, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp, ws_fp)
                 != OK)
             return r->state = MISTRUSTED, OK;
 
-        SAFE(data_dt.reorder(data_fp), WARN);
-        args.set(MKLDNN_ARG_SRC, data_dt.m_);
+        SAFE(src_dt.reorder(src_fp), WARN);
+        args.set(MKLDNN_ARG_SRC, src_dt.m_);
 
-        SAFE(d_data_dt.reorder(d_data_fp), WARN);
-        /* always in-place so far... */
-        args.set(MKLDNN_ARG_DIFF_DST, d_data_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, d_data_dt.m_);
+        SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
+        args.set(MKLDNN_ARG_DIFF_DST, d_dst_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
@@ -759,15 +773,16 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd(p, data_fp, mean_fp, var_fp, d_data_fp, ss_fp,
-                    ws_fp, d_data_fp, d_ss_fp);
+            compute_ref_bwd(p, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp,
+                    ws_fp, d_src_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
                 d_ss_dt.map();
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
                 d_ss_dt.unmap();
             }
-            dnn_mem_t d_data(d_data_dt, fp, src_tag, engine_ref);
-            SAFE(compare(p, DATA, d_data_fp, d_data, r), WARN);
+            dnn_mem_t d_src(p->inplace ? d_dst_dt : d_src_dt, fp, tag,
+                    engine_ref);
+            SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);
         }
     }
 
