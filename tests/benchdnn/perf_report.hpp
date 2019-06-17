@@ -57,6 +57,18 @@ struct base_perf_report_t {
             return; \
         }
 
+        auto get_flops = [&]() -> double {
+            if (!t.sec(mode)) return 0;
+            return ops() / t.sec(mode) / unit;
+        };
+
+        auto get_bw = [&]() -> double { return get_flops(); };
+
+        auto get_freq = [&]() -> double {
+            if (!t.sec(mode)) return 0;
+            return t.ticks(mode) / t.sec(mode) / unit;
+        };
+
         HANDLE("alg", dump_alg(s));
         HANDLE("cfg", dump_cfg(s));
         HANDLE("DESC", dump_desc_csv(s));
@@ -75,12 +87,12 @@ struct base_perf_report_t {
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
         HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
 
-        HANDLE("bw", s << ops() / t.ms(mode) / unit * 1e3);
-        HANDLE("flops", s << ops() / t.ms(mode) / unit * 1e3);
+        HANDLE("bw", s << get_bw());
+        HANDLE("flops", s << get_flops());
         HANDLE("clocks", s << t.ticks(mode) / unit);
         HANDLE("desc", s << prb_str);
         HANDLE("engine", s << engine_kind2str(engine_tgt_kind));
-        HANDLE("freq", s << t.ticks(mode) / t.ms(mode) / unit * 1e3);
+        HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
 
