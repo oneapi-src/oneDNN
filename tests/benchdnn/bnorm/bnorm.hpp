@@ -79,9 +79,12 @@ struct perf_report_t: public base_perf_report_t {
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
-        s << p_->mb << ',' << p_->ic << ',';
-        if (p_->id > 1) s << p_->id << ',';
-        s << p_->ih << ',' << p_->iw << ',' << p_->eps;
+        s << p_->mb << ','
+          << p_->ic << ','
+          << p_->id << ','
+          << p_->ih << ','
+          << p_->iw << ','
+          << p_->eps;
     }
 
     virtual void dump_flags(std::ostream &s) const override {
