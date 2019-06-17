@@ -38,6 +38,7 @@ enum class copy_type {
 
 struct gemm_threading_t {
     int nthrs_m, nthrs_n, nthrs_k;
+    int bm, bn, bk;
     partition_type partition;
     copy_type copy;
 
