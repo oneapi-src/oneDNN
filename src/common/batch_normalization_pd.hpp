@@ -39,7 +39,7 @@ struct batch_normalization_pd_t: public primitive_desc_t {
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , data_md_(desc_.data_desc)
-        , stat_md_(desc_.mean_desc)
+        , stat_md_(desc_.stat_desc)
         , scaleshift_md_(desc_.data_scaleshift_desc)
         , ws_md_()
     {}

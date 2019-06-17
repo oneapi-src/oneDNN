@@ -57,9 +57,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     }
 
     dims_t stats_dims = { data_desc->dims[1] };
-    mkldnn_memory_desc_init_by_tag(&bd.mean_desc, 1, stats_dims,
+    mkldnn_memory_desc_init_by_tag(&bd.stat_desc, 1, stats_dims,
             data_type::f32, mkldnn_x);
-    bd.variance_desc = bd.mean_desc;
     bd.batch_norm_epsilon = epsilon;
 
     unsigned bnorm_flags =

@@ -1111,11 +1111,10 @@ typedef struct {
     /// parameter.
     mkldnn_memory_desc_t data_scaleshift_desc;
     mkldnn_memory_desc_t diff_data_scaleshift_desc;
-    /// Mean and variance data memory descriptors.
+    /// Statistics memory descriptor.
     ///
-    /// Mean and variance memory descriptors use 1D #mkldnn_x format[Channels].
-    mkldnn_memory_desc_t mean_desc;
-    mkldnn_memory_desc_t variance_desc;
+    /// Statistics (mean or variance) descriptor use 1D #mkldnn_x format[Channels].
+    mkldnn_memory_desc_t stat_desc;
     /// Batch normalization epsilon parameter.
     float batch_norm_epsilon;
     unsigned flags;
