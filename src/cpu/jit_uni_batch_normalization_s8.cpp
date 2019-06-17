@@ -98,7 +98,7 @@ struct jit_bnorm_t: public jit_generator {
         num_c16_blocks_ = bdesc_->C() / c_in_xmm_;
         c_tail_ = bdesc_->C() % c_in_xmm_;
         unroll_regs_ = isa == avx512_core ? 4 : 2;
-        with_relu_ = (bdesc_->with_relu_post_op() || bdesc_->fuse_bn_relu())
+        with_relu_ = (bdesc_->with_relu_post_op() || bdesc_->fuse_norm_relu())
             && bdesc_->is_fwd();
     }
 

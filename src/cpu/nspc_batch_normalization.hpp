@@ -60,7 +60,7 @@ struct nspc_batch_normalization_fwd_t : public cpu_primitive_t {
                 && (attr()->has_default_values() || this->with_relu_post_op());
             if (!ok) return status::unimplemented;
 
-            if (is_training() && fuse_bn_relu()) init_default_ws(8);
+            if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
             init_scratchpad();
 
@@ -139,7 +139,7 @@ struct nspc_batch_normalization_bwd_t : public cpu_primitive_t {
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            if (fuse_bn_relu()) {
+            if (fuse_norm_relu()) {
                 init_default_ws(8);
                 if (!compare_ws(hint_fwd_pd_))
                     return status::unimplemented;

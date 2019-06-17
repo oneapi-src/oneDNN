@@ -61,7 +61,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             if (src_md()->data_type == data_type::s8 && !stats_is_src())
                 return status::unimplemented;
 
-            if (is_training() && fuse_bn_relu())
+            if (is_training() && fuse_norm_relu())
                 init_default_ws(8);
 
             return jit_ref_bnorm_common_kernel::init_conf(
@@ -161,7 +161,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            if (fuse_bn_relu()) {
+            if (fuse_norm_relu()) {
                 init_default_ws(8);
                 if (!compare_ws(hint_fwd_pd_))
                     return status::unimplemented;

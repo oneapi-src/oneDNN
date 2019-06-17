@@ -1217,7 +1217,7 @@ mkldnn_status_t MKLDNN_API mkldnn_lrn_backward_desc_init(
 ///      if #mkldnn_use_global_stats bit-flags is not set in @p flags
 ///      and @p prop_kind = #mkldnn_forward_training
 ///  - workspace (#mkldnn_query_workspace_md, 0),
-///      if #mkldnn_fuse_bn_relu bit-flags is set in @p flags
+///      if #mkldnn_fuse_norm_relu bit-flags is set in @p flags
 ///      and @p prop_kind = #mkldnn_forward_training
 ///
 /// @note In-place operation is supported; that is, dst points to the same memory
@@ -1243,7 +1243,7 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_forward_desc_init(
 ///  - scale_and_shift (#mkldnn_query_weights_md, 0),
 ///      if #mkldnn_use_scaleshift bit-flags is set in @p flags
 ///  - workspace (#mkldnn_query_workspace_md, 0),
-///      if #mkldnn_fuse_bn_relu bit-flags is set in @p flags
+///      if #mkldnn_fuse_norm_relu bit-flags is set in @p flags
 ///
 /// Outputs:
 ///  - diff_src (#mkldnn_query_diff_src_md, 0)

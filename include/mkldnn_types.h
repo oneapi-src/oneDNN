@@ -697,7 +697,7 @@ typedef enum {
     mkldnn_lbr_gru = 0x4fff,
 } mkldnn_alg_kind_t;
 
-/// Flags for batch-normalization primitive.
+/// Flags for batch normalization primitive.
 typedef enum {
     /// Use global statistics
     ///
@@ -732,8 +732,8 @@ typedef enum {
     ///    fused with ReLU via post ops API
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
-    mkldnn_fuse_bn_relu = 0x4U,
-} mkldnn_batch_normalization_flags_t;
+    mkldnn_fuse_norm_relu = 0x4U,
+} mkldnn_normalization_flags_t;
 
 /// @}
 

@@ -40,7 +40,7 @@ flags_t str2flags(const char *str) {
     while (str && *str) {
         if (*str == 'G') flags |= GLOB_STATS;
         if (*str == 'S') flags |= USE_SCALESHIFT;
-        if (*str == 'R') flags |= FUSE_BN_RELU;
+        if (*str == 'R') flags |= FUSE_NORM_RELU;
         str++;
     }
     return flags;
@@ -49,14 +49,14 @@ flags_t str2flags(const char *str) {
 const char *flags2str(flags_t flags) {
     if (flags & GLOB_STATS) {
         if (flags & USE_SCALESHIFT)
-            return flags & FUSE_BN_RELU ? "GSR" : "GS";
-        return flags & FUSE_BN_RELU ? "GR" : "G";
+            return flags & FUSE_NORM_RELU ? "GSR" : "GS";
+        return flags & FUSE_NORM_RELU ? "GR" : "G";
     }
 
     if (flags & USE_SCALESHIFT)
-        return flags & FUSE_BN_RELU ? "SR" : "S";
+        return flags & FUSE_NORM_RELU ? "SR" : "S";
 
-    return flags & FUSE_BN_RELU ? "R" : "";
+    return flags & FUSE_NORM_RELU ? "R" : "";
 }
 
 int str2desc(desc_t *desc, const char *str) {

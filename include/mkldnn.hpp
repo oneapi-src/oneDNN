@@ -346,8 +346,8 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<mkldnn_alg_kind_t>(aalgorithm);
 }
 
-/// Flags for batch-normalization primititve.
-enum class batch_normalization_flags : unsigned {
+/// Flags for batch normalization primitive.
+enum class normalization_flags : unsigned {
     /// Use global statistics
     ///
     /// If specified
@@ -383,12 +383,12 @@ enum class batch_normalization_flags : unsigned {
     ///    fused with ReLU via post ops API
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
-    fuse_bn_relu = mkldnn_fuse_bn_relu
+    fuse_norm_relu = mkldnn_fuse_norm_relu
 };
 
-inline mkldnn_batch_normalization_flags_t convert_to_c(
-        batch_normalization_flags aflag) {
-    return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
+inline mkldnn_normalization_flags_t convert_to_c(
+        normalization_flags aflag) {
+    return static_cast<mkldnn_normalization_flags_t>(aflag);
 }
 
 enum class rnn_flags : unsigned {
@@ -438,7 +438,7 @@ inline enum_name operator~(enum_name rhs) {                             \
     return static_cast<enum_name>(~static_cast<unsigned>(rhs));         \
 }                                                                       \
 
-MKLDNN_DEFINE_BITMASK_OPS(batch_normalization_flags)
+MKLDNN_DEFINE_BITMASK_OPS(normalization_flags)
 MKLDNN_DEFINE_BITMASK_OPS(rnn_flags)
 
 #undef MKLDNN_DEFINE_BITMASK_OPS
@@ -3254,7 +3254,7 @@ struct batch_normalization_forward : public primitive {
         /// @note In-place operation is supported; that is, dst points to the
         ///       same memory as src.
         desc(prop_kind aprop_kind, const memory::desc &src_desc, float epsilon,
-                batch_normalization_flags flags) {
+                normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind), &src_desc.data,
@@ -3346,7 +3346,7 @@ struct batch_normalization_backward : public primitive {
         ///       the same memory as diff_dst.
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
                 const memory::desc &data_desc, float epsilon,
-                batch_normalization_flags flags) {
+                normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_backward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind),
