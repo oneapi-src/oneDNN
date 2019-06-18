@@ -43,7 +43,7 @@ used:
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
 In training mode the primitive also optionally supports fusion with ReLU
-activation applied to the result (see #mkldnn_fuse_bn_relu flag).
+activation applied to the result (see #mkldnn_fuse_norm_relu flag).
 
 #### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
 
@@ -54,7 +54,7 @@ activation applied to the result (see #mkldnn_fuse_bn_relu flag).
    #mkldnn_forward_inference.
 
  * If batch normalization is created with ReLU fusion (i.e.,
-   #mkldnn_fuse_bn_relu is set), for the propagation kind
+   #mkldnn_fuse_norm_relu is set), for the propagation kind
    #mkldnn_forward_training the primitive would produce a `workspace`
    memory as one extra output. This memory is required to compute the backward
    propagation. When the primitive is executed with propagation kind
@@ -77,7 +77,7 @@ configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
 
 ## Execution Arguments
 
-Depending on the [flags](@ref mkldnn_batch_normalization_flags_t) and
+Depending on the [flags](@ref mkldnn_normalization_flags_t) and
 [propagation kind](@ref mkldnn_prop_kind_t), the batch normalization primitive
 requires different inputs and outputs.  For clarity, the summary table is shown
 below.
@@ -176,7 +176,7 @@ normalization primitives:
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
 for inference only. For instance, using ReLU as a post-op would not produce an
 additional output `workspace` that is required to compute backward propagation
-correctly. Hence, in case of training one should use the #mkldnn_fuse_bn_relu
+correctly. Hence, in case of training one should use the #mkldnn_fuse_norm_relu
 directly.
 
 @anchor dg_bnorm_impl_limits
