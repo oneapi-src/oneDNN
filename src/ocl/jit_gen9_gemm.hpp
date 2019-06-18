@@ -43,9 +43,7 @@ template <impl::data_type_t a_type, impl::data_type_t b_type = a_type,
 struct jit_gen9_gemm_t : public primitive_t {
     using c_t = typename prec_traits<c_type>::type;
 
-    enum class type {
-        copy_based, no_copy, no_copy_superkernel
-    };
+    enum class type { copy_based, no_copy, no_copy_superkernel };
 
     struct pd_t : public ocl_gemm_pd_t {
         using hint_class = void;
@@ -63,17 +61,15 @@ struct jit_gen9_gemm_t : public primitive_t {
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
 
-            bool ok = true
-                    && desc()->a_type == a_type
-                    && desc()->b_type == b_type
-                    && desc()->c_type == c_type
+            bool ok = true && desc()->a_type == a_type
+                    && desc()->b_type == b_type && desc()->c_type == c_type
                     && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
                     && IMPLICATION(c_type == f16,
                                true
                                        && cl_engine->mayiuse(
                                                   cl_device_ext_t::khr_fp16)
                                        && cl_engine->mayiuse(cl_device_ext_t::
-                                                  intel_subgroups_short));
+                                                          intel_subgroups_short));
             if (!ok)
                 return status::unimplemented;
 
@@ -85,27 +81,27 @@ struct jit_gen9_gemm_t : public primitive_t {
         }
 
         float eltwise_alpha() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise()
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                : 1.0f;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
+                    : 1.0f;
         }
 
         float eltwise_beta() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise()
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                : 0.0f;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
+                    : 0.0f;
         }
 
         alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise()
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                : mkldnn_alg_kind_undef;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
+                    : mkldnn_alg_kind_undef;
         }
 
         size_t dyn_offset_a = 0;
@@ -122,12 +118,9 @@ struct jit_gen9_gemm_t : public primitive_t {
         gemm_type_ = get_gemm_type();
 
         switch (gemm_type_) {
-            case type::copy_based:
-                return init_copy_based();
-            case type::no_copy:
-                return init_nocopy();
-            case type::no_copy_superkernel:
-                return init_nocopy_superkernel();
+        case type::copy_based: return init_copy_based();
+        case type::no_copy: return init_nocopy();
+        case type::no_copy_superkernel: return init_nocopy_superkernel();
         }
 
         return status::invalid_arguments;
@@ -145,7 +138,7 @@ struct jit_gen9_gemm_t : public primitive_t {
             auto jit = ocl_jit_t(gen9_gemm_compute_kernel);
 
             auto status = jit_gen9_gemm_compute_kernel<c_type>::init_const_def(
-                jit, beta0);
+                    jit, beta0);
             if (status != status::success)
                 return status;
 
@@ -163,7 +156,7 @@ struct jit_gen9_gemm_t : public primitive_t {
             auto jit = ocl_jit_t(gen9_gemm_copy_kernel);
 
             auto status = jit_gen9_gemm_copy_kernel<c_type>::init_const_def(
-                jit, outer, trans);
+                    jit, outer, trans);
             if (status != status::success)
                 return status;
 
@@ -172,7 +165,7 @@ struct jit_gen9_gemm_t : public primitive_t {
                 return status;
 
             copy_kernel_[outer][trans]
-                = jit.get_kernel("gen9_gemm_copy_kernel");
+                    = jit.get_kernel("gen9_gemm_copy_kernel");
             if (!copy_kernel_[outer][trans])
                 return status::runtime_error;
         }
@@ -201,8 +194,8 @@ struct jit_gen9_gemm_t : public primitive_t {
         auto jit = ocl_jit_t(gen9_gemm_nocopy_kernel);
 
         auto status = jit_gen9_gemm_nocopy_kernel<c_type>::init_const_def(jit,
-            pd()->desc()->transa, pd()->desc()->transb, pd()->with_eltwise(),
-            pd()->eltwise_alg_kind());
+                pd()->desc()->transa, pd()->desc()->transb,
+                pd()->with_eltwise(), pd()->eltwise_alg_kind());
         if (status != status::success)
             return status;
 
@@ -316,7 +309,7 @@ private:
 
     bool use_superkernel() const {
         auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
-        runtime_version_t min_version = {19, 11, 12599};
+        runtime_version_t min_version = { 19, 11, 12599 };
 
         // Older OpenCL runtimes spill registers very badly with superkernels
         //  (~2% resulting efficiency). Avoid using superkernels for these
@@ -331,15 +324,15 @@ private:
     }
 
     type get_gemm_type() const {
-        return !use_nocopy() ? type::copy_based :
-            use_superkernel() ? type::no_copy_superkernel :
-                type::no_copy;
+        return !use_nocopy()
+                ? type::copy_based
+                : use_superkernel() ? type::no_copy_superkernel : type::no_copy;
     }
 };
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
