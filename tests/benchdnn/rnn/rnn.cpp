@@ -65,7 +65,7 @@ int fill_memory(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 #endif
 
     dt_conf_t c = p->cfg[kind];
-    float mean = c.f_mean, var = c.f_var, min = c.f_min, max = c.f_max;
+    float mean = c.f_mean, stddev = c.f_stddev, min = c.f_min, max = c.f_max;
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t n_chunks = 16;
@@ -75,7 +75,7 @@ int fill_memory(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
         msr.seed(idx_start + kind);
-        std::normal_distribution<float> gen(mean, var);
+        std::normal_distribution<float> gen(mean, stddev);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (c.dt == mkldnn_f32) ? gen(msr) : round(gen(msr));
             mem2.set_elem(idx, MAX2(MIN2(val, max), min));
