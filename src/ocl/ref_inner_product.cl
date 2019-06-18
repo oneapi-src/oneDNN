@@ -67,12 +67,22 @@ __kernel void ref_inner_product_bwd_data_kernel(__global DATA_T *diff_src,
         __global DATA_T *wht, __global DATA_T *diff_dst) {
 
     const int mb = get_global_id(0) / IC_TOTAL;
-    const int ic = get_global_id(0) % IC_TOTAL;
+    const int ic_total = get_global_id(0) % IC_TOTAL;
+    const int ic = ic_total / (KD * KH * KW);
+    const int kdhw = ic_total % (KD * KH * KW);
+    const int kd = kdhw / (KH * KW);
+    const int khw = kdhw % (KH * KW);
+    const int kh = khw / KH;
+    const int kw = khw % KH;
+
     float ds = 0.0f;
     for (int oc = 0; oc < OC; ++oc) {
-        ds += diff_dst[mb * OC + oc] * wht[oc * IC_TOTAL + ic];
+        const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
+        const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
+        ds += diff_dst[diff_dst_off] * wht[wht_off];
     }
-    diff_src[mb * IC_TOTAL + ic] = ds;
+    const uint diff_src_off = SRC_OFF(mb, ic, kd, kh, kw);
+    diff_src[diff_src_off] = ds;
 }
 #endif
 
@@ -82,18 +92,28 @@ __kernel void ref_inner_product_bwd_weights_kernel(__global DATA_T *src,
         __global DATA_T *diff_dst) {
 
     const int oc = get_global_id(0) / IC_TOTAL;
-    const int ic = get_global_id(0) % IC_TOTAL;
+    const int ic_total = get_global_id(0) % IC_TOTAL;
+    const int ic = ic_total / (KD * KH * KW);
+    const int kdhw = ic_total % (KD * KH * KW);
+    const int kd = kdhw / (KH * KW);
+    const int khw = kdhw % (KH * KW);
+    const int kh = khw / KH;
+    const int kw = khw % KH;
 
     float ds = 0.0f;
     for (int mb = 0; mb < MB; ++mb) {
-        ds += diff_dst[mb * OC + oc] * src[mb * IC_TOTAL + ic];
+        const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
+        const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
+        ds += diff_dst[diff_dst_off] * src[src_off];
     }
-    diff_wht[oc * IC_TOTAL + ic] = ds;
+    const uint diff_wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
+    diff_wht[diff_wht_off] = ds;
 #    if WITH_BIAS == 1
     if (ic == 0) {
         diff_bias[oc] = 0.0f;
         for (int mb = 0; mb < MB; ++mb) {
-            diff_bias[oc] += diff_dst[mb * OC + oc];
+            const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
+            diff_bias[oc] += diff_dst[diff_dst_off];
         }
     }
 #    endif

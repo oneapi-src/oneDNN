@@ -85,6 +85,7 @@ struct jit_ref_inner_product_fwd_kernel {
 
         set_offsets(src_d, jit_off.src_off);
         set_offsets(weights_d, jit_off.wht_off);
+        set_offsets(dst_d, jit_off.dst_off);
 
         return status::success;
     };
@@ -129,6 +130,7 @@ struct jit_ref_inner_product_fwd_kernel {
 
         def_offsets(jit_off.src_off, jit, "SRC", jip.ndims);
         def_offsets(jit_off.wht_off, jit, "WHT", jip.ndims);
+        def_offsets(jit_off.dst_off, jit, "DST", jip.ndims);
 
         return status::success;
     }
