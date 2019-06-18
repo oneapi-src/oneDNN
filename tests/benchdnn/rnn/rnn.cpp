@@ -66,14 +66,16 @@ int fill_memory(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem1,
 
     dt_conf_t c = p->cfg[kind];
     float mean = c.f_mean, var = c.f_var, min = c.f_min, max = c.f_max;
-    mkldnn::impl::parallel(0, [&](int ithr, int nthr) {
-        int64_t chunk_size = (nelems + nthr - 1) / nthr;
-        int64_t idx_start = ithr * chunk_size;
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    mkldnn::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
-        msr.seed((unsigned long int)kind);
+        msr.seed(idx_start + kind);
         std::normal_distribution<float> gen(mean, var);
-        msr.discard(idx_start);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (c.dt == mkldnn_f32) ? gen(msr) : round(gen(msr));
             mem2.set_elem(idx, MAX2(MIN2(val, max), min));
