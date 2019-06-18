@@ -15,13 +15,11 @@
 *******************************************************************************/
 
 /// @example cpu_cnn_training_fp32.cpp
-/// @copydoc cpu_cnn_training_fp32_cpp
-///
+/// @copybrief cpu_cnn_training_fp32_cpp
+
 /// @page cpu_cnn_training_fp32_cpp CNN fp32 training example
 /// This C++ API example demonstrates how to build an AlexNet model training.
-///
-/// The example implements the AlexNet layers
-/// as numbered primitives (for example, conv1, pool1, conv2).
+/// The example implements a few layers from AlexNet model.
 ///
 /// @include cpu_cnn_training_fp32.cpp
 

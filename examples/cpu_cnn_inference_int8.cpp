@@ -15,13 +15,14 @@
 *******************************************************************************/
 
 /// @example cpu_cnn_inference_int8.cpp
-/// Annotated version: @ref cpu_cnn_inference_int8_cpp
-///
+/// @copybrief cpu_cnn_inference_int8_cpp
+/// > Annotated version: @ref cpu_cnn_inference_int8_cpp
+
 /// @page cpu_cnn_inference_int8_cpp CNN int8 inference example
-/// Full example text: @ref cpu_cnn_inference_int8.cpp
-///
 /// This C++ API example demonstrates how to run AlexNet's conv3 and relu3
 /// with int8 data type.
+///
+/// > Example code: @ref cpu_cnn_inference_int8.cpp
 
 #include "mkldnn.hpp"
 #include <iostream>

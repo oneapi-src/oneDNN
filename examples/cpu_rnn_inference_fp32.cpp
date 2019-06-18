@@ -15,12 +15,13 @@
 *******************************************************************************/
 
 /// @example cpu_rnn_inference_fp32.cpp
-/// Annotated version: @ref cpu_rnn_inference_fp32_cpp
-///
+/// @copybrief cpu_rnn_inference_fp32_cpp 
+/// > Annotated version: @ref cpu_rnn_inference_fp32_cpp
+
 /// @page cpu_rnn_inference_fp32_cpp RNN fp32 inference example
-/// Full example text: @ref cpu_rnn_inference_fp32.cpp
+/// This C++ API example demonstrates how to build GNMT model inference.
 ///
-/// This C++ API example demonstrates how to build an GNMT model inference
+/// > Example code: @ref cpu_rnn_inference_fp32.cpp
 ///
 /// For the encoder we use:
 ///  - one primitive for the bidirectional layer of the encoder

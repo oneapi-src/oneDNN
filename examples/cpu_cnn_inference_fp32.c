@@ -15,13 +15,16 @@
 *******************************************************************************/
 
 /// @example cpu_cnn_inference_fp32.c
-/// @copydoc cpu_cnn_inference_fp32_c
-///
+/// @copybrief cpu_cnn_inference_fp32_c
+/// > Annotated version: @ref cpu_cnn_inference_fp32_c
+
 /// @page cpu_cnn_inference_fp32_c CNN fp32 inference example
-///
 /// This C API example demonstrates how to build an AlexNet neural
-/// network topology for forward-pass inference. Some key take-aways
-/// include:
+/// network topology for forward-pass inference. 
+///
+/// > Example code: @ref cpu_cnn_inference_fp32.c
+///
+/// Some key take-aways include:
 ///
 /// * How tensors are implemented and submitted to primitives.
 /// * How primitives are created.

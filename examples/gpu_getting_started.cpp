@@ -15,13 +15,18 @@
 *******************************************************************************/
 
 /// @example gpu_getting_started.cpp
-/// @copydoc gpu_getting_started_cpp
-///
+/// @copybrief gpu_getting_started_cpp
+/// > Annotated version: @ref gpu_getting_started_cpp
+
+#include <iostream>
+#include <sstream>
+
 /// @page gpu_getting_started_cpp Getting started on GPU
-/// Full example text: @ref gpu_getting_started.cpp
-///
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with Intel(R) MKL-DNN
+/// Graphics with Intel(R) MKL-DNN.
+///
+/// > Example code: @ref gpu_getting_started.cpp
+///
 ///   - How to create Intel MKL-DNN memory objects for both GPU and CPU.
 ///   - How to get data from the user's buffer into an Intel MKL-DNN
 ///     GPU memory object.
@@ -30,8 +35,6 @@
 ///   - How to create Intel MKL-DNN primitives on GPU.
 ///   - How to execute the primitives on GPU.
 ///
-/// @page gpu_getting_started_cpp
-
 /// @section gpu_getting_started_cpp_headers Public headers
 ///
 /// To start using Intel MKL-DNN, we must first include the @ref mkldnn.hpp
@@ -44,9 +47,6 @@
 /// @page gpu_getting_started_cpp
 /// @snippet gpu_getting_started.cpp Prologue
 // [Prologue]
-#include <iostream>
-#include <sstream>
-
 #include "mkldnn.hpp"
 
 // Optional header to access debug functions like `mkldnn_status2str()`
@@ -92,7 +92,6 @@ int find_negative(const memory &mem, const memory::dims adims) {
 /// @section gpu_getting_started_cpp_tutorial gpu_getting_started_tutorial() function
 /// @page gpu_getting_started_cpp
 void gpu_getting_started_tutorial() {
-
     /// @page gpu_getting_started_cpp
     /// @subsection gpu_getting_started_cpp_sub1 Engine and stream
     ///
@@ -248,6 +247,7 @@ void gpu_getting_started_tutorial() {
     // [Check the results]
 }
 
+/// @page gpu_getting_started_cpp
 /// @section gpu_getting_started_cpp_main main() function
 ///
 /// We now just call everything we prepared earlier.
@@ -257,8 +257,8 @@ void gpu_getting_started_tutorial() {
 /// The Intel MKL-DNN C++ API throws exceptions of type @ref mkldnn::error,
 /// which contains the error status (of type @ref mkldnn_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
-/// @page gpu_getting_started_cpp
 /// @snippet gpu_getting_started.cpp Main
+
 // [Main]
 int main(int argc, char **argv) {
     try {
@@ -276,6 +276,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 // [Main]
+
 /// <b></b>
 ///
 /// Upon compiling and running the example, the output should be just:

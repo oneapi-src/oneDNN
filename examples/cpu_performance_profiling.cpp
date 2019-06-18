@@ -14,9 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-
 /// @example cpu_performance_profiling.cpp
-/// Annotated version: @ref cpu_performance_profiling_cpp
+/// This example demonstrates the best practices for application performance
+/// optimizations with Intel MKL-DNN.
+///
+/// > Annotated version: @ref cpu_performance_profiling_cpp
 
 #include <iostream>
 #include <string>
@@ -24,13 +26,10 @@
 #include <stdio.h>
 
 /// @page cpu_performance_profiling_cpp Performance Profiling Example
-///
-/// Full example text: @ref cpu_performance_profiling.cpp
-///
-/// @section cpu_performance_profiling_cpp_intro Introduction
+/// > Example code: @ref cpu_performance_profiling.cpp
 ///
 /// This example uses [MKLDNN_VERBOSE](@ref dev_guide_verbose) trace output
-/// to tune Intel(R) MKL-DNN code to align
+/// to tune Intel MKL-DNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
 /// It will assume knowledge of memory formats and their usage in

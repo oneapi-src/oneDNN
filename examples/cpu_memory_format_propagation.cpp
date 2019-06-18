@@ -15,17 +15,17 @@
 *******************************************************************************/
 
 /// @example cpu_memory_format_propagation.cpp
-/// Annotated version: @ref cpu_memory_format_propagation_cpp
+/// This example demonstrates memory format propagation, which is critical for
+/// deep learning applications performance.
+///
+/// > Annotated version: @ref cpu_memory_format_propagation_cpp
 
 #include <iostream>
 #include <sstream>
 #include <string>
 
 /// @page cpu_memory_format_propagation_cpp Memory format propagation
-///
-/// Full example text: @ref cpu_memory_format_propagation.cpp
-///
-/// @section cpu_memory_format_propagation_general General notes
+/// > Example code: @ref cpu_memory_format_propagation.cpp
 ///
 /// Format propagation is one of the central notions that needs to be
 /// well-understood to use Intel MKL-DNN correctly.

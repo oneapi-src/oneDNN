@@ -66,13 +66,15 @@ Data manipulation:
 
 # Examples
 
-| Scenario           | Platform | C++ API                          | C API                          |
-| :----              | :---     | :----                            | :---                           |
-| Introduction       | CPU      | @ref cpu_getting_started_cpp     |                                |
-|                    | GPU      | @ref gpu_getting_started_cpp     | @ref gpu_getting_started_c     |
-| fp32 inference     | CPU      | @ref cpu_cnn_inference_fp32_cpp  | @ref cpu_cnn_inference_fp32_c  |
-|                    |          | @ref cpu_rnn_inference_fp32_cpp  |                                |
-| int8 inference     | CPU      | @ref cpu_cnn_inference_int8_cpp  |                                |
-|                    |          | @ref cpu_rnn_inference_int8_cpp  |                                |
-| training           | CPU      | @ref cpu_cnn_training_fp32_cpp   | @ref cpu_cnn_training_fp32_c   |
-|                    | CPU      | @ref cpu_rnn_training_fp32_cpp   |                                |
+| Topic              | Engine   | C++ API                                | C API                          |
+| :----              | :---     | :----                                  | :---                           |
+| Tutorials          | CPU      | @ref cpu_getting_started_cpp           |                                |
+|                    |          | @ref cpu_memory_format_propagation_cpp |                                |
+|                    |          | @ref cpu_performance_profiling_cpp     |                                |
+|                    | GPU      | @ref gpu_getting_started_cpp           | @ref gpu_getting_started_c     |
+| fp32 inference     | CPU      | @ref cpu_cnn_inference_fp32_cpp        | @ref cpu_cnn_inference_fp32_c  |
+|                    |          | @ref cpu_rnn_inference_fp32_cpp        |                                |
+| int8 inference     | CPU      | @ref cpu_cnn_inference_int8_cpp        |                                |
+|                    |          | @ref cpu_rnn_inference_int8_cpp        |                                |
+| training           | CPU      | @ref cpu_cnn_training_fp32_cpp         | @ref cpu_cnn_training_fp32_c   |
+|                    | CPU      | @ref cpu_rnn_training_fp32_cpp         |                                |

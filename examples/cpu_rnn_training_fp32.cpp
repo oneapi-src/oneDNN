@@ -15,10 +15,10 @@
 *******************************************************************************/
 
 /// @example cpu_rnn_training_fp32.cpp
-/// @copydoc cpu_rnn_training_fp32_cpp
+/// @copybrief cpu_rnn_training_fp32_cpp
 ///
 /// @page cpu_rnn_training_fp32_cpp RNN fp32 training example
-/// This C++ API example demonstrates how to build an GNMT model training
+/// This C++ API example demonstrates how to build GNMT model training.
 ///
 /// @include cpu_rnn_training_fp32.cpp
 
