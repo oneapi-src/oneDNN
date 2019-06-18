@@ -93,7 +93,9 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     const float num_significant_values =
         MAX2(div_up(p->dims[p->axis], global_fill_range),
                 MAX2(log2f(p->dims[p->axis]), 10));
-    const float trh = 1e-7 * (p->dir & FLAG_FWD
+    const int f32_mant_digits = 24;
+    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
+    const float trh = trh_coeff * 1e-7 * (p->dir & FLAG_FWD
         ? num_significant_values : (p->dims[p->axis] + 1));
 
     const auto nelems = dt_mem.nelems();

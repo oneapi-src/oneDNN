@@ -1,0 +1,11 @@
+--reset
+
+--dir=FWD_D
+--inplace=true,false
+--tag=nc           --axis=0,1     --batch=softmax_2d
+--dir=FWD_D,BWD_D
+--tag=nChw16c --axis=0,1,2,3 --batch=softmax_4d
+
+--dt=f16
+--dir=FWD_I
+--tag=nChw16c --axis=2,3 --batch=softmax_4d
