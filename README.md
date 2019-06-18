@@ -81,7 +81,7 @@ to improve the library:
   patch.
 * Submit a [pull request](https://github.com/intel/mkl-dnn/pulls).
 
-For additional details, see [contribution guidelines](CONTRIBUITING.md).
+For additional details, see [contribution guidelines](CONTRIBUTING.md).
 
 ## System Requirements
 Intel MKL-DNN supports systems meeting the following requirements:
