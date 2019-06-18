@@ -220,7 +220,7 @@ void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector(
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
-    const int alpha_off = 23, zero_off = 24;
+    const int alpha_off = 25, zero_off = 26;
 
     // compute exponent
     h->uni_vmovups(vmm_aux3, vmm_src);
@@ -377,6 +377,34 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(const Vmm &vmm_src)
         h->uni_vmovups(vmm_src, vmm_aux1);
         h->uni_vpxor(vmm_src, vmm_src, vmm_aux4);
     }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::gelu_compute_vector(
+        const Vmm &vmm_src) {
+    h->uni_vmovups(vmm_aux0, vmm_src);
+
+    // compute G(x) = a * x * (1 + b * x * x)
+    h->uni_vmulps(vmm_src, vmm_src, vmm_src);
+    h->uni_vmovups(vmm_aux1, table_val(23));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(0));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, table_val(24));
+
+    // save x on stack as tanh uses vmm_aux0
+    h->sub(h->rsp, vlen);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_aux0);
+
+    // compute tanh G(x)
+    tanh_compute_vector(vmm_src);
+
+    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+
+    // compute 0.5 * x * (1 + tanh)
+    h->uni_vaddps(vmm_src, vmm_src, table_val(0));
+    h->uni_vmulps(vmm_src, vmm_src, table_val(1));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
 template <cpu_isa_t isa>
@@ -590,6 +618,9 @@ void jit_uni_eltwise_injector_f32<isa>::elu_prepare_table() {
             0x3e085f1f, //[20] p2
             0xbd572bda, //[21] p3
             0x3c84fd08, //[22] p4
+            // gelu approx constants
+            0x3d372713, //[23] 0.044715
+            0x3f4c4229, //[24] sqrt(2/pi)
     };
 
     for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
@@ -677,6 +708,7 @@ int jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
     case alg_kind::eltwise_soft_relu: return 4;
     case alg_kind::eltwise_logistic: return 4;
     case alg_kind::eltwise_exp: return 3;
+    case alg_kind::eltwise_gelu: return 5;
     default: assert(!"unsupported eltwise algorithm");
     }
 
@@ -703,6 +735,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(size_t start_idx,
         case eltwise_soft_relu: soft_relu_compute_vector(Vmm(idx)); break;
         case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
         case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
+        case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
         default: assert(!"unsupported eltwise algorithm");
         }
     }
@@ -734,6 +767,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
         case eltwise_tanh:
         case eltwise_logistic:
         case eltwise_exp:
+        case eltwise_gelu:
             elu_prepare_table(); break;
         case eltwise_soft_relu: soft_relu_prepare_table(); break;
         case eltwise_abs: abs_prepare_table(); break;
@@ -1102,7 +1136,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         assert(utils::one_of(desc.alg_kind, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp));
+                    eltwise_exp, eltwise_gelu));
 
         preamble();
 
@@ -1237,7 +1271,7 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
         && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
                 eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
                 eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-                eltwise_logistic, eltwise_exp)
+                eltwise_logistic, eltwise_exp, eltwise_gelu)
         && memory_desc_wrapper(src_md()).is_dense(true)
         && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
                 math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))

@@ -80,6 +80,7 @@ void check_correctness() {
         case pk::SRELU:
         case pk::LOGISTIC:
         case pk::EXP:
+        case pk::GELU:
             // Skip everything except single alpha and beta value
             if (i_alpha != 0 || i_beta != 0) continue;
         case pk::RELU:

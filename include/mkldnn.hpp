@@ -313,6 +313,8 @@ enum class algorithm {
     eltwise_logistic = mkldnn_eltwise_logistic,
     /// Eltwise: exponent
     eltwise_exp = mkldnn_eltwise_exp,
+    /// Eltwise: gelu
+    eltwise_gelu = mkldnn_eltwise_gelu,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = mkldnn_lrn_across_channels,
     /// LRN within a single channel

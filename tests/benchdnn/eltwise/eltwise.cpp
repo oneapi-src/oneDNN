@@ -74,6 +74,8 @@ static int init_pd(const prb_t *p, mkldnn_eltwise_desc_t &ed,
 static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
         const dnn_mem_t &mem_dt, res_t *r) {
     float trh = 1e-6;
+    if (p->alg == alg_t::GELU) // when x < -3 (tanh(g(x)) + 1) has cancellation
+        trh = 4e-6;            // subtract, which leads to low accuracy.
     if (p->alg == alg_t::ELU) // when x -> -0, a(exp(-x) - 1) has cancellation
         trh = 4e-5;           // subtract, which leads to low accuracy.
     if (p->dt == mkldnn_f16)
