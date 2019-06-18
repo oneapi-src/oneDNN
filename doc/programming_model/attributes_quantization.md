@@ -4,9 +4,9 @@ Primitive Attributes: Quantization {#dev_guide_attributes_quantization}
 @anchor dgaq_intro
 ## Introduction
 
-Some primitives in the library support input/output tensors with INT8 (either
-signed or unsigned) data type. The primary goal is to support reduced precision
-inference on the compatible hardware.
+Some primitives in the library support input/output tensors with the INT8
+(either signed or unsigned) data type. The primary goal is to support
+reduced precision inference on the compatible hardware.
 
 Related materials:
 - [Lower Numerical Precision Deep Learning Inference and Training](https://software.intel.com/en-us/articles/lower-numerical-precision-deep-learning-inference-and-training)
@@ -14,18 +14,18 @@ Related materials:
 
 ## Quantization Model
 
-The primary quantization model the library assumes is the following:
+The primary quantization model that the library assumes is the following:
 \f[
     x_{f32}(:) = scale_{f32} \cdot (x_{int8}(:) - 0_{x\_int8})
 \f]
 
 where \f$scale_{f32}\f$ is somehow known in advance (typically, the process
-of obtaining these scale factors is called *calibration* process). This might
-be counter-intuitive, but the library cannot compute any of the scale factors
-at run-time dynamically. Hence, the model is sometimes called *static*
+of obtaining these scale factors is called the *calibration* process). This
+might be counter-intuitive, but the library cannot compute any of the scale
+factors at run-time dynamically. Hence, the model is sometimes called a *static*
 quantization model. The main rationale to support only *static* quantization
 out-of-the-box is higher performance. Those who want to use *dynamic*
-quantization can do that in a few steps:
+quantization can do so in a few steps:
 1. Compute the result in higher precision, like #mkldnn::memory::data_type::s32.
 2. Find the required characteristics, like min and max values, and derive
    the scale factor.
@@ -39,6 +39,10 @@ The @ref dev_guide_rnn primitives have limited support of shifted zero (for
 details, refer to the corresponding section in @ref dev_guide_rnn).
 
 For the rest of this guide, we will assume that \f$0_{x\_int8} = 0\f$.
+
+@warning
+Depending on the architecture, the behavior of int8 computations might slightly
+vary. For more details, refer to @ref dev_guide_int8_computations.
 
 This guide doesn't cover how the appropriate scaling factor can be found.
 Refer to the materials in the [Introduction](@ref dgaq_intro).
