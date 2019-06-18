@@ -254,7 +254,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::x, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 4, 10, 5, 5, 5 ) } ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductForwardNoBias, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{ prop_kind::forward,
