@@ -49,7 +49,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
             using namespace data_type;
 
             bool ok = true
-                && set_default_params() == status::success
                 && is_fwd()
                 && !has_zero_dim_memory()
                 && src_md()->data_type == src_type
@@ -58,6 +57,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                 && IMPLICATION(with_bias(), utils::one_of(
                             weights_md(1)->data_type, f32, s32, s8, u8))
                 && post_ops_ok()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             if (!ok) return status::unimplemented;

@@ -44,7 +44,6 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
             using namespace utils;
 
             bool ok = true
-                && set_default_params() == status::success
                 && is_fwd()
                 && !has_zero_dim_memory()
                 && everyone_is(data_type,
@@ -54,6 +53,7 @@ struct gemm_inner_product_fwd_t: public cpu_primitive_t {
                         with_bias() ? weights_md(1)->data_type : data_type)
                 && attr()->output_scales_.has_default_values()
                 && post_ops_ok()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             return ok ? status::success : status::unimplemented;
@@ -118,7 +118,6 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
                 && !has_zero_dim_memory()
                 && utils::everyone_is(data_type,
@@ -126,6 +125,7 @@ struct gemm_inner_product_bwd_data_t: public cpu_primitive_t {
                         weights_md()->data_type,
                         diff_dst_md()->data_type)
                 && attr()->has_default_values()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(diff_src_md(), weights_md(),
                         diff_dst_md());
             return ok ? status::success : status::unimplemented;
@@ -154,7 +154,6 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && !has_zero_dim_memory()
                 && utils::everyone_is(data_type,
@@ -163,6 +162,7 @@ struct gemm_inner_product_bwd_weights_t: public cpu_primitive_t {
                         diff_dst_md()->data_type,
                         with_bias() ? diff_weights_md(1)->data_type : data_type)
                 && attr()->has_default_values()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(src_md(), diff_weights_md(),
                         diff_dst_md());
 

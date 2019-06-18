@@ -52,9 +52,9 @@ struct ref_inner_product_fwd_t : public primitive_t {
             auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
 
             bool ok = true
-                    && set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                                forward_inference)
+                    && set_default_params() == status::success
                     && desc()->src_desc.data_type == src_type
                     && desc()->weights_desc.data_type == wei_type
                     && desc()->accum_data_type == acc_type
@@ -177,9 +177,9 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::gpu);
             bool ok = true
-                    && this->set_default_params() == status::success
                     && utils::one_of(
                                this->desc()->prop_kind, backward, backward_data)
+                    && this->set_default_params() == status::success
                     && desc()->diff_src_desc.data_type == diff_src_type
                     && desc()->weights_desc.data_type == wei_type
                     && desc()->accum_data_type == acc_type
@@ -250,9 +250,9 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::gpu);
             bool ok = true
-                    && this->set_default_params() == status::success
                     && utils::one_of(this->desc()->prop_kind, backward,
                                backward_weights)
+                    && this->set_default_params() == status::success
                     && utils::everyone_is(data_type,
                                this->desc()->src_desc.data_type,
                                this->desc()->diff_dst_desc.data_type,

@@ -43,7 +43,6 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
             using namespace data_type;
 
             bool ok = true
-                && set_default_params() == status::success
                 && is_fwd()
                 && src_md()->data_type == src_type
                 && weights_md()->data_type == wei_type
@@ -54,7 +53,8 @@ struct ref_inner_product_fwd_t: public cpu_primitive_t {
                 && attr()->output_scales_.has_default_values()
                 && attr()->post_ops_.len_ <= 1
                 && IMPLICATION(attr()->post_ops_.len_ == 1,
-                        attr()->post_ops_.entry_[0].is_relu(true, false));
+                        attr()->post_ops_.entry_[0].is_relu(true, false))
+                && set_default_params() == status::success;
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -87,13 +87,13 @@ struct ref_inner_product_bwd_data_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
                 && diff_src_md()->data_type == diff_src_type
                 && weights_md()->data_type == wei_type
                 && desc()->accum_data_type == acc_type
                 && diff_dst_md()->data_type == diff_dst_type
-                && attr()->has_default_values();
+                && attr()->has_default_values()
+                && set_default_params() == status::success;
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -124,7 +124,6 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
 
         status_t init() {
             bool ok = true
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && utils::everyone_is(data_type,
                         src_md()->data_type,
@@ -132,7 +131,8 @@ struct ref_inner_product_bwd_weights_t: public cpu_primitive_t {
                         diff_weights_md()->data_type)
                 && IMPLICATION(with_bias(),
                         data_type == diff_weights_md(1)->data_type)
-                && attr()->has_default_values();
+                && attr()->has_default_values()
+                && set_default_params() == status::success;
             return ok ? status::success : status::unimplemented;
         }
     };
