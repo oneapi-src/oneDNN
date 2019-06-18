@@ -70,7 +70,8 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
     r->total = nelems;
-    const float trh = 1e-7 * p->n_inputs();
+    const float trh
+            = ((dst_data_type == mkldnn_f16) ? 1e-3 : 1e-7) * p->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -109,17 +110,10 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
 
 int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
-    auto get_range = [](const mkldnn_data_type_t dt) {
-        if (dt == mkldnn_s8 || dt == mkldnn_u8)
-            return 256;
-        else if (dt == mkldnn_bf16 || dt == mkldnn_f16)
-            return 128;
-        return 1024;
-    };
 
     const auto nelems = mem_fp.nelems();
     const auto dt = p->idt[input_idx];
-    const int range = get_range(dt);
+    const int range = 16;
     const int f_min = dt == mkldnn_u8 ? 0 : -range / 2;
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {

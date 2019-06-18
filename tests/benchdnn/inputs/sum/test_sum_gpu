@@ -1,3 +1,4 @@
+# f32
 --reset
 
 --odt=f32
@@ -7,10 +8,12 @@
 
 --idt=f32:f32:f32
 --otag=undef,ncdhw
---itag=ncdhw,ncdhw,ncdhw
---scales=1.25:3:0.5    16x2x6x4x3
+--itag=ncdhw:ncdhw:ncdhw
+--scales=1.25:3:0.45   16x2x6x4x3
 
 # f16
+--reset
+
 --odt=f16
 --idt=f16:f16
 --otag=undef,nchw
@@ -18,6 +21,5 @@
 
 --idt=f16:f16:f16
 --otag=undef,ncdhw
---itag=ncdhw,ncdhw,ncdhw
---scales=1.25:3:0.5    16x2x6x4x3
-
+--itag=ncdhw:ncdhw:ncdhw
+--scales=1.25:3:0.45   16x2x6x4x3

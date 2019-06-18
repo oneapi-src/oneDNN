@@ -166,12 +166,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
     register_benchdnn_test(test_benchdnn_softmax
         gpu "-v1 --softmax --batch=inputs/softmax/test_softmax_gpu")
-# fp16 produces nans
-#    register_benchdnn_test(test_benchdnn_sum
-#        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
-# fp16 relu with negative alpha segfaults
-#    register_benchdnn_test(test_benchdnn_eltwise
-#        gpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_gpu")
+    register_benchdnn_test(test_benchdnn_sum
+        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
