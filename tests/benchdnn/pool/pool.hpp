@@ -34,7 +34,7 @@ namespace pool {
 enum alg_t { MAX, AVG_NP, AVG_P };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
-alg_t alg_kind2alg(mkldnn_alg_kind_t alg);
+mkldnn_alg_kind_t alg2alg_kind(alg_t alg);
 
 struct desc_t {
     int64_t mb, ic;

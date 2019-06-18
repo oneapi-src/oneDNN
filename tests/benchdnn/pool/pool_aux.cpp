@@ -46,12 +46,12 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-alg_t alg_kind2alg(mkldnn_alg_kind_t alg) {
-    if (alg == mkldnn_pooling_max) return MAX;
-    if (alg == mkldnn_pooling_avg) return AVG_NP;
-    if (alg == mkldnn_pooling_avg_include_padding) return AVG_P;
+mkldnn_alg_kind_t alg2alg_kind(alg_t alg) {
+    if (alg == MAX) return mkldnn_pooling_max;
+    if (alg == AVG_NP) return mkldnn_pooling_avg_exclude_padding;
+    if (alg == AVG_P) return mkldnn_pooling_avg_include_padding;
     assert(!"unknown algorithm");
-    return MAX;
+    return mkldnn_alg_kind_undef;
 }
 
 int str2desc(desc_t *desc, const char *str) {
