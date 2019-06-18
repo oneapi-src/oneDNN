@@ -138,13 +138,19 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
         return status::success;
     }
 
-    static void get_unrolls(
-            bool trans_a, bool trans_b, int &unroll_m, int &unroll_n) {
-        static constexpr int unroll_m_table[2][2] = { { 32, 32 }, { 16, 16 } };
-        static constexpr int unroll_n_table[2][2] = { { 16, 16 }, { 32, 32 } };
+    static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
+            int &unroll_n) {
 
-        unroll_m = unroll_m_table[trans_a][trans_b];
-        unroll_n = unroll_n_table[trans_a][trans_b];
+        unroll_m = unroll_n = 0;
+
+        if (type == data_type::f32) {
+            static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
+            static constexpr int unroll_n_table[2][2] = {{16, 16}, {32, 32}};
+
+            unroll_m = unroll_m_table[trans_a][trans_b];
+            unroll_n = unroll_n_table[trans_a][trans_b];
+        } else if (type == data_type::f16)
+            unroll_m = unroll_n = 32;
     }
 };
 
@@ -156,18 +162,19 @@ struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
         if (trans_a)
             return status::unimplemented;
 
-        return jit_gen9_gemm_nocopy_kernel<type>::init_const_def(
-                jit, trans_a, trans_b, with_eltwise, alg);
+        return jit_gen9_gemm_nocopy_kernel<type>::init_const_def(jit, trans_a,
+                trans_b, with_eltwise, alg);
     }
 
-    static void get_unrolls(
-            bool trans_a, bool trans_b, int (&unroll_m)[2], int &unroll_n) {
+    static void get_unrolls(bool trans_a, bool trans_b, int (&unroll_m)[2],
+            int &unroll_n) {
 
         unroll_m[0] = 32;
         unroll_m[1] = 16;
         unroll_n = 16;
     }
 };
+
 
 } // namespace ocl
 } // namespace impl

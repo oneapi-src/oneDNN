@@ -164,8 +164,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(stream_t *s,
         const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) const {
+        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
+        c_t eltwise_alpha, c_t eltwise_beta) const {
 
     auto &kernel = nocopy_kernel_;
 
@@ -226,8 +226,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
         const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) const {
+        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
+        c_t eltwise_alpha, c_t eltwise_beta) const {
 
     auto &kernel = nocopy_superkernel_;
 
@@ -300,21 +300,6 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     using b_t = typename prec_traits<b_type>::type;
     using c_t = typename prec_traits<c_type>::type;
 
-    bool nocopy = (gemm_type_ == type::no_copy);
-
-    status_t status;
-    constexpr int64_t align = 0x1000;
-    int block_m, block_n, block_k;
-    if (!nocopy) {
-        block_m = jit_gen9_gemm_driver_params<c_type, false>::block_m;
-        block_n = jit_gen9_gemm_driver_params<c_type, false>::block_n;
-        block_k = jit_gen9_gemm_driver_params<c_type, false>::block_k;
-    } else {
-        block_m = jit_gen9_gemm_driver_params<c_type, true>::block_m;
-        block_n = jit_gen9_gemm_driver_params<c_type, true>::block_n;
-        block_k = jit_gen9_gemm_driver_params<c_type, true>::block_k;
-    }
-
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
@@ -344,6 +329,23 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
     size_t off_c0 = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
+
+    bool nocopy = (gemm_type_ == type::no_copy)
+            || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
+                       && !(off_b0 & 1));
+
+    status_t status;
+    constexpr int64_t align = 0x1000;
+    int block_m, block_n, block_k;
+    if (!nocopy) {
+        block_m = jit_gen9_gemm_driver_params<c_type, false>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, false>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, false>::block_k;
+    } else {
+        block_m = jit_gen9_gemm_driver_params<c_type, true>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, true>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, true>::block_k;
+    }
 
     if (!nocopy && beta != 0. && beta != 1.) {
         status = launch_beta(ctx.stream(), m, n, beta_native, c, off_c0, ldc);

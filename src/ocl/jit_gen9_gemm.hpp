@@ -31,8 +31,9 @@
 extern const char *gen9_gemm_compute_kernel;
 extern const char *gen9_gemm_copy_kernel;
 extern const char *gen9_gemm_beta_kernel;
-extern const char *gen9_gemm_nocopy_kernel;
-extern const char *gen9_gemm_nocopy_superkernel_kernel;
+extern const char *gen9_gemm_nocopy_f16_kernel;
+extern const char *gen9_gemm_nocopy_f32_kernel;
+extern const char *gen9_gemm_nocopy_superkernel_f32_kernel;
 
 namespace mkldnn {
 namespace impl {
@@ -43,7 +44,12 @@ template <impl::data_type_t a_type, impl::data_type_t b_type = a_type,
 struct jit_gen9_gemm_t : public primitive_t {
     using c_t = typename prec_traits<c_type>::type;
 
-    enum class type { copy_based, no_copy, no_copy_superkernel };
+    enum class type {
+        copy_based,
+        no_copy,
+        no_copy_if_even_off,
+        no_copy_superkernel
+    };
 
     struct pd_t : public ocl_gemm_pd_t {
         using hint_class = void;
@@ -120,6 +126,12 @@ struct jit_gen9_gemm_t : public primitive_t {
         switch (gemm_type_) {
         case type::copy_based: return init_copy_based();
         case type::no_copy: return init_nocopy();
+        case type::no_copy_if_even_off: {
+            status_t result = init_copy_based();
+            if (result != status::success)
+                return result;
+            return init_nocopy();
+        }
         case type::no_copy_superkernel: return init_nocopy_superkernel();
         }
 
@@ -188,10 +200,15 @@ struct jit_gen9_gemm_t : public primitive_t {
     }
 
     status_t init_nocopy() {
-        if (c_type != data_type::f32)
-            return status::unimplemented;
+        const char *kernel = nullptr;
 
-        auto jit = ocl_jit_t(gen9_gemm_nocopy_kernel);
+        switch (c_type) {
+        case data_type::f32: kernel = gen9_gemm_nocopy_f32_kernel; break;
+        case data_type::f16: kernel = gen9_gemm_nocopy_f16_kernel; break;
+        default: return status::unimplemented;
+        }
+
+        auto jit = ocl_jit_t(kernel);
 
         auto status = jit_gen9_gemm_nocopy_kernel<c_type>::init_const_def(jit,
                 pd()->desc()->transa, pd()->desc()->transb,
@@ -218,7 +235,7 @@ struct jit_gen9_gemm_t : public primitive_t {
         this->engine()->create_memory_storage(&temp_buf_ptr, max_plan_size());
         temp_buf_.reset(temp_buf_ptr);
 
-        auto jit = ocl_jit_t(gen9_gemm_nocopy_superkernel_kernel);
+        auto jit = ocl_jit_t(gen9_gemm_nocopy_superkernel_f32_kernel);
 
         auto status = jit_gen9_gemm_nocopy_superkernel<c_type>::init_const_def(
                 jit, pd()->desc()->transa, pd()->desc()->transb,
@@ -259,16 +276,16 @@ private:
             const memory_storage_t &b, const memory_storage_t &c,
             int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
             int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-            float alpha, float beta, int last_k_block, float eltwise_alpha,
-            float eltwise_beta) const;
+            c_t alpha, c_t beta, int last_k_block, c_t eltwise_alpha,
+            c_t eltwise_beta) const;
 
     status_t launch_nocopy_superkernel(stream_t *s,
             const memory_storage_t &plan, int32_t threads,
             const memory_storage_t &a, const memory_storage_t &b,
             const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
             int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-            int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-            float eltwise_alpha, float eltwise_beta) const;
+            int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
+            c_t eltwise_alpha, c_t eltwise_beta) const;
 
     size_t max_plan_size() const;
 
@@ -295,25 +312,43 @@ private:
 
         auto m = pd()->desc()->m;
         auto n = pd()->desc()->n;
+        auto k = pd()->desc()->k;
+        auto lda = pd()->desc()->lda;
+        auto ldb = pd()->desc()->ldb;
 
         if (pd()->with_eltwise())
             return true;
-        if (c_type != data_type::f32)
+        if (!utils::one_of(c_type, data_type::f32, data_type::f16))
             return false;
+
+        // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
+        if (c_type == data_type::f16)
+            if ((lda & 1) || (ldb & 1))
+                return false;
 
         if (transa && !transb)
             return (m < 1024 || n < 1024);
-        else
-            return true;
+
+        if (c_type == data_type::f16) {
+            if (!(lda & 0x3FF) && (n >= 256))
+                return false;
+            if (!transa && transb && (k <= 64))
+                return false;
+        }
+
+        return true;
     }
 
     bool use_superkernel() const {
-        auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
-        runtime_version_t min_version = { 19, 11, 12599 };
+        if (c_type != data_type::f32)
+            return false;
 
         // Older OpenCL runtimes spill registers very badly with superkernels
         //  (~2% resulting efficiency). Avoid using superkernels for these
         //  versions.
+        auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+        runtime_version_t min_version = { 19, 11, 12599 };
+
         if (cl_engine->get_runtime_version() < min_version)
             return false;
 
@@ -324,9 +359,11 @@ private:
     }
 
     type get_gemm_type() const {
-        return !use_nocopy()
-                ? type::copy_based
-                : use_superkernel() ? type::no_copy_superkernel : type::no_copy;
+        return !use_nocopy() ? type::copy_based
+                             : use_superkernel()
+                        ? type::no_copy_superkernel
+                        : (c_type == data_type::f16) ? type::no_copy_if_even_off
+                                                     : type::no_copy;
     }
 };
 
