@@ -197,6 +197,9 @@ void prep_ref_gemm_s8u8s32_pack(bool do_a, dim_t rows, dim_t cols,
     pack_dst->which() = do_a ? matrix_id::a : matrix_id::b;
     pack_dst->setup(1);
     pack_dst->threading().copy = copy_type::no_copy;
+    pack_dst->threading().nthrs_m = 1;
+    pack_dst->threading().nthrs_n = 1;
+    pack_dst->threading().nthrs_k = 1;
     pack_dst->set_nocopy(0, ld, cols);
     pack_dst->finalize<int8_t, int32_t>();
 }
@@ -289,6 +292,9 @@ static mkldnn_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
         return mkldnn_success;
 
     gemm_pack_storage_t *pack_dst = arg->pack_dst;
+
+    if (!pack_dst->is_first_thread_in_slice(ithr))
+        return mkldnn_success;
 
     dim_t block_r, block_c;
     pack_dst->get_blocking(ithr, block_r, block_c);
@@ -1235,11 +1241,8 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
         const b_type *b, c_type *c, const c_type *co,
         const gemm_info_t<a_type, b_type, c_type> *arg, char **p_shared_mem) {
 
-    if (arg->packing != pack_type::none) {
-        auto ithr_eff = (arg->packing == pack_type::pack_a) ? 0 : ithr;
-        if (ithr != ithr_eff) return mkldnn_success;
-        return gemm_packing_driver(ithr_eff, m, n, k, a, b, arg);
-    }
+    if (arg->packing != pack_type::none)
+        return gemm_packing_driver(ithr, m, n, k, a, b, arg);
 
     const dim_t lda = arg->lda;
     const dim_t ldb = arg->ldb;
@@ -1555,6 +1558,9 @@ static mkldnn_status_t gemm_threading_driver(
 
         if (thread_info.copy != copy_type::no_copy) {
             for (int ithr = 0; ithr < nthr_goal; ithr++) {
+                if (!pack_dst->is_first_thread_in_slice(ithr))
+                    continue;
+
                 const a_type *a = NULL;
                 const b_type *b = NULL;
                 c_type *c = NULL;
