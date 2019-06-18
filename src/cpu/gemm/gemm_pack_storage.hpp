@@ -52,34 +52,68 @@ struct gemm_pack_storage_t {
         return single_nocopy() ? 1 : threading().nthrs();
     }
 
+    int nslice() const {
+        return (which() == matrix_id::a) ?
+            threading().nthrs_m * threading().nthrs_k :
+            threading().nthrs_n * threading().nthrs_k;
+    }
+
     template <typename data_type>
     gemm_pack_storage_t(data_type *data_) {
         reset((void *) data_);
     }
 
+    std::tuple<int, int> thread_slice_info(int ithr) const {
+        assert(ithr < nthr());
+
+        bool is_a = (which() == matrix_id::a);
+        auto nthr_inner = is_a ? threading().nthrs_m : threading().nthrs_n;
+
+        auto ithr_i = ithr % threading().nthrs_m;
+        auto ithr_jk = ithr / threading().nthrs_m;
+        auto ithr_j = ithr_jk % threading().nthrs_n;
+        auto ithr_k = ithr_jk / threading().nthrs_n;
+
+        auto ithr_inner = is_a ? ithr_i : ithr_j;
+        auto ithr_outer = ithr_k;
+        auto ithr_slice = is_a ? ithr_j : ithr_i;
+
+        auto id = ithr_outer * nthr_inner + ithr_inner;
+
+        return std::make_tuple(id, ithr_slice);
+    }
+
+    int thread_to_slice(int ithr) const {
+        return std::get<0>(thread_slice_info(ithr));
+    }
+
+    bool is_first_thread_in_slice(int ithr) const {
+        return (std::get<1>(thread_slice_info(ithr)) == 0);
+    }
+
     template <typename data_type>
     data_type *row_sums(int ithr, dim_t r0, dim_t cblock) const {
         if (!has_row_sums()) return NULL;
-        assert(ithr < nthr());
-        return get_block<data_type>(sums_header->slice[ithr], r0, cblock);
+        auto id = thread_to_slice(ithr);
+        return get_block<data_type>(sums_header->slice[id], r0, cblock);
     }
 
     template <typename data_type>
     data_type *col_sums(int ithr, dim_t rblock, dim_t c0) const {
         if (!has_col_sums()) return NULL;
-        assert(ithr < nthr());
-        return get_block<data_type>(sums_header->slice[ithr], rblock, c0);
+        auto id = thread_to_slice(ithr);
+        return get_block<data_type>(sums_header->slice[id], rblock, c0);
     }
 
     template <typename data_type>
     data_type *matrix(int ithr, dim_t r0, dim_t c0) const {
-        assert(ithr < nthr());
-        return get_block<data_type>(matrix_header->slice[ithr], r0, c0);
+        auto id = thread_to_slice(ithr);
+        return get_block<data_type>(matrix_header->slice[id], r0, c0);
     }
 
     template <typename data_type>
     data_type *matrix(int ithr) const {
-        assert(!matrix_header->slice[ithr].packed);
+        assert(!matrix_header->slice[thread_to_slice(ithr)].packed);
         return matrix<data_type>(ithr, 0, 0);
     }
 
@@ -90,8 +124,8 @@ struct gemm_pack_storage_t {
     }
 
     bool get_nocopy(int ithr, dim_t &ld, dim_t &td) const {
-        assert(ithr < nthr());
-        return matrix_header->slice[ithr].get_nocopy(ld, td);
+        auto id = thread_to_slice(ithr);
+        return matrix_header->slice[id].get_nocopy(ld, td);
     }
 
     bool get_nocopy(dim_t &ld, dim_t &td) const {
@@ -100,28 +134,29 @@ struct gemm_pack_storage_t {
     }
 
     void get_blocking(int ithr, dim_t &block_r, dim_t &block_c) const {
-        assert(ithr < nthr());
-        matrix_header->slice[ithr].get_blocking(block_r, block_c);
+        auto id = thread_to_slice(ithr);
+        matrix_header->slice[id].get_blocking(block_r, block_c);
     }
 
     void set_blocking(int ithr, dim_t rows, dim_t cols, dim_t block_r,
             dim_t block_c) {
-        assert(ithr < nthr());
+
+        auto id = thread_to_slice(ithr);
         auto nblk_r = (block_r == 0) ? 0 : utils::div_up(rows, block_r);
         auto nblk_c = (block_c == 0) ? 0 : utils::div_up(cols, block_c);
 
-        matrix_header->slice[ithr].set_blocking(nblk_r, nblk_c, block_r,
+        matrix_header->slice[id].set_blocking(nblk_r, nblk_c, block_r,
                 block_c);
 
         if (has_row_sums())
-            sums_header->slice[ithr].set_blocking(nblk_r, nblk_c, block_r, 1);
+            sums_header->slice[id].set_blocking(nblk_r, nblk_c, block_r, 1);
         else
-            sums_header->slice[ithr].set_blocking(nblk_r, nblk_c, 1, block_c);
+            sums_header->slice[id].set_blocking(nblk_r, nblk_c, 1, block_c);
     }
 
     void set_nocopy(int ithr, dim_t ld, dim_t td) {
-        assert(ithr < nthr());
-        matrix_header->slice[ithr].set_nocopy(ld, td);
+        auto id = thread_to_slice(ithr);
+        matrix_header->slice[id].set_nocopy(ld, td);
     }
 
     void setup(int max_nthr, bool has_row_sums = false,
@@ -142,9 +177,9 @@ struct gemm_pack_storage_t {
 
         reset(get());
 
-        for (int ithr = 0; ithr < max_nthr; ithr++) {
-            matrix_header->slice[ithr].set_blocking(0, 0, 0, 0);
-            sums_header->slice[ithr].set_blocking(0, 0, 0, 0);
+        for (int id = 0; id < max_nthr; id++) {
+            matrix_header->slice[id].set_blocking(0, 0, 0, 0);
+            sums_header->slice[id].set_blocking(0, 0, 0, 0);
         }
     }
 
@@ -153,9 +188,9 @@ struct gemm_pack_storage_t {
         assert(total_header_size > 0);
         size_t cur_off = total_header_size;
 
-        matrix_header->finalize<matrix_dt>(cur_off, nthr());
+        matrix_header->finalize<matrix_dt>(cur_off, nslice());
         if (has_row_sums() || has_col_sums())
-            sums_header->finalize<sums_dt>(cur_off, nthr());
+            sums_header->finalize<sums_dt>(cur_off, nslice());
 
         header->size = cur_off;
     }
@@ -244,9 +279,9 @@ protected:
         slice_header_t slice[1];        /* array of size nthr, if packed */
 
         template <typename data_type>
-        void finalize(size_t &cur_off, int nthr) {
-            for (int ithr = 0; ithr < nthr; ithr++)
-                slice[ithr].finalize<data_type>(cur_off);
+        void finalize(size_t &cur_off, int nslices) {
+            for (int id = 0; id < nslices; id++)
+                slice[id].finalize<data_type>(cur_off);
         }
     } *matrix_header, *sums_header;
 
