@@ -174,8 +174,8 @@ on Windows Server\* 2019 with
 ### SYCL Support
 The following additional requirements apply when SYCL runtime is used:
 * SYCL compiler with SYCL 1.2.1 support:
+    * DPC++ Compiler June 2019 release or later
     * [ComputeCpp* Compiler](https://developer.codeplay.com/computecppce/) 1.0.3 or later
-    * [Intel(R) Compiler for SYCL\*](https://soco.intel.com/groups/dpc-incremental-releases-for-internal) June 2019 release or later
 * [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3 or later
     * Not required for Intel Compiler for SYCL - it includes OpenCL libraries
 
