@@ -75,9 +75,6 @@ if(UNIX OR MINGW)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
-
 # Tentative remapping of old options to the new one.
 # CAUTION: The old options will soon be removed.
 
@@ -124,6 +121,14 @@ configure_file(
     "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"
 )
 include_directories(${PROJECT_BINARY_DIR}/include)
+
+if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
+    # define CMAKE_INSTALL_LIBDIR as "lib" in the case of bundle
+    set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 add_subdirectory(src)
 add_subdirectory(examples)
