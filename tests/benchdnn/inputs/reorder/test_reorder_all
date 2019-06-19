@@ -58,4 +58,4 @@
 --dtag=gOIhw2i8o4i 2x40x40x3x3
 --dtag=Goihw16g 512x1x1x3x3
 
---batch=test_bf16
+--batch=test_reorder_bfloat16

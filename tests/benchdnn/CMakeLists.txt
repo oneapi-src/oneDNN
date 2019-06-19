@@ -112,7 +112,9 @@ register_benchdnn_test(test_benchdnn_deconv_bf16
 register_benchdnn_test(test_benchdnn_rnn
     cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder
-    cpu "-v1 --reorder --batch=inputs/reorder/test_default")
+    cpu "-v1 --reorder --batch=inputs/reorder/test_reorder_all")
+register_benchdnn_test(test_benchdnn_reorder_bf16
+    cpu "-v1 --reorder --batch=inputs/reorder/test_reorder_bfloat16")
 register_benchdnn_test(test_benchdnn_bnorm
     cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_bnorm_bf16
