@@ -390,6 +390,69 @@ __kernel void ref_rnn_ws_set_kernel(__global DATA_T *ws, OFFTYPE ws_offset,
     dst[get_global_id(0)] = CONVERT_DATA_T(val);
 }
 
+
+// useful for debug
+#if DEBUGPRINT
+__kernel void ref_rnn_ws_print_kernel(
+    const __global DATA_T *ws
+    ) {
+    printf("ws_gates: off %d\n",WS_GATES_OFFSET);
+    printf("[lay,dir,iter,batch]\n");
+    __global DATA_T *wt = ws + WS_GATES_OFFSET;
+    for (int j = 0; j < N_LAYER; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int i = 0; i < N_ITER; i++) {
+    for (int b = 0; b < BATCH; b++) {
+        printf("[%d,%d,%d,%d]: ", j, dir, i, b);
+        for (int g = 0; g < N_GATES; g++) {
+        for (int s = 0; s < DIC; s++) {
+            printf(" %f", *(wt + OFF_WS_GATES(j,dir,i,b,g,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+    printf("ws_states: off %d\n", WS_STATES_OFFSET);
+    printf("[lay,dir,iter,state]\n");
+    wt = ws + WS_STATES_OFFSET;
+    for (int j = 0; j < N_LAYER+1; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int i = 0; i < N_ITER+1; i++) {
+    for (int st = 0; st < N_STATES; st++) {
+        printf("[%d,%d,%d,%d] : ", j, dir, i, st);
+        for (int b = 0; b < BATCH; b++) {
+        for (int s = 0; s < WIC; s++) {
+            printf(" %f", *(wt + OFF_WS_STATES(j,dir,i,st,b,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+    printf("ws_diff_states: off %d\n",WS_DIFF_STATES_OFFSET);
+    printf("[lay,dir,state,iter]\n");
+    wt = ws + WS_DIFF_STATES_OFFSET;
+    for (int j = 0; j < N_LAYER+1; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int st = 0; st < N_STATES+1; st++) {
+    for (int i = 0; i < N_ITER+1; i++) {
+        printf("[%d,%d,%d,%d] : ", j, dir, st, i);
+        for (int b = 0; b < BATCH; b++) {
+        for (int s = 0; s < WIC; s++) {
+            printf(" %f", *(wt + OFF_WS_DIFF_STATES(j,dir,i,st,b,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+}
+#endif
+
 __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         __global DATA_T *ws, __global DATA_T *bias_base) {
 

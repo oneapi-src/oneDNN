@@ -43,20 +43,6 @@
 
 extern const char *ref_rnn_kernel;
 
-////////////////////////////////////////////////////////////
-//#define DEBUGPRINT
-
-#ifdef DEBUGPRINT
-#define DPRINT(fmt, ...) printf(fmt, __VA_ARGS__);fflush(0)
-#define DTHR 0
-#define DPRINT1T(fmt, ...) \
-    if (ithr==DTHR) printf(fmt, __VA_ARGS__);fflush(0)
-#else
-#define DPRINT(fmt, ...)
-#define DPRINT1T(ithr,fmt, ...)
-#endif
-////////////////////////////////////////////////////////////
-
 namespace mkldnn {
 namespace impl {
 namespace ocl {
@@ -361,6 +347,10 @@ struct _ref_rnn_common_t : public primitive_t {
             = jit.get_kernel("ref_rnn_gates_reduction_kernel");
         if (!gates_reduction_kernel_) return status::runtime_error;
 
+#if DEBUGPRINT
+        ws_print_kernel_ = jit.get_kernel("ref_rnn_ws_print_kernel");
+        if (!ws_print_kernel_) return status::runtime_error;
+#endif
         bool gemm_ok = true;
 
         switch(aprop) {
@@ -527,6 +517,10 @@ private:
             const memory_storage_t &diff_bias) const;
     void ws_set(const stream_t *s, const memory_storage_t &workspace,
             const cl_ulong ws_offset, const float val, const size_t size) const;
+#if DEBUGPRINT
+    void ws_print(const stream_t *s, const memory_storage_t &workspace) const;
+    ocl_kernel_t ws_print_kernel_;
+#endif
 
     jit_ref_rnn_kernel *ker_;
     ocl_kernel_t copy_init_layer_kernel_;

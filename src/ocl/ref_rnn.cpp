@@ -476,6 +476,19 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_set(
     auto nd_range = cl_nd_range_t({size});
     executor.parallel_for(nd_range, ws_set_kernel_);
 }
+
+#if DEBUGPRINT
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
+void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_print(
+    const stream_t *s, const memory_storage_t &workspace_) const {
+
+    ws_print_kernel_.set_arg(0, workspace_);
+    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
+    auto nd_range = cl_nd_range_t({1});
+    executor.parallel_for(nd_range, ws_print_kernel_);
+}
+#endif
+
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 packing_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::pack_weights)) {
 #if USE_MKL_PACKED_GEMM
@@ -638,7 +651,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     DPRINT("%s\n","+++++++++++++++");
     };
 
-#ifdef DEBUGPRINT
+#if DEBUGPRINT
     prints();
 #else
     UNUSED(dlc);
@@ -665,12 +678,18 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             n_gates, batch, dic, slc, offset_wei_input_, n_parts_weights_layer,
             rnn_conf.parts_weights_layer, w_input_native_);
 
+    DPRINT("\n%s(%d) WS before copy init\n\n",__FUNCTION__,__LINE__);
+    WS_PRINT(s, workspace_);
+
     // we first need to copy the initial states and input into ws
     copy_init_layer(s, is_lr, is_rl, n_iter, batch, slc,
         workspace_, input_native_, diff_dst_layer_native_);
     copy_init_iter(s, n_layer, n_dir, batch, sic, dic,
         workspace_, states_native_, c_states_native_, diff_dst_iter_native_,
         diff_dst_iter_c_native_);
+
+    DPRINT("\n%s(%d) WS before grid\n\n",__FUNCTION__,__LINE__);
+    WS_PRINT(s, workspace_);
 
     // run the execution on the grid
     (this->*grid_computation)(
@@ -687,6 +706,9 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             diff_weights_iter_native_,
             diff_bias_native_
             );
+
+    DPRINT("\n%s(%d) WS before copy res\n\n",__FUNCTION__,__LINE__);
+    WS_PRINT(s, workspace_);
 
     // Finally we copy the results to the result buffers
 

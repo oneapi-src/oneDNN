@@ -22,6 +22,15 @@
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/rnn_utils.hpp"
 
+#define DEBUGPRINT 0
+#if DEBUGPRINT
+#define DPRINT(fmt, ...) printf(fmt, __VA_ARGS__);fflush(0)
+#define WS_PRINT(s, w) ws_print(s, w)
+#else
+#define DPRINT(fmt, ...)
+#define WS_PRINT(s, w)
+#endif
+
 namespace mkldnn {
 namespace impl {
 namespace ocl {
@@ -244,7 +253,9 @@ struct jit_ref_rnn_kernel {
         jit.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         jit.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
 
-        printf("\njit_ref_rnn_fwd_kernel : %s(%d) : options\n%s\n\n", __FUNCTION__, __LINE__, jit.get_options());
+        jit.define_int("DEBUGPRINT", DEBUGPRINT);
+
+        DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n", jit.get_options());
 
         return status::success;
     }
