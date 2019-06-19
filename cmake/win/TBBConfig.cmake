@@ -113,21 +113,9 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                                   IMPORTED_IMPLIB_DEBUG         "${_tbb_debug_lib}"
                                   INTERFACE_COMPILE_DEFINITIONS "__TBB_NO_IMPLICIT_LINKAGE=1")
 
-            # Intel MKL-DNN changes:
-            # - set TBB_INCLUDE_DIRS to use it for include_directories()
-            # - install TBB runtime
+            # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
             if (_tbb_component STREQUAL tbb)
                 set(TBB_INCLUDE_DIRS "${_tbb_inc_path}")
-                # TODO: remove this as soon as the build system is no longer responsible for that
-                if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-                    get_filename_component(_tbb_dll_path "${_tbb_root}/bin/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
-                    set(_tbb_release_dll "${_tbb_dll_path}/${_tbb_component}.dll")
-                    if (NOT EXISTS "${_tbb_release_dll}")
-                        message(FATAL_ERROR "Missed required Intel TBB component: ${_tbb_component}.dll")
-                    endif()
-                    install(PROGRAMS ${_tbb_release_dll} DESTINATION ${CMAKE_INSTALL_BINDIR})
-                    install(PROGRAMS ${_tbb_release_lib} DESTINATION ${CMAKE_INSTALL_LIBDIR})
-                endif()
             endif()
 
             # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
