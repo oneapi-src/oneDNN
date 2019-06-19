@@ -22,6 +22,7 @@
 #include <tuple>
 
 #include "nstl.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {

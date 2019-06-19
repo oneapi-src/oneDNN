@@ -556,12 +556,12 @@ template <typename a_type, typename b_type, typename c_type>
 void gemm_info_t<a_type, b_type, c_type>::update_blocking(
         const gemm_threading_t &thread_info) {
 
-    if (thread_info.bm > 0)
-        this->bm = thread_info.bm;
-    if (thread_info.bn > 0)
-        this->bn = thread_info.bn;
-    if (thread_info.bk > 0)
-        this->bk = thread_info.bk;
+    if (thread_info.block_m > 0)
+        this->bm = thread_info.block_m;
+    if (thread_info.block_n > 0)
+        this->bn = thread_info.block_n;
+    if (thread_info.block_k > 0)
+        this->bk = thread_info.block_k;
 }
 
 // Instantiate the gemm_info_t templates needed.
