@@ -186,6 +186,7 @@ struct jit_rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
+    int states_ws_ld, gates_ws_ld;
 
     size_t ws_gates_offset;
     size_t ws_states_offset;

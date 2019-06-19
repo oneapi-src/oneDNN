@@ -111,10 +111,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
 
-    /* FIXME: This should be created once per execute() instead of creating
-     * memory before each gemm call. Each cell type (+prop kind) might have
-     * different number of GEMMs.
-     * */
+    // FIXME: This should be created once per execute() instead of creating
+    // memory before each gemm call. Each cell type (+prop kind) might have
+    // different number of GEMMs.
 
     memory_desc_t scratchpad_md;
 
@@ -234,6 +233,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution))
 {
+    const rnn_conf_t &rnn_conf = this->pd()->rnn_conf_;
 
     if (aprop == prop_kind::forward) {
         AOC<size_t, 3> off_weights_i(weights_input, n_layer, n_dir,
@@ -246,13 +246,13 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
 
         cl_ulong offset_states = (cl_ulong)(ws_states_offset_
                 + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1,
-                    0, batch * n_states * wic));
+                    0, batch * n_states * rnn_conf.states_ws_ld));
         cl_ulong offset_input = (cl_ulong)(ws_states_offset_
                 + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1,
-                    0, batch * n_states * wic));
+                    0, batch * n_states * rnn_conf.states_ws_ld));
         cl_ulong offset_gates = (cl_ulong)(ws_gates_offset_
                 + OFF4(lay, n_layer, dir, n_dir, iter, n_iter,
-                    0, batch * n_gates * dic));
+                    0, batch * rnn_conf.gates_ws_ld));
 
         gemm_primitive(ctx, n_gates * dic, batch, slc, n_gates * dic, slc,
                 batch, wic, n_gates * dic, batch, w_input, offset_w_input,
@@ -283,37 +283,44 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
             sic, batch, n_gates * dic, sic, n_gates * dic, batch, n_gates * dic,
             wic, batch, w_state, offset_w_state, workspace, ws_gates_offset_
                 + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                        n_gates * batch * dic), workspace,
-                    ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, (n_states + 1) * batch * wic),
+                        batch * rnn_conf.gates_ws_ld),
+            workspace, ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
+                n_dir, iter, n_iter + 1, 0, (n_states + 1) * batch
+                * rnn_conf.states_ws_ld),
             false, 0.0f, gemm_iter);
 
         gemm_primitive(ctx,
             sic, batch, n_gates * dic, slc, n_gates * dic, batch, n_gates * dic,
             wic, batch, w_input, offset_w_input, workspace, ws_gates_offset_
-                + OFF4(lay, n_layer, dir, n_dir, iter,
-                n_iter, 0, n_gates * batch * dic), workspace,
-            ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir, n_dir,
-                iter, n_iter + 1, 0, (n_states + 1) * batch * wic)
-                    + n_states * (batch * wic), false, 0.0f, gemm_layer);
+                + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
+                    batch * rnn_conf.gates_ws_ld),
+            workspace, ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
+                n_dir, iter, n_iter + 1, 0, (n_states + 1) * batch
+                * rnn_conf.states_ws_ld) + n_states * batch
+                * rnn_conf.states_ws_ld,
+            false, 0.0f, gemm_layer);
 
         gemm_primitive(ctx,
             n_gates * dic, slc, batch, n_gates * dic, batch, wic, batch,
             n_gates * dic, slc, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
-                dir, n_dir, iter, n_iter, 0, n_gates * batch * dic),
+                dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
             workspace, ws_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter + 1, n_iter + 1, 0, n_states * batch * wic),
+                n_dir, iter + 1, n_iter + 1, 0, n_states * batch
+                * rnn_conf.states_ws_ld),
             diff_weights_layer, OFF3(lay, n_layer, dir, n_dir, 0,
-                slc * n_gates * dic), true, 1.0f, gemm_diff_wei_layer);
+                slc * n_gates * dic),
+            true, 1.0f, gemm_diff_wei_layer);
 
         gemm_primitive(ctx,
             n_gates * dic, sic, batch, n_gates * dic, batch, wic, batch,
             n_gates * dic, sic, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
-                dir, n_dir, iter, n_iter, 0, n_gates * batch * dic),
+                dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
             workspace, ws_states_offset_ + OFF4(lay + 1, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, n_states * batch * wic),
+                n_dir, iter, n_iter + 1, 0, n_states * batch
+                * rnn_conf.states_ws_ld),
             diff_weights_iter, OFF3(lay, n_layer, dir, n_dir, 0,
-                sic * n_gates * dic), true, 1.0f, gemm_diff_wei_iter);
+                sic * n_gates * dic),
+            true, 1.0f, gemm_diff_wei_iter);
 
         gates_reduction(ctx, dir, lay, iter, n_gates, dic, batch,
             workspace, diff_bias);
@@ -718,7 +725,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
         dst_last_iter_native_, dst_last_iter_c_native_, diff_src_iter_native_,
         diff_src_iter_c_native_,workspace_);
 
-    /* NOT USED YET */
+    // NOT USED YET
 #if 0
     // We free the packed weights if they were packed internally
     // currently - not

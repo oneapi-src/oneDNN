@@ -115,7 +115,7 @@ struct rnn_conf_t {
     size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
             part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
 
-    /* Size of packed data in bytes */
+    // Size of packed data in bytes
     size_t weights_layer_comp_offset, weights_layer_pack_size,
         weights_iter_comp_offset, weights_iter_pack_size;
 
@@ -130,7 +130,7 @@ struct rnn_conf_t {
     bool is_fwd, is_training, is_lbr;
     bool use_workspace;
 
-    /* Size of workspace for each tensor in bytes */
+    // Size of workspace for each tensor in bytes
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
             ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
@@ -164,6 +164,9 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
 
 void get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size);
+status_t set_expected_desc(rnn_conf_t &rnn, memory_desc_t &weights_md,
+        bool is_iter);
+status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 
 }
 

@@ -37,8 +37,7 @@
 // not implemented
 #define USE_MKL_PACKED_GEMM 0
 
-
-// just to debug
+// TODO just to debug
 #define EMULATED_SCRATCHPAD 1
 
 extern const char *ref_rnn_kernel;
@@ -164,6 +163,8 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
             }
 
+            // TODO: Set weights descriptors to desired format
+
             // Check dimensions consistency
             int ls_multiplier
                     = (this->direction() == mkldnn_bidirectional_concat) ? 2 :
@@ -236,7 +237,6 @@ struct _ref_rnn_common_t : public primitive_t {
             int slc = rnn_conf_.slc;
             int sic = rnn_conf_.sic;
             int dic = rnn_conf_.dic;
-            int wic = nstl::max(slc, nstl::max(sic, dic));
 
             bool gemm_ok = true;
 
@@ -244,28 +244,34 @@ struct _ref_rnn_common_t : public primitive_t {
             case prop_kind::forward:
                 gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_layer_pd_, n_gates * dic,
-                                batch, slc, n_gates * dic, wic, n_gates * dic,
-                                weights_type, src_type, src_type, false, 0.0),
-                            create_gemm_pd(&gemm_iter_pd_, n_gates * dic,
-                                batch, sic, n_gates * dic, wic, n_gates * dic,
-                                weights_type, src_type, src_type, false, 1.0));
+                create_gemm_pd(&gemm_layer_pd_, n_gates * dic, batch, slc,
+                    rnn_conf_.weights_layer_ld, rnn_conf_.states_ws_ld,
+                    rnn_conf_.gates_ws_ld, weights_type, src_type, src_type,
+                    false, 0.0),
+                create_gemm_pd(&gemm_iter_pd_, n_gates * dic, batch, sic,
+                    rnn_conf_.weights_iter_ld, rnn_conf_.states_ws_ld,
+                    rnn_conf_.gates_ws_ld, weights_type, src_type, src_type,
+                    false, 1.0));
                 break;
             case prop_kind::backward:
                 gemm_ok = true
                     && utils::everyone_is(status::success,
                     create_gemm_pd(&gemm_iter_pd_, sic, batch, n_gates * dic,
-                        slc, n_gates * dic, wic, weights_type, src_type,
-                        src_type, false, 0.0f),
+                        rnn_conf_.weights_iter_ld, rnn_conf_.gates_ws_ld,
+                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
+                        false, 0.0f),
                     create_gemm_pd(&gemm_layer_pd_, sic, batch, n_gates * dic,
-                        sic, n_gates * dic, wic, weights_type, src_type,
-                        src_type, false, 0.0f),
+                        rnn_conf_.weights_layer_ld, rnn_conf_.gates_ws_ld,
+                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
+                        false, 0.0f),
                     create_gemm_pd(&gemm_diff_wei_layer_pd_, n_gates * dic, slc,
-                        batch, n_gates * dic, wic, n_gates * dic, src_type,
-                        src_type, weights_type, true, 1.0f),
+                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
+                        rnn_conf_.diff_weights_layer_ld, src_type, src_type,
+                        weights_type, true, 1.0f),
                     create_gemm_pd(&gemm_diff_wei_iter_pd_, n_gates * dic, sic,
-                        batch, n_gates * dic, wic, n_gates * dic, src_type,
-                        src_type, weights_type, true, 1.0f));
+                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
+                        rnn_conf_.diff_weights_iter_ld, src_type, src_type,
+                        weights_type, true, 1.0f));
                 break;
             default:
                 assert(!"unknown prop_kind");

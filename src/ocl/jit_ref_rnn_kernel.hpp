@@ -97,6 +97,9 @@ struct jit_ref_rnn_kernel {
         jrnn.with_dst_iter_c = rnn_pd->with_dst_iter_c();
         jrnn.is_lbr = rnn_conf.is_lbr;
 
+        jrnn.states_ws_ld = rnn_conf.states_ws_ld;
+        jrnn.gates_ws_ld = rnn_conf.gates_ws_ld;
+
         jrnn.src_layer_ndims = src_layer_d.ndims();
         jrnn.src_iter_ndims = src_iter_d.ndims();
         if (jrnn.with_src_iter_c)
@@ -148,10 +151,10 @@ struct jit_ref_rnn_kernel {
         }
 
         rnn_utils::set_offsets(rnn_conf, jrnn.ws_gates_offset,
-        jrnn.ws_states_offset, jrnn.ws_c_state_offset,
-        jrnn.ws_diff_states_offset, jrnn.ws_grid_comp_offset,
-        jrnn.ws_cell_comp_offset, jrnn.ws_bias_offset,
-        jrnn.scratchpad_size, jrnn.workspace_size);
+                jrnn.ws_states_offset, jrnn.ws_c_state_offset,
+                jrnn.ws_diff_states_offset, jrnn.ws_grid_comp_offset,
+                jrnn.ws_cell_comp_offset, jrnn.ws_bias_offset,
+                jrnn.scratchpad_size, jrnn.workspace_size);
 
         jrnn.cell_kind = rnn_pd->cell_kind();
         jrnn.activation_kind = rnn_pd->activation_kind();
@@ -253,6 +256,8 @@ struct jit_ref_rnn_kernel {
         jit.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         jit.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
 
+        jit.define_int("STATES_WS_LD", jrnn.states_ws_ld);
+        jit.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
         jit.define_int("DEBUGPRINT", DEBUGPRINT);
 
         DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n", jit.get_options());
