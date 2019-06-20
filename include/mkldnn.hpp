@@ -3668,8 +3668,9 @@ struct inner_product_backward_weights: public primitive {
 /// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
-/// RNN for forward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// RNN for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct rnn_forward : public primitive {
 
     /// Descriptor for RNN forward propagation.
@@ -3786,8 +3787,9 @@ struct rnn_forward : public primitive {
     rnn_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// RNN for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// RNN for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct rnn_backward : public primitive {
 
     /// RNN descriptor for backward propagation.
@@ -3956,6 +3958,9 @@ struct rnn_backward : public primitive {
     rnn_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// LSTM for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lstm_forward : public primitive {
 
     /// Descriptor for LSTM forward propagation.
@@ -4084,8 +4089,9 @@ struct lstm_forward : public primitive {
     lstm_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// LSTM for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// LSTM for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lstm_backward : public primitive {
 
     /// LSTM descriptor for backward propagation.
@@ -4280,6 +4286,9 @@ struct lstm_backward : public primitive {
     lstm_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// GRU for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct gru_forward : public primitive {
 
     /// Descriptor for GRU forward propagation.
@@ -4394,8 +4403,9 @@ struct gru_forward : public primitive {
     gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// GRU for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// GRU for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct gru_backward : public primitive {
 
     /// GRU descriptor for backward propagation.
@@ -4563,6 +4573,9 @@ struct gru_backward : public primitive {
     gru_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// LBR_GRU for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lbr_gru_forward : public primitive {
 
     /// Descriptor for LBR GRU forward propagation.
@@ -4677,8 +4690,9 @@ struct lbr_gru_forward : public primitive {
     lbr_gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// LBR_GRU for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// LBR_GRU for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lbr_gru_backward : public primitive {
 
     /// LBR_GRU descriptor for backward propagation.
