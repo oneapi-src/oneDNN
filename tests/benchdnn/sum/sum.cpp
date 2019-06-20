@@ -32,7 +32,7 @@ namespace sum {
 
 static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
     std::vector<mkldnn_memory_desc_t> src_d;
-    src_d.reserve(p->n_inputs());
+    src_d.resize(p->n_inputs());
 
     mkldnn_memory_desc_t dst_d;
 
