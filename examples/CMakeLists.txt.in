@@ -60,6 +60,8 @@ endif()
 
 if(WIN32)
     set(CTESTCONFIG_PATH "${MKLDNNROOT}/bin")
+elseif(APPLE)
+    set(CTESTCONFIG_PATH "${MKLDNNROOT}/lib")
 endif()
 
 # Register example
@@ -76,6 +78,9 @@ function(register_example name srcs)
         if(CMAKE_GENERATOR MATCHES "Visual Studio")
             configure_file(template.vcxproj.user ${name}.vcxproj.user @ONLY)
         endif()
+    elseif(APPLE)
+        set_property(TEST ${name} PROPERTY ENVIRONMENT
+                "DYLD_LIBRARY_PATH=${CTESTCONFIG_PATH}:$ENV{DYLD_LIBRARY_PATH}")
     endif()
 endfunction()
 
