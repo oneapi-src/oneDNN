@@ -76,7 +76,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
     const int max = c_src->min + range - 1;
     int scale_mask = get_scale_mask(mem.md_, attr);
 
-    const int64_t nelems = mem.nelems();
+    const auto nelems = mem.nelems();
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         const int64_t mask_idx = mem.get_scale_idx(idx, scale_mask);
@@ -103,7 +103,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
         const float *scales) {
     auto dst_dt = dst.dt();
 
-    int64_t nelems = src.nelems();
+    const auto nelems = src.nelems();
 
     /* TODO: add dst range support */
 //    const auto c_dst = p->conf_out;
@@ -151,7 +151,7 @@ int compare_bootstrap(
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         const float *scales, int64_t count, res_t *r){
-    int64_t nelems = mem_expected.nelems();
+    const auto nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
     r->errors = 0;
@@ -380,19 +380,7 @@ int check_reorder(const prb_t *p, res_t *res) {
         args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.m_);
         args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.m_);
 
-        auto &t = res->timer;
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(perf_r, stream_tgt, args.size(), args),
-                    WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
+        measure_perf(res->timer, perf_r, args);
 
         DNN_SAFE_V(mkldnn_primitive_destroy(perf_r));
     }

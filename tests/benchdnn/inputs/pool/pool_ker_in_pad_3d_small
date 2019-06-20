@@ -1,0 +1,7 @@
+# Kernel lies inside the padding
+ic32_iw13ih16id30_ow14oh17od11_pw6ph4pd3_kw6kh4kd3_sw1sh1sd3
+ic32_iw13ih32id20_ow14oh17od11_pw6ph4pd2_kw6kh4kd2_sw1sh2sd2
+
+# Negative padding along the depth
+ic32_iw16ih7id36_ow14oh4od17_pw0ph1pd1_kw3kh5kd4_sw1sh1sd2
+ic32_iw19ih7id36_ow14oh4od17_pw0ph1pd1_kw6kh5kd4_sw1sh1sd2

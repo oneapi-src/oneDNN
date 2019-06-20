@@ -102,7 +102,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const bool use_scaleshift = pd()->use_scaleshift();
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
     const bool calculate_stats = !pd()->stats_is_src();
 
     const bool with_relu = pd()->with_relu_post_op();
@@ -152,7 +152,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
             auto d_off = data_offset(data_d, n, c, d, h, w);
             acc_data_t bn_res
                     = sm * (maybe_up_convert(src[d_off]) - v_mean) + sv;
-            if (fuse_bn_relu) {
+            if (fuse_norm_relu) {
                 if (bn_res <= 0) {
                     bn_res = 0;
                     if (is_training)
@@ -225,7 +225,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
     const bool calculate_diff_stats = !pd()->use_global_stats();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     const bool is_3d = data_d.ndims() == 5;
     const bool is_1d = data_d.ndims() == 3;
@@ -249,7 +249,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
                     for (dim_t w = 0; w < W; ++w) {
                         const size_t s_off = data_offset(data_d, n, c, d, h, w);
                         acc_data_t dd;
-                        if (fuse_bn_relu && !ws[s_off])
+                        if (fuse_norm_relu && !ws[s_off])
                             dd = 0;
                         else
                             dd = maybe_up_convert(diff_dst[data_offset(
@@ -272,7 +272,7 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);
             acc_data_t dd;
-            if (fuse_bn_relu && !ws[s_off])
+            if (fuse_norm_relu && !ws[s_off])
                 dd = 0;
             else
                 dd = maybe_up_convert(diff_dst[dd_off]);

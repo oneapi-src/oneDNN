@@ -174,6 +174,8 @@ enum {
     key_iprod_bias_bf16_convert_wsp,
     key_iprod_dst_bf16_convert_wsp,
     key_iprod_int_dat_in_acc_dt,
+    key_pool_dst_bf16cvt,
+    key_pool_src_bf16cvt,
     key_reducer_space,
     key_reducer_space_bctx,
     key_reorder_space,

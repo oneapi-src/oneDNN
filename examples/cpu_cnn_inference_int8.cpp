@@ -15,13 +15,14 @@
 *******************************************************************************/
 
 /// @example cpu_cnn_inference_int8.cpp
-/// Annotated version: @ref cpu_cnn_inference_int8_cpp
-///
+/// @copybrief cpu_cnn_inference_int8_cpp
+/// > Annotated version: @ref cpu_cnn_inference_int8_cpp
+
 /// @page cpu_cnn_inference_int8_cpp CNN int8 inference example
-/// Full example text: @ref cpu_cnn_inference_int8.cpp
-///
 /// This C++ API example demonstrates how to run AlexNet's conv3 and relu3
 /// with int8 data type.
+///
+/// > Example code: @ref cpu_cnn_inference_int8.cpp
 
 #include "mkldnn.hpp"
 #include <iostream>
@@ -58,7 +59,7 @@ void simple_net_int8() {
     memory::dims conv_padding = { 1, 1 };
 //[Configure tensor shapes]
 
-/// Next, the example configures the scales used to quantize fp32 data
+/// Next, the example configures the scales used to quantize f32 data
 /// into int8. For this example, the scaling value is chosen as an
 /// arbitrary number, although in a realistic scenario, it should be
 /// calculated from a set of precomputed values as previously mentioned.
@@ -192,7 +193,7 @@ void simple_net_int8() {
 ///
 /// User memory must be transformed into convolution-friendly memory
 /// (for int8 and memory format). A reorder layer performs the data
-/// transformation from fp32 (the original user data) into int8 format
+/// transformation from f32 (the original user data) into int8 format
 /// (the data used for the convolution). In addition, the reorder
 /// transforms the user data into the required memory format (as explained
 /// in the simple_net example).
@@ -247,7 +248,7 @@ void simple_net_int8() {
 
 /// @page cpu_cnn_inference_int8_cpp
 /// Finally, *dst memory* may be dequantized from int8 into the original
-/// fp32 format. Create a memory primitive for the user data in the original
+/// f32 format. Create a memory primitive for the user data in the original
 /// 32-bit floating point format and then apply a reorder to transform the
 /// computation output data.
 /// @snippet cpu_cnn_inference_int8.cpp Dequantize the result

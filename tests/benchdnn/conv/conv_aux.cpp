@@ -297,6 +297,8 @@ void prb_t::generate_oscales() {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     if (p.dir != FWD_B)
         s << "--dir=" << dir2str(p.dir) << " ";
     if (p.cfg != conf_f32)

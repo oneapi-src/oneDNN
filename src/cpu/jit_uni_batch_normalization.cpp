@@ -276,10 +276,10 @@ struct jit_bnorm_t: public jit_generator {
 
     void prepare_relu() {
         with_relu = bdesc_->is_fwd()
-            ? bdesc_->with_relu_post_op() || bdesc_->fuse_bn_relu()
-            : bdesc_->fuse_bn_relu();
+            ? bdesc_->with_relu_post_op() || bdesc_->fuse_norm_relu()
+            : bdesc_->fuse_norm_relu();
         with_relu_inf_only = with_relu && bdesc_->is_fwd()
-            && !(bdesc_->fuse_bn_relu() && bdesc_->is_training());
+            && !(bdesc_->fuse_norm_relu() && bdesc_->is_training());
 
         vzero = bdesc_->is_fwd() ? vdiff_beta : vbeta;
         if (with_relu) {
@@ -1341,7 +1341,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
         && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
-    if (is_training() && fuse_bn_relu()) {
+    if (is_training() && fuse_norm_relu()) {
         if (isa < avx2) return status::unimplemented;
         init_default_ws(1);
     }
@@ -1425,7 +1425,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
             && isa < avx2)
         return status::unimplemented;
 
-    if (fuse_bn_relu()) {
+    if (fuse_norm_relu()) {
         if (isa < avx2) return status::unimplemented;
         init_default_ws(1);
         if (!compare_ws(hint_fwd_pd_))

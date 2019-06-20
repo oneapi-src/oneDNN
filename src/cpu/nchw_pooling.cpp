@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,10 +29,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
-void nchw_pooling_fwd_t<data_type>::execute_forward(
-        const exec_ctx_t &ctx) const {
-    using namespace alg_kind;
+using namespace nstl;
+
+template <data_type_t d_type>
+void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
+
+    auto alg = pd()->desc()->alg_kind;
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
@@ -59,8 +61,6 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
-    auto alg = pd()->desc()->alg_kind;
-
     auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
     };
@@ -75,7 +75,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
                 + (size_t)OW * oh
                 + (size_t)ow;
             if (ws_dt == data_type::u8) {
-                assert(0 <= value && value <= nstl::numeric_limits<
+                assert(0 <= value && value <= numeric_limits<
                     typename prec_traits<data_type::u8>::type>::max());
                 ws[ws_offset] = value;
             } else
@@ -84,63 +84,53 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
     };
 
     auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
-        for (int kd = 0; kd < KD; ++kd) {
-            for (int kh = 0; kh < KH; ++kh) {
-                for (int kw = 0; kw < KW; ++kw) {
-                    const int id = od * SD - padF + kd;
-                    const int ih = oh * SH - padT + kh;
-                    const int iw = ow * SW - padL + kw;
+        for (int kd = 0; kd < KD; ++kd)
+        for (int kh = 0; kh < KH; ++kh)
+        for (int kw = 0; kw < KW; ++kw) {
+            const int id = od * SD - padF + kd;
+            const int ih = oh * SH - padT + kh;
+            const int iw = ow * SW - padL + kw;
 
-                    if (id < 0 || id >= ID) continue;
-                    if (ih < 0 || ih >= IH) continue;
-                    if (iw < 0 || iw >= IW) continue;
+            if (id < 0 || id >= ID) continue;
+            if (ih < 0 || ih >= IH) continue;
+            if (iw < 0 || iw >= IW) continue;
 
-                    auto src_offset
-                        = (size_t)IW * IH * ID * C * mb
-                        + (size_t)IW * IH * ID * c
-                        + (size_t)IW * IH * id
-                        + (size_t)IW * ih
-                        + (size_t)iw;
-                    auto s = src[src_offset];
-                    if (s > d[0]) {
-                        d[0] = s;
-                        set_ws(mb, c, od, oh, ow, kd*KH*KW + kh*KW + kw);
-                    }
-                }
+            auto src_offset = (size_t)IW * IH * ID * C * mb
+                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
+                    + (size_t)IW * ih + (size_t)iw;
+            auto s = src[src_offset];
+            if (s > d[0]) {
+                d[0] = s;
+                set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
             }
         }
     };
 
     auto ker_avg = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
-        auto id_start = apply_offset(od*SD, padF);
-        auto ih_start = apply_offset(oh*SH, padT);
-        auto iw_start = apply_offset(ow*SW, padL);
-        auto id_end = nstl::min(od*SD - padF + KD, ID);
-        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
-        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
+        auto id_start = apply_offset(od * SD, padF);
+        auto ih_start = apply_offset(oh * SH, padT);
+        auto iw_start = apply_offset(ow * SW, padL);
+        auto id_end = min(od * SD - padF + KD, ID);
+        auto ih_end = min(oh * SH - padT + KH, IH);
+        auto iw_end = min(ow * SW - padL + KW, IW);
 
-        auto num_summands = (alg == pooling_avg_include_padding) ? KD*KW*KH
-            : (id_end - id_start)*(ih_end - ih_start)*(iw_end - iw_start);
+        auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
+            ? KD * KW * KH
+            : (id_end - id_start) * (ih_end - ih_start) * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id) {
-            for (int ih = ih_start; ih < ih_end; ++ih) {
-                for (int iw = iw_start; iw < iw_end; ++iw) {
-                    auto src_offset
-                        = (size_t)IW * IH * ID * C * mb
-                        + (size_t)IW * IH * ID * c
-                        + (size_t)IW * IH * id
-                        + (size_t)IW * ih
-                        + (size_t)iw;
-                    d[0] += src[src_offset];
-                }
-            }
+        for (int id = id_start; id < id_end; ++id)
+        for (int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            auto src_offset = (size_t)IW * IH * ID * C * mb
+                    + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
+                    + (size_t)IW * ih + (size_t)iw;
+            d[0] += src[src_offset];
         }
 
         d[0] = math::out_round<data_t>((float)d[0] / num_summands);
     };
 
-
-    if (pd()->desc()->alg_kind == pooling_max) {
+    if (alg == alg_kind::pooling_max) {
         parallel_nd(MB, C, OD, OH, OW,
             [&](int mb, int c, int od, int oh, int ow) {
             size_t dst_offset
@@ -150,7 +140,7 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
                 + (size_t)OW * oh
                 + (size_t)ow;
             data_t *d = &dst[dst_offset];
-            d[0] = nstl::numeric_limits<data_t>::lowest();
+            d[0] = numeric_limits<data_t>::lowest();
             set_ws(mb, c, od, oh, ow, 0);
             ker_max(d, mb, c, od, oh, ow);
         });
@@ -170,14 +160,172 @@ void nchw_pooling_fwd_t<data_type>::execute_forward(
     }
 }
 
-template <impl::data_type_t data_type>
-void nchw_pooling_bwd_t<data_type>::execute_backward(
+template <>
+void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
         const exec_ctx_t &ctx) const {
-    using namespace alg_kind;
 
+    auto alg = pd()->desc()->alg_kind;
+
+    auto src = CTX_IN_MEM(const bfloat16_t *, MKLDNN_ARG_SRC);
+    auto dst = CTX_OUT_MEM(bfloat16_t *, MKLDNN_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
+
+    auto scratchpad = this->scratchpad(ctx);
+    float *bf16cvt_wsp = scratchpad.template get<float>(
+            memory_tracking::names::key_pool_src_bf16cvt);
+
+    const memory_desc_wrapper ws_d(pd()->workspace_md());
+    const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
+
+    const int MB = pd()->MB();
+    const int C = pd()->C();
+    const int OD = pd()->OD();
+    const int OH = pd()->OH();
+    const int OW = pd()->OW();
+    const int ID = pd()->ID();
+    const int IH = pd()->IH();
+    const int IW = pd()->IW();
+    const int KD = pd()->KD();
+    const int KH = pd()->KH();
+    const int KW = pd()->KW();
+    const int SD = pd()->KSD();
+    const int SH = pd()->KSH();
+    const int SW = pd()->KSW();
+    const int padF = pd()->padFront();
+    const int padT = pd()->padT();
+    const int padL = pd()->padL();
+
+    const size_t simd_w = 16;
+    const size_t src_size = MB * C * ID * IH * IW;
+    const size_t blocked_size = src_size / simd_w;
+    const size_t tail_size = src_size % simd_w;
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
+
+    auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
+        if (ws) {
+            assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
+            size_t ws_offset
+                = (size_t)OW * OH * OD * C * mb
+                + (size_t)OW * OH * OD * c
+                + (size_t)OW * OH * od
+                + (size_t)OW * oh
+                + (size_t)ow;
+            if (ws_dt == data_type::u8) {
+                assert(0 <= value && value <= numeric_limits<
+                    typename prec_traits<data_type::u8>::type>::max());
+                ws[ws_offset] = value;
+            } else
+                reinterpret_cast<int *>(ws)[ws_offset] = value;
+        }
+    };
+
+    auto ker_max = [=](float *d, int mb, int c, int od, int oh, int ow) {
+        for (int kd = 0; kd < KD; ++kd)
+        for (int kh = 0; kh < KH; ++kh)
+        for (int kw = 0; kw < KW; ++kw) {
+            const int id = od * SD - padF + kd;
+            const int ih = oh * SH - padT + kh;
+            const int iw = ow * SW - padL + kw;
+
+            if (id < 0 || id >= ID) continue;
+            if (ih < 0 || ih >= IH) continue;
+            if (iw < 0 || iw >= IW) continue;
+
+            auto src_offset
+                = (size_t)IW * IH * ID * C * mb
+                + (size_t)IW * IH * ID * c
+                + (size_t)IW * IH * id
+                + (size_t)IW * ih
+                + (size_t)iw;
+            auto s = bf16cvt_wsp[src_offset];
+
+            if (s > d[0]) {
+                d[0] = s;
+                set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+            }
+        }
+    };
+
+    auto ker_avg = [=](float *d, int mb, int c, int od, int oh, int ow) {
+        auto id_start = apply_offset(od * SD, padF);
+        auto ih_start = apply_offset(oh * SH, padT);
+        auto iw_start = apply_offset(ow * SW, padL);
+        auto id_end = min(od * SD - padF + KD, ID);
+        auto ih_end = min(oh * SH - padT + KH, IH);
+        auto iw_end = min(ow * SW - padL + KW, IW);
+
+        auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
+            ? KD * KW * KH
+            : (id_end - id_start) * (ih_end - ih_start) * (iw_end - iw_start);
+
+        for (int id = id_start; id < id_end; ++id)
+        for (int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            auto src_offset
+                = (size_t)IW * IH * ID * C * mb
+                + (size_t)IW * IH * ID * c
+                + (size_t)IW * IH * id
+                + (size_t)IW * ih
+                + (size_t)iw;
+            d[0] += bf16cvt_wsp[src_offset];
+        }
+
+        d[0] = math::out_round<float>((float)d[0] / num_summands);
+    };
+    parallel_nd(blocked_size, [&](size_t i) {
+        cvt_bfloat16_to_float(
+                &bf16cvt_wsp[i * simd_w], &src[i * simd_w], simd_w);
+    });
+    if (tail_size)
+        cvt_bfloat16_to_float(&bf16cvt_wsp[blocked_size * simd_w],
+                &src[blocked_size * simd_w], tail_size);
+    if (alg == alg_kind::pooling_max) {
+        parallel_nd(MB, C, OD, OH, OW,
+            [&](int mb, int c, int od, int oh, int ow) {
+            size_t dst_offset
+                = (size_t)OW * OH * OD * C * mb
+                + (size_t)OW * OH * OD * c
+                + (size_t)OW * OH * od
+                + (size_t)OW * oh
+                + (size_t)ow;
+            float d_fp32 = numeric_limits<bfloat16_t>::lowest();
+
+            set_ws(mb, c, od, oh, ow, 0);
+
+            ker_max(&d_fp32, mb, c, od, oh, ow);
+
+            dst[dst_offset] = (bfloat16_t)d_fp32;
+        });
+    } else {
+        parallel_nd(MB, C, OD, OH, OW,
+            [&](int mb, int c, int od, int oh, int ow) {
+            size_t dst_offset
+                = (size_t)OW * OH * OD * C * mb
+                + (size_t)OW * OH * OD * c
+                + (size_t)OW * OH * od
+                + (size_t)OW * oh
+                + (size_t)ow;
+            float d_fp32 = 0.0f;
+
+            ker_avg(&d_fp32, mb, c, od, oh, ow);
+
+            dst[dst_offset] = (bfloat16_t)d_fp32;
+        });
+    }
+}
+
+template <data_type_t d_type>
+void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
+
+    auto alg = pd()->desc()->alg_kind;
+    const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+
+    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
     const memory_desc_wrapper ws_d(pd()->workspace_md());
 
@@ -199,34 +347,30 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
-    const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
-
-    auto alg = pd()->desc()->alg_kind;
-
     auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
     };
 
     auto ker_zero = [=](int mb, int c) {
-        size_t diff_src_offset = (size_t)mb*C*ID*IH*IW + (size_t)c*ID*IH*IW;
-        for (int id = 0; id < ID; ++id) {
-            for (int ih = 0; ih < IH; ++ih) {
-                for (int iw = 0; iw < IW; ++iw) {
-                    diff_src[diff_src_offset++] = 0;
-                }
-            }
+        size_t diff_src_offset
+                = (size_t)mb * C * ID * IH * IW + (size_t)c * ID * IH * IW;
+        for (int id = 0; id < ID; ++id)
+        for (int ih = 0; ih < IH; ++ih)
+        for (int iw = 0; iw < IW; ++iw) {
+            diff_src[diff_src_offset++] = 0;
         }
     };
 
     auto ker_max = [=](const data_t *d, int mb, int c, int od, int oh, int ow) {
         auto b_c = ws_d.blocking_desc().inner_nblks == 0
-            ? 1 : ws_d.blocking_desc().inner_blks[0];
-        auto ws_offset = is_3d
-            ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
-            : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
+                ? 1
+                : ws_d.blocking_desc().inner_blks[0];
+        auto ws_offset = is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
+                               : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
 
         const int index = ws_d.data_type() == data_type::u8
-            ? (int)ws[ws_offset] : ((const int *)ws)[ws_offset];
+                ? (int)ws[ws_offset]
+                : ((const int *)ws)[ws_offset];
         const int kw = index % KW;
         const int kh = (index / KW) % KH;
         const int kd = (index / KW) / KH;
@@ -239,92 +383,260 @@ void nchw_pooling_bwd_t<data_type>::execute_backward(
         // then input displacement would be out of bounds.
         // No need to back propagate there as padding is
         // virtual in pooling_max case.
-        if (id < 0 || id >= ID)
-            return;
-        if (ih < 0 || ih >= IH)
-            return;
-        if (iw < 0 || iw >= IW)
-            return;
+        if (id < 0 || id >= ID) return;
+        if (ih < 0 || ih >= IH) return;
+        if (iw < 0 || iw >= IW) return;
 
-        size_t diff_src_offset =
-            (size_t)mb*C*ID*IH*IW + (size_t)c*ID*IH*IW + (size_t)id*IH*IW
-            + (size_t)ih*IW + (size_t)iw;
+        size_t diff_src_offset = (size_t)mb * C * ID * IH * IW
+                + (size_t)c * ID * IH * IW + (size_t)id * IH * IW
+                + (size_t)ih * IW + (size_t)iw;
         diff_src[diff_src_offset] += d[0];
     };
 
     auto ker_avg = [=](const data_t *d, int mb, int c, int od, int oh, int ow) {
-        auto id_start = apply_offset(od*SD, padF);
-        auto ih_start = apply_offset(oh*SH, padT);
-        auto iw_start = apply_offset(ow*SW, padL);
-        auto id_end = nstl::min(od*SD - padF + KD, ID);
-        auto ih_end = nstl::min(oh*SH - padT + KH, IH);
-        auto iw_end = nstl::min(ow*SW - padL + KW, IW);
+        auto id_start = apply_offset(od * SD, padF);
+        auto ih_start = apply_offset(oh * SH, padT);
+        auto iw_start = apply_offset(ow * SW, padL);
+        auto id_end = min(od * SD - padF + KD, ID);
+        auto ih_end = min(oh * SH - padT + KH, IH);
+        auto iw_end = min(ow * SW - padL + KW, IW);
 
-        size_t num_summands = (alg == pooling_avg_include_padding)
-            ? (size_t)KW*KH*KD
-            : (size_t)(id_end - id_start)*(ih_end - ih_start)
-                *(iw_end - iw_start);
+        size_t num_summands = (alg == alg_kind::pooling_avg_include_padding)
+                ? (size_t)KW * KH * KD
+                : (size_t)(id_end - id_start) * (ih_end - ih_start)
+                        * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id) {
-            for (int ih = ih_start; ih < ih_end; ++ih) {
-                for (int iw = iw_start; iw < iw_end; ++iw) {
-                    size_t diff_src_offset = (size_t)mb*C*ID*IH*IW
-                        + (size_t)c*ID*IH*IW + (size_t)id*IH*IW
-                        + (size_t)ih*IW + (size_t)iw;
-                    diff_src[diff_src_offset] += d[0] / num_summands;
-                }
-            }
+        for (int id = id_start; id < id_end; ++id)
+        for (int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            size_t diff_src_offset = (size_t)mb * C * ID * IH * IW
+                    + (size_t)c * ID * IH * IW + (size_t)id * IH * IW
+                    + (size_t)ih * IW + (size_t)iw;
+            diff_src[diff_src_offset] += d[0] / num_summands;
         }
     };
 
-    int ow_start = nstl::max(0, utils::div_up(padL - KW + 1, SW));
-    int ow_end = nstl::min(OW, 1 + (padL + IW - 1) / SW);
+    int ow_start = max(0, utils::div_up(padL - KW + 1, SW));
+    int ow_end = min(OW, 1 + (padL + IW - 1) / SW);
 
-    int oh_start = nstl::max(0, utils::div_up(padT - KH + 1, SH));
-    int oh_end = nstl::min(OH, 1 + (padT + IH - 1) / SH);
+    int oh_start = max(0, utils::div_up(padT - KH + 1, SH));
+    int oh_end = min(OH, 1 + (padT + IH - 1) / SH);
 
-    int od_start = nstl::max(0, utils::div_up(padF - KD + 1, SD));
-    int od_end = nstl::min(OD, 1 + (padF + ID - 1) / SD);
+    int od_start = max(0, utils::div_up(padF - KD + 1, SD));
+    int od_end = min(OD, 1 + (padF + ID - 1) / SD);
 
-    if (pd()->desc()->alg_kind == pooling_max) {
+    if (alg == alg_kind::pooling_max) {
         parallel_nd(MB, C, [&](int mb, int c) {
-            size_t diff_dst_offset_b = (size_t)mb*C*OD*OH*OW 
-                + (size_t)c*OD*OH*OW;
+            size_t diff_dst_offset_b
+                    = (size_t)mb * C * OD * OH * OW + (size_t)c * OD * OH * OW;
             ker_zero(mb, c);
-            for (int od = od_start; od < od_end; ++od) {
-                for (int oh = oh_start; oh < oh_end; ++oh) {
-                    size_t diff_dst_offset = diff_dst_offset_b 
-                        + (size_t) od*OH*OW + (size_t) oh*OW;
-                    for (int ow = ow_start; ow < ow_end; ++ow) {
-                                                            
-                        const data_t *d = &diff_dst[diff_dst_offset + ow];
-                        ker_max(d, mb, c, od, oh, ow);
-                    }
+            for (int od = od_start; od < od_end; ++od)
+            for (int oh = oh_start; oh < oh_end; ++oh) {
+                size_t diff_dst_offset = diff_dst_offset_b
+                        + (size_t)od * OH * OW + (size_t)oh * OW;
+                for (int ow = ow_start; ow < ow_end; ++ow) {
+                    const data_t *d = &diff_dst[diff_dst_offset + ow];
+                    ker_max(d, mb, c, od, oh, ow);
                 }
             }
         });
     } else {
         parallel_nd(MB, C, [&](int mb, int c) {
-            size_t diff_dst_offset_b = (size_t)mb*C*OD*OH*OW 
-                + (size_t)c*OD*OH*OW;
+            size_t diff_dst_offset_b
+                    = (size_t)mb * C * OD * OH * OW + (size_t)c * OD * OH * OW;
             ker_zero(mb, c);
-            for (int od = od_start; od < od_end; ++od) {
-                for (int oh = oh_start; oh < oh_end; ++oh) {
-                    size_t diff_dst_offset = diff_dst_offset_b 
-                        + (size_t) od*OH*OW + (size_t) oh*OW;
-                    for (int ow = ow_start; ow < ow_end; ++ow) {
-                        const data_t *d = &diff_dst[diff_dst_offset + ow];
-                        ker_avg(d, mb, c, od, oh, ow);
-                    }
+            for (int od = od_start; od < od_end; ++od)
+            for (int oh = oh_start; oh < oh_end; ++oh) {
+                size_t diff_dst_offset = diff_dst_offset_b
+                        + (size_t)od * OH * OW + (size_t)oh * OW;
+                for (int ow = ow_start; ow < ow_end; ++ow) {
+                    const data_t *d = &diff_dst[diff_dst_offset + ow];
+                    ker_avg(d, mb, c, od, oh, ow);
                 }
             }
         });
     }
 }
 
+template <>
+void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
+        const exec_ctx_t &ctx) const {
+
+    auto alg = pd()->desc()->alg_kind;
+    const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+
+    auto diff_src = CTX_OUT_MEM(bfloat16_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const bfloat16_t *, MKLDNN_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
+
+    auto scratchpad = this->scratchpad(ctx);
+    float *bf16cvt_src = scratchpad.template get<float>(
+            memory_tracking::names::key_pool_src_bf16cvt);
+    float *bf16cvt_dst = scratchpad.template get<float>(
+            memory_tracking::names::key_pool_dst_bf16cvt);
+
+    const memory_desc_wrapper ws_d(pd()->workspace_md());
+
+    const int MB = pd()->MB();
+    const int C = pd()->C();
+    const int OD = pd()->OD();
+    const int OH = pd()->OH();
+    const int OW = pd()->OW();
+    const int ID = pd()->ID();
+    const int IH = pd()->IH();
+    const int IW = pd()->IW();
+    const int KD = pd()->KD();
+    const int KH = pd()->KH();
+    const int KW = pd()->KW();
+    const int SD = pd()->KSD();
+    const int SH = pd()->KSH();
+    const int SW = pd()->KSW();
+    const int padF = pd()->padFront();
+    const int padT = pd()->padT();
+    const int padL = pd()->padL();
+
+    const size_t dst_sp_size = pd()->OD() * pd()->OH() * pd()->OW();
+    const size_t src_sp_size = pd()->ID() * pd()->IH() * pd()->IW();
+
+    auto apply_offset = [=](int index, int offset) {
+        return (index > offset) ? index - offset : 0;
+    };
+
+    auto ker_zero = [=](float *diff_src) {
+        size_t diff_src_offset = 0;
+        for (int id = 0; id < ID; ++id)
+        for (int ih = 0; ih < IH; ++ih)
+        for (int iw = 0; iw < IW; ++iw) {
+            diff_src[diff_src_offset++] = 0.0f;
+        }
+    };
+
+    auto ker_max = [=](const float *d, float *diff_src, int mb, int c, int od,
+            int oh, int ow) {
+        auto b_c = ws_d.blocking_desc().inner_nblks == 0
+                ? 1
+                : ws_d.blocking_desc().inner_blks[0];
+        auto ws_offset = is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
+                               : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
+
+        const int index = ws_d.data_type() == data_type::u8
+                ? (int)ws[ws_offset]
+                : ((const int *)ws)[ws_offset];
+        const int kw = index % KW;
+        const int kh = (index / KW) % KH;
+        const int kd = (index / KW) / KH;
+
+        const int id = od * SD - padF + kd;
+        const int ih = oh * SH - padT + kh;
+        const int iw = ow * SW - padL + kw;
+
+        // If padding area could fit the kernel,
+        // then input displacement would be out of bounds.
+        // No need to back propagate there as padding is
+        // virtual in pooling_max case.
+        if (id < 0 || id >= ID) return;
+        if (ih < 0 || ih >= IH) return;
+        if (iw < 0 || iw >= IW) return;
+
+        size_t diff_src_offset
+                = (size_t)id * IH * IW + (size_t)ih * IW + (size_t)iw;
+        diff_src[diff_src_offset] += d[0];
+    };
+
+    auto ker_avg = [=](const float *d, float *diff_src, int mb, int c, int od,
+            int oh, int ow) {
+        auto id_start = apply_offset(od * SD, padF);
+        auto ih_start = apply_offset(oh * SH, padT);
+        auto iw_start = apply_offset(ow * SW, padL);
+        auto id_end = min(od * SD - padF + KD, ID);
+        auto ih_end = min(oh * SH - padT + KH, IH);
+        auto iw_end = min(ow * SW - padL + KW, IW);
+
+        size_t num_summands = (alg == alg_kind::pooling_avg_include_padding)
+                ? (size_t)KW * KH * KD
+                : (size_t)(id_end - id_start) * (ih_end - ih_start)
+                        * (iw_end - iw_start);
+
+        for (int id = id_start; id < id_end; ++id)
+        for (int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            size_t diff_src_offset
+                    = (size_t)id * IH * IW + (size_t)ih * IW + (size_t)iw;
+            diff_src[diff_src_offset] += d[0] / num_summands;
+        }
+    };
+
+    int ow_start = max(0, utils::div_up(padL - KW + 1, SW));
+    int ow_end = min(OW, 1 + (padL + IW - 1) / SW);
+
+    int oh_start = max(0, utils::div_up(padT - KH + 1, SH));
+    int oh_end = min(OH, 1 + (padT + IH - 1) / SH);
+
+    int od_start = max(0, utils::div_up(padF - KD + 1, SD));
+    int od_end = min(OD, 1 + (padF + ID - 1) / SD);
+
+    if (alg == alg_kind::pooling_max) {
+        parallel_nd(MB, C, [&](int mb, int c) {
+            size_t diff_dst_offset_b
+                    = ((size_t)mb * C + (size_t)c) * OD * OH * OW;
+            size_t diff_src_offset
+                    = ((size_t)mb * C + (size_t)c) * ID * IH * IW;
+            float *diff_dst_fp32
+                    = &bf16cvt_dst[mkldnn_get_thread_num() * dst_sp_size];
+            float *diff_src_fp32
+                    = &bf16cvt_src[mkldnn_get_thread_num() * src_sp_size];
+
+            ker_zero(diff_src_fp32);
+
+            cvt_bfloat16_to_float(
+                    diff_dst_fp32, &diff_dst[diff_dst_offset_b], dst_sp_size);
+
+            for (int od = od_start; od < od_end; ++od)
+            for (int oh = oh_start; oh < oh_end; ++oh) {
+                size_t diff_dst_offset
+                        = (size_t)od * OH * OW + (size_t)oh * OW;
+                for (int ow = ow_start; ow < ow_end; ++ow) {
+                    const float *d = &diff_dst_fp32[diff_dst_offset + ow];
+                    ker_max(d, diff_src_fp32, mb, c, od, oh, ow);
+                }
+            }
+            cvt_float_to_bfloat16(
+                    &diff_src[diff_src_offset], diff_src_fp32, src_sp_size);
+        });
+    } else {
+        parallel_nd(MB, C, [&](int mb, int c) {
+            size_t diff_dst_offset_b
+                    = (size_t)mb * C * OD * OH * OW + (size_t)c * OD * OH * OW;
+            float *diff_dst_fp32
+                    = &bf16cvt_dst[mkldnn_get_thread_num() * dst_sp_size];
+            size_t diff_src_offset
+                    = (size_t)mb * C * ID * IH * IW + (size_t)c * ID * IH * IW;
+            float *diff_src_fp32
+                    = &bf16cvt_src[mkldnn_get_thread_num() * src_sp_size];
+
+            ker_zero(diff_src_fp32);
+
+            cvt_bfloat16_to_float(
+                    diff_dst_fp32, &diff_dst[diff_dst_offset_b], dst_sp_size);
+
+            for (int od = od_start; od < od_end; ++od)
+            for (int oh = oh_start; oh < oh_end; ++oh) {
+                size_t diff_dst_offset
+                        = (size_t)od * OH * OW + (size_t)oh * OW;
+                for (int ow = ow_start; ow < ow_end; ++ow) {
+                    const float *d = &diff_dst_fp32[diff_dst_offset + ow];
+                    ker_avg(d, diff_src_fp32, mb, c, od, oh, ow);
+                }
+            }
+            cvt_float_to_bfloat16(
+                    &diff_src[diff_src_offset], diff_src_fp32, src_sp_size);
+        });
+    }
+}
 template struct nchw_pooling_fwd_t<data_type::f32>;
 template struct nchw_pooling_bwd_t<data_type::f32>;
-
+template struct nchw_pooling_fwd_t<data_type::bf16>;
+template struct nchw_pooling_bwd_t<data_type::bf16>;
 }
 }
 }

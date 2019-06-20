@@ -376,13 +376,12 @@ __kernel void any2any_kernel(__global DT_IN *input, __global DT_OUT *output,
         return;
     }
 #    endif
-
     const int in_off = IN_OFF(d0,d1,d2,d3,d4,d5);
     const int out_off = OUT_OFF(d0,d1,d2,d3,d4,d5);
 #    if ALPHA_BETA
     const float a = convert_float(input[in_off]);
     const float b = convert_float(output[out_off]);
-    const float tmp = alpha * a + beta * b;
+    const float tmp = (beta == 0) ? alpha * a : alpha * a + beta * b;
 #        if OUT_TYPE_F16
         output[out_off] = convert_half(tmp);
 #        else

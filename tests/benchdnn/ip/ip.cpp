@@ -125,14 +125,14 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
 
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
-    size_t nelems = mem_dt.nelems();
+    const auto nelems = mem_dt.nelems();
     int64_t non_zero = 0;
     const char *skind = data_kind2str(kind);
 
     r->errors = 0;
     r->total = nelems;
 
-    for (size_t i = 0; i < nelems; ++i) {
+    for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
         const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
@@ -144,9 +144,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         if (!ok) {
             r->errors++;
             if (r->errors < 10 || verbose >= 10) {
-                print(0, "[%4lu][%s]"
-                         "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (unsigned long)i, skind, fp, fp0, dt, diff, rel_diff);
+                print(0, "[%4ld][%s]"
+                        "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                        (long)i, skind, fp, fp0, dt, diff, rel_diff);
             }
         }
         non_zero += fp != 0;
@@ -176,20 +176,20 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
     dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, get_default_tag(mem_dt.md_.ndims),
             engine_ref);
 
-    const size_t nelems = mem_dt.nelems();
+    const auto nelems = mem_dt.nelems();
     assert(mem_dt.nelems() == mem_fp.nelems());
 
     const auto &c = p->cfg[kind];
 
     mkldnn::impl::parallel(0, [&](int ithr, int nthr) {
-        size_t chunk_size = (nelems + nthr - 1) / nthr;
-        size_t idx_start = ithr * chunk_size;
-        size_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        int64_t chunk_size = (nelems + nthr - 1) / nthr;
+        int64_t idx_start = ithr * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
         std::uniform_int_distribution<> gen(
                 c.f_min, c.f_max);
         msr.discard(kind + idx_start);
-        for (size_t idx = idx_start; idx < idx_end; ++idx) {
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (float)gen(msr) * c.f_scale;
             mem_00.set_elem(idx, val);
         }
@@ -289,20 +289,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    if (bench_mode & PERF) {
-        auto &t = r->timer;
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
+    measure_perf(r->timer, ip, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(ip), CRIT);
 

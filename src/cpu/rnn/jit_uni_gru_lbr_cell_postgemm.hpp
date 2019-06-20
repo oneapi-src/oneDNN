@@ -190,7 +190,7 @@ protected:
             uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
 
             // write back the result
-	    uni_vmovss(ptr[addr_states_t_l_reg], G0s);
+            uni_vmovss(ptr[addr_states_t_l_reg], G0s);
 
             // increment address pointers
             add(addr_ws_gates_reg, gate_dt_size);

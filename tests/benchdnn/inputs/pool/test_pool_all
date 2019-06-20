@@ -19,3 +19,6 @@
 --alg=MAX,AVG_P
 --tag=nhwc --batch=pool_ker_in_pad_2d
 --tag=ndhwc --batch=pool_ker_in_pad_3d
+
+# bf16
+--batch=test_pool_bfloat16

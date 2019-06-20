@@ -39,7 +39,7 @@ dst_diff_bias,
 diff_last_iteration,
 diff_c_last_iteration,
 diff_last_layer,
-params: {data_type, min, max, f_min, f_max, f_mean, f_var, eps}
+params: {data_type, min, max, f_min, f_max, f_mean, f_stddev, eps}
 */
 
 const int int_max_exact = 1 << 24;

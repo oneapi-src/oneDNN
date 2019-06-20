@@ -22,6 +22,8 @@
 namespace softmax {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    dump_global_params(s);
+
     if (p.dir != FWD_D)
         s << "--dir=" << dir2str(p.dir) << " ";
     if (p.dt != mkldnn_f32)
@@ -30,6 +32,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.axis != 1)
         s << "--axis=" << p.axis << " ";
+    if (p.inplace != true)
+        s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << p.dims;
 

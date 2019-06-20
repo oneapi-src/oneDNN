@@ -35,6 +35,7 @@ inline bool dense_consitency_check(const memory_desc_wrapper &src_d,
     using namespace format_tag;
     using namespace utils;
     return true
+            && IMPLICATION(src_d.matches_tag(ncw), wei_d.matches_tag(oiw))
             && IMPLICATION(src_d.matches_tag(nchw), wei_d.matches_tag(oihw))
             && IMPLICATION(src_d.matches_tag(ncdhw), wei_d.matches_tag(oidhw))
             && IMPLICATION(

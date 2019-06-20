@@ -25,10 +25,7 @@ set(MKLDNNROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
 
 enable_testing()
 
-if(WIN32)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Qstd=c99")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qstd=c++11")
-else()
+if(UNIX OR MINGW)
     set(LIBM m)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -64,6 +61,10 @@ endif()
 find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MKLDNN_COMPILE_FLAGS}")
 
+if(WIN32)
+    set(CTESTCONFIG_PATH "${MKLDNNROOT}/bin")
+endif()
+
 # Register example
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
@@ -71,9 +72,12 @@ function(register_example name srcs)
     add_executable(${name} ${srcs})
     target_link_libraries(${name} MKLDNN::mkldnn ${LIBM})
     add_test(${name} ${name})
-    if(WIN32 OR MINGW)
-        set_property(TEST ${name} PROPERTY ENVIRONMENT "PATH=${CTESTCONFIG_PATH};$ENV{PATH}")
-        configure_file(template.vcxproj.user ${name}.vcxproj.user @ONLY)
+    if(WIN32)
+        string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
+        set_property(TEST ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
+        if(CMAKE_GENERATOR MATCHES "Visual Studio")
+            configure_file(template.vcxproj.user ${name}.vcxproj.user @ONLY)
+        endif()
     endif()
 endfunction()
 

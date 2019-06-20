@@ -140,11 +140,17 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
 
     static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
             int &unroll_n) {
-        static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
-        static constexpr int unroll_n_table[2][2] = {{16, 16}, {32, 32}};
 
-        unroll_m = unroll_m_table[trans_a][trans_b];
-        unroll_n = unroll_n_table[trans_a][trans_b];
+        unroll_m = unroll_n = 0;
+
+        if (type == data_type::f32) {
+            static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
+            static constexpr int unroll_n_table[2][2] = {{16, 16}, {32, 32}};
+
+            unroll_m = unroll_m_table[trans_a][trans_b];
+            unroll_n = unroll_n_table[trans_a][trans_b];
+        } else if (type == data_type::f16)
+            unroll_m = unroll_n = 32;
     }
 };
 

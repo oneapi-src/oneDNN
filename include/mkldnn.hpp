@@ -356,8 +356,8 @@ inline mkldnn_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<mkldnn_alg_kind_t>(aalgorithm);
 }
 
-/// Flags for batch-normalization primititve.
-enum class batch_normalization_flags : unsigned {
+/// Flags for batch normalization primitive.
+enum class normalization_flags : unsigned {
     /// Use global statistics
     ///
     /// If specified
@@ -393,12 +393,12 @@ enum class batch_normalization_flags : unsigned {
     ///    fused with ReLU via post ops API
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
-    fuse_bn_relu = mkldnn_fuse_bn_relu
+    fuse_norm_relu = mkldnn_fuse_norm_relu
 };
 
-inline mkldnn_batch_normalization_flags_t convert_to_c(
-        batch_normalization_flags aflag) {
-    return static_cast<mkldnn_batch_normalization_flags_t>(aflag);
+inline mkldnn_normalization_flags_t convert_to_c(
+        normalization_flags aflag) {
+    return static_cast<mkldnn_normalization_flags_t>(aflag);
 }
 
 enum class rnn_flags : unsigned {
@@ -448,7 +448,7 @@ inline enum_name operator~(enum_name rhs) {                             \
     return static_cast<enum_name>(~static_cast<unsigned>(rhs));         \
 }                                                                       \
 
-MKLDNN_DEFINE_BITMASK_OPS(batch_normalization_flags)
+MKLDNN_DEFINE_BITMASK_OPS(normalization_flags)
 MKLDNN_DEFINE_BITMASK_OPS(rnn_flags)
 
 #undef MKLDNN_DEFINE_BITMASK_OPS
@@ -826,6 +826,8 @@ struct engine: public handle<mkldnn_engine_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Constructs an engine of particular @p akind associated with the given
+    /// OpenCL @p device and @p context objects.
     engine(kind akind, cl_device_id device, cl_context context) {
         mkldnn_engine_t aengine;
         error::wrap_c_api(mkldnn_engine_create_ocl(&aengine,
@@ -844,9 +846,12 @@ struct engine: public handle<mkldnn_engine_t> {
     MKLDNN_API engine(kind akind, const cl::sycl::device& dev, const cl::sycl::context& ctx);
 #endif
 
+    /// Constructs an engine from other engine @p aengine.
     explicit engine(const mkldnn_engine_t& aengine)
         : handle(aengine, true) {}
 
+    /// Constructs an engine from the primitive descriptor @p pd
+    /// by querying its engine.
     engine(const handle<mkldnn_primitive_desc_t> &pd) {
         mkldnn_engine_t engine_q;
         error::wrap_c_api(
@@ -856,6 +861,7 @@ struct engine: public handle<mkldnn_engine_t> {
         reset(engine_q, true);
     }
 
+    /// Returns the kind of the engine.
     kind get_kind() const {
         mkldnn_engine_kind_t akind;
         error::wrap_c_api(mkldnn_engine_get_kind(get(), &akind),
@@ -864,6 +870,7 @@ struct engine: public handle<mkldnn_engine_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Returns the OpenCL context associated with the engine.
     cl_context get_ocl_context() const {
         cl_context context = nullptr;
         error::wrap_c_api(mkldnn_engine_get_ocl_context(get(), &context),
@@ -871,6 +878,7 @@ struct engine: public handle<mkldnn_engine_t> {
         return context;
     }
 
+    /// Returns the OpenCL device associated with the engine.
     cl_device_id get_ocl_device() const {
         cl_device_id device = nullptr;
         error::wrap_c_api(mkldnn_engine_get_ocl_device(get(), &device),
@@ -949,6 +957,8 @@ struct stream: public handle<mkldnn_stream_t> {
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Constructs a stream associated with the engine @p eng and with the
+    /// OpenCL command queue @p queue.
     stream(const engine &eng, cl_command_queue queue) {
         mkldnn_stream_t astream;
         error::wrap_c_api(mkldnn_stream_create_ocl(&astream, eng.get(), queue),
@@ -956,6 +966,7 @@ struct stream: public handle<mkldnn_stream_t> {
         reset(astream);
     }
 
+    /// Returns the OpenCL command queue associated with the stream.
     cl_command_queue get_ocl_command_queue() const {
         cl_command_queue queue = nullptr;
         error::wrap_c_api(mkldnn_stream_get_ocl_command_queue(get(), &queue),
@@ -1029,7 +1040,7 @@ struct memory: public handle<mkldnn_memory_t> {
         undef = mkldnn_data_type_undef,
         /// 16-bit/half-precision floating point.
         f16 = mkldnn_f16,
-        /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+        /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
         bf16 = mkldnn_bf16,
         /// 32-bit/single-precision floating point.
         f32 = mkldnn_f32,
@@ -1480,10 +1491,13 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Mapping is an exclusive operation - a memory object cannot be used in
     /// other operations until this memory object is unmapped.
     /// @tparam T Type of the pointer to be mapped.
-    //
+    ///
     /// @note Any primitives working with the memory should be completed before
-    //        mapping. Use stream::wait() to synchronize the corresponding
-    //        execution stream.
+    ///       mapping. Use stream::wait() to synchronize the corresponding
+    ///       execution stream.
+    ///
+    /// @note Map/unmap API is provided mainly for debug/testing purposes and
+    ///       its performance may be suboptimal.
     template <typename T = void>
     T *map_data() const {
         void *mapped_ptr;
@@ -1497,12 +1511,16 @@ struct memory: public handle<mkldnn_memory_t> {
     /// Any changes of the mapped data are synchronized back to the memory
     /// after the call is complete. The mapped pointer must be
     /// obtained through a map_data() call.
+    ///
+    /// @note Map/unmap API is provided mainly for debug/testing purposes and
+    ///       its performance may be suboptimal.
     void unmap_data(void *mapped_ptr) const {
         error::wrap_c_api(mkldnn_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap the data");
     }
 
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    /// Returns the OpenCL memory object associated with the memory.
     cl_mem get_ocl_mem_object() const {
         cl_mem mem_object;
         error::wrap_c_api(mkldnn_memory_get_ocl_mem_object(get(), &mem_object),
@@ -1510,6 +1528,7 @@ struct memory: public handle<mkldnn_memory_t> {
         return mem_object;
     }
 
+    /// Sets the OpenCL memory object @p mem_object associated with the memory.
     void set_ocl_mem_object(cl_mem mem_object) {
         error::wrap_c_api(mkldnn_memory_set_ocl_mem_object(get(), mem_object),
                 "could not set OpenCL memory object");
@@ -3344,7 +3363,7 @@ struct batch_normalization_forward : public primitive {
         /// @note In-place operation is supported; that is, dst points to the
         ///       same memory as src.
         desc(prop_kind aprop_kind, const memory::desc &src_desc, float epsilon,
-                batch_normalization_flags flags) {
+                normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_forward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind), &src_desc.data,
@@ -3436,7 +3455,7 @@ struct batch_normalization_backward : public primitive {
         ///       the same memory as diff_dst.
         desc(prop_kind aprop_kind, const memory::desc &diff_data_desc,
                 const memory::desc &data_desc, float epsilon,
-                batch_normalization_flags flags) {
+                normalization_flags flags) {
             error::wrap_c_api(
                     mkldnn_batch_normalization_backward_desc_init(&data,
                             mkldnn::convert_to_c(aprop_kind),

@@ -83,7 +83,7 @@ The detailed explanation is provided in the corresponding sections.
 - [Quantization](@ref dev_guide_attributes_quantization) settings used in INT8
   inference;
 - [Post-ops](@ref dev_guide_attributes_post_ops) to fuse a primitive with
-  some post operations. Used mostly for inference.
+  some operation applied to the primitive's result. Used mostly for inference.
 
 
 ## Attribute Related Error Handling

@@ -411,6 +411,12 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     return s;
 }
 
+std::ostream &dump_global_params(std::ostream &s) {
+    if (engine_tgt_kind != mkldnn_cpu)
+        s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
+    return s;
+}
+
 mkldnn_engine_kind_t str2engine_kind(const char *str) {
     const char *param = "cpu";
     if (!strncasecmp(param, str, strlen(param)))

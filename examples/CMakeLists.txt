@@ -42,23 +42,28 @@ endif()
 register_exe(cpu-memory-format-propagation cpu_memory_format_propagation.cpp "test")
 register_exe(cpu-performance-profiling-cpp cpu_performance_profiling.cpp "test")
 
-register_exe(cpu-cnn-inference-fp32-c cpu_cnn_inference_fp32.c "test")
-register_exe(cpu-cnn-inference-fp32-cpp cpu_cnn_inference_fp32.cpp "test")
-register_exe(cpu-cnn-training-fp32-c cpu_cnn_training_fp32.c "test" ${LIBM})
-register_exe(cpu-cnn-training-fp32-cpp cpu_cnn_training_fp32.cpp "test" ${LIBM})
+register_exe(cpu-cnn-inference-f32-c cpu_cnn_inference_f32.c "test")
+register_exe(cpu-cnn-inference-f32-cpp cpu_cnn_inference_f32.cpp "test")
+register_exe(cpu-cnn-training-f32-c cpu_cnn_training_f32.c "test" ${LIBM})
+register_exe(cpu-cnn-training-f32-cpp cpu_cnn_training_f32.cpp "test" ${LIBM})
+register_exe(cpu-cnn-training-bf16-cpp cpu_cnn_training_bf16.cpp "test" ${LIBM})
 register_exe(cpu-cnn-inference-int8-cpp cpu_cnn_inference_int8.cpp "test")
 
 # RNN examples access memory directly so build it with the native CPU backend only
 if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
-    register_exe(cpu-rnn-inference-fp32-cpp cpu_rnn_inference_fp32.cpp "test")
+    register_exe(cpu-rnn-inference-f32-cpp cpu_rnn_inference_f32.cpp "test")
     register_exe(cpu-rnn-inference-int8 cpu_rnn_inference_int8.cpp "test")
 endif()
 
-register_exe(cpu-rnn-training-fp32 cpu_rnn_training_fp32.cpp "test")
+register_exe(cpu-rnn-training-f32 cpu_rnn_training_f32.cpp "test")
 
 if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_exe(gpu-getting-started-c gpu_getting_started.c "test")
     register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
+endif()
+
+if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+    register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
 endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
@@ -67,7 +72,7 @@ if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
         foreach(ex_skip
                 cpu_getting_started.cpp
-                cpu_rnn_inference_fp32.cpp
+                cpu_rnn_inference_f32.cpp
                 cpu_rnn_inference_int8.cpp)
             get_filename_component(ex_skip_abs_path
                     ${CMAKE_CURRENT_LIST_DIR}/${ex_skip} ABSOLUTE)
@@ -77,7 +82,11 @@ if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
-        ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
         ${example_sources}
         DESTINATION examples)
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+        install(FILES
+            ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
+            DESTINATION examples)
+    endif()
 endif()

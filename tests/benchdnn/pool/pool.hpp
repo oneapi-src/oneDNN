@@ -109,19 +109,28 @@ struct perf_report_t: public base_perf_report_t {
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
-        const bool print_d = p_->id > 1;
+        s << p_->mb << ','
 
-        s << p_->mb << ',' << p_->ic << ',';
-        if (print_d) s << p_->id << ',';
-        s << p_->ih << ',' << p_->iw << ',';
-        if (print_d) s << p_->od << ',';
-        s << p_->oh << ',' << p_->ow << ',';
-        if (print_d) s << p_->kd << ',';
-        s << p_->kh << ',' << p_->kw << ',';
-        if (print_d) s << p_->sd << ',';
-        s << p_->sh << ',' << p_->sw << ',';
-        if (print_d) s << p_->pd << ',';
-        s << p_->ph << ',' << p_->pw;
+          << p_->ic << ','
+          << p_->id << ','
+          << p_->ih << ','
+          << p_->iw << ','
+
+          << p_->od << ','
+          << p_->oh << ','
+          << p_->ow << ','
+
+          << p_->kd << ','
+          << p_->kh << ','
+          << p_->kw << ','
+
+          << p_->sd << ','
+          << p_->sh << ','
+          << p_->sw << ','
+
+          << p_->pd << ','
+          << p_->ph << ','
+          << p_->pw;
     }
 
     virtual const char *name() const override { return p_->name; }

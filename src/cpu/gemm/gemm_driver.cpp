@@ -21,18 +21,19 @@
 
 #include "gemm_driver.hpp"
 
+#include "common/bfloat16.hpp"
 #include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "gemm_info.hpp"
 #include "gemm_threading.hpp"
+#include "gemv_driver.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "s8x8s32/gemv.hpp"
 #include "utils.hpp"
-#include "common/bfloat16.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -344,7 +345,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
 
     if (data_traits<a_type>::data_type == data_type::s8) {
         a_type ao = arg->ao;
-        b_type bo = arg->bo;
+        uint8_t bo = arg->bo;
         c_type co_0 = offsetc == offset_type::none ? 0 : co[0];
 
         if (bo != 0 || offsetc == offset_type::column)
@@ -372,7 +373,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
                     col_offset[i] += co[i];
             }
 
-            if (bo != 0) {
+            if (bo != 0 && a_row_sum) {
                 for (dim_t i = 0; i < m; i++)
                     col_offset[i] -= bo * a_row_sum[i];
             }
@@ -387,7 +388,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k,
                     row_offset[i] += co[i];
             }
 
-            if (ao != 0) {
+            if (ao != 0 && b_col_sum) {
                 for (dim_t i = 0; i < n; i++)
                     row_offset[i] -= ao * b_col_sum[i];
             }
@@ -451,8 +452,8 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
 
-    const gemm_pack_storage_t *a_packed = arg->a_packed;
-    const gemm_pack_storage_t *b_packed = arg->b_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
     if (m <= 0 || n <= 0) {
         return mkldnn_success;
@@ -594,8 +595,8 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                     if (sizeN < n)
                         Um_forA = Um;
 
-                    a_type *bufferA_eff;
-                    c_type *a_row_sum_eff;
+                    a_type *bufferA_eff = nullptr;
+                    c_type *a_row_sum_eff = nullptr;
 
                     if (a_packed) {
                         Um_forA = Um;
@@ -671,7 +672,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     float alpha = arg->alpha;
 
-    const gemm_pack_storage_t *b_packed = arg->b_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
     if (m <= 0 || n <= 0) {
         return mkldnn_success;
@@ -969,9 +970,11 @@ static inline void set_thread_opts(int *p_nthrs, gemm_threading_t &thread_info,
             }
         }
 
-        // If A or B offset are non-zero, we need to keep 1D_copya to reduce update
-        // overhead for integer case.
-        if (isInteger && (arg->ao != 0 || arg->bo != 0)) {
+        // If A offset is non-zero, we use to keep 1D_copya.
+        // TODO: the reasons seems to be in copy_sum_bx routines. At least,
+        //       after simple optimization of copy_sum_ax, similar restriction
+        //       on offset B became unnecessary. Revisit.
+        if (isInteger && arg->ao != 0) {
             condition_2D_bsrc = 0;
             condition_1D_copya = 1;
         }
@@ -1281,7 +1284,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
 
     bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
 
-    const gemm_pack_storage_t *a_packed = arg->a_packed;
+    const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
 
     // Scaling C matrix.
     if (!isInteger && beta != 1.0f && beta != 0.0f) {
@@ -1401,9 +1404,12 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
             auto a_row_sum_eff = a_packed ?
                 a_packed->row_sums<c_type>(0, Bm, blk_k) : a_row_sum;
 
-            result = kernel_driver_parallel_acopiedbcopy(ithr, sizeM, n, sizeK,
-                    blk_k, Bk, bufferA_eff, b_block, beta, c_block, offsetc,
-                    co + co_stride, a_row_sum_eff, arg);
+            auto this_result = kernel_driver_parallel_acopiedbcopy(ithr, sizeM,
+                    n, sizeK, blk_k, Bk, bufferA_eff, b_block, beta, c_block,
+                    offsetc, co + co_stride, a_row_sum_eff, arg);
+
+            if (this_result != mkldnn_success)
+                result = this_result;
 
             mkldnn_thr_barrier(); // Wait for kernel computations to finish.
         }
@@ -1528,9 +1534,21 @@ static mkldnn_status_t gemm_threading_driver(
             && gemm_s8u8s32_jump_to_gemv_s8u8s32(arg))
         return mkldnn_success;
 
+    if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
+            && jump_to_gemv(arg) == mkldnn_success)
+        return mkldnn_success;
+
     if (is_a_packed && is_b_packed)
        if (arg->a_packed->threading() != arg->b_packed->threading())
           return mkldnn_invalid_arguments;
+
+    if (is_a_packed && arg->bo != 0)
+        if (!arg->a_packed->has_row_sums())
+            return mkldnn_invalid_arguments;
+
+    if (is_b_packed && arg->ao != 0)
+        if (!arg->b_packed->has_col_sums())
+            return mkldnn_invalid_arguments;
 
     int nthr_goal = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
 
@@ -1759,6 +1777,16 @@ mkldnn_status_t gemm_driver<bfloat16_t, bfloat16_t, float>(
         const bfloat16_t *a, const int *lda, const bfloat16_t *oa,
         const bfloat16_t *b, const int *ldb, const bfloat16_t *ob,
         const float *beta, float *c, const int *ldc, const float *oc,
+        const bool force_nocopy, pack_type packing,
+        gemm_pack_storage_t *pack_dst, bool measure_only);
+
+template // Instantiate gemm_s8s8s32
+mkldnn_status_t gemm_driver<int8_t, int8_t, int32_t>(
+        const char *transA, const char *transB, const char *offsetC,
+        const int *m, const int *n, const int *k,
+        const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
+        const int8_t *b, const int *ldb, const int8_t *ob,
+        const float *beta, int32_t *c, const int *ldc, const int32_t *oc,
         const bool force_nocopy, pack_type packing,
         gemm_pack_storage_t *pack_dst, bool measure_only);
 

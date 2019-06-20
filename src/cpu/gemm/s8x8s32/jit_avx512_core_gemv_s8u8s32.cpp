@@ -36,6 +36,9 @@ int gemm_s8u8s32_jump_to_gemv_s8u8s32(
 
 template <>
 int gemm_s8u8s32_jump_to_gemv_s8u8s32(
+        gemm_info_t<int8_t, int8_t, int32_t> *arg) { return 0; }
+template <>
+int gemm_s8u8s32_jump_to_gemv_s8u8s32(
         gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) { return 0; }
 
 template <>
@@ -61,8 +64,7 @@ int gemm_s8u8s32_jump_to_gemv_s8u8s32(
                     arg_gemv.ldb = 1;
                 }
                 // B transpose arg_gemv.ldb = arg->ldb
-                gemv_threading_driver(&arg_gemv);
-                return 1;
+                return gemv_threading_driver(&arg_gemv);
             }
         }
 
@@ -82,8 +84,7 @@ int gemm_s8u8s32_jump_to_gemv_s8u8s32(
                 else { // A transpose
                     arg_gemv.ldb = 1;
                 }
-                gemv_threading_driver(&arg_gemv);
-                return 1;
+                return gemv_threading_driver(&arg_gemv);
             }
         }
     }
@@ -109,7 +110,7 @@ int gemv_kernel_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
                 arg->b, beta, arg->c);
     }
 
-    return 0;
+    return 1;
 }
 
 int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
@@ -150,7 +151,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
     if (arg->ldb != 1) {
         new_x = (uint8_t *)malloc(n, 64);
         if (new_x == NULL)
-            return 1;
+            return 0;
         for (i = 0; i < n; i++) {
             new_x[i] = (arg->b)[i * arg->ldb];
         }
@@ -166,7 +167,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
             if (arg->ldb != 1) {
                 free(new_x);
             }
-            return 1;
+            return 0;
         }
         arg_seq.c = new_y;
         arg_seq.ldc = 1;
@@ -208,7 +209,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
             if (arg->ldb != 1) {
                 free(new_x);
             }
-            return 1;
+            return 0;
         }
     }
 
@@ -309,7 +310,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
         free(new_y);
     }
 
-    return 0;
+    return 1;
 }
 
 }

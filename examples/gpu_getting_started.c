@@ -15,12 +15,15 @@
 *******************************************************************************/
 
 /// @example gpu_getting_started.c
-/// @copydoc gpu_getting_started_c
-///
+/// @copybrief gpu_getting_started_c
+/// > Annotated version: @ref gpu_getting_started_c
+
 /// @page gpu_getting_started_c Getting started on GPU
-///
 /// This C API example demonstrates programming for Intel(R) Processor
-/// Graphics with Intel MKL-DNN
+/// Graphics with Intel MKL-DNN.
+///
+/// > Example code: @ref gpu_getting_started.c
+///
 /// - How to create Intel MKL-DNN memory objects.
 ///   - How to get data from user's buffer into an Intel MKL-DNN
 ///     memory object.

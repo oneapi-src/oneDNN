@@ -58,7 +58,7 @@ struct jit_ref_bnorm_common_kernel {
         jbn.use_scaleshift = bdesc->use_scaleshift();
         jbn.save_stats = bdesc->is_training();
         jbn.is_training = bdesc->is_training();
-        jbn.fuse_bn_relu = bdesc->fuse_bn_relu();
+        jbn.fuse_norm_relu = bdesc->fuse_norm_relu();
         jbn.calculate_stats = !bdesc->stats_is_src();
         jbn.with_relu = bdesc->with_relu_post_op();
         jbn.eps = bd.batch_norm_epsilon;
@@ -128,7 +128,7 @@ struct jit_ref_bnorm_common_kernel {
         jit.define_int("WITH_RELU", jbn.with_relu);
         jit.define_int("SAVE_STATS", jbn.save_stats);
         jit.define_int("IS_TRAINING", jbn.is_training);
-        jit.define_int("FUSE_BN_RELU", jbn.fuse_bn_relu);
+        jit.define_int("FUSE_BN_RELU", jbn.fuse_norm_relu);
         jit.define_int("CALCULATE_STATS", jbn.calculate_stats);
         jit.define_int("USE_SCALESHIFT", jbn.use_scaleshift);
         jit.define_int("CALCULATE_DIFF_STATS", jbn.calculate_diff_stats);

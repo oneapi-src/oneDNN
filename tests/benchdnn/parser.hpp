@@ -28,6 +28,10 @@ namespace parser {
 
 static const auto eol = std::string::npos;
 
+static inline std::string get_pattern(const std::string &option_name) {
+    return std::string("--") + option_name + std::string("=");
+}
+
 template <typename T, typename F>
 static bool parse_vector_str(T &vec, F process_func, const char *str,
         char delimeter = ',') {
@@ -59,7 +63,7 @@ static bool parse_multivector_str(std::vector<T> &vec, F process_func,
 template <typename T, typename F>
 static bool parse_vector_option(T &vec, F process_func, const char *str,
         const std::string &option_name) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol)
         return parse_vector_str(vec, process_func, str + pattern.size());
     return false;
@@ -68,7 +72,7 @@ static bool parse_vector_option(T &vec, F process_func, const char *str,
 template <typename T, typename F>
 static bool parse_multivector_option(std::vector<T> &vec, F process_func,
         const char *str, const std::string &option_name) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol)
         return parse_multivector_str(vec, process_func, str + pattern.size());
     return false;
@@ -77,7 +81,7 @@ static bool parse_multivector_option(std::vector<T> &vec, F process_func,
 template <typename T, typename F>
 static bool parse_single_value_option(T &val, F process_func, const char *str,
         const std::string &option_name) {
-    const std::string pattern = "--" + option_name + "=";
+    const std::string pattern = get_pattern(option_name);
     if (pattern.find(str, 0, pattern.size()) != eol)
         return val = process_func(str + pattern.size()), true;
     return false;
@@ -109,6 +113,9 @@ bool parse_axis(std::vector<int> &axis, const char *str,
 
 bool parse_test_pattern_match(const char *&match, const char *str,
         const std::string &option_name = "match");
+
+bool parse_inplace(std::vector<bool> &inplace, const char *str,
+        const std::string &option_name = "inplace");
 
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name = "skip-impl");

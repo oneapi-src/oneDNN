@@ -122,11 +122,13 @@ N/A.
 Convolution primitive supports the following combination of data types for
 source, destination, and weights memory objects:
 
-| Propagation        | Source | Weights | Destination       | Bias
-| :--                | :--    | :--     | :--               | :--
-| forward / backward | f32    | f32     | f32               | f32
-| forward            | f16    | f16     | f16               | f16
-| forward            | u8, s8 | s8      | u8, s8, s32, f32  | u8, s8, s32, f32
+| Propagation        | Source   | Weights   | Destination       | Bias
+| :--                | :--      | :--       | :--               | :--
+| forward / backward | f32      | f32       | f32               | f32
+| forward            | f16      | f16       | f16               | f16
+| forward            | u8, s8   | s8        | u8, s8, s32, f32  | u8, s8, s32, f32
+| forward            | bf16     | bf16      | f32, bf16         | f32, bf16
+| backward           | f32, bf16| f32, bf16 | bf16              | f32, bf16
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -161,12 +163,12 @@ the convolution primitive is optimized for.
 | Spatial    | Convolution Type | Data / Weights logical tensor | Implementation optimized for memory formats
 | :--        | :--              | :--                           | :--
 | 1D, 2D, 3D |                  | `any`                         | *optimized*
-| 1D         | F32              | NCW / OIW, GOIW               | #mkldnn_ncw (#mkldnn_abc) / #mkldnn_oiw (#mkldnn_abc), #mkldnn_goiw (#mkldnn_abcd)
-| 1D         | Int8             | NCW / OIW                     | #mkldnn_nwc (#mkldnn_acb) / #mkldnn_wio (#mkldnn_cba)
-| 2D         | F32              | NCHW / OIHW, GOIHW            | #mkldnn_nchw (#mkldnn_abcd) / #mkldnn_oihw (#mkldnn_abcd), #mkldnn_goihw (#mkldnn_abcde)
-| 2D         | Int8             | NCHW / OIHW, GOIHW            | #mkldnn_nhwc (#mkldnn_acdb) / #mkldnn_hwio (#mkldnn_cdba), #mkldnn_hwigo (#mkldnn_decab)
-| 3D         | F32              | NCDHW / OIDHW, GOIDHW         | #mkldnn_ncdhw (#mkldnn_abcde) / #mkldnn_oidhw (#mkldnn_abcde), #mkldnn_goidhw (#mkldnn_abcdef)
-| 3D         | Int8             | NCDHW / OIDHW                 | #mkldnn_ndhwc (#mkldnn_acdeb) / #mkldnn_dhwio (#mkldnn_cdeba)
+| 1D         | f32, bf16        | NCW / OIW, GOIW               | #mkldnn_ncw (#mkldnn_abc) / #mkldnn_oiw (#mkldnn_abc), #mkldnn_goiw (#mkldnn_abcd)
+| 1D         | int8             | NCW / OIW                     | #mkldnn_nwc (#mkldnn_acb) / #mkldnn_wio (#mkldnn_cba)
+| 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #mkldnn_nchw (#mkldnn_abcd) / #mkldnn_oihw (#mkldnn_abcd), #mkldnn_goihw (#mkldnn_abcde)
+| 2D         | int8             | NCHW / OIHW, GOIHW            | #mkldnn_nhwc (#mkldnn_acdb) / #mkldnn_hwio (#mkldnn_cdba), #mkldnn_hwigo (#mkldnn_decab)
+| 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #mkldnn_ncdhw (#mkldnn_abcde) / #mkldnn_oidhw (#mkldnn_abcde), #mkldnn_goidhw (#mkldnn_abcdef)
+| 3D         | int8             | NCDHW / OIDHW                 | #mkldnn_ndhwc (#mkldnn_acdeb) / #mkldnn_dhwio (#mkldnn_cdeba)
 
 ### Post-ops and Attributes
 
@@ -177,11 +179,11 @@ post-ops are supported:
 
 | Propagation | Type      | Operation                                                      | Restrictions           | Description
 | :--         | :--       | :--                                                            | :--                    | :--
-| forward     | attribute | [Output scale](@ref mkldnn::primitive_attr::set_output_scales) | Int8 convolutions only | Scales the result of convolution by given scale factor(s)
+| forward     | attribute | [Output scale](@ref mkldnn::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
 | forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result (currently only #mkldnn_eltwise_relu algorithm is supported)
 | forward     | post-op   | [sum](@ref mkldnn::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
 
-@note The library doesn't prevent using post ops in training, but note that
+@note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
 with non-zero negative slope parameter as a post-op would not produce an
 additional output `workspace` that is required to compute backward propagation
@@ -190,10 +192,10 @@ and eltwise primitives for training.
 
 The following post-ops chaining is supported by the library:
 
-| Type of convolutions | Post-ops sequence supported
-| :--                  | :--
-| F32 convolution      | eltwise, sum, sum -> eltwise
-| Int8 convolution     | eltwise, sum, sum -> eltwise, eltwise -> sum
+| Type of convolutions      | Post-ops sequence supported
+| :--                       | :--
+| f32 and bf16 convolution  | eltwise, sum, sum -> eltwise
+| int8 convolution          | eltwise, sum, sum -> eltwise, eltwise -> sum
 
 The attributes and post-ops take effect in the following sequence:
 - Output scale attribute,
@@ -260,20 +262,22 @@ Intel MKL-DNN implements convolution primitives using several different
 algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
-  instructions. This is the algorithm used for the most shapes.
+  instructions. This is the algorithm used for the most shapes and supports
+  int8, f32 and bf16 data types.
 
 - _Winograd_. This algorithm reduces computational complexity of convolution
   at the expense of accuracy loss and additional memory operations. The
   implementation is based on the [**Fast Algorithms for Convolutional Neural
   Networks by A. Lavin and S. Gray**](https://arxiv.org/abs/1509.09308). The
   Winograd algorithm often results in the best performance, but it is
-  applicable only to particular shapes.
+  applicable only to particular shapes. Moreover, Winograd only supports
+  int8 and f32 data types.
 
 - _Implicit GEMM_. The convolution operation is reinterpreted in terms of
-  matrix-matrix multiplication by rearranging the source data into
+  matrix-matrix multiplication by rearranging the source data into a
   [scratchpad memory](@ref dev_guide_attributes_scratchpad). This is a fallback
   algorithm that is dispatched automatically when other implementations are
-  not available.
+  not available. GEMM convolution supports the int8, f32, and bf16 data types.
 
 #### Direct Algorithm
 
@@ -307,6 +311,8 @@ Intel AVX-512 support and above under the following conditions:
 - The weights shape is 3x3, there are no groups, dilation or strides (\f$kh =
   kw = 3\f$, and \f$sw = sh = 1\f$, \f$dw = dh = 0\f$).
 
+- The data type is either int8 or f32.
+
 In case any of these constraints is not met, the implementation will silently
 fall back to the direct algorithm.
 
@@ -335,7 +341,7 @@ performance boost achieved from using the Winograd algorithm:
   significantly less accurate than results from the direct convolution.
 
 Create a Winograd convolution by simply creating a convolution descriptor
-(step 6 in [simple network example](@ref cpu_cnn_inference_fp32_cpp) specifying
+(step 6 in [simple network example](@ref cpu_cnn_inference_f32_cpp) specifying
 the Winograd algorithm. The rest of the steps are exactly the same.
 
 ~~~cpp
@@ -367,7 +373,6 @@ the convolution.)
 
 3. **GPU**
     - No support for Winograd algorithm
-    - No support for backward propagation for deconvolution
 
 
 ## Performance Tips

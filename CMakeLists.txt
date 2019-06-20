@@ -75,34 +75,35 @@ if(UNIX OR MINGW)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
-
 # Tentative remapping of old options to the new one.
 # CAUTION: The old options will soon be removed.
 
 if(MKLDNN_THREADING)
     set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the CPU runtime")
+    message(STATUS "Using the obsolete way to specify the CPU runtime. "
+        "Use MKLDNN_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME} instead.")
 endif()
 
 if(MKLDNN_GPU_BACKEND)
     if (MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
         set(MKLDNN_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
-        message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+        message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
+            "Use MKLDNN_GPU_RUNTIME=OCL instead.")
     endif()
     set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the GPU runtime")
+    message(STATUS "Using the obsolete way to specify the GPU runtime. "
+        "Use MKLDNN_GPU_RUNTME=${MKLDNN_GPU_RUNTIME} instead.")
 endif()
 
 if(MKLDNN_CPU_BACKEND)
     set(MKLDNN_CPU_RUNTIME "${MKLDNN_CPU_BACKEND}" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the CPU runtime")
+    message(STATUS "Using the obsolete way to specify the CPU runtime")
 endif()
 
 if (MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
     set(MKLDNN_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
-    message(WARNING "Using the obsolete way to specify the OpenCL runtime")
+    message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
+        "Use MKLDNN_GPU_RUNTIME=OCL instead.")
 endif()
 
 include("cmake/utils.cmake")
@@ -129,6 +130,14 @@ configure_file(
     "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"
 )
 include_directories(${PROJECT_BINARY_DIR}/include)
+
+if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
+    # define CMAKE_INSTALL_LIBDIR as "lib" in the case of bundle
+    set(CMAKE_INSTALL_LIBDIR "lib")
+endif()
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 add_subdirectory(src)
 add_subdirectory(examples)

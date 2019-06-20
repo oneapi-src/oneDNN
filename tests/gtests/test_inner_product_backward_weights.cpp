@@ -232,7 +232,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -240,7 +240,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -259,7 +259,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -299,7 +299,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::x, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 5, 15, 3, 3 ) } ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeightsNoBias, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -371,7 +371,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::undef, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeights, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -415,7 +415,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::x, memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardWeights3D, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{

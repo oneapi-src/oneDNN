@@ -104,9 +104,6 @@ The shuffle primitive doesn't support any post-ops or attributes.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. **GPU**
-    - The operation is not supported
-
 
 ## Performance Tips
 

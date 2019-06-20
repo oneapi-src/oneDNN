@@ -14,9 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-
 /// @example cpu_performance_profiling.cpp
-/// Annotated version: @ref cpu_performance_profiling_cpp
+/// This example demonstrates the best practices for application performance
+/// optimizations with Intel MKL-DNN.
+///
+/// > Annotated version: @ref cpu_performance_profiling_cpp
 
 #include <iostream>
 #include <string>
@@ -24,13 +26,10 @@
 #include <stdio.h>
 
 /// @page cpu_performance_profiling_cpp Performance Profiling Example
-///
-/// Full example text: @ref cpu_performance_profiling.cpp
-///
-/// @section cpu_performance_profiling_cpp_intro Introduction
+/// > Example code: @ref cpu_performance_profiling.cpp
 ///
 /// This example uses [MKLDNN_VERBOSE](@ref dev_guide_verbose) trace output
-/// to tune Intel(R) MKL-DNN code to align
+/// to tune Intel MKL-DNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
 /// It will assume knowledge of memory formats and their usage in
@@ -470,7 +469,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
     /// @page cpu_performance_profiling_cpp
-    /// This implementation complies with best practices for fp32 inference by
+    /// This implementation complies with best practices for f32 inference by
     /// using the Intel MKL-DNN recommended blocked format for convolution and
     /// adding ReLU as a post-op to execute a fused version of conv + ReLU.
     /// The consequence to following best practices can be seen in the execution

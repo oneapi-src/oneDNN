@@ -150,7 +150,7 @@ void clear_buf(char *buf, int &written) {
 // XXX: Outputs strings corresponding to memory formats used for data tensors.
 void format_prb_desc_str(char *str, int len, const memory_desc_t *md) {
     const auto dims = md->dims;
-	int written = 0;
+    int written = 0;
     if (md->ndims == 1)
         DPRINT(str, len, written,
                 "x" DFMT, dims[0]);

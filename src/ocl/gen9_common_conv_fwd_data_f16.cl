@@ -61,6 +61,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
     const int oh = (ohw / OWB) * OH_BLOCK;
     const int ow = (ohw % OWB) * OW_BLOCK;
 
+#if OW_BLOCK == 8
 #        if WITH_BIAS
     half8 C00 = bias[oc * OC_BLOCK + local_id];
     half8 C01 = C00;
@@ -70,6 +71,23 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
     half8 C00 = 0.0, C01 = 0.0;
     half8 C10 = 0.0, C11 = 0.0;
 #        endif
+#else
+#        if WITH_BIAS
+    half C00[OW_BLOCK];
+    half C01[OW_BLOCK];
+    half C10[OW_BLOCK];
+    half C11[OW_BLOCK];
+    for (int i = 0; i < OW_BLOCK; i++) {
+        C00[i] = bias[oc * OC_BLOCK + local_id];
+        C01[i] = bias[oc * OC_BLOCK + local_id];
+        C10[i] = bias[(oc + 1) * OC_BLOCK + local_id];
+        C11[i] = bias[(oc + 1) * OC_BLOCK + local_id];
+    }
+#        else
+    half C00[OW_BLOCK] = {0.0}, C01[OW_BLOCK] = {0.0};
+    half C10[OW_BLOCK] = {0.0}, C11[OW_BLOCK] = {0.0};
+#        endif
+#endif
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
@@ -136,17 +154,10 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                 const __global half *wei1 = wei + kd * KH * KW * OC_BLOCK * IC
                         + kh * KW * OC_BLOCK * IC + kw * OC_BLOCK * IC;
 
-#        define TRANSPOSE_1(_block, _col)                     \
-            (half8)(intel_sub_group_shuffle(_block[0], _col), \
-                    intel_sub_group_shuffle(_block[1], _col), \
-                    intel_sub_group_shuffle(_block[2], _col), \
-                    intel_sub_group_shuffle(_block[3], _col), \
-                    intel_sub_group_shuffle(_block[4], _col), \
-                    intel_sub_group_shuffle(_block[5], _col), \
-                    intel_sub_group_shuffle(_block[6], _col), \
-                    intel_sub_group_shuffle(_block[7], _col))
+#        define TRANSPOSE_1(_block, _col) \
+            (float)(intel_sub_group_shuffle(_block, _col))
 
-#        define FMA8(a, b, c) fma((half8)(a), (half8)b, (half8)c)
+#        define FMA8(a, b, c) fma((half)(a), (half)b, (half)c)
 
 #        define MULTIPLY_BLOCKS_8x8(                                        \
                 _result, _blockA, _blockB0, _blockB1, _blockB2)             \
@@ -163,15 +174,20 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                 half blockB02 = as_half(intel_sub_group_block_read_us(
                         (const __global ushort *)(wei1 + 2 * OC_BLOCK)));
 
-                half8 blockA1 = 0.0f;
-                half8 blockA2 = 0.0f;
+                half blockA1[OW_BLOCK] = {0.0f};
+                half blockA2[OW_BLOCK] = {0.0f};
                 if (local_id < 3)
                     for (int i = 0; i < OW_BLOCK; i++) {
                         blockA1[i] = tempA1[kw * (1 + DW) + i * SW];
                         blockA2[i] = tempA2[kw * (1 + DW) + i * SW];
                     }
-                MULTIPLY_BLOCKS_8x8(C00, blockA1, blockB00, blockB01, blockB02);
-                MULTIPLY_BLOCKS_8x8(C01, blockA2, blockB00, blockB01, blockB02);
+                __attribute__((opencl_unroll_hint(OW_BLOCK)))
+                for (int i = 0; i < OW_BLOCK; i++) {
+                MULTIPLY_BLOCKS_8x8(C00[i], blockA1[i], blockB00, blockB01,
+                    blockB02);
+                MULTIPLY_BLOCKS_8x8(C01[i], blockA2[i], blockB00, blockB01,
+                    blockB02);
+                }
 
                 blockB00 = as_half(intel_sub_group_block_read_us((const __global
                                 ushort *)&wei1[IC * KDHW_SIZE * OC_BLOCK]));
@@ -182,8 +198,13 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                         (const __global ushort *)(wei1
                                 + IC * KDHW_SIZE * OC_BLOCK + 2 * OC_BLOCK)));
 
-                MULTIPLY_BLOCKS_8x8(C10, blockA1, blockB00, blockB01, blockB02);
-                MULTIPLY_BLOCKS_8x8(C11, blockA2, blockB00, blockB01, blockB02);
+                __attribute__((opencl_unroll_hint(OW_BLOCK)))
+                for (int i = 0; i < OW_BLOCK; i++) {
+                MULTIPLY_BLOCKS_8x8(C10[i], blockA1[i], blockB00, blockB01,
+                    blockB02);
+                MULTIPLY_BLOCKS_8x8(C11[i], blockA2[i], blockB00, blockB01,
+                    blockB02);
+                }
 
 #        undef TRANSPOSE_BLOCK_1
 #        undef MULTIPLY_BLOCKS_8x8
@@ -229,18 +250,20 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                     + i * OC_BLOCK * MB_BLOCK]));
         }
     }
-
+    for (int i = 0; i < OW_BLOCK; i++) {
 #            if SUM_SCALE == 1
-    C00 += blockS00;
-    C10 += blockS10;
-    C01 += blockS01;
-    C11 += blockS11;
+        C00[i] += blockS00[i];
+        C10[i] += blockS10[i];
+        C01[i] += blockS01[i];
+        C11[i] += blockS11[i];
 #            else
-    C00 = fma(blockS00, (half8)sum_scale, C00);
-    C10 = fma(blockS10, (half8)sum_scale, C10);
-    C01 = fma(blockS01, (half8)sum_scale, C01);
-    C11 = fma(blockS11, (half8)sum_scale, C11);
+        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
+        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
+        C01[i] = fma(blockS01[i], (half)sum_scale, C01[i]);
+        C11[i] = fma(blockS11[i], (half)sum_scale, C11[i]);
 #            endif
+    }
+
     for (uint i = 0; i < OW_BLOCK; i++) {
         if (C00[i] < 0)
             C00[i] *= relu_negative_slope;
@@ -293,17 +316,19 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                     + i * OC_BLOCK * MB_BLOCK]));
         }
     }
-#                if SUM_SCALE == 1
-    C00 += blockS00;
-    C10 += blockS10;
-    C01 += blockS01;
-    C11 += blockS11;
-#                else
-    C00 = fma(blockS00, (half8)sum_scale, C00);
-    C10 = fma(blockS10, (half8)sum_scale, C10);
-    C01 = fma(blockS01, (half8)sum_scale, C01);
-    C11 = fma(blockS11, (half8)sum_scale, C11);
-#                endif
+    for (int i = 0; i < OW_BLOCK; i++) {
+#            if SUM_SCALE == 1
+        C00[i] += blockS00[i];
+        C10[i] += blockS10[i];
+        C01[i] += blockS01[i];
+        C11[i] += blockS11[i];
+#            else
+        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
+        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
+        C01[i] = fma(blockS01[i], (half)sum_scale, C01[i]);
+        C11[i] = fma(blockS11[i], (half)sum_scale, C11[i]);
+#            endif
+    }
 #            endif
 #        endif
 
@@ -367,6 +392,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
     const int oh = (ohw / OWB) * OH_BLOCK;
     const int ow = (ohw % OWB) * OW_BLOCK;
 
+#if OW_BLOCK == 8
 #        if WITH_BIAS
     half8 C00 = bias[oc * OC_BLOCK + local_id];
     half8 C10 = bias[(oc + 1) * OC_BLOCK + local_id];
@@ -374,6 +400,19 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
     half8 C00 = 0.0;
     half8 C10 = 0.0;
 #        endif
+#else
+#        if WITH_BIAS
+    half C00[OW_BLOCK];
+    half C10[OW_BLOCK];
+    for (int i = 0; i < OW_BLOCK; i++) {
+        C00[i] = bias[oc * OC_BLOCK + local_id];
+        C10[i] = bias[(oc + 1) * OC_BLOCK + local_id];
+    }
+#        else
+    half C00[OW_BLOCK] = {0.0};
+    half C10[OW_BLOCK] = {0.0};
+#        endif
+#endif
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
@@ -432,17 +471,10 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                 const __global half *wei1 = wei + kd * KH * KW * IC * OC_BLOCK
                         + kh * KW * OC_BLOCK * IC + kw * OC_BLOCK * IC;
 
-#        define TRANSPOSE_1(_block, _col)                     \
-            (half8)(intel_sub_group_shuffle(_block[0], _col), \
-                    intel_sub_group_shuffle(_block[1], _col), \
-                    intel_sub_group_shuffle(_block[2], _col), \
-                    intel_sub_group_shuffle(_block[3], _col), \
-                    intel_sub_group_shuffle(_block[4], _col), \
-                    intel_sub_group_shuffle(_block[5], _col), \
-                    intel_sub_group_shuffle(_block[6], _col), \
-                    intel_sub_group_shuffle(_block[7], _col))
+#        define TRANSPOSE_1(_block, _col) \
+            (float)(intel_sub_group_shuffle(_block, _col))
 
-#        define FMA8(a, b, c) fma((half8)(a), (half8)b, (half8)c)
+#        define FMA8(a, b, c) fma((half)(a), (half)b, (half)c)
 
 #        define MULTIPLY_BLOCKS_8x8(                                        \
                 _result, _blockA, _blockB0, _blockB1, _blockB2)             \
@@ -464,7 +496,11 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                     for (int i = 0; i < OW_BLOCK; i++) {
                         blockA1[i] = tempA1[kw * (1 + DW) + i * SW];
                     }
-                MULTIPLY_BLOCKS_8x8(C00, blockA1, blockB00, blockB01, blockB02);
+                __attribute__((opencl_unroll_hint(OW_BLOCK)))
+                for (int i = 0; i < OW_BLOCK; i++) {
+                    MULTIPLY_BLOCKS_8x8(C00[i], blockA1[i], blockB00, blockB01,
+                        blockB02);
+                }
 
                 blockB00 = as_half(intel_sub_group_block_read_us(
                         (const __global ushort *)(wei1
@@ -475,8 +511,11 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                 blockB02 = as_half(intel_sub_group_block_read_us(
                         (const __global ushort *)(wei1
                                 + KDHW_SIZE * IC * OC_BLOCK + 2 * OC_BLOCK)));
-
-                MULTIPLY_BLOCKS_8x8(C10, blockA1, blockB00, blockB01, blockB02);
+                __attribute__((opencl_unroll_hint(OW_BLOCK)))
+                for (int i = 0; i < OW_BLOCK; i++) {
+                    MULTIPLY_BLOCKS_8x8(C10[i], blockA1[i], blockB00, blockB01,
+                        blockB02);
+                }
 
 #        undef TRANSPOSE_BLOCK_1
 #        undef MULTIPLY_BLOCKS_8x8
@@ -505,14 +544,15 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                             + i * OC_BLOCK]));
         }
     }
-
+    for (int i = 0; i < OW_BLOCK; i++) {
 #            if SUM_SCALE == 1
-    C00 += blockS00;
-    C10 += blockS10;
+        C00[i] += blockS00[i];
+        C10[i] += blockS10[i];
 #            else
-    C00 = fma(blockS00, (half8)sum_scale, C00);
-    C10 = fma(blockS10, (half8)sum_scale, C10);
+        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
+        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
 #            endif
+    }
     for (uint i = 0; i < OW_BLOCK; i++) {
         if (C00[i] < 0)
             C00[i] *= relu_negative_slope;
@@ -547,13 +587,15 @@ __kernel void gen9_common_conv_fwd_kernel(const __global half *src,
                             + i * OC_BLOCK]));
         }
     }
-#                if SUM_SCALE == 1
-    C00 += blockS00;
-    C10 += blockS10;
-#                else
-    C00 = fma(blockS00, (half8)sum_scale, C00);
-    C10 = fma(blockS10, (half8)sum_scale, C10);
-#                endif
+    for (int i = 0; i < OW_BLOCK; i++) {
+#            if SUM_SCALE == 1
+        C00[i] += blockS00[i];
+        C10[i] += blockS10[i];
+#            else
+        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
+        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
+#            endif
+    }
 #            endif
 #        endif
 

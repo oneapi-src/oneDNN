@@ -157,7 +157,7 @@ typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
     int min, max; /* representative */
     int f_min, f_max; /* fill range */
-    float f_mean, f_var; /* mean and variance of normally distributed data */
+    float f_mean, f_stddev; /* mean and std deviation of normally distributed data */
     double eps; /* acceptable error */
 } _dt_conf_t[data_kind_total];
 

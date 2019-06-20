@@ -38,7 +38,7 @@ Training usually consists of the following steps.
 4. Use computed gradients to modify the weights according to the chosen solver
    to improve the accuracy of the model.
 
-@todo It would be nice to have a picture here.
+<!-- @todo It would be nice to have a picture here. -->
 
 
 ### Difference Between Forward Propagation on Training and Inference
@@ -110,7 +110,7 @@ with Intel MKL-DNN:
    better performance.
 
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_inference_fp32_cpp
+- @ref cpu_cnn_inference_f32_cpp
 - @ref cpu_cnn_inference_int8_cpp
 
 @anchor dev_guide_inference_and_training_aspects_training
@@ -180,8 +180,14 @@ with Intel MKL-DNN:
    propagation. This is required only for the primitives that produce
    `workspace`, because it might be different for different implementations.
 
+10. When creating your working memory and mkl-dnn memory descriptor, specify
+   the type of memory you want to work with. This can be either 16-bit Brain Float
+   (bf16) or 32-bit Floating Point (fp32). More details about using bf16 for training
+   are detailed in the section @ref dev_guide_training_bf16.
+
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_training_fp32_cpp
+- @ref cpu_cnn_training_f32_cpp
+- @ref cpu_cnn_training_bf16_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace

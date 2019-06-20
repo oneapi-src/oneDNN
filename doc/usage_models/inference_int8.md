@@ -124,8 +124,8 @@ Intel MKL-DNN primitive behaviour may be extended for additional
 functionalities involving output data transformation. These additional features
 are configured via **primitive attributes**. The primitive attributes
 definition is an opaque structure for passing extra parameters to a primitive
-descriptor. These parameters include Scaling Factor and Fused Post-Operations
-(**PostOps**). All operation primitives support the attributes structure;
+descriptor. These parameters include a scaling factor and fused post-ops.
+All operation primitives support the attributes structure;
 however, some configurations are not implemented and result in *failed
 primitive creation*.
 
@@ -141,10 +141,10 @@ on the configuration set by the scaling mask, either the output is scaled
 uniformly across all the dimensions (_mask = 0_) or a set of scaling values is
 applied to specific dimensions, as explained below:
 
-* A *single float-value* shared across the tensor
+* A *single floating point value* shared across the tensor
 ![Single-value scaling format](./images/img_singlescalar.png)
-* An array of float values each corresponding to a specific output channel
-![Multi-value scaling format](./images/img_multiscalar.png)
+* An array of floating point values each corresponding to a specific output
+  channel ![Multi-value scaling format](./images/img_multiscalar.png)
 
 The **mask** parameter determines the dimension to which the scales array is
 applied, where the i<sup>th</sup>-bit(s) of mask selects the dimension or
@@ -167,9 +167,9 @@ MKL-DNN are defined as follows:
 + 4D dimensional data the order is always: (n, c, h, w)
 + 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
 
-Fused **Post-Operations** (PostOps) allow chaining operations during
+Fused **post-ops** allow chaining operations during
 the primitive computation. Note that the resulting output value from
-PostOps is always affected by the scaling factor. The supported operations are:
+post-ops is always affected by the scaling factor. The supported operations are:
 
 + Accumulation where the primitive sums the resulting values from previously
   computed activations as:
@@ -181,7 +181,7 @@ PostOps is always affected by the scaling factor. The supported operations are:
   - \f$dst[ ] \leftarrow op(...)\f$
 
 The list of supported eltwise operations for int8 is currently limited to ReLU.
-For instance, PostOps may only configure a convolution with accumulation
+For instance, post-ops may only configure a convolution with accumulation
 followed by eltwise (relu).
 
 ## Example

@@ -75,7 +75,7 @@ status_t ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     kernel_.set_arg(2, diff_dst);
 
     auto nd_range
-            = cl_nd_range_t({ jip.mb * jip.ic * jip.ih * jip.iw * jip.id });
+            = cl_nd_range_t({ jip.mb * jip.ic * jip.id * jip.ih * jip.iw });
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
     status_t status = executor.parallel_for(nd_range, kernel_);

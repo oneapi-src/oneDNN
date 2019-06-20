@@ -72,7 +72,7 @@ where:
 - \f$conv_{s32}\f$ is just a regular convolution which takes source and
   weights with INT8 data type and compute the result in INT32 data type (INT32
   is chosen to avoid overflows during the computations);
-- \f$downconvert\_f32\_to\_s8()\f$ converts F32 value to INT8 with
+- \f$downconvert\_f32\_to\_s8()\f$ converts an `f32` value to `s8` with
   potential saturation if the values are out of the range of the INT8 data type.
 
 Note that in order to perform the operation, one doesn't need to know the
@@ -225,7 +225,7 @@ std::vector<float> wei_scales(G * OC/G) = {...};
 
 // ...
 
-// Int8 convolution primitive descriptor (will create it in the next example)
+// int8 convolution primitive descriptor (will create it in the next example)
 mkldnn::convolution_forward::primitive_desc conv_pd(...);
 
 
@@ -350,5 +350,5 @@ As you can see:
 - The convolution output scales are now
   \f$conv\_output\_scale = scale_{src} \cdot scale_{weights}\f$,
   i.e. no division by \f$scale_{dst}\f$;
-- And the post ops scale for \f$\tanh\f$ is set to
+- And the post-ops scale for \f$\tanh\f$ is set to
   \f$scale\_tanh\_post\_op = \frac{1}{scale_{dst}}\f$.

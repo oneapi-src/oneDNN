@@ -44,7 +44,7 @@ struct jit_uni_rnn_cell_postgemm_fwd: public jit_uni_rnn_postgemm
     void init() override {
         // we use rax for constant tables
         injector_ = new injector_t(this, pd_->activation_kind(),
-	        0.0f, 0.0f, true, rax);
+                0.0f, 0.0f, true, rax);
         generate();
         kernel_ = (kernel_t) this->getCode();
     }
@@ -65,7 +65,7 @@ protected:
     void generate() {
         using namespace Xbyak;
 
-	const primitive_attr_t *attr = pd_->attr();
+        const primitive_attr_t *attr = pd_->attr();
         int mask = attr->rnn_weights_qparams_.mask_;
         float *weights_scales = attr->rnn_weights_qparams_.scales_;
         float data_scale = attr->rnn_data_qparams_.scale_;
@@ -81,9 +81,10 @@ protected:
         Reg64 table_reg(rbx); // table is used for data scale and shifts
         Reg64 tmp_reg(r12);   // used as temporary to customize mxcsr
         Reg64 weights_scales_reg(r13);
-	// Here we do no unrolling, loop overhead should not be that dramatic
-	// We skip vmm0 as it can be used by the injector for masks on sse4.1
-	Vmm G(1), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
+
+        // Here we do no unrolling, loop overhead should not be that dramatic
+        // We skip vmm0 as it can be used by the injector for masks on sse4.1
+        Vmm G(1), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
 
         // constant table map
         Address dscale_off_addr = ptr[table_reg];
@@ -155,7 +156,7 @@ protected:
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
         mov(weights_scales_reg, size_t(weights_scales));
-	injector_->load_table_addr();
+        injector_->load_table_addr();
 
         mov(loop_cnt, rnn_.dic * gate_dt_size);
         cmp(loop_cnt, vlen);
@@ -175,11 +176,11 @@ protected:
             uni_vaddps(G, G, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
 
             // inject eltwise code
-	    injector_->compute_vector(G.getIdx());
+            injector_->compute_vector(G.getIdx());
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) {
-	        q_d(G, tmp1_vmm, tmp_reg);
+                q_d(G, tmp1_vmm, tmp_reg);
             }
 
             // write back the result
@@ -216,8 +217,8 @@ protected:
         L(rem_loop_start_label);
         {
             // remaping registers to Xmms
-	    Xmm Gs(G.getIdx());
-	    Xmm tmp1s_vmm(tmp1_vmm.getIdx());
+            Xmm Gs(G.getIdx());
+            Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // load G
             uni_vmovss(Gs, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
@@ -232,17 +233,17 @@ protected:
             uni_vaddps(Gs, Gs, tmp1s_vmm);
 
             // inject eltwise code
-	    injector_->compute_vector(Gs.getIdx());
+            injector_->compute_vector(Gs.getIdx());
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) {
                 q_d(G, tmp1_vmm, tmp_reg);
             }
 
-	    switch(hstate_dt_size){
-	    case 4: uni_vmovss(ptr[addr_states_t_l_reg], Gs); break;
+            switch(hstate_dt_size){
+            case 4: uni_vmovss(ptr[addr_states_t_l_reg], Gs); break;
             case 1: pextrb(ptr[addr_states_t_l_reg], Gs, 0x0); break;
-	    default:
+            default:
                 assert(!"Unsuported vector length for quantization");
             }
 

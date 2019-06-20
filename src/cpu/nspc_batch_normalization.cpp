@@ -44,7 +44,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
     const bool calculate_stats = !pd()->stats_is_src();
     const bool with_relu = pd()->with_relu_post_op();
 
@@ -209,7 +209,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                             ? (acc_data_t)scaleshift[C + c]
                             : (acc_data_t)0;
                     acc_data_t bn_res = sm * (_src[c] - mean_loc[c]) + sv;
-                    if (fuse_bn_relu) {
+                    if (fuse_norm_relu) {
                         if (bn_res <= 0) {
                             bn_res = 0;
                             if (is_training)
@@ -269,7 +269,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool use_scaleshift = pd()->use_scaleshift();
     const bool calculate_diff_stats = !pd()->use_global_stats();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     assert(mkldnn_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
@@ -312,7 +312,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                 for (dim_t c = 0; c < C; c++) {
                     const size_t c_off = s_off + c;
                     acc_data_t dd;
-                    if (fuse_bn_relu && !ws[c_off])
+                    if (fuse_norm_relu && !ws[c_off])
                         dd = 0;
                     else
                         dd = _diff_dst[c];
@@ -382,7 +382,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                     acc_data_t sqrt_variance = static_cast<acc_data_t>(
                             1.0f / sqrtf(variance[c] + eps));
                     acc_data_t v_diff_src;
-                    if (fuse_bn_relu && !ws[c_off])
+                    if (fuse_norm_relu && !ws[c_off])
                         v_diff_src = 0;
                     else
                         v_diff_src = _diff_dst[c];

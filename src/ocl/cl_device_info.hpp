@@ -22,6 +22,7 @@
 #include <string.h>
 #include <vector>
 
+#include "common/c_types_map.hpp"
 #include "common/z_magic.hpp"
 
 namespace mkldnn {
@@ -46,9 +47,82 @@ static const char *ext2str(cl_device_ext_t ext) {
     }
 #undef CASE
 }
+
+struct runtime_version_t {
+    int major;
+    int minor;
+    int build;
+
+    friend bool operator==(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        return (v1.major == v2.major) && (v1.minor == v2.minor)
+                && (v1.build == v2.build);
+    }
+
+    friend bool operator!=(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        return !(v1 == v2);
+    }
+
+    friend bool operator<(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        if (v1.major < v2.major)
+            return true;
+        if (v1.major > v2.major)
+            return false;
+        if (v1.minor < v2.minor)
+            return true;
+        if (v1.minor > v2.minor)
+            return false;
+        return (v1.build < v2.build);
+    }
+
+    friend bool operator>(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        return (v2 < v1);
+    }
+
+    friend bool operator<=(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        return !(v1 > v2);
+    }
+
+    friend bool operator>=(
+            const runtime_version_t &v1, const runtime_version_t &v2) {
+        return !(v1 < v2);
+    }
+
+    status_t set_from_string(const char *s) {
+        int i_major = 0, i = 0;
+
+        for (; s[i] != '.'; i++)
+            if (!s[i])
+                return status::invalid_arguments;
+
+        auto i_minor = ++i;
+
+        for (; s[i] != '.'; i++)
+            if (!s[i])
+                return status::invalid_arguments;
+
+        auto i_build = ++i;
+
+        major = atoi(&s[i_major]);
+        minor = atoi(&s[i_minor]);
+        build = atoi(&s[i_build]);
+
+        return status::success;
+    }
+};
+
 struct cl_device_info_t {
 public:
-    cl_device_info_t(cl_device_id device) : device_(device), ext_(0) {}
+    cl_device_info_t(cl_device_id device)
+        : device_(device)
+        , ext_(0)
+        , eu_count_(0)
+        , hw_threads_(0)
+        , runtime_version_{ 0, 0, 0 } {}
 
     cl_int init() {
         // Extensions.
@@ -85,13 +159,35 @@ public:
         if (err != CL_SUCCESS)
             return err;
 
+        // EU count.
         cl_uint eu_count;
         err = clGetDeviceInfo(device_, CL_DEVICE_MAX_COMPUTE_UNITS,
                 sizeof(cl_uint), &eu_count, NULL);
         eu_count_ = (err == CL_SUCCESS) ? eu_count : 0;
 
-        static constexpr auto threads_per_eu = 7;   /* Gen9 value, for now */
+        static constexpr auto threads_per_eu = 7; /* Gen9 value, for now */
         hw_threads_ = eu_count_ * threads_per_eu;
+
+        // OpenCL runtime version
+        size_t size_driver_version{ 0 };
+        err = clGetDeviceInfo(
+                device_, CL_DRIVER_VERSION, 0, nullptr, &size_driver_version);
+        if (err != CL_SUCCESS)
+            return err;
+
+        std::vector<char> c_driver_version(size_driver_version / sizeof(char));
+        err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, size_driver_version,
+                &c_driver_version[0], NULL);
+        if (err != CL_SUCCESS)
+            return err;
+
+        c_driver_version[size_driver_version - 1] = '\0';
+        if (runtime_version_.set_from_string(&c_driver_version[0])
+                != status::success) {
+            runtime_version_.major = 0;
+            runtime_version_.minor = 0;
+            runtime_version_.build = 0;
+        }
 
         return CL_SUCCESS;
     }
@@ -101,10 +197,15 @@ public:
     int eu_count() const { return eu_count_; }
     int hw_threads() const { return hw_threads_; }
 
+    const runtime_version_t &runtime_version() const {
+        return runtime_version_;
+    }
+
 private:
     cl_device_id device_;
     uint64_t ext_;
     int32_t eu_count_, hw_threads_;
+    runtime_version_t runtime_version_;
 };
 
 } // namespace ocl

@@ -118,9 +118,7 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                                   IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
                                   INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
 
-            # Intel MKL-DNN changes:
-            # - set TBB_INCLUDE_DIRS to use it for include_directories()
-            # - install TBB runtime
+            # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
             if (_tbb_component STREQUAL tbb)
                 set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
             endif()

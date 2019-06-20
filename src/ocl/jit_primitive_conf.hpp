@@ -205,7 +205,7 @@ struct jit_bnorm_conf_t {
     bool with_relu, use_16mb_unroll;
     bool is_forward, is_backward;
     bool use_scaleshift, save_stats, is_training;
-    bool fuse_bn_relu, calculate_stats, calculate_diff_stats;
+    bool fuse_norm_relu, calculate_stats, calculate_diff_stats;
     bool diff_scaleshift;
     float relu_negative_slope, eps;
     size_t gws_d[3], lws_d[3];

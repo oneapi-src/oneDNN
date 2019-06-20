@@ -62,7 +62,7 @@ union plan_element_t {
     };
 };
 static_assert(sizeof(plan_element_t) == 8,
-		"Plan element structure has been padded by the compiler.");
+        "Plan element structure has been padded by the compiler.");
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_beta(stream_t *s,
@@ -160,12 +160,12 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(stream_t *s,
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
-    stream_t *s, const memory_storage_t &a, const memory_storage_t &b,
-    const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-    int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-    int32_t n, int32_t k, float alpha, float beta,
-    int last_k_block, float eltwise_alpha, float eltwise_beta) const {
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(stream_t *s,
+        const memory_storage_t &a, const memory_storage_t &b,
+        const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
+        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
+        c_t eltwise_alpha, c_t eltwise_beta) const {
 
     auto &kernel = nocopy_kernel_;
 
@@ -193,8 +193,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
 
     int unroll_m, unroll_n;
 
-    jit_gen9_gemm_nocopy_kernel<c_type>::get_unrolls(transa, transb, unroll_m,
-        unroll_n);
+    jit_gen9_gemm_nocopy_kernel<c_type>::get_unrolls(
+            transa, transb, unroll_m, unroll_n);
 
     size_t nthreads_x = (n + unroll_n - 1) / unroll_n;
     size_t nthreads_y = (m + unroll_m - 1) / unroll_m;
@@ -203,13 +203,15 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     size_t lthreads_y = 8;
 
 #if !defined(CL_VERSION_2_0) || defined(MKLDNN_SYCL_COMPUTECPP)
-    while (nthreads_x % lthreads_x) lthreads_x--;
-    while (nthreads_y % lthreads_y) lthreads_y--;
+    while (nthreads_x % lthreads_x)
+        lthreads_x--;
+    while (nthreads_y % lthreads_y)
+        lthreads_y--;
 #endif
 
     static constexpr size_t subgroup_size = 16;
-    size_t gws[3] = {nthreads_x * subgroup_size, nthreads_y, 1};
-    size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, 1};
+    size_t gws[3] = { nthreads_x * subgroup_size, nthreads_y, 1 };
+    size_t lws[3] = { lthreads_x * subgroup_size, lthreads_y, 1 };
 
     auto nd_range = cl_nd_range_t(gws, lws);
 
@@ -224,8 +226,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
         const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, float alpha, float beta,
-        int last_k_block, float eltwise_alpha, float eltwise_beta) const {
+        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
+        c_t eltwise_alpha, c_t eltwise_beta) const {
 
     auto &kernel = nocopy_superkernel_;
 
@@ -253,8 +255,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
     size_t lthreads = nstl::min(hw_threads_, threads);
 
     static constexpr size_t subgroup_size = 16;
-    size_t lws[3] = {subgroup_size, 1, 1};
-    size_t gws[3] = {lthreads * subgroup_size, 1, 1};
+    size_t lws[3] = { subgroup_size, 1, 1 };
+    size_t gws[3] = { lthreads * subgroup_size, 1, 1 };
 
     auto nd_range = cl_nd_range_t(gws, lws);
 
@@ -272,11 +274,11 @@ size_t jit_gen9_gemm_t<a_type, b_type, c_type>::max_plan_size() const {
     bool transb = (pd()->desc()->transb == mkldnn_trans);
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(transa, transb,
-            unroll_m, unroll_n);
+    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
+            transa, transb, unroll_m, unroll_n);
 
-    auto max_threads = utils::div_up(m, unroll_m[1])
-        * utils::div_up(n, unroll_n);
+    auto max_threads
+            = utils::div_up(m, unroll_m[1]) * utils::div_up(n, unroll_n);
 
     return sizeof(plan_element_t) * (max_threads + 1);
 }
@@ -297,21 +299,6 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     using a_t = typename prec_traits<a_type>::type;
     using b_t = typename prec_traits<b_type>::type;
     using c_t = typename prec_traits<c_type>::type;
-
-    bool nocopy = (gemm_type_ == type::no_copy);
-
-    status_t status;
-    constexpr int64_t align = 0x1000;
-    int block_m, block_n, block_k;
-    if (!nocopy) {
-        block_m = jit_gen9_gemm_driver_params<c_type, false>::block_m;
-        block_n = jit_gen9_gemm_driver_params<c_type, false>::block_n;
-        block_k = jit_gen9_gemm_driver_params<c_type, false>::block_k;
-    } else {
-        block_m = jit_gen9_gemm_driver_params<c_type, true>::block_m;
-        block_n = jit_gen9_gemm_driver_params<c_type, true>::block_n;
-        block_k = jit_gen9_gemm_driver_params<c_type, true>::block_k;
-    }
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -343,6 +330,23 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
     size_t off_c0 = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
+    bool nocopy = (gemm_type_ == type::no_copy)
+            || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
+                       && !(off_b0 & 1));
+
+    status_t status;
+    constexpr int64_t align = 0x1000;
+    int block_m, block_n, block_k;
+    if (!nocopy) {
+        block_m = jit_gen9_gemm_driver_params<c_type, false>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, false>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, false>::block_k;
+    } else {
+        block_m = jit_gen9_gemm_driver_params<c_type, true>::block_m;
+        block_n = jit_gen9_gemm_driver_params<c_type, true>::block_n;
+        block_k = jit_gen9_gemm_driver_params<c_type, true>::block_k;
+    }
+
     if (!nocopy && beta != 0. && beta != 1.) {
         status = launch_beta(ctx.stream(), m, n, beta_native, c, off_c0, ldc);
         if (status)
@@ -369,8 +373,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
 
             if (!nocopy) {
                 status = launch_copy(ctx.stream(), size_k, size_m, a, off_a_src,
-                    lda, alpha_native, *temp_buf_, off_a_packed, false,
-                    !transa);
+                        lda, alpha_native, *temp_buf_, off_a_packed, false,
+                        !transa);
                 if (status)
                     return status;
             }
@@ -381,7 +385,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                     size_n = block_n;
 
                 auto off_b_src = off_b0
-                    + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
+                        + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                 if (!nocopy && ((Bn == 0) || (n > block_n))) {
                     status = launch_copy(ctx.stream(), size_k, size_n, b,
@@ -396,14 +400,14 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                 if (nocopy) {
                     float eff_beta = (Bk == 0) ? beta : 1.0f;
                     status = launch_nocopy(ctx.stream(), a, b, c, off_a_src,
-                        off_b_src, off_c, lda, ldb, ldc, size_m, size_n, size_k,
-                        alpha, eff_beta, (int)last_k_block, eltwise_alpha,
-                        eltwise_beta);
+                            off_b_src, off_c, lda, ldb, ldc, size_m, size_n,
+                            size_k, alpha, eff_beta, (int)last_k_block,
+                            eltwise_alpha, eltwise_beta);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
                     status = launch_compute(ctx.stream(), size_m, size_n,
-                        size_k, *temp_buf_, off_a_packed, off_b_packed, c,
-                        off_c, ldc, beta0);
+                            size_k, *temp_buf_, off_a_packed, off_b_packed, c,
+                            off_c, ldc, beta0);
                 }
                 if (status)
                     return status;
@@ -448,8 +452,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     size_t off_c = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(transa, transb,
-            unroll_m, unroll_n);
+    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
+            transa, transb, unroll_m, unroll_n);
 
     int km = utils::div_up(m, unroll_m[0]);
     int kn = utils::div_up(n, unroll_n);
@@ -462,15 +466,17 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     };
 
     while (km_large >= 0) {
-        auto km_small = utils::div_up(m - (km_large * unroll_m[0]),
-                unroll_m[1]);
-        if (km_small < 0) km_small = 0;
+        auto km_small
+                = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
+        if (km_small < 0)
+            km_small = 0;
 
         auto threads = (km_large + km_small) * kn;
         auto ldispatch = threads % hw_threads_;
 
         if (ldispatch == 0 || good_enough(ldispatch, threads)) {
-            best_km_large = km_large; break;
+            best_km_large = km_large;
+            break;
         } else if (ldispatch < last_ldispatch)
             break;
         else if (ldispatch > last_ldispatch)
@@ -488,7 +494,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     auto n_block_target = nstl::max<int>(1, 128 / unroll_n);
     auto columns = utils::div_up(kn, n_block_target);
     auto kn_left = (n_block_target - kn) % n_block_target;
-    if (kn_left < 0) kn_left += n_block_target;
+    if (kn_left < 0)
+        kn_left += n_block_target;
     auto spread = nstl::min(kn_left, columns);
 
     int bn0, bn1, columns_small;
@@ -508,7 +515,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     if (!plan_void)
         return status::runtime_error;
 
-    auto plan = (plan_element_t *) plan_void;
+    auto plan = (plan_element_t *)plan_void;
 
     plan[0].next_id = hw_threads_;
     plan[0]._ = 0;
@@ -538,7 +545,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
 
     return launch_nocopy_superkernel(ctx.stream(), *temp_buf_, threads, a, b, c,
             off_a, off_b, off_c, lda, ldb, ldc, m, n, k, alpha, beta,
-            (int) last_k_block, eltwise_alpha, eltwise_beta);
+            (int)last_k_block, eltwise_alpha, eltwise_beta);
 }
 
 using namespace data_type;

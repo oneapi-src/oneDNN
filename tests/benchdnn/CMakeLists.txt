@@ -45,7 +45,7 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
-if((WIN32 OR MINGW) AND (NOT MKLDNN_BUILD_FOR_CI))
+if(WIN32 AND (NOT MKLDNN_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
         "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
@@ -78,7 +78,7 @@ function(register_benchdnn_test name engine cmd)
                 "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV3}")
         endif()
 
-        if(WIN32 OR MINGW)
+        if(WIN32)
             set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
             set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
         endif()
@@ -123,10 +123,14 @@ register_benchdnn_test(test_benchdnn_ip_bf16
     cpu "-v1 --ip --batch=inputs/ip/test_ip_bfloat16")
 register_benchdnn_test(test_benchdnn_shuffle
     cpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_all")
+register_benchdnn_test(test_benchdnn_shuffle_bf16
+    cpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_bfloat16")
 register_benchdnn_test(test_benchdnn_softmax
     cpu "-v1 --softmax --batch=inputs/softmax/test_softmax_all")
 register_benchdnn_test(test_benchdnn_pool
     cpu "-v1 --pool --batch=inputs/pool/test_pool_all")
+register_benchdnn_test(test_benchdnn_pool_bf16
+    cpu "-v1 --pool --batch=inputs/pool/test_pool_bfloat16")
 register_benchdnn_test(test_benchdnn_sum
     cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
 register_benchdnn_test(test_benchdnn_sum_bf16
@@ -153,7 +157,9 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_rnn
         gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_gpu")
     register_benchdnn_test(test_benchdnn_pool
-        gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
+        gpu "-v1 --pool --batch=inputs/pool/test_pool_small_gpu")
+    register_benchdnn_test(test_benchdnn_shuffle
+        gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
 # fp16 produces nans
 #    register_benchdnn_test(test_benchdnn_sum
 #        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")

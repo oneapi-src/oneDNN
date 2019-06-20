@@ -72,7 +72,7 @@ typedef enum {
     mkldnn_data_type_undef = 0,
     /// 16-bit/half-precision floating point.
     mkldnn_f16 = 1,
-    /// non-standard 16-bit(bfloat16 w/ 7 bit mantissa) floating point.
+    /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
     mkldnn_bf16 = 2,
     /// 32-bit/single-precision floating point.
     mkldnn_f32 = 3,
@@ -699,7 +699,7 @@ typedef enum {
     mkldnn_lbr_gru = 0x4fff,
 } mkldnn_alg_kind_t;
 
-/// Flags for batch-normalization primitive.
+/// Flags for batch normalization primitive.
 typedef enum {
     /// Use global statistics
     ///
@@ -734,8 +734,8 @@ typedef enum {
     ///    fused with ReLU via post ops API
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
-    mkldnn_fuse_bn_relu = 0x4U,
-} mkldnn_batch_normalization_flags_t;
+    mkldnn_fuse_norm_relu = 0x4U,
+} mkldnn_normalization_flags_t;
 
 /// @}
 
@@ -1113,11 +1113,10 @@ typedef struct {
     /// parameter.
     mkldnn_memory_desc_t data_scaleshift_desc;
     mkldnn_memory_desc_t diff_data_scaleshift_desc;
-    /// Mean and variance data memory descriptors.
+    /// Statistics memory descriptor.
     ///
-    /// Mean and variance memory descriptors use 1D #mkldnn_x format[Channels].
-    mkldnn_memory_desc_t mean_desc;
-    mkldnn_memory_desc_t variance_desc;
+    /// Statistics (mean or variance) descriptor use 1D #mkldnn_x format[Channels].
+    mkldnn_memory_desc_t stat_desc;
     /// Batch normalization epsilon parameter.
     float batch_norm_epsilon;
     unsigned flags;

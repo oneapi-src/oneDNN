@@ -357,7 +357,7 @@ TEST_P(pooling_bwd_test_float, TestsPoolingBackward)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingBackwardZeroDim, pooling_bwd_test_float, ::testing::Values(
             pool_bwd_test_params_float{
             algorithm::pooling_max, memory::format_tag::nchw,
@@ -370,7 +370,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
             memory::format_tag::nchw, EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
             ));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingBackwardEF, pooling_bwd_test_float, ::testing::Values(
             pool_bwd_test_params_float{
             algorithm::pooling_max, memory::format_tag::nchw,
@@ -884,6 +884,19 @@ CPU_INSTANTIATE_TEST_SUITE_P(
             algorithm::pooling_avg_exclude_padding, memory::format_tag::nChw8c,
             memory::format_tag::nChw8c, EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
 
+            ));
+
+GPU_INSTANTIATE_TEST_SUITE_P(
+        TestPoolingSlipsToPadding, pooling_bwd_test_float, ::testing::Values(
+            pool_bwd_test_params{
+            algorithm::pooling_max, memory::format_tag::NChw16n16c,
+            memory::format_tag::NChw16n16c, EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3, 1, 1, 1, 1) },
+            pool_bwd_test_params{
+            algorithm::pooling_avg_exclude_padding, memory::format_tag::NChw16n16c,
+            memory::format_tag::NChw16n16c, EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3, 1, 1, 1, 1) },
+            pool_bwd_test_params{
+            algorithm::pooling_avg_include_padding, memory::format_tag::NChw16n16c,
+            memory::format_tag::NChw16n16c, EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3, 1, 1, 1, 1) }
             ));
 
 GPU_INSTANTIATE_TEST_SUITE_P(

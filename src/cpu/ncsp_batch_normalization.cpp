@@ -45,7 +45,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
     const bool calculate_stats = !pd()->stats_is_src();
     const bool save_stats = pd()->is_training();
     const bool is_training = pd()->is_training();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
@@ -274,7 +274,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
                         size_t d_off = s_off + sp;
                         acc_data_t bn_res = sm * (_src[sp] - mean[off]) + sv;
-                        if (fuse_bn_relu) {
+                        if (fuse_norm_relu) {
                             if (bn_res <= 0) {
                                 bn_res = 0;
                                 if (is_training)
@@ -331,7 +331,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
     const bool use_scaleshift = pd()->use_scaleshift();
     const float eps = pd()->desc()->batch_norm_epsilon;
     const bool calculate_diff_stats = !pd()->use_global_stats();
-    const bool fuse_bn_relu = pd()->fuse_bn_relu();
+    const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     int nthr = mkldnn_get_max_threads();
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
@@ -424,7 +424,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
                         const dim_t d_off = s_off + sp;
                         acc_data_t dd;
-                        if (fuse_bn_relu && !ws[d_off])
+                        if (fuse_norm_relu && !ws[d_off])
                             dd = 0;
                         else
                             dd = _diff_dst[sp];
@@ -503,7 +503,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
                         const dim_t d_off = s_off + sp;
                         acc_data_t v_diff_src;
-                        if (fuse_bn_relu && !ws[d_off])
+                        if (fuse_norm_relu && !ws[d_off])
                             v_diff_src = 0;
                         else
                             v_diff_src = _diff_dst[sp];

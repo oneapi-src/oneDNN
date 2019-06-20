@@ -104,15 +104,14 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         + div_up(d_t_overflow,
                                  (jcp.dilate_d+1)) * (jcp.dilate_d + 1), 0);
 
-                    par_conv.src = &src[src_blk_off(src_d, n,
-                        jcp.ic == 3 ? 0 : _ic, id, ih, 0)];
+                    par_conv.src = &src[src_blk_off(src_d, n, _ic, id, ih, 0)];
 
                     par_conv.dst = &dst[src_blk_off(dst_d, n, _oc, od, oh, 0)];
 
                     const int wh = div_up(i_t_overflow, (jcp.dilate_h + 1));
                     const int wd = div_up(d_t_overflow, (jcp.dilate_d + 1));
-                    par_conv.filt = &weights[wht_blk_off(weights_d, g, ocb,
-                            jcp.ic == 3 ? 0 : icb, wd, wh, 0)];
+                    par_conv.filt = &weights[wht_blk_off(
+                            weights_d, g, ocb, icb, wd, wh, 0)];
 
                     if (icb == 0) {
                         if (bias)
@@ -226,13 +225,11 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                     const int oh = (ih + jcp.t_pad - k_lo) / jcp.stride_h;
 
                     par_conv.src = &diff_src[src_blk_off(diff_src_d, n,
-                        /*jcp.ic == 3 ? 0 :*/
                         g * jcp.nb_ic + jcp.nb_ic_blocking * icbb, id, ih, 0)];
                     par_conv.dst = &diff_dst[src_blk_off(diff_dst_d,
                             n, g * jcp.nb_oc + oc, od, oh, 0)];
                     par_conv.filt = &weights[wht_blk_off(weights_d, g, oc,
-                                jcp.ic == 3 ? 0 : jcp.nb_ic_blocking * icbb,
-                                d_b_overflow, k_lo, 0)];
+                            jcp.nb_ic_blocking * icbb, d_b_overflow, k_lo, 0)];
 
                     par_conv.src_prf = nullptr;
                     par_conv.dst_prf = nullptr;

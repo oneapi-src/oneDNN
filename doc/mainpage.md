@@ -23,12 +23,14 @@ on Intel CPUs and GPUs.
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
    * @ref dev_guide_inference_int8
+   * @ref dev_guide_training_bf16
  * @ref dev_guide_attributes
    * @ref dev_guide_attributes_scratchpad
    * @ref dev_guide_attributes_quantization
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
  * @ref dev_guide_c_and_cpp_apis
+ * @ref dev_guide_opencl_interoperability
 
 
 # Primitives
@@ -66,13 +68,17 @@ Data manipulation:
 
 # Examples
 
-| Scenario           | Platform | C++ API                          | C API                          |
-| :----              | :---     | :----                            | :---                           |
-| Introduction       | CPU      | @ref cpu_getting_started_cpp     |                                |
-|                    | GPU      | @ref gpu_getting_started_cpp     | @ref gpu_getting_started_c     |
-| fp32 inference     | CPU      | @ref cpu_cnn_inference_fp32_cpp  | @ref cpu_cnn_inference_fp32_c  |
-|                    |          | @ref cpu_rnn_inference_fp32_cpp  |                                |
-| int8 inference     | CPU      | @ref cpu_cnn_inference_int8_cpp  |                                |
-|                    |          | @ref cpu_rnn_inference_int8_cpp  |                                |
-| training           | CPU      | @ref cpu_cnn_training_fp32_cpp   | @ref cpu_cnn_training_fp32_c   |
-|                    | CPU      | @ref cpu_rnn_training_fp32_cpp   |                                |
+| Topic          | Engine   | C++ API                                | C API                        |
+| :----          | :---     | :----                                  | :---                         |
+| Tutorials      | CPU      | @ref cpu_getting_started_cpp           |                              |
+|                |          | @ref cpu_memory_format_propagation_cpp |                              |
+|                |          | @ref cpu_performance_profiling_cpp     |                              |
+|                | GPU      | @ref gpu_getting_started_cpp           | @ref gpu_getting_started_c   |
+|                | GPU      | @ref gpu_opencl_interop_cpp            | 			          |
+| f32 inference  | CPU      | @ref cpu_cnn_inference_f32_cpp         | @ref cpu_cnn_inference_f32_c |
+|                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
+| int8 inference | CPU      | @ref cpu_cnn_inference_int8_cpp        |                              |
+|                | CPU      | @ref cpu_rnn_inference_int8_cpp        |                              |
+| f32 training   | CPU      | @ref cpu_cnn_training_f32_cpp          | @ref cpu_cnn_training_f32_c  |
+|                | CPU      | @ref cpu_rnn_training_f32_cpp          |                              |
+| bf16 training  | CPU      | @ref cpu_cnn_training_bf16_cpp         |                              |

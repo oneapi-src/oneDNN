@@ -39,7 +39,7 @@ struct batch_normalization_pd_t: public primitive_desc_t {
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , data_md_(desc_.data_desc)
-        , stat_md_(desc_.mean_desc)
+        , stat_md_(desc_.stat_desc)
         , scaleshift_md_(desc_.data_scaleshift_desc)
         , ws_md_()
     {}
@@ -72,7 +72,7 @@ struct batch_normalization_pd_t: public primitive_desc_t {
     bool use_scaleshift() const { return desc_.flags & mkldnn_use_scaleshift; }
     bool use_global_stats() const
     { return desc_.flags & mkldnn_use_global_stats; }
-    bool fuse_bn_relu() const { return desc_.flags & mkldnn_fuse_bn_relu; }
+    bool fuse_norm_relu() const { return desc_.flags & mkldnn_fuse_norm_relu; }
     bool with_relu_post_op() const {
         const auto &p = this->attr()->post_ops_;
         return p.len_ == 1 && p.entry_[0].is_relu(true, true);
@@ -138,7 +138,7 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
         if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && is_training() && fuse_bn_relu())
+        if (arg == MKLDNN_ARG_WORKSPACE && is_training() && fuse_norm_relu())
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -161,7 +161,7 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
     { return index == 0 ? &scaleshift_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && is_training() && fuse_bn_relu() ? &ws_md_ : &glob_zero_md; }
+    { return index == 0 && is_training() && fuse_norm_relu() ? &ws_md_ : &glob_zero_md; }
 
     const memory_desc_t *stat_md() const
     { return stats_is_src() ? src_md(1) : dst_md(1); }
@@ -169,7 +169,7 @@ struct batch_normalization_fwd_pd_t: public batch_normalization_pd_t {
     virtual int n_inputs() const override
     { return 1 + 2 * stats_is_src() + use_scaleshift(); }
     virtual int n_outputs() const override
-    { return 1 + (fuse_bn_relu() + 2 * (!stats_is_src())) * is_training(); }
+    { return 1 + (fuse_norm_relu() + 2 * (!stats_is_src())) * is_training(); }
 };
 
 struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
@@ -193,7 +193,7 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
         if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && fuse_bn_relu())
+        if (arg == MKLDNN_ARG_WORKSPACE && fuse_norm_relu())
             return arg_usage_t::input;
 
         if (arg == MKLDNN_ARG_DIFF_SRC)
@@ -218,12 +218,12 @@ struct batch_normalization_bwd_pd_t: public batch_normalization_pd_t {
     { return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md; }
 
     virtual const memory_desc_t *workspace_md(int index = 0) const override
-    { return index == 0 && fuse_bn_relu() ? &ws_md_ : &glob_zero_md; }
+    { return index == 0 && fuse_norm_relu() ? &ws_md_ : &glob_zero_md; }
 
     const memory_desc_t *stat_md() const { return src_md(1); }
 
     virtual int n_inputs() const override
-    { return 4 + use_scaleshift() + fuse_bn_relu(); }
+    { return 4 + use_scaleshift() + fuse_norm_relu(); }
     virtual int n_outputs() const override
     { return 1 + (desc_.prop_kind == prop_kind::backward); }
 

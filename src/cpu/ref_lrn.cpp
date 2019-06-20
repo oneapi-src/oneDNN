@@ -27,27 +27,34 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-static inline float fast_negative_powf(float omega, float beta) {
-    float Y;
-/*
- * Y = omega^(-3/4) =
- * = 1.0f / sqrtf(omega) * sqrtf(1.0f / sqrtf(omega))
- * = sqrtf(1.0f / sqrtf(omega)) * 1.0f / sqrtf(omega)
- * = sqrtf(1.0f / sqrtf(omega)) / sqrtf(omega)
- * = sqrtf(1.0f / sqrtf(omega) / omega)
- * = sqrtf(1.0f / (sqrtf(omega) * omega))
- */
-    if (beta == 0.75f) {
-        Y = sqrtf(1.0f / (sqrtf(omega) * omega));
-    } else {
-        Y = 1.0f / powf(omega, beta);
-    }
-    return Y;
-};
 
-template <impl::data_type_t data_type>
+namespace {
+
+typedef float acc_data_t;
+
+static inline acc_data_t fast_negative_powf(
+            acc_data_t omega, acc_data_t beta) {
+        acc_data_t Y;
+        /*
+         * Y = omega^(-3/4) =
+         * = 1.0f / sqrtf(omega) * sqrtf(1.0f / sqrtf(omega))
+         * = sqrtf(1.0f / sqrtf(omega)) * 1.0f / sqrtf(omega)
+         * = sqrtf(1.0f / sqrtf(omega)) / sqrtf(omega)
+         * = sqrtf(1.0f / sqrtf(omega) / omega)
+         * = sqrtf(1.0f / (sqrtf(omega) * omega))
+         */
+        if (beta == 0.75f) {
+            Y = sqrtf(1.0f / (sqrtf(omega) * omega));
+        } else {
+            Y = 1.0f / powf(omega, beta);
+        }
+        return Y;
+    };
+}
+
+template <impl::data_type_t d_type>
 template <impl::format_tag_t tag>
-void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
+void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace format_tag;
 
@@ -75,20 +82,21 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     };
 
     auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
-        const float alpha = static_cast<float>(pd()->desc()->lrn_alpha);
-        const float beta = static_cast<float>(pd()->desc()->lrn_beta);
-        const float k = static_cast<float>(pd()->desc()->lrn_k);
+        const acc_data_t alpha
+                = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
+        const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
+        const acc_data_t k = static_cast<acc_data_t>(pd()->desc()->lrn_k);
 
         const int size = pd()->desc()->local_size;
         const int half_size = (size - 1) / 2;
 
-        float sum = 0;
+        acc_data_t sum = 0;
         if (across_channels) {
             const int c_st = nstl::max(oc - half_size + 0, 0);
             const int c_en = nstl::min(oc + half_size + 1, C);
 
             for (int c = c_st; c < c_en; ++c) {
-                const float s = src[data_off(mb, c, oh, ow)];
+                const acc_data_t s = src[data_off(mb, c, oh, ow)];
                 sum += s * s;
             }
         } else {
@@ -98,7 +106,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
             int w_en = nstl::min(ow + half_size + 1, W);
             for (int h = h_st; h < h_en; ++h) {
                 for (int w = w_st; w < w_en; ++w) {
-                    const float s = src[data_off(mb, oc, h, w)];
+                    const acc_data_t s = src[data_off(mb, oc, h, w)];
                     sum += s * s;
                 }
             }
@@ -106,7 +114,7 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
         const int summands = across_channels ? size : size * size;
         sum = k + alpha * sum / summands;
         size_t off = data_off(mb, oc, oh, ow);
-        d[0] = static_cast<data_t>(src[off] * fast_negative_powf(sum, beta));
+        d[0] = static_cast<data_t>((acc_data_t)src[off] * fast_negative_powf(sum, beta));
     };
 
     const int MB = pd()->MB();
@@ -135,9 +143,9 @@ void ref_lrn_fwd_t<data_type>::execute_forward(const exec_ctx_t &ctx) const {
     }
 }
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t d_type>
 template <mkldnn_format_tag_t tag>
-void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
+void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
     using namespace format_tag;
 
@@ -154,9 +162,9 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
     const size_t stride_mb = data_d.blocking_desc().strides[0];
     constexpr int blksize = tag == nChw16c ? 16 : 8;
 
-    const float alpha = static_cast<float>(pd()->desc()->lrn_alpha);
-    const float beta = static_cast<float>(pd()->desc()->lrn_beta);
-    const float k = static_cast<float>(pd()->desc()->lrn_k);
+    const acc_data_t alpha = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
+    const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
+    const acc_data_t k = static_cast<acc_data_t>(pd()->desc()->lrn_k);
     const int kernel_size = pd()->desc()->local_size;
     const int half_ksize = (kernel_size - 1) / 2;
 
@@ -175,25 +183,26 @@ void ref_lrn_bwd_t<data_type>::execute_backward(const exec_ctx_t &ctx) const {
         const int c_st = nstl::max(oc - half_ksize + 0, 0);
         const int c_en = nstl::min(oc + half_ksize + 1, C);
 
-        float A = 0, B = 0, omega_mid = 0;
+        acc_data_t A = 0, B = 0, omega_mid = 0;
         for (int c = c_st; c < c_en; c++) {
-            float sum = 0.0;
+            acc_data_t sum = 0.0;
             const int i_st = nstl::max(c - half_ksize, 0);
             const int i_en = nstl::min(c + kernel_size - half_ksize, C);
 
             for (int i = i_st; i < i_en; ++i) {
-                const float value = src[data_off(mb, i, oh, ow)];
+                const acc_data_t value = src[data_off(mb, i, oh, ow)];
                 sum += value * value;
             }
-            const float omega = static_cast<float>(k + sum * alpha / kernel_size);
+            const acc_data_t omega
+                    = static_cast<acc_data_t>(k + sum * alpha / kernel_size);
             if (c == oc) omega_mid = omega;
-            float t = src[data_off(mb, c, oh, ow)]
+            acc_data_t t = src[data_off(mb, c, oh, ow)]
                    * fast_negative_powf(omega, beta);
-            B += 1.0f / omega * t * diff_dst[data_off(mb, c, oh, ow)];
+            B += 1.0f / omega * t * (acc_data_t)diff_dst[data_off(mb, c, oh, ow)];
         }
 
         const size_t off = data_off(mb, oc, oh, ow);
-        A = fast_negative_powf(omega_mid, beta) * diff_dst[off];
+        A = fast_negative_powf(omega_mid, beta) * (acc_data_t)diff_dst[off];
         B *= src[off];
         B *= (2.0f * alpha * beta) / kernel_size;
         *d = static_cast<data_t>(A - B); // final cast down to data_t
@@ -243,6 +252,27 @@ execute_backward<format_tag::nchw>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
 execute_backward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
 template void ref_lrn_bwd_t<data_type::f32>::
+execute_backward<format_tag::any>(const exec_ctx_t &ctx) const;
+
+template void ref_lrn_fwd_t<data_type::bf16>::
+execute_forward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::
+execute_forward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::
+execute_forward<format_tag::nchw>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::
+execute_forward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::
+execute_forward<format_tag::any>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::
+execute_backward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::
+execute_backward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::
+execute_backward<format_tag::nchw>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::
+execute_backward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::
 execute_backward<format_tag::any>(const exec_ctx_t &ctx) const;
 
 }

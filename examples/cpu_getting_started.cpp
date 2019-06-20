@@ -15,7 +15,10 @@
 *******************************************************************************/
 
 /// @example cpu_getting_started.cpp
-/// Annotated version: @ref cpu_getting_started_cpp
+/// This C++ API example demonstrates basics of Intel MKL-DNN programming
+/// model.
+///
+/// > Annotated version: @ref cpu_getting_started_cpp
 
 #include <iostream>
 #include <sstream>
@@ -25,10 +28,7 @@
 #include <vector>
 
 /// @page cpu_getting_started_cpp Getting started
-///
-/// Full example text: @ref cpu_getting_started.cpp
-///
-/// @section cpu_getting_started_cpp_intro Introduction
+/// > Example code: @ref cpu_getting_started.cpp
 ///
 /// This C++ API example demonstrates basics of Intel MKL-DNN programming
 /// model:
@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
 /// ~~~cpp
 /// relu.execute(cpu_stream, {
 ///         {MKLDNN_ARG_SRC, src_mem},
-///         // {MKLDNN_ARG_DST, dst_mem}, // Opps, forgot about this one
+///         // {MKLDNN_ARG_DST, dst_mem}, // Oops, forgot about this one
 ///     });
 /// ~~~
 ///

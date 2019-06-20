@@ -267,7 +267,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
                 const int64_t l = l_base + sp * 7 + c * 19 + mb * 13;
 
                 int64_t rmask_v = 1;
-                if (p->flags & FUSE_BN_RELU)
+                if (p->flags & FUSE_NORM_RELU)
                     rmask[sp] = rmask_v = l % 5 != 1;
 
                 const int sgn_dd = db < target_db ? 1 : -1;
@@ -301,7 +301,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
 
             ((float *)src)[l1] = 1.f;
             ((float *)src)[l0] = -1.f;
-            if (p->flags & FUSE_BN_RELU)
+            if (p->flags & FUSE_NORM_RELU)
                 ((float *)mask)[l0] = ((float *)mask)[l1] = 1;
 
             float f1 = ((target_db - db) + (target_dg - dg)) / 2;
@@ -348,7 +348,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     const int64_t N = kind == DATA ? p->mb : 1;
     const int64_t C = kind == DATA ? p->ic : p->ic * (kind == SS ? 2 : 1);
     const int64_t SP = kind == DATA ? p->id * p->ih * p->iw : 1;
-    const int64_t nelems = N * C * SP;
+    const auto nelems = N * C * SP;
     r->total += rely_on_norm ? 1 : nelems;
 
     diff_norm_t diff_norm;
@@ -356,8 +356,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     for (int64_t c = 0; c < C; c++) {
     for (int64_t sp = 0; sp < SP; ++sp) {
         int64_t i = (n * C + c) * SP + sp;
-        const float fp = ((const float *)fp_mem)[i];
-        const float dt = ((const float *)dt_mem)[i];
+        const float dt = dt_mem.get_elem(i);
+        const float fp = fp_mem.get_elem(i);
         diff_norm.update(fp, dt);
 
         if (rely_on_norm)
@@ -408,9 +408,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
             }
 
             std::string ind_str = ss.str();
-            print(0, "[%lu][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
-                    ind_str.c_str(), fp, dt, diff, rel_diff);
+            print(0, "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, p->dir & FLAG_BWD ? "D_" : "", skind, ind_str.c_str(),
+                    fp, dt, diff, rel_diff);
         }
     }
     }
@@ -453,7 +453,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
     /* so far we know ws is just bit-mask of whether value was negative or
      * positive */
-    const int64_t nelems = data_dt.nelems(true);
+    const auto nelems = data_dt.nelems(true);
     const uint8_t *ws = (const uint8_t *)ws_dt;
 
     /* some internal knowledge: flags in ws are either stored as bytes (e.g.
@@ -478,8 +478,8 @@ int check_fwd_ws(const dnn_mem_t &data_dt, const dnn_mem_t &ws_dt, res_t *r) {
                 || (!ok && (r->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30);
             if (dump) {
-                print(0, "[%lu] ws exp:%d got:%d (data:%g:%a)\n",
-                        (unsigned long)(i + j), want, bit_set, data, data);
+                print(0, "[%4ld] ws exp:%d got:%d (data:%g:%a)\n",
+                        (long)(i + j), want, bit_set, data, data);
             }
 
             // XXX: GPU implementation uses int32_t for workspace
@@ -518,7 +518,7 @@ static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
                      &data_d, ndims, data_dims, p->dt, p->tag),
             WARN);
 
-    auto flags = (mkldnn_batch_normalization_flags_t)p->flags;
+    auto flags = (mkldnn_normalization_flags_t)p->flags;
     if (p->dir & FLAG_FWD) {
         auto prop = p->dir & FLAG_INF
             ? mkldnn_forward_inference : mkldnn_forward_training;
@@ -603,8 +603,8 @@ static int cvt_mask_to_ws(const prb_t *p, const dnn_mem_t &mask_fp,
     var.unmap();
 
     mkldnn_batch_normalization_desc_t bd;
-    auto flags = (mkldnn_batch_normalization_flags_t)
-        (mkldnn_use_global_stats | mkldnn_fuse_bn_relu);
+    auto flags = (mkldnn_normalization_flags_t)
+        (mkldnn_use_global_stats | mkldnn_fuse_norm_relu);
     DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd,
                 mkldnn_forward_training, &data.md_, 0, flags), WARN);
 
@@ -666,7 +666,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t ws_fp(data_fp.md_, engine_ref);
     dnn_mem_t ws_dt;
-    if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
+    if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md = mkldnn_primitive_desc_query_md(bpd,
                 mkldnn_query_workspace_md, 0);
         SAFE(ws_md != NULL ? OK : FAIL, WARN);
@@ -701,7 +701,7 @@ int doit(const prb_t *p, res_t *r) {
             args.set(MKLDNN_ARG_SCALE_SHIFT, ss_dt.m_);
         }
 
-        if (p->flags & FUSE_BN_RELU)
+        if (p->flags & FUSE_NORM_RELU)
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
@@ -719,7 +719,7 @@ int doit(const prb_t *p, res_t *r) {
             }
             dnn_mem_t data(data_dt, fp, src_tag, engine_ref);
             SAFE(compare(p, DATA, data_fp, data, r, &ss_fp), WARN);
-            if ((p->flags & FUSE_BN_RELU) && !(p->dir & FLAG_INF)) {
+            if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
                 data_dt.map();
                 ws_dt.map();
                 SAFE(check_fwd_ws(data_dt, ws_dt, r), WARN);
@@ -751,7 +751,7 @@ int doit(const prb_t *p, res_t *r) {
             args.set(MKLDNN_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
         }
 
-        if (p->flags & FUSE_BN_RELU) {
+        if (p->flags & FUSE_NORM_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
             args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
         }
@@ -771,20 +771,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    if (bench_mode & PERF) {
-        auto &t = r->timer;
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
+    measure_perf(r->timer, b, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
 

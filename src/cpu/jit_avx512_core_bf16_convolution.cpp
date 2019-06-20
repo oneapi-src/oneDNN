@@ -783,7 +783,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
         return ti->ithr * tr_chn_size +  id * tr_3d_size + ij * tr_row_size;
 #endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     };
-	
+
     const int pf_depth = 2;
     struct { src_data_t *src, *tr_src; } pf_circ_buf_src[pf_depth];
 

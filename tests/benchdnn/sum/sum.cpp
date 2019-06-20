@@ -67,7 +67,7 @@ static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
 
 static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
         const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *r) {
-    auto nelems = dt_mem.nelems();
+    const auto nelems = dt_mem.nelems();
     r->errors = 0;
     r->total = nelems;
     const float trh = 1e-7 * p->n_inputs();
@@ -93,9 +93,8 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
             ss << dims_idx;
             std::string ind_str = ss.str();
 
-            print(0, "[%4lu][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (unsigned long)i, ind_str.c_str(), fp0, fp, dt, diff,
-                    rel_diff);
+            print(0, "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
         }
     }
 
@@ -110,7 +109,7 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
 
 int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
-    auto get_range = [&](const mkldnn_data_type_t dt) {
+    auto get_range = [](const mkldnn_data_type_t dt) {
         if (dt == mkldnn_s8 || dt == mkldnn_u8)
             return 256;
         else if (dt == mkldnn_bf16 || dt == mkldnn_f16)
@@ -118,16 +117,10 @@ int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         return 1024;
     };
 
-    auto get_f_min = [&](const mkldnn_data_type_t dt) {
-        if (dt == mkldnn_u8)
-            return 0;
-        return -get_range(dt) / 2;
-    };
-
-    const int64_t nelems = mem_fp.nelems();
+    const auto nelems = mem_fp.nelems();
     const auto dt = p->idt[input_idx];
     const int range = get_range(dt);
-    const int f_min = get_f_min(dt);
+    const int f_min = dt == mkldnn_u8 ? 0 : -range / 2;
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
             const float gen = ((97 * i) - 17 * input_idx + 101) % range;
@@ -190,21 +183,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(compare(p, dst_data_type, dst_fp, dst, r), WARN);
     }
 
-    if (bench_mode & PERF) {
-        auto &t = r->timer;
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args),
-                    WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
+    measure_perf(r->timer, s, args);
 
     DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(s), CRIT);

@@ -39,7 +39,7 @@ const char* check_alg2str(check_alg_t alg);
 using flags_t = unsigned;
 const flags_t GLOB_STATS = mkldnn_use_global_stats;
 const flags_t USE_SCALESHIFT = mkldnn_use_scaleshift;
-const flags_t FUSE_BN_RELU = mkldnn_fuse_bn_relu;
+const flags_t FUSE_NORM_RELU = mkldnn_fuse_norm_relu;
 flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
@@ -79,9 +79,12 @@ struct perf_report_t: public base_perf_report_t {
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
-        s << p_->mb << ',' << p_->ic << ',';
-        if (p_->id > 1) s << p_->id << ',';
-        s << p_->ih << ',' << p_->iw << ',' << p_->eps;
+        s << p_->mb << ','
+          << p_->ic << ','
+          << p_->id << ','
+          << p_->ih << ','
+          << p_->iw << ','
+          << p_->eps;
     }
 
     virtual void dump_flags(std::ostream &s) const override {

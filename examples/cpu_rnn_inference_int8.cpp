@@ -15,11 +15,14 @@
 *******************************************************************************/
 
 /// @example cpu_rnn_inference_int8.cpp
-/// @copydoc cpu_rnn_inference_int8_cpp
-///
+/// @copybrief cpu_rnn_inference_int8_cpp
+/// > Annotated version: @ref cpu_rnn_inference_int8_cpp
+
 /// @page cpu_rnn_inference_int8_cpp RNN int8 inference example
+/// This C++ API example demonstrates how to build GNMT model inference.
 ///
-/// This C++ API example demonstrates how to build an GNMT model inference
+/// > Example code: @ref cpu_rnn_inference_int8.cpp
+///
 /// For the encoder we use:
 ///  - one primitive for the bidirectional layer of the encoder
 ///  - one primitive for all remaining unidirectional layers in the encoder
@@ -29,8 +32,6 @@
 ///    in this example, this primitive computes the states in place.
 ///  - the attention mechanism is implemented separately as there is no support
 ///    for the context vectors in MKL-DNN yet
-///
-/// @include cpu_rnn_inference_int8.cpp
 
 #include <assert.h>
 
@@ -232,10 +233,10 @@ void simple_net() {
     std::vector<float> net_dst(batch * tgt_seq_length_max * feature_size, 0.1f);
 //[declare net]
 
-    // Quantization factors for fp32 data
+    // Quantization factors for f32 data
 
     ///
-    /// Quantization factors for fp32 data
+    /// Quantization factors for f32 data
     /// @snippet cpu_rnn_inference_int8.cpp quantize
     ///
     const float data_shift = 64.;

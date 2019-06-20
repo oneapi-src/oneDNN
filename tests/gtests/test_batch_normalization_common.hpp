@@ -78,7 +78,7 @@ protected:
     }
 
     void Test() {
-        using bf = batch_normalization_flags;
+        using bf = normalization_flags;
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         eng = engine(get_test_engine_kind(), 0);
@@ -127,9 +127,6 @@ protected:
 
             Backward(prop_kind::backward_data);
             Backward(prop_kind::backward_data, bf::use_global_stats);
-            Backward(prop_kind::backward_data, bf::use_scale_shift);
-            Backward(prop_kind::backward_data,
-                    bf::use_scale_shift | bf::use_global_stats);
             Backward(prop_kind::backward, bf::use_scale_shift);
             Backward(prop_kind::backward,
                     bf::use_scale_shift | bf::use_global_stats);
@@ -140,11 +137,11 @@ protected:
     }
 
     void Forward(prop_kind pk,
-            batch_normalization_flags flags = (batch_normalization_flags)0u) {
+            normalization_flags flags = (normalization_flags)0u) {
         bool useScaleShift
-                = (bool)(flags & batch_normalization_flags::use_scale_shift);
+                = (bool)(flags & normalization_flags::use_scale_shift);
         bool useGlobalStats
-                = (bool)(flags & batch_normalization_flags::use_global_stats);
+                = (bool)(flags & normalization_flags::use_global_stats);
         bool isTraining = pk == prop_kind::forward_training;
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(pk,
@@ -179,9 +176,9 @@ protected:
     }
 
     void Backward(prop_kind pk,
-            batch_normalization_flags flags = (batch_normalization_flags)0u) {
+            normalization_flags flags = (normalization_flags)0u) {
         bool useScaleShift
-                = (bool)(flags & batch_normalization_flags::use_scale_shift);
+                = (bool)(flags & normalization_flags::use_scale_shift);
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
@@ -262,16 +259,16 @@ protected:
 
     void check_bnorm_fwd(const test_bnorm_params_t &p, const memory &src,
             const memory &mean, const memory &variance, const memory &weights,
-            const memory &dst, batch_normalization_flags flags, prop_kind pk) {
+            const memory &dst, normalization_flags flags, prop_kind pk) {
         memory::data_type data_type = data_traits<data_t>::data_type;
         const test_bnorm_sizes_t &bp = p.sizes;
         if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0)
             return;
 
         const bool use_weights
-                = (bool)(flags & batch_normalization_flags::use_scale_shift);
+                = (bool)(flags & normalization_flags::use_scale_shift);
         const bool calculate_stats
-                = !(bool)(flags & batch_normalization_flags::use_global_stats);
+                = !(bool)(flags & normalization_flags::use_global_stats);
         const bool is_training = pk == prop_kind::forward_training;
 
         auto src_data = map_memory<const data_t>(src);
@@ -384,13 +381,13 @@ protected:
     void check_bnorm_bwd(const test_bnorm_params_t &p, const memory &src,
             const memory &diff_dst, const memory &mean, const memory &variance,
             const memory &weights, const memory &diff_src,
-            const memory &diff_weights, batch_normalization_flags flags,
+            const memory &diff_weights, normalization_flags flags,
             prop_kind pk) {
         const test_bnorm_sizes_t &bp = p.sizes;
         const bool use_weights
-                = (bool)(flags & batch_normalization_flags::use_scale_shift);
+                = (bool)(flags & normalization_flags::use_scale_shift);
         const bool calculate_diff_stats
-                = !(bool)(flags & batch_normalization_flags::use_global_stats);
+                = !(bool)(flags & normalization_flags::use_global_stats);
 
         auto src_data = map_memory<const float>(src);
         auto weights_data

@@ -27,6 +27,8 @@ inputs passed to the library. Examples of the inputs that may result in
 unexpected consequences:
 * Not-a-number (NaN) floating point values
 * Large `u8` or `s8` inputs may lead to accumulator overflow
+* While the `bf16` 16-bit floating point data type has range close to 32-bit
+  floating point data type, there is a significant reduction in precision.
 
 As Intel MKL-DNN API accepts raw pointers as parameters it's the calling code
 responsibility to

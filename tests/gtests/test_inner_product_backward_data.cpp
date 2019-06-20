@@ -189,7 +189,7 @@ TEST_P(inner_product_test_float, TestsInnerProduct)
 {
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardZeroDim, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -197,7 +197,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::any,
                         EXPAND_SIZES_2D( 0, 32, 48, 6, 6 )}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardDataEF, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -216,7 +216,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         EXPAND_SIZES_2D( 2, -1, 48, 6, 6 ),
                         true, mkldnn_invalid_arguments}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardData_nCdhw8c, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -232,7 +232,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardData_nCdhw16c, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -248,7 +248,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 29, 7, 2, 2, 2) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardData_padded, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -276,7 +276,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 33, 7, 2, 2 ) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardData, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -348,7 +348,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::nc,
                         EXPAND_SIZES_2D( 2, 8, 16, 1, 1 ) }));
 
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestInnerProductBackwardData3D, inner_product_test_float,
         ::testing::Values(
                 inprod_test_params_float{
@@ -367,27 +367,5 @@ CPU_INSTANTIATE_TEST_SUITE_P(
                         memory::format_tag::ndhwc, memory::format_tag::dhwio,
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D( 2, 16, 48, 3, 3, 3 ) }));
-
-GPU_INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardData_padded,
-        inner_product_test_float,
-        ::testing::Values(
-                inprod_test_params_float{
-                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 9, 4, 2, 2) },
-                inprod_test_params_float{
-                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 17, 16, 2, 2) },
-                inprod_test_params_float{
-                        memory::format_tag::nChw16c, memory::format_tag::aBcd16b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 29, 7, 2, 2) },
-                inprod_test_params_float{
-                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 5, 4, 2, 2) },
-                inprod_test_params_float{
-                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 14, 16, 2, 2) },
-                inprod_test_params_float{
-                        memory::format_tag::nChw8c, memory::format_tag::aBcd8b,
-                        memory::format_tag::nc, EXPAND_SIZES_2D(2, 33, 7, 2, 2) }));
 
 }
