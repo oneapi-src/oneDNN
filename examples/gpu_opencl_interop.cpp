@@ -30,8 +30,8 @@
 ///   - Access a GPU command queue via OpenCL interoperability interface
 ///   - Execute a OpenCL kernel with related GPU command queue and GPU memory
 ///   - Create operation descriptor/operation primitives descriptor/primitive .
-///   - Execute the primitive with the initialized GPU memory 
-///   - Validate the result by mapping the OpenCL memory via OpenCL interoperability 
+///   - Execute the primitive with the initialized GPU memory
+///   - Validate the result by mapping the OpenCL memory via OpenCL interoperability
 ///     interface
 ///
 /// @page gpu_opencl_interop_cpp
@@ -39,8 +39,8 @@
 /// @section gpu_opencl_interop_cpp_headers Public headers
 ///
 /// To start using Intel MKL-DNN, we must first include the @ref mkldnn.hpp
-/// header file in the application. We also include CL/cl.h for using 
-/// OpenCL APIs and @ref mkldnn_debug.h, which  contains some debugging 
+/// header file in the application. We also include CL/cl.h for using
+/// OpenCL APIs and @ref mkldnn_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
 /// for common Intel MKL-DNN C types.
 /// All C++ API types and functions reside in the `mkldnn` namespace.
@@ -107,20 +107,20 @@ void gpu_opencl_interop_tutorial() {
     /// To create engines, we must specify the @ref mkldnn::engine::kind
     /// and the index of the device of the given kind. In this example we use
     /// the first available GPU engine, so the index for the engine is 0.
-    /// This example assumes OpenCL being a runtime for GPU. In such case, 
-    /// during engine creation, an OpenCL context is also created and attaches 
+    /// This example assumes OpenCL being a runtime for GPU. In such case,
+    /// during engine creation, an OpenCL context is also created and attaches
     /// to the created engine.
     ///
     /// @snippet  gpu_opencl_interop.cpp Initialize engine
     // [Initialize engine]
     engine eng(engine::kind::gpu, 0);
     // [Initialize engine]
-    
+
     /// In addition to an engine, all primitives require a @ref mkldnn::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
-    /// In this example, a GPU stream is created. 
+    /// In this example, a GPU stream is created.
     /// This example assumes OpenCL being a runtime for GPU. During stream creation,
     /// an OpenCL command queue is also created and attaches to this stream.
     ///
@@ -130,12 +130,12 @@ void gpu_opencl_interop_tutorial() {
     // [Initialize stream]
 
     /// @subsection  gpu_opencl_interop_cpp_sub2 Wrapping data into Intel MKL-DNN memory object
-    /// 
+    ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
-    /// descriptor with these dimensions, with the mkldnn::memory::data_type::f32 
-    /// data type, and with the mkldnn::memory::format_tag::nchw memory format. 
-    /// Finally, we construct a memory object and pass the memory descriptor. 
+    /// descriptor with these dimensions, with the mkldnn::memory::data_type::f32
+    /// data type, and with the mkldnn::memory::format_tag::nchw memory format.
+    /// Finally, we construct a memory object and pass the memory descriptor.
     /// The library allocates memory internally.
     /// @snippet  gpu_opencl_interop.cpp memory alloc
     //  [memory alloc]
@@ -201,7 +201,7 @@ void gpu_opencl_interop_tutorial() {
     /// primitive descriptors are attached to a specific engine and represent
     /// some implementation for this engine. A primitive object is a realization
     /// of a primitive descriptor, and its construction is usually much
-    /// "heavier". 
+    /// "heavier".
     /// @snippet gpu_opencl_interop.cpp relu creation
     //  [relu creation]
     auto relu_d = eltwise_forward::desc(prop_kind::forward,
@@ -232,9 +232,9 @@ void gpu_opencl_interop_tutorial() {
     ///
     /// Before running validation codes, we need to access the OpenCL memory on
     /// the host. The simplest way to access the OpenCL memory is to map it to
-    /// the host using the mkldnn::memory::map_data() and 
-    /// mkldnn::memory::unmap_data() APIs. After mapping, this data is directly 
-    /// accessible  for reading or writing on the host. 
+    /// the host using the mkldnn::memory::map_data() and
+    /// mkldnn::memory::unmap_data() APIs. After mapping, this data is directly
+    /// accessible  for reading or writing on the host.
     /// We can run validation codes on the host accordingly. While
     /// the data is mapped, no GPU-side operations on this data are allowed.
     /// The data should be unmapped to release all resources associated with
