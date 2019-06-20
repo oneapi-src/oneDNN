@@ -1347,7 +1347,7 @@ struct memory: public handle<mkldnn_memory_t> {
                         (int)adims.size(),
                         adims.size() == 0 ? nullptr : &adims[0],
                         convert_to_c(adata_type), convert_to_c(aformat_tag)),
-                    "could not initialize a memory descriptor");
+                    "could not initialize a memory descriptor by tag");
         }
 
         /// Constructs a memory descriptor by strides.
@@ -1362,7 +1362,7 @@ struct memory: public handle<mkldnn_memory_t> {
                         adims.size() == 0 ? nullptr : &adims[0],
                         convert_to_c(adata_type),
                         astrides.size() == 0 ? nullptr : &astrides[0]),
-                    "could not initialize a memory descriptor");
+                    "could not initialize a memory descriptor by strides");
         }
 
         /// Constructs a memory descriptor from a C API data structure.
