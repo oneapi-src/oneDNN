@@ -31,8 +31,8 @@ INST_TEST_CASE(TestGEMM,
     test_params{'n', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000},
     test_params{'t', 't', 2000, 2000, 2000, 1.0, 0.0, 2000, 2000, 2000},
     test_params{'t', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000}
-
 );
+
 CPU_INST_TEST_CASE(TestGEMV,
     test_params{'n', 'n', 2000, 1, 1000, 1.0f, 0.0f, 1000, 1, 1},
     test_params{'n', 'n', 1, 3000, 2000, 1.0f, 0.0f, 2000, 3000, 3000},
@@ -85,7 +85,11 @@ INST_TEST_CASE(TestGEMM_packed,
     make_test_params_pack({false, true}, 'n', 't', 2000, 2000, 2000, 1.0f, 1.0f, 2000, 2000, 2000),
     make_test_params_pack({false, true}, 't', 't', 2000, 2000, 2000, 1.0f, 2.0f, 2000, 2000, 2000),
     make_test_params_pack({true, true}, 't', 't', 2000, 5000, 2000, 1.0f, 2.0f, 2000, 2000, 5000),
-    make_test_params_pack({true, true}, 't', 't', 5000, 100, 2000, 1.0f, 2.0f, 5000, 2000, 100)
+    make_test_params_pack({true, true}, 't', 't', 5000, 100, 2000, 1.0f, 2.0f, 5000, 2000, 100),
+
+    make_test_params_pack({true, false}, 'n', 'n', 150, 150, 8000, 1.0f, 3.0f, 8000, 150, 150),
+    make_test_params_pack({true, true}, 'n', 't', 200, 200, 8000, 1.0f, 3.0f, 8000, 8000, 200),
+    make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f, 3.0f, 200, 300, 300)
 );
 #endif
 
@@ -441,7 +445,11 @@ CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
     make_test_params_pack({true, false}, 'n', 'n', 200, 20000, 2000, 1.0f, 2.0f, 2000, 20000, 20000, col_use_oc),
 
     make_test_params_pack({true, true}, 'n', 'n', 5000, 100, 2000, 1.0f, 2.0f, 2000, 100, 100, row_use_oc),
-    make_test_params_pack({false, true}, 't', 'n', 5000, 100, 2000, 1.0f, 2.0f, 5000, 100, 100, col_use_oc)
+    make_test_params_pack({false, true}, 't', 'n', 5000, 100, 2000, 1.0f, 2.0f, 5000, 100, 100, col_use_oc),
+
+    make_test_params_pack({true, false}, 'n', 'n', 150, 150, 8000, 1.0f, 1.7f, 8000, 150, 150, fix_use_oc),
+    make_test_params_pack({true, true}, 'n', 't', 200, 200, 8000, 1.0f, 3.0f, 8000, 8000, 200, row_use_oc),
+    make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f, 0.0f, 200, 300, 300, col_use_oc)
 );
 
 #endif
