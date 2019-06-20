@@ -1072,52 +1072,65 @@ static inline void set_thread_opts_pack(int nthrs,
         gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
-    bool is_int8 = data_traits<a_type>::data_type == data_type::s8;
+    constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
 
-    auto m = arg->m, n = arg->n;
+    auto m = arg->m, n = arg->n, k = arg->k;
 
     auto &nthr_m = thread_info.nthrs_m;
     auto &nthr_n = thread_info.nthrs_n;
     auto &nthr_k = thread_info.nthrs_k;
+    auto &thread_m = thread_info.thread_m;
+    auto &thread_n = thread_info.thread_n;
+    auto &thread_k = thread_info.thread_k;
+    auto &block_m = thread_info.block_m;
+    auto &block_n = thread_info.block_n;
+    auto &block_k = thread_info.block_k;
 
-    static constexpr auto MBLK = 64;
-    static constexpr auto NBLK = 64;
+    constexpr auto MBLK = 64;
+    constexpr auto NBLK = 64;
+    constexpr auto KBLK = is_int8 ? 3072 : 256;
 
     nthr_m = nthr_n = nthr_k = 1;
     thread_info.copy = copy_type::nonshared;
-    thread_info.partition = partition_type::col_major_2d;
+    thread_info.partition = partition_type::mnk_3d;
 
-    if (mayiuse(avx512_core))
-        std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-                m, n, MBLK, NBLK, MBLK / 2, NBLK / 2, nthrs);
-    else
-        std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-                m, n, MBLK, NBLK, arg->um, NBLK / 2, nthrs);
-
-    auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
-
-    auto &mt = thread_info.thread_m;
-    auto &nt = thread_info.thread_n;
-    auto &bm = thread_info.block_m;
-    auto &bn = thread_info.block_n;
+    auto choose_blocking = [&](dim_t size_z, dim_t &thread_z, int &nthr_z,
+                                   int block_z_init, int &block_z, int block_align) {
+        thread_z = utils::div_up(size_z, nthr_z);
+        auto num_blk = utils::div_up(thread_z, block_z_init);
+        block_z = utils::div_up(thread_z, num_blk);
+        block_z = utils::rnd_up(block_z, block_align);
+        thread_z = num_blk * block_z;
+        if (thread_z * nthr_z > size_z)
+            nthr_z = utils::div_up(size_z, thread_z);
+    };
 
     auto choose_m_blocking = [&]() {
-        mt = utils::div_up(m, nthr_m);
-        auto num_blk_m = utils::div_up(mt, arg->bm);
-        bm = utils::div_up(mt, num_blk_m);
-        bm = utils::rnd_up(bm, get_vector_length<a_type>());
-        mt = num_blk_m * bm;
-        if (mt * nthr_m > m) nthr_m = utils::div_up(m, mt);
+        auto align = is_int8 ? 16 : get_vector_length<a_type>();
+        choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
+    };
+    auto choose_n_blocking = [&]() {
+        choose_blocking(n, thread_n, nthr_n, arg->bn, block_n, arg->un);
+    };
+    auto choose_k_blocking = [&]() {
+        auto align = nstl::max(arg->uk, dim_t(4));
+        choose_blocking(k, thread_k, nthr_k, arg->bk, block_k, align);
     };
 
-    auto choose_n_blocking = [&]() {
-        nt = utils::div_up(n, nthr_n);
-        auto num_blk_n = utils::div_up(nt, arg->bn);
-        bn = utils::div_up(nt, num_blk_n);
-        bn = utils::rnd_up(bn, arg->un);
-        nt = num_blk_n * bn;
-        if (nt * nthr_n > n) nthr_n = utils::div_up(n, nt);
-    };
+    // Choose k blocking.
+    if ((m / MBLK + n / NBLK) < nthrs)
+        for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
+            if (nthrs % nk == 0)
+                nthr_k = nk;
+
+    choose_k_blocking();
+
+    // Choose m/n blocking.
+    auto min_mblk = mayiuse(avx512_core) ? (MBLK / 2) : arg->um;
+    std::tie(nthr_m, nthr_n) = partition_2d_minblk(
+            m, n, MBLK, NBLK, min_mblk, NBLK / 2, nthrs / nthr_k);
+
+    auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
 
     choose_m_blocking();
     choose_n_blocking();
@@ -1125,12 +1138,14 @@ static inline void set_thread_opts_pack(int nthrs,
     if (is_int8) {
         // If we lost a thread in one dimension because we padded the blocking
         // size, try to rebalance the other dimensions.
-        if ((nthr_n != nthr_n_init) && ((nthr_m + 1) * nthr_n <= nthrs)) {
+        if ((nthr_n != nthr_n_init)
+                && ((nthr_m + 1) * nthr_n * nthr_k <= nthrs)) {
             nthr_m++;
             choose_m_blocking();
         }
 
-        if ((nthr_m != nthr_m_init) && (nthr_m * (nthr_n + 1) <= nthrs)) {
+        if ((nthr_m != nthr_m_init)
+                && (nthr_m * (nthr_n + 1) * nthr_k <= nthrs)) {
             nthr_n++;
             choose_n_blocking();
         }
