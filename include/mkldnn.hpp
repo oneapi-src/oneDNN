@@ -1340,13 +1340,13 @@ struct memory: public handle<mkldnn_memory_t> {
         ///
         /// @param adims Data dimensions
         /// @param adata_type Data precision/type.
-        /// @param aformat Data layout format tag.
-        desc(const dims &adims, data_type adata_type,
-                format_tag aformat) {
+        /// @param aformat_tag Data layout format tag.
+        desc(const dims &adims, data_type adata_type, format_tag aformat_tag) {
             validate_dims(adims);
-            error::wrap_c_api(mkldnn_memory_desc_init_by_tag(&data, (int)adims.size(),
+            error::wrap_c_api(mkldnn_memory_desc_init_by_tag(&data,
+                        (int)adims.size(),
                         adims.size() == 0 ? nullptr : &adims[0],
-                        convert_to_c(adata_type), convert_to_c(aformat)),
+                        convert_to_c(adata_type), convert_to_c(aformat_tag)),
                     "could not initialize a memory descriptor");
         }
 
