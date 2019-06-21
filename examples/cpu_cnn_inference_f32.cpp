@@ -21,9 +21,9 @@
 /// @page cpu_cnn_inference_f32_cpp CNN f32 inference example
 
 /// This C++ API example demonstrates how to build an AlexNet neural
-/// network topology for forward-pass inference. 
+/// network topology for forward-pass inference.
 ///
-/// > Example code: @ref cpu_cnn_inference_fp32.cpp
+/// > Example code: @ref cpu_cnn_inference_f32.cpp
 ///
 /// Some key take-aways include:
 ///
@@ -133,7 +133,7 @@ void simple_net(int times = 100) {
 /// [convolution algorithm](@ref dev_guide_convolution), shapes of input,
 /// weights, bias, output, convolution strides, padding, and kind of padding.
 /// Propagation kind is set to prop_kind::forward_inference to optimize for
-/// inference execution and omit computations that are necessary only for 
+/// inference execution and omit computations that are necessary only for
 /// backward propagation.
 /// @snippet cpu_cnn_inference_f32.cpp Create convolution descriptor
 //[Create convolution descriptor]

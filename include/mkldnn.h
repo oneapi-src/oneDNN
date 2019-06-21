@@ -1970,6 +1970,11 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(
 ///      because it returns mkldnn_status_t for error handling.
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
+///
+/// @warning
+///      On some architectures the intermediate saturation might happen,
+///      which would lead to unexpected results. For more details, refer to
+///      @ref dev_guide_int8_computations.
 mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
         char transa, char transb, char offsetc,
         mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
@@ -1978,6 +1983,13 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
         const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
         float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 
+/// gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
+/// operation and add the result to a scalar-matrix product. For the final
+/// result, a vector is added to each row or column of the output matrix.
+///
+/// For full description, see mkldnn_gemm_u8s8s32().
+///
+/// @sa dev_guide_int8_computations
 mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
         char transa, char transb, char offsetc,
         mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,

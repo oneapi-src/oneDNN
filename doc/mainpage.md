@@ -65,6 +65,7 @@ Data manipulation:
 # Advanced topics
 
  * @ref dev_guide_understanding_memory_formats
+ * @ref dev_guide_int8_computations
 
 # Examples
 

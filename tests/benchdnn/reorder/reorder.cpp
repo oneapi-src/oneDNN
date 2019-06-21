@@ -205,12 +205,13 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     const int c_src_max = c_src->min + c_src->range - 1;
     const int c_dst_max = c_dst->min + c_dst->range - 1;
 
-    bool check_inf_p = (dt != mkldnn_f32 && dt != mkldnn_bf16 && dt != mkldnn_s32)
-        && (c_src_max * max_scale > c_dst_max) ? true : false;
-    bool check_inf_n = (dt != mkldnn_f32 && dt != mkldnn_bf16 && dt != mkldnn_s32)
-        && (c_src->min * max_scale < c_dst->min) ? true : false;
-    bool check_zeros = (dt != mkldnn_f32 && dt != mkldnn_bf16)
-        && (dt_min != 0 && dt_max != 0) ? true : false;
+    bool check_int_overflow
+            = (dt != mkldnn_f32 && dt != mkldnn_f16 && dt != mkldnn_bf16);
+    bool check_inf_p = (check_int_overflow && dt != mkldnn_s32)
+            && (c_src_max * max_scale > c_dst_max);
+    bool check_inf_n = (check_int_overflow && dt != mkldnn_s32)
+            && (c_src->min * max_scale < c_dst->min);
+    bool check_zeros = (check_int_overflow) && (dt_min != 0 && dt_max != 0);
 
     bool mistrusted = reg == 0
         || (check_inf_p && inf_p == 0)

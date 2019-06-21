@@ -48,6 +48,14 @@ const _dt_conf_t conf_s32 = {
     {mkldnn_s32,  INT_MIN,   INT_MAX,    -2048,      2048, 0.},
 };
 
+const float16_t flt16_max = mkldnn::impl::nstl::numeric_limits<float16_t>::max();
+const _dt_conf_t conf_f16 = {
+    {mkldnn_f16, -flt16_max, flt16_max, -4, 4, 1e-3},
+    {},
+    {},
+    {mkldnn_f16, -flt16_max, flt16_max, -4, 4, 1e-3},
+};
+
 const int int_max_exact = 1<<24;
 const _dt_conf_t conf_bf16 = {
     /* Although integers are expected, eps is needed to cover
@@ -77,6 +85,7 @@ const dt_conf_t *str2cfg(const char *str) {
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_,cfg)
     CASE(f32);
     CASE(s32);
+    CASE(f16);
     CASE(bf16);
     CASE(s8);
     CASE(u8);
@@ -89,6 +98,7 @@ const char *cfg2str(const dt_conf_t *cfg) {
 #define CASE(_cfg) if (cfg == CONCAT2(conf_,_cfg)) return STRINGIFY(_cfg)
     CASE(f32);
     CASE(s32);
+    CASE(f16);
     CASE(bf16);
     CASE(s8);
     CASE(u8);
