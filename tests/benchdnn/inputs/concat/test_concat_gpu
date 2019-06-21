@@ -1,0 +1,28 @@
+--reset
+
+--sdt=f32
+--ddt=f32
+--dtag=undef,nchw
+--stag=nchw:nchw
+--axis=3 3x4x5x13:3x4x5x17
+--axis=2 5x2x0x8:5x2x8x8
+--axis=0 7x8x4x9:9x8x4x9
+--axis=1 4x16x2x1:4x8x2x1
+
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw
+--axis=1 6x48x3x4x5:6x32x3x4x5:6x16x3x4x5
+
+# f16
+--sdt=f16
+--ddt=f16
+--dtag=undef,nchw
+--stag=nchw:nchw
+--axis=3 3x4x5x13:3x4x5x17
+--axis=2 5x2x0x8:5x2x8x8
+--axis=0 7x8x4x9:9x8x4x9
+--axis=1 4x16x2x1:4x8x2x1
+
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw
+--axis=1 6x48x3x4x5:6x32x3x4x5:6x16x3x4x5

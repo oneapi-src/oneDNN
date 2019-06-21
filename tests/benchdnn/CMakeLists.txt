@@ -141,6 +141,10 @@ register_benchdnn_test(test_benchdnn_eltwise
     cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_all")
 register_benchdnn_test(test_benchdnn_eltwise_bf16
     cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_bfloat16")
+register_benchdnn_test(test_benchdnn_concat
+    cpu "-v1 --concat --batch=inputs/concat/test_concat_all")
+register_benchdnn_test(test_benchdnn_concat_bf16
+    cpu "-v1 --concat --batch=inputs/concat/test_concat_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "-v1 --conv --batch=inputs/test_conv_regression"
@@ -170,6 +174,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --softmax --batch=inputs/softmax/test_softmax_gpu")
     register_benchdnn_test(test_benchdnn_sum
         gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
+    register_benchdnn_test(test_benchdnn_concat
+        gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
 endif()
 
 if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")

@@ -215,6 +215,10 @@ void parse_dims(dims_t &dims, const char *str) {
     parse_vector_str(dims, atoi, str, 'x');
 }
 
+void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
+    parse_multivector_str(dims, atoi, str, ':', 'x');
+}
+
 /* utilities */
 void catch_unknown_options(const char *str, const char *driver_name) {
     last_parsed_is_problem = true; // if reached, means problem parsing

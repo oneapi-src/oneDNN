@@ -1,0 +1,16 @@
+--reset
+
+--allow-unimpl=true # tailed cases on blocked layouts are not implemented if dtag is forced and blocked as well
+
+--sdt=bf16
+--ddt=bf16
+--dtag=undef,nchw,nhwc,nChw16c
+--stag=nchw:nchw       --axis=3 3x4x5x13:3x4x5x17
+--stag=nhwc:nhwc       --axis=2 5x2x0x8:5x2x8x8
+--stag=nChw16c:nChw16c --axis=1 4x16x2x1:4x16x2x1 4x16x2x1:4x15x2x1 4x15x2x1:4x16x2x1 4x15x2x1:4x15x2x1
+
+--dtag=undef,ncdhw,ndhwc,nCdhw8c,nCdhw16c
+--stag=nCdhw16c:ncdhw:ndhwc --axis=1
+6x48x3x4x5:6x32x3x4x5:6x16x3x4x5
+6x48x3x4x5:6x31x3x4x5:6x16x3x4x5
+6x47x3x4x5:6x33x3x4x5:6x15x3x4x5

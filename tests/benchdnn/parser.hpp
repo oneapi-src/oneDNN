@@ -49,16 +49,16 @@ static bool parse_vector_str(T &vec, F process_func, const char *str,
 
 template <typename T, typename F>
 static bool parse_multivector_str(std::vector<T> &vec, F process_func,
-        const char *str, char delimeter = ',') {
+        const char *str, char vector_delim = ',', char element_delim = ':') {
     auto process_subword = [&](const char *word) {
         T v;
-        // parse subwords separated by colon
-        parse_vector_str(v, process_func, word, ':');
+        // parse vector elements separated by @p element_delim
+        parse_vector_str(v, process_func, word, element_delim);
         return v;
     };
 
-    // parse words separated by comma
-    return parse_vector_str(vec, process_subword, str);
+    // parse full vector separated by @p vector_delim
+    return parse_vector_str(vec, process_subword, str, vector_delim);
 }
 
 template <typename T, typename F>
@@ -137,6 +137,8 @@ bool parse_batch(const bench_f bench, const char *str,
 bool parse_bench_settings(const char *str);
 
 void parse_dims(dims_t &dims, const char *str);
+
+void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
 
 void catch_unknown_options(const char *str, const char *driver_name);
 

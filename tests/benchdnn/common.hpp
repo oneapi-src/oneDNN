@@ -111,6 +111,7 @@ enum prim_t {
     POOL,
     SUM,
     ELTWISE,
+    CONCAT,
     DEF = CONV,
 };
 

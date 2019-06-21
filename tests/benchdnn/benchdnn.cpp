@@ -39,6 +39,7 @@
 #include "pool/pool.hpp"
 #include "sum/sum.hpp"
 #include "eltwise/eltwise.hpp"
+#include "concat/concat.hpp"
 
 int verbose {0};
 bench_mode_t bench_mode {CORR};
@@ -68,6 +69,7 @@ int main(int argc, char **argv) {
         else if (!strcmp("--pool", argv[0])) prim = POOL;
         else if (!strcmp("--sum", argv[0])) prim = SUM;
         else if (!strcmp("--eltwise", argv[0])) prim = ELTWISE;
+        else if (!strcmp("--concat", argv[0])) prim = CONCAT;
         else break;
     }
 
@@ -87,6 +89,7 @@ int main(int argc, char **argv) {
     case POOL: pool::bench(argc, argv); break;
     case SUM: sum::bench(argc, argv); break;
     case ELTWISE: eltwise::bench(argc, argv); break;
+    case CONCAT: concat::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
     }
 
