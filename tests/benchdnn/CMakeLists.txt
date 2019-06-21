@@ -145,6 +145,10 @@ register_benchdnn_test(test_benchdnn_concat
     cpu "-v1 --concat --batch=inputs/concat/test_concat_all")
 register_benchdnn_test(test_benchdnn_concat_bf16
     cpu "-v1 --concat --batch=inputs/concat/test_concat_bfloat16")
+register_benchdnn_test(test_benchdnn_lrn
+    cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_all")
+register_benchdnn_test(test_benchdnn_lrn_bf16
+    cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "-v1 --conv --batch=inputs/test_conv_regression"
@@ -176,4 +180,6 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
     register_benchdnn_test(test_benchdnn_concat
         gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
+    register_benchdnn_test(test_benchdnn_lrn
+        gpu "-v1 --lrn --batch=inputs/lrn/test_lrn_gpu")
 endif()
