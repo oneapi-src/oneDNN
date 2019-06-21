@@ -50,10 +50,10 @@ const _dt_conf_t conf_s32 = {
 
 const float16_t flt16_max = mkldnn::impl::nstl::numeric_limits<float16_t>::max();
 const _dt_conf_t conf_f16 = {
-    {mkldnn_f16, -flt16_max, flt16_max, -4, 4, 1e-3},
+    {mkldnn_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
     {},
     {},
-    {mkldnn_f16, -flt16_max, flt16_max, -4, 4, 1e-3},
+    {mkldnn_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
 };
 
 const int int_max_exact = 1<<24;
