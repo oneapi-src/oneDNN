@@ -22,8 +22,8 @@ for Intel Architecture Processors and Intel Processor Graphics.
 > performance library.
 
 Intel MKL-DNN is intended for deep learning applications and framework
-developers intersted in improving application performance
-on Intel CPUs and GPUs. Deep learning practictitioners should use one of the
+developers interested in improving application performance
+on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 applications enabled with Intel MKL-DNN:
 * [Apache\* MXNet](https://mxnet.apache.org)
 * [BigDL](https://github.com/intel-analytics/BigDL)
