@@ -61,7 +61,11 @@ static inline CBLAS_OFFSET cblas_offset(const char *offset) {
 }
 #endif
 
-#if !USE_MKL_PACKED_GEMM
+#if USE_MKL_PACKED_GEMM
+static inline bool pack_sgemm_supported() {
+    return true;
+}
+#else
 static inline bool pack_sgemm_supported() {
     return mayiuse(sse41);
 }
