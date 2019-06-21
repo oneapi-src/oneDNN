@@ -26,8 +26,8 @@ So far it supports and uses the following drivers:
 ## Harness Usage
 ``` sh
     ./benchdnn --DRIVER [--engine=ENGINE_KIND] [--mode=MODE] [--reset] \
-               [--max-ms-per-prb=TIME-IN-MS] [-vN|--verbose=N] \
-               [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
+               [--max-ms-per-prb=TIME-IN-MS] [--fix-times-per-prb=N] \
+               [-vN|--verbose=N] [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
                [--perf-template=PERF_TEMPLATE] \
                [DRIVER-OPTS] PROBLEM-DESCRIPTION [--batch=FILE]
 ```
@@ -42,7 +42,9 @@ where:
             `C`, `c` for correctness [default], `P`, `p` for performance.
  - `--reset` -- reset all the parameters set previously to the default.
  - `--max-ms-per-prb=TIME-IN-MS` -- time spent per problem in milliseconds.
-            Available range [1e2, 60e3], default `3e3`.
+            Available range [1e2, 60e3]. Default is `3e3`.
+ - `--fix-times-per-prb=N` -- number of iterations spent per problem, N must be
+            non-negative. Default is `0` (not applied, time criterion is used).
  - `-vN, --verbose=N` -- verbose level; use for printing additional information.
             Default is `0`.
  - `--skip-impl="str1[:str2]..."` -- skip a specific implementation

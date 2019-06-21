@@ -149,12 +149,21 @@ static bool parse_bench_mode(const char *str,
 
 static bool parse_max_ms_per_prb(const char *str,
         const std::string &option_name = "max-ms-per-prb") {
-    if (parse_single_value_option(max_ms_per_prb, atof, str,
-            option_name)) {
+    if (parse_single_value_option(max_ms_per_prb, atof, str, option_name)) {
         if (max_ms_per_prb < 100)
             max_ms_per_prb = 100;
         else if (max_ms_per_prb > 60e3)
             max_ms_per_prb = 60e3;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_fix_times_per_prb(
+        const char *str, const std::string &option_name = "fix-times-per-prb") {
+    if (parse_single_value_option(fix_times_per_prb, atoi, str, option_name)) {
+        if (fix_times_per_prb < 0)
+            fix_times_per_prb = 0;
         return true;
     }
     return false;
@@ -190,6 +199,7 @@ static bool parse_engine_kind(const char *str,
 bool parse_bench_settings(const char *str) {
     if (parse_bench_mode(str));
     else if (parse_max_ms_per_prb(str));
+    else if (parse_fix_times_per_prb(str));
     else if (parse_verbose(str));
     else if (parse_engine_kind(str));
     else
