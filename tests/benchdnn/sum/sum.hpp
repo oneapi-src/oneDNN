@@ -30,14 +30,20 @@
 namespace sum {
 
 struct prb_t {
-    prb_t(const dims_t &dims, std::vector<mkldnn_data_type_t> sdt,
-            mkldnn_data_type_t ddt, std::vector<mkldnn_format_tag_t> stag,
+    prb_t(const dims_t &dims, const std::vector<mkldnn_data_type_t> &sdt,
+            mkldnn_data_type_t ddt,
+            const std::vector<mkldnn_format_tag_t> &stag,
             mkldnn_format_tag_t dtag, const std::vector<float> &scales)
-        : dims(dims), sdt(sdt), ddt(ddt), stag(stag), dtag(dtag), scales(sdt.size())
-    {
+        : dims(dims)
+        , sdt(sdt)
+        , ddt(ddt)
+        , stag(stag)
+        , dtag(dtag)
+        , scales(sdt.size()) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
-            this->scales[i_input] = ((int)scales.size() == 1) ? scales[0] : scales[i_input];
+            this->scales[i_input]
+                    = ((int)scales.size() == 1) ? scales[0] : scales[i_input];
     }
     ~prb_t() {}
 

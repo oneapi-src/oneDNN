@@ -32,11 +32,17 @@ namespace eltwise {
 using alg_t = attr_t::post_ops_t::kind_t;
 
 struct prb_t {
-    prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
+    prb_t(const dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, alg_t alg, float alpha, float beta,
             bool inplace, int64_t mb = 0)
-        : dims(dims), dir(dir), dt(dt), tag(tag), alg(alg), alpha(alpha),
-        beta(beta), inplace(inplace) {
+        : dims(dims)
+        , dir(dir)
+        , dt(dt)
+        , tag(tag)
+        , alg(alg)
+        , alpha(alpha)
+        , beta(beta)
+        , inplace(inplace) {
         if (mb) this->dims[0] = mb;
     }
     ~prb_t() {}
