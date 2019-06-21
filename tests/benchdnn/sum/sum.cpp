@@ -36,18 +36,16 @@ static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
 
     mkldnn_memory_desc_t dst_d;
 
-    mkldnn_dims_t data_dims;
     const int ndims = (int)p->dims.size();
-    for (int i = 0; i < ndims; ++i)
-        data_dims[i] = p->dims[i];
-
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d[i_input], ndims,
-                    data_dims, p->sdt[i_input], p->stag[i_input]), WARN);
+                         p->dims.data(), p->sdt[i_input], p->stag[i_input]),
+                WARN);
 
     if (p->dtag != mkldnn_format_tag_undef) {
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, ndims, data_dims,
-                p->ddt, p->dtag), WARN);
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                         &dst_d, ndims, p->dims.data(), p->ddt, p->dtag),
+                WARN);
     }
 
     mkldnn_status_t init_status = mkldnn_sum_primitive_desc_create(&spd,

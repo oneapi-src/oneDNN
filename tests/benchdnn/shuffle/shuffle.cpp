@@ -99,16 +99,12 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 
 static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
         mkldnn_primitive_desc_t &spd, res_t *r) {
-
     mkldnn_memory_desc_t data_d;
-    mkldnn_dims_t data_dims;
+
     const int ndims = (int)p->dims.size();
-
-    for (int i = 0; i < ndims; ++i)
-        data_dims[i] = p->dims[i];
-
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&data_d, ndims, data_dims, p->dt,
-                p->tag), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &data_d, ndims, p->dims.data(), p->dt, p->tag),
+            WARN);
 
     if (p->dir == FWD_D) {
         auto prop = mkldnn_forward_training;
