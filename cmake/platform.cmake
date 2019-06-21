@@ -74,9 +74,7 @@ elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     # XXX: Intel SYCL compiler generates a lot of warnings
     append(CMAKE_CCXX_FLAGS "-w")
-    if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND NOT MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
-        append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "-Werror")
-    endif()
+    append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
     # compiler specific settings
