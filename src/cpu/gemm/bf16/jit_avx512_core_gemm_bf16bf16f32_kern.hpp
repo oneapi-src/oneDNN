@@ -26,12 +26,13 @@ namespace cpu {
 
 class jit_avx512_core_gemm_bf16bf16f32_kern : public jit_generator {
 public:
-    jit_avx512_core_gemm_bf16bf16f32_kern(bool beta_zero);
+    jit_avx512_core_gemm_bf16bf16f32_kern(bool beta_zero, bool alpha_one);
     ~jit_avx512_core_gemm_bf16bf16f32_kern();
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemm_bf16bf16f32_kern);
 
 protected:
     bool beta_zero_;
+    bool alpha_one_;
     bool bfloat16_;
 
     void prefetch_a(const Xbyak::Address &src) {

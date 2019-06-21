@@ -45,6 +45,7 @@ enum class offset_type {
 enum {no_sum = 0, do_sum = 1};
 enum {no_trans = 0, do_trans = 1, packed = 2};
 enum {no_beta0 = 0, do_beta0 = 1};
+enum {no_alpha1 = 0, do_alpha1 = 1};
 enum {no_col_offset = 0, do_col_offset = 1};
 enum {no_row_offset = 0, do_row_offset = 1};
 
