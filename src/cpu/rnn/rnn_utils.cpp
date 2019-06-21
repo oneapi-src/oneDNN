@@ -130,7 +130,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             || is_int8;
     bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
             alg_kind::lbr_gru);
-    rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru) || is_int8;
+    rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru);
     bool is_inference = !rnn.is_training;
 
     rnn.use_jit_gemm = !mayiuse(avx512_mic)
