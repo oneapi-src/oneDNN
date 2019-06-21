@@ -25,6 +25,8 @@
 
 namespace parser {
 
+bool last_parsed_is_problem = false;
+
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name/* = "dir"*/) {
     return parse_vector_option(dir, str2dir, str, option_name);
@@ -197,6 +199,8 @@ static bool parse_engine_kind(const char *str,
 }
 
 bool parse_bench_settings(const char *str) {
+    last_parsed_is_problem = false; // if start parsing, expect an option
+
     if (parse_bench_mode(str));
     else if (parse_max_ms_per_prb(str));
     else if (parse_fix_times_per_prb(str));
@@ -213,6 +217,8 @@ void parse_dims(dims_t &dims, const char *str) {
 
 /* utilities */
 void catch_unknown_options(const char *str, const char *driver_name) {
+    last_parsed_is_problem = true; // if reached, means problem parsing
+
     const std::string pattern = "--";
     if (pattern.find(str, 0, pattern.size()) != eol) {
         fprintf(stderr, "%s driver: unknown option: `%s`, exiting...\n",
@@ -221,4 +227,9 @@ void catch_unknown_options(const char *str, const char *driver_name) {
     }
 }
 
+int parse_last_argument() {
+    if (!last_parsed_is_problem)
+        fprintf(stderr, "WARNING: No problem found for a given option!\n");
+    return OK;
+}
 }

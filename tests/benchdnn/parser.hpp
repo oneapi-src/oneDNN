@@ -26,6 +26,7 @@
 
 namespace parser {
 
+extern bool last_parsed_is_problem;
 static const auto eol = std::string::npos;
 
 static inline std::string get_pattern(const std::string &option_name) {
@@ -139,6 +140,7 @@ void parse_dims(dims_t &dims, const char *str);
 
 void catch_unknown_options(const char *str, const char *driver_name);
 
+int parse_last_argument();
 }
 
 #endif

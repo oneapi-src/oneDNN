@@ -107,7 +107,7 @@ int bench(int argc, char **argv) {
         }
     }
 
-    return OK;
+    return parse_last_argument();
 }
 
 }
