@@ -79,11 +79,11 @@ struct base_perf_report_t {
         HANDLE("dir", if (dir()) s << dir2str(*dir()));
         HANDLE("dt", if (dt()) s << dt2str(*dt()));
         HANDLE("group", if (group()) s << *group());
-        HANDLE("idt", if (idt()) s << *idt());
-        HANDLE("itag", if (itag()) s << *itag());
+        HANDLE("sdt", if (sdt()) s << *sdt());
+        HANDLE("stag", if (stag()) s << *stag());
         HANDLE("name", if (name()) s << name());
-        HANDLE("odt", if (odt()) s << dt2str(*odt()));
-        HANDLE("otag", if (otag()) s << fmt_tag2str(*otag()));
+        HANDLE("ddt", if (ddt()) s << dt2str(*ddt()));
+        HANDLE("dtag", if (dtag()) s << fmt_tag2str(*dtag()));
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
         HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
 
@@ -125,13 +125,13 @@ struct base_perf_report_t {
     virtual const int64_t *group() const { return nullptr; }
     virtual const dir_t *dir() const { return nullptr; }
     virtual const mkldnn_data_type_t *dt() const { return nullptr; }
-    virtual const std::vector<mkldnn_data_type_t> *idt() const
+    virtual const std::vector<mkldnn_data_type_t> *sdt() const
     { return nullptr; }
-    virtual const mkldnn_data_type_t *odt() const { return nullptr; }
+    virtual const mkldnn_data_type_t *ddt() const { return nullptr; }
     virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
-    virtual const std::vector<mkldnn_format_tag_t> *itag() const
+    virtual const std::vector<mkldnn_format_tag_t> *stag() const
     { return nullptr; }
-    virtual const mkldnn_format_tag_t *otag() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *dtag() const { return nullptr; }
     virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
 
     /* primitive-specific properties (but with common interface) */

@@ -29,42 +29,42 @@
 
 namespace sum {
 
-std::vector<std::vector<mkldnn_data_type_t>> idt {{mkldnn_f32, mkldnn_f32}};
-std::vector<mkldnn_data_type_t> odt {mkldnn_f32};
-std::vector<std::vector<mkldnn_format_tag_t>> itag {{mkldnn_nchw, mkldnn_nchw}};
-std::vector<mkldnn_format_tag_t> otag {mkldnn_format_tag_undef};
+std::vector<std::vector<mkldnn_data_type_t>> sdt {{mkldnn_f32, mkldnn_f32}};
+std::vector<mkldnn_data_type_t> ddt {mkldnn_f32};
+std::vector<std::vector<mkldnn_format_tag_t>> stag {{mkldnn_nchw, mkldnn_nchw}};
+std::vector<mkldnn_format_tag_t> dtag {mkldnn_format_tag_undef};
 std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
 
 dims_t dims;
 bool allow_unimpl = false;
 const char *perf_template_csv =
-    "perf,%engine%,%idt%,%odt%,%itag%,%otag%,%DESC%,%-time%,%0time%";
-const char *perf_template_def = perf_template_csv;
+    "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
+const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
-    idt = {{mkldnn_f32, mkldnn_f32}};
-    odt = {mkldnn_f32};
-    itag = {{mkldnn_nchw, mkldnn_nchw}};
-    otag = {mkldnn_nchw};
+    sdt = {{mkldnn_f32, mkldnn_f32}};
+    ddt = {mkldnn_f32};
+    stag = {{mkldnn_nchw, mkldnn_nchw}};
+    dtag = {mkldnn_nchw};
     scales = {{0.25}, {1}, {4}};
     allow_unimpl = false;
 }
 
 void check_correctness() {
-    for (const auto &i_idt: idt)
-    for (const auto &i_odt: odt)
-    for (const auto &i_itag: itag)
-    for (const auto &i_otag: otag) {
-        if (i_idt.size() != i_itag.size()) // expect 1:1 match of dt and tag
+    for (const auto &i_sdt: sdt)
+    for (const auto &i_ddt: ddt)
+    for (const auto &i_stag: stag)
+    for (const auto &i_dtag: dtag) {
+        if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
             SAFE_V(FAIL);
 
         for (const auto &i_scales: scales) {
             // expect either single scale value, or 1:1 match of dt and scale
-            if (i_scales.size() != 1 && i_scales.size() != i_idt.size())
+            if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
                 SAFE_V(FAIL);
 
-            const prb_t p(dims, i_idt, i_odt, i_itag, i_otag, i_scales);
+            const prb_t p(dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
             std::stringstream ss;
             ss << p;
             const std::string cpp_pstr = ss.str();
@@ -92,10 +92,10 @@ int bench(int argc, char **argv) {
     for (; argc > 0; --argc, ++argv) {
         if (parse_bench_settings(argv[0]));
         else if (parse_batch(bench, argv[0]));
-        else if (parse_multi_dt(idt, argv[0]));
-        else if (parse_dt(odt, argv[0], "odt"));
-        else if (parse_multi_tag(itag, argv[0]));
-        else if (parse_tag(otag, argv[0], "otag"));
+        else if (parse_multi_dt(sdt, argv[0]));
+        else if (parse_dt(ddt, argv[0], "ddt"));
+        else if (parse_multi_tag(stag, argv[0]));
+        else if (parse_tag(dtag, argv[0], "dtag"));
         else if (parse_multivector_option(scales, atof, argv[0], "scales"));
         else if (parse_allow_unimpl(allow_unimpl, argv[0]));
         else if (parse_perf_template(perf_template, perf_template_def,

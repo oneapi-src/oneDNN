@@ -1,25 +1,25 @@
 # f32
 --reset
 
---odt=f32
---idt=f32:f32
---otag=undef,nchw
---itag=nchw:nchw       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
+--ddt=f32
+--sdt=f32:f32
+--dtag=undef,nchw
+--stag=nchw:nchw       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
 
---idt=f32:f32:f32
---otag=undef,ncdhw
---itag=ncdhw:ncdhw:ncdhw
---scales=1.25:3:0.45   16x2x6x4x3
+--sdt=f32:f32:f32
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw
+--scales=1.25:3:0.5    16x2x6x4x3
 
 # f16
 --reset
 
---odt=f16
---idt=f16:f16
---otag=undef,nchw
---itag=nchw:nchw       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
+--ddt=f16
+--sdt=f16:f16
+--dtag=undef,nchw
+--stag=nchw:nchw       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
 
---idt=f16:f16:f16
---otag=undef,ncdhw
---itag=ncdhw:ncdhw:ncdhw
---scales=1.25:3:0.45   16x2x6x4x3
+--sdt=f16:f16:f16
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw
+--scales=1.25:3:0.5    16x2x6x4x3

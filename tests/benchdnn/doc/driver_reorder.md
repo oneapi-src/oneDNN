@@ -7,13 +7,13 @@
 
 where *reorder-knobs* are:
 
- - `--idt={f32 [default], s32, s8, u8, bf16, f16}` -- src data type.
+ - `--sdt={f32 [default], s32, s8, u8, bf16, f16}` -- src data type.
             Refer to the common glossary in README.md for details.
- - `--odt={f32 [default], s32, s8, u8, bf16, f16}` -- dst data type.
+ - `--ddt={f32 [default], s32, s8, u8, bf16, f16}` -- dst data type.
             Refer to the common glossary in README.md for details.
- - `--itag={nchw [default], ...}` -- physical src memory layout.
+ - `--stag={nchw [default], ...}` -- physical src memory layout.
             Refer to the common glossary in README.md for details.
- - `--otag={nchw [default], ...}` -- physical dst memory layout.
+ - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
             Refer to knobs_attr.md for details.
@@ -47,8 +47,8 @@ Run two specific reorders with s8 src and dst data type, bootstrap algorithm,
 and specific input and output physical memory layouts. First problem without
 a flag; second problem with the `conv_s8s8` flag:
 ``` sh
-    ./benchdnn --reorder --alg=bootstrap --idt=s8 --odt=s8 \
-               --itag=hwio --otag=OIhw4i16o4i 32x32x3x3 \
+    ./benchdnn --reorder --alg=bootstrap --sdt=s8 --ddt=s8 \
+               --stag=hwio --dtag=OIhw4i16o4i 32x32x3x3 \
                --oflag=conv_s8s8 16x32x7x5
 ```
 

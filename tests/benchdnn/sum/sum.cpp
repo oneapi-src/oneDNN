@@ -43,15 +43,15 @@ static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d[i_input], ndims,
-                    data_dims, p->idt[i_input], p->itag[i_input]), WARN);
+                    data_dims, p->sdt[i_input], p->stag[i_input]), WARN);
 
-    if (p->otag != mkldnn_format_tag_undef) {
+    if (p->dtag != mkldnn_format_tag_undef) {
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, ndims, data_dims,
-                p->odt, p->otag), WARN);
+                p->ddt, p->dtag), WARN);
     }
 
     mkldnn_status_t init_status = mkldnn_sum_primitive_desc_create(&spd,
-            p->otag != mkldnn_format_tag_undef ? &dst_d : NULL,
+            p->dtag != mkldnn_format_tag_undef ? &dst_d : NULL,
             p->n_inputs(), p->scales.data(), src_d.data(), NULL, engine_tgt);
 
     if (init_status == mkldnn_unimplemented)
@@ -112,7 +112,7 @@ int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
 
     const auto nelems = mem_fp.nelems();
-    const auto dt = p->idt[input_idx];
+    const auto dt = p->sdt[input_idx];
     const int range = 16;
     const int f_min = dt == mkldnn_u8 ? 0 : -range / 2;
 

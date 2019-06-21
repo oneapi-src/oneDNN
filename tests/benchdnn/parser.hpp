@@ -94,13 +94,13 @@ bool parse_dt(std::vector<mkldnn_data_type_t> &dt, const char *str,
         const std::string &option_name = "dt");
 
 bool parse_multi_dt(std::vector<std::vector<mkldnn_data_type_t>> &dt,
-        const char *str, const std::string &option_name = "idt");
+        const char *str, const std::string &option_name = "sdt");
 
 bool parse_tag(std::vector<mkldnn_format_tag_t> &tag, const char *str,
         const std::string &option_name = "tag");
 
 bool parse_multi_tag(std::vector<std::vector<mkldnn_format_tag_t>> &tag,
-        const char *str, const std::string &option_name = "itag");
+        const char *str, const std::string &option_name = "stag");
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,
         const std::string &option_name = "mb");
