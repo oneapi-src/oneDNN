@@ -28,7 +28,6 @@
 #include "mkldnn_types.h"
 
 struct dims_t: public std::vector<int64_t> {};
-dims_t str2dims(const char *str);
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
 std::ostream &operator<<(std::ostream &s,

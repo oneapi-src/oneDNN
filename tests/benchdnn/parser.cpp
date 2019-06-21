@@ -207,6 +207,10 @@ bool parse_bench_settings(const char *str) {
     return true;
 }
 
+void parse_dims(dims_t &dims, const char *str) {
+    parse_vector_str(dims, atoi, str, 'x');
+}
+
 /* utilities */
 void catch_unknown_options(const char *str, const char *driver_name) {
     const std::string pattern = "--";

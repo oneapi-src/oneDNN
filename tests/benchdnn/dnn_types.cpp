@@ -30,20 +30,6 @@
 #include "mkldnn_debug.hpp"
 #include "src/common/math_utils.hpp"
 
-dims_t str2dims(const char *str) {
-    dims_t dims;
-    do {
-        int len;
-        int64_t dim;
-        int scan = sscanf(str, IFMT "%n", &dim, &len);
-        SAFE_V(scan == 1 ? OK : FAIL);
-        dims.push_back(dim);
-        str += len;
-        SAFE_V(*str == 'x' || *str == '\0' ? OK : FAIL);
-    } while (*str++ != '\0');
-    return dims;
-}
-
 // returns dims with current @p off values using actual values from @p dims
 dims_t off2dims_idx(const dims_t &dims, int64_t off) {
     dims_t dims_idx;

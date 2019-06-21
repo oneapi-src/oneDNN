@@ -135,6 +135,8 @@ bool parse_batch(const bench_f bench, const char *str,
 
 bool parse_bench_settings(const char *str);
 
+void parse_dims(dims_t &dims, const char *str);
+
 void catch_unknown_options(const char *str, const char *driver_name);
 
 }
