@@ -17,6 +17,8 @@
 #ifndef OCL_TYPES_H
 #define OCL_TYPES_H
 
+#include "ocl/ocl_math_utils.h"
+
 #if DT_F32 == 1
 #    define DATA_T float
 #    define DATA8_T float8
@@ -27,6 +29,7 @@
 #    define DEF_ACC_DATA_T float
 #    define DEF_ACC_DATA8_T float8
 #    define TO_DATA_T(v) (float)(v)
+#    define TO_DEF_ACC_DATA_T(v) (float)(v)
 #    define CONVERT_DATA_T convert_float
 #    define CONVERT_DATA8_T convert_float8
 #    define ROUND
@@ -58,6 +61,7 @@
 #    define DEF_ACC_DATA_T half
 #    define DEF_ACC_DATA8_T half8
 #    define TO_DATA_T(v) (half)(v)
+#    define TO_DEF_ACC_DATA_T(v) (half)(v)
 #    define CONVERT_DATA_T convert_half
 #    define CONVERT_DATA8_T convert_half8
 #    define ROUND
@@ -68,6 +72,35 @@
 #    define BLOCK_WRITE8 intel_sub_group_block_write_us8
 #    define AS_DATA_T as_half
 #    define AS_DATA8_T as_half8
+
+#    define AS_UINT_T as_ushort
+#    define AS_UINT8_T as_ushort8
+
+#    define BLOCK_DATA_T ushort
+#    define BLOCK_DATA8_T ushort8
+#    define AS_BLOCK_DATA_T as_ushort
+#    define AS_BLOCK_DATA8_T as_ushort8
+#elif DT_BF16 == 1
+#    define DATA_T ushort
+#    define DATA8_T ushort8
+#    define DATA_MAX FLT_MAX
+#    define DATA_MIN -DATA_MAX
+#    define DATA_ZERO 0.0f
+#    define DATA_ONE 1.0f
+#    define DEF_ACC_DATA_T float
+#    define DEF_ACC_DATA8_T float8
+#    define TO_DATA_T(v) convert_f32_to_bf16(v)
+#    define TO_DEF_ACC_DATA_T(v) convert_bf16_to_f32(v)
+#    define CONVERT_DATA_T convert_f32_to_bf16
+#    define CONVERT_DATA8_T convert_bf16_8
+#    define ROUND
+
+#    define BLOCK_READ intel_sub_group_block_read_us
+#    define BLOCK_WRITE intel_sub_group_block_write_us
+#    define BLOCK_READ8 intel_sub_group_block_read_us8
+#    define BLOCK_WRITE8 intel_sub_group_block_write_us8
+#    define AS_DATA_T as_bf16
+#    define AS_DATA8_T as_bf16_8
 
 #    define AS_UINT_T as_ushort
 #    define AS_UINT8_T as_ushort8

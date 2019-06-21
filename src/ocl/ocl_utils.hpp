@@ -527,6 +527,7 @@ struct ocl_jit_t {
 
     void set_data_type(data_type_t dt) {
         switch (dt) {
+        case data_type::bf16: define_int("DT_BF16", 1); break;
         case data_type::f16: define_int("DT_F16", 1); break;
         case data_type::f32: define_int("DT_F32", 1); break;
         case data_type::s8: define_int("DT_S8", 1); break;
