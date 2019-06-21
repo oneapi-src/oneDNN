@@ -56,14 +56,14 @@ const _dt_conf_t conf_f16 = {
     {mkldnn_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
 };
 
-const int int_max_exact = 1<<24;
+const bfloat16_t bflt16_max = mkldnn::impl::nstl::numeric_limits<bfloat16_t>::max();
 const _dt_conf_t conf_bf16 = {
     /* Although integers are expected, eps is needed to cover
      * for the division error */
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 1e-2},
+    {mkldnn_bf16, -bflt16_max, bflt16_max, -32, 32, 1e-2},
     {},
     {},
-    {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 5e-2},
+    {mkldnn_bf16, -bflt16_max, bflt16_max, -32, 32, 5e-2},
 };
 
 const _dt_conf_t conf_s8 = {
