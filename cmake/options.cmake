@@ -82,12 +82,16 @@ set(MKLDNN_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
 # Profiling capabilities
 # ======================
 
+# TODO: restore default to ON after the issue with linking C files by DPC++
+# compiler is fixed.
+# DPC++ compiler issues a warning when linking object files built from C and C++
+# sources.
 option(MKLDNN_ENABLE_JIT_PROFILING
     "Enable registration of Intel(R) MKL-DNN kernels that are generated at
     runtime with Intel VTune Amplifier (on by default). Without the
     registrations, Intel VTune Amplifier would report data collected inside
     the kernels as `outside any known module`."
-    ON)
+    OFF)
 
 # ===================
 # Engine capabilities

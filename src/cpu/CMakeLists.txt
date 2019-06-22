@@ -26,6 +26,18 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
     )
 
+# Exclude sources for JIT profiling when JIT profiling is disabled
+if(NOT MKLDNN_ENABLE_JIT_PROFILING)
+    set(sources_all "${SOURCES}")
+    set(SOURCES)
+    foreach(src ${sources_all})
+        string(REGEX MATCH ".*jitprofiling.*" match ${src})
+        if(NOT match)
+            list(APPEND SOURCES ${src})
+        endif()
+    endforeach()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root
