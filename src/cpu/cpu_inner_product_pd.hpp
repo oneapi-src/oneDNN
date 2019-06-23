@@ -57,7 +57,7 @@ inline memory_format_t src_compatible_fmt(int ndims, memory_format_t wei_fmt) {
         return nc;
     else if (one_of(wei_fmt, oiw, oihw, oidhw))
         return utils::pick(ndims - 3, ncw, nchw, ncdhw);
-    else if (one_of(wei_fmt, wio, hwio, dhwio))
+    else if (one_of(wei_fmt, wio, owi, hwio, ohwi, dhwio, odhwi))
         return utils::pick(ndims - 3, nwc, nhwc, ndhwc);
     else if (one_of(wei_fmt, oIhw8i, oIdhw8i))
         return utils::pick(ndims - 4, nChw8c, nCdhw8c);
