@@ -139,49 +139,70 @@ static inline dim_t get_ld_padd(const dim_t x) {
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline dim_t get_k_padd(dim_t k,
-        const gemm_info_t<a_type, b_type, c_type> *arg)
-{
-    dim_t k_padd = 0;
+static inline dim_t get_k_padd(
+        int ithr, dim_t k, const gemm_info_t<a_type, b_type, c_type> *arg) {
+    if (arg->a_packed) {
+        dim_t block_m, block_k;
+        arg->a_packed->get_blocking(ithr, block_m, block_k);
+        return block_k;
+    } else if (arg->b_packed) {
+        dim_t block_n, block_k;
+        arg->b_packed->get_blocking(ithr, block_k, block_n);
+        return block_k;
+    } else {
+        dim_t k_padd = 0;
 
-    if (k <= arg->bk_traditional) {
-        k_padd = utils::rnd_up(k, arg->uk);
-        k_padd = nstl::max(dim_t(128), k_padd);
-    } else if (k < 2 * arg->bk)
-        k_padd = utils::rnd_up((k + 1) / 2, arg->uk);
-    else
-        k_padd = arg->bk;
+        if (k <= arg->bk_traditional) {
+            k_padd = utils::rnd_up(k, arg->uk);
+            k_padd = nstl::max(dim_t(128), k_padd);
+        } else if (k < 2 * arg->bk)
+            k_padd = utils::rnd_up((k + 1) / 2, arg->uk);
+        else
+            k_padd = arg->bk;
 
-    return k_padd;
+        return k_padd;
+    }
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline dim_t get_m_padd(dim_t m,
-        const gemm_info_t<a_type, b_type, c_type> *arg)
-{
-    return utils::rnd_up(nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
+static inline dim_t get_m_padd(
+        int ithr, dim_t m, const gemm_info_t<a_type, b_type, c_type> *arg) {
+    if (arg->a_packed) {
+        dim_t block_m, block_k;
+        arg->a_packed->get_blocking(ithr, block_m, block_k);
+        return block_m;
+    } else
+        return utils::rnd_up(
+                nstl::min(nstl::max(m, arg->um), arg->bm), arg->um);
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline dim_t get_m_padd_parallel_a(dim_t m,
-        const gemm_info_t<a_type, b_type, c_type> *arg, int nthrs)
-{
-    static constexpr auto multiplier = 10;
-    auto m_padd = get_m_padd(m, arg);
+static inline dim_t get_m_padd_parallel_a(int ithr, dim_t m,
+        const gemm_info_t<a_type, b_type, c_type> *arg, int nthrs) {
+    auto m_padd = get_m_padd(ithr, m, arg);
 
-    m_padd *= nstl::max(nthrs, multiplier);
-    if (m_padd > m)
-        m_padd = utils::rnd_up(m, arg->um);
+    if (!arg->a_packed) {
+        constexpr auto multiplier = 10;
+
+        m_padd *= nstl::max(nthrs, multiplier);
+        if (m_padd > m)
+            m_padd = utils::rnd_up(m, arg->um);
+    }
 
     return m_padd;
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline dim_t get_n_padd(dim_t n, dim_t k,
-        const gemm_info_t<a_type, b_type, c_type> *arg)
-{
-    auto bn = (k < arg->blocking_small_k) ? arg->bn_small_k : arg->bn;
-    return utils::rnd_up(nstl::min(nstl::max(n, arg->un), bn), arg->un);
+static inline dim_t get_n_padd(int ithr, dim_t n, dim_t k,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+    if (arg->b_packed) {
+        dim_t block_n, block_k;
+        arg->b_packed->get_blocking(ithr, block_k, block_n);
+        return block_n;
+    } else {
+        auto bn = (k < arg->blocking_small_k) ? arg->bn_small_k : arg->bn;
+        return utils::rnd_up(nstl::min(nstl::max(n, arg->un), bn), arg->un);
+    }
 }
 
 static inline void *align(void *ptr, size_t alignment) {
@@ -560,9 +581,9 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     }
 
     // Get block sizes.
-    dim_t k_padd = get_k_padd(k, arg);
-    dim_t m_padd = get_m_padd(m, arg);
-    dim_t n_padd = get_n_padd(n, k, arg);
+    dim_t k_padd = get_k_padd(ithr, k, arg);
+    dim_t m_padd = get_m_padd(ithr, m, arg);
+    dim_t n_padd = get_n_padd(ithr, n, k, arg);
 
     // Padding for temporary buffer for C
     dim_t ldc_buf = get_ld_padd<c_type>(m_padd);
@@ -761,7 +782,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     }
 
     // Padding along N dimension.
-    dim_t n_padd = get_n_padd(n, k, arg);
+    dim_t n_padd = get_n_padd(ithr, n, k, arg);
 
     // Padding for temporary buffer for C
     dim_t ldc_buf = get_ld_padd<c_type>(m);
@@ -1248,8 +1269,8 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
     }
 
     // Padding along M, K dimensions.
-    dim_t m_padd = get_m_padd_parallel_a(m, arg, nthrs);
-    dim_t k_padd = get_k_padd(k, arg);
+    dim_t m_padd = get_m_padd_parallel_a(ithr, m, arg, nthrs);
+    dim_t k_padd = get_k_padd(ithr, k, arg);
 
     size_t a_buf_nelems = m_padd * k_padd;
 
@@ -1335,7 +1356,8 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
                             a_row_sum + offset);
                 }
             }
-            mkldnn_thr_barrier(); // Wait for finishing parallel copy.
+            if (!a_packed)
+                mkldnn_thr_barrier(); // Wait for finishing parallel copy.
 
             const b_type *b_block = b + Bk * strideBm;
             c_type *c_block = c + Bm;
@@ -1361,7 +1383,8 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
             if (this_result != mkldnn_success)
                 result = this_result;
 
-            mkldnn_thr_barrier(); // Wait for kernel computations to finish.
+            if (!a_packed)
+                mkldnn_thr_barrier(); // Wait for kernel computations to finish.
         }
     }
 
@@ -1496,7 +1519,8 @@ static mkldnn_status_t gemm_threading_driver(
         if (!arg->b_packed->has_col_sums())
             return mkldnn_invalid_arguments;
 
-    int nthr_goal = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    auto nthr_max = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    int nthr_goal = nthr_max;
 
     adjust_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr_goal);
 
@@ -1541,11 +1565,12 @@ static mkldnn_status_t gemm_threading_driver(
 
                 auto m = slice.m, n = slice.n, k = slice.k;
 
-                auto m_padd = (thread_info.copy == copy_type::shared_a) ?
-                        get_m_padd_parallel_a(m, arg, thread_info.nthrs()) :
-                        get_m_padd(m, arg);
-                auto n_padd = get_n_padd(n, k, arg);
-                auto k_padd = get_k_padd(k, arg);
+                auto m_padd = (thread_info.copy == copy_type::shared_a)
+                        ? get_m_padd_parallel_a(
+                                  ithr, m, arg, thread_info.nthrs())
+                        : get_m_padd(ithr, m, arg);
+                auto n_padd = get_n_padd(ithr, n, k, arg);
+                auto k_padd = get_k_padd(ithr, k, arg);
 
                 do_a ? pack_dst->set_blocking(ithr, m, k, m_padd, k_padd)
                      : pack_dst->set_blocking(ithr, k, n, k_padd, n_padd);
@@ -1620,8 +1645,12 @@ static mkldnn_status_t gemm_threading_driver(
 
     char *shared_mem = NULL;
 
-    parallel(nthr_goal, [&](int ithr, int nthr) {
-        int nthr_eff = force_threading ? nthr_goal : nthr;
+    // For pack GEMM, always use the maximum number of threads to avoid
+    // OMP overhead that can occur due to changing thread counts.
+    int nthr_spawn = (is_a_packed || is_b_packed) ? nthr_max : nthr_goal;
+
+    parallel(nthr_spawn, [&](int ithr, int nthr) {
+        int nthr_eff = force_threading ? nthr_goal : nstl::min(nthr_goal, nthr);
 
         if (nthr_eff == 1) {
             thread_arg[0].result = gemm_kernel_driver(0, arg->m, arg->n, arg->k,
