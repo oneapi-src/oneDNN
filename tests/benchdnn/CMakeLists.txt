@@ -177,7 +177,3 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_concat
         gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
 endif()
-
-if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-    install(TARGETS benchdnn RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-endif()
