@@ -289,3 +289,12 @@ status_t mkldnn_primitive_attr_set_rnn_weights_qparams(
 
     return attr->rnn_weights_qparams_.set(count, mask, scales);
 }
+
+status_t MKLDNN_API mkldnn_primitive_attr_set_rnn_tparams(
+        mkldnn_primitive_attr_t attr, bool mode, dim_t ngates,
+        const float *scales, float cscale) {
+    if (attr == nullptr)
+        return invalid_arguments;
+
+    return attr->rnn_tparams_.set(mode, ngates, scales, cscale);
+}

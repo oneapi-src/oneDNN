@@ -40,6 +40,59 @@ struct rnn_data_qparams_t : public c_compatible {
     float shift_;
 };
 
+struct rnn_tparams_t : public c_compatible {
+    rnn_tparams_t()
+        : test_mode_(false), scales_(nullptr), ngates_(0), cscale_(0.0f) {}
+
+    rnn_tparams_t(const rnn_tparams_t &rhs) : rnn_tparams_t() {
+        set(rhs.test_mode_, rhs.ngates_, rhs.scales_, rhs.cscale_);
+    }
+
+    ~rnn_tparams_t() {
+        test_mode_ = false;
+        if (scales_ != nullptr)
+            impl::free(scales_);
+        scales_ = nullptr;
+        ngates_ = 0;
+        cscale_ = 0.0f;
+    }
+
+    rnn_tparams_t &operator=(const rnn_tparams_t &rhs) {
+        MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+        status_t status
+                = set(rhs.test_mode_, rhs.ngates_, rhs.scales_, rhs.cscale_);
+        assert(status == status::success);
+        (void)status;
+        return *this;
+    }
+
+    bool has_default_values() const {
+        return (test_mode_ == false && scales_ == nullptr && ngates_ == 0
+                && cscale_ == 0.0f);
+    }
+
+    status_t set(bool mode, dim_t ngates, const float *scales, float cscale) {
+        test_mode_ = mode;
+        ngates_ = ngates;
+        scales_ = nullptr;
+        if (scales != nullptr) {
+            scales_ = (float *)impl::malloc(ngates_ * sizeof(*scales_), 64);
+            if (scales_ == nullptr)
+                return status::out_of_memory;
+            utils::array_copy(scales_, scales, ngates_);
+        }
+
+        cscale_ = cscale;
+
+        return status::success;
+    }
+
+    bool test_mode_; /* we could also use scale_ == nullptr as a test to check test_mode*/
+    float *scales_;
+    dim_t ngates_; /* ngates is equel to the number of scales */
+    float cscale_; /* =0.0f if no c state */
+};
+
 struct scales_t: public c_compatible {
     scales_t(): count_(1), mask_(0), scales_(scales_buf_)
     { set(1.); }
@@ -160,11 +213,11 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
      *
      * @note The scratchpad_mode_ is not take into account */
     bool has_default_values() const {
-       return true
-            && output_scales_.has_default_values()
-            && post_ops_.has_default_values()
-            && rnn_data_qparams_.has_default_values()
-            && rnn_weights_qparams_.has_default_values();
+        return true && output_scales_.has_default_values()
+                && post_ops_.has_default_values()
+                && rnn_data_qparams_.has_default_values()
+                && rnn_weights_qparams_.has_default_values()
+                && rnn_tparams_.has_default_values();
     }
 
     mkldnn::impl::status_t set_scratchpad_mode(
@@ -177,6 +230,7 @@ struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
     mkldnn::impl::post_ops_t post_ops_;
     mkldnn::impl::rnn_data_qparams_t rnn_data_qparams_;
     mkldnn::impl::scales_t rnn_weights_qparams_;
+    mkldnn::impl::rnn_tparams_t rnn_tparams_;
 };
 
 #endif
