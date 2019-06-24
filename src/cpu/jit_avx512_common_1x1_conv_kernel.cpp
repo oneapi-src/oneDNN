@@ -1233,7 +1233,12 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp,
             }
         }
 
-        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
+        const bool ready_for_async =
+            utils::one_of(jcp.ver, ver_fma, ver_avx512_core);
+        if (!ready_for_async && !mkldnn_thr_syncable()) {
+            assert(nthr_mb == 1);
+            break;
+        }
     }
     if (jcp.nthr_mb > nthreads / 2 && jcp.nthr_mb < nthreads)
         jcp.nthr_mb = nstl::min(jcp.mb, nthreads);

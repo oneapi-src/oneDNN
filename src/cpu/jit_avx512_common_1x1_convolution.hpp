@@ -301,7 +301,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public cpu_primitive_t
             if (with_bias()) {
                 reducer_bia_conf_.init(reduce_balancer_t(jcp_.nthr,
                             jcp_.oc_block, jcp_.ngroups * jcp_.nb_load,
-                            jcp_.mb, max_buffer_size));
+                            jcp_.mb, max_buffer_size, true));
             }
         }
     };
