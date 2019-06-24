@@ -63,12 +63,13 @@ The complete list of the removed C++ classes and functions:
     struct mkldnn::relu_forward {}
     struct mkldnn::relu_backward {}
     struct mkldnn::rnn_cell {}
+    struct mkldnn::rnn_forward {}
+    struct mkldnn::rnn_backward {}
 
     mkldnn::sum::primitive_desc(const memory::desc &output, std::vector<double> scale, std::vector<memory::primitive_desc> inputs);
     mkldnn::sum::primitive_desc(std::vector<double> scale, std::vector<memory::primitive_desc> inputs);
     mkldnn::eltwise_forward::desc(prop_kind aprop_kind, const memory::desc &src_desc, T negative_slope);
     mkldnn::eltwise_backward::desc(const memory::desc &diff_data_desc, const memory::desc &data_desc, T negative_slope);
-    mkldnn::rnn_backward::primitive_desc(const desc &desc, const engine &e);
 ~~~
 
 ### 1.2. Rename `foo_v2()` to `foo()` and remove old `foo()` (C API only)
@@ -162,7 +163,7 @@ is now initialized by a separate function/operation descriptor constructor.
 
 For instance, instead of using mkldnn::rnn_forward with specified RNN types
 a user is expected to use:
-- mkldnn::rnn_forward for Vanilla RNN
+- mkldnn::vanilla_rnn_forward for Vanilla RNN
 - mkldnn::lstm_forward for LSTM
 - mkldnn::gru_forward for GRU
 - mkldnn::lbr_gru_forward for the linear-before-reset variant of GRU
