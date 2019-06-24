@@ -32,7 +32,7 @@
 
 namespace pool {
 
-std::vector<dir_t> dir {FWD_B};
+std::vector<dir_t> dir {FWD_D};
 std::vector<const dt_conf_t *> cfg {conf_f32};
 std::vector<mkldnn_format_tag_t> tag {mkldnn_nchw};
 std::vector<alg_t> alg {MAX};
@@ -46,7 +46,7 @@ const char *perf_template_def = "perf,%engine%,%name%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
-    dir = {FWD_B};
+    dir = {FWD_D};
     cfg = {conf_f32};
     mb = {0};
     tag = {mkldnn_nchw};
