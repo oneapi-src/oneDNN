@@ -23,32 +23,41 @@ Known policies are:
   - `common` corresponds to `mask=0` with common scale factor
   - `per_oc` corresponds to `mask=1<<1` (i.e. output channels) with different
      scale factors
-  - `per_dim_0` corresponds to ???. TBA.
-  - `per_dim_1` corresponds to ???. TBA.
-  - `per_dim_01` corresponds to ???. TBA.
+  - `per_dim_0` corresponds to `mask=1<<0`.
+  - `per_dim_1` corresponds to `mask=1<<1`, same as `per_oc`.
+  - `per_dim_01` corresponds to `mask=(1<<0)+(1<<1)`.
 
-`post_ops` stands for post operation sequence. Currently supported post
-operations are:
+`post_ops` stands for post operation sequence. All post operations support
+output scale, which is used as a multiplier before the result is stored.
+Some post operations support custom alpha and beta constants with a default
+value of 0.
 
-#TBA about optional scale. Looks like it is not everywhere reasonable or even
-supported.
-  - `sum` with optional parameter scale (default is 1.0)
-  - `relu` with optional parameter scale (default is 1.0)
-  - `brelu` with optional parameter scale (default is 1.0)
-  - `srelu` with optional parameter scale (default is 1.0)
-  - `tanh` with optional parameter scale (default is 1.0)
-  - `elu` with optional parameter scale (default is 1.0)
-  - `abs` with optional parameter scale (default is 1.0)
-  - `sqrt` with optional parameter scale (default is 1.0)
-  - `linear` with optional parameter scale (default is 1.0)
-  - `logistic` with optional parameter scale (default is 1.0)
-  - `exp` with optional parameter scale (default is 1.0)
-  - `square` with optional parameter scale (default is 1.0)
+Currently supported post operations:
+  - `sum` -- appends operation result to the output.
+
+Eltwise operations that support no alpha or beta:
+  - `abs`
+  - `exp`
+  - `gelu`
+  - `logistic`
+  - `sqrt`
+  - `square`
+  - `srelu`
+  - `tanh`
+
+Eltwise operations that support only alpha:
+  - `brelu`
+  - `elu`
+  - `relu`
+
+Eltwise operations that support both alpha and beta:
+  - `linear`
+
 
 ## Examples:
 
 Run a set of f32 forward convolutions without bias appending accumulation into
-destination and performs relu on the output with scale set to 0.5:
+destination and perform relu on the output with scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=f32 --dir=FWD_D \
                --attr=post_ops='sum;relu:0.5' --batch=conv_tails

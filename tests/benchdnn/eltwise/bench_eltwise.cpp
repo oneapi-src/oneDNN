@@ -71,21 +71,21 @@ void check_correctness() {
     for (const auto &i_mb: mb) {
         using pk = attr_t::post_ops_t::kind_t;
 
-        // iterator over alpha and beta
+        // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
-        case pk::TANH:
-        case pk::SQUARE:
         case pk::ABS:
-        case pk::SQRT:
-        case pk::SRELU:
-        case pk::LOGISTIC:
         case pk::EXP:
         case pk::GELU:
+        case pk::LOGISTIC:
+        case pk::SQRT:
+        case pk::SQUARE:
+        case pk::SRELU:
+        case pk::TANH:
             // Skip everything except single alpha and beta value
             if (i_alpha != 0 || i_beta != 0) continue;
-        case pk::RELU:
-        case pk::ELU:
         case pk::BRELU:
+        case pk::ELU:
+        case pk::RELU:
             // Test several alpha values but single beta
             if (i_beta != 0) continue;
 

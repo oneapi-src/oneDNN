@@ -11,7 +11,7 @@ where *conv-knobs* are:
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
             -- mkldnn_prop_kind_t. Refer to the common glossary in README.md for
             details.
- - `--cfg={f32 [default], u8s8u8s32, ...}` -- Refer to ``Configurations`` below.
+ - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--stag={any [default], ...}` -- physical src memory layout.
             Refer to the common glossary in README.md for details.
  - `--wtag={any [default], ...}` -- physical wei memory layout.
@@ -23,7 +23,7 @@ where *conv-knobs* are:
             `WINO` automatically, library-based decision.
  - `--attr="attr_str"` -- primitive attributes. The default is `""` (no
             attributes). Refer to knobs_attr.md for details.
- - `--mb=N` -- override minibatch size specified in the problem description.
+ - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
  - `--match=regex` -- run only problems that match the regex. The default is
@@ -36,16 +36,16 @@ and *conv-desc* is a problem descriptor. The canonical form is:
 ```
 Here X is an integer number and S is a string (n stands for name).
 The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for entity name and description.
+Refer to the common glossary in README.md for the entity name and description.
 
 There are default values for some entities in case they were not specified:
  - g = 1;
  - mb = 2;
- - strides = 1;
- - dilations = 0;
+ - sd/sh/sw = 1;
+ - dd/dh/dw = 0;
 There are also implicit rules:
  - Output shape may be deduced from the input and kernel size.
- - Values for smaller dimensions can be copied from the biggest.
+ - Values for smaller dimensions may be copied from the biggest.
 
 ## Precision Configurations
 
@@ -83,10 +83,10 @@ The table below shows supported name configurations for this driver:
 ## Essence of Testing
 
 Intel MKL-DNN supports different data types, such as single-precision floating
-point (`mkldnn_f32`) and signed/unsigned integer of different length
+point (`mkldnn_f32`) and signed/unsigned integer of different lengths
 (`mkldnn_{s,u}{8,16,32}`). We need to cover all those cases with tests. It is
 essential to test real convolution sizes, because Intel MKL-DNN provides
-different optimizations depending on convolution parameters. There is no
+different optimizations depending on the convolution parameters. There is no
 single unified approach inside, so it would not be enough to test only a few
 convolutions (also known as unit tests).
 
@@ -94,9 +94,9 @@ But even for a given convolution, the correctness convolution test is not as
 simple as it might seem at first sight. One of the biggest problems we
 encountered was numerical instability. For every output point, a lot of
 operations may occur. For instance, on backward propagation with respect to
-filter, each filter point requires `mb * oh * ow` operations (see the *Notation*
-section below). That large amount of compute operations may lead to either
-integer overflow or accuracy loss if initial data was chosen inadequately.
+filter, each filter point requires `mb * oh * ow` operations. That large amount
+of compute operations may lead to either integer overflow or accuracy loss if
+initial data was chosen inadequately.
 
 These two main issues complicate testing. **benchdnn** tries to address these
 by using integers for initialization with uniform distribution in a range
@@ -106,9 +106,9 @@ most of the results would belong in the `[cfg->min .. cfg->max]` range. Also,
 for floating point all integers in both ranges have exact representation (that
 is, the absolute numbers are less than `2^size_of_mantissa`). Uniform
 distribution leads to results that are uniformly distributed and quite small.
-`f_min/f_max` keep the result in a reasonable range. Yet another trick: not all
-the points are initialized with non-zero values: see `fill_{src,wei,bia,dst}` in
-conv/conv.cpp.
+`f_min/f_max` keep the result within a reasonable range. Yet another trick: not
+all the points are initialized with non-zero values: see
+`fill_{src,wei,bia,dst}` in conv/conv.cpp.
 
 ## Examples
 
@@ -144,18 +144,19 @@ the convolutions that will use reference or gemm-based implementation:
                --skip-impl='ref:gemm' --batch=inputs/conv_all
 ```
 
-Run explicitly specified 1st forward convolution (including bias) from Alexnet
-with the minibatch set to 4, verbose level set to 1 for two given
+Run explicitly specified first forward convolution (including bias) from Alexnet
+with the minibatch set to 4 and the verbose level set to 1 for two given
 configurations (`u8s8u8s32` and `f32`):
 ``` sh
     ./benchdnn --conv -v1 --mb=4 --dir=FWD_B --cfg=f32,u8s8u8s32
                ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
-Run batch file for different algorithms (assuming the file specifies only
-convolutions and does not include driver options that would override any
-passed on the command line). Also ignore mkldnn_unimplemented errors in case of
-Winograd. Before running AUTO algorithm, resel allow-unimpl value back to false:
+Run the batch file for different algorithms (assuming the file specifies only
+convolutions and does not include driver options that would override any passed
+on the command line). Also ignore mkldnn_unimplemented errors in case of
+Winograd. Before running the AUTO algorithm, reset the allow-unimpl value back
+to false:
 ``` sh
     ./benchdnn --conv \
                --alg=DIRECT --batch=convs.in \

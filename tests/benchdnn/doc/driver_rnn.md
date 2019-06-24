@@ -1,4 +1,4 @@
-# RNN Driver
+# Recurrent Neural Network Driver
 
 ## Usage
 ``` sh
@@ -7,16 +7,16 @@
 
 where *rnn-knobs* are:
 
- - `--prop={FWD_D [default], BWD_DW}` -- mkldnn_prop_kind_t. Refer to the common
-            glossary in README.md for details.
- - `--cfg={f32 [default], u8u8u8u8, ...}` -- refer to ``Configurations`` below.
+ - `--prop={FWD_D [default], BWD_DW}` -- mkldnn_prop_kind_t.
+            Refer to the common glossary in README.md for details.
+ - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
  - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU}`
             -- RNN algorithm.
  - `--direction={left2right [default], right2left, concat, sum}` -- TBA.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- TBA.
  - `--scaling="scale_str"` -- RNN scaling policy, default `""` (no scaling).
             Refer to knobs_attr.md for details.
- - `--mb=N` -- override minibatch size specified in the problem description.
+ - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
 
@@ -38,7 +38,7 @@ There are default values for some entities in case they were not specified:
 
 ## Precision Configurations
 
-`--cfg` option specifies what data type will be used for a problem. It also
+The `--cfg` option specifies the data type to be used for a problem. It also
 defines the data filling strategy. It is implicit for the integer type
 saturation. This option also defines the threshold for computation errors.
 
@@ -61,7 +61,7 @@ TBA.
 
 ## Examples. TBA.
 
-Run the set of rnn training from input file with default settings:
+Run the set of rnn training from an input file with the default settings:
 ``` sh
     ./benchdnn --rnn --batch=inputs/rnn/rnn_training
 ```
