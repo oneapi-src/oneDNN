@@ -114,6 +114,13 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
     return dd * ((0 < s && s < alpha) ? 1 : 0);
 }
 
+template <typename T, typename A>
+T swish_fwd(T s, A alpha) {
+    return (T)(s / ( 1.0f + ::expf(-alpha*(float)s)));
+}
+
+
+
 template <typename T>
 T soft_relu_fwd(T s) {
     return s < (T)logf(FLT_MAX) ? T(log1pf(::expf(s))) : s;
@@ -144,6 +151,12 @@ T exp_fwd(T s) {
 template <typename T>
 T exp_bwd(T dd, T s) {
     return dd * exp_fwd<T>(s);
+}
+
+template <typename T, typename A>
+T swish_bwd(T dd, T s, A alpha) {
+    T v = logistic_fwd<T>(alpha*s);
+    return dd * (v + s*alpha*v*(1 - v));
 }
 
 struct eltwise_test_params {
@@ -188,6 +201,7 @@ void check_eltwise_fwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         case algorithm::eltwise_exp:         ref_d = exp_fwd(s);                     break;
         case algorithm::eltwise_gelu:        ref_d = gelu_fwd(s);                    break;
+        case algorithm::eltwise_swish:  ref_d = swish_fwd(s, p.alpha);     break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -257,6 +271,7 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_exp:      ref_ds = exp_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_gelu:     ref_ds = gelu_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_swish: ref_ds = swish_bwd(ref_dd, ref_s, p.alpha); break;
         default: assert(!"unknown alg_kind");
         }
 
@@ -321,6 +336,7 @@ protected:
         data_t data_deviation
                 = (p.alg_kind == algorithm::eltwise_elu
                         || p.alg_kind == algorithm::eltwise_exp)
+			|| (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square
                     ? data_t(6.0) : data_t(200.0);
@@ -402,7 +418,8 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
     EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_square, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_abs, __VA_ARGS__)), \
-    EXPAND(PARAMS(eltwise_exp, __VA_ARGS__))
+    EXPAND(PARAMS(eltwise_exp, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_swish, __VA_ARGS__))
 
 #define PARAMS_ALL_ALG_SDPART(...) \
     EXPAND(PARAMS(eltwise_sqrt, __VA_ARGS__)), \

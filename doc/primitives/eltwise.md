@@ -28,6 +28,7 @@ The following operations are supported:
 | soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
 | sqrt         | #mkldnn_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
 | square       | #mkldnn_eltwise_square       | \f$ f(x) = x^2 \f$
+| swish        | #mkldnn_eltwise_swish        | \f$ f(x) = x \frac{1}{1+e^{-\alpha x}} \f$
 | tanh         | #mkldnn_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
 
 #### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
