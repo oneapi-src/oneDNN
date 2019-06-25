@@ -637,38 +637,28 @@ int doit(const prb_t *p, res_t *r) {
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
-    auto &data_desc = bd.data_desc;
-    dnn_mem_t src_dt(data_desc, engine_tgt),
-            d_dst_dt(data_desc, engine_tgt);
-
     const auto fp = mkldnn_f32;
-    const auto tag = get_default_tag(src_dt.md_.ndims);
+    const auto tag = get_default_tag(bd.data_desc.ndims);
+    const auto &data_desc = bd.data_desc;
+
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t src_dt(data_desc, engine_tgt);
+
+    dnn_mem_t &dst_fp = src_fp; // in-place in ref code
+    dnn_mem_t placeholder_dst_dt;
+    if (!p->inplace) {
+        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
+        SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
+    }
+    dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
     const mkldnn_dims_t dims1d = { p->ic };
-    const mkldnn_dims_t dims2d = { 2, p->ic };
-
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
-            d_dst_fp(data_desc, fp, tag, engine_ref);
-
-    dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
-    dnn_mem_t dst_dt;
-    if (!p->inplace) {
-        dst_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(dst_dt.reorder(dst_fp), WARN);
-    }
-
-    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
-    dnn_mem_t d_src_dt;
-    if (!p->inplace) {
-        d_src_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(d_src_dt.reorder(d_src_fp), WARN);
-    }
-
     dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x, engine_ref),
             mean_dt(mean_fp.md_, engine_tgt);
     dnn_mem_t var_fp(1, dims1d, fp, mkldnn_x, engine_ref),
             var_dt(var_fp.md_, engine_tgt);
 
+    const mkldnn_dims_t dims2d = { 2, p->ic };
     dnn_mem_t ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
             ss_dt(ss_fp.md_, engine_tgt);
     dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
@@ -726,33 +716,39 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
                 var_dt.unmap();
             }
-            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
             if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-                if (p->inplace)
-                    src_dt.map();
-                else
-                    dst_dt.map();
+                dst_dt.map();
                 ws_dt.map();
-                SAFE(check_fwd_ws(p->inplace ? src_dt : dst_dt, ws_dt, r), WARN);
-                if (p->inplace)
-                    src_dt.unmap();
-                else
-                    dst_dt.unmap();
+                SAFE(check_fwd_ws(dst_dt, ws_dt, r), WARN);
+                dst_dt.unmap();
                 ws_dt.unmap();
             }
         }
     } else {
+        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
+        dnn_mem_t d_dst_dt(data_desc, engine_tgt);
+
+        dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
+        dnn_mem_t placeholder_d_src_dt;
+        if (!p->inplace) {
+            placeholder_d_src_dt = dnn_mem_t(data_desc, engine_tgt);
+            SAFE(placeholder_d_src_dt.reorder(d_src_fp), WARN);
+        }
+        dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
+
         if (prepare_bwd(p, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp, ws_fp)
                 != OK)
             return r->state = MISTRUSTED, OK;
 
         SAFE(src_dt.reorder(src_fp), WARN);
+        SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
+
         args.set(MKLDNN_ARG_SRC, src_dt.m_);
 
-        SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
         args.set(MKLDNN_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
+        args.set(MKLDNN_ARG_DIFF_SRC, d_src_dt.m_);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
@@ -780,8 +776,7 @@ int doit(const prb_t *p, res_t *r) {
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
                 d_ss_dt.unmap();
             }
-            dnn_mem_t d_src(p->inplace ? d_dst_dt : d_src_dt, fp, tag,
-                    engine_ref);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);
         }
     }
