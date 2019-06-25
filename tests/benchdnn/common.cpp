@@ -33,8 +33,7 @@
 //
 // Note that the macro affects the correctness mode only.
 #ifdef __unix__
-// TODO: enable BENCHDNN_MEMORY_CHECK when all invalid accesses are resolved
-// #define BENCHDNN_MEMORY_CHECK
+#define BENCHDNN_MEMORY_CHECK
 #endif
 
 #ifdef BENCHDNN_MEMORY_CHECK
