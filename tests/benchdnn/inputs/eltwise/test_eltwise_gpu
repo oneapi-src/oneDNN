@@ -1,0 +1,15 @@
+--reset
+
+--inplace=true,false
+
+--dir=FWD_D,BWD_D
+--dt=f32
+--tag=nchw
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp
+4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+
+--dir=FWD_D
+--dt=f16
+--tag=nchw
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp
+

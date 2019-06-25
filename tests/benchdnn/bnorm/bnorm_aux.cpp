@@ -157,6 +157,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
     if (!p.attr.is_def())
         s << "--attr=\"" << p.attr << "\" ";
+    if (p.inplace != true)
+        s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << static_cast<const desc_t &>(p);
 

@@ -55,12 +55,14 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
 
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
         is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims,
-        p->cfg[SRC].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[SRC].dt, p->stag), WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims,
         is_3d(p) ? wei_3d_dims : is_1d(p) ? wei_1d_dims : wei_2d_dims,
-        p->cfg[WEI].dt, mkldnn_format_tag_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_format_tag_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[WEI].dt, p->wtag), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
+                mkldnn_format_tag_any), WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
+                p->dtag), WARN);
 
     switch (p->dir) {
     case FWD_D: case FWD_B:
@@ -94,6 +96,9 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
+
+    const char *impl_str = query_impl_info(ippd);
+    print(5, "mkldnn implementation: %s\n", impl_str);
 
     auto q = [=](mkldnn_query_t query, int index = 0)
     { return *mkldnn_primitive_desc_query_md(ippd, query, index); };
@@ -228,8 +233,8 @@ int doit(const prb_t *p, res_t *r) {
             ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
             : dnn_mem_t();
 
-    auto src_tag = is_3d(p) ? mkldnn_ncdhw : is_1d(p) ? mkldnn_ncw : mkldnn_nchw;
-    auto wei_tag = is_3d(p) ? mkldnn_oidhw : is_1d(p) ? mkldnn_oiw : mkldnn_oihw;
+    const auto src_tag = get_default_tag(src_dt.md_.ndims);
+    const auto wei_tag = get_default_tag(wei_dt.md_.ndims);
     dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
     dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
     dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc, engine_ref);

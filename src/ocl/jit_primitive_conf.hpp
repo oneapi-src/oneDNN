@@ -149,12 +149,13 @@ struct jit_rnn_conf_t {
     bool with_dst_iter;
     bool with_dst_iter_c;
     bool is_lbr;
-    bool is_fwd;
+    bool is_forward;
     data_type_t src_dt;
     data_type_t wei_dt;
 
+
     int n_layer;
-    int n_dir;
+    int n_direction;
     int n_iter;
     int n_gates;
     int n_bias;
@@ -167,7 +168,7 @@ struct jit_rnn_conf_t {
     int dic;
     int dlc;
     int wic;
-    int n_parts_weights_iter, n_parts_weights_layer;
+    int n_parts_wei_st, n_parts_wei_i;
     int src_layer_ndims;
     int src_iter_ndims;
     int src_iter_c_ndims;
@@ -186,18 +187,12 @@ struct jit_rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
-    int states_ws_ld, gates_ws_ld;
 
     size_t ws_gates_offset;
     size_t ws_states_offset;
     size_t ws_diff_states_offset;
     size_t ws_grid_comp_offset;
     size_t ws_cell_comp_offset;
-    size_t ws_h_state_offset;
-    size_t ws_c_state_offset;
-    size_t ws_bias_offset;
-    size_t scratchpad_size;
-    size_t workspace_size;
 };
 
 /* bnorm */

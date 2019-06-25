@@ -323,6 +323,8 @@ enum class algorithm {
     eltwise_logistic = mkldnn_eltwise_logistic,
     /// Eltwise: exponent
     eltwise_exp = mkldnn_eltwise_exp,
+    /// Eltwise: gelu
+    eltwise_gelu = mkldnn_eltwise_gelu,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = mkldnn_lrn_across_channels,
     /// LRN within a single channel
@@ -1375,14 +1377,14 @@ struct memory: public handle<mkldnn_memory_t> {
         ///
         /// @param adims Data dimensions
         /// @param adata_type Data precision/type.
-        /// @param aformat Data layout format tag.
-        desc(const dims &adims, data_type adata_type,
-                format_tag aformat) {
+        /// @param aformat_tag Data layout format tag.
+        desc(const dims &adims, data_type adata_type, format_tag aformat_tag) {
             validate_dims(adims);
-            error::wrap_c_api(mkldnn_memory_desc_init_by_tag(&data, (int)adims.size(),
+            error::wrap_c_api(mkldnn_memory_desc_init_by_tag(&data,
+                        (int)adims.size(),
                         adims.size() == 0 ? nullptr : &adims[0],
-                        convert_to_c(adata_type), convert_to_c(aformat)),
-                    "could not initialize a memory descriptor");
+                        convert_to_c(adata_type), convert_to_c(aformat_tag)),
+                    "could not initialize a memory descriptor by tag");
         }
 
         /// Constructs a memory descriptor by strides.
@@ -1397,7 +1399,7 @@ struct memory: public handle<mkldnn_memory_t> {
                         adims.size() == 0 ? nullptr : &adims[0],
                         convert_to_c(adata_type),
                         astrides.size() == 0 ? nullptr : &astrides[0]),
-                    "could not initialize a memory descriptor");
+                    "could not initialize a memory descriptor by strides");
         }
 
         /// Constructs a memory descriptor from a C API data structure.
@@ -3756,9 +3758,10 @@ struct inner_product_backward_weights: public primitive {
 /// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
-/// RNN for forward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
-struct rnn_forward : public primitive {
+/// Vanilla RNN for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
+struct vanilla_rnn_forward : public primitive {
 
     /// Descriptor for RNN forward propagation.
     struct desc {
@@ -3869,14 +3872,15 @@ struct rnn_forward : public primitive {
         }
     };
 
-    rnn_forward() = default;
+    vanilla_rnn_forward() = default;
 
-    rnn_forward(const primitive_desc &pd): primitive(pd) {}
+    vanilla_rnn_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// RNN for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
-struct rnn_backward : public primitive {
+/// Vanilla RNN for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
+struct vanilla_rnn_backward : public primitive {
 
     /// RNN descriptor for backward propagation.
     struct desc {
@@ -3939,11 +3943,11 @@ struct rnn_backward : public primitive {
         primitive_desc() = default;
 
         primitive_desc(const desc &desc, const engine &e,
-                const rnn_forward::primitive_desc &hint_fwd_pd)
+                const vanilla_rnn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, nullptr, e, hint_fwd_pd.get()) {}
 
         primitive_desc(const desc &desc, const primitive_attr &attr, const engine &e,
-                const rnn_forward::primitive_desc &hint_fwd_pd)
+                const vanilla_rnn_forward::primitive_desc &hint_fwd_pd)
             : mkldnn::primitive_desc(&desc.data, &attr, e, hint_fwd_pd.get()) {}
 
         /// Queries source layer memory descriptor.
@@ -4039,11 +4043,14 @@ struct rnn_backward : public primitive {
         }
     };
 
-    rnn_backward() = default;
+    vanilla_rnn_backward() = default;
 
-    rnn_backward(const primitive_desc &pd): primitive(pd) {}
+    vanilla_rnn_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// LSTM for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lstm_forward : public primitive {
 
     /// Descriptor for LSTM forward propagation.
@@ -4172,8 +4179,9 @@ struct lstm_forward : public primitive {
     lstm_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// LSTM for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// LSTM for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lstm_backward : public primitive {
 
     /// LSTM descriptor for backward propagation.
@@ -4368,6 +4376,9 @@ struct lstm_backward : public primitive {
     lstm_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// GRU for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct gru_forward : public primitive {
 
     /// Descriptor for GRU forward propagation.
@@ -4482,8 +4493,9 @@ struct gru_forward : public primitive {
     gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// GRU for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// GRU for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct gru_backward : public primitive {
 
     /// GRU descriptor for backward propagation.
@@ -4651,6 +4663,9 @@ struct gru_backward : public primitive {
     gru_backward(const primitive_desc &pd): primitive(pd) {}
 };
 
+/// LBR_GRU for forward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lbr_gru_forward : public primitive {
 
     /// Descriptor for LBR GRU forward propagation.
@@ -4765,8 +4780,9 @@ struct lbr_gru_forward : public primitive {
     lbr_gru_forward(const primitive_desc &pd): primitive(pd) {}
 };
 
-/// LBR_GRU for backward propagation.  Implements descriptor, primitive descriptor,
-/// and primitive.
+/// LBR_GRU for backward propagation.
+///
+/// Implements descriptor, primitive descriptor, and primitive.
 struct lbr_gru_backward : public primitive {
 
     /// LBR_GRU descriptor for backward propagation.

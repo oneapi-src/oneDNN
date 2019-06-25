@@ -30,7 +30,7 @@
 namespace softmax {
 
 struct prb_t {
-    prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
+    prb_t(const dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, int axis, bool inplace, int64_t mb = 0)
         : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), inplace(inplace) {
         if (mb) this->dims[0] = mb;

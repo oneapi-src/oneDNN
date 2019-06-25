@@ -269,6 +269,9 @@ static mkldnn_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
         const a_type *a, const b_type *b,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
+    if (m <= 0 || n <= 0)
+        return mkldnn_success;
+
     gemm_pack_storage_t *pack_dst = arg->pack_dst;
 
     dim_t block_r, block_c;

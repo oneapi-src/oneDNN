@@ -17,17 +17,18 @@ The following operations are supported:
 
 | Operation    | MKL-DNN algorithm kind       | Formula
 | :--          | :--                          | :--
-| abs          | #mkldnn_eltwise_abs          | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha -x & \text{if}\ x \leq 0 \end{cases} \f$
-| bounded_relu | #mkldnn_eltwise_bounded_relu | \f$ x = \begin{cases} \alpha & \text{if}\ x > \alpha \\ \alpha x & \text{if}\ x \leq \alpha \end{cases} \f$
-| elu          | #mkldnn_eltwise_elu          | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
-| exp          | #mkldnn_eltwise_exp          | \f$ x = e^x \f$
-| linear       | #mkldnn_eltwise_linear       | \f$ x = \alpha x + \beta \f$
-| logistic     | #mkldnn_eltwise_logistic     | \f$ x = \frac{1}{1+e^{-x}} \f$
-| relu         | #mkldnn_eltwise_relu         | \f$ x = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
-| soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ x = \log_{e}(1+e^x) \f$
-| sqrt         | #mkldnn_eltwise_sqrt         | \f$ x = \sqrt{x} \f$
-| square       | #mkldnn_eltwise_square       | \f$ x = x^2 \f$
-| tanh         | #mkldnn_eltwise_tanh         | \f$ x = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
+| abs          | #mkldnn_eltwise_abs          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha -x & \text{if}\ x \leq 0 \end{cases} \f$
+| bounded_relu | #mkldnn_eltwise_bounded_relu | \f$ f(x) = \begin{cases} \alpha & \text{if}\ x > \alpha \\ \alpha x & \text{if}\ x \leq \alpha \end{cases} \f$
+| elu          | #mkldnn_eltwise_elu          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
+| exp          | #mkldnn_eltwise_exp          | \f$ f(x) = e^x \f$
+| gelu         | #mkldnn_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
+| linear       | #mkldnn_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
+| logistic     | #mkldnn_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
+| relu         | #mkldnn_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
+| soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
+| sqrt         | #mkldnn_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
+| square       | #mkldnn_eltwise_square       | \f$ f(x) = x^2 \f$
+| tanh         | #mkldnn_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
 
 #### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
 

@@ -12,6 +12,12 @@ where *conv-knobs* are:
             -- mkldnn_prop_kind_t. Refer to the common glossary in README.md for
             details.
  - `--cfg={f32 [default], u8s8u8s32, ...}` -- Refer to ``Configurations`` below.
+ - `--stag={any [default], ...}` -- physical src memory layout.
+            Refer to the common glossary in README.md for details.
+ - `--wtag={any [default], ...}` -- physical wei memory layout.
+            Refer to the common glossary in README.md for details.
+ - `--dtag={any [default], ...}` -- physical dst memory layout.
+            Refer to the common glossary in README.md for details.
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.

@@ -12,6 +12,12 @@ where *ip-knobs* are:
             details.
  - `--cfg={f32 [default], u8s8u8s32, ...}` -- refer to ``Configurations``
             in driver_conv.md.
+ - `--stag={any [default], ...}` -- physical src memory layout.
+            Refer to the common glossary in README.md for details.
+ - `--wtag={any [default], ...}` -- physical wei memory layout.
+            Refer to the common glossary in README.md for details.
+ - `--dtag={any [default], ...}` -- physical dst memory layout.
+            Refer to the common glossary in README.md for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
             Refer to knobs_attr.md for details.
  - `--mb=N` -- override minibatch size specified in the problem description.

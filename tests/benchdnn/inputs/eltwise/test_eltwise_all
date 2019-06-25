@@ -1,0 +1,30 @@
+--reset
+
+--inplace=true,false
+--skip-impl="ref:any"
+
+--dir=FWD_D,BWD_D
+--dt=f32
+--tag=nchw,nhwc,nChw8c,nChw16c
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu
+#--alg=srelu #fails the trh
+4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+
+--dir=FWD_I
+--dt=s32,s8
+--tag=nhwc
+--alg=relu --alpha=0
+4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+
+--dir=FWD_D,BWD_D
+--dt=f32
+--tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu
+#--alg=srelu #fails the trh
+2x16x6x2x8 3x15x5x2x3
+
+--dir=FWD_I
+--dt=s32,s8
+--tag=ndhwc
+--alg=relu --alpha=0
+2x16x6x2x8 3x15x5x2x3

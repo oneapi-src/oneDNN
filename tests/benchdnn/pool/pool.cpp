@@ -188,12 +188,7 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
     mkldnn_dim_t *padding_l = padding_l_nd + (5 - ndims);
     mkldnn_dim_t *padding_r = padding_r_nd + (5 - ndims);
 
-    mkldnn_alg_kind_t alg = mkldnn_pooling_max;
-    if (p->alg == AVG_NP)
-        alg = mkldnn_pooling_avg_exclude_padding;
-    else if (p->alg == AVG_P)
-        alg = mkldnn_pooling_avg_include_padding;
-
+    mkldnn_alg_kind_t alg = alg2alg_kind(p->alg);
     if (dir & FLAG_FWD) {
         auto prop_kind = p->dir & FLAG_INF
             ? mkldnn_forward_inference : mkldnn_forward_training;

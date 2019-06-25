@@ -40,8 +40,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const int MB = pd()->MB();
     const int OC = pd()->OC();
 
-    bool wei_tr = memory_desc_matches_one_of_tag(*pd()->weights_md(),
-            oi, oiw, owi, oihw, ohwi, oidhw, odhwi);
+    const auto &wmd = *pd()->weights_md();
+    bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
     const int M = OC;
     const int N = MB;

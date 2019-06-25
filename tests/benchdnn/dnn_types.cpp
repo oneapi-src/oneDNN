@@ -30,20 +30,6 @@
 #include "mkldnn_debug.hpp"
 #include "src/common/math_utils.hpp"
 
-dims_t str2dims(const char *str) {
-    dims_t dims;
-    do {
-        int len;
-        int64_t dim;
-        int scan = sscanf(str, IFMT "%n", &dim, &len);
-        SAFE_V(scan == 1 ? OK : FAIL);
-        dims.push_back(dim);
-        str += len;
-        SAFE_V(*str == 'x' || *str == '\0' ? OK : FAIL);
-    } while (*str++ != '\0');
-    return dims;
-}
-
 // returns dims with current @p off values using actual values from @p dims
 dims_t off2dims_idx(const dims_t &dims, int64_t off) {
     dims_t dims_idx;
@@ -214,6 +200,7 @@ attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
     CASE(SRELU);
     CASE(LOGISTIC);
     CASE(EXP);
+    CASE(GELU);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return KIND_TOTAL;
@@ -233,6 +220,7 @@ const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
     CASE(SRELU, "srelu");
     CASE(LOGISTIC, "logistic");
     CASE(EXP, "exp");
+    CASE(GELU, "gelu");
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return "unknown attr::post_ops::kind";
@@ -252,6 +240,7 @@ mkldnn_alg_kind_t attr_t::post_ops_t::kind2mkldnn_kind(
     CASE(SRELU, mkldnn_eltwise_soft_relu);
     CASE(LOGISTIC, mkldnn_eltwise_logistic);
     CASE(EXP, mkldnn_eltwise_exp);
+    CASE(GELU, mkldnn_eltwise_gelu);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return mkldnn_alg_kind_undef;
@@ -388,6 +377,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         case pk::SRELU:
         case pk::LOGISTIC:
         case pk::EXP:
+        case pk::GELU:
             s << kind2str(e.kind) << ":" << e.eltwise.alpha;
             if (e.eltwise.beta != 0.f || e.eltwise.scale != 1.f)
                 s << ":" << e.eltwise.beta << ":" << e.eltwise.scale;
@@ -487,6 +477,7 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
             case attr_t::post_ops_t::SRELU:
             case attr_t::post_ops_t::LOGISTIC:
             case attr_t::post_ops_t::EXP:
+            case attr_t::post_ops_t::GELU:
                 DNN_SAFE_V(mkldnn_post_ops_append_eltwise(ops, e.eltwise.scale,
                             e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
                 break;
@@ -531,6 +522,52 @@ void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
     }
 }
 
+float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
+        float scale, float alpha, float beta) {
+    using namespace mkldnn::impl::math;
+    using pk = attr_t::post_ops_t::kind_t;
+
+    switch (kind) {
+    case pk::RELU: return scale * relu_fwd(src, alpha);
+    case pk::TANH: return scale * tanh_fwd(src);
+    case pk::ELU: return scale * elu_fwd(src, alpha);
+    case pk::SQUARE: return scale * square_fwd(src);
+    case pk::ABS: return scale * abs_fwd(src);
+    case pk::SQRT: return scale * sqrt_fwd(src);
+    case pk::LINEAR: return scale * linear_fwd(src, alpha, beta);
+    case pk::BRELU: return scale * bounded_relu_fwd(src, alpha);
+    case pk::SRELU: return scale * soft_relu_fwd(src);
+    case pk::LOGISTIC: return scale * logistic_fwd(src);
+    case pk::EXP: return scale * exp_fwd(src);
+    case pk::GELU: return scale * gelu_fwd(src);
+    default: assert(!"unknown attr::post_ops::kind");
+    };
+    return NAN;
+}
+
+float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
+        float src, float alpha, float beta) {
+    using namespace mkldnn::impl::math;
+    using pk = attr_t::post_ops_t::kind_t;
+
+    switch (kind) {
+    case pk::RELU: return relu_bwd(d_dst, src, alpha);
+    case pk::TANH: return tanh_bwd(d_dst, src);
+    case pk::ELU: return elu_bwd(d_dst, src, alpha);
+    case pk::SQUARE: return square_bwd(d_dst, src);
+    case pk::ABS: return abs_bwd(d_dst, src);
+    case pk::SQRT: return sqrt_bwd(d_dst, src);
+    case pk::LINEAR: return linear_bwd(d_dst, src, alpha, beta);
+    case pk::BRELU: return bounded_relu_bwd(d_dst, src, alpha);
+    case pk::SRELU: return soft_relu_bwd(d_dst, src);
+    case pk::LOGISTIC: return logistic_bwd(d_dst, src);
+    case pk::EXP: return exp_bwd(d_dst, src);
+    case pk::GELU: return gelu_bwd(d_dst, src);
+    default: assert(!"unknown attr::post_ops::kind");
+    }
+    return NAN;
+}
+
 void maybe_post_ops(float &d, float dst, const attr_t &attr) {
     using namespace mkldnn::impl::math;
 
@@ -543,20 +580,9 @@ void maybe_post_ops(float &d, float dst, const attr_t &attr) {
         const auto &a = e.eltwise.alpha;
         const auto &b = e.eltwise.beta;
 
-        switch (e.kind) {
-        case pk::SUM: d += e.sum.scale * dst; break;
-        case pk::RELU: d = s * relu_fwd(d, a); break;
-        case pk::TANH: d = s * tanh_fwd(d); break;
-        case pk::ELU: d = s * elu_fwd(d, a); break;
-        case pk::SQUARE: d = s * square_fwd(d); break;
-        case pk::ABS: d = s * abs_fwd(d); break;
-        case pk::SQRT: d = s * sqrt_fwd(d); break;
-        case pk::LINEAR: d = s * linear_fwd(d, a, b); break;
-        case pk::BRELU: d = s * bounded_relu_fwd(d, a); break;
-        case pk::SRELU: d = s * soft_relu_fwd(d); break;
-        case pk::LOGISTIC: d = s * logistic_fwd(d); break;
-        case pk::EXP: d = s * exp_fwd(d); break;
-        default: assert(!"unknown attr::post_ops::kind");
-        }
+        if (e.kind == pk::SUM)
+            d += e.sum.scale * dst;
+        else
+            d = compute_eltwise_fwd(e.kind, d, s, a, b);
     }
 }

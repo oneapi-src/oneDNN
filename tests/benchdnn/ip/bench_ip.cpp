@@ -33,6 +33,9 @@ namespace ip {
 
 std::vector<dir_t> dir {FWD_B};
 std::vector<const dt_conf_t *> cfg {conf_f32};
+std::vector<mkldnn_format_tag_t> stag {mkldnn_format_tag_any};
+std::vector<mkldnn_format_tag_t> wtag {mkldnn_format_tag_any};
+std::vector<mkldnn_format_tag_t> dtag {mkldnn_format_tag_any};
 std::vector<int64_t> mb {0};
 
 attr_t attr;
@@ -48,6 +51,9 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_B};
     cfg = {conf_f32};
+    stag = {mkldnn_format_tag_any};
+    wtag = {mkldnn_format_tag_any};
+    dtag = {mkldnn_format_tag_any};
     mb = {0};
     attr = attr_t();
     allow_unimpl = false;
@@ -56,8 +62,11 @@ void reset_parameters() {
 void check_correctness(const desc_t *c) {
     for (const auto &i_dir: dir)
     for (const auto &i_cfg: cfg)
+    for (const auto &i_stag: stag)
+    for (const auto &i_wtag: wtag)
+    for (const auto &i_dtag: dtag)
     for (const auto &i_mb: mb) {
-        const prb_t p(*c, i_mb, i_dir, i_cfg, attr);
+        const prb_t p(*c, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -84,6 +93,9 @@ int bench(int argc, char **argv) {
     for (; argc > 0; --argc, ++argv) {
         if (parse_bench_settings(argv[0]));
         else if (parse_batch(bench, argv[0]));
+        else if (parse_tag(stag, argv[0], "stag"));
+        else if (parse_tag(wtag, argv[0], "wtag"));
+        else if (parse_tag(dtag, argv[0], "dtag"));
         else if (parse_mb(mb, argv[0]));
         else if (parse_dir(dir, argv[0]));
         else if (parse_attr(attr, argv[0]));
@@ -101,7 +113,7 @@ int bench(int argc, char **argv) {
         }
     }
 
-    return OK;
+    return parse_last_argument();
 }
 
 }

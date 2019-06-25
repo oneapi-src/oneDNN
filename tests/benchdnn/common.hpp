@@ -110,6 +110,8 @@ enum prim_t {
     SOFTMAX,
     POOL,
     SUM,
+    ELTWISE,
+    CONCAT,
     DEF = CONV,
 };
 

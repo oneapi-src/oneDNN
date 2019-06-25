@@ -176,11 +176,9 @@ policy_t str2policy(const char *str);
 const char *policy2str(attr_t::scale_t::policy_t policy);
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t desc, const dt_conf_t *cfg,
-            mkldnn_prop_kind_t prop, alg_t alg,
-            mkldnn_rnn_direction_t direction,
-            const attr_t &attr, policy_t scale_policy,
-            unsigned int flags,  activation_t activation,
+    prb_t(const desc_t &desc, const dt_conf_t *cfg, mkldnn_prop_kind_t prop,
+            alg_t alg, mkldnn_rnn_direction_t direction, const attr_t &attr,
+            policy_t scale_policy, unsigned int flags, activation_t activation,
             float alpha, float beta, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)

@@ -77,7 +77,7 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
 
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
         is_deconv_3d(p) ? src_3d_dims : is_deconv_1d(p) ? src_1d_dims : src_2d_dims,
-        p->cfg[SRC].dt, mkldnn_format_tag_any),
+        p->cfg[SRC].dt, p->stag),
             WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims + p->has_groups,
         is_deconv_3d(p)
@@ -85,11 +85,11 @@ inline int init_pd(const prb_t *p, mkldnn_deconvolution_desc_t &cd,
         : is_deconv_1d(p)
         ? &wei_1d_dims[!p->has_groups]
         : &wei_2d_dims[!p->has_groups],
-        p->cfg[WEI].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[WEI].dt, p->wtag), WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt, mkldnn_format_tag_any), WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, ndims,
         is_deconv_3d(p) ? dst_3d_dims : is_deconv_1d(p) ? dst_1d_dims : dst_2d_dims,
-        p->cfg[DST].dt, mkldnn_format_tag_any), WARN);
+        p->cfg[DST].dt, p->dtag), WARN);
 
     mkldnn_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     mkldnn_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
@@ -192,7 +192,8 @@ int doit(const prb_t *p, res_t *r) {
     *r = res_zero;
     bool with_groups = 1;
 
-    prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->alg, p->attr, p->mb, true);
+    prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag, p->dtag, p->alg,
+            p->attr, p->mb, true);
     swap(p_tr.ic,  p_tr.oc);
     swap(p_tr.ih,  p_tr.oh);
     swap(p_tr.id,  p_tr.od);
@@ -304,20 +305,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    if (bench_mode & PERF) {
-        auto &t = r->timer;
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
-            t.stamp();
-            const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
+    measure_perf(r->timer, c, args);
 
     DNN_SAFE_V(mkldnn_primitive_destroy(c));
 

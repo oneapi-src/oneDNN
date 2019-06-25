@@ -147,7 +147,9 @@ status_t memory_desc_wrapper::compute_blocking(memory_desc_t &memory_desc,
     C(ba, {1, 0}, {}, {});
     C(bac, {1, 0, 2}, {}, {});
     C(bacd, {1, 0, 2, 3}, {}, {});
+    C(bca, {1, 2, 0}, {}, {});
     C(bcda, {1, 2, 3, 0}, {}, {});
+    C(bcdea, {1, 2, 3, 4, 0}, {}, {});
     C(cba, {2, 1, 0}, {}, {});
     C(cdba, {2, 3, 1, 0}, {}, {});
     C(cdeba, {2, 3, 4, 1, 0}, {}, {});

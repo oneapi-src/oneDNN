@@ -44,6 +44,24 @@ template <typename T, typename A> T elu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T>
+T gelu_fwd(T s) {
+    const float a = 0.797884;
+    const float b = 0.044715;
+    const float g = a * s * (1 + b * s * s);
+    return static_cast<T>(0.5 * s * (1 + tanh_fwd(g)));
+}
+
+template <typename T>
+T gelu_bwd(T dd, T s) {
+    const float a = 0.797884;
+    const float b = 0.044715;
+    const float g = a * s * (1 + b * s * s);
+    const float dg = a * (1 + 3 * b * s * s);
+    return static_cast<T>(
+            dd * (0.5 * (1 + tanh_fwd(g)) * (1 + s * (1 - tanh_fwd(g)) * dg)));
+}
+
+template <typename T>
 T square_fwd(T s) {
     return s * s;
 }
@@ -108,14 +126,14 @@ T soft_relu_bwd(T dd, T s) {
 
 template <typename T>
 T logistic_fwd(T s) {
-    T v = (T)(::expf(- (float)s));
-    return 1 / (1 + v);
+    float v = ::expf((float) -s);
+    return (T)(1 / (1 + v));
 }
 
 template <typename T>
 T logistic_bwd(T dd, T s) {
-    T v = logistic_fwd<T>(s);
-    return dd * v * (1 - v);
+    float v = logistic_fwd<float>(s);
+    return (T)(dd * v * (1 - v));
 }
 
 template <typename T>
@@ -169,6 +187,7 @@ void check_eltwise_fwd(const eltwise_test_params &p,
         case algorithm::eltwise_soft_relu:   ref_d = soft_relu_fwd(s);               break;
         case algorithm::eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         case algorithm::eltwise_exp:         ref_d = exp_fwd(s);                     break;
+        case algorithm::eltwise_gelu:        ref_d = gelu_fwd(s);                    break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -182,9 +201,12 @@ void compare_eltwise_fwd(const eltwise_test_params &p,
     const data_t eps = (data_traits<data_t>::data_type == memory::data_type::f16
             || data_traits<data_t>::data_type == memory::data_type::bf16)
             ? 5e-2
-            : (p.alg_kind == algorithm::eltwise_elu)
-                ? 2e-5
-                : (p.alg_kind == algorithm::eltwise_soft_relu) ? 2e-6 : 1e-6;
+            : (p.alg_kind == algorithm::eltwise_elu
+                              || p.alg_kind == algorithm::eltwise_gelu)
+                    ? 2e-5
+                    : p.alg_kind == algorithm::eltwise_soft_relu
+                            ? 2e-6
+                            : 1e-6;
 
     compare_data(ref_dst, dst, eps);
 }
@@ -205,9 +227,11 @@ void check_eltwise_bwd(const eltwise_test_params &p,
     const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
     const data_t eps = (p.alg_kind == algorithm::eltwise_soft_relu
-            || p.alg_kind == algorithm::eltwise_tanh)
-        ? 2e-6
-        : 1e-6;
+                               || p.alg_kind == algorithm::eltwise_tanh)
+            ? 2e-6
+            : (p.alg_kind == algorithm::eltwise_gelu
+                ? 1e-5
+                : 1e-6);
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -232,6 +256,7 @@ void check_eltwise_bwd(const eltwise_test_params &p,
             break;
         case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_exp:      ref_ds = exp_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_gelu:     ref_ds = gelu_bwd(ref_dd, ref_s); break;
         default: assert(!"unknown alg_kind");
         }
 
@@ -371,6 +396,7 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
     alpha, beta, EXPAND_DIMS(__VA_ARGS__) }
 
 #define PARAMS_ALL_ALG(...) \
+    EXPAND(PARAMS(eltwise_gelu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_relu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_tanh, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \

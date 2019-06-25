@@ -103,11 +103,11 @@ int bench(int argc, char **argv) {
         else {
             catch_unknown_options(argv[0], "softmax");
 
-            dims = str2dims(argv[0]);
+            parse_dims(dims, argv[0]);
             check_correctness();
         }
     }
 
-    return OK;
+    return parse_last_argument();
 }
 }

@@ -58,7 +58,7 @@ Run a 1D-spatial reorder problem with s8 input data and u8 output data in four
 different physical memory layout combinations {ncw, ncw}, {ncw, nwc},
 {nwc, ncw} and {nwc, nwc} applying output scale 2.5 for each output point:
 ``` sh
-    ./benchdnn --reorder --idt=s8 --odt=u8 \
-               --itag=ncw,nwc --otag=ncw,nwc \
+    ./benchdnn --reorder --sdt=s8 --ddt=u8 \
+               --stag=ncw,nwc --dtag=ncw,nwc \
                --attr=oscale=common:2.5 2x8x8
 ```

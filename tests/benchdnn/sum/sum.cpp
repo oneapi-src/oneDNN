@@ -32,26 +32,24 @@ namespace sum {
 
 static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &spd, res_t *r) {
     std::vector<mkldnn_memory_desc_t> src_d;
-    src_d.reserve(p->n_inputs());
+    src_d.resize(p->n_inputs());
 
     mkldnn_memory_desc_t dst_d;
 
-    mkldnn_dims_t data_dims;
     const int ndims = (int)p->dims.size();
-    for (int i = 0; i < ndims; ++i)
-        data_dims[i] = p->dims[i];
-
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
         DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d[i_input], ndims,
-                    data_dims, p->idt[i_input], p->itag[i_input]), WARN);
+                         p->dims.data(), p->sdt[i_input], p->stag[i_input]),
+                WARN);
 
-    if (p->otag != mkldnn_format_tag_undef) {
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, ndims, data_dims,
-                p->odt, p->otag), WARN);
+    if (p->dtag != mkldnn_format_tag_undef) {
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                         &dst_d, ndims, p->dims.data(), p->ddt, p->dtag),
+                WARN);
     }
 
     mkldnn_status_t init_status = mkldnn_sum_primitive_desc_create(&spd,
-            p->otag != mkldnn_format_tag_undef ? &dst_d : NULL,
+            p->dtag != mkldnn_format_tag_undef ? &dst_d : NULL,
             p->n_inputs(), p->scales.data(), src_d.data(), NULL, engine_tgt);
 
     if (init_status == mkldnn_unimplemented)
@@ -70,7 +68,8 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
     r->total = nelems;
-    const float trh = 1e-7 * p->n_inputs();
+    const float trh
+            = ((dst_data_type == mkldnn_f16) ? 1e-3 : 1e-7) * p->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -109,17 +108,10 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
 
 int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
-    auto get_range = [](const mkldnn_data_type_t dt) {
-        if (dt == mkldnn_s8 || dt == mkldnn_u8)
-            return 256;
-        else if (dt == mkldnn_bf16 || dt == mkldnn_f16)
-            return 128;
-        return 1024;
-    };
 
     const auto nelems = mem_fp.nelems();
-    const auto dt = p->idt[input_idx];
-    const int range = get_range(dt);
+    const auto dt = p->sdt[input_idx];
+    const int range = 16;
     const int f_min = dt == mkldnn_u8 ? 0 : -range / 2;
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {

@@ -29,15 +29,15 @@ std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (!(p.n_inputs() == 2 && p.idt[0] == mkldnn_f32 && p.idt[1] == mkldnn_f32))
-        s << "--idt=" << p.idt << " ";
-    if (p.odt != mkldnn_f32)
-        s << "--odt=" << dt2str(p.odt) << " ";
-    if (!(p.n_inputs() == 2 && p.itag[0] == mkldnn_nchw
-                && p.itag[1] == mkldnn_nchw))
-        s << "--itag=" << p.itag << " ";
-    if (p.otag != mkldnn_format_tag_undef)
-        s << "--otag=" << fmt_tag2str(p.otag) << " ";
+    if (!(p.n_inputs() == 2 && p.sdt[0] == mkldnn_f32 && p.sdt[1] == mkldnn_f32))
+        s << "--sdt=" << p.sdt << " ";
+    if (p.ddt != mkldnn_f32)
+        s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (!(p.n_inputs() == 2 && p.stag[0] == mkldnn_nchw
+                && p.stag[1] == mkldnn_nchw))
+        s << "--stag=" << p.stag << " ";
+    if (p.dtag != mkldnn_format_tag_undef)
+        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
     s << "--scales=" << p.scales << " ";
 
     s << p.dims;

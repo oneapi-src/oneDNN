@@ -112,7 +112,9 @@ register_benchdnn_test(test_benchdnn_deconv_bf16
 register_benchdnn_test(test_benchdnn_rnn
     cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder
-    cpu "-v1 --reorder --batch=inputs/reorder/test_default")
+    cpu "-v1 --reorder --batch=inputs/reorder/test_reorder_all")
+register_benchdnn_test(test_benchdnn_reorder_bf16
+    cpu "-v1 --reorder --batch=inputs/reorder/test_reorder_bfloat16")
 register_benchdnn_test(test_benchdnn_bnorm
     cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_all")
 register_benchdnn_test(test_benchdnn_bnorm_bf16
@@ -135,6 +137,14 @@ register_benchdnn_test(test_benchdnn_sum
     cpu "-v1 --sum --batch=inputs/sum/test_sum_all")
 register_benchdnn_test(test_benchdnn_sum_bf16
     cpu "-v1 --sum --batch=inputs/sum/test_sum_bfloat16")
+register_benchdnn_test(test_benchdnn_eltwise
+    cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_all")
+register_benchdnn_test(test_benchdnn_eltwise_bf16
+    cpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_bfloat16")
+register_benchdnn_test(test_benchdnn_concat
+    cpu "-v1 --concat --batch=inputs/concat/test_concat_all")
+register_benchdnn_test(test_benchdnn_concat_bf16
+    cpu "-v1 --concat --batch=inputs/concat/test_concat_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "-v1 --conv --batch=inputs/test_conv_regression"
@@ -162,11 +172,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
     register_benchdnn_test(test_benchdnn_softmax
         gpu "-v1 --softmax --batch=inputs/softmax/test_softmax_gpu")
-# fp16 produces nans
-#    register_benchdnn_test(test_benchdnn_sum
-#        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
-endif()
-
-if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-    install(TARGETS benchdnn RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    register_benchdnn_test(test_benchdnn_sum
+        gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
+    register_benchdnn_test(test_benchdnn_concat
+        gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
 endif()

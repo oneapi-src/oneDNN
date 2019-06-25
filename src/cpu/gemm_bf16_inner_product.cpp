@@ -46,8 +46,8 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     const int64_t N = pd()->MB();
     const int64_t K = pd()->IC_total_padded();
 
-    bool wei_tr = !memory_desc_matches_one_of_tag(
-            *pd()->weights_md(), hwio, dhwio, io);
+    const auto &wmd = *pd()->weights_md();
+    bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
     acc_data_t *acc = pd()->dst_is_acc_
         ? (acc_data_t *)dst
@@ -78,8 +78,8 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
     const int64_t N = pd()->MB();
     const int64_t K = pd()->OC();
 
-    bool wei_tr = memory_desc_matches_one_of_tag(
-            *pd()->weights_md(), hwio, dhwio, io);
+    const auto &wmd = *pd()->weights_md();
+    bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
     acc_data_t *acc = pd()->diff_src_is_acc_
         ? (acc_data_t *)diff_src
@@ -119,8 +119,8 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     const int OC = pd()->OC();
     const int IC = pd()->IC_total_padded();
 
-    bool wei_tr = memory_desc_matches_one_of_tag(
-            *pd()->diff_weights_md(), hwio, dhwio, io);
+    const auto &wmd = *pd()->diff_weights_md();
+    bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
     const int64_t M = wei_tr ? OC : IC;
     const int64_t N = wei_tr ? IC : OC;

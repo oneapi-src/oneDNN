@@ -46,7 +46,6 @@ struct gemm_bf16_inner_product_fwd_t: public cpu_primitive_t {
 
             bool ok = true
                 && mayiuse(avx512_core)
-                && set_default_params() == status::success
                 && is_fwd()
                 && !has_zero_dim_memory()
                 && everyone_is(bf16,
@@ -57,6 +56,7 @@ struct gemm_bf16_inner_product_fwd_t: public cpu_primitive_t {
                             weights_md(1)->data_type, f32, bf16))
                 && attr()->output_scales_.has_default_values()
                 && post_ops_ok()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(src_md(), weights_md(),
                         dst_md());
             if (!ok) return status::unimplemented;
@@ -150,7 +150,6 @@ struct gemm_bf16_inner_product_bwd_data_t: public cpu_primitive_t {
 
             bool ok = true
                 && mayiuse(avx512_core)
-                && this->set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_data
                 && !has_zero_dim_memory()
                 && utils::everyone_is(bf16,
@@ -158,6 +157,7 @@ struct gemm_bf16_inner_product_bwd_data_t: public cpu_primitive_t {
                         diff_dst_md()->data_type)
                 && diff_src_data_type == diff_src_md()->data_type
                 && attr()->has_default_values()
+                && this->set_default_params() == status::success
                 && dense_gemm_consitency_check(diff_src_md(), weights_md(),
                         diff_dst_md());
             if (!ok) return status::unimplemented;
@@ -213,7 +213,6 @@ struct gemm_bf16_inner_product_bwd_weights_t: public cpu_primitive_t {
 
             bool ok = true
                 && mayiuse(avx512_core)
-                && set_default_params() == status::success
                 && desc()->prop_kind == prop_kind::backward_weights
                 && !has_zero_dim_memory()
                 && everyone_is(bf16,
@@ -223,6 +222,7 @@ struct gemm_bf16_inner_product_bwd_weights_t: public cpu_primitive_t {
                 && IMPLICATION(with_bias(), one_of(
                             diff_weights_md(1)->data_type, f32, bf16))
                 && attr()->has_default_values()
+                && set_default_params() == status::success
                 && dense_gemm_consitency_check(src_md(), diff_weights_md(),
                         diff_dst_md());
 

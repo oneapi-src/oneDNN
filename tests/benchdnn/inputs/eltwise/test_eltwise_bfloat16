@@ -1,0 +1,19 @@
+--reset
+
+--inplace=true,false
+--allow-unimpl=true
+
+--dir=FWD_D,BWD_D
+--dt=bf16
+--tag=nchw,nhwc,nChw16c
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu
+#--alg=srelu #fails the trh
+4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+
+--dir=FWD_D,BWD_D
+--dt=bf16
+--tag=ncdhw,ndhwc,nCdhw16c
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu
+#--alg=srelu #fails the trh
+2x16x6x2x8 3x15x5x2x3
+

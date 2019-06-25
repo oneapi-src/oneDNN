@@ -235,14 +235,14 @@ inline U soft_relu_bwd(T dd, T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_fwd(T s) {
-    U v = (U)(::expf((float) -s));
-    return 1 / (1 + v);
+    float v = ::expf((float) -s);
+    return (U)(1. / (1 + v));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_bwd(T dd, T s) {
-    U v = logistic_fwd<T, U>(s);
-    return dd * v * (1 - v);
+    float v = logistic_fwd<T, float>(s);
+    return (U)(dd * v * (1 - v));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
@@ -253,6 +253,24 @@ inline U exp_fwd(T s) {
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U exp_bwd(T dd, T s) {
     return dd * exp_fwd<T, U>(s);
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U gelu_fwd(T s) {
+    const float sqrt_2_over_pi = 0.797884;
+    const float fitting_const = 0.044715;
+    float v = tanh_fwd(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
+    return (U)(0.5 * s * (1. + v));
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U gelu_bwd(T dd, T s) {
+    const float sqrt_2_over_pi = 0.797884;
+    const float fitting_const = 0.044715;
+    float g = s * sqrt_2_over_pi * (1 + fitting_const * s * s);
+    float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
+    float v = tanh_fwd(g);
+    return (U)(dd * 0.5 * (1. + v) * (1. + s * (1 - v) * dg));
 }
 
 inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {

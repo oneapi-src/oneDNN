@@ -56,8 +56,10 @@ extern const _dt_conf_t conf_bf16f32bf16;
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
-            const attr_t &attr)
-        : desc_t(desc), dir(dir), cfg(cfg), attr(attr), ops(0), scales(NULL) {
+            mkldnn_format_tag_t stag, mkldnn_format_tag_t wtag,
+            mkldnn_format_tag_t dtag, const attr_t &attr)
+        : desc_t(desc), dir(dir), cfg(cfg), stag(stag), wtag(wtag), dtag(dtag),
+        attr(attr), ops(0), scales(NULL) {
         if (mb) this->mb = mb;
         count_ops();
         generate_oscales();
@@ -66,6 +68,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
+    mkldnn_format_tag_t stag, wtag, dtag;
     attr_t attr;
 
     double ops;

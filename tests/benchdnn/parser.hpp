@@ -26,6 +26,7 @@
 
 namespace parser {
 
+extern bool last_parsed_is_problem;
 static const auto eol = std::string::npos;
 
 static inline std::string get_pattern(const std::string &option_name) {
@@ -48,16 +49,16 @@ static bool parse_vector_str(T &vec, F process_func, const char *str,
 
 template <typename T, typename F>
 static bool parse_multivector_str(std::vector<T> &vec, F process_func,
-        const char *str, char delimeter = ',') {
+        const char *str, char vector_delim = ',', char element_delim = ':') {
     auto process_subword = [&](const char *word) {
         T v;
-        // parse subwords separated by colon
-        parse_vector_str(v, process_func, word, ':');
+        // parse vector elements separated by @p element_delim
+        parse_vector_str(v, process_func, word, element_delim);
         return v;
     };
 
-    // parse words separated by comma
-    return parse_vector_str(vec, process_subword, str);
+    // parse full vector separated by @p vector_delim
+    return parse_vector_str(vec, process_subword, str, vector_delim);
 }
 
 template <typename T, typename F>
@@ -94,13 +95,13 @@ bool parse_dt(std::vector<mkldnn_data_type_t> &dt, const char *str,
         const std::string &option_name = "dt");
 
 bool parse_multi_dt(std::vector<std::vector<mkldnn_data_type_t>> &dt,
-        const char *str, const std::string &option_name = "idt");
+        const char *str, const std::string &option_name = "sdt");
 
 bool parse_tag(std::vector<mkldnn_format_tag_t> &tag, const char *str,
         const std::string &option_name = "tag");
 
 bool parse_multi_tag(std::vector<std::vector<mkldnn_format_tag_t>> &tag,
-        const char *str, const std::string &option_name = "itag");
+        const char *str, const std::string &option_name = "stag");
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,
         const std::string &option_name = "mb");
@@ -135,8 +136,13 @@ bool parse_batch(const bench_f bench, const char *str,
 
 bool parse_bench_settings(const char *str);
 
+void parse_dims(dims_t &dims, const char *str);
+
+void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
+
 void catch_unknown_options(const char *str, const char *driver_name);
 
+int parse_last_argument();
 }
 
 #endif

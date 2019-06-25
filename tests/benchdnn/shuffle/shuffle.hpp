@@ -33,7 +33,7 @@
 namespace shuffle {
 
 struct prb_t {
-    prb_t(dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
+    prb_t(const dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, int axis, int64_t group)
         : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), group(group) {}
     ~prb_t() {}

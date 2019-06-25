@@ -313,15 +313,19 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     /* Step 3: check creation of reorder primitive */
-    mkldnn_primitive_desc_t check_rpd;
+    mkldnn_primitive_desc_t rpd;
     mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
-            &check_rpd, &mem_dt_in_fmt_in.md_, engine_tgt,
-            &mem_dt_out_fmt_out.md_, engine_tgt, mkldnn_attr);
+            &rpd, &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
+            engine_tgt, mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
         res->state = UNIMPLEMENTED;
         goto cleanup;
+    } else {
+        const char *impl_str = query_impl_info(rpd);
+        print(5, "mkldnn implementation: %s\n", impl_str);
     }
-    mkldnn_primitive_desc_destroy(check_rpd);
+
+    mkldnn_primitive_desc_destroy(rpd);
     SAFE(init_status, WARN);
 
     /* Step 4: fill input memory */

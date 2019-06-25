@@ -1,13 +1,13 @@
 --reset
---odt=f32,bf16
---idt=bf16:bf16
---otag=undef,nchw,nhwc,nChw16c
---itag=nchw:nchw       3x3x16x4
---itag=nhwc:nhwc       4x4x2x16 5x5x1x15
---itag=nChw16c:nChw16c 1x16x5x11 2x15x6x3
+--ddt=f32,bf16
+--sdt=bf16:bf16
+--dtag=undef,nchw,nhwc,nChw16c
+--stag=nchw:nchw       3x3x16x4
+--stag=nhwc:nhwc       4x4x2x16 5x5x1x15
+--stag=nChw16c:nChw16c 1x16x5x11 2x15x6x3
 
---odt=f32,bf16
---idt=bf16:bf16:bf16
---otag=undef,ncdhw,ndhwc,nCdhw16c
---itag=nCdhw16c:ncdhw:ndhwc
+--ddt=f32,bf16
+--sdt=bf16:bf16:bf16
+--dtag=undef,ncdhw,ndhwc,nCdhw16c
+--stag=nCdhw16c:ncdhw:ndhwc
 --scales=2:0.25:0.5   16x2x6x4x3

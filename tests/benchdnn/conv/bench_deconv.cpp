@@ -17,8 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <float.h>
-#include <math.h>
 
 #include <sstream>
 
@@ -35,6 +33,9 @@ namespace deconv {
 
 std::vector<dir_t> dir {FWD_B};
 std::vector<const dt_conf_t *> cfg {conf_f32};
+std::vector<mkldnn_format_tag_t> stag {mkldnn_format_tag_any};
+std::vector<mkldnn_format_tag_t> wtag {mkldnn_format_tag_any};
+std::vector<mkldnn_format_tag_t> dtag {mkldnn_format_tag_any};
 std::vector<int64_t> mb {0};
 
 alg_t alg = DIRECT;
@@ -53,6 +54,9 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_B};
     cfg = {conf_f32};
+    stag = {mkldnn_format_tag_any};
+    wtag = {mkldnn_format_tag_any};
+    dtag = {mkldnn_format_tag_any};
     mb = {0};
     alg = DIRECT;
     attr = attr_t();
@@ -64,8 +68,12 @@ void reset_parameters() {
 void check_correctness(const desc_t *c) {
     for (const auto &i_dir: dir)
     for (const auto &i_cfg: cfg)
+    for (const auto &i_stag: stag)
+    for (const auto &i_wtag: wtag)
+    for (const auto &i_dtag: dtag)
     for (const auto &i_mb: mb) {
-        const prb_t p(*c, i_dir, i_cfg, alg, attr, i_mb, true);
+        const prb_t p(*c, i_dir, i_cfg, i_stag, i_wtag, i_dtag, alg, attr, i_mb,
+                true);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -116,7 +124,7 @@ int bench(int argc, char **argv) {
         }
     }
 
-    return OK;
+    return parse_last_argument();
 }
 
 }

@@ -39,7 +39,7 @@ Options supported:
 | %DESC%        | All                      | CSV-style problem descriptor (mostly dimensions)
 | %dir%         | All, except RNN, Reorder | Primitive direction
 | %dt%          | Bnorm, Shuffle, Softmax  | Data type (precision)
-| %idt%/%odt%   | Reorder                  | Input/Output data types (precision)
+| %sdt%/%ddt%   | Reorder                  | Input/Output data types (precision)
 | %engine%      | All                      | Engine kind
 | %flags%       | Bnorm                    | Batch normalization flags
 | %@flops%      | All with ops             | Ops per second (modifier extended)
@@ -49,7 +49,7 @@ Options supported:
 | %@ops%        | All with ops             | Number of ops required (padding is not taken into account)
 | %prop%        | RNN                      | RNN properties
 | %tag%         | Bnorm, Shuffle, Softmax  | Data format tag (physical memory layout)
-| %itag%/%otag% | Reorder                  | Input/Output data format tag (physical memory layout)
+| %stag%/%dtag% | Reorder                  | Input/Output data format tag (physical memory layout)
 | %@time%       | All                      | Time in ms (modifier extended)
 
 Modifiers supported:
