@@ -661,7 +661,9 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
 #endif // BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
     float *wei_bia_reduction;
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     simple_barrier::ctx_t *wei_bia_reduction_bctx;
+#endif
 
     int ithr;
     int ithr_ic_b, ithr_oc_b, ithr_g, ithr_mb;
@@ -701,8 +703,10 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
 
         wei_bia_reduction = scratchpad.template get<float>(
                 key_conv_wei_bia_reduction);
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
         wei_bia_reduction_bctx = scratchpad.template get<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx);
+#endif //!defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 
         ithr_ic_b = ithr % self->nthr_ic_b_;
         ithr_oc_b = ithr / self->nthr_ic_b_ % self->nthr_oc_b_;
@@ -1001,7 +1005,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
     }
 
     /* diff_weights[:] += sum(wei_reduction_[thr_mb][:]) */
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+#endif
 
     const int ic_b_kh_work = ti->ic_b_work * ((jcp.ndims == 5) ? jcp.kd : jcp.kh);
     const int work = ti->g_work * ti->oc_b_work * ic_b_kh_work;
@@ -1113,7 +1119,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
         }
     }
 
-    rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
+    if (mkldnn_thr_syncable())
+        rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
 }
 
 void jit_avx512_core_bf16_convolution_bwd_weights_t
@@ -1170,12 +1177,14 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
 #endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 #endif // BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     if (nthr_mb_ > 1 || pd()->diff_weights_md(0)->data_type == data_type::bf16) {
         // TODO: don't use barrier for case
         // diff_weights_type == data_type::bf16 && nthr_mb_ == 1
         simple_barrier::ctx_init(scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_wei_bia_reduction_bctx));
     }
+#endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 
     const auto reducer_bia_scratchpad = memory_tracking::grantor_t(scratchpad,
             prefix_reducer_bia);
@@ -1187,21 +1196,40 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
     ::execute_backward_weights(const exec_ctx_t &ctx) const {
     prepare_scratchpad_data(ctx);
 
-    const int _start_nthr_mb = pd()->diff_weights_md(0)->data_type != data_type::bf16;
+    const int _start_nthr_mb
+        = pd()->diff_weights_md(0)->data_type != data_type::bf16;
     parallel(nthr_, [&](const int ithr, const int nthr) {
         assert(nthr_ == nthr);
+        assert(utils::one_of(pd()->ndims(), 3, 4, 5));
 
         thread_info_t thread_info(this, ctx, ithr);
+        compute_diff_weights(&thread_info);
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+        if (mkldnn_thr_syncable() && nthr_mb_ >_start_nthr_mb)
+            reduce_and_convert_diff_weights(&thread_info);
+#endif
+        if (pd()->with_bias()) compute_diff_bias(&thread_info, ctx);
+    });
 
-        if (utils::one_of(pd()->ndims(), 3, 4, 5)) {
-            compute_diff_weights(&thread_info);
+#if defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+    if (nthr_mb_ >_start_nthr_mb || pd()->with_bias()) {
+        parallel(nthr_, [&](const int ithr, const int nthr) {
+            thread_info_t thread_info(this, ctx, ithr);
             if (nthr_mb_ >_start_nthr_mb)
                 reduce_and_convert_diff_weights(&thread_info);
-            if (pd()->with_bias()) compute_diff_bias(&thread_info, ctx);
-        } else {
-            assert(false);
-        }
-    });
+            if (pd()->with_bias()) {
+                auto rb = this->reducer_bias_;
+                assert(nthr == rb->balancer().nthr_);
+                MAYBE_UNUSED(nthr);
+                if (rb->balancer().ithr_njobs(thread_info.ithr) == 0) return;
+                const auto reducer_bia_scratchpad = memory_tracking::grantor_t(
+                        thread_info.scratchpad, prefix_reducer_bia);
+                rb->reduce_nolock(thread_info.ithr, thread_info.diff_bias,
+                        reducer_bia_scratchpad);
+            }
+        });
+    }
+#endif
 
      /* TODO: put that into compute_diff_bias() */
     if (pd()->jcp_.bia_dt == data_type::bf16) {
