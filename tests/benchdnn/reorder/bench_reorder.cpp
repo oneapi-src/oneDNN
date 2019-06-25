@@ -96,21 +96,22 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        if (parse_bench_settings(argv[0]));
-        else if (parse_batch(bench, argv[0]));
-        else if (parse_dt(sdt, argv[0], "sdt"));
-        else if (parse_dt(ddt, argv[0], "ddt"));
-        else if (parse_tag(stag, argv[0], "stag"));
-        else if (parse_tag(dtag, argv[0], "dtag"));
-        else if (parse_attr(attr, argv[0]));
-        else if (parse_vector_option(oflag, str2flag, argv[0], "oflag"));
-        else if (parse_vector_option(def_scale, atof, argv[0], "def-scales"));
-        else if (parse_single_value_option(alg, str2alg, argv[0], "alg"));
-        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
-        else if (parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0]));
-        else if (parse_reset(reset_parameters, argv[0]));
-        else {
+        const bool parsed_options = false
+            || parse_bench_settings(argv[0])
+            || parse_batch(bench, argv[0])
+            || parse_dt(sdt, argv[0], "sdt")
+            || parse_dt(ddt, argv[0], "ddt")
+            || parse_tag(stag, argv[0], "stag")
+            || parse_tag(dtag, argv[0], "dtag")
+            || parse_vector_option(oflag, str2flag, argv[0], "oflag")
+            || parse_single_value_option(alg, str2alg, argv[0], "alg")
+            || parse_vector_option(def_scale, atof, argv[0], "def-scales")
+            || parse_attr(attr, argv[0])
+            || parse_allow_unimpl(allow_unimpl, argv[0])
+            || parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0])
+            || parse_reset(reset_parameters, argv[0]);
+        if (!parsed_options) {
             catch_unknown_options(argv[0], "reorder");
 
             parse_dims(dims, argv[0]);

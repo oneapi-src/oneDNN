@@ -118,23 +118,24 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        if (parse_bench_settings(argv[0]));
-        else if (parse_batch(bench, argv[0]));
-        else if (parse_dir(dir, argv[0]));
-        else if (parse_dt(dt, argv[0]));
-        else if (parse_tag(tag, argv[0]));
-        else if (parse_mb(mb, argv[0]));
-        else if (parse_vector_option(alpha, atof, argv[0], "alpha"));
-        else if (parse_vector_option(beta, atof, argv[0], "beta"));
-        else if (parse_vector_option(alg, attr_t::post_ops_t::str2kind, argv[0],
-                    "alg"));
-        else if (parse_inplace(inplace, argv[0]));
-        else if (parse_skip_impl(skip_impl, argv[0]));
-        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
-        else if (parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0]));
-        else if (parse_reset(reset_parameters, argv[0]));
-        else {
+        const bool parsed_options = false
+            || parse_bench_settings(argv[0])
+            || parse_batch(bench, argv[0])
+            || parse_dir(dir, argv[0])
+            || parse_dt(dt, argv[0])
+            || parse_tag(tag, argv[0])
+            || parse_vector_option(alpha, atof, argv[0], "alpha")
+            || parse_vector_option(beta, atof, argv[0], "beta")
+            || parse_vector_option(alg, attr_t::post_ops_t::str2kind, argv[0],
+                    "alg")
+            || parse_inplace(inplace, argv[0])
+            || parse_mb(mb, argv[0])
+            || parse_skip_impl(skip_impl, argv[0])
+            || parse_allow_unimpl(allow_unimpl, argv[0])
+            || parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0])
+            || parse_reset(reset_parameters, argv[0]);
+        if (!parsed_options) {
             catch_unknown_options(argv[0], "eltwise");
 
             parse_dims(dims, argv[0]);
