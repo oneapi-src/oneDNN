@@ -90,7 +90,7 @@ int bench(int argc, char **argv) {
             || parse_bench_settings(argv[0])
             || parse_batch(bench, argv[0])
             || parse_dir(dir, argv[0])
-            || parse_vector_option(cfg, str2cfg, argv[0], "cfg")
+            || parse_cfg(cfg, str2cfg, argv[0])
             || parse_tag(tag, argv[0])
             || parse_vector_option(alg, str2alg, argv[0], "alg")
             || parse_mb(mb, argv[0])
