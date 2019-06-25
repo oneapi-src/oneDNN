@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2018 Intel Corporation
+# Copyright 2016-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ endif()
 
 set(PROJECT_NAME "Intel(R) MKL-DNN")
 set(PROJECT_FULL_NAME "Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)")
-set(PROJECT_VERSION "0.95.0")
+set(PROJECT_VERSION "1.0.0")
 
 set(LIB_NAME mkldnn)
 
