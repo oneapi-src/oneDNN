@@ -16,6 +16,3 @@
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_regressions
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_regressions
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_regressions
-
---tag=nchw,nhwc,nChw16c
---dir=FWD_D,BWD_DW --flags=SR                             --batch=bnorm_large
