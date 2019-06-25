@@ -48,7 +48,8 @@ void parallel(int nthr, F f) {
     f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
 #elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
     if (nthr == 1) { f(0, 1); return; }
-    tbb::parallel_for(0, nthr, [&](int ithr) { f(ithr, nthr); });
+    tbb::parallel_for(0, nthr, [&](int ithr) { f(ithr, nthr); },
+            mkldnn_tbb_partitioner());
 #endif
 }
 
@@ -177,7 +178,7 @@ void parallel_nd(const T0 &D0, F f) {
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename F>
@@ -185,7 +186,7 @@ void parallel_nd(const T0 &D0, const T1 &D1, F f) {
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, D1, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename F>
@@ -193,7 +194,7 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, F f) {
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, D1, D2, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename F>
@@ -201,7 +202,7 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3, F f) {
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, D1, D2, D3, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
@@ -211,7 +212,7 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, D1, D2, D3, D4, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
@@ -221,7 +222,7 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
     const int nthr = mkldnn_get_max_threads();
     tbb::parallel_for(0, nthr, [&](int ithr) {
         for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
-    });
+    }, mkldnn_tbb_partitioner());
 }
 #endif
 
