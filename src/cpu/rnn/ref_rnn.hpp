@@ -134,7 +134,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
             // initialize the workspace if needed
             if (rnn_.is_training) {
-                dims_t ws_dims = { (int)ws_sz };
+                dims_t ws_dims = { (dim_t)ws_sz };
                 mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
                         data_type::u8, format_tag::x);
             }
