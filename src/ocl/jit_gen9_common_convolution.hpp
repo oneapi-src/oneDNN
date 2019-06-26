@@ -183,6 +183,10 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
                     && this->desc()->weights_desc.data_type == wei_type
                     && this->desc()->accum_data_type == acc_type
                     && this->desc()->diff_src_desc.data_type == diff_src_type
+                    &&(IMPLICATION(this->with_bias() && diff_dst_type != data_type::f16,
+                               this->desc()->bias_desc.data_type == data_type::f32)
+                            || IMPLICATION(this->with_bias() && diff_dst_type == data_type::f16,
+                                    this->desc()->bias_desc.data_type == data_type::f16))
                     && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory();
             if (!ok)
@@ -190,7 +194,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
 
             status_t status = jit_gen9_common_conv_bwd_data_kernel::init_conf(
                     jcp_, *this->desc(), *this->diff_src_md(),
-                    *this->weights_md(), *this->diff_dst_md(), *this->attr());
+                    *this->weights_md(), *this->diff_dst_md(),
+                    *this->weights_md(1), *this->attr());
             if (status != status::success)
                 return status;
 

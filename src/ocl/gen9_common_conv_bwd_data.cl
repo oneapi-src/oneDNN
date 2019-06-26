@@ -29,7 +29,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #    endif
 __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
-        __global DATA_T *wei, __global DATA_T *diff_dst) {
+        __global DATA_T *wei, __global DATA_T *diff_dst, __global DATA_T *bias) {
 
 #    if VER_16MB16C == 1
     const int mb_unroll = 16;
@@ -59,8 +59,8 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
 
     diff_dst += mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
 
-    DATA8_T blockC00 = 0.0f;
-    DATA8_T blockC01 = 0.0f;
+    DATA8_T blockC00 = WITH_BIAS ? (DATA8_T) bias[g * IC + gic * IC_BLOCK + local_id] : 0.0f;
+    DATA8_T blockC01 = WITH_BIAS ? (DATA8_T) bias[g * IC + gic * IC_BLOCK + local_id] : 0.0f;
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
@@ -275,8 +275,12 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
     const int iw = (ihw % IWB) * IW_BLOCK;
 
     diff_dst += mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
-
     DATA_T blockC00[IW_BLOCK] = {0.0f};
+
+#if WITH_BIAS
+    for (int i=0; i<IW_BLOCK; i++)
+        blockC00[i] = bias[g * IC + gic * IC_BLOCK + local_id];
+#endif
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
@@ -464,7 +468,6 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
             (__global BLOCK_DATA_T *)(&(src_write0)[i * IC_BLOCK]),
             AS_BLOCK_DATA_T(blockC00[i]));
     }
-
 #    endif
 }
 #endif
