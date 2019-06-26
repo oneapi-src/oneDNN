@@ -68,7 +68,7 @@ The LRN primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination |
 | :--                | :--                  |
-| forward / backward | f32                  |
+| forward / backward | f32, bf16            |
 | forward            | f16                  |
 
 @warning

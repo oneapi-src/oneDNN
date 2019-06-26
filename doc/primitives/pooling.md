@@ -81,7 +81,7 @@ The pooling primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination | Accumulation data type (used for average pooling only)
 | :--                | :--                  | :--
-| forward / backward | f32                  | f32
+| forward / backward | f32, bf16            | f32
 | forward            | f16                  | f16
 | forward            | s8, u8, s32          | s32
 
