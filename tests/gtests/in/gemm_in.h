@@ -5,6 +5,7 @@ INST_TEST_CASE(TestGEMM,
     test_params{'n', 't', 3, 2, 2, 1.0, 0.0, 3, 1, 8, {}, {}, true, mkldnn_invalid_arguments},
     test_params{'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {}, true, mkldnn_invalid_arguments},
 
+    test_params{'N', 'N', 1, 1, 1, 1.0, 0.0, 4, 4, 4},
     test_params{'N', 'n', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
     test_params{'n', 'T', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
     test_params{'T', 'N', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
