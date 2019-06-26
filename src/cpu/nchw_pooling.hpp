@@ -134,7 +134,7 @@ struct nchw_pooling_bwd_t: public cpu_primitive_t {
 
                 const auto &ws_blk
                         = hint_fwd_pd_->workspace_md()->format_desc.blocking;
-                ws_ok = ws_ok && ws_blk.inner_nblks < 1
+                ws_ok = ws_ok && ws_blk.inner_nblks <= 1
                         && IMPLICATION(ws_blk.inner_nblks == 1,
                                    ws_blk.inner_idxs[0] == 1);
                 if (!ws_ok)
