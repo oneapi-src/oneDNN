@@ -208,7 +208,7 @@ gen9_gemm_nocopy_kernel(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
-    int k_align = k & -3;
+    int k_align = k & ~3;
 
     for (int h = 0; h < k_align; h += 4) {
         // Load A
@@ -368,7 +368,7 @@ gen9_gemm_nocopy_kernel(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
-    int k_align = k & -3;
+    int k_align = k & ~3;
 
     for (int h = 0; h < k_align; h += 4) {
         for (int z = 0; z < 2; z++) {
@@ -444,7 +444,7 @@ gen9_gemm_nocopy_kernel(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
-    int k_align = k & -3;
+    int k_align = k & ~3;
 
     for (int h = 0; h < k_align; h += 4) {
         for (int z = 0; z < 2; z++)
