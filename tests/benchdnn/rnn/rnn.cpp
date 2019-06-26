@@ -454,7 +454,7 @@ int doit(const prb_t *p, res_t *r) {
 
         const auto ws_md = mkldnn_primitive_desc_query_md(
                 rpd[0], mkldnn_query_workspace_md, 0);
-        SAFE(ws_md != NULL ? OK : FAIL, WARN);
+        SAFE(ws_md->ndims != 0 ? OK : FAIL, WARN);
         workspace_dt = new dnn_mem_t(*ws_md, engine_tgt);
     }
 
