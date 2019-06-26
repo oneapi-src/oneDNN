@@ -146,13 +146,16 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
 
-        if (!ok) {
-            r->errors++;
-            if (r->errors < 10 || verbose >= 10) {
-                print(0, "[%4ld][%s]"
-                        "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (long)i, skind, fp, fp0, dt, diff, rel_diff);
-            }
+        r->errors += !ok;
+
+        const bool dump = false
+            || (!ok && (r->errors < 10 || verbose >= 10))
+            || (verbose >= 50 && i < 30)
+            || (verbose >= 99);
+        if (dump) {
+            print(0, "[%4ld][%s]"
+                    "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, skind, fp, fp0, dt, diff, rel_diff);
         }
         non_zero += fp != 0;
     }
