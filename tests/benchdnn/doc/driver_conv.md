@@ -112,36 +112,36 @@ all the points are initialized with non-zero values: see
 
 ## Examples
 
-Run the set of f32 forward convolutions from inputs/conv_all file w/ bias and
+Run the set of f32 forward convolutions from inputs/conv/conv_all file w/ bias and
 default minibatch:
 ``` sh
-    ./benchdnn --conv --cfg=f32 --dir=FWD_B --batch=inputs/conv_all
+    ./benchdnn --conv --cfg=f32 --dir=FWD_B --batch=inputs/conv/conv_all
 ```
 
 Run the same but with post_ops ReLU:
 ``` sh
     ./benchdnn --conv --cfg=f32 --dir=FWD_B \
-               --attr="post_ops='relu'" --batch=inputs/conv_all
+               --attr="post_ops='relu'" --batch=inputs/conv/conv_all
 ```
 
 Run the same as previous but measures performance, not correctness check:
 ``` sh
     ./benchdnn --conv --mode=p --cfg=f32 --dir=FWD_B \
-               --attr="post_ops='relu'" --batch=inputs/conv_all
+               --attr="post_ops='relu'" --batch=inputs/conv/conv_all
 ```
 
 Run a set of f32 backward convolutions wrt weights with kh=3 and
 verbose level set to 2:
 ``` sh
     ./benchdnn --conv -v2 --cfg=f32 --dir=BWD_W \
-               --match='.*kh3[^0-9].*' --batch=inputs/conv_all
+               --match='.*kh3[^0-9].*' --batch=inputs/conv/conv_all
 ```
 
 Run a set of u8s8u8s32 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
 ``` sh
     ./benchdnn --conv --cfg=u8s8u8s32 --dir=BWD_B \
-               --skip-impl='ref:gemm' --batch=inputs/conv_all
+               --skip-impl='ref:gemm' --batch=inputs/conv/conv_all
 ```
 
 Run explicitly specified first forward convolution (including bias) from Alexnet
@@ -172,9 +172,9 @@ one common output scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=u8s8u8s32 --dir=FWD_D \
                --skip-impl="ref" --allow-unimpl=true \
-               --attr="oscale=common:.5" --batch=inputs/conv_all
+               --attr="oscale=common:.5" --batch=inputs/conv/conv_all
 ```
 
 More examples with different driver options can be found at
-inputs/test_conv_***. Examples with different driver descriptors can be found at
-inputs/conv_***.
+inputs/conv/test_conv_***. Examples with different driver descriptors can be
+found at inputs/conv/conv_***.
