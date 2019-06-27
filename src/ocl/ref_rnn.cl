@@ -34,19 +34,23 @@
     ((i0)*(D1)+(i1))
 
 #define OFF_WS_STATES_LAYER(i0,i1,i2,i3,i4) \
-    OFF5((i0), N_DIR, (i1), N_ITER + 1, (i2), N_STATES, (i3), BATCH, (i4), WIC)
-
+    OFF5((i0), N_DIR, (i1), N_ITER + 1, (i2), N_STATES, (i3), BATCH, \
+               (i4), STATES_WS_LD)
 #define OFF_WS_STATES(i0,i1,i2,i3,i4,i5) \
     OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), N_STATES, \
-               (i4), BATCH, (i5), WIC)
-
+               (i4), BATCH, (i5), STATES_WS_LD)
 #define OFF_WS_DIFF_STATES(i0,i1,i2,i3,i4,i5) \
     OFF6((i0), N_LAYER + 1,(i1), N_DIR, (i2), N_ITER + 1, (i3), N_STATES + 1, \
-               (i4), BATCH, (i5), WIC)
+               (i4), BATCH, (i5), STATES_WS_LD)
 
+// cannot be presented by OFF6 due to leading dimension across two dims
 #define OFF_WS_GATES(i0,i1,i2,i3,i4,i5) \
-    OFF6((i0), N_LAYER, (i1), N_DIR, (i2), N_ITER, (i3), BATCH, (i4), N_GATES, \
-               (i5), DIC)
+    (i0)*N_DIR*N_ITER*BATCH*GATES_WS_LD \
+    +(i1)*N_ITER*BATCH*GATES_WS_LD \
+    +(i2)*BATCH*GATES_WS_LD \
+    +(i3)*GATES_WS_LD \
+    +(i4)*DIC \
+    +(i5)
 
 // for cell - shorter forms
 
@@ -54,17 +58,8 @@
 #define CELL_WS_STATES(i3,i4,i5) OFF_WS_STATES(0,0,0,i3,i4,i5)
 #define CELL_WS_DIFF_STATES(i3,i4,i5) OFF_WS_DIFF_STATES(0,0,0,i3,i4,i5)
 
-#define OFF_KER_STATES(i0,i1,i2) \
-    OFF3((i0), N_STATES, (i1), BATCH, (i2), WIC)
-#define OFF_KER_GATES(i0,i1,i2) \
-    OFF3((i0), BATCH, (i1), N_GATES, (i2), DIC)
 #define OFF_KER_BIAS(i0,i1) \
     OFF2((i0), N_GATES, (i1), DIC)
-
-#define OFF_A0(i0,i1,i2) \
-    OFF3((i0), SLC, (i1), N_GATES, (i2), DIC)
-#define OFF_A1(i0,i1,i2) \
-    OFF3((i0), SIC, (i1), N_GATES, (i2), DIC)
 
 #define SRC_L_OFF(x0, x1, x2) ( \
     ((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 + \
@@ -390,6 +385,68 @@ __kernel void ref_rnn_ws_set_kernel(__global DATA_T *ws, OFFTYPE ws_offset,
     dst[get_global_id(0)] = CONVERT_DATA_T(val);
 }
 
+// useful for debug
+#if DEBUGPRINT
+__kernel void ref_rnn_ws_print_kernel(
+    const __global DATA_T *ws
+    ) {
+    printf("ws_gates: off %d\n",WS_GATES_OFFSET);
+    printf("[lay,dir,iter,batch]\n");
+    __global DATA_T *wt = ws + WS_GATES_OFFSET;
+    for (int j = 0; j < N_LAYER; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int i = 0; i < N_ITER; i++) {
+    for (int b = 0; b < BATCH; b++) {
+        printf("[%d,%d,%d,%d]: ", j, dir, i, b);
+        for (int g = 0; g < N_GATES; g++) {
+        for (int s = 0; s < DIC; s++) {
+            printf(" %f", *(wt + OFF_WS_GATES(j,dir,i,b,g,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+    printf("ws_states: off %d\n", WS_STATES_OFFSET);
+    printf("[lay,dir,iter,state]\n");
+    wt = ws + WS_STATES_OFFSET;
+    for (int j = 0; j < N_LAYER+1; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int i = 0; i < N_ITER+1; i++) {
+    for (int st = 0; st < N_STATES; st++) {
+        printf("[%d,%d,%d,%d] : ", j, dir, i, st);
+        for (int b = 0; b < BATCH; b++) {
+        for (int s = 0; s < WIC; s++) {
+            printf(" %f", *(wt + OFF_WS_STATES(j,dir,i,st,b,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+    printf("ws_diff_states: off %d\n",WS_DIFF_STATES_OFFSET);
+    printf("[lay,dir,state,iter]\n");
+    wt = ws + WS_DIFF_STATES_OFFSET;
+    for (int j = 0; j < N_LAYER+1; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int st = 0; st < N_STATES+1; st++) {
+    for (int i = 0; i < N_ITER+1; i++) {
+        printf("[%d,%d,%d,%d] : ", j, dir, st, i);
+        for (int b = 0; b < BATCH; b++) {
+        for (int s = 0; s < WIC; s++) {
+            printf(" %f", *(wt + OFF_WS_DIFF_STATES(j,dir,i,st,b,s)));
+        }
+        }
+        printf("\n");
+    }
+    }
+    }
+    }
+}
+#endif
+
 __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         __global DATA_T *ws, __global DATA_T *bias_base) {
 
@@ -513,7 +570,7 @@ __kernel void ref_rnn_gates_reduction_kernel(int dir, int lay, int iter,
         + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
-        diff_bias[i * DIC + k] += ws_gates[(j * N_GATES + i) * DIC + k];
+        diff_bias[i * DIC + k] += ws_gates[j * GATES_WS_LD + i * DIC + k];
     }
 #endif
 }

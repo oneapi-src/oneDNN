@@ -37,25 +37,11 @@
 // not implemented
 #define USE_MKL_PACKED_GEMM 0
 
-
-// just to debug
+// TODO just to debug
 #define EMULATED_SCRATCHPAD 1
+#define WS_NAN_FILLING 0
 
 extern const char *ref_rnn_kernel;
-
-////////////////////////////////////////////////////////////
-//#define DEBUGPRINT
-
-#ifdef DEBUGPRINT
-#define DPRINT(fmt, ...) printf(fmt, __VA_ARGS__);fflush(0)
-#define DTHR 0
-#define DPRINT1T(fmt, ...) \
-    if (ithr==DTHR) printf(fmt, __VA_ARGS__);fflush(0)
-#else
-#define DPRINT(fmt, ...)
-#define DPRINT1T(ithr,fmt, ...)
-#endif
-////////////////////////////////////////////////////////////
 
 namespace mkldnn {
 namespace impl {
@@ -146,6 +132,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
             }
 
+            init_rnn_conf(rnn_conf_, *this->desc(), this->src_md(0), this->src_md(1),
+                this->weights_md(0), this->weights_md(1), this->dst_md(0));
+
             ok = ok && utils::one_of(cell_kind, alg_kind::vanilla_rnn,
                                alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
                                alg_kind::lbr_gru);
@@ -175,6 +164,28 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
             }
 
+            // Set weights descriptors to desired format
+            memory_desc_t new_weights_layer_md = *this->weights_md(0);
+            CHECK(set_expected_desc(rnn_conf_, new_weights_layer_md, false));
+            if (this->weights_layer_md_.format_kind == format_kind::any) {
+                this->weights_layer_md_ = new_weights_layer_md;
+            } else if (this->weights_layer_md_.format_kind
+                    == format_kind::rnn_packed) {
+                if (mkldnn::impl::operator!=(this->weights_layer_md_,
+                                             new_weights_layer_md))
+                    return status::unimplemented;
+            }
+            memory_desc_t new_weights_iter_md = *this->weights_md(1);
+            CHECK(set_expected_desc(rnn_conf_, new_weights_iter_md, true));
+            if (this->weights_iter_md_.format_kind == format_kind::any) {
+                this->weights_iter_md_ = new_weights_iter_md;
+            } else if (this->weights_iter_md_.format_kind
+                    == format_kind::rnn_packed) {
+                if (mkldnn::impl::operator!=(this->weights_iter_md_,
+                                             new_weights_iter_md))
+                    return status::unimplemented;
+            }
+
             // Check dimensions consistency
             int ls_multiplier
                     = (this->direction() == mkldnn_bidirectional_concat) ? 2 :
@@ -188,19 +199,26 @@ struct _ref_rnn_common_t : public primitive_t {
                 return status::unimplemented;
             }
 
+            set_rnn_conf(rnn_conf_, *this->desc(), this->weights_md(0),
+                    this->weights_md(1), this->diff_weights_md(0),
+                    this->diff_weights_md(1));
+
+            size_t scratchpad_sz{0}, ws_sz{0};
+            get_scratchpad_and_workspace_sizes(rnn_conf_, scratchpad_sz, ws_sz);
+
             // initialize the workspace_pd if needed
-            if (this->desc()->prop_kind != forward_inference){
-                dims_t ws_dims = { (dim_t)rnn_utils::get_ws_size(*this) };
+            if (rnn_conf_.use_workspace){
+                dims_t ws_dims = { (dim_t)ws_sz };
                 mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
                         src_type, x);
             }
 
 #if !EMULATED_SCRATCHPAD
-            auto scratchpad_sz = rnn_utils::get_scratchpad_size(*this);
             init_scratchpad(scratchpad_sz);
 #endif
 
-            status_t status = init_base<aprop>(jrnn_, this, this->jit_off_);
+            status_t status = init_jit<aprop>(jrnn_, rnn_conf_, this,
+                this->jit_off_);
             if (status != status::success) {
                 return status;
             }
@@ -235,12 +253,11 @@ struct _ref_rnn_common_t : public primitive_t {
                         &dummy_attr, this->engine(), nullptr);
             };
 
-            int batch = this->MB();
-            int n_gates = this->G();
-            int slc = this->SLC();
-            int sic = this->SIC();
-            int dic = this->DIC();
-            int wic = nstl::max(slc, nstl::max(sic, dic));
+            int batch = rnn_conf_.mb;
+            int n_gates = rnn_conf_.n_gates;
+            int slc = rnn_conf_.slc;
+            int sic = rnn_conf_.sic;
+            int dic = rnn_conf_.dic;
 
             bool gemm_ok = true;
 
@@ -248,28 +265,34 @@ struct _ref_rnn_common_t : public primitive_t {
             case prop_kind::forward:
                 gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_layer_pd_, n_gates * dic,
-                                batch, slc, n_gates * dic, wic, n_gates * dic,
-                                weights_type, src_type, src_type, false, 0.0),
-                            create_gemm_pd(&gemm_iter_pd_, n_gates * dic,
-                                batch, sic, n_gates * dic, wic, n_gates * dic,
-                                weights_type, src_type, src_type, false, 1.0));
+                create_gemm_pd(&gemm_layer_pd_, n_gates * dic, batch, slc,
+                    rnn_conf_.weights_layer_ld, rnn_conf_.states_ws_ld,
+                    rnn_conf_.gates_ws_ld, weights_type, src_type, src_type,
+                    false, 0.0),
+                create_gemm_pd(&gemm_iter_pd_, n_gates * dic, batch, sic,
+                    rnn_conf_.weights_iter_ld, rnn_conf_.states_ws_ld,
+                    rnn_conf_.gates_ws_ld, weights_type, src_type, src_type,
+                    false, 1.0));
                 break;
             case prop_kind::backward:
                 gemm_ok = true
                     && utils::everyone_is(status::success,
                     create_gemm_pd(&gemm_iter_pd_, sic, batch, n_gates * dic,
-                        slc, n_gates * dic, wic, weights_type, src_type,
-                        src_type, false, 0.0f),
+                        rnn_conf_.weights_iter_ld, rnn_conf_.gates_ws_ld,
+                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
+                        false, 0.0f),
                     create_gemm_pd(&gemm_layer_pd_, sic, batch, n_gates * dic,
-                        sic, n_gates * dic, wic, weights_type, src_type,
-                        src_type, false, 0.0f),
+                        rnn_conf_.weights_layer_ld, rnn_conf_.gates_ws_ld,
+                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
+                        false, 0.0f),
                     create_gemm_pd(&gemm_diff_wei_layer_pd_, n_gates * dic, slc,
-                        batch, n_gates * dic, wic, n_gates * dic, src_type,
-                        src_type, weights_type, true, 1.0f),
+                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
+                        rnn_conf_.diff_weights_layer_ld, src_type, src_type,
+                        weights_type, true, 1.0f),
                     create_gemm_pd(&gemm_diff_wei_iter_pd_, n_gates * dic, sic,
-                        batch, n_gates * dic, wic, n_gates * dic, src_type,
-                        src_type, weights_type, true, 1.0f));
+                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
+                        rnn_conf_.diff_weights_iter_ld, src_type, src_type,
+                        weights_type, true, 1.0f));
                 break;
             default:
                 assert(!"unknown prop_kind");
@@ -285,6 +308,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
         jit_rnn_conf_t jrnn_;
         jit_rnn_offsets jit_off_;
+        rnn_utils::rnn_conf_t rnn_conf_;
 
         primitive_desc_t *gemm_iter_pd_ = nullptr;
         primitive_desc_t *gemm_layer_pd_ = nullptr;
@@ -301,6 +325,7 @@ struct _ref_rnn_common_t : public primitive_t {
         void copy_from(const pd_t &other) {
             jrnn_ = other.jrnn_;
             jit_off_ = other.jit_off_;
+            rnn_conf_ = other.rnn_conf_;
             gemm_layer_pd_ = other.gemm_layer_pd_
                 ? other.gemm_layer_pd_->clone() : nullptr;
             gemm_iter_pd_ = other.gemm_iter_pd_
@@ -349,6 +374,10 @@ struct _ref_rnn_common_t : public primitive_t {
             = jit.get_kernel("ref_rnn_gates_reduction_kernel");
         if (!gates_reduction_kernel_) return status::runtime_error;
 
+#if DEBUGPRINT
+        ws_print_kernel_ = jit.get_kernel("ref_rnn_ws_print_kernel");
+        if (!ws_print_kernel_) return status::runtime_error;
+#endif
         bool gemm_ok = true;
 
         switch(aprop) {
@@ -376,8 +405,9 @@ struct _ref_rnn_common_t : public primitive_t {
             return status::runtime_error;
 
 #if EMULATED_SCRATCHPAD
-        if (use_scratchpad_) {
-            auto scratchpad_sz = rnn_utils::get_scratchpad_size(*this->pd());
+        if (!pd()->rnn_conf_.use_workspace) {
+            size_t scratchpad_sz{0}, ws_sz{0};
+            get_scratchpad_and_workspace_sizes(pd()->rnn_conf_, scratchpad_sz, ws_sz);
             engine()->create_memory_storage(&scratchpad_,
                     scratchpad_sz * sizeof(src_data_t));
         }
@@ -385,9 +415,6 @@ struct _ref_rnn_common_t : public primitive_t {
         return status::success;
     } // status_t init() override
 
-    //
-    // constructor
-    //
     _ref_rnn_common_t(const pd_t *apd)
         : primitive_t(apd) {
 
@@ -397,13 +424,6 @@ struct _ref_rnn_common_t : public primitive_t {
         /// respectively
         ///
         ker_ = new jit_ref_rnn_kernel(pd()->jrnn_);
-
-#if USE_MKL_PACKED_GEMM
-// TBD
-#else
-        use_layer_packed_gemm_ = false;
-        use_iter_packed_gemm_ = false;
-#endif
 
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
                 packing_t &p, free_packed_t &f) {
@@ -440,62 +460,27 @@ struct _ref_rnn_common_t : public primitive_t {
         default: break;
         }
 
-        n_output_features
-                = (pd()->direction() == mkldnn_bidirectional_concat) ? 2 : 1;
-        switch (pd()->direction()) {
-        case mkldnn_unidirectional_left2right: exec_dir = b2t_l2r; break;
-        case mkldnn_unidirectional_right2left: exec_dir = b2t_r2l; break;
-        case mkldnn_bidirectional_concat: exec_dir = b2t_bi_concat; break;
-        case mkldnn_bidirectional_sum: exec_dir = b2t_bi_sum; break;
-        default: break;
-        }
-
         /// @todo put a heuristic to choose between linear execution and
         /// wavefront
         grid_computation = &class_name::linear_execution;
 
-        set_offsets(*pd(), ws_gates_offset_, ws_states_offset_,
-                ws_diff_states_offset_, ws_grid_comp_offset_,
-                ws_cell_comp_offset_);
-
-        // we need to allocate memory for:
-        // - the states to compute a pass.
-        // - the intermediate results from the gates.
-        // - the diff_states to compute the backward pass (training only)
-        // These should be allocated on scratchpad if fwd inference
-        // or on a workspace provided by the user for training.
-        /// @todo shall we require the workspace for training or make it
-        /// optional?
-
-        // if no worskpace is provided on forward, we use a scratchpad
-        // NOTE: here we use a large worskpace for simplicity:
-        // - for states:
-        //   - TODO: allocate only n_iter * dic + dic for linear execution
-        //   (inference)
-        //   - TODO: allocate only n_layer_wav * (2*dic) for wavefront
-        //   execution (inference)
-        // - for gates:
-        //   - TODO: allocate only batch * n_gates * dic for linear execution
-        //   (inference)
-        //   = TODO: allocate only n_layer_wav * batch * n_gates * dic for
-        //   wavefront execution (inference)
-
-        use_scratchpad_
-            = (pd()->desc()->prop_kind == prop_kind::forward_inference);
-        use_workspace_ = !use_scratchpad_;
+        size_t scratchpad_size, workspace_size;
+        rnn_utils::set_offsets(pd()->rnn_conf_, ws_gates_offset_, ws_states_offset_,
+                ws_c_states_offset_, ws_diff_states_offset_,
+                ws_grid_comp_offset_, ws_cell_comp_offset_,
+                ws_bias_offset_, scratchpad_size, workspace_size);
 
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
-        int ptr_wei_sz = pd()->L() * pd()->D() * max_nparts; // as unused, tmp
+        int offset_wei_sz = pd()->L() * pd()->D() * max_nparts;
 
-        offset_wei_input_ = (size_t *)malloc(sizeof(size_t) * ptr_wei_sz, 64);
-        offset_wei_state_ = (size_t *)malloc(sizeof(size_t) * ptr_wei_sz, 64);
+        offset_wei_input_ = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
+        offset_wei_state_ = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
     }
 
     ~_ref_rnn_common_t() {
         delete ker_;
 #if EMULATED_SCRATCHPAD
-        if (use_scratchpad_) {
-            // SK : good wor emulated scratchpad too
+        if (!pd()->rnn_conf_.use_workspace) {
             delete scratchpad_;
         }
 #endif
@@ -536,7 +521,7 @@ private:
             int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
-    void copy_init_iter(const stream_t *s, int n_layer, int n_direction,
+    void copy_init_iter(const stream_t *s, int n_layer, int n_dir,
             int batch, int sic, int dic,
             const memory_storage_t &ws, const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
@@ -546,7 +531,7 @@ private:
             int batch, int slc, int dlc, const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
             const memory_storage_t &ws) const;
-    void copy_res_iter(const stream_t *s, int n_layer, int n_direction,
+    void copy_res_iter(const stream_t *s, int n_layer, int n_dir,
             int batch, int sic, int dic,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
@@ -558,6 +543,10 @@ private:
             const memory_storage_t &diff_bias) const;
     void ws_set(const stream_t *s, const memory_storage_t &workspace,
             const cl_ulong ws_offset, const float val, const size_t size) const;
+#if DEBUGPRINT
+    void ws_print(const stream_t *s, const memory_storage_t &workspace) const;
+    ocl_kernel_t ws_print_kernel_;
+#endif
 
     jit_ref_rnn_kernel *ker_;
     ocl_kernel_t copy_init_layer_kernel_;
@@ -576,26 +565,19 @@ private:
     primitive_t *gemm_diff_wei_layer_ = nullptr;
     primitive_t *gemm_diff_wei_iter_ = nullptr;
 
-    bool use_workspace_;
-    bool use_scratchpad_;
-
     memory_storage_t *scratchpad_;
 
-    bool use_layer_packed_gemm_;
-    bool use_iter_packed_gemm_;
-
-    cl_ulong ws_gates_offset_;      // used as params to ocl kernel
+    cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;
+    cl_ulong ws_c_states_offset_;
     cl_ulong ws_diff_states_offset_;
     cl_ulong ws_grid_comp_offset_;
     cl_ulong ws_cell_comp_offset_;
-
-    int n_output_features;
+    cl_ulong ws_bias_offset_;
 
     size_t *offset_wei_input_;
     size_t *offset_wei_state_;
 
-    rnn_utils::execution_direction exec_dir;
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
