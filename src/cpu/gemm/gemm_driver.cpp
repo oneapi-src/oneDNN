@@ -1182,6 +1182,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
 
     if (nocopy_checker(nthrs, arg)) {
         thread_info.copy = copy_type::no_copy;
+        thread_info.partition = partition_type::mnk_3d;
         int nthrs_m = 0;
         int nthrs_n = 0;
         int nthrs_k = 0;
