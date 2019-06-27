@@ -396,7 +396,7 @@ std::string locate_batch_file(const std::string &fname) {
     std::string fdir;
     {
         std::string fname_copy = fname;
-        fname_copy.resize(fname_copy.length() + 1);
+        fname_copy.resize(PATH_MAX);
         char *c_fdir = dirname(&fname_copy[0]);
         fdir = std::string(c_fdir);
     }
