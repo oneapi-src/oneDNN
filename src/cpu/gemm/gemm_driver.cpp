@@ -1064,10 +1064,12 @@ static inline void set_thread_opts_nopack(int nthrs,
         int nthrs_m = 1;
         int nthrs_n = nthrs;
 
-        while ((nthrs_n % 2 == 0) &&
-                (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
-                (m / nthrs_m >= 2 * M2D_MIN) &&
-                (nthrs_m < 4)) {
+        while ((!isSgemm && (nthrs_n > 1) && (n / nthrs_n < arg->un) &&
+                 (m / nthrs_m >= 2 * arg->um)) ||
+                ((nthrs_n % 2 == 0) &&
+                 (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
+                 (m / nthrs_m >= 2 * M2D_MIN) &&
+                 (nthrs_m < 4))) {
             nthrs_m *= 2;
             nthrs_n /= 2;
         }
