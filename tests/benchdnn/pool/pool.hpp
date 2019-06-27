@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _POOL_HPP
-#define _POOL_HPP
+#ifndef POOL_HPP
+#define POOL_HPP
 
 #include <stdint.h>
 #include <limits.h>

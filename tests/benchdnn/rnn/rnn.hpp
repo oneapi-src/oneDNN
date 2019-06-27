@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef _LSTM_HPP
-#define _LSTM_HPP
+#ifndef RNN_HPP
+#define RNN_HPP
 
 #include <assert.h>
 #include <limits.h>

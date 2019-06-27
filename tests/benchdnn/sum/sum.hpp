@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _SUM_HPP
-#define _SUM_HPP
+#ifndef SUM_HPP
+#define SUM_HPP
 
 #include <iostream>
 

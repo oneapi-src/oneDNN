@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _REORDER_HPP
-#define _REORDER_HPP
+#ifndef REORDER_HPP
+#define REORDER_HPP
 
 #include <iostream>
 

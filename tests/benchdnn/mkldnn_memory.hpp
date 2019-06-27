@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _MKLDNN_MEMORY_HPP
-#define _MKLDNN_MEMORY_HPP
+#ifndef MKLDNN_MEMORY_HPP
+#define MKLDNN_MEMORY_HPP
 
 #include "mkldnn_common.hpp"
 
