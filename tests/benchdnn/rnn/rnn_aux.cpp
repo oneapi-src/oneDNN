@@ -228,39 +228,39 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
-mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
-       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
-       mkldnn_memory_desc_t *weights_layer_d,
-       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
-       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
-       mkldnn_memory_desc_t *dst_iter_c_d) {
-    mkldnn_alg_kind_t kind = alg2kind(p->alg);
-    mkldnn_alg_kind_t f = activation2kind(p->activation);
+mkldnn_status_t init_rnn_fwd_desc(mkldnn_rnn_desc_t *rd, const prb_t &p,
+        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+        mkldnn_memory_desc_t *weights_layer_d,
+        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+        mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+        mkldnn_memory_desc_t *dst_iter_c_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p.alg);
+    mkldnn_alg_kind_t f = activation2kind(p.activation);
 
     mkldnn_status_t init_status;
     switch (kind) {
     case mkldnn_vanilla_rnn:
-        init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind,
-                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags,
-                p->alpha, p->beta);
+        init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind, f,
+                p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags,
+                p.alpha, p.beta);
         break;
     case mkldnn_vanilla_lstm:
-        init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, src_iter_c_d,
-                weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                dst_iter_d, dst_iter_c_d, p->flags);
+        init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind, p.direction,
+                src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, dst_iter_c_d,
+                p.flags);
         break;
     case mkldnn_vanilla_gru:
-        init_status = mkldnn_gru_forward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+        init_status = mkldnn_gru_forward_desc_init(rd, prop_kind, p.direction,
+                src_layer_d, src_iter_d, weights_layer_d, weights_iter_d,
+                bias_d, dst_layer_d, dst_iter_d, p.flags);
         break;
     case mkldnn_lbr_gru:
         init_status = mkldnn_lbr_gru_forward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p->flags);
+                p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags);
         break;
     default:
         init_status = mkldnn_unimplemented;
@@ -268,59 +268,57 @@ mkldnn_status_t init_rnn_fwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
     return init_status;
 }
 
-mkldnn_status_t init_rnn_bwd_desc( mkldnn_rnn_desc_t *rd, const prb_t *p,
-       mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
-       mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
-       mkldnn_memory_desc_t *weights_layer_d,
-       mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
-       mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
-       mkldnn_memory_desc_t *dst_iter_c_d,
-       mkldnn_memory_desc_t *diff_src_layer_d,
-       mkldnn_memory_desc_t *diff_src_iter_d,
-       mkldnn_memory_desc_t *diff_src_iter_c_d,
-       mkldnn_memory_desc_t *diff_weights_layer_d,
-       mkldnn_memory_desc_t *diff_weights_iter_d,
-       mkldnn_memory_desc_t *diff_bias_d,
-       mkldnn_memory_desc_t *diff_dst_layer_d,
-       mkldnn_memory_desc_t *diff_dst_iter_d,
-       mkldnn_memory_desc_t *diff_dst_iter_c_d) {
-    mkldnn_alg_kind_t kind = alg2kind(p->alg);
-    mkldnn_alg_kind_t f = activation2kind(p->activation);
+mkldnn_status_t init_rnn_bwd_desc(mkldnn_rnn_desc_t *rd, const prb_t &p,
+        mkldnn_prop_kind_t prop_kind, mkldnn_memory_desc_t *src_layer_d,
+        mkldnn_memory_desc_t *src_iter_d, mkldnn_memory_desc_t *src_iter_c_d,
+        mkldnn_memory_desc_t *weights_layer_d,
+        mkldnn_memory_desc_t *weights_iter_d, mkldnn_memory_desc_t *bias_d,
+        mkldnn_memory_desc_t *dst_layer_d, mkldnn_memory_desc_t *dst_iter_d,
+        mkldnn_memory_desc_t *dst_iter_c_d,
+        mkldnn_memory_desc_t *diff_src_layer_d,
+        mkldnn_memory_desc_t *diff_src_iter_d,
+        mkldnn_memory_desc_t *diff_src_iter_c_d,
+        mkldnn_memory_desc_t *diff_weights_layer_d,
+        mkldnn_memory_desc_t *diff_weights_iter_d,
+        mkldnn_memory_desc_t *diff_bias_d,
+        mkldnn_memory_desc_t *diff_dst_layer_d,
+        mkldnn_memory_desc_t *diff_dst_iter_d,
+        mkldnn_memory_desc_t *diff_dst_iter_c_d) {
+    mkldnn_alg_kind_t kind = alg2kind(p.alg);
+    mkldnn_alg_kind_t f = activation2kind(p.activation);
 
     mkldnn_status_t init_status;
     switch (kind) {
     case mkldnn_vanilla_rnn:
-        init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind,
-                f, p->direction, src_layer_d, src_iter_d, weights_layer_d,
+        init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind, f,
+                p.direction, src_layer_d, src_iter_d, weights_layer_d,
                 weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
                 diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
-                p->flags, p->alpha, p->beta);
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                diff_dst_iter_d, p.flags, p.alpha, p.beta);
         break;
     case mkldnn_vanilla_lstm:
-        init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, src_iter_c_d,
-                weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                dst_iter_d, dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
-                diff_src_iter_c_d, diff_weights_layer_d, diff_weights_iter_d,
-                diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
-                diff_dst_iter_c_d, p->flags);
+        init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind, p.direction,
+                src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
+                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, dst_iter_c_d,
+                diff_src_layer_d, diff_src_iter_d, diff_src_iter_c_d,
+                diff_weights_layer_d, diff_weights_iter_d, diff_bias_d,
+                diff_dst_layer_d, diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
         break;
     case mkldnn_vanilla_gru:
-        init_status = mkldnn_gru_backward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
-                p->flags);
+        init_status = mkldnn_gru_backward_desc_init(rd, prop_kind, p.direction,
+                src_layer_d, src_iter_d, weights_layer_d, weights_iter_d,
+                bias_d, dst_layer_d, dst_iter_d, diff_src_layer_d,
+                diff_src_iter_d, diff_weights_layer_d, diff_weights_iter_d,
+                diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, p.flags);
         break;
     case mkldnn_lbr_gru:
         init_status = mkldnn_lbr_gru_backward_desc_init(rd, prop_kind,
-                p->direction, src_layer_d, src_iter_d, weights_layer_d,
+                p.direction, src_layer_d, src_iter_d, weights_layer_d,
                 weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
                 diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d, diff_dst_iter_d,
-                p->flags);
+                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                diff_dst_iter_d, p.flags);
         break;
     default:
         init_status = mkldnn_unimplemented;
@@ -359,7 +357,7 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
 
@@ -377,11 +375,10 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const float diff_threshold = p->cfg[kind].dt == mkldnn_f16 ? 1e-2
-            : 1e-5;
+        const float diff_threshold = p.cfg[kind].dt == mkldnn_f16 ? 1e-2 : 1e-5;
 
-        const bool ok
-            = (fabs(fp) > diff_threshold ? rel_diff : diff) <= p->cfg[kind].eps;
+        const bool ok = (fabs(fp) > diff_threshold ? rel_diff : diff)
+                <= p.cfg[kind].eps;
 
         if (!ok) {
             r->errors++;
@@ -524,36 +521,36 @@ int compare_dat(const prb_t *p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int compare_input(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_states(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int compare_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
     return compare_dat(p, states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_input(const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+int compare_weights_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_input, mem_dt, mem_fp, r, final_compare);
 }
-int compare_weights_states(const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+int compare_weights_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *r, bool final_compare = false) {
     return compare_dat(p, weights_states, mem_dt, mem_fp, r, final_compare);
 }
-int compare_bias(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
+int compare_bias(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
+        bool final_compare = false) {
     return compare_dat(p, bias, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_layer(const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+int compare_dst_last_layer(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_layer, mem_dt, mem_fp, r, final_compare);
 }
-int compare_dst_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_last_iteration, mem_dt, mem_fp, r, final_compare);
 }
 
-int compare_dst_c_last_iteration(const prb_t *p, dnn_mem_t &mem_dt,
+int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(p, dst_c_last_iteration, mem_dt, mem_fp, r, final_compare);
 }

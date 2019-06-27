@@ -80,7 +80,7 @@ void check_correctness(const desc_t *c) {
         print(1, "run: %s\n", pstr);
 
         res_t res{};
-        const int status = doit(&p, &res);
+        const int status = doit(p, &res);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, allow_unimpl, status, pstr);
