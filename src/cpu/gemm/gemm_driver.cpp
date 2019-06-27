@@ -1051,17 +1051,25 @@ static inline void set_thread_opts_nopack(int nthrs,
         condition_1D_copya = true;
     }
 
+    // If A offset is non-zero, we use to keep 1D_copya.
+    // TODO: the reasons seems to be in copy_sum_bx routines. At least,
+    //       after simple optimization of copy_sum_ax, similar restriction
+    //       on offset B became unnecessary. Revisit.
+    if (isInteger && arg->ao != 0) {
+        condition_2D_bsrc = 0;
+        condition_1D_copya = 1;
+    }
+
     if (condition_2D_bsrc) {
         int nthrs_m = 1;
         int nthrs_n = nthrs;
 
-        // If A offset is non-zero, we use to keep 1D_copya.
-        // TODO: the reasons seems to be in copy_sum_bx routines. At least,
-        //       after simple optimization of copy_sum_ax, similar restriction
-        //       on offset B became unnecessary. Revisit.
-        if (isInteger && arg->ao != 0) {
-            condition_2D_bsrc = 0;
-            condition_1D_copya = 1;
+        while ((nthrs_n % 2 == 0) &&
+                (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
+                (m / nthrs_m >= 2 * M2D_MIN) &&
+                (nthrs_m < 4)) {
+            nthrs_m *= 2;
+            nthrs_n /= 2;
         }
 
         thread_info.nthrs_m = nthrs_m;
