@@ -103,8 +103,8 @@ TEST_P(stream_test_c, Wait) {
 }
 
 TEST_P(stream_test_cpp, Wait) {
-    mkldnn_engine_kind_t eng_kind_c;
-    mkldnn_stream_flags_t stream_flags_c;
+    mkldnn_engine_kind_t eng_kind_c = mkldnn_cpu;
+    mkldnn_stream_flags_t stream_flags_c = mkldnn_stream_in_order;
     std::tie(eng_kind_c, stream_flags_c) = GetParam();
 
     engine::kind eng_kind = static_cast<engine::kind>(eng_kind_c);
