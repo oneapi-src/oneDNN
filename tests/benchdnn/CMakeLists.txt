@@ -182,6 +182,8 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --reorder --batch=inputs/reorder/test_reorder_gpu")
     register_benchdnn_test(test_benchdnn_pool
         gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
+    register_benchdnn_test(test_benchdnn_eltwise
+        gpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_gpu")
     register_benchdnn_test(test_benchdnn_shuffle
         gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
     register_benchdnn_test(test_benchdnn_softmax
