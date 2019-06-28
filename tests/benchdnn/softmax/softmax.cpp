@@ -82,8 +82,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     // When axis_size is small, significant values are coming not only from the
     // biggest input, but also from some smaller. For this case we estimate the
     // amount of such number by log2f(axis_size).
-    // TODO: sse41 exp has lower accuracy, so for now we take max(log2(x), 10).
-    // 10 is taken empirically considering it's close to log2 value.
+    // exp accuracy is expected to be no lower than 1e-6, so we bump the
+    // coefficient to 10.
     // The final criterion picks the max of these numbers.
     // BWD
     // We have sum over axis dim, the worst case for error is amount of elements

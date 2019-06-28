@@ -102,9 +102,9 @@ function(register_benchdnn_test name engine cmd)
 endfunction()
 
 register_benchdnn_test(test_benchdnn_conv
-    cpu "-v1 --conv --batch=inputs/test_conv_all")
+    cpu "-v1 --conv --batch=inputs/conv/test_conv_all")
 register_benchdnn_test(test_benchdnn_conv_bf16
-    cpu "-v1 --conv --batch=inputs/test_conv_bfloat16")
+    cpu "-v1 --conv --batch=inputs/conv/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_deconv
     cpu "-v1 --deconv --batch=inputs/deconv/test_deconv_all")
 register_benchdnn_test(test_benchdnn_deconv_bf16
@@ -145,9 +145,13 @@ register_benchdnn_test(test_benchdnn_concat
     cpu "-v1 --concat --batch=inputs/concat/test_concat_all")
 register_benchdnn_test(test_benchdnn_concat_bf16
     cpu "-v1 --concat --batch=inputs/concat/test_concat_bfloat16")
+register_benchdnn_test(test_benchdnn_lrn
+    cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_all")
+register_benchdnn_test(test_benchdnn_lrn_bf16
+    cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
-    "-v1 --conv --batch=inputs/test_conv_regression"
+    "-v1 --conv --batch=inputs/conv/test_conv_regression"
     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
 register_benchdnn_test(test_benchdnn_regression_large
@@ -157,7 +161,7 @@ register_benchdnn_test(test_benchdnn_regression_large
 
 if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
-        gpu "-v1 --conv --batch=inputs/test_conv_gpu")
+        gpu "-v1 --conv --batch=inputs/conv/test_conv_gpu")
     register_benchdnn_test(test_benchdnn_deconv
         gpu "-v1 --deconv --batch=inputs/deconv/test_deconv_gpu")
     register_benchdnn_test(test_benchdnn_bnorm
@@ -176,4 +180,6 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --sum --batch=inputs/sum/test_sum_gpu")
     register_benchdnn_test(test_benchdnn_concat
         gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
+    register_benchdnn_test(test_benchdnn_lrn
+        gpu "-v1 --lrn --batch=inputs/lrn/test_lrn_gpu")
 endif()

@@ -119,6 +119,7 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(ref_pooling_fwd_t<f32>),
     INSTANCE(ref_pooling_bwd_t<f32>),
     /* lrn */
+    INSTANCE(ref_lrn_fwd_t<bf16>),
     INSTANCE(ref_lrn_fwd_t<f16>),
     INSTANCE(ref_lrn_fwd_t<f32>),
     INSTANCE(ref_lrn_bwd_t<f32>),

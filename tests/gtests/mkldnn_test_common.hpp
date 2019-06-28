@@ -515,6 +515,9 @@ public:
         } else {
             mem_ = memory(d, e);
         }
+        // Fill with a magic number to catch possible uninitialized access
+        mapped_ptr_t<char> ptr(&mem_);
+        memset(ptr, 0xFF, size_);
     }
     size_t get_size() const { return size_; }
     const memory &get() const { return mem_; }

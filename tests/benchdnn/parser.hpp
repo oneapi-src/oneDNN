@@ -88,6 +88,12 @@ static bool parse_single_value_option(T &val, F process_func, const char *str,
     return false;
 }
 
+template <typename T, typename F>
+static bool parse_cfg(T &vec, F process_func, const char *str,
+        const std::string &option_name = "cfg") {
+    return parse_vector_option(vec, process_func, str, option_name);
+}
+
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name = "dir");
 

@@ -21,15 +21,15 @@ where *reorder-knobs* are:
             Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
  - `--alg={reference [default], bootstrap}` -- reorder algorithm. TBA.
  - `--oflag={none [default], conv_s8s8, gconv_s8s8}` -- reorder output flag.
-            Works only in pair with `--alg=bootstrap`. TBA.
+            Works only in combination with `--alg=bootstrap`. TBA.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```
     NxNxNxNxN
 ```
-where N is an integer number. This represents 3D spatial problem with the
+where N is an integer number. This represents a 3D spatial problem with the
 following logical dimensions: N, C, D, H, W. Consider removing each `xN` from
-the end to specify fewer dimensions. TBA.
+the end to specify fewer dimensions.
 
 
 ## Essence of Testing
@@ -38,9 +38,9 @@ TBA.
 
 ## Examples
 
-Run the set of reorder from reorder/test_default with default minibatch:
+Run the reorder set from an input file with the default settings:
 ``` sh
-    ./benchdnn --reorder --batch=inputs/reorder/test_default
+    ./benchdnn --reorder --batch=inputs/reorder/test_reorder_all
 ```
 
 Run two specific reorders with s8 src and dst data type, bootstrap algorithm,
@@ -53,6 +53,5 @@ a flag; second problem with the `conv_s8s8` flag:
 ```
 
 More examples with different driver options can be found at
-inputs/reorder/test_reorder_***. Examples with different driver descriptors can
-be found at inputs/reorder/reorder_***. Examples with different benchdnn options
-can be found at driver_conv.md.
+inputs/reorder/test_reorder_all. Examples with different benchdnn options can be
+found at driver_conv.md.

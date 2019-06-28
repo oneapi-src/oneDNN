@@ -1,0 +1,5 @@
+--reset
+
+--dt=f32,f16
+--dir=FWD_D,FWD_I,BWD_D
+--tag=nchw     --batch=lrn_2d_all

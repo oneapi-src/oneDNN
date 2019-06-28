@@ -27,28 +27,52 @@ using namespace cpu::bf16_support;
 union float_raw {
     float fraw;
     uint16_t iraw[2];
+    uint32_t int_raw;
 };
 
 bfloat16_t &bfloat16_t::operator=(float f) {
-    assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
-    jit_call_t p;
-    p.inp = (void *)&f;
-    p.out = (void *)this;
-    static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(1);
-    cvt_one_ps_to_bf16.jit_ker(&p);
+    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
+        jit_call_t p;
+        p.inp = (void *)&f;
+        p.out = (void *)this;
+        static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(1);
+        cvt_one_ps_to_bf16.jit_ker(&p);
+    } else {
+        float_raw r = { f };
+        switch (std::fpclassify(f)) {
+        case FP_SUBNORMAL:
+        case FP_ZERO:
+            // sign preserving zero (denormal go to zero)
+            raw_bits_ = r.iraw[1];
+            raw_bits_ &= 0x8000;
+            break;
+        case FP_INFINITE: 
+            raw_bits_ = r.iraw[1]; 
+            break;
+        case FP_NAN:
+            // truncate and set MSB of the mantissa force QNAN
+            raw_bits_ = r.iraw[1];
+            raw_bits_ |= 1 << 6;
+            break;
+        case FP_NORMAL:
+            // round to nearest even and truncate
+            unsigned int rounding_bias = 0x00007FFF + (r.iraw[1] & 0x1);
+            r.int_raw += rounding_bias;
+            raw_bits_ = r.iraw[1];
+            break;
+        }
+    }
     return *this;
 }
 
 bfloat16_t::operator float() const {
-    assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
-    float_raw r = {0};
+    float_raw r = { 0 };
     r.iraw[1] = raw_bits_;
     r.iraw[0] = 0;
     return r.fraw;
 }
 
-void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp,
-        size_t size) {
+void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t size) {
     assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
     jit_call_t p_;
     p_.inp = (void *)inp;
@@ -58,8 +82,7 @@ void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp,
     cvt_ps_to_bf16.jit_ker(&p_);
 }
 
-void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp,
-        size_t size) {
+void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t size) {
     assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
     jit_call_t p_;
     p_.inp = (void *)inp;
@@ -69,10 +92,8 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp,
     cvt_bf16_to_ps.jit_ker(&p_);
 }
 
-void add_floats_and_cvt_to_bfloat16(bfloat16_t *out,
-        const float *inp0,
-        const float *inp1,
-        size_t size) {
+void add_floats_and_cvt_to_bfloat16(
+        bfloat16_t *out, const float *inp0, const float *inp1, size_t size) {
     assert(cpu::mayiuse(cpu::cpu_isa_t::avx512_core));
     jit_call_t p_;
     p_.inp = (void *)inp0;
@@ -83,5 +104,5 @@ void add_floats_and_cvt_to_bfloat16(bfloat16_t *out,
     add_cvt_ps_to_bf16.jit_ker(&p_);
 }
 
-} //namespace impl
-}  // namespace mkldnn
+} // namespace impl
+} // namespace mkldnn

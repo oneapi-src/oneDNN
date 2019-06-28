@@ -83,18 +83,19 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        if (parse_bench_settings(argv[0]));
-        else if (parse_batch(bench, argv[0]));
-        else if (parse_dir(dir, argv[0]));
-        else if (parse_dt(dt, argv[0]));
-        else if (parse_tag(tag, argv[0]));
-        else if (parse_vector_option(group, atoi, argv[0], "group"));
-        else if (parse_axis(axis, argv[0]));
-        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
-        else if (parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0]));
-        else if (parse_reset(reset_parameters, argv[0]));
-        else {
+        const bool parsed_options = false
+            || parse_bench_settings(argv[0])
+            || parse_batch(bench, argv[0])
+            || parse_dir(dir, argv[0])
+            || parse_dt(dt, argv[0])
+            || parse_tag(tag, argv[0])
+            || parse_vector_option(group, atoi, argv[0], "group")
+            || parse_axis(axis, argv[0])
+            || parse_allow_unimpl(allow_unimpl, argv[0])
+            || parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0])
+            || parse_reset(reset_parameters, argv[0]);
+        if (!parsed_options) {
             catch_unknown_options(argv[0], "shuffle");
 
             parse_dims(dims, argv[0]);

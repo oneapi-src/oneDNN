@@ -112,6 +112,7 @@ enum prim_t {
     SUM,
     ELTWISE,
     CONCAT,
+    LRN,
     DEF = CONV,
 };
 

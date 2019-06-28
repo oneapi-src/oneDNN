@@ -1119,10 +1119,10 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
 void jit_avx512_core_bf16_convolution_bwd_weights_t
     ::prepare_scratchpad_data(const exec_ctx_t &ctx) const
 {
-    const auto &jcp = pd()->jcp_;
     auto scratchpad = this->scratchpad(ctx);
 
 #ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+    const auto &jcp = pd()->jcp_;
     // XXX: See the comment about tr_iw and guarding elements in
     // jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf()
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)

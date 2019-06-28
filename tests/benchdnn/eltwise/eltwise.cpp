@@ -94,7 +94,12 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+
+        // check just absolute error for srelu due to log(1 + e(x)) gives bad
+        // accuracy for negative inputs.
+        if (p->alg == alg_t::SRELU)
+            ok = diff <= trh;
 
         r->errors += !ok;
 

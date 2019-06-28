@@ -1,0 +1,10 @@
+--reset
+
+--dt=f32
+--alg=ACROSS,WITHIN
+--dir=FWD_D,FWD_I
+--tag=nchw,nhwc,nChw8c,nChw16c     --batch=lrn_2d_all
+
+--alg=ACROSS
+--dir=BWD_D
+--tag=nchw,nhwc,nChw8c,nChw16c     --batch=lrn_2d_all

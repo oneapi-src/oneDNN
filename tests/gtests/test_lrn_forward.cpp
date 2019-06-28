@@ -133,9 +133,7 @@ protected:
                 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
         SKIP_IF(data_type == memory::data_type::bf16
-                && get_test_engine_kind() == engine::kind::gpu,
-                "GPU does not support bf16 data type.");
-        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::cpu
                 && !mkldnn::impl::cpu::mayiuse(mkldnn::impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();

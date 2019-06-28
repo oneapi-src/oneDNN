@@ -101,20 +101,24 @@ void check_correctness(const desc_t *c) {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        if (parse_bench_settings(argv[0]));
-        else if (parse_batch(bench, argv[0]));
-        else if (parse_mb(mb, argv[0]));
-        else if (parse_dir(dir, argv[0]));
-        else if (parse_attr(attr, argv[0]));
-        else if (parse_vector_option(cfg, str2cfg, argv[0], "cfg"));
-        else if (parse_single_value_option(alg, str2alg, argv[0], "alg"));
-        else if (parse_test_pattern_match(pattern, argv[0]));
-        else if (parse_skip_impl(skip_impl, argv[0]));
-        else if (parse_allow_unimpl(allow_unimpl, argv[0]));
-        else if (parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0]));
-        else if (parse_reset(reset_parameters, argv[0]));
-        else {
+        const bool parsed_options = false
+            || parse_bench_settings(argv[0])
+            || parse_batch(bench, argv[0])
+            || parse_dir(dir, argv[0])
+            || parse_cfg(cfg, str2cfg, argv[0])
+            || parse_tag(stag, argv[0], "stag")
+            || parse_tag(wtag, argv[0], "wtag")
+            || parse_tag(dtag, argv[0], "dtag")
+            || parse_single_value_option(alg, str2alg, argv[0], "alg")
+            || parse_mb(mb, argv[0])
+            || parse_attr(attr, argv[0])
+            || parse_test_pattern_match(pattern, argv[0])
+            || parse_skip_impl(skip_impl, argv[0])
+            || parse_allow_unimpl(allow_unimpl, argv[0])
+            || parse_perf_template(perf_template, perf_template_def,
+                    perf_template_csv, argv[0])
+            || parse_reset(reset_parameters, argv[0]);
+        if (!parsed_options) {
             catch_unknown_options(argv[0], "deconv");
 
             desc_t c;

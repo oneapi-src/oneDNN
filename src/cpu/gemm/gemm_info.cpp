@@ -550,6 +550,20 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
     return true;
 }
 
+// Override default blocking sizes with sizes specified in the gemm_threading_t
+//  structure.
+template <typename a_type, typename b_type, typename c_type>
+void gemm_info_t<a_type, b_type, c_type>::update_blocking(
+        const gemm_threading_t &thread_info) {
+
+    if (thread_info.block_m > 0)
+        this->bm = thread_info.block_m;
+    if (thread_info.block_n > 0)
+        this->bn = thread_info.block_n;
+    if (thread_info.block_k > 0)
+        this->bk = thread_info.block_k;
+}
+
 // Instantiate the gemm_info_t templates needed.
 template // For gemm_s8u8s32
 struct gemm_info_t<int8_t, uint8_t, int32_t>;

@@ -16,12 +16,6 @@
 
 #include "ocl/ocl_types.h"
 
-#if !defined(ACCUMULATOR_TYPE)
-#    define ACCUMULATOR_TYPE float
-#    define TO_ACCUMULATOR_TYPE(v) (float)(v)
-#    define ACCUMULATOR_TYPE_ZERO 0.0f
-#endif
-
 #define SRC_W_STRIDE SRC_S3
 #define SRC_H_STRIDE SRC_S2
 
@@ -42,14 +36,14 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);
 
-    ACCUMULATOR_TYPE sum = 0.0f;
+    DEF_ACC_DATA_T sum = 0.0f;
 
 #if ACROSS_CHANNEL
 
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
-        DATA_T val = zero ? 0.0f : src[SRC_OFF(mb, z_idx, 0, ih, iw)];
+        DEF_ACC_DATA_T val = zero ? 0.0f : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, 0, ih, iw)]);
         sum += val * val;
     }
 
@@ -69,7 +63,7 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
             zero = src_offset_w >= IW ? true : zero;
             zero = src_offset_h >= IH ? true : zero;
 
-            DATA_T val = zero ? DATA_ZERO : src[src_offset];
+            DEF_ACC_DATA_T val = zero ? DATA_ZERO : TO_DEF_ACC_DATA_T(src[src_offset]);
 
             sum += val * val;
             src_offset += SRC_W_STRIDE;
@@ -78,17 +72,17 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     }
 #endif
 
-    const DATA_T num_elements_div = NUM_ELEMENTS_DIV;
-    const DATA_T base = TO_DATA_T(LRN_K)
-            + TO_DATA_T((ACCUMULATOR_TYPE)LRN_ALPHA * sum * num_elements_div);
-    const DATA_T normalization_factor = native_powr(base, TO_DATA_T(-LRN_BETA));
+    const DEF_ACC_DATA_T num_elements_div = NUM_ELEMENTS_DIV;
+    const DEF_ACC_DATA_T base = (DEF_ACC_DATA_T)LRN_K
+            + (DEF_ACC_DATA_T)LRN_ALPHA * sum * num_elements_div;
+    const DEF_ACC_DATA_T normalization_factor = native_powr(base, (DEF_ACC_DATA_T)(-LRN_BETA));
 
-    const DATA_T val = src[src_index];
-    const DATA_T normres = val * normalization_factor;
+    const DEF_ACC_DATA_T val = TO_DEF_ACC_DATA_T(src[src_index]);
+    const DEF_ACC_DATA_T normres = val * normalization_factor;
 #if IS_TRAINING == 1
-    ws[dst_index] = base;
+    ws[dst_index] = TO_DATA_T(base);
 #endif
-    dst[dst_index] = normres;
+    dst[dst_index] = TO_DATA_T(normres);
 }
 #endif
 
@@ -105,7 +99,7 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
     const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);
     const DATA_T num_elements_div = NUM_ELEMENTS_DIV;
-    ACCUMULATOR_TYPE B = 0;
+    DEF_ACC_DATA_T B = 0;
 
 #if ACROSS_CHANNEL
 
@@ -141,8 +135,8 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         dst_offset += DST_H_STRIDE - LOCAL_SIZE * DST_W_STRIDE;
     }
 #endif
-    const ACCUMULATOR_TYPE A = native_powr(ws[dst_index], TO_DATA_T(-LRN_BETA)) * diff_dst[dst_index];
+    const DEF_ACC_DATA_T A = native_powr(ws[dst_index], TO_DATA_T(-LRN_BETA)) * diff_dst[dst_index];
 
-    diff_src[src_index] = A - src[src_index] * 2 * (ACCUMULATOR_TYPE)LRN_ALPHA * (ACCUMULATOR_TYPE)LRN_BETA * num_elements_div * B;
+    diff_src[src_index] = A - src[src_index] * 2 * (DEF_ACC_DATA_T)LRN_ALPHA * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B;
 }
 #endif

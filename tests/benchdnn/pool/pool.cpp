@@ -16,8 +16,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <float.h>
-#include <math.h>
+
+#include <sstream>
 
 #include "mkldnn.h"
 
@@ -144,8 +144,9 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
-        mkldnn_primitive_desc_t &ppd, dir_t dir, res_t *r) {
+int init_pd(const prb_t *p, dir_t dir, mkldnn_pooling_desc_t &pd,
+        mkldnn_primitive_desc_t &ppd, const_mkldnn_primitive_desc_t hint,
+        res_t *r) {
     mkldnn_memory_desc_t src_d, dst_d;
 
     const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
@@ -200,24 +201,8 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
     }
 
     mkldnn_status_t init_status = mkldnn_success;
-    mkldnn_primitive_desc_t hint_fwd_pd = NULL;
-    if (dir & FLAG_BWD) {
-        mkldnn_pooling_desc_t pd_fwd;
-        DNN_SAFE(mkldnn_pooling_forward_desc_init(&pd_fwd,
-                    mkldnn_forward_training, alg, &src_d, &dst_d, strides,
-                    kernel, padding_l, padding_r), WARN);
-
-        init_status = mkldnn_primitive_desc_create(&hint_fwd_pd, &pd_fwd, NULL,
-                engine_tgt, NULL);
-
-        if (init_status == mkldnn_unimplemented)
-            return r->state = UNIMPLEMENTED, OK;
-        else
-            SAFE(init_status, WARN);
-    }
-
-    init_status = mkldnn_primitive_desc_create(&ppd, &pd, NULL, engine_tgt,
-            hint_fwd_pd);
+    init_status
+            = mkldnn_primitive_desc_create(&ppd, &pd, NULL, engine_tgt, hint);
 
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -233,7 +218,7 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
         print(5, "mkldnn implementation: %s\n", impl_str);
     }
 
-    auto q = [=](mkldnn_query_t query, int index = 0) {
+    const auto q = [=](mkldnn_query_t query, int index = 0) {
         return *mkldnn_primitive_desc_query_md(ppd, query, index);
     };
 
@@ -248,12 +233,23 @@ inline int init_pd(const prb_t *p, mkldnn_pooling_desc_t &pd,
     return OK;
 }
 
+int init_pd_fwd(const prb_t *p, mkldnn_pooling_desc_t &pd,
+        mkldnn_primitive_desc_t &ppd, res_t *r) {
+    return init_pd(p, FLAG_FWD, pd, ppd, nullptr, r);
+}
+
+int init_pd_bwd(const prb_t *p, mkldnn_pooling_desc_t &pd,
+        mkldnn_primitive_desc_t &ppd, const_mkldnn_primitive_desc_t hint,
+        res_t *r) {
+    return init_pd(p, FLAG_BWD, pd, ppd, hint, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     mkldnn_pooling_desc_t pfd, pbd;
     mkldnn_primitive_desc_t pfpd, pbpd;
     mkldnn_primitive_t pf, pb;
 
-    SAFE(init_pd(p, pfd, pfpd, FLAG_FWD, r), WARN);
+    SAFE(init_pd_fwd(p, pfd, pfpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) {
         return OK;
     }
@@ -262,15 +258,13 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t ws_dt, ws_fp;
     if (p->alg == MAX && !(p->dir & FLAG_INF)) {
-        auto &ws_d = *mkldnn_primitive_desc_query_md(pfpd,
-                mkldnn_query_workspace_md, 0);
+        const auto &ws_d = *mkldnn_primitive_desc_query_md(
+                pfpd, mkldnn_query_workspace_md, 0);
         ws_dt = dnn_mem_t(ws_d, engine_tgt);
         ws_fp = dnn_mem_t(ws_d, engine_ref);
         // to catch usage of uninitialized values in the library
         SAFE(fill_ws(p, ws_dt, ws_fp, r), WARN);
     }
-
-    DNN_SAFE(mkldnn_primitive_desc_destroy(pfpd), CRIT);
 
     const auto &src_desc = pfd.src_desc;
     const auto &dst_desc = pfd.dst_desc;
@@ -307,7 +301,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        SAFE(init_pd(p, pbd, pbpd, FLAG_BWD, r), WARN);
+        SAFE(init_pd_bwd(p, pbd, pbpd, pfpd, r), WARN);
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
             return OK;
 
@@ -343,6 +337,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, pl, args);
 
+    DNN_SAFE(mkldnn_primitive_desc_destroy(pfpd), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(pf), CRIT);
     if (p->dir & FLAG_BWD)
         DNN_SAFE(mkldnn_primitive_destroy(pb), CRIT);

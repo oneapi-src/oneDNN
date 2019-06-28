@@ -40,6 +40,7 @@
 #include "sum/sum.hpp"
 #include "eltwise/eltwise.hpp"
 #include "concat/concat.hpp"
+#include "lrn/lrn.hpp"
 
 int verbose {0};
 bench_mode_t bench_mode {CORR};
@@ -70,6 +71,7 @@ int main(int argc, char **argv) {
         else if (!strcmp("--sum", argv[0])) prim = SUM;
         else if (!strcmp("--eltwise", argv[0])) prim = ELTWISE;
         else if (!strcmp("--concat", argv[0])) prim = CONCAT;
+        else if (!strcmp("--lrn", argv[0])) prim = LRN;
         else break;
     }
 
@@ -90,6 +92,7 @@ int main(int argc, char **argv) {
     case SUM: sum::bench(argc, argv); break;
     case ELTWISE: eltwise::bench(argc, argv); break;
     case CONCAT: concat::bench(argc, argv); break;
+    case LRN: lrn::bench(argc, argv); break;
     default: fprintf(stderr, "err: unknown driver\n");
     }
 
