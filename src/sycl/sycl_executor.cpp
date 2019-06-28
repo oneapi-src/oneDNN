@@ -30,10 +30,15 @@ namespace sycl {
 inline cl::sycl::nd_range<3> to_sycl_nd_range(const ocl::cl_nd_range_t &range) {
     auto *global_range = range.global_range();
     auto *local_range = range.local_range();
-    assert(local_range);
 
     auto sycl_global_range = cl::sycl::range<3>(
             global_range[0], global_range[1], global_range[2]);
+    if (!local_range) {
+        assert(!"not expected");
+        return cl::sycl::nd_range<3>(
+                sycl_global_range, cl::sycl::range<3>(1, 1, 1));
+    }
+
     auto sycl_local_range = cl::sycl::range<3>(
             local_range[0], local_range[1], local_range[2]);
     return cl::sycl::nd_range<3>(sycl_global_range, sycl_local_range);

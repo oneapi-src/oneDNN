@@ -57,9 +57,12 @@ public:
 
         assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
 
-        auto *sycl_engine = (engine_kind_ == engine_kind::cpu)
-                ? static_cast<sycl_engine_base_t *>(new sycl_cpu_engine_t(dev, ctx))
-                : static_cast<sycl_engine_base_t *>(new sycl_gpu_engine_t(dev, ctx));
+        std::unique_ptr<sycl_engine_base_t> sycl_engine(
+                (engine_kind_ == engine_kind::cpu)
+                        ? static_cast<sycl_engine_base_t *>(
+                                new sycl_cpu_engine_t(dev, ctx))
+                        : static_cast<sycl_engine_base_t *>(
+                                new sycl_gpu_engine_t(dev, ctx)));
         if (!sycl_engine)
             return status::out_of_memory;
 
@@ -67,7 +70,7 @@ public:
         if (status != status::success)
             return status;
 
-        *engine = sycl_engine;
+        *engine = sycl_engine.release();
         return status::success;
     }
 
