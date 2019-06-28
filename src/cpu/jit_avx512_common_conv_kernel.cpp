@@ -555,11 +555,11 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop_fma(int ur_w,
     int nb_oc_block = jcp.nb_oc_blocking;
     Label kh_label, kd_label;
 
-    int ker_pipeline_depth = 4;
+    int num_ker_loads = ic_block * nb_oc_block * kw;
+    int ker_pipeline_depth = nstl::min(4, num_ker_loads);
     assert(ker_reg_base_idx + ker_pipeline_depth <= 32);
     assert(oc_block >= ker_pipeline_depth);
 
-    int num_ker_loads = ic_block * nb_oc_block * kw;
     int num_ker_prfs = prf_ker ? num_ker_loads : 0;
     int num_inp_prfs = prf_inp ?
             ur_w * nstl::min(kw, stride_w) + nstl::max(0, kw - stride_w) :
