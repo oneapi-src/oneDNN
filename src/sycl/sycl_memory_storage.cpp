@@ -43,7 +43,7 @@ sycl_memory_storage_t::sycl_memory_storage_t(
         vptr_ = mkldnn::sycl_malloc(size);
         is_owned_ = true;
 #else
-        buffer_.reset(new untyped_sycl_buffer_t(data_type::u8, size));
+        buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
 #endif
     } else if (flags & memory_flags_t::use_backend_ptr) {
 #if MKLDNN_ENABLE_SYCL_VPTR
@@ -51,9 +51,8 @@ sycl_memory_storage_t::sycl_memory_storage_t(
         vptr_ = handle;
         is_owned_ = false;
 #else
-        auto *untyped_buf = static_cast<untyped_sycl_buffer_t *>(handle);
-        auto &buf = untyped_buf->sycl_buffer<uint8_t>();
-        buffer_.reset(new untyped_sycl_buffer_t(buf));
+        auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
+        buffer_.reset(new buffer_u8_t(buf_u8));
 #endif
     } else if (flags & memory_flags_t::use_host_ptr) {
 #if MKLDNN_ENABLE_SYCL_VPTR
@@ -79,7 +78,8 @@ sycl_memory_storage_t::sycl_memory_storage_t(
                 handle_u8[i] = acc[i];
         });
 #else
-        buffer_.reset(new untyped_sycl_buffer_t(handle, data_type::u8, size));
+        buffer_.reset(new buffer_u8_t(
+                static_cast<uint8_t *>(handle), cl::sycl::range<1>(size)));
 #endif
     }
 }
@@ -119,9 +119,10 @@ status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
     *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
     auto unmap_callback = [=]() { delete acc_ptr; };
 #else
-    std::function<void()> unmap_callback;
-    *mapped_ptr = buffer_->map_data<cl::sycl::access::mode::read_write>(
-            [&](std::function<void()> f) { unmap_callback = f; });
+    auto acc = buffer_->get_access<cl::sycl::access::mode::read_write>();
+    auto *acc_ptr = new decltype(acc)(acc);
+    *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
+    auto unmap_callback = [=]() { delete acc_ptr; };
 
 #endif
     return guard_manager.enter(this, unmap_callback);

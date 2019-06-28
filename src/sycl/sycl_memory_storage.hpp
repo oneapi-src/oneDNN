@@ -67,8 +67,8 @@ public:
         assert(mkldnn::is_sycl_vptr(handle));
         vptr_ = handle;
 #else
-        auto *untyped_buf_ptr = static_cast<untyped_sycl_buffer_t *>(handle);
-        buffer_.reset(new untyped_sycl_buffer_t(*untyped_buf_ptr));
+        auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
+        buffer_.reset(new buffer_u8_t(*buf_u8_ptr));
 #endif
         return status::success;
     }
@@ -79,7 +79,7 @@ public:
 #if MKLDNN_ENABLE_SYCL_VPTR
     void *vptr() const { return vptr_; }
 #else
-    untyped_sycl_buffer_t &buffer() const { return *buffer_; }
+    buffer_u8_t &buffer() const { return *buffer_; }
 #endif
 
 private:
@@ -88,7 +88,7 @@ private:
     bool is_owned_ = false;
     bool is_write_host_back_ = false;
 #else
-    std::unique_ptr<untyped_sycl_buffer_t> buffer_;
+    std::unique_ptr<buffer_u8_t> buffer_;
 #endif
 };
 

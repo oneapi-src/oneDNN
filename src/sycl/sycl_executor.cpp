@@ -20,6 +20,7 @@
 #include "ocl/ocl_utils.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream.hpp"
+#include "sycl/sycl_utils.hpp"
 
 class mkldnn_copy_tag;
 
@@ -99,8 +100,9 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
                     cgh.set_arg(i, acc);
 #else
                     auto &sycl_buf = sycl_mem_storage->buffer();
-                    sycl_buf.set_as_arg<cl::sycl::access::mode::read_write>(
-                            cgh, i);
+                    cgh.set_arg(i,
+                            sycl_buf.get_access<
+                                    cl::sycl::access::mode::read_write>(cgh));
 #endif
                 } else {
                     cgh.set_arg(i, nullptr);
@@ -194,10 +196,10 @@ status_t sycl_executor_t::copy(
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
 #if MKLDNN_ENABLE_SYCL_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
-        untyped_sycl_buffer_t(sycl_buf).copy_from(src_ptr_u8, size);
+        copy_to_buffer(src_ptr_u8, sycl_buf, size);
 #else
         auto &sycl_buf = sycl_dst.buffer();
-        sycl_buf.copy_from(src_ptr_u8, size);
+        copy_to_buffer(src_ptr_u8, sycl_buf, size);
 #endif
     } else if (dst.engine()->kind() == engine_kind::cpu
             && dst.engine()->backend_kind() == backend_kind::native) {
@@ -205,16 +207,15 @@ status_t sycl_executor_t::copy(
 
         void *dst_ptr;
         dst.get_data_handle(&dst_ptr);
-        auto *dst_ptr_u8 = static_cast<uint8_t *>(dst_ptr);
 
         auto &sycl_src
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
 #if MKLDNN_ENABLE_SYCL_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
-        untyped_sycl_buffer_t(sycl_buf).copy_to(dst_ptr_u8, size);
+        copy_from_buffer(sycl_buf, dst_ptr, size);
 #else
         auto &sycl_buf = sycl_src.buffer();
-        sycl_buf.copy_to(dst_ptr_u8, size);
+        copy_from_buffer(sycl_buf, dst_ptr, size);
 #endif
     } else {
         assert(!"Not expected");

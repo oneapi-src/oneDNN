@@ -32,8 +32,6 @@
 
 #include "mkldnn.h"
 
-#include "mkldnn_support.hpp"
-
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 #include <CL/cl.h>
 #endif
@@ -1561,14 +1559,14 @@ struct memory: public handle<mkldnn_memory_t> {
             *offset = get_sycl_offset(handle_ptr);
 
         auto buf = mkldnn::get_sycl_buffer(handle_ptr);
-        auto range = cl::sycl::range<1>(buf.get_size());
+        auto range = cl::sycl::range<1>(buf.get_size() / sizeof(T));
         return buf.reinterpret<T, 1>(range);
 #else
-        auto &untyped_buf = *static_cast<impl::sycl::untyped_sycl_buffer_t *>(
-                handle_ptr);
+        auto &buf_u8 = *static_cast<cl::sycl::buffer<uint8_t, 1> *>(handle_ptr);
         if (offset)
             *offset = 0;
-        return untyped_buf.reinterpret<T, ndims>();
+        auto range = cl::sycl::range<1>(buf_u8.get_size() / sizeof(T));
+        return buf_u8.reinterpret<T, 1>(range);
 #endif
     }
 
@@ -1582,9 +1580,8 @@ struct memory: public handle<mkldnn_memory_t> {
     void set_sycl_buffer(cl::sycl::buffer<T, ndims> &buf) {
         auto range = cl::sycl::range<1>(buf.get_size());
         auto buf_u8 = buf.template reinterpret<uint8_t, 1>(range);
-        impl::sycl::untyped_sycl_buffer_t untyped_buf(buf_u8);
-        error::wrap_c_api(
-                mkldnn_memory_set_data_handle(get(), static_cast<void *>(&untyped_buf)),
+        error::wrap_c_api(mkldnn_memory_set_data_handle(
+                                  get(), static_cast<void *>(&buf_u8)),
                 "could not set SYCL buffer object");
     }
 #endif
