@@ -7,3 +7,8 @@
 --cfg=f16
 --mb=2,16
 --dir=FWD_B --batch=conv_gpu
+
+# bf16
+--cfg=bf16bf16bf16
+--mb=2
+--dir=FWD_B,BWD_D,BWD_WB --batch=conv_resnet_50
