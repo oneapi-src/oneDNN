@@ -406,8 +406,9 @@ inline size_t tnc_off_f(const prb_t *p, int64_t t, int64_t n, int64_t c) {
 
 inline void inv_tnc_off_f(
         const prb_t *p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
-    c = off % p->sic;
-    off /= p->sic;
+    auto cout = p->sic * (1 + (p->direction == mkldnn_bidirectional_concat));
+    c = off % cout;
+    off /= cout;
     n = off % p->mb;
     off /= p->mb;
     t = off % p->n_iter;
