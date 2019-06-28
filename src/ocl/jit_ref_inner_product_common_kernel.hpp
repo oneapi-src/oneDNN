@@ -35,7 +35,7 @@ struct jit_ref_inner_product_fwd_kernel {
             const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
-            jit_offsets &jit_off) {
+            jit_offsets &jit_off, data_type_t acc_data_type) {
 
         const int ndims = src_d.ndims();
 
@@ -69,19 +69,26 @@ struct jit_ref_inner_product_fwd_kernel {
         jip.kw = weights_d.dims()[ndims - 1];
 
         jip.src_dt = src_d.data_type();
+        jip.wei_dt = weights_d.data_type();
+        jip.dst_dt = dst_d.data_type();
+        jip.acc_dt = acc_data_type;
 
         jip.is_forward = utils::one_of(ipd.prop_kind, prop_kind::forward,
                 prop_kind::forward_inference);
         jip.is_backward_data = ipd.prop_kind == prop_kind::backward_data;
         jip.is_backward_weights = ipd.prop_kind == prop_kind::backward_weights;
 
-        if (jip.is_forward)
+        if (jip.is_forward) {
             jip.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
-        else if (jip.is_backward_weights)
+            jip.bia_dt = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
+        } else if (jip.is_backward_weights) {
             jip.with_bias
                     = ipd.diff_bias_desc.format_kind != format_kind::undef;
-        else
+            jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type : data_type::f32;
+        } else {
             jip.with_bias = 0;
+            jip.bia_dt = data_type::f32;
+        }
 
         set_offsets(src_d, jit_off.src_off);
         set_offsets(weights_d, jit_off.wht_off);
@@ -94,7 +101,6 @@ struct jit_ref_inner_product_fwd_kernel {
             const jit_inner_product_conf_t &jip, const jit_offsets &jit_off,
             bool with_eltwise, bool with_sum, alg_kind_t alg) {
 
-        jit.set_data_type(jip.src_dt);
         jit.define_int("NDIMS", jip.ndims);
         jit.define_int("MB", jip.mb);
         jit.define_int("OC", jip.oc);
@@ -131,6 +137,17 @@ struct jit_ref_inner_product_fwd_kernel {
         def_offsets(jit_off.src_off, jit, "SRC", jip.ndims);
         def_offsets(jit_off.wht_off, jit, "WHT", jip.ndims);
         def_offsets(jit_off.dst_off, jit, "DST", jip.ndims);
+
+        if (jip.src_dt == data_type::f16)
+            jit.set_data_type(data_type::f16);
+        else
+            jit.set_data_type(data_type::f32);
+
+        def_data_type(jit, jip.src_dt, "SRC");
+        def_data_type(jit, jip.wei_dt, "WEI");
+        def_data_type(jit, jip.bia_dt, "BIA");
+        def_data_type(jit, jip.dst_dt, "DST");
+        def_data_type(jit, jip.acc_dt, "ACC");
 
         return status::success;
     }

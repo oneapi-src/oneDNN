@@ -53,30 +53,26 @@ struct ref_inner_product_fwd_t : public primitive_t {
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind, forward_training,
-                               forward_inference)
+                            forward_inference)
                     && set_default_params() == status::success
                     && desc()->src_desc.data_type == src_type
                     && desc()->weights_desc.data_type == wei_type
                     && desc()->accum_data_type == acc_type
                     && desc()->dst_desc.data_type == dst_type
-                    && utils::everyone_is(desc()->src_desc.data_type,
-                               desc()->weights_desc.data_type,
-                               desc()->accum_data_type,
-                               desc()->dst_desc.data_type)
-                    && utils::one_of(desc()->src_desc.data_type, f16, f32)
+                    && utils::one_of(desc()->src_desc.data_type, bf16, f16, f32)
                     && IMPLICATION(with_bias(),
-                               utils::one_of(
-                                       desc()->bias_desc.data_type, f32, f16))
+                            utils::one_of(desc()->bias_desc.data_type, bf16,
+                                    f16, f32))
                     && attr()->output_scales_.has_default_values()
-                    && dense_consitency_check(
-                               src_md(), weights_md(), dst_md())
+                    && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && IMPLICATION(src_type == data_type::f16,
-                               cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
+                            cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;
 
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
-                    src_md(), weights_md(), dst_md(), *this->attr(), jit_off_);
+                    src_md(), weights_md(), dst_md(), *this->attr(), jit_off_,
+                    acc_type);
         }
         bool with_eltwise() const {
             return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -190,7 +186,7 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
 
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
                     diff_src_md(), weights_md(), diff_dst_md(), *this->attr(),
-                    jit_off_);
+                    jit_off_, acc_type);
         }
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;
@@ -267,7 +263,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
 
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
                     src_md(), diff_weights_md(), diff_dst_md(), *this->attr(),
-                    jit_off_);
+                    jit_off_, desc()->accum_data_type);
         }
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;

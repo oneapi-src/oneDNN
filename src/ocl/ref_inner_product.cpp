@@ -110,6 +110,11 @@ status_t ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 }
 
 using namespace data_type;
+
+template struct ref_inner_product_fwd_t<bf16, bf16, bf16, f32>;
+template struct ref_inner_product_bwd_data_t<bf16, bf16, bf16, f32>;
+template struct ref_inner_product_bwd_weights_t<bf16>;
+
 template struct ref_inner_product_fwd_t<f32>;
 template struct ref_inner_product_fwd_t<f16>;
 template struct ref_inner_product_bwd_data_t<f32, f32, f32, f32>;

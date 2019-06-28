@@ -135,7 +135,12 @@ struct jit_inner_product_conf_t {
     int kd, kh, kw;
     bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
+
     data_type_t src_dt;
+    data_type_t wei_dt;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+    data_type_t acc_dt;
 };
 
 /* rnn */
@@ -423,26 +428,36 @@ inline void def_postops(ocl_jit_t &jit, alg_kind_t alg) {
 }
 
 inline void def_data_type(ocl_jit_t &jit, data_type_t dt, const char *str) {
-    char tempstr[32];
+    char tempstr[64];
     switch (dt) {
+    case data_type::bf16:
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=ushort -D%s_DT_BF16",
+                str, str);
+        jit.add_option(tempstr);
+        break;
     case data_type::f16:
-        snprintf(tempstr, 32, "-D%s_DATA_T=half -D%s_DT_F16", str, str);
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16", str,
+                str);
         jit.add_option(tempstr);
         break;
     case data_type::f32:
-        snprintf(tempstr, 32, "-D%s_DATA_T=float -D%s_DT_F32", str, str);
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32", str,
+                str);
         jit.add_option(tempstr);
         break;
     case data_type::s8:
-        snprintf(tempstr, 32, "-D%s_DATA_T=char -D%s_DT_S8", str, str);
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8", str,
+                str);
         jit.add_option(tempstr);
         break;
     case data_type::u8:
-        snprintf(tempstr, 32, "-D%s_DATA_T=uchar -D%s_DT_U8", str, str);
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8", str,
+                str);
         jit.add_option(tempstr);
         break;
     case data_type::s32:
-        snprintf(tempstr, 32, "-D%s_DATA_T=int -D%s_DT_S32", str, str);
+        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32", str,
+                str);
         jit.add_option(tempstr);
         break;
     default: assert(!"unsupported data type"); break;
