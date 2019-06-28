@@ -26,6 +26,7 @@
 #include "memory_desc_wrapper.hpp"
 #include "memory_storage.hpp"
 #include "nstl.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -56,9 +57,12 @@ struct mkldnn_memory : public mkldnn::impl::c_compatible {
     mkldnn::impl::status_t set_data_handle(void *handle) {
         using namespace mkldnn::impl;
 
-        status_t status = memory_storage()->set_data_handle(handle);
-        if (status != status::success)
-            return status;
+        void *old_handle;
+        CHECK(memory_storage()->get_data_handle(&old_handle));
+
+        if (handle != old_handle) {
+            CHECK(memory_storage()->set_data_handle(handle));
+        }
         return zero_pad();
     }
 
