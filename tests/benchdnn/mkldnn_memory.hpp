@@ -223,7 +223,7 @@ private:
     mkldnn_engine_kind_t engine_kind_ = mkldnn_any_engine;
     mkldnn_engine_t engine_ = NULL;
 
-    bool is_cpu_native_;
+    bool is_cpu_native_ = false;
 
     bool is_mapped_ = false;
     void *mapped_ptr_ = NULL;
