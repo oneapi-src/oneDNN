@@ -1680,10 +1680,10 @@ static mkldnn_status_t gemm_threading_driver(
 
             for (; ithr < nthr_eff; ithr += nthr) {
                 // Get submatrices and parameters for this thread's GEMM.
-                const a_type *a;
-                const b_type *b;
-                c_type *c;
-                const c_type *co;
+                const a_type *a = nullptr;
+                const b_type *b = nullptr;
+                c_type *c = nullptr;
+                const c_type *co = nullptr;
                 std::tie(a, b, c, co)
                         = decompose_matrices(thread_arg[ithr].slice, arg);
 
