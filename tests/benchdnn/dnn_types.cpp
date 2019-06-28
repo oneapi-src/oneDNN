@@ -66,6 +66,27 @@ std::ostream &operator<<(std::ostream &s,
     return s;
 }
 
+const char *prim2str(prim_t prim) {
+#define CASE(_prim, _str) if (prim == _prim) return _str
+    CASE(SELF, "self");
+    CASE(CONV, "conv");
+    CASE(DECONV, "deconv");
+    CASE(IP, "ip");
+    CASE(SHUFFLE, "shuffle");
+    CASE(REORDER, "reorder");
+    CASE(BNORM, "bnorm");
+    CASE(RNN, "rnn");
+    CASE(SOFTMAX, "softmax");
+    CASE(POOL, "pool");
+    CASE(SUM, "sum");
+    CASE(ELTWISE, "eltwise");
+    CASE(CONCAT, "concat");
+    CASE(LRN, "lrn");
+#undef CASE
+    assert(!"unknown primitive");
+    return "prim_undef";
+}
+
 dir_t str2dir(const char *str) {
 #define CASE(x) if (!strcasecmp(STRINGIFY(x), str)) return x
     CASE(FWD_D);
@@ -404,6 +425,9 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 std::ostream &dump_global_params(std::ostream &s) {
     if (engine_tgt_kind != mkldnn_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
+
+    if (prim != DEF)
+        s << "--" << prim2str(prim) << " ";
     return s;
 }
 
