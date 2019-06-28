@@ -195,6 +195,7 @@ struct jit_simple_reorder_kernel {
         case mkldnn_f16: jit.define_int("IN_TYPE_F16", 1); break;
         case mkldnn_s32: jit.define_int("IN_TYPE_S32", 1); break;
         case mkldnn_f32: jit.define_int("IN_TYPE_F32", 1); break;
+        case mkldnn_bf16: jit.define_int("IN_TYPE_BF16", 1); break;
         default: return status::invalid_arguments;
         }
         switch (output_type) {
@@ -203,6 +204,7 @@ struct jit_simple_reorder_kernel {
         case mkldnn_f16: jit.define_int("OUT_TYPE_F16", 1); break;
         case mkldnn_s32: jit.define_int("OUT_TYPE_S32", 1); break;
         case mkldnn_f32: jit.define_int("OUT_TYPE_F32", 1); break;
+        case mkldnn_bf16: jit.define_int("OUT_TYPE_BF16", 1); break;
         default: return status::invalid_arguments;
         }
 
