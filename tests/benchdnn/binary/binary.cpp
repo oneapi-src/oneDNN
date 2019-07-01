@@ -165,6 +165,8 @@ int fill_scale(
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_binary_desc_t bd;
     dnnl_primitive_desc_t bpd;
     dnnl_primitive_t bo;

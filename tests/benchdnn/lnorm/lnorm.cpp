@@ -434,6 +434,8 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_layer_normalization_desc_t ld;
     dnnl_primitive_desc_t lpd;
     dnnl_primitive_t b;

@@ -133,6 +133,7 @@ enum bench_mode_t {
     MODE_UNDEF = 0x0,
     CORR = 0x1,
     PERF = 0x2,
+    LIST = 0x4,
 };
 const char *bench_mode2str(bench_mode_t mode);
 bench_mode_t str2bench_mode(const char *str);
@@ -187,6 +188,7 @@ struct stat_t {
     int skipped;
     int mistrusted;
     int unimplemented;
+    int listed;
     double ms[benchdnn_timer_t::mode_t::n_modes];
 };
 extern stat_t benchdnn_stat;
@@ -198,7 +200,8 @@ enum res_state_t {
     SKIPPED,
     MISTRUSTED,
     UNIMPLEMENTED,
-    FAILED
+    FAILED,
+    LISTED
 };
 const char *state2str(res_state_t state, bool allow_unimpl);
 

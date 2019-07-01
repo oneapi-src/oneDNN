@@ -204,6 +204,8 @@ inline int init_pd(const prb_t *p, dnnl_deconvolution_desc_t &cd,
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     res_t res_zero {};
     *r = res_zero;
     bool with_groups = 1;

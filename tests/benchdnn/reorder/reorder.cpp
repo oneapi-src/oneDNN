@@ -387,6 +387,8 @@ cleanup:
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     return check_reorder(p, r);
 }
 

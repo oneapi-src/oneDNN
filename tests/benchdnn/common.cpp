@@ -43,8 +43,8 @@
 #endif
 
 const char *bench_mode2str(bench_mode_t mode) {
-    const char *modes[] = {"MODE_UNDEF", "CORR", "PERF", "CORR+PERF"};
-    assert((int)mode < 4);
+    const char *modes[] = {"MODE_UNDEF", "CORR", "PERF", "CORR+PERF", "LIST"};
+    assert((int)mode < sizeof(modes) / sizeof(*modes));
     return modes[(int)mode];
 }
 
@@ -54,6 +54,11 @@ bench_mode_t str2bench_mode(const char *str) {
         mode = (bench_mode_t)((int)mode | (int)CORR);
     if (strchr(str, 'p') || strchr(str, 'P'))
         mode = (bench_mode_t)((int)mode | (int)PERF);
+    if (strchr(str, 'l') || strchr(str, 'L')) {
+        // list mode is exclusive
+        assert(mode == MODE_UNDEF);
+        mode = (bench_mode_t)((int)mode | (int)LIST);
+    }
     if (mode == MODE_UNDEF)
         []() {
             SAFE(FAIL, CRIT);
@@ -153,6 +158,7 @@ const char *state2str(res_state_t state, bool allow_unimpl) {
     CASE(MISTRUSTED);
     CASE(UNIMPLEMENTED);
     CASE(FAILED);
+    CASE(LISTED);
 #undef CASE
     assert(!"unknown res state");
     return "STATE_UNDEF";
@@ -198,6 +204,12 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
             print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             want_perf_report = true;
             bs.passed++;
+            break;
+        case LISTED:
+            assert(status == OK);
+            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            want_perf_report = false;
+            bs.listed++;
             break;
         default:
             assert(!"unknown state");

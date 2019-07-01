@@ -194,6 +194,8 @@ int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_eltwise_desc_t ed;
     dnnl_primitive_desc_t epd;
     dnnl_primitive_t e;

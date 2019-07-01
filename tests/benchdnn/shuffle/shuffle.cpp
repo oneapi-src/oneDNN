@@ -127,6 +127,8 @@ static int init_pd(const prb_t *p, dnnl_shuffle_desc_t &sd,
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_shuffle_desc_t sd;
     dnnl_primitive_desc_t spd;
     dnnl_primitive_t s {};

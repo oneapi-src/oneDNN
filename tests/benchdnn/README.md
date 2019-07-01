@@ -44,7 +44,8 @@ where:
  - `--engine=ENGINE_KIND` -- specifies the engine kind to use for the benchmark.
             Can be `cpu` [default] or `gpu`.
  - `--mode=MODE` -- string that contains flags for benchmark mode.
-            `C`, `c` for correctness [default], `P`, `p` for performance.
+            `C`, `c` for correctness [default], `P`, `p` for performance, `L`,
+            `l` to list all tests without running them.
  - `--reset` -- reset all the parameters set previously to the default.
  - `--max-ms-per-prb=INT` -- time spent per problem in milliseconds.
             Available range [1e2, 60e3]. Default is `3e3`.
