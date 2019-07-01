@@ -4465,9 +4465,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     src_d.data_type(), diff_weights_d.data_type(),
                     diff_dst_d.data_type())) {
             jcp.ver = ver_fma;
-            if (one_of(ndims, 3, 4) && mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 &&
-                    everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w) &&
-                    mkldnn_thr_syncable()) {
+            if (one_of(ndims, 3, 4) && mayiuse(avx512_mic_4ops)
+                    && jcp.stride_w == 1
+                    && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
+                    && mkldnn_thr_syncable()) {
                 jcp.ver = ver_4fma;
             }
         } else {

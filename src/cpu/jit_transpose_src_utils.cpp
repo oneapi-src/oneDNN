@@ -176,7 +176,11 @@ void jit_trans_iw_ic_t::transpose(int nrows, int l_pad, int r_pad,
 
             if (base_idx == 0 && i == 0) {
                 load(src_idx0);
-                load(src_idx1);
+                if(src_idx1 < nrows)
+                    load(src_idx1);
+                else
+                    vpxord(src_zmm(src_idx1), src_zmm(src_idx1),
+                            src_zmm(src_idx1));
             }
 
             auto tmp0 = tmp_zmm(src_idx0);
