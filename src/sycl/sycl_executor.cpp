@@ -127,6 +127,9 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
 
 status_t sycl_executor_t::copy(
         const memory_storage_t &src, const memory_storage_t &dst, size_t size) {
+    if (size == 0)
+        return status::success;
+
     assert(utils::one_of(src.engine()->backend_kind(), backend_kind::sycl,
             backend_kind::native));
     assert(utils::one_of(dst.engine()->backend_kind(), backend_kind::sycl,

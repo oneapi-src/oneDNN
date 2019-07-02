@@ -80,6 +80,9 @@ status_t ocl_executor_t::parallel_for(
 
 status_t ocl_executor_t::copy(
         const memory_storage_t &src, const memory_storage_t &dst, size_t size) {
+    if (size == 0)
+        return status::success;
+
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(stream());
     cl_command_queue queue = ocl_stream->queue();
 
