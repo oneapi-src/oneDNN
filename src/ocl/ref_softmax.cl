@@ -43,23 +43,24 @@ __kernel void ref_softmax_fwd_generic(
         __global DATA_T *src, __global DATA_T *dst) {
     const int dim[] = { get_global_id(0), get_global_id(1), get_global_id(2) };
 
-    DATA_T temp_data[SOFTMAX_AXIS];
+    DEF_ACC_DATA_T temp_data[SOFTMAX_AXIS];
 
-    DATA_T max = temp_data[0] = src[DATA_OFF(dim[0], dim[1], dim[2], 0)];
+    temp_data[0] = TO_DEF_ACC_DATA_T(src[DATA_OFF(dim[0], dim[1], dim[2], 0)]);
+    DEF_ACC_DATA_T max = temp_data[0];
     for (int i = 1; i < SOFTMAX_AXIS; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
-        temp_data[i] = src[data_off];
+        temp_data[i] = TO_DEF_ACC_DATA_T(src[data_off]);
         max = temp_data[i] > max ? temp_data[i] : max;
     }
 
-    DATA_T denom = 0.0f;
+    DEF_ACC_DATA_T denom = DATA_ZERO;
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         denom += temp_data[i] = exp(temp_data[i] - max);
     }
 
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
-        dst[data_off] = temp_data[i] / denom;
+        dst[data_off] = TO_DATA_T(temp_data[i] / denom);
     }
 }
 

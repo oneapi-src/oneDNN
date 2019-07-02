@@ -56,6 +56,7 @@ status_t ref_softmax_bwd_t<data_type>::execute_generic(
     return status;
 }
 
+template struct ref_softmax_fwd_t<data_type::bf16>;
 template struct ref_softmax_fwd_t<data_type::f16>;
 template struct ref_softmax_fwd_t<data_type::f32>;
 template struct ref_softmax_bwd_t<data_type::f32>;
