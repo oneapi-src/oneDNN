@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _NORM_HPP
-#define _NORM_HPP
+#ifndef NORM_HPP
+#define NORM_HPP
 
 #include <assert.h>
 #include <stdlib.h>

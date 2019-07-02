@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _UTESTS_HPP
-#define _UTESTS_HPP
+#ifndef SELF_HPP
+#define SELF_HPP
 
 #include <stdio.h>
 #include <stdlib.h>

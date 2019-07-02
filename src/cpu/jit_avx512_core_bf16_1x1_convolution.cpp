@@ -516,7 +516,8 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
 
     simple_barrier::ctx_t reduction_barrier;
-    simple_barrier::ctx_init(&reduction_barrier);
+    if (mkldnn_thr_syncable())
+        simple_barrier::ctx_init(&reduction_barrier);
 
     const auto reducer_bia_scratchpad = memory_tracking::grantor_t(scratchpad,
             prefix_reducer_bia);
@@ -546,7 +547,6 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
     auto ker = [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
-        assert(IMPLICATION(!mkldnn_thr_syncable(), jcp.nthr_mb == 1));
 
         const int ithr_ic_b = ithr % jcp.nthr_ic_b;
         const int ithr_oc_b = ithr / jcp.nthr_ic_b % jcp.nthr_oc_b;
@@ -568,10 +568,6 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                     oc_b_end);
         balance211(jcp.nb_bcast, jcp.nthr_ic_b, ithr_ic_b, ic_b_start,
                     ic_b_end);
-
-        const int g_work = g_end - g_start;
-        const int oc_b_work = oc_b_end - oc_b_start;
-        const int ic_b_work = ic_b_end - ic_b_start;
 
         float *diff_wei;
         if (diff_weights_type == data_type::bf16) {
@@ -716,12 +712,37 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                 }
             }
         }
+    };
+
+    auto ker_reduce_and_convert_diff_wei = [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
+
+        const int ithr_ic_b = ithr % jcp.nthr_ic_b;
+        const int ithr_oc_b = ithr / jcp.nthr_ic_b % jcp.nthr_oc_b;
+        const int ithr_g = ithr / jcp.nthr_ic_b / jcp.nthr_oc_b % jcp.nthr_g;
+        const int ithr_mb = ithr / jcp.nthr_ic_b / jcp.nthr_oc_b /
+                            jcp.nthr_g;
+
+        /* independent dimensions */
+        int g_start{ 0 }, oc_b_start{ 0 }, ic_b_start{ 0 };
+        int g_end{ 0 }, oc_b_end{ 0 }, ic_b_end{ 0 };
+
+        balance211(jcp.ngroups, jcp.nthr_g, ithr_g, g_start, g_end);
+        balance211(jcp.nb_load, jcp.nthr_oc_b, ithr_oc_b, oc_b_start,
+                    oc_b_end);
+        balance211(jcp.nb_bcast, jcp.nthr_ic_b, ithr_ic_b, ic_b_start,
+                    ic_b_end);
+
+        const int g_work = g_end - g_start;
+        const int oc_b_work = oc_b_end - oc_b_start;
+        const int ic_b_work = ic_b_end - ic_b_start;
 
         const int _start_nthr_mb = 1;
         const bool is_bf16_out = diff_weights_type == data_type::bf16;
         /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
         if (jcp.nthr_mb > _start_nthr_mb) {
-            simple_barrier::barrier(&reduction_barrier, jcp.nthr);
+            if (mkldnn_thr_syncable())
+                simple_barrier::barrier(&reduction_barrier, jcp.nthr);
             const int work = g_work * oc_b_work * ic_b_work;
             int start{ 0 }, end{ 0 };
             balance211(work, jcp.nthr_mb, ithr_mb, start, end);
@@ -830,14 +851,31 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                 nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_load);
             }
         }
-        rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
+
+        if (mkldnn_thr_syncable())
+            rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         ker(ithr, jcp.nthr);
+        if (mkldnn_thr_syncable())
+            ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
         if (pd()->with_bias())
             ker_bias(ithr, jcp.nthr);
     });
+
+    if (!mkldnn_thr_syncable()) {
+        parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+            ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
+            if (pd()->with_bias()) {
+                auto rb = this->reducer_bias_;
+                assert(nthr == rb->balancer().nthr_);
+                MAYBE_UNUSED(nthr);
+                if (rb->balancer().ithr_njobs(ithr) == 0) return;
+                rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+            }
+        });
+    }
 
     /* TODO: put this in ker_bias */
     if (pd()->jcp_.bia_dt == data_type::bf16) {

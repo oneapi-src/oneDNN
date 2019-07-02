@@ -2128,7 +2128,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     if (ok_to_pad_channels)
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     jcp.nb_ic = jcp.ic / jcp.ic_block;
-    if (mkldnn_thr_syncable()
+    if (true
             && one_of(ndims, 3, 4, 5)
             && everyone_is(data_type::bf16,
                                src_d.data_type(), diff_dst_d.data_type())
@@ -2236,10 +2236,11 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
 
         scratchpad.book(key_conv_wei_bia_reduction,
                     sizeof(float) * wei_bia_reduction_size * num_wei_buffers);
-        // TODO: don't use barrier for case
-        // jcp.wei_dt == data_type::bf16 && nthr_mb_ == 1
+
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
         scratchpad.book(key_conv_wei_bia_reduction_bctx,
                 sizeof(simple_barrier::ctx_t));
+#endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     }
 
     if (jcp.with_bias) {
@@ -2265,12 +2266,6 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
 
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
-        return;
-    }
-
-    if (!mkldnn_thr_syncable()) {
-        // should not happen -- the driver is not ready
-        // for TBB-like non-synchronous threading yet
         return;
     }
 
@@ -2323,8 +2318,6 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
                 nthr_ic_b_ = nthr_ic_b;
             }
         }
-
-        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
     }
 
     if (nthr_mb_ > max_threads/2 && nthr_mb_ < max_threads)
@@ -2332,7 +2325,6 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
 
     assert(nthr_ <= max_threads);
-    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_mb_ == 1));
 }
 
 }

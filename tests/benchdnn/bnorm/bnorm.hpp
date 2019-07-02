@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _BNORM_HPP
-#define _BNORM_HPP
+#ifndef BNORM_HPP
+#define BNORM_HPP
 
 #include <stdint.h>
 #include <limits.h>

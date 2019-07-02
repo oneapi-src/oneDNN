@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _PERF_REPORT_HPP
-#define _PERF_REPORT_HPP
+#ifndef PERF_REPORT_HPP
+#define PERF_REPORT_HPP
 
 #include <stdlib.h>
 #include <string.h>

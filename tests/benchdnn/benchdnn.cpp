@@ -49,11 +49,11 @@ stat_t benchdnn_stat {0};
 double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
 int fix_times_per_prb {0};
+prim_t prim = DEF;
 
 int main(int argc, char **argv) {
     using namespace parser;
 
-    prim_t prim = DEF;
     --argc; ++argv;
 
     for (; argc > 0; --argc, ++argv) {

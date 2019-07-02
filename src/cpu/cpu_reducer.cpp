@@ -43,7 +43,8 @@ void reduce_balancer_t::balance() {
 
     /* initial guess */
     int ngroups = min(njobs_ / min_njobs_per_group, nthr_);
-    int nthr_per_group = syncable_ ? min(nthr_ / ngroups, reduction_size_) : 1;
+    int nthr_per_group = allow_nthr_in_group_
+        ? min(nthr_ / ngroups, reduction_size_) : 1;
     int njobs_per_group_ub = div_up(njobs_, ngroups);
 
     /* rough upper-bound estimation, will be fixed during brute force */
@@ -54,7 +55,7 @@ void reduce_balancer_t::balance() {
             c_njobs_per_group < njobs_; ++c_njobs_per_group) {
         /* current assumption */
         int c_ngroups = min(njobs_ / c_njobs_per_group, nthr_);
-        int c_nthr_per_group = syncable_
+        int c_nthr_per_group = allow_nthr_in_group_
             ? min(nthr_ / c_ngroups, reduction_size_) : 1;
         int c_njobs_per_group_ub = div_up(njobs_, c_ngroups);
 
@@ -79,7 +80,7 @@ void reduce_balancer_t::balance() {
     assert(ngroups * nthr_per_group <= nthr_);
     assert((size_t)njobs_per_group_ub * job_size_ * nthr_ <= max_buffer_size_
             || nthr_per_group == 1); /* no reduction buffer overflow */
-    assert(IMPLICATION(!syncable_, nthr_per_group == 1));
+    assert(IMPLICATION(!allow_nthr_in_group_, nthr_per_group == 1));
 
     ngroups_ = ngroups;
     nthr_per_group_ = nthr_per_group;

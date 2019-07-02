@@ -1058,17 +1058,27 @@ static inline void set_thread_opts_nopack(int nthrs,
         condition_1D_copya = true;
     }
 
+    // If A offset is non-zero, we use to keep 1D_copya.
+    // TODO: the reasons seems to be in copy_sum_bx routines. At least,
+    //       after simple optimization of copy_sum_ax, similar restriction
+    //       on offset B became unnecessary. Revisit.
+    if (isInteger && arg->ao != 0) {
+        condition_2D_bsrc = 0;
+        condition_1D_copya = 1;
+    }
+
     if (condition_2D_bsrc) {
         int nthrs_m = 1;
         int nthrs_n = nthrs;
 
-        // If A offset is non-zero, we use to keep 1D_copya.
-        // TODO: the reasons seems to be in copy_sum_bx routines. At least,
-        //       after simple optimization of copy_sum_ax, similar restriction
-        //       on offset B became unnecessary. Revisit.
-        if (isInteger && arg->ao != 0) {
-            condition_2D_bsrc = 0;
-            condition_1D_copya = 1;
+        while ((!isSgemm && (nthrs_n > 1) && (n / nthrs_n < arg->un) &&
+                 (m / nthrs_m >= 2 * arg->um)) ||
+                ((nthrs_n % 2 == 0) &&
+                 (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
+                 (m / nthrs_m >= 2 * M2D_MIN) &&
+                 (nthrs_m < 4))) {
+            nthrs_m *= 2;
+            nthrs_n /= 2;
         }
 
         thread_info.nthrs_m = nthrs_m;
@@ -1677,10 +1687,10 @@ static mkldnn_status_t gemm_threading_driver(
 
             for (; ithr < nthr_eff; ithr += nthr) {
                 // Get submatrices and parameters for this thread's GEMM.
-                const a_type *a;
-                const b_type *b;
-                c_type *c;
-                const c_type *co;
+                const a_type *a = nullptr;
+                const b_type *b = nullptr;
+                c_type *c = nullptr;
+                const c_type *co = nullptr;
                 std::tie(a, b, c, co)
                         = decompose_matrices(thread_arg[ithr].slice, arg);
 

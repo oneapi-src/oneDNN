@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _MKLDNN_COMMON_HPP
-#define _MKLDNN_COMMON_HPP
+#ifndef MKLDNN_COMMON_HPP
+#define MKLDNN_COMMON_HPP
 
 #include <stddef.h>
 #include <stdint.h>

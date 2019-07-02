@@ -56,6 +56,8 @@ inline int mkldnn_get_thread_num()
 { return tbb::this_task_arena::current_thread_index(); }
 inline int mkldnn_in_parallel() { return 0; }
 inline void mkldnn_thr_barrier() { assert(!"no barrier in TBB"); }
+inline tbb::static_partitioner mkldnn_tbb_partitioner()
+{ return tbb::static_partitioner(); }
 
 #define PRAGMA_OMP(...)
 

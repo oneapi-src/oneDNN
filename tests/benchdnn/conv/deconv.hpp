@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _DECONV_HPP
-#define _DECONV_HPP
+#ifndef DECONV_HPP
+#define DECONV_HPP
 
 #include <stdint.h>
 #include <limits.h>

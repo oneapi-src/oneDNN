@@ -1074,9 +1074,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
 
         const int sizeof_cacheline_float = 16;
         if (is_bwd_w) {
-            jcp.need_wei_reduction = mkldnn_thr_syncable()
-                    ? jcp.mb != 1 && jcp.nthr != 1
-                    : false;
+            jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
             scratchpad.book(key_conv_wei_reduction,
                     sizeof(float) * jcp.nthr * jcp.ngroups * weights_d.size());
         }

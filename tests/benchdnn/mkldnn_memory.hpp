@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _MKLDNN_MEMORY_HPP
-#define _MKLDNN_MEMORY_HPP
+#ifndef MKLDNN_MEMORY_HPP
+#define MKLDNN_MEMORY_HPP
 
 #include "mkldnn_common.hpp"
 
@@ -244,20 +244,15 @@ private:
         DNN_SAFE_V(mkldnn_engine_get_backend_kind(engine_, &backend_kind));
         is_cpu_native_ = (engine_kind_ == mkldnn_cpu) && (backend_kind == 0);
 
+        size_t sz = mkldnn_memory_desc_get_size(&md_);
         if (is_cpu_native_) {
             // Allocate memory for native backend directly
             is_data_owner_ = true;
             const size_t alignment = 1024 * 1024 * 16;
-            size_t sz = mkldnn_memory_desc_get_size(&md_);
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? mkldnn_out_of_memory : mkldnn_success,
                     CRIT);
             DNN_SAFE(mkldnn_memory_create(&m_, &md_, engine, data_), CRIT);
-
-            // Init reference float type memory with NANs
-            if (engine == engine_ref && dt == mkldnn_f32)
-                for (int64_t i = 0; i < (int64_t)(sz / sizeof(float)); i++)
-                    ((float *)data_)[i] = NAN;
         } else {
             is_data_owner_ = false;
             data_ = NULL;
@@ -268,6 +263,17 @@ private:
 
         is_mapped_ = false;
         mapped_ptr_ = NULL;
+
+        // Fill memory with a magic number (NAN for fp data types) to catch
+        // possible uninitialized access.
+        map();
+        memset(mapped_ptr_, 0xFF, sz);
+        unmap();
+
+        // Set own data handle to trigger zero padding
+        void *handle;
+        DNN_SAFE(mkldnn_memory_get_data_handle(m_, &handle), CRIT);
+        DNN_SAFE(mkldnn_memory_set_data_handle(m_, handle), CRIT);
 
         return OK;
     }

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _SHUFFLE_HPP
-#define _SHUFFLE_HPP
+#ifndef SHUFFLE_HPP
+#define SHUFFLE_HPP
 
 #include <stdint.h>
 #include <limits.h>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _IP_HPP
-#define _IP_HPP
+#ifndef IP_HPP
+#define IP_HPP
 
 #include <iostream>
 

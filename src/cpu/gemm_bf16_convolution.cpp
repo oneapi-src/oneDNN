@@ -608,7 +608,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                     }
                 }
             }
-            if (need_reduction) {
+            if (need_reduction && mkldnn_thr_syncable()) {
                 mkldnn_thr_barrier();
                 diff_wei_data_t *weights_base = diff_weights
                     + g_start * weights_g_size;
@@ -625,9 +625,40 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                 store_bfloat16_in_parallel(diff_weights_local, acc_local,
                                            work_size, 1, jcp.nthr == 1);
             }
-        } else
-            if (need_reduction) { mkldnn_thr_barrier(); }
+        } else {
+            if (need_reduction && mkldnn_thr_syncable()) mkldnn_thr_barrier();
+        }
     });
+
+    if (jcp.need_wei_reduction && !mkldnn_thr_syncable()) {
+        parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+            int ithr_g, nthr_g, ithr_mb, nthr_mb;
+            size_t g_start{0}, g_end{0}, mb_start{0}, mb_end{0};
+
+            const int mb_for_balance = jcp.need_wei_reduction ? jcp.mb : 1;
+            jit_gemm_convolution_utils::bwd_weights_balance(ithr, nthr,
+                    jcp.ngroups, mb_for_balance, ithr_g, nthr_g,
+                    ithr_mb, nthr_mb);
+
+            assert(IMPLICATION(!jcp.need_wei_reduction, nthr_mb == 1));
+            const int need_reduction = nthr_mb != 1;
+
+            if (need_reduction && ithr_g != -1 && ithr_mb != -1) {
+                balance211((size_t)jcp.ngroups, nthr_g, ithr_g, g_start, g_end);
+                balance211((size_t)jcp.mb, nthr_mb, ithr_mb, mb_start, mb_end);
+
+                assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
+
+                acc_data_t *weights_reduce_base = wei_reduction
+                        + ithr_g * nthr_mb * weights_g_size;
+
+                diff_wei_data_t *weights_base = diff_weights
+                    + g_start * weights_g_size;
+                bf16_bwd_weights_reduction_par(ithr_mb, nthr_mb, jcp,
+                        weights_reduce_base, weights_base);
+            }
+        });
+    }
 
     if (jcp.with_bias) {
         parallel_nd(jcp.ngroups, jcp.oc, [&](int g, int oc) {

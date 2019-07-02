@@ -42,7 +42,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::c_load(const Xbyak::Xmm &dst,
         const Xbyak::Address &src, int nelems) {
     switch (nelems) {
     case 1: vmovss(make_xmm(dst), src); break;
-    case 2: vmovlps(make_xmm(dst), src); break;
+    case 2: vmovsd(make_xmm(dst), src); break;
     case 4: vmovups(make_xmm(dst), src); break;
     case 8: vmovups(make_ymm(dst), src); break;
     default:
@@ -56,7 +56,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::c_store(const Xbyak::Address &dst,
         const Xbyak::Xmm &src, int nelems) {
     switch (nelems) {
     case 1: vmovss(dst, make_xmm(src)); break;
-    case 2: vmovsd(dst, make_xmm(src)); break;
+    case 2: vmovlps(dst, make_xmm(src)); break;
     case 4: vmovups(dst, make_xmm(src)); break;
     case 8: vmovups(dst, make_ymm(src)); break;
     default:
@@ -267,11 +267,15 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(int unroll_m,
             auto c_mem = ptr[CO1_ + ldc_mult + size_ * 16 * i];
 
             if (beta_zero_) {
-                vmulps(c, c, alpha_);
+                if (!alpha_one_)
+                    vmulps(c, c, alpha_);
                 c_store(c_mem, c, unroll_m);
             } else {
                 c_load(c_old, c_mem, unroll_m);
-                vfmadd231ps(c_old, c, alpha_);
+                if (alpha_one_)
+                    vaddps(c_old, c, c_old);
+                else
+                    vfmadd231ps(c_old, c, alpha_);
                 c_store(c_mem, c_old, unroll_m);
             }
 
@@ -350,7 +354,8 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
     preamble();
     sub(rsp, stack_alloc_size_);
 
-    vbroadcastss(alpha_, qword[ALPHA_]);
+    if (!alpha_one_)
+        vbroadcastss(alpha_, qword[ALPHA_]);
 
     if (is_windows) {
         mov(A_, arg_a_);
@@ -395,10 +400,12 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
 }
 
 jit_avx512_core_gemm_bf16bf16f32_kern::jit_avx512_core_gemm_bf16bf16f32_kern(
-        bool beta_zero) : jit_generator(nullptr, 170000), arg_a_(0), arg_b_(0),
-    arg_c_(0), arg_ldc_(0), arg_coffset_c_(0), arg_coffset_r_(0) {
+        bool beta_zero, bool alpha_one) : jit_generator(nullptr, 170000),
+    arg_a_(0), arg_b_(0), arg_c_(0), arg_ldc_(0), arg_coffset_c_(0),
+    arg_coffset_r_(0) {
 
     beta_zero_ = beta_zero;
+    alpha_one_ = alpha_one;
     bfloat16_ = mayiuse(avx512_core_bf16);
     assert(mayiuse(avx512_core));
 

@@ -221,7 +221,12 @@ size_t mkldnn_memory_desc_get_size(const memory_desc_t *md) {
 status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
+
     memory_desc_t z_md = types::zero_md();
+    if (md == nullptr) md = &z_md;
+
+    if (md->format_kind == format_kind::any) return invalid_arguments;
+
     unsigned flags = 0;
     if (handle == MKLDNN_MEMORY_ALLOCATE) {
         flags = memory_flags_t::alloc;
@@ -235,8 +240,9 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
     } else {
         flags = memory_flags_t::use_backend_ptr;
     }
+
     return safe_ptr_assign<memory_t>(
-            *memory, new memory_t(engine, md ? md : &z_md, flags, handle));
+            *memory, new memory_t(engine, md, flags, handle));
 }
 
 status_t mkldnn_memory_get_memory_desc(const memory_t *memory,

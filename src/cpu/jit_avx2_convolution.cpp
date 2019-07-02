@@ -338,7 +338,9 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
             }
             nd_iterator_jump(img_start, img_end, img, jcp.mb, od_s, jcp.od);
         }
-        rw->reduce(ithr, diff_weights, reducer_wei_scratchpad);
+
+        if (mkldnn_thr_syncable())
+            rw->reduce(ithr, diff_weights, reducer_wei_scratchpad);
     };
 
     auto ker_bias = [&](int ithr, int nthr) {
@@ -383,14 +385,35 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                 nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);
             }
         }
-        rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
+
+        if (mkldnn_thr_syncable())
+            rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
+#if MKLDNN_THR_SYNC == 1
     parallel(0, [&](const int ithr, const int nthr) {
         ker(ithr, nthr);
         if (pd()->with_bias())
             ker_bias(ithr, nthr);
     });
+#else
+    parallel(0, [&](int ithr, int nthr) { ker(ithr, nthr); });
+    parallel(0, [&](int ithr, int nthr) {
+        assert(nthr == rw->balancer().nthr_);
+        MAYBE_UNUSED(nthr);
+        if (rw->balancer().ithr_njobs(ithr) == 0) return;
+        rw->reduce_nolock(ithr, diff_weights, reducer_wei_scratchpad);
+    });
+    if (pd()->with_bias()) {
+        parallel(0, [&](int ithr, int nthr) { ker_bias(ithr, nthr); });
+        parallel(0, [&](int ithr, int nthr) {
+            assert(nthr == rb->balancer().nthr_);
+            MAYBE_UNUSED(nthr);
+            if (rb->balancer().ithr_njobs(ithr) == 0) return;
+            rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+        });
+    }
+#endif
 
     /* TODO: put this in ker_bias */
     if (pd()->wants_padded_bias()) {

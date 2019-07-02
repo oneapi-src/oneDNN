@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _CONCAT_HPP
-#define _CONCAT_HPP
+#ifndef CONCAT_HPP
+#define CONCAT_HPP
 
 #include <iostream>
 

@@ -1396,7 +1396,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         = ti->wei_bia_reduction + (nthr_mb_ - 1) * wei_size;
 
     /* diff_weights[:] += sum(wei_reduction_[thr_mb][:]) */
-    simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+    if (mkldnn_thr_syncable())
+        simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
 
     const int ic_b_kh_work = ti->ic_b_work * jcp.kh;
     const int work = ti->g_work * ti->oc_b_work * ic_b_kh_work;
@@ -1454,7 +1455,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         * jcp.kd;
 
     /* diff_weights[:] += sum(wei_reduction_[thr_mb][:]) */
-    simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
+    if (mkldnn_thr_syncable())
+        simple_barrier::barrier(ti->wei_bia_reduction_bctx, nthr_);
 
     const int ic_b_kh_work = ti->ic_b_work * jcp.kd;
     const int work = ti->g_work * ti->oc_b_work * ic_b_kh_work;
@@ -1546,7 +1548,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     }
 
-    rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
+    if (mkldnn_thr_syncable())
+        rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
@@ -1562,7 +1565,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     const diff_weights_data_t *diff_bias_ws
             = ti->wei_bia_reduction + (size_t)(nthr_mb_ - 1) * wei_size;
 
-    if (nthr_mb_ > 1) mkldnn_thr_barrier();
+    if (mkldnn_thr_syncable() && nthr_mb_ > 1) mkldnn_thr_barrier();
 
     if (ti->ithr == 0)
     {
@@ -1608,7 +1611,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         }
     }
 
-    if (nthr_mb_ > 1) {
+    if (mkldnn_thr_syncable() && nthr_mb_ > 1) {
         simple_barrier::ctx_init(scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_wei_bia_reduction_bctx));
     }
@@ -1625,6 +1628,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     diff_weights_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
     prepare_scratchpad_data(ctx);
 
+#if MKLDNN_THR_SYNC == 1
     parallel(nthr_, [&](const int ithr, const int nthr) {
         assert(nthr_ == nthr);
 
@@ -1652,6 +1656,61 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         default: assert(!"Invalid harness type");
         }
     });
+#else
+    parallel(nthr_, [&](const int ithr, const int nthr) {
+        thread_info_t thread_info(this, ctx, ithr);
+        switch (pd()->jcp_.harness) {
+        case harness_2d_reduction:
+            compute_diff_weights_2d(&thread_info);
+            break;
+        case harness_3d_reduction:
+            compute_diff_weights_3d(&thread_info);
+            break;
+        case harness_mb_reduction:
+            compute_diff_weights(&thread_info);
+            if (pd()->with_bias()) compute_diff_bias(&thread_info);
+            break;
+        default: assert(!"Invalid harness type");
+        }
+    });
+
+    parallel(nthr_, [&](const int ithr, const int nthr) {
+        thread_info_t thread_info(this, ctx, ithr);
+        if (nthr_mb_ > 1) {
+            switch (pd()->jcp_.harness) {
+            case harness_mb_reduction:
+            case harness_2d_reduction:
+                reduce_diff_weights(&thread_info);
+                break;
+            case harness_3d_reduction:
+                reduce_diff_weights_3d(&thread_info);
+                break;
+            default: assert(!"Invalid harness type");
+            }
+        }
+        if (pd()->with_bias()) {
+            switch (pd()->jcp_.harness) {
+            case harness_2d_reduction:
+            case harness_3d_reduction:
+                reduce_diff_bias(&thread_info);
+                break;
+            case harness_mb_reduction:
+                {
+                    auto rb = this->reducer_bias_;
+                    assert(nthr == rb->balancer().nthr_);
+                    if (rb->balancer().ithr_njobs(ithr) == 0) return;
+                    const auto reducer_bia_scratchpad =
+                        memory_tracking::grantor_t(
+                                thread_info.scratchpad, prefix_reducer_bia);
+                    rb->reduce_nolock(thread_info.ithr, thread_info.diff_bias,
+                            reducer_bia_scratchpad);
+                }
+                break;
+            default: assert(!"Invalid harness type");
+            }
+        }
+    });
+#endif
 
     /* TODO: put that into compute_diff_bias() */
     if (pd()->wants_padded_bias()) {

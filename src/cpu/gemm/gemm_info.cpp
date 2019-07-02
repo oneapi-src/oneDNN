@@ -170,11 +170,11 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             b_type *dst, const dim_t *dummy1, const dim_t *dummy2,
             c_type *row_col_sum) = {{NULL}};
 
-    // kern[beta0][col_off][row_off]
-    static void (*kern[2][2][2])(const dim_t *m, const dim_t *n, const dim_t *k,
+    // kern[beta0][alpha1][col_off][row_off]
+    static void (*kern[2][2][2][2])(const dim_t *m, const dim_t *n, const dim_t *k,
             const float *alpha, const a_type *a, const b_type *b, c_type *c,
             const dim_t ldc, const c_type *col_offset,
-            const c_type *row_offset) = {{{NULL}}};
+            const c_type *row_offset) = {{{{NULL}}}};
 
     // gemv_kern[trans]
     static void (*gemv_kern[2])(const dim_t *m, const dim_t *n,
@@ -348,44 +348,46 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             break;
         }
 
-        static jit_generator *kernel[2][2][2] = {{{NULL}}};
+        static jit_generator *kernel[2][2][2][2] = {{{{NULL}}}};
         switch (data_traits<a_type>::data_type) {
         case data_type::s8:
             if (mayiuse(avx512_core)) {
                 for (int isBeta0 : {no_beta0, do_beta0})
                     for (int isColOffset : {no_col_offset, do_col_offset})
                         for (int isRowOffset : {no_row_offset, do_row_offset}) {
-                            kernel[isBeta0][isColOffset][isRowOffset] =
-                                new jit_avx512_core_gemm_s8u8s32_kern(isBeta0,
-                                        isColOffset, isRowOffset);
+                            kernel[isBeta0][no_alpha1][isColOffset][isRowOffset]
+                                = new jit_avx512_core_gemm_s8u8s32_kern(
+                                        isBeta0, isColOffset, isRowOffset);
                         }
             }
             break;
 
         case data_type::bf16:
             if (mayiuse(avx512_core)) {
-                for (int isBeta0 : {no_beta0, do_beta0}) {
-                    kernel[isBeta0][no_col_offset][no_row_offset] =
-                        new jit_avx512_core_gemm_bf16bf16f32_kern(isBeta0);
-                }
+                for (int isBeta0 : {no_beta0, do_beta0})
+                    for (int isAlpha1 : {no_alpha1, do_alpha1}) {
+                        kernel[isBeta0][isAlpha1][no_col_offset][no_row_offset]
+                            = new jit_avx512_core_gemm_bf16bf16f32_kern(
+                                    isBeta0, isAlpha1);
+                    }
             }
             break;
 
         case data_type::f32:
             if (mayiuse(avx2)) {
                 for (int isBeta0 : {no_beta0, do_beta0}) {
-                    kernel[isBeta0][no_col_offset][no_row_offset] =
+                    kernel[isBeta0][no_alpha1][no_col_offset][no_row_offset] =
                         new jit_avx2_kernel_sgemm_kern(isBeta0);
                 }
             } else if (mayiuse(avx)) {
-                kernel[no_beta0][no_col_offset][no_row_offset] =
+                kernel[no_beta0][no_alpha1][no_col_offset][no_row_offset] =
                     new jit_avx_kernel_sgemm_kern;
-                kernel[do_beta0][no_col_offset][no_row_offset] =
+                kernel[do_beta0][no_alpha1][no_col_offset][no_row_offset] =
                     new jit_avx_kernel_b0_sgemm_kern();
             } else if (mayiuse(sse41)) {
-                kernel[no_beta0][no_col_offset][no_row_offset] =
+                kernel[no_beta0][no_alpha1][no_col_offset][no_row_offset] =
                     new jit_sse41_kernel_sgemm_kern;
-                kernel[do_beta0][no_col_offset][no_row_offset] =
+                kernel[do_beta0][no_alpha1][no_col_offset][no_row_offset] =
                     new jit_sse41_kernel_b0_sgemm_kern();
             }
             break;
@@ -428,18 +430,20 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
         // Set compute kernel function pointer table
         for (int isBeta0 : {no_beta0, do_beta0})
-            for (int isColOffset : {no_col_offset, do_col_offset})
-                for (int isRowOffset : {no_row_offset, do_row_offset}) {
-                    auto *p_kernel = kernel[isBeta0][isColOffset][isRowOffset];
-                    if (p_kernel != NULL)
-                        kern[isBeta0][isColOffset][isRowOffset] =
-                            p_kernel->getCode<
-                            void (*)(const dim_t *, const dim_t *,
-                                    const dim_t *, const float *,
-                                    const a_type *, const b_type *, c_type *,
-                                    const dim_t, const c_type *,
-                                    const c_type *)>();
-                }
+            for (int isAlpha1 : {no_alpha1, do_alpha1})
+                for (int isColOffset : {no_col_offset, do_col_offset})
+                    for (int isRowOffset : {no_row_offset, do_row_offset}) {
+                        auto *p_kernel
+                            = kernel[isBeta0][isAlpha1][isColOffset][isRowOffset];
+                        if (p_kernel != NULL)
+                            kern[isBeta0][isAlpha1][isColOffset][isRowOffset] =
+                                p_kernel->getCode<
+                                void (*)(const dim_t *, const dim_t *,
+                                        const dim_t *, const float *,
+                                        const a_type *, const b_type *,
+                                        c_type *, const dim_t, const c_type *,
+                                        const c_type *)>();
+                    }
 
         // Set gemv floating point kernels
         if (data_traits<a_type>::data_type == data_type::f32) {
@@ -447,9 +451,9 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
                 auto *p_gemv_kernel = gemv_kernel[isTrans];
                 if (p_gemv_kernel != NULL)
                     gemv_kern[isTrans] = p_gemv_kernel->getCode<
-                void (*)(const dim_t *, const dim_t *, const float *,
-                        const a_type *, const dim_t *, const b_type *,
-                        const dim_t *, c_type *)>();
+                        void (*)(const dim_t *, const dim_t *, const float *,
+                                const a_type *, const dim_t *, const b_type *,
+                                const dim_t *, c_type *)>();
 
             }
         }
@@ -476,11 +480,15 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
     this->copyA = copyA[copy_trans_a][doSumA];
     this->copyB = copyB[copy_trans_b][doSumB];
 
+    bool is_bfloat16 = data_traits<a_type>::data_type == data_type::bf16;
+
+    int doAlpha1 = this->alpha == 1.0f && is_bfloat16 ? do_alpha1 : no_alpha1;
+
     for (int isBeta0 : {no_beta0, do_beta0})
         for (int isColOffset : {no_col_offset, do_col_offset})
             for (int isRowOffset : {no_row_offset, do_row_offset})
                 this->kernel[isBeta0][isColOffset][isRowOffset] =
-                    kern[isBeta0][isColOffset][isRowOffset];
+                    kern[isBeta0][doAlpha1][isColOffset][isRowOffset];
 
     for (int isTrans : {no_trans, do_trans})
         this->gemv_kernel[isTrans] = gemv_kern[isTrans];

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _CONV_COMMON_HPP
-#define _CONV_COMMON_HPP
+#ifndef CONV_COMMON_HPP
+#define CONV_COMMON_HPP
 
 #include <stdint.h>
 #include <limits.h>

@@ -26,7 +26,9 @@
 #include "jit_avx512_core_bf16cvt.hpp"
 
 //#define BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-//#define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
+#if !MKLDNN_THR_SYNC
+#define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
+#endif
 
 namespace mkldnn {
 namespace impl {

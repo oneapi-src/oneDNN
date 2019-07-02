@@ -648,7 +648,6 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t placeholder_dst_dt;
     if (!p->inplace) {
         placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
@@ -734,7 +733,6 @@ int doit(const prb_t *p, res_t *r) {
         dnn_mem_t placeholder_d_src_dt;
         if (!p->inplace) {
             placeholder_d_src_dt = dnn_mem_t(data_desc, engine_tgt);
-            SAFE(placeholder_d_src_dt.reorder(d_src_fp), WARN);
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 

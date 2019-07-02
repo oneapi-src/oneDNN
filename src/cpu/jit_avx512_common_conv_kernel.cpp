@@ -555,11 +555,11 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop_fma(int ur_w,
     int nb_oc_block = jcp.nb_oc_blocking;
     Label kh_label, kd_label;
 
-    int ker_pipeline_depth = 4;
+    int num_ker_loads = ic_block * nb_oc_block * kw;
+    int ker_pipeline_depth = nstl::min(4, num_ker_loads);
     assert(ker_reg_base_idx + ker_pipeline_depth <= 32);
     assert(oc_block >= ker_pipeline_depth);
 
-    int num_ker_loads = ic_block * nb_oc_block * kw;
     int num_ker_prfs = prf_ker ? num_ker_loads : 0;
     int num_inp_prfs = prf_inp ?
             ur_w * nstl::min(kw, stride_w) + nstl::max(0, kw - stride_w) :
@@ -4648,8 +4648,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
                 nthr_ic_b_ = nthr_ic_b;
             }
         }
-
-        if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
     }
 
     if (!mayiuse(avx512_mic)) {
@@ -4686,8 +4684,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
                     nthr_ic_b_ = nthr_ic_b;
                 }
             }
-
-            if (!mkldnn_thr_syncable()) { assert(nthr_mb == 1); break; }
         }
     }
 
@@ -4696,7 +4692,6 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
 
     assert(nthr_ <= max_threads);
-    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_mb_ == 1));
 }
 
 template struct  _jit_avx512_common_conv_fwd_kernel<Zmm>;

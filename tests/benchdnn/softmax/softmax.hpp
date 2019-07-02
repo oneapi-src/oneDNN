@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _SOFTMAX_HPP
-#define _SOFTMAX_HPP
+#ifndef SOFTMAX_HPP
+#define SOFTMAX_HPP
 
 #include <iostream>
 

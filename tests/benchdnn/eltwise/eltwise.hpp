@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _ELTWISE_HPP
-#define _ELTWISE_HPP
+#ifndef ELTWISE_HPP
+#define ELTWISE_HPP
 
 #include <iostream>
 

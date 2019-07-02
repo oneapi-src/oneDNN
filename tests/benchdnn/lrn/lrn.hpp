@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _LRN_HPP
-#define _LRN_HPP
+#ifndef LRN_HPP
+#define LRN_HPP
 
 #include <stdint.h>
 #include <limits.h>
