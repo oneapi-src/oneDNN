@@ -76,7 +76,11 @@ protected:
         // mem1
         // A `corrected` version of mem0 (i.e. padded area should be filled with
         // zeros) and with a buffer taken from mem1_placeholder.
-        mkldnn::memory mem1(md, eng, mem1_placeholder.get_data_handle());
+        mkldnn::memory mem1(md, eng, NULL);
+        mem1.set_data_handle(mem1_placeholder.get_data_handle());
+
+        // FIXME: instead a work-around above, it should be:
+        // mkldnn::memory mem1(md, eng, mem1_placeholder.get_data_handle());
 
         check_zero_tail<data_t>(0, mem1); // Check, if mem1 is indeed corrected
         check_zero_tail<data_t>(1, mem0); // Manually correct mem0
