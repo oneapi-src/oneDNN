@@ -104,9 +104,10 @@ The eltwise primitive doesn't support any post-ops or attributes.
 @anchor dg_eltwise_impl_limits
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
+1. Swish is supported only by CPU engine (no GPU support).
+            
+2. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
-
 
 ## Performance Tips
 

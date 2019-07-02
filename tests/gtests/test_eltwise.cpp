@@ -334,7 +334,7 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-		= (p.alg_kind == algorithm::eltwise_elu
+                = (p.alg_kind == algorithm::eltwise_elu
                         || p.alg_kind == algorithm::eltwise_exp)
                         || (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
