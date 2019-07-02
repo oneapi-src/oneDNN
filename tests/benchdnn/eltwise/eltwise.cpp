@@ -78,8 +78,8 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
         trh = 4e-6;            // subtract, which leads to low accuracy.
     if (p->alg == alg_t::ELU) // when x -> -0, a(exp(-x) - 1) has cancellation
         trh = 4e-5;           // subtract, which leads to low accuracy.
-    if (p->alg == alg_t::SWISH) 
-        trh = 4e-5;           
+    if (p->alg == alg_t::SWISH)
+        trh = 4e-5;
     if (p->dt == mkldnn_f16)
         trh = 1e-3;
     if (p->dt == mkldnn_bf16)

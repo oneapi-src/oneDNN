@@ -681,7 +681,7 @@ typedef enum {
     /// @note Tanh approximation formula is used to approximate
     /// cumulative distribution function of a Gaussian
     mkldnn_eltwise_gelu = 0xcf,
-    //  Eltwise: swish 
+    //  Eltwise: swish
     mkldnn_eltwise_swish = 0xdf,
     /// Max pooling
     mkldnn_pooling_max = 0x1ff,
@@ -1007,8 +1007,9 @@ typedef struct {
     /// The kind of eltwise algorithm. Possible values: #mkldnn_eltwise_relu,
     /// #mkldnn_eltwise_tanh, #mkldnn_eltwise_elu, #mkldnn_eltwise_square,
     /// #mkldnn_eltwise_abs, #mkldnn_eltwise_sqrt, #mkldnn_eltwise_linear,
-    /// #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu, #mkldnn_eltwise_swish and
-    /// #mkldnn_eltwise_logistic and #mkldnn_eltwise_exp.
+    /// #mkldnn_eltwise_bounded_relu, #mkldnn_eltwise_soft_relu,
+    /// #mkldnn_eltwise_swish, #mkldnn_eltwise_logistic and
+    /// #mkldnn_eltwise_exp.
     mkldnn_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     mkldnn_memory_desc_t data_desc;
@@ -1023,7 +1024,7 @@ typedef struct {
     ///  - #mkldnn_eltwise_abs: @p alpha and @p beta ignored
     ///  - #mkldnn_eltwise_sqrt: @p alpha and @p beta ignored
     ///  - #mkldnn_eltwise_linear: @p alpha -- scale, @p beta -- shift
-    ///  - #mkldnn_eltwise_swish: @p alpha -- scaling of sigmoid arg, @p beta ignored
+    ///  - #mkldnn_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
     ///  - #mkldnn_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
     ///  - #mkldnn_eltwise_soft_relu: @p alpha and @p beta ignored
     ///  - #mkldnn_eltwise_logistic: @p alpha and @p beta ignored

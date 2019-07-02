@@ -116,10 +116,8 @@ T bounded_relu_bwd(T dd, T s, A alpha) {
 
 template <typename T, typename A>
 T swish_fwd(T s, A alpha) {
-    return (T)(s / ( 1.0f + ::expf(-alpha*(float)s)));
+    return (T)(s / (1.0f + ::expf(-alpha * (float)s)));
 }
-
-
 
 template <typename T>
 T soft_relu_fwd(T s) {
@@ -155,8 +153,8 @@ T exp_bwd(T dd, T s) {
 
 template <typename T, typename A>
 T swish_bwd(T dd, T s, A alpha) {
-    T v = logistic_fwd<T>(alpha*s);
-    return dd * (v + s*alpha*v*(1 - v));
+    T v = logistic_fwd<T>(alpha * s);
+    return dd * (v + s * alpha * v * (1 - v));
 }
 
 struct eltwise_test_params {
@@ -201,7 +199,7 @@ void check_eltwise_fwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         case algorithm::eltwise_exp:         ref_d = exp_fwd(s);                     break;
         case algorithm::eltwise_gelu:        ref_d = gelu_fwd(s);                    break;
-        case algorithm::eltwise_swish:  ref_d = swish_fwd(s, p.alpha);     break;
+        case algorithm::eltwise_swish:       ref_d = swish_fwd(s, p.alpha);          break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -271,7 +269,9 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_exp:      ref_ds = exp_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_gelu:     ref_ds = gelu_bwd(ref_dd, ref_s); break;
-        case algorithm::eltwise_swish: ref_ds = swish_bwd(ref_dd, ref_s, p.alpha); break;
+        case algorithm::eltwise_swish:
+            ref_ds = swish_bwd(ref_dd, ref_s, p.alpha);
+            break;
         default: assert(!"unknown alg_kind");
         }
 
@@ -334,9 +334,9 @@ protected:
 
         data_t data_median = data_t(0);
         data_t data_deviation
-                = (p.alg_kind == algorithm::eltwise_elu
+		= (p.alg_kind == algorithm::eltwise_elu
                         || p.alg_kind == algorithm::eltwise_exp)
-			|| (p.alg_kind == algorithm::eltwise_swish)
+                        || (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square
                     ? data_t(6.0) : data_t(200.0);
