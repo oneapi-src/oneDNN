@@ -1436,7 +1436,6 @@ jit_uni_lrn_bwd_kernel_f32<isa>::jit_uni_lrn_bwd_kernel_f32(
             vsqrtps(xa, xa);
             vmulps(xa, xa, xws_next);
             vdivps(xsrc_next, xsrc_next, xa);
-            vdivps(xsrc_next, xsrc_next, xws_next);
             vmulps(xdiffdst_next, xdiffdst_next, xsrc_next);
         }
 
