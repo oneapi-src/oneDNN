@@ -37,6 +37,7 @@
 *.txt             text
 *.xml             text
 *.pump            text
+
 # Declare files that will always have OS specific line endings on checkout.
 *.vcxproj.user    text eol=crlf
 *.sh              text eol=lf
