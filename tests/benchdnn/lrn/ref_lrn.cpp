@@ -91,13 +91,18 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                     sum = p->k + p->alpha * sum / summands;
                     if (c == cs)
                         sum_mid = sum;
+
+                    float sum_beta_exp = (p->beta == 0.75)
+                        ? sum / sqrt(sqrt(sum)) : powf(sum, p->beta);
+                    float tmp = sum * sum_beta_exp;
                     const auto off = data_off(p, mb, cs, d, h, w);
-                    float tmp = sum * powf(sum, p->beta);
                     B += (src.get_elem(off) * d_dst.get_elem(off) / tmp);
                 }
 
                 const auto off = data_off(p, mb, c, d, h, w);
-                A = d_dst.get_elem(off) / powf(sum_mid, p->beta);
+                float sum_beta_exp = (p->beta == 0.75)
+                    ? sum_mid / sqrt(sqrt(sum_mid)) : powf(sum_mid, p->beta);
+                A = d_dst.get_elem(off) / sum_beta_exp;
                 B *= (src.get_elem(off) * 2 * p->alpha * p->beta / summands);
                 d_src.set_elem(off, A - B);
             });

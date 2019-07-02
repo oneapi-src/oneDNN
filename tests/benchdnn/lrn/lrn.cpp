@@ -45,7 +45,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     r->errors = 0;
     r->total = nelems;
-    float trh = 1e-7 * p->ls;
+    float trh = 8e-7 * p->ls;
     if (p->dt == mkldnn_f16)
         trh = 1e-3 * p->ls;
     if (p->dt == mkldnn_bf16)
