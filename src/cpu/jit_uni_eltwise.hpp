@@ -46,9 +46,9 @@ struct jit_uni_eltwise_injector_f32 {
         using namespace alg_kind;
         assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
-                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_exp, eltwise_gelu, eltwise_swish));
+                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu, eltwise_swish));
     }
 
     // note that eltwise.scale is ignored

@@ -33,9 +33,9 @@ using namespace math;
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(alg_kind_t alg, float alpha,
         float beta): alg_(alg), alpha_(alpha), beta_(beta) {
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
-            eltwise_swish, eltwise_square, eltwise_abs, eltwise_sqrt,
-            eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-            eltwise_logistic, eltwise_exp, eltwise_gelu));
+                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                eltwise_exp, eltwise_gelu, eltwise_swish));
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(

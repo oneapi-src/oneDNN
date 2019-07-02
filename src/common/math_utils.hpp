@@ -157,6 +157,11 @@ template <typename T, typename A,
 inline U elu_fwd(T s, A alpha) {
     return s > 0 ? s : (U)(alpha * (::expm1f((float)s)));
 }
+template <typename T, typename A,
+         typename U = typename utils::remove_reference<T>::type>
+ inline U elu_bwd(T dd, T s, A alpha) {
+    return (U)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
+}
 
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
@@ -169,12 +174,6 @@ template <typename T, typename A,
 inline U swish_bwd(T dd, T s, A alpha) {
     U v = (U)(1 / (1 + ::expf((float)-s * alpha)));
     return dd * (v + s * alpha * v * (1 - v));
-}
-
-template <typename T, typename A,
-         typename U = typename utils::remove_reference<T>::type>
- inline U elu_bwd(T dd, T s, A alpha) {
-    return (U)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>

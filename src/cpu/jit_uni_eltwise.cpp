@@ -1154,9 +1154,10 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
 
         assert(is_bwd() == false);
         assert(utils::one_of(desc.alg_kind, eltwise_tanh, eltwise_elu,
-                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                eltwise_swish, eltwise_bounded_relu, eltwise_soft_relu,
-                eltwise_logistic, eltwise_exp, eltwise_gelu));
+                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu, eltwise_swish));
+
         preamble();
 
         if (is_bf16()) {
@@ -1289,8 +1290,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
         && !has_zero_dim_memory()
         && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
                 eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
-                eltwise_swish, eltwise_linear, eltwise_bounded_relu,
-                eltwise_soft_relu, eltwise_logistic, eltwise_exp, eltwise_gelu)
+                eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
+                eltwise_logistic, eltwise_exp, eltwise_gelu, eltwise_swish)
         && memory_desc_wrapper(src_md()).is_dense(true)
         && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
                 math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))

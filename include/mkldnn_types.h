@@ -681,7 +681,7 @@ typedef enum {
     /// @note Tanh approximation formula is used to approximate
     /// cumulative distribution function of a Gaussian
     mkldnn_eltwise_gelu = 0xcf,
-    //  Eltwise: swish
+    /// Eltwise: swish
     mkldnn_eltwise_swish = 0xdf,
     /// Max pooling
     mkldnn_pooling_max = 0x1ff,
