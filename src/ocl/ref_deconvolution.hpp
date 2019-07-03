@@ -159,7 +159,8 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                         || utils::everyone_is(data_type::f16,
                             desc()->src_desc.data_type,
                             desc()->weights_desc.data_type,
-                            desc()->dst_desc.data_type));
+                            desc()->dst_desc.data_type)
+                        ||  desc()->dst_desc.data_type == data_type::u8);
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any) {
