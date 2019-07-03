@@ -168,11 +168,14 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop_4fma_1st(int ur_w,
 {
 }
 
-template<>
-void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(int ur_w,
-        int pad_l, int pad_r)
-{
+template <>
+void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(
+        int ur_w, int pad_l, int pad_r) {
     assert(jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0);
+
+    /* XXX: BUGBUGBUG - this call does not work when pad_r > 0 || pad_l > 0.
+     * However, JIT execution is currently protected within init_conf(). */
+    assert(pad_l == 0 && pad_r == 0);
 
     int iw = jcp.iw;
     int ih = jcp.ih;
@@ -214,9 +217,9 @@ void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(int ur_w,
     }
 
     L(kh_label);
-    for (int ki = 0; ki < kw; ki += 4) {
+    for (int ki = 0; ki < kw; ki += unroll_4fma) {
         for (int ic = 0; ic < ic_block; ic++) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < unroll_4fma; i++) {
                 int aux_ker_offset
                         = jcp.typesize_in
                         * ((ki + i) * oc_block
@@ -232,12 +235,15 @@ void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(int ur_w,
             int j_end = get_ow_end(ur_w, ki, pad_r);
 
             for (int j = j_start, prf_count=0; j < j_end; j++) {
+                size_t kw_unroll = (size_t)(ki + j * stride_w - pad_l);
+                /* Note: protect against potential illegal memory addressing due
+                 * to 4fma overflow in source. */
+                assert(kw_unroll + unroll_4fma <= iw);
                 size_t aux_input_offset = (size_t)jcp.typesize_in
-                        * ((size_t)(ki + j * stride_w
-                            - pad_l) + (size_t)ic * iw * ih * jcp.id);
+                        * (kw_unroll + (size_t)ic * iw * ih * jcp.id);
                 v4fmaddps(vmm_out(j, 0), vmm_ker(0),
                         EVEX_compress_addr_safe(aux_reg_inp, aux_input_offset,
-                        reg_long_offt));
+                                  reg_long_offt));
                 if (ki + prf_count < kw && prf_count < 4
                     && ((ki < 2 && j % 4) || j % 2)) {
                     int aux_ker_offset = jcp.typesize_in
@@ -1122,6 +1128,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
+    const int unroll_4fma = 4;
     const int regs = 28;
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
@@ -1254,10 +1261,17 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
            jcp.ver = ver_4fma;
 
         if (jcp.is_1stconv) {
-            // TODO: fix & remove constraints below
+            /* NOTE:
+             * 1) When memory-protection is enabled, this guards against a
+             * seg-fault from illegal memory access. A potential solution is
+             * to enable tail processing within 'compute_loop_4fma_1st'
+             * 2) 4FMA Kernel does not support:
+             *  `l_pad > 0 || r_pad > 0`; when `kw > 1`
+             * from incorrect 'get_ow_start' and 'get_ow_end' calculation, so
+             * disable for now. */
             bool not_for_4fma
-                    = IMPLICATION(everyone_is(0, jcp.l_pad, jcp.t_pad),
-                            nstl::max(jcp.kw, jcp.kh) < 7);
+                    = (rnd_up(jcp.kw, unroll_4fma) + (jcp.ow - 1) * jcp.stride_w
+                            > jcp.iw);
             bool is_dilated
                     = !everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
             if (one_of(true, not_for_4fma, is_dilated))
