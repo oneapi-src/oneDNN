@@ -75,7 +75,7 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
 
 __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
-        const __global BIAS_DATA_T *bias) {
+        const __global BIA_DATA_T *bias) {
     const int n = get_global_id(0);
     const int gic = get_global_id(1);
     const int ic = gic % IC;
