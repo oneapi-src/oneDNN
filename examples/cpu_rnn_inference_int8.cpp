@@ -40,6 +40,7 @@
 #include <math.h>
 #include <numeric>
 #include <string>
+#include <chrono>
 
 #include "mkldnn.hpp"
 
@@ -879,8 +880,19 @@ void simple_net() {
 
 /// @page cpu_rnn_inference_int8_cpp
 ///
+    std::cout << "Starting execution:" << std::endl
+      << " batch =" << batch << std::endl
+      << " feature size =" << feature_size << std::endl
+      << " maximum source sequence length =" << src_seq_length_max << std::endl
+      << " maximum target sequence length =" << tgt_seq_length_max << std::endl
+      << " number of layers of the bidirectional encoder =" << enc_bidir_n_layers << std::endl
+      << " number of layers of the unidirectional encoder =" << enc_unidir_n_layers << std::endl
+      << " number of layers of the decoder =" << dec_n_layers << std::endl;
+    const auto start = std::chrono::steady_clock::now();
     execute();
     s.wait();
+    const auto end = std::chrono::steady_clock::now();
+    std::cout << "execute time including warmup (msec): " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << std::endl;
 }
 
 int main(int argc, char **argv) {
