@@ -189,6 +189,10 @@ struct ref_lrn_bwd_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
+            ws_md_ = *src_md();
+            if (!compare_ws(hint_fwd_pd_))
+                return status::unimplemented;
+
             gws[0] = H() * W();
             gws[1] = C();
             gws[2] = MB();
