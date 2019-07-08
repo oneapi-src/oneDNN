@@ -106,15 +106,17 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
-        DATA_T val = zero ? 0.0f : src[SRC_OFF(mb, z_idx, 0, ih, iw)];
-        B += ws[SRC_OFF(mb, z_idx, 0, ih, iw)] * val * diff_dst[DST_OFF(mb, z_idx, 0, ih, iw)];
+        if (!zero) {
+            DATA_T val = src[SRC_OFF(mb, z_idx, 0, ih, iw)];
+            DATA_T omega =  ws[SRC_OFF(mb, z_idx, 0, ih, iw)];
+            DATA_T tmp = 1.0f / native_powr(omega, TO_DATA_T(LRN_BETA + 1));
+            B += tmp * val * diff_dst[DST_OFF(mb, z_idx, 0, ih, iw)];
+        }
     }
 #else
 
     const int w_start = ((int)iw - PADDING);
     const int h_start = ((int)ih - PADDING);
-    int src_offset = SRC_OFF(mb, ic, 0, h_start, w_start);
-    int dst_offset = DST_OFF(mb, ic, 0, h_start, w_start);
 
     for (int j = 0; j < LOCAL_SIZE; ++j) {
         for (int i = 0; i < LOCAL_SIZE; ++i) {
@@ -126,16 +128,17 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
             zero = src_offset_w >= IW ? true : zero;
             zero = src_offset_h >= IH ? true : zero;
 
-            DATA_T val = zero ? DATA_ZERO : src[src_offset];
-            B += ws[dst_offset] * val * diff_dst[dst_offset];
-            src_offset += SRC_W_STRIDE;
-            dst_offset += DST_W_STRIDE;
+            if (!zero) {
+                int data_off = SRC_OFF(mb, ic, 0, src_offset_h, src_offset_w);
+                DATA_T val = src[data_off];
+                DATA_T omega = ws[data_off];
+                DATA_T tmp = 1.0f / native_powr(omega, TO_DATA_T(LRN_BETA + 1));
+                B += tmp * val * diff_dst[data_off];
+            }
         }
-        src_offset += SRC_H_STRIDE - LOCAL_SIZE * SRC_W_STRIDE;
-        dst_offset += DST_H_STRIDE - LOCAL_SIZE * DST_W_STRIDE;
     }
 #endif
-    const DEF_ACC_DATA_T A = native_powr(ws[dst_index], TO_DATA_T(-LRN_BETA)) * diff_dst[dst_index];
+    const DEF_ACC_DATA_T A = native_powr(ws[src_index], TO_DATA_T(-LRN_BETA)) * diff_dst[dst_index];
 
     diff_src[src_index] = A - src[src_index] * 2 * (DEF_ACC_DATA_T)LRN_ALPHA * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B;
 }
