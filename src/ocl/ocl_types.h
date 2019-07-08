@@ -22,6 +22,7 @@
 #if DT_F32 == 1
 #    define DATA_T float
 #    define DATA8_T float8
+#    define POST_OP_DATA_T float
 #    define DATA_MAX FLT_MAX
 #    define DATA_MIN -DATA_MAX
 #    define DATA_ZERO 0.0f
@@ -53,6 +54,7 @@
 #    pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #    define DATA_T half
+#    define POST_OP_DATA_T half
 #    define DATA8_T half8
 #    define DATA_MAX HALF_MAX
 #    define DATA_MIN -DATA_MAX
@@ -82,6 +84,7 @@
 #    define AS_BLOCK_DATA8_T as_ushort8
 #elif DT_BF16 == 1
 #    define DATA_T ushort
+#    define POST_OP_DATA_T float
 #    define DATA8_T ushort8
 #    define DATA_MAX FLT_MAX
 #    define DATA_MIN -DATA_MAX

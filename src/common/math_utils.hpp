@@ -265,7 +265,7 @@ inline U exp_fwd(T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U exp_bwd(T dd, T s) {
-    return dd * exp_fwd<T, U>(s);
+    return dd * exp_fwd<T, float>(s);
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>

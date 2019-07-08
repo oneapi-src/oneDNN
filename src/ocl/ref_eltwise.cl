@@ -18,6 +18,12 @@
 
 #include "ocl/ocl_post_ops.h"
 
+#if DT_BF16 == 1
+#   define WITH_BF16 1
+#else
+#   define WITH_BF16 0
+#endif
+
 #define IN_OFF(x0, x1, x2, x3, x4, x5) ( \
     ((x0) % SRC_B0) * SRC_SB0 + ((x0) / SRC_B0) * SRC_S0 + \
     ((x1) % SRC_B1) * SRC_SB1 + ((x1) / SRC_B1) * SRC_S1 + \
@@ -50,10 +56,9 @@ __kernel void ref_eltwise_fwd(
 
     const size_t off = IN_OFF(d0,d1,d2,d3,d4,d5);
 
-    DATA_T alpha_ = CONVERT_DATA_T(alpha);
-    DATA_T beta_ = CONVERT_DATA_T(beta);
+    POST_OP_DATA_T tmp_s = (WITH_BF16 == 1) ? convert_bf16_to_f32(src[off]) : src[off];
 
-    dst[off] = fwd_eltwise(src[off], alpha_, beta_);
+    dst[off]  = (WITH_BF16 == 1) ? convert_f32_to_bf16(fwd_eltwise(tmp_s, alpha, beta)) : fwd_eltwise(tmp_s, alpha, beta);
 }
 
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
@@ -78,9 +83,10 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     d5 = (i / (SRC_D0 * SRC_D1 * SRC_D2 * SRC_D3 * SRC_D4)) % SRC_D5;
     #endif
 
-    DATA_T alpha_ = CONVERT_DATA_T(alpha);
-
     const size_t off = IN_OFF(d0,d1,d2,d3,d4,d5);
 
-    diff_src[off] = bwd_eltwise(diff_dst[off], src[off], alpha_);
+    POST_OP_DATA_T tmp_dd = (WITH_BF16 == 1) ? convert_bf16_to_f32(diff_dst[off]) : diff_dst[off];
+    POST_OP_DATA_T tmp_s = (WITH_BF16 == 1) ? convert_bf16_to_f32(src[off]): src[off];
+
+    diff_src[off] = (WITH_BF16 == 1) ? convert_f32_to_bf16(bwd_eltwise(tmp_dd, tmp_s, alpha)) : bwd_eltwise(tmp_dd, tmp_s, alpha);
 }

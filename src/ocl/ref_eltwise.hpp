@@ -52,9 +52,10 @@ struct ref_eltwise_fwd_t : public primitive_t {
                                alg_kind::eltwise_sqrt,
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic,
-                               alg_kind::eltwise_exp)
+                               alg_kind::eltwise_exp,
+                               alg_kind::eltwise_gelu)
                     && utils::one_of(desc()->data_desc.data_type,
-                               data_type::f32, data_type::f16)
+                               data_type::f32, data_type::f16, data_type::bf16)
                     && attr()->has_default_values()
                     && IMPLICATION(
                                desc()->data_desc.data_type == data_type::f16,
@@ -130,8 +131,10 @@ struct ref_eltwise_bwd_t : public primitive_t {
                                alg_kind::eltwise_sqrt,
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic,
-                               alg_kind::eltwise_exp)
-                    && desc()->data_desc.data_type == data_type::f32
+                               alg_kind::eltwise_exp,
+                               alg_kind::eltwise_gelu)
+                    && utils::one_of(desc()->data_desc.data_type,
+                               data_type::f32, data_type::bf16)
                     && data_mdw == diff_data_mdw
                     && attr()->has_default_values();
             if (!ok)

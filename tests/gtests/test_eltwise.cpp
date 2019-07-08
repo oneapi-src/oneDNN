@@ -148,7 +148,7 @@ T exp_fwd(T s) {
 
 template <typename T>
 T exp_bwd(T dd, T s) {
-    return dd * exp_fwd<T>(s);
+    return dd * (::expf((float)s));
 }
 
 template <typename T, typename A>
@@ -303,9 +303,7 @@ protected:
                 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
         SKIP_IF(data_type == memory::data_type::bf16
-                && get_test_engine_kind() == engine::kind::gpu,
-                "GPU does not support bf16 data type.");
-        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::cpu
                 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
@@ -442,6 +440,8 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
         TEST_CONCAT(str, _f16), eltwise_test_half, ::testing::Values(__VA_ARGS__)); \
     INSTANTIATE_TEST_SUITE_P_( \
         TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__)); \
+    GPU_INSTANTIATE_TEST_SUITE_P( \
+        TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__)); \
     CPU_INSTANTIATE_TEST_SUITE_P( \
         TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
 
