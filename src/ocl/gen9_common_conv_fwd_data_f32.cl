@@ -589,7 +589,7 @@ __kernel void gen9_common_conv_fwd_kernel(const __global float *src,
 
     wei += goc * KDHW_SIZE * OC_BLOCK * IC + g * IC * OC * KDHW_SIZE;
 
-    const bool do_if = iw < 0 || iw + SW * OW_BLOCK + KW >= IW;
+    const bool do_if = iw < 0 || iw + SW * OW_BLOCK + KW * (1 + DW) >= IW;
 
 #        if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH)) {
