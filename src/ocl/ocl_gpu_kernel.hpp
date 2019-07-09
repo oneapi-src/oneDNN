@@ -14,38 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CL_EXECUTOR_HPP
-#define CL_EXECUTOR_HPP
+#ifndef OCL_GPU_KERNEL_HPP
+#define OCL_GPU_KERNEL_HPP
 
-#include "common/c_types_map.hpp"
+#include <CL/cl.h>
+#include <assert.h>
+#include <string>
+
+#include "compute/compute.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-// Executor provides OpenCL-like functionality whose implementation
-// is specific for a given stream.
-struct cl_executor_t {
-    cl_executor_t(stream_t *stream) : stream_(stream) {}
-    virtual ~cl_executor_t() = default;
+class ocl_gpu_kernel_t : public compute::kernel_impl_t
+{
+public:
+    ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
+    virtual ~ocl_gpu_kernel_t() override;
 
-    stream_t *stream() { return stream_; }
+    cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
-    virtual status_t parallel_for(
-            const cl_nd_range_t &range, const ocl_kernel_t &kernel)
-            = 0;
-
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size)
-            = 0;
+    status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
+            const compute::kernel_arg_list_t &arg_list) const override;
 
 private:
-    stream_t *stream_;
+    cl_kernel ocl_kernel_;
 };
 
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn
 
-#endif
+#endif // OCL_GPU_KERNEL_HPP

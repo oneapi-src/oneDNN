@@ -22,7 +22,7 @@
 #include "common/mkldnn_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-#include "ocl/cl_stream.hpp"
+#include "compute/compute.hpp"
 
 #include "ocl/ref_pooling.hpp"
 
@@ -33,21 +33,22 @@ namespace ocl {
 template <data_type_t data_type, data_type_t acc_type>
 status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         const exec_ctx_t &ctx) const {
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
     auto &ws = CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE);
 
     const auto &jpp = ker_->jpp;
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, ws);
-    kernel_.set_arg(2, dst);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, ws);
+    arg_list.set(2, dst);
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
-    auto nd_range = cl_nd_range_t(jpp.gws_d, jpp.lws_d);
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jpp.gws_d, jpp.lws_d);
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -55,21 +56,22 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
 template <data_type_t data_type, data_type_t acc_type>
 status_t ref_pooling_bwd_t<data_type, acc_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
 
     const auto &jpp = ker_->jpp;
 
-    kernel_.set_arg(0, diff_src);
-    kernel_.set_arg(1, ws);
-    kernel_.set_arg(2, diff_dst);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, diff_src);
+    arg_list.set(1, ws);
+    arg_list.set(2, diff_dst);
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
-    auto nd_range = cl_nd_range_t(jpp.gws_d, jpp.lws_d);
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jpp.gws_d, jpp.lws_d);
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }

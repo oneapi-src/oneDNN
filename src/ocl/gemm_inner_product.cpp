@@ -26,6 +26,10 @@ template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
         data_type_t acc_type>
 status_t gemm_inner_product_fwd_t<src_type, wei_type, dst_type,
         acc_type>::execute_forward(const exec_ctx_t &ctx) const {
+
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     exec_args_t gemm_args;
     gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_WEIGHTS);
     gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_SRC);
@@ -40,14 +44,13 @@ status_t gemm_inner_product_fwd_t<src_type, wei_type, dst_type,
         auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
         auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
 
-        bias_kernel_.set_arg(0, bias);
-        bias_kernel_.set_arg(1, dst);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, bias);
+        arg_list.set(1, dst);
 
-        auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
-        auto nd_range = cl_nd_range_t({ pd()->MB() * pd()->OC() });
-        status_t bias_status = executor.parallel_for(nd_range, bias_kernel_);
+        auto nd_range = compute::nd_range_t({ pd()->MB() * pd()->OC() });
+        status_t bias_status = compute_stream->parallel_for(
+                nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success)
             return bias_status;
     }
@@ -81,6 +84,9 @@ template struct gemm_inner_product_bwd_data_t<f32>;
 template <data_type_t data_type>
 status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
         const exec_ctx_t &ctx) const {
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     exec_args_t gemm_args;
     if (pd()->wei_tr()) {
         gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
@@ -100,14 +106,13 @@ status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
         auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
         auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
 
-        bias_kernel_.set_arg(0, diff_dst);
-        bias_kernel_.set_arg(1, diff_bias);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, diff_dst);
+        arg_list.set(1, diff_bias);
 
-        auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
-        auto nd_range = cl_nd_range_t({ pd()->OC() });
-        status_t bias_status = executor.parallel_for(nd_range, bias_kernel_);
+        auto nd_range = compute::nd_range_t({ pd()->OC() });
+        status_t bias_status = compute_stream->parallel_for(
+                nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success)
             return bias_status;
     }

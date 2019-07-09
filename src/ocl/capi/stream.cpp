@@ -37,7 +37,7 @@ status_t mkldnn_stream_create_ocl(
     if (!args_ok)
         return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     return ocl_engine->create_stream(stream, queue);
 }
 

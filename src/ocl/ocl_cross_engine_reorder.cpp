@@ -23,6 +23,9 @@ namespace impl {
 namespace ocl {
 
 status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &input = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
     auto &output = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
     const auto in_e_kind = pd()->src_engine()->kind();
@@ -33,20 +36,16 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     float beta = pd()->beta();
     const bool do_reorder = jrp.do_reorder;
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
     auto ocl_reorder = [&](const memory_storage_t &in_storage,
                                const memory_storage_t &out_storage) {
-        kernel_.set_arg(0, in_storage);
-        kernel_.set_arg(1, out_storage);
-        kernel_.set_arg(2, alpha);
-        kernel_.set_arg(3, beta);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, in_storage);
+        arg_list.set(1, out_storage);
+        arg_list.set(2, alpha);
+        arg_list.set(3, beta);
 
-        auto nd_range = cl_nd_range_t(jrp.gws_d, jrp.lws_d);
-        status_t status = executor.parallel_for(nd_range, kernel_);
-
-        return status;
+        auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
+        return compute_stream->parallel_for(nd_range, kernel_, arg_list);
     };
 
     status_t status = status::success;
@@ -57,14 +56,14 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         if (status == status::success) {
             // Copy to cpu
             memory_desc_wrapper dst_mdw(pd()->dst_md());
-            status = executor.copy(
+            status = compute_stream->copy(
                     do_reorder ? *temp_buf : input, output, dst_mdw.size());
         }
     } else if (in_e_kind == engine_kind::cpu
             && out_e_kind == engine_kind::gpu) {
         // Copy to gpu
         memory_desc_wrapper src_mdw(pd()->src_md());
-        status = executor.copy(
+        status = compute_stream->copy(
                 input, do_reorder ? *temp_buf : output, src_mdw.size());
         if (status == status::success && do_reorder)
             status = ocl_reorder(*temp_buf, output);

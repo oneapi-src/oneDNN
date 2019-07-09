@@ -14,35 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CL_STREAM_HPP
-#define CL_STREAM_HPP
+#ifndef COMPUTE_STREAM_HPP
+#define COMPUTE_STREAM_HPP
 
 #include <memory>
 
 #include "common/stream.hpp"
-#include "ocl/cl_executor.hpp"
+#include "compute/kernel.hpp"
 
 namespace mkldnn {
 namespace impl {
-namespace ocl {
+namespace compute {
 
-// Abstract stream class providing access to cl_executor.
-// Intended to use as a base class for OpenCL-like stream classes.
-struct cl_stream_t : public stream_t {
-    cl_stream_t(engine_t *engine, unsigned flags) : stream_t(engine, flags) {}
-    virtual ~cl_stream_t() override = default;
-    virtual cl_executor_t *cl_executor() const { return cl_executor_.get(); }
+class nd_range_t;
+class kernel_arg_list_t;
 
-protected:
-    void set_cl_executor(cl_executor_t *cl_executor) {
-        cl_executor_.reset(cl_executor);
+class compute_stream_t : public stream_t
+{
+public:
+    using stream_t::stream_t;
+
+    virtual status_t copy(const memory_storage_t &src,
+            const memory_storage_t &dst, size_t size) const = 0;
+    virtual status_t parallel_for(const nd_range_t &range,
+            const kernel_t &kernel, const kernel_arg_list_t &arg_list) {
+        return kernel.parallel_for(*this, range, arg_list);
     }
-
-private:
-    std::unique_ptr<cl_executor_t> cl_executor_;
 };
 
-} // namespace ocl
+} // namespace compute
 } // namespace impl
 } // namespace mkldnn
 

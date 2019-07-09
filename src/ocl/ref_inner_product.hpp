@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_ref_inner_product_common_kernel.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -49,11 +49,12 @@ struct ref_inner_product_fwd_t : public primitive_t {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
+                               forward_inference)
                     && set_default_params() == status::success
                     && desc()->src_desc.data_type == src_type
                     && desc()->weights_desc.data_type == wei_type
@@ -67,7 +68,8 @@ struct ref_inner_product_fwd_t : public primitive_t {
                     && attr()->output_scales_.count_ == 1
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && IMPLICATION(src_type == data_type::f16,
-                            cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
+                               compute_engine->mayiuse(
+                                       compute::device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;
 
@@ -120,16 +122,15 @@ struct ref_inner_product_fwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, pd()->with_eltwise(),
-                pd()->with_sum(), pd()->eltwise_alg_kind());
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, pd()->with_eltwise(), pd()->with_sum(),
+                pd()->eltwise_alg_kind());
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_fwd_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_fwd_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -154,7 +155,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
@@ -194,16 +195,14 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
     };
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, false, false,
-                mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_bwd_data_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_bwd_data_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -228,7 +227,7 @@ private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t data_type>
@@ -271,16 +270,14 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, false, false,
-                mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_bwd_weights_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_bwd_weights_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -302,7 +299,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_ref_bnorm_common_kernel.hpp"
 #include "ocl/ocl_batch_normalization_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -45,16 +45,17 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
 
         status_t init() {
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true
-                    && is_fwd()
+            bool ok = true && is_fwd()
                     && utils::everyone_is(data_type, src_md()->data_type,
                                dst_md()->data_type)
                     && IMPLICATION(data_type == data_type::f16,
                                !is_training() && stats_is_src())
                     && (attr()->has_default_values() || with_relu_post_op())
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups);
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups);
             if (!ok)
                 return status::unimplemented;
 
@@ -73,18 +74,15 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_bnorm_common_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
         jit_ref_bnorm_common_kernel::init_const_def(
-                jit, pd()->jbn_, pd()->jit_off_);
+                kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_bnorm_fwd_kernel");
-        if (!kernel_)
-            return status::runtime_error;
-
+        std::vector<const char *> kernel_names = { "ref_bnorm_fwd_kernel",
+            nullptr, nullptr, nullptr, nullptr };
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
                     * pd()->jbn_.ic * sizeof(data_t);
@@ -94,22 +92,23 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             if (!temp_reduce)
                 return status::runtime_error;
 
-            calculate_mean_kernel_ = jit.get_kernel("calculate_mean");
-            if (!calculate_mean_kernel_)
-                return status::runtime_error;
-
-            calculate_variance_kernel_ = jit.get_kernel("calculate_variance");
-            if (!calculate_variance_kernel_)
-                return status::runtime_error;
-
-            reduce_mean_kernel_ = jit.get_kernel("reduce_mean");
-            if (!reduce_mean_kernel_)
-                return status::runtime_error;
-
-            reduce_variance_kernel_ = jit.get_kernel("reduce_variance");
-            if (!reduce_variance_kernel_)
-                return status::runtime_error;
+            kernel_names[1] = "calculate_mean";
+            kernel_names[2] = "calculate_variance";
+            kernel_names[3] = "reduce_mean";
+            kernel_names[4] = "reduce_variance";
         }
+
+        std::vector<compute::kernel_t> kernels;
+        auto status = compute_engine->create_kernels(
+                &kernels, kernel_names, kernel_ctx);
+        CHECK(status);
+
+        kernel_ = kernels[0];
+        calculate_mean_kernel_ = kernels[1];
+        calculate_variance_kernel_ = kernels[2];
+        reduce_mean_kernel_ = kernels[3];
+        reduce_variance_kernel_ = kernels[4];
+
         return status::success;
     }
 
@@ -128,11 +127,11 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_bnorm_common_kernel *ker_;
-    ocl_kernel_t kernel_;
-    ocl_kernel_t calculate_mean_kernel_;
-    ocl_kernel_t reduce_mean_kernel_;
-    ocl_kernel_t calculate_variance_kernel_;
-    ocl_kernel_t reduce_variance_kernel_;
+    compute::kernel_t kernel_;
+    compute::kernel_t calculate_mean_kernel_;
+    compute::kernel_t reduce_mean_kernel_;
+    compute::kernel_t calculate_variance_kernel_;
+    compute::kernel_t reduce_variance_kernel_;
     std::unique_ptr<memory_storage_t> temp_reduce;
 };
 
@@ -176,17 +175,18 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_bnorm_common_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
         jit_ref_bnorm_common_kernel::init_const_def(
-                jit, pd()->jbn_, pd()->jit_off_);
+                kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_bnorm_bwd_kernel");
-        if (!kernel_)
-            return status::runtime_error;
+        std::vector<const char*> kernel_names = {
+            "ref_bnorm_bwd_kernel",
+            nullptr,
+            nullptr
+        };
 
         if (pd()->jbn_.use_16mb_unroll) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
@@ -198,14 +198,18 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
             if (!temp_reduce)
                 return status::runtime_error;
 
-            calculate_stats_kernel_ = jit.get_kernel("calculate_stats");
-            if (!calculate_stats_kernel_)
-                return status::runtime_error;
-
-            reduce_stats_kernel_ = jit.get_kernel("reduce_stats");
-            if (!reduce_stats_kernel_)
-                return status::runtime_error;
+            kernel_names[1] = "calculate_stats";
+            kernel_names[2] = "reduce_stats";
         }
+
+        std::vector<compute::kernel_t> kernels;
+        auto status = compute_engine->create_kernels(
+                &kernels, kernel_names, kernel_ctx);
+        CHECK(status);
+
+        kernel_ = kernels[0];
+        calculate_stats_kernel_ = kernels[1];
+        reduce_stats_kernel_ = kernels[2];
 
         return status::success;
     }
@@ -225,9 +229,9 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_bnorm_common_kernel *ker_;
-    ocl_kernel_t kernel_;
-    ocl_kernel_t calculate_stats_kernel_;
-    ocl_kernel_t reduce_stats_kernel_;
+    compute::kernel_t kernel_;
+    compute::kernel_t calculate_stats_kernel_;
+    compute::kernel_t reduce_stats_kernel_;
     std::unique_ptr<memory_storage_t> temp_reduce;
 };
 

@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/ocl_convolution_pd.hpp"
 #include "ocl/ocl_deconvolution_pd.hpp"
@@ -390,6 +391,9 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
     ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        auto *compute_stream
+                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
         const auto &args = ctx.args();
         exec_args_t conv_args;
         conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
@@ -408,14 +412,14 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
             auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
 
-            bias_kernel.set_arg(0, diff_dst);
-            bias_kernel.set_arg(1, diff_bias);
+            compute::kernel_arg_list_t arg_list;
+            arg_list.set(0, diff_dst);
+            arg_list.set(1, diff_bias);
 
-            auto &executor = *(utils::downcast<cl_stream_t *>(ctx.stream())
-                                       ->cl_executor());
             // Setting up global work-space to {OC*G, 1, 1}
-            auto nd_range = cl_nd_range_t({ gws[0], gws[1], gws[2] });
-            status = executor.parallel_for(nd_range, bias_kernel);
+            auto nd_range = compute::nd_range_t({ gws[0], gws[1], gws[2] });
+            status = compute_stream->parallel_for(
+                    nd_range, bias_kernel, arg_list);
         }
         return status::success;
     }
@@ -428,26 +432,26 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             return conv_status;
 
         // Initializing values for the deconv bias kernel
-        auto jit = ocl_jit_t(ref_deconv_backward_bias_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
         memory_desc_wrapper diff_dst_mdw(pd()->diff_dst_md());
-        jit.set_data_type(pd()->diff_dst_md()->data_type);
+        kernel_ctx.set_data_type(pd()->diff_dst_md()->data_type);
         jit_offsets jit_off;
         set_offsets(diff_dst_mdw, jit_off.dst_off);
-        def_offsets(
-                jit_off.dst_off, jit, "DST", pd()->desc()->diff_dst_desc.ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DST",
+                pd()->desc()->diff_dst_desc.ndims);
 
-        jit.define_int("MB", pd()->MB());
-        jit.define_int("OH", pd()->OH());
-        jit.define_int("OW", pd()->OW());
-        jit.define_int("OD", pd()->OD());
-        jit.define_int("OC", pd()->OC() / pd()->G());
-        jit.define_int("NDIMS", pd()->desc()->src_desc.ndims);
+        kernel_ctx.define_int("MB", pd()->MB());
+        kernel_ctx.define_int("OH", pd()->OH());
+        kernel_ctx.define_int("OW", pd()->OW());
+        kernel_ctx.define_int("OD", pd()->OD());
+        kernel_ctx.define_int("OC", pd()->OC() / pd()->G());
+        kernel_ctx.define_int("NDIMS", pd()->desc()->src_desc.ndims);
 
-        status_t kernel_status = jit.build(engine());
-        if (kernel_status != status::success)
-            return kernel_status;
-
-        bias_kernel = jit.get_kernel("ref_deconv_backward_bias");
+        compute_engine->create_kernel(
+                &bias_kernel, "ref_deconv_backward_bias", kernel_ctx);
         if (!bias_kernel)
             return status::runtime_error;
 
@@ -461,7 +465,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *conv_p_ = nullptr;
-    ocl_kernel_t bias_kernel;
+    compute::kernel_t bias_kernel;
     size_t gws[3];
 };
 

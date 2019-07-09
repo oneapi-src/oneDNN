@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "ocl/ocl_executor.hpp"
+#include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_utils.hpp"
 
 #include "ocl/ocl_stream.hpp"
@@ -33,7 +33,8 @@ status_t ocl_stream_t::init() {
     if (!args_ok)
         return status::unimplemented;
 
-    ocl_engine_t *ocl_engine = utils::downcast<ocl_engine_t *>(engine());
+    ocl_gpu_engine_t *ocl_engine
+            = utils::downcast<ocl_gpu_engine_t *>(engine());
 
     // Create queue if it is not set
     if (!queue_) {
@@ -65,9 +66,39 @@ status_t ocl_stream_t::init() {
         }
         OCL_CHECK(err);
     }
+    return status::success;
+}
 
-    cl_stream_t::set_cl_executor(new ocl_executor_t(this));
+status_t ocl_stream_t::copy(const memory_storage_t &src,
+        const memory_storage_t &dst, size_t size) const {
 
+    if (size == 0)
+        return status::success;
+
+    if (src.engine()->kind() == engine_kind::cpu
+            && src.engine()->backend_kind() == backend_kind::native) {
+        assert(dst.engine()->kind() == engine_kind::gpu);
+
+        void *src_ptr;
+        src.get_data_handle(&src_ptr);
+
+        auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
+        cl_mem ocl_mem = ocl_dst.mem_object();
+        cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+                src_ptr, 0, nullptr, nullptr);
+        OCL_CHECK(err);
+    } else {
+        assert(src.engine()->kind() == engine_kind::gpu);
+
+        void *dst_ptr;
+        dst.get_data_handle(&dst_ptr);
+
+        auto &ocl_src = *utils::downcast<const ocl_memory_storage_t *>(&src);
+        cl_mem ocl_mem = ocl_src.mem_object();
+        cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+                dst_ptr, 0, nullptr, nullptr);
+        OCL_CHECK(err);
+    }
     return status::success;
 }
 

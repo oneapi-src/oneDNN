@@ -36,7 +36,7 @@ static const spd_create_f ocl_sum_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const spd_create_f *ocl_engine_t::get_sum_implementation_list() const {
+const spd_create_f *ocl_gpu_engine_impl_list_t::get_sum_implementation_list() {
     return ocl_sum_impl_list;
 }
 

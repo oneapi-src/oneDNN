@@ -40,7 +40,7 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     if (kind == engine_kind::gpu && backend_kind == backend_kind::ocl) {
         return std::unique_ptr<engine_factory_t>(
-                new ocl::ocl_engine_factory_t());
+                new ocl::ocl_engine_factory_t(kind));
     }
 #endif
     return nullptr;

@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_ref_pooling_common_kernel.hpp"
 #include "ocl/ocl_pooling_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -48,10 +48,10 @@ struct ref_pooling_fwd_t : public primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true
-                    && set_default_params() == status::success
+            bool ok = true && set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                                forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
@@ -63,12 +63,15 @@ struct ref_pooling_fwd_t : public primitive_t {
                                desc()->prop_kind == forward_inference)
                     && desc()->accum_data_type == acc_type
                     && attr()->has_default_values()
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(data_type == data_type::f16,
                                true
-                                       && cl_engine->mayiuse(
-                                                  cl_device_ext_t::khr_fp16)
-                                       && cl_engine->mayiuse(cl_device_ext_t::
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
+                                                          khr_fp16)
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
                                                           intel_subgroups_short));
             if (!ok)
                 return status::unimplemented;
@@ -85,15 +88,15 @@ struct ref_pooling_fwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_pooling_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+
+        compute::kernel_ctx_t kernel_ctx;
         jit_ref_pooling_fwd_kernel::init_const_def(
-                jit, pd()->jpp_, pd()->jit_off_);
+                kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_pooling_fwd_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_pooling_fwd_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -116,7 +119,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_pooling_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t data_type, impl::data_type_t acc_type = data_type>
@@ -135,10 +138,10 @@ struct ref_pooling_bwd_t : public primitive_t {
             using namespace prop_kind;
             using namespace alg_kind;
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true
-                    && set_default_params() == status::success
+            bool ok = true && set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
                     && utils::one_of(desc()->alg_kind, pooling_max,
                                pooling_avg_include_padding,
@@ -146,7 +149,8 @@ struct ref_pooling_bwd_t : public primitive_t {
                     && utils::everyone_is(data_type, diff_dst_md()->data_type,
                                diff_src_md()->data_type)
                     && attr()->has_default_values()
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups);
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups);
             if (!ok)
                 return status::unimplemented;
 
@@ -164,15 +168,15 @@ struct ref_pooling_bwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_pooling_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+
+        compute::kernel_ctx_t kernel_ctx;
         jit_ref_pooling_fwd_kernel::init_const_def(
-                jit, pd()->jpp_, pd()->jit_off_);
+                kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_pooling_bwd_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_pooling_bwd_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -195,7 +199,7 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_pooling_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

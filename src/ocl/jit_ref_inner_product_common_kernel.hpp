@@ -18,6 +18,7 @@
 #define JIT_REF_INNER_PRODUCT_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -97,57 +98,57 @@ struct jit_ref_inner_product_fwd_kernel {
         return status::success;
     };
 
-    static status_t init_const_def(ocl_jit_t &jit,
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_inner_product_conf_t &jip, const jit_offsets &jit_off,
             bool with_eltwise, bool with_sum, alg_kind_t alg) {
 
-        jit.define_int("NDIMS", jip.ndims);
-        jit.define_int("MB", jip.mb);
-        jit.define_int("OC", jip.oc);
-        jit.define_int("IC", jip.ic);
-        jit.define_int("IC_TOTAL", jip.ic_total);
-        jit.define_int("ID", jip.id);
-        jit.define_int("IH", jip.ih);
-        jit.define_int("IW", jip.iw);
-        jit.define_int("OD", jip.od);
-        jit.define_int("OH", jip.oh);
-        jit.define_int("OW", jip.ow);
-        jit.define_int("KD", jip.kd);
-        jit.define_int("KH", jip.kh);
-        jit.define_int("KW", jip.kw);
+        kernel_ctx.define_int("NDIMS", jip.ndims);
+        kernel_ctx.define_int("MB", jip.mb);
+        kernel_ctx.define_int("OC", jip.oc);
+        kernel_ctx.define_int("IC", jip.ic);
+        kernel_ctx.define_int("IC_TOTAL", jip.ic_total);
+        kernel_ctx.define_int("ID", jip.id);
+        kernel_ctx.define_int("IH", jip.ih);
+        kernel_ctx.define_int("IW", jip.iw);
+        kernel_ctx.define_int("OD", jip.od);
+        kernel_ctx.define_int("OH", jip.oh);
+        kernel_ctx.define_int("OW", jip.ow);
+        kernel_ctx.define_int("KD", jip.kd);
+        kernel_ctx.define_int("KH", jip.kh);
+        kernel_ctx.define_int("KW", jip.kw);
         if (jip.with_bias)
-            jit.define_int("WITH_BIAS", 1);
+            kernel_ctx.define_int("WITH_BIAS", 1);
         if (jip.has_spatial)
-            jit.define_int("HAS_SPATIAL", 1);
+            kernel_ctx.define_int("HAS_SPATIAL", 1);
 
         if (jip.is_forward)
-            jit.define_int("INNER_PRODUCT_FWD", 1);
+            kernel_ctx.define_int("INNER_PRODUCT_FWD", 1);
         else if (jip.is_backward_data)
-            jit.define_int("INNER_PRODUCT_BWD_DATA", 1);
+            kernel_ctx.define_int("INNER_PRODUCT_BWD_DATA", 1);
         else if (jip.is_backward_weights)
-            jit.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
+            kernel_ctx.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
 
         if (with_eltwise) {
-            def_postops(jit, alg);
+            def_postops(kernel_ctx, alg);
         }
-        jit.define_int("WITH_ELTWISE",with_eltwise);
-        jit.define_int("WITH_SUM",with_sum);
-        jit.define_int("WITH_SUM_ELTWISE",with_sum && with_eltwise);
+        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
+        kernel_ctx.define_int("WITH_SUM", with_sum);
+        kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
 
-        def_offsets(jit_off.src_off, jit, "SRC", jip.ndims);
-        def_offsets(jit_off.wht_off, jit, "WHT", jip.ndims);
-        def_offsets(jit_off.dst_off, jit, "DST", jip.ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", jip.ndims);
+        def_offsets(jit_off.wht_off, kernel_ctx, "WHT", jip.ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DST", jip.ndims);
 
         if (jip.src_dt == data_type::f16)
-            jit.set_data_type(data_type::f16);
+            kernel_ctx.set_data_type(data_type::f16);
         else
-            jit.set_data_type(data_type::f32);
+            kernel_ctx.set_data_type(data_type::f32);
 
-        def_data_type(jit, jip.src_dt, "SRC");
-        def_data_type(jit, jip.wei_dt, "WEI");
-        def_data_type(jit, jip.bia_dt, "BIA");
-        def_data_type(jit, jip.dst_dt, "DST");
-        def_data_type(jit, jip.acc_dt, "ACC");
+        def_data_type(kernel_ctx, jip.src_dt, "SRC");
+        def_data_type(kernel_ctx, jip.wei_dt, "WEI");
+        def_data_type(kernel_ctx, jip.bia_dt, "BIA");
+        def_data_type(kernel_ctx, jip.dst_dt, "DST");
+        def_data_type(kernel_ctx, jip.acc_dt, "ACC");
 
         return status::success;
     }

@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/reorder_pd.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -165,46 +166,46 @@ struct jit_simple_reorder_kernel {
         return status;
     };
 
-    static status_t init_const_def(ocl_jit_t &jit,
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_reorder_conf_t &jrp, const memory_desc_wrapper &input_md,
             const memory_desc_wrapper &output_md) {
 
-        jit.define_int("NDIMS", jrp.ndims);
-        jit.define_int("PAR_DIMS", jrp.par_dims);
-        jit.define_int("KER_DIMS", jrp.ker_dims);
-        jit.define_int("LAST_DIMS", jrp.last_dims);
-        jit.define_int("ALPHA_BETA", jrp.is_alpha_beta);
-        jit.define_int("WITH_GROUP", jrp.with_group);
+        kernel_ctx.define_int("NDIMS", jrp.ndims);
+        kernel_ctx.define_int("PAR_DIMS", jrp.par_dims);
+        kernel_ctx.define_int("KER_DIMS", jrp.ker_dims);
+        kernel_ctx.define_int("LAST_DIMS", jrp.last_dims);
+        kernel_ctx.define_int("ALPHA_BETA", jrp.is_alpha_beta);
+        kernel_ctx.define_int("WITH_GROUP", jrp.with_group);
 
-        jit.define_int("LWS_0", jrp.lws_d[0]);
-        jit.define_int("LWS_1", jrp.lws_d[1]);
-        jit.define_int("LWS_2", jrp.lws_d[2]);
+        kernel_ctx.define_int("LWS_0", jrp.lws_d[0]);
+        kernel_ctx.define_int("LWS_1", jrp.lws_d[1]);
+        kernel_ctx.define_int("LWS_2", jrp.lws_d[2]);
 
         for (int i = 0; i < 3; i++) {
             char tempstr[32];
             snprintf(tempstr, 32, "BLOCK_%d", i);
-            jit.define_int(tempstr, jrp.block[i]);
+            kernel_ctx.define_int(tempstr, jrp.block[i]);
         }
 
         auto input_type = input_md.data_type();
         auto output_type = output_md.data_type();
 
         switch (input_type) {
-        case mkldnn_u8: jit.define_int("IN_TYPE_U8", 1); break;
-        case mkldnn_s8: jit.define_int("IN_TYPE_S8", 1); break;
-        case mkldnn_f16: jit.define_int("IN_TYPE_F16", 1); break;
-        case mkldnn_s32: jit.define_int("IN_TYPE_S32", 1); break;
-        case mkldnn_f32: jit.define_int("IN_TYPE_F32", 1); break;
-        case mkldnn_bf16: jit.define_int("IN_TYPE_BF16", 1); break;
+        case mkldnn_u8: kernel_ctx.define_int("IN_TYPE_U8", 1); break;
+        case mkldnn_s8: kernel_ctx.define_int("IN_TYPE_S8", 1); break;
+        case mkldnn_f16: kernel_ctx.define_int("IN_TYPE_F16", 1); break;
+        case mkldnn_s32: kernel_ctx.define_int("IN_TYPE_S32", 1); break;
+        case mkldnn_f32: kernel_ctx.define_int("IN_TYPE_F32", 1); break;
+        case mkldnn_bf16: kernel_ctx.define_int("IN_TYPE_BF16", 1); break;
         default: return status::invalid_arguments;
         }
         switch (output_type) {
-        case mkldnn_u8: jit.define_int("OUT_TYPE_U8", 1); break;
-        case mkldnn_s8: jit.define_int("OUT_TYPE_S8", 1); break;
-        case mkldnn_f16: jit.define_int("OUT_TYPE_F16", 1); break;
-        case mkldnn_s32: jit.define_int("OUT_TYPE_S32", 1); break;
-        case mkldnn_f32: jit.define_int("OUT_TYPE_F32", 1); break;
-        case mkldnn_bf16: jit.define_int("OUT_TYPE_BF16", 1); break;
+        case mkldnn_u8: kernel_ctx.define_int("OUT_TYPE_U8", 1); break;
+        case mkldnn_s8: kernel_ctx.define_int("OUT_TYPE_S8", 1); break;
+        case mkldnn_f16: kernel_ctx.define_int("OUT_TYPE_F16", 1); break;
+        case mkldnn_s32: kernel_ctx.define_int("OUT_TYPE_S32", 1); break;
+        case mkldnn_f32: kernel_ctx.define_int("OUT_TYPE_F32", 1); break;
+        case mkldnn_bf16: kernel_ctx.define_int("OUT_TYPE_BF16", 1); break;
         default: return status::invalid_arguments;
         }
 
@@ -233,90 +234,90 @@ struct jit_simple_reorder_kernel {
                                                             NChw16n16c)
                                                  || output_md.matches_tag(
                                                             NChw16n16c))));
-        jit.define_int("REF_REORDER", !opt_reorder);
-        jit.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
+        kernel_ctx.define_int("REF_REORDER", !opt_reorder);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
 
         if (input_md.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)) {
-            jit.define_int("IN_NCHW16C", 1);
+            kernel_ctx.define_int("IN_NCHW16C", 1);
         } else if (input_md.matches_one_of_tag(
                            NCw16n16c, NChw16n16c, NCdhw16n16c)) {
-            jit.define_int("IN_NCHW16N16C", 1);
+            kernel_ctx.define_int("IN_NCHW16N16C", 1);
         } else if (input_md.matches_one_of_tag(IOw16i16o, IOhw16i16o,
                            IOdhw16i16o, gIOw16i16o, gIOhw16i16o,
                            gIOdhw16i16o)) {
-            jit.define_int("IN_IOHW16I16O", 1);
+            kernel_ctx.define_int("IN_IOHW16I16O", 1);
         } else if (input_md.matches_one_of_tag(OIw16o16i, OIhw16o16i,
                            OIdhw16o16i, gOIw16o16i, gOIhw16o16i,
                            gOIdhw16o16i)) {
-            jit.define_int("IN_OIHW16O16I", 1);
+            kernel_ctx.define_int("IN_OIHW16O16I", 1);
         } else if (input_md.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
-            jit.define_int("IN_OIHW4O8I8O4I", 1);
+            kernel_ctx.define_int("IN_OIHW4O8I8O4I", 1);
         } else if (input_md.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
-            jit.define_int("IN_OIHW2O8I8O2I", 1);
+            kernel_ctx.define_int("IN_OIHW2O8I8O2I", 1);
         } else if (input_md.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o,
                            gOIw8o16i2o, gOIhw8o16i2o)) {
-            jit.define_int("IN_OIHW8O16I2O", 1);
+            kernel_ctx.define_int("IN_OIHW8O16I2O", 1);
         } else if (input_md.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i,
                            OIdhw8i16o2i, gOIw8i16o2i, gOIhw8i16o2i,
                            gOIdhw8i16o2i)) {
-            jit.define_int("IN_OIHW8I16O2I", 1);
+            kernel_ctx.define_int("IN_OIHW8I16O2I", 1);
         } else {
-            jit.define_int("IN_REF_FORMAT", 1);
+            kernel_ctx.define_int("IN_REF_FORMAT", 1);
         }
 
         if (output_md.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)) {
-            jit.define_int("OUT_NCHW16C", 1);
+            kernel_ctx.define_int("OUT_NCHW16C", 1);
         } else if (output_md.matches_one_of_tag(
                            NCw16n16c, NChw16n16c, NCdhw16n16c)) {
-            jit.define_int("OUT_NCHW16N16C", 1);
+            kernel_ctx.define_int("OUT_NCHW16N16C", 1);
         } else if (output_md.matches_one_of_tag(IOw16i16o, IOhw16i16o,
                            IOdhw16i16o, gIOw16i16o, gIOhw16i16o,
                            gIOdhw16i16o)) {
-            jit.define_int("OUT_IOHW16I16O", 1);
+            kernel_ctx.define_int("OUT_IOHW16I16O", 1);
         } else if (output_md.matches_one_of_tag(OIw16o16i, OIhw16o16i,
                            OIdhw16o16i, gOIw16o16i, gOIhw16o16i,
                            gOIdhw16o16i)) {
-            jit.define_int("OUT_OIHW16O16I", 1);
+            kernel_ctx.define_int("OUT_OIHW16O16I", 1);
         } else if (output_md.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
-            jit.define_int("OUT_OIHW4O8I8O4I", 1);
+            kernel_ctx.define_int("OUT_OIHW4O8I8O4I", 1);
         } else if (output_md.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
-            jit.define_int("OUT_OIHW2O8I8O2I", 1);
+            kernel_ctx.define_int("OUT_OIHW2O8I8O2I", 1);
         } else if (output_md.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o,
                            gOIw8o16i2o, gOIhw8o16i2o)) {
-            jit.define_int("OUT_OIHW8O16I2O", 1);
+            kernel_ctx.define_int("OUT_OIHW8O16I2O", 1);
         } else if (output_md.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i,
                            OIdhw8i16o2i, gOIw8i16o2i, gOIhw8i16o2i,
                            gOIdhw8i16o2i)) {
-            jit.define_int("OUT_OIHW8I16O2I", 1);
+            kernel_ctx.define_int("OUT_OIHW8I16O2I", 1);
         } else {
-            jit.define_int("OUT_REF_FORMAT", 1);
+            kernel_ctx.define_int("OUT_REF_FORMAT", 1);
         }
 
-        set_offsets(jit, input_md, "SRC");
-        set_offsets(jit, output_md, "DST");
+        set_offsets(kernel_ctx, input_md, "SRC");
+        set_offsets(kernel_ctx, output_md, "DST");
 
         const auto &in_dims = input_md.dims();
         const auto &out_dims = output_md.padded_dims();
 
-        jit.define_int("PAD_FILL_ZERO", jrp.has_padding);
+        kernel_ctx.define_int("PAD_FILL_ZERO", jrp.has_padding);
 
         if (jrp.has_padding) {
             char tempstr[32];
             for (int d = 0; d < input_md.ndims(); ++d) {
                 snprintf(tempstr, 32, " SRC_DIM%d", d);
-                jit.define_int(tempstr, in_dims[d]);
+                kernel_ctx.define_int(tempstr, in_dims[d]);
             }
             for (int d = input_md.ndims(); d < 6; ++d) {
                 snprintf(tempstr, 32, " SRC_DIM%d", d);
-                jit.define_int(tempstr, 0);
+                kernel_ctx.define_int(tempstr, 0);
             }
             for (int d = 0; d < output_md.ndims(); ++d) {
                 snprintf(tempstr, 32, " DST_DIM%d", d);
-                jit.define_int(tempstr, out_dims[d]);
+                kernel_ctx.define_int(tempstr, out_dims[d]);
             }
             for (int d = output_md.ndims(); d < 6; ++d) {
                 snprintf(tempstr, 32, " DST_DIM%d", d);
-                jit.define_int(tempstr, 0);
+                kernel_ctx.define_int(tempstr, 0);
             }
         }
 

@@ -23,22 +23,24 @@ namespace ocl {
 template <impl::data_type_t data_type>
 status_t ref_lrn_fwd_t<data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
     auto &ws = CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE);
 
-    kernel_.set_arg(0, src);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
     if (pd()->desc()->prop_kind == prop_kind::forward_training) {
-        kernel_.set_arg(1, ws);
-        kernel_.set_arg(2, dst);
+        arg_list.set(1, ws);
+        arg_list.set(2, dst);
     } else {
-        kernel_.set_arg(1, dst);
+        arg_list.set(1, dst);
     }
 
-    auto nd_range = cl_nd_range_t(3, pd()->gws, pd()->lws);
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(3, pd()->gws, pd()->lws);
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -51,15 +53,16 @@ status_t ref_lrn_bwd_t<data_type>::execute_backward(
     auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, diff_dst);
-    kernel_.set_arg(2, ws);
-    kernel_.set_arg(3, diff_src);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, diff_dst);
+    arg_list.set(2, ws);
+    arg_list.set(3, diff_src);
 
-    auto nd_range = cl_nd_range_t(3, pd()->gws, pd()->lws);
-    auto &executor
-        = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(3, pd()->gws, pd()->lws);
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }

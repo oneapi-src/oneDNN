@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_gen9_common_conv_kernel.hpp"
 #include "ocl/ocl_convolution_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -54,7 +54,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             using namespace prop_kind;
             using namespace data_type;
             assert(this->engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
             const int eltwise_idx =
                 attr()->post_ops_.find(primitive_kind::eltwise);
@@ -83,12 +84,15 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
                                                   this->desc()->bias_desc
                                                                   .data_type
                                                           == f32))
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_type == f16,
                                true
-                                       && cl_engine->mayiuse(
-                                                  cl_device_ext_t::khr_fp16)
-                                       && cl_engine->mayiuse(cl_device_ext_t::
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
+                                                          khr_fp16)
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
                                                           intel_subgroups_short))
                     && IMPLICATION(eltwise_idx != -1, with_relu)
                     && !has_zero_dim_memory();
@@ -109,27 +113,26 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
     };
 
     status_t init() override {
-        const char *ocl_kernel_str = nullptr;
+        const char *kernel_name = nullptr;
         if (pd()->jcp_.is_depthwise)
-            ocl_kernel_str = gen9_common_conv_dw_fwd_data_kernel;
+            kernel_name = "gen9_common_conv_dw_fwd_kernel";
         else if (src_type == data_type::f16)
-            ocl_kernel_str = gen9_common_conv_fwd_data_f16_kernel;
+            kernel_name = "gen9_common_conv_fwd_f16_kernel";
         else if (src_type == data_type::f32)
-            ocl_kernel_str = gen9_common_conv_fwd_data_f32_kernel;
+            kernel_name = "gen9_common_conv_fwd_f32_kernel";
         else
             assert(!"not expected");
 
-        auto jit = ocl_jit_t(ocl_kernel_str);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+
+        compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_fwd_kernel::init_const_def(
-                jit, pd()->jcp_);
+                kernel_ctx, pd()->jcp_);
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("gen9_common_conv_fwd_kernel");
+        compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -155,7 +158,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_gen9_common_conv_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
@@ -174,20 +177,26 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
         status_t init() {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true
-                    && this->desc()->prop_kind == backward_data
+            bool ok = true && this->desc()->prop_kind == backward_data
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && this->desc()->diff_dst_desc.data_type == diff_dst_type
                     && this->desc()->weights_desc.data_type == wei_type
                     && this->desc()->accum_data_type == acc_type
                     && this->desc()->diff_src_desc.data_type == diff_src_type
-                    &&(IMPLICATION(this->with_bias() && diff_dst_type != data_type::f16,
-                               this->desc()->bias_desc.data_type == data_type::f32)
-                            || IMPLICATION(this->with_bias() && diff_dst_type == data_type::f16,
-                                    this->desc()->bias_desc.data_type == data_type::f16))
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && (IMPLICATION(this->with_bias()
+                                        && diff_dst_type != data_type::f16,
+                                this->desc()->bias_desc.data_type
+                                        == data_type::f32)
+                               || IMPLICATION(this->with_bias()
+                                                  && diff_dst_type
+                                                          == data_type::f16,
+                                          this->desc()->bias_desc.data_type
+                                                  == data_type::f16))
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
@@ -207,18 +216,17 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(gen9_common_conv_bwd_data_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
 
+        compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_bwd_data_kernel::init_const_def(
-                jit, pd()->jcp_);
+                kernel_ctx, pd()->jcp_);
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("gen9_common_conv_bwd_data_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "gen9_common_conv_bwd_data_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -244,7 +252,7 @@ private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_gen9_common_conv_bwd_data_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
@@ -264,10 +272,10 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
         status_t init() {
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true
-                    && this->desc()->prop_kind == backward_weights
+            bool ok = true && this->desc()->prop_kind == backward_weights
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && this->desc()->src_desc.data_type == src_type
                     && this->desc()->diff_weights_desc.data_type
@@ -277,7 +285,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                     && IMPLICATION(this->with_bias(),
                                this->desc()->diff_bias_desc.data_type
                                        == diff_wei_type)
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
@@ -299,32 +308,35 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(gen9_common_conv_bwd_wht_f32_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
 
+        compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_bwd_weights_kernel::init_const_def(
-                jit, pd()->jcp_);
+                kernel_ctx, pd()->jcp_);
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
+        std::vector<const char *> kernel_names(3);
 
-        kernel_ = jit.get_kernel("gen9_common_conv_bwd_weights_kernel");
-        if (!kernel_)
-            return status::runtime_error;
+        kernel_names[0] = "gen9_common_conv_bwd_weights_kernel";
 
         if (pd()->jcp_.ver == ver_16mb16c || pd()->jcp_.ver == ver_8ow16c
                 || pd()->jcp_.ver == ver_1stconv) {
-            reduce_kernel_ = jit.get_kernel("gen9_reduce_bwd_weights_kernel");
-            if (!reduce_kernel_)
-                return status::runtime_error;
+            kernel_names[1] = "gen9_reduce_bwd_weights_kernel";
         }
         if (pd()->jcp_.ver == ver_8ow16c) {
-            load_tails_ = jit.get_kernel("gen9_load_tails_bwd_weights_kernel");
-            if (!load_tails_)
-                return status::runtime_error;
+            kernel_names[2] = "gen9_load_tails_bwd_weights_kernel";
         }
+
+        std::vector<compute::kernel_t> kernels;
+        status = compute_engine->create_kernels(
+                &kernels, kernel_names, kernel_ctx);
+        CHECK(status);
+
+        kernel_ = kernels[0];
+        reduce_kernel_ = kernels[1];
+        load_tails_ = kernels[2];
 
         if (pd()->jcp_.ver == ver_16mb16c || pd()->jcp_.ver == ver_8ow16c
                 || pd()->jcp_.ver == ver_1stconv) {
@@ -379,9 +391,9 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_gen9_common_conv_bwd_weights_kernel *ker_;
-    ocl_kernel_t kernel_;
-    ocl_kernel_t reduce_kernel_;
-    ocl_kernel_t load_tails_;
+    compute::kernel_t kernel_;
+    compute::kernel_t reduce_kernel_;
+    compute::kernel_t load_tails_;
     std::unique_ptr<memory_storage_t> wht_work;
     std::unique_ptr<memory_storage_t> bias_work;
     std::unique_ptr<memory_storage_t> tails;

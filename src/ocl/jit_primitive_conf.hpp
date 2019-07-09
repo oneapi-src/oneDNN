@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/primitive_attr.hpp"
+#include "compute/compute.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
@@ -328,8 +329,8 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
 }
 
-inline void set_offsets(
-        ocl_jit_t &jit, const memory_desc_wrapper &md, const char *str) {
+inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
+        const memory_desc_wrapper &md, const char *str) {
     char tempstr[32];
 
     dim_t block_dims[MKLDNN_MAX_NDIMS];
@@ -342,28 +343,28 @@ inline void set_offsets(
         const int block = block_dims[d];
 
         snprintf(tempstr, 32, "%s_B%d", str, d);
-        jit.define_int(tempstr, block);
+        kernel_ctx.define_int(tempstr, block);
 
         snprintf(tempstr, 32, "%s_S%d", str, d);
-        jit.define_int(tempstr, strides_compat[0][d]);
+        kernel_ctx.define_int(tempstr, strides_compat[0][d]);
 
         snprintf(tempstr, 32, "%s_SB%d", str, d);
-        jit.define_int(tempstr, strides_compat[1][d]);
+        kernel_ctx.define_int(tempstr, strides_compat[1][d]);
     }
     for (int d = md.ndims(); d < 6; ++d) {
 
         snprintf(tempstr, 32, "%s_B%d", str, d);
-        jit.define_int(tempstr, 1);
+        kernel_ctx.define_int(tempstr, 1);
 
         snprintf(tempstr, 32, "%s_S%d", str, d);
-        jit.define_int(tempstr, 0);
+        kernel_ctx.define_int(tempstr, 0);
 
         snprintf(tempstr, 32, "%s_SB%d", str, d);
-        jit.define_int(tempstr, 0);
+        kernel_ctx.define_int(tempstr, 0);
     }
 
     snprintf(tempstr, 32, "%s_OFFSET_PAD", str);
-    jit.define_int(tempstr, md.md_->offset0);
+    kernel_ctx.define_int(tempstr, md.md_->offset0);
 }
 
 inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
@@ -384,86 +385,87 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
     }
 }
 
-inline void def_offsets(const int offs[4][MAX_NDIMS], ocl_jit_t &jit,
-        const char *str, const int ndims) {
+inline void def_offsets(const int offs[4][MAX_NDIMS],
+        compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
     for (int d = 0; d < ndims; d++) {
         char tempstr[32];
         snprintf(tempstr, 32, "%s_B%d", str, d);
-        jit.define_int(tempstr, offs[0][d]);
+        kernel_ctx.define_int(tempstr, offs[0][d]);
 
         snprintf(tempstr, 32, "%s_S%d", str, d);
-        jit.define_int(tempstr, offs[1][d]);
+        kernel_ctx.define_int(tempstr, offs[1][d]);
 
         snprintf(tempstr, 32, "%s_SB%d", str, d);
-        jit.define_int(tempstr, offs[2][d]);
+        kernel_ctx.define_int(tempstr, offs[2][d]);
 
         snprintf(tempstr, 32, "%s_D%d", str, d);
-        jit.define_int(tempstr, offs[3][d]);
+        kernel_ctx.define_int(tempstr, offs[3][d]);
     }
     for (int d = ndims; d < 6; ++d) {
         char tempstr[32];
         snprintf(tempstr, 32, "%s_B%d", str, d);
-        jit.define_int(tempstr, 1);
+        kernel_ctx.define_int(tempstr, 1);
 
         snprintf(tempstr, 32, "%s_S%d", str, d);
-        jit.define_int(tempstr, 0);
+        kernel_ctx.define_int(tempstr, 0);
 
         snprintf(tempstr, 32, "%s_SB%d", str, d);
-        jit.define_int(tempstr, 0);
+        kernel_ctx.define_int(tempstr, 0);
 
         snprintf(tempstr, 32, "%s_D%d", str, d);
-        jit.define_int(tempstr, 0);
+        kernel_ctx.define_int(tempstr, 0);
     }
 }
 
-inline void def_postops(ocl_jit_t &jit, alg_kind_t alg) {
-    jit.define_int("RELU", alg_kind::eltwise_relu);
-    jit.define_int("LINEAR", alg_kind::eltwise_linear);
-    jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-    jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-    jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-    jit.define_int("TANH", alg_kind::eltwise_tanh);
-    jit.define_int("ELU", alg_kind::eltwise_elu);
-    jit.define_int("SQUARE", alg_kind::eltwise_square);
-    jit.define_int("SQRT", alg_kind::eltwise_sqrt);
-    jit.define_int("ABS", alg_kind::eltwise_abs);
-    jit.define_int("EXP", alg_kind::eltwise_exp);
-    jit.define_int("ALG_KIND", alg);
+inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
+    kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
+    kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
+    kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
+    kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
+    kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+    kernel_ctx.define_int("TANH", alg_kind::eltwise_tanh);
+    kernel_ctx.define_int("ELU", alg_kind::eltwise_elu);
+    kernel_ctx.define_int("SQUARE", alg_kind::eltwise_square);
+    kernel_ctx.define_int("SQRT", alg_kind::eltwise_sqrt);
+    kernel_ctx.define_int("ABS", alg_kind::eltwise_abs);
+    kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
+    kernel_ctx.define_int("ALG_KIND", alg);
 }
 
-inline void def_data_type(ocl_jit_t &jit, data_type_t dt, const char *str) {
+inline void def_data_type(
+        compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
     char tempstr[64];
     switch (dt) {
     case data_type::bf16:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=ushort -D%s_DT_BF16",
                 str, str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     case data_type::f16:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16", str,
                 str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     case data_type::f32:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32", str,
                 str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     case data_type::s8:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8", str,
                 str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     case data_type::u8:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8", str,
                 str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     case data_type::s32:
         snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32", str,
                 str);
-        jit.add_option(tempstr);
+        kernel_ctx.add_option(tempstr);
         break;
     default: assert(!"unsupported data type"); break;
     }

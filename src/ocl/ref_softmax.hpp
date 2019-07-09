@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/ocl_softmax_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -41,7 +42,8 @@ struct ref_softmax_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
         status_t init() {
-            auto *ocl_engine = utils::downcast<const ocl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
@@ -49,7 +51,8 @@ struct ref_softmax_fwd_t : public primitive_t {
                                prop_kind::forward_training)
                     && data_type == desc()->data_desc.data_type
                     && IMPLICATION(data_type == data_type::f16,
-                            ocl_engine->mayiuse(cl_device_ext_t::khr_fp16))
+                               compute_engine->mayiuse(
+                                       compute::device_ext_t::khr_fp16))
                     && attr()->has_default_values();
             if (!ok)
                 return status::unimplemented;
@@ -70,21 +73,20 @@ struct ref_softmax_fwd_t : public primitive_t {
     ~ref_softmax_fwd_t() = default;
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(ref_softmax_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
-        jit.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        jit.define_int(
+        kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
+        kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
-        jit.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        set_offsets(jit, desc->data_desc, "DATA");
+        set_offsets(kernel_ctx, desc->data_desc, "DATA");
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_softmax_fwd_generic");
+        compute_engine->create_kernel(
+                &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -99,7 +101,7 @@ protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t data_type>
@@ -135,21 +137,20 @@ struct ref_softmax_bwd_t : public primitive_t {
     ~ref_softmax_bwd_t() = default;
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(ref_softmax_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
-        jit.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        jit.define_int(
+        kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
+        kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
-        jit.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        set_offsets(jit, desc->data_desc, "DATA");
+        set_offsets(kernel_ctx, desc->data_desc, "DATA");
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_softmax_bwd_generic");
+        compute_engine->create_kernel(
+                &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -164,7 +165,7 @@ protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

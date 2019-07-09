@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_simple_reorder_kernel.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -76,19 +76,22 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
             if (!args_ok)
                 return status::unimplemented;
 
-            auto *cl_engine = utils::downcast<cl_engine_t *>(
+            auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine_->kind() == engine_kind::gpu ? dst_engine_
                                                             : src_engine_);
 
             args_ok = args_ok
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
+                    && compute_engine->mayiuse(
+                               compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(utils::one_of(data_type::f16,
                                            src_md()->data_type,
                                            dst_md()->data_type),
                                true
-                                       && cl_engine->mayiuse(
-                                                  cl_device_ext_t::khr_fp16)
-                                       && cl_engine->mayiuse(cl_device_ext_t::
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
+                                                          khr_fp16)
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
                                                           intel_subgroups_short));
 
             jit_simple_reorder_kernel::init_conf(
@@ -100,18 +103,16 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
     };
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(simple_reorder_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
         auto status = jit_simple_reorder_kernel::init_const_def(
-                jit, pd()->jrp_, pd()->src_md(), pd()->dst_md());
+                kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("any2any_kernel");
+        compute_engine->create_kernel(&kernel_, "any2any_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -136,7 +137,7 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
     jit_simple_reorder_kernel *ker_;
     std::unique_ptr<memory_storage_t> temp_buf;
 };

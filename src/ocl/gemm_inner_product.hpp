@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 
 extern const char *gemm_inner_product_kernel;
@@ -133,18 +134,16 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             return gemm_status;
 
         if (pd()->with_bias()) {
-            auto jit = ocl_jit_t(gemm_inner_product_kernel);
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
+            compute::kernel_ctx_t kernel_ctx;
 
-            jit.set_data_type(src_type);
-            jit.define_int("MB", pd()->MB());
-            jit.define_int("OC", pd()->OC());
+            kernel_ctx.set_data_type(src_type);
+            kernel_ctx.define_int("MB", pd()->MB());
+            kernel_ctx.define_int("OC", pd()->OC());
 
-            status_t bias_kernel_status = jit.build(engine());
-            if (bias_kernel_status != status::success)
-                return bias_kernel_status;
-
-            bias_kernel_
-                = jit.get_kernel("gemm_inner_product_forward_bias");
+            compute_engine->create_kernel(&bias_kernel_,
+                    "gemm_inner_product_forward_bias", kernel_ctx);
             if (!bias_kernel_)
                 return status::runtime_error;
         }
@@ -164,7 +163,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
-    ocl_kernel_t bias_kernel_;
+    compute::kernel_t bias_kernel_;
 };
 
 template <impl::data_type_t diff_src_type,
@@ -331,18 +330,16 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             return gemm_status;
 
         if (pd()->with_bias()) {
-            auto jit = ocl_jit_t(gemm_inner_product_kernel);
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
+            compute::kernel_ctx_t kernel_ctx;
 
-            jit.set_data_type(data_type);
-            jit.define_int("MB", pd()->MB());
-            jit.define_int("OC", pd()->OC());
+            kernel_ctx.set_data_type(data_type);
+            kernel_ctx.define_int("MB", pd()->MB());
+            kernel_ctx.define_int("OC", pd()->OC());
 
-            status_t bias_kernel_status = jit.build(engine());
-            if (bias_kernel_status != status::success)
-                return bias_kernel_status;
-
-            bias_kernel_
-                = jit.get_kernel("gemm_inner_product_backward_weights_bias");
+            compute_engine->create_kernel(&bias_kernel_,
+                    "gemm_inner_product_backward_weights_bias", kernel_ctx);
             if (!bias_kernel_)
                 return status::runtime_error;
         }
@@ -361,7 +358,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *gemm_ = nullptr;
-    ocl_kernel_t bias_kernel_;
+    compute::kernel_t bias_kernel_;
 };
 
 }

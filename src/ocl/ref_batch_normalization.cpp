@@ -30,6 +30,9 @@ template <impl::data_type_t data_type>
 status_t ref_batch_normalization_fwd_t<data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
 
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
 
     auto &mean_ = pd()->stats_is_src() ? CTX_IN_STORAGE(MKLDNN_ARG_MEAN)
@@ -57,60 +60,65 @@ status_t ref_batch_normalization_fwd_t<data_type>::execute_forward(
     auto &mean = *mean_ptr;
     auto &variance = *variance_ptr;
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
     if (jbn.use_16mb_unroll && jbn.calculate_stats) {
         status_t status;
 
-        calculate_mean_kernel_.set_arg(0, src);
-        calculate_mean_kernel_.set_arg(1, *temp_reduce);
+        compute::kernel_arg_list_t calc_mean_arg_list;
+        calc_mean_arg_list.set(0, src);
+        calc_mean_arg_list.set(1, *temp_reduce);
 
-        auto nd_range_mean = cl_nd_range_t(
+        auto nd_range_mean = compute::nd_range_t(
                 { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
-        status = executor.parallel_for(nd_range_mean, calculate_mean_kernel_);
+        status = compute_stream->parallel_for(
+                nd_range_mean, calculate_mean_kernel_, calc_mean_arg_list);
         if (status != status::success)
             return status;
 
-        reduce_mean_kernel_.set_arg(0, *temp_reduce);
-        reduce_mean_kernel_.set_arg(1, mean);
+        compute::kernel_arg_list_t reduce_mean_arg_list;
+        reduce_mean_arg_list.set(0, *temp_reduce);
+        reduce_mean_arg_list.set(1, mean);
 
-        status = executor.parallel_for(
-                cl_nd_range_t({ jbn.ic }, { 1 }), reduce_mean_kernel_);
+        status = compute_stream->parallel_for(
+                compute::nd_range_t({ jbn.ic }, { 1 }), reduce_mean_kernel_,
+                reduce_mean_arg_list);
         if (status != status::success)
             return status;
 
-        calculate_variance_kernel_.set_arg(0, src);
-        calculate_variance_kernel_.set_arg(1, mean);
-        calculate_variance_kernel_.set_arg(2, *temp_reduce);
+        compute::kernel_arg_list_t calc_var_arg_list;
+        calc_var_arg_list.set(0, src);
+        calc_var_arg_list.set(1, mean);
+        calc_var_arg_list.set(2, *temp_reduce);
 
-        auto nd_range_calculate_variance = cl_nd_range_t(
+        auto nd_range_calculate_variance = compute::nd_range_t(
                 { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
-        status = executor.parallel_for(
-                nd_range_calculate_variance, calculate_variance_kernel_);
+        status = compute_stream->parallel_for(nd_range_calculate_variance,
+                calculate_variance_kernel_, calc_var_arg_list);
         if (status != status::success)
             return status;
 
-        reduce_variance_kernel_.set_arg(0, *temp_reduce);
-        reduce_variance_kernel_.set_arg(1, variance);
+        compute::kernel_arg_list_t reduce_var_arg_list;
+        reduce_var_arg_list.set(0, *temp_reduce);
+        reduce_var_arg_list.set(1, variance);
 
-        auto nd_range_reduce_variance = cl_nd_range_t({ jbn.ic }, { 1 });
-        status = executor.parallel_for(
-                nd_range_reduce_variance, reduce_variance_kernel_);
+        auto nd_range_reduce_variance = compute::nd_range_t({ jbn.ic }, { 1 });
+        status = compute_stream->parallel_for(nd_range_reduce_variance,
+                reduce_variance_kernel_, reduce_var_arg_list);
         if (status != status::success)
             return status;
     }
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, mean);
-    kernel_.set_arg(2, variance);
-    kernel_.set_arg(3, dst);
-    kernel_.set_arg(4, scaleshift);
-    kernel_.set_arg(5, ws);
-    kernel_.set_arg(6, jbn.eps);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, mean);
+    arg_list.set(2, variance);
+    arg_list.set(3, dst);
+    arg_list.set(4, scaleshift);
+    arg_list.set(5, ws);
+    arg_list.set(6, jbn.eps);
 
-    auto nd_range_kernel = cl_nd_range_t(jbn.gws_d, jbn.lws_d);
-    status_t status = executor.parallel_for(nd_range_kernel, kernel_);
+    auto nd_range_kernel = compute::nd_range_t(jbn.gws_d, jbn.lws_d);
+    status_t status
+            = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
 
     return status;
 }
@@ -118,6 +126,9 @@ status_t ref_batch_normalization_fwd_t<data_type>::execute_forward(
 template <impl::data_type_t data_type>
 status_t ref_batch_normalization_bwd_t<data_type>::execute_backward(
         const exec_ctx_t &ctx) const {
+
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &mean = CTX_IN_STORAGE(MKLDNN_ARG_MEAN);
@@ -138,46 +149,47 @@ status_t ref_batch_normalization_bwd_t<data_type>::execute_backward(
     if (jbn.use_16mb_unroll) {
         status_t status;
 
-        calculate_stats_kernel_.set_arg(0, src);
-        calculate_stats_kernel_.set_arg(1, mean);
-        calculate_stats_kernel_.set_arg(2, diff_dst);
-        calculate_stats_kernel_.set_arg(3, ws);
-        calculate_stats_kernel_.set_arg(4, *temp_reduce);
+        compute::kernel_arg_list_t calc_stats_arg_list;
+        calc_stats_arg_list.set(0, src);
+        calc_stats_arg_list.set(1, mean);
+        calc_stats_arg_list.set(2, diff_dst);
+        calc_stats_arg_list.set(3, ws);
+        calc_stats_arg_list.set(4, *temp_reduce);
 
-        auto &executor = *(
-                utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-        auto nd_range = cl_nd_range_t(
+        auto nd_range = compute::nd_range_t(
                 { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
-        status = executor.parallel_for(nd_range, calculate_stats_kernel_);
+        status = compute_stream->parallel_for(
+                nd_range, calculate_stats_kernel_, calc_stats_arg_list);
         if (status != status::success)
             return status;
 
-        reduce_stats_kernel_.set_arg(0, *temp_reduce);
-        reduce_stats_kernel_.set_arg(1, diff_scaleshift);
-        reduce_stats_kernel_.set_arg(2, variance);
-        reduce_stats_kernel_.set_arg(3, jbn.eps);
+        compute::kernel_arg_list_t reduce_stats_arg_list;
+        reduce_stats_arg_list.set(0, *temp_reduce);
+        reduce_stats_arg_list.set(1, diff_scaleshift);
+        reduce_stats_arg_list.set(2, variance);
+        reduce_stats_arg_list.set(3, jbn.eps);
 
-        status = executor.parallel_for(
-                cl_nd_range_t({ jbn.ic }, { 1 }), reduce_stats_kernel_);
+        status = compute_stream->parallel_for(
+                compute::nd_range_t({ jbn.ic }, { 1 }), reduce_stats_kernel_,
+                reduce_stats_arg_list);
         if (status != status::success)
             return status;
     }
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, mean);
-    kernel_.set_arg(2, variance);
-    kernel_.set_arg(3, diff_dst);
-    kernel_.set_arg(4, scaleshift);
-    kernel_.set_arg(5, ws);
-    kernel_.set_arg(6, diff_src);
-    kernel_.set_arg(7, diff_scaleshift);
-    kernel_.set_arg(8, jbn.eps);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, mean);
+    arg_list.set(2, variance);
+    arg_list.set(3, diff_dst);
+    arg_list.set(4, scaleshift);
+    arg_list.set(5, ws);
+    arg_list.set(6, diff_src);
+    arg_list.set(7, diff_scaleshift);
+    arg_list.set(8, jbn.eps);
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
-    auto kernel_nd_range = cl_nd_range_t(jbn.gws_d, jbn.lws_d);
-    status_t status = executor.parallel_for(kernel_nd_range, kernel_);
+    auto kernel_nd_range = compute::nd_range_t(jbn.gws_d, jbn.lws_d);
+    status_t status
+            = compute_stream->parallel_for(kernel_nd_range, kernel_, arg_list);
 
     return status;
 }

@@ -18,6 +18,7 @@
 #define JIT_SIMPLE_SUM_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -35,8 +36,8 @@ struct jit_simple_sum_kernel {
         return status::success;
     };
 
-    static status_t init_const_def(
-            ocl_jit_t &jit, const jit_simple_sum_conf_t &jss) {
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            const jit_simple_sum_conf_t &jss) {
         return status::success;
     }
 

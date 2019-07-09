@@ -33,7 +33,8 @@ static const cpd_create_f ocl_concat_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const cpd_create_f *ocl_engine_t::get_concat_implementation_list() const {
+const cpd_create_f *
+ocl_gpu_engine_impl_list_t::get_concat_implementation_list() {
     return ocl_concat_impl_list;
 }
 

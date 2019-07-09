@@ -16,8 +16,6 @@
 
 #include <CL/cl_ext.h>
 
-#include "ocl/cl_engine.hpp"
-
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
@@ -63,38 +61,6 @@ status_t get_ocl_devices(
 }
 
 } // namespace ocl_utils
-
-status_t ocl_jit_t::build(const engine_t *engine) {
-    auto *cl_engine = utils::downcast<const cl_engine_t *>(engine);
-    cl_context ctx = cl_engine->ocl_context();
-    cl_device_id dev = cl_engine->ocl_device();
-
-    cl_int err = CL_SUCCESS;
-
-    program_ = clCreateProgramWithSource(ctx, 1, &code_, &code_size_, &err);
-    status_t status = ocl_utils::convert_to_mkldnn(err);
-    if (status != status::success)
-        return status;
-
-    const char *opt_str = options_.data();
-    err = clBuildProgram(program_, 1, &dev, opt_str, nullptr, nullptr);
-#ifndef NDEBUG
-    if (err != CL_SUCCESS) {
-        size_t log_length = 0;
-        err = clGetProgramBuildInfo(
-                program_, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
-        assert(err == CL_SUCCESS);
-
-        std::vector<char> log_buf(log_length);
-        err = clGetProgramBuildInfo(program_, dev, CL_PROGRAM_BUILD_LOG,
-                log_length, log_buf.data(), 0);
-        assert(err == CL_SUCCESS);
-        printf("Error during the build of OpenCL program.\nBuild log:\n%s\n",
-                log_buf.data());
-    }
-#endif
-    return ocl_utils::convert_to_mkldnn(err);
-}
 
 } // namespace ocl
 } // namespace impl

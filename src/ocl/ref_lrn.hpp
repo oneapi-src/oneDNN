@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/ocl_lrn_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -44,7 +44,8 @@ struct ref_lrn_fwd_t : public primitive_t {
 
         status_t init() {
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
                                prop_kind::forward_inference,
@@ -56,7 +57,8 @@ struct ref_lrn_fwd_t : public primitive_t {
                                data_type, desc()->data_desc.data_type)
                     && attr()->has_default_values()
                     && IMPLICATION(data_type == data_type::f16,
-                               cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
+                               compute_engine->mayiuse(
+                                       compute::device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;
 
@@ -83,24 +85,26 @@ struct ref_lrn_fwd_t : public primitive_t {
     virtual status_t init() override {
         using namespace alg_kind;
 
-        auto jit = ocl_jit_t(ref_lrn_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
         const auto *desc = pd()->desc();
 
-        jit.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        jit.define_int("LRN_FWD", 1);
+        kernel_ctx.define_int("LRN_FWD", 1);
 
         if (desc->prop_kind == prop_kind::forward_training)
-            jit.define_int("IS_TRAINING", 1);
+            kernel_ctx.define_int("IS_TRAINING", 1);
 
         switch (desc->alg_kind) {
         case lrn_across_channels:
-            jit.define_int("ACROSS_CHANNEL", 1);
+            kernel_ctx.define_int("ACROSS_CHANNEL", 1);
             break;
         case lrn_within_channel:
-            jit.define_int("WITHIN_CHANNEL", 1);
+            kernel_ctx.define_int("WITHIN_CHANNEL", 1);
             break;
         default: status = status::unimplemented;
         }
@@ -111,11 +115,11 @@ struct ref_lrn_fwd_t : public primitive_t {
         const memory_desc_wrapper dst_d(pd()->dst_md());
         const int ndims = src_d.ndims();
 
-        jit.define_int("NDIMS", ndims);
-        jit.define_int("MB", pd()->MB());
-        jit.define_int("IC", pd()->C());
-        jit.define_int("IH", pd()->H());
-        jit.define_int("IW", pd()->W());
+        kernel_ctx.define_int("NDIMS", ndims);
+        kernel_ctx.define_int("MB", pd()->MB());
+        kernel_ctx.define_int("IC", pd()->C());
+        kernel_ctx.define_int("IH", pd()->H());
+        kernel_ctx.define_int("IW", pd()->W());
 
         const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
         uint32_t num_elements = round_norm_size * round_norm_size;
@@ -125,29 +129,24 @@ struct ref_lrn_fwd_t : public primitive_t {
         const float num_element_div = 1.f / (float)num_elements;
         const auto padding = (desc->local_size - 1) / 2;
 
-        jit.define_float("NUM_ELEMENTS_DIV", num_element_div);
-        jit.define_int("PADDING", padding);
-        jit.define_int("LOCAL_SIZE", desc->local_size);
-        jit.define_float("LRN_ALPHA", desc->lrn_alpha);
-        jit.define_float("LRN_BETA", desc->lrn_beta);
-        jit.define_float("LRN_K", desc->lrn_k);
+        kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
+        kernel_ctx.define_int("PADDING", padding);
+        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
+        kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
+        kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        jit.define_int("GWS_MB", 2);
-        jit.define_int("GWS_IC", 1);
-        jit.define_int("GWS_HW", 0);
-
+        kernel_ctx.define_int("GWS_MB", 2);
+        kernel_ctx.define_int("GWS_IC", 1);
+        kernel_ctx.define_int("GWS_HW", 0);
 
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(dst_d, jit_off.dst_off);
-        def_offsets(jit_off.src_off, jit, "SRC", ndims);
-        def_offsets(jit_off.dst_off, jit, "DST", ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_lrn_fwd");
+        compute_engine->create_kernel(&kernel_, "ref_lrn_fwd", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -160,7 +159,7 @@ struct ref_lrn_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 template <impl::data_type_t data_type>
@@ -175,7 +174,8 @@ struct ref_lrn_bwd_t : public primitive_t {
 
         status_t init() {
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
                 && utils::one_of(desc()->prop_kind,
                     prop_kind::backward_data)
@@ -187,7 +187,7 @@ struct ref_lrn_bwd_t : public primitive_t {
                 && desc()->data_desc == desc()->diff_data_desc
                 && attr()->has_default_values()
                 && IMPLICATION(data_type == data_type::f16,
-                    cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
+                    compute_engine->mayiuse(compute::device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;
 
@@ -214,21 +214,23 @@ struct ref_lrn_bwd_t : public primitive_t {
     virtual status_t init() override {
         using namespace alg_kind;
 
-        auto jit = ocl_jit_t(ref_lrn_kernel);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
         const auto *desc = pd()->desc();
 
-        jit.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        jit.define_int("LRN_BWD", 1);
+        kernel_ctx.define_int("LRN_BWD", 1);
 
         switch (desc->alg_kind) {
         case lrn_across_channels:
-            jit.define_int("ACROSS_CHANNEL", 1);
+            kernel_ctx.define_int("ACROSS_CHANNEL", 1);
             break;
         case lrn_within_channel:
-            jit.define_int("WITHIN_CHANNEL", 1);
+            kernel_ctx.define_int("WITHIN_CHANNEL", 1);
             break;
         default: status = status::unimplemented;
         }
@@ -239,11 +241,11 @@ struct ref_lrn_bwd_t : public primitive_t {
         const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
         const int ndims = src_d.ndims();
 
-        jit.define_int("NDIMS", ndims);
-        jit.define_int("MB", pd()->MB());
-        jit.define_int("IC", pd()->C());
-        jit.define_int("IH", pd()->H());
-        jit.define_int("IW", pd()->W());
+        kernel_ctx.define_int("NDIMS", ndims);
+        kernel_ctx.define_int("MB", pd()->MB());
+        kernel_ctx.define_int("IC", pd()->C());
+        kernel_ctx.define_int("IH", pd()->H());
+        kernel_ctx.define_int("IW", pd()->W());
 
         const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
         uint32_t num_elements = round_norm_size * round_norm_size;
@@ -253,29 +255,24 @@ struct ref_lrn_bwd_t : public primitive_t {
         const float num_element_div = 1.f / (float)num_elements;
         const auto padding = (desc->local_size - 1) / 2;
 
-        jit.define_float("NUM_ELEMENTS_DIV", num_element_div);
-        jit.define_int("PADDING", padding);
-        jit.define_int("LOCAL_SIZE", desc->local_size);
-        jit.define_float("LRN_ALPHA", desc->lrn_alpha);
-        jit.define_float("LRN_BETA", desc->lrn_beta);
-        jit.define_float("LRN_K", desc->lrn_k);
+        kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
+        kernel_ctx.define_int("PADDING", padding);
+        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
+        kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
+        kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        jit.define_int("GWS_MB", 2);
-        jit.define_int("GWS_IC", 1);
-        jit.define_int("GWS_HW", 0);
-
+        kernel_ctx.define_int("GWS_MB", 2);
+        kernel_ctx.define_int("GWS_IC", 1);
+        kernel_ctx.define_int("GWS_HW", 0);
 
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(diff_dst_d, jit_off.dst_off);
-        def_offsets(jit_off.src_off, jit, "SRC", ndims);
-        def_offsets(jit_off.dst_off, jit, "DST", ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_lrn_bwd");
+        compute_engine->create_kernel(&kernel_, "ref_lrn_bwd", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -288,7 +285,8 @@ struct ref_lrn_bwd_t : public primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl
