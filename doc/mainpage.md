@@ -19,6 +19,7 @@ on Intel CPUs and GPUs.
 
  * @ref dev_guide_basic_concepts
  * @ref cpu_getting_started_cpp
+ * @ref gpu_getting_started_cpp
  * @ref cpu_memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
@@ -30,8 +31,6 @@ on Intel CPUs and GPUs.
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
  * @ref dev_guide_c_and_cpp_apis
- * @ref dev_guide_opencl_interoperability
-
 
 # Primitives
 
@@ -53,7 +52,6 @@ Memory bandwidth limited operations:
 Data manipulation:
  * [Reorder](@ref dev_guide_reorder)
 
-
 # Performance Benchmarking and Inspection
 
  * @ref dev_guide_verbose
@@ -67,6 +65,7 @@ Data manipulation:
  * @ref dev_guide_transition_to_v1
  * @ref dev_guide_understanding_memory_formats
  * @ref dev_guide_int8_computations
+ * @ref dev_guide_opencl_interoperability
 
 # Examples
 
@@ -76,7 +75,7 @@ Data manipulation:
 |                |          | @ref cpu_memory_format_propagation_cpp |                              |
 |                |          | @ref cpu_performance_profiling_cpp     |                              |
 |                | GPU      | @ref gpu_getting_started_cpp           | @ref gpu_getting_started_c   |
-|                | GPU      | @ref gpu_opencl_interop_cpp            | 			          |
+|                | GPU      | @ref gpu_opencl_interop_cpp            |                              |
 | f32 inference  | CPU      | @ref cpu_cnn_inference_f32_cpp         | @ref cpu_cnn_inference_f32_c |
 |                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
 | int8 inference | CPU      | @ref cpu_cnn_inference_int8_cpp        |                              |
