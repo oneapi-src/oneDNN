@@ -122,6 +122,8 @@ void check_lrn_fwd(
 template <typename data_t, typename acc_data_t = data_t>
 void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         const memory &diff_dst, const memory &diff_src) {
+    ASSERT_TRUE(p.aalgorithm == algorithm::lrn_across_channels);
+
     auto src_ptr = map_memory<data_t>(src);
     auto diff_dst_ptr = map_memory<data_t>(diff_dst);
     auto diff_src_ptr = map_memory<data_t>(diff_src);
@@ -674,7 +676,7 @@ using bfloat16_within = lrn_test<bfloat16_t>;
 INST_TEST_CASE(float_across, algorithm::lrn_across_channels)
 INST_TEST_CASE(bfloat16_across, algorithm::lrn_across_channels)
 
-INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
-INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
+//INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
+//INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
 
 } // namespace mkldnn
