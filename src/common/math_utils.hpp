@@ -139,6 +139,11 @@ template <typename T, typename A,
 inline U relu_bwd(T dd, T s, A alpha) {
     return s > 0 ? dd : (U)(dd * alpha);
 }
+template <typename T, typename A,
+         typename U = typename utils::remove_reference<T>::type>
+inline U relu_bwd(T s, A alpha) {
+  return s > 0 ? (U) 1 : (U) alpha;
+}
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U tanh_fwd(T s) {
