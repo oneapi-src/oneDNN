@@ -559,11 +559,12 @@ struct jit_gen9_common_conv_bwd_data_kernel {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
             const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
-            const primitive_attr_t &attr) {
+            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
 
         const memory_desc_wrapper src_mdw(&diff_src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
         const memory_desc_wrapper dst_mdw(&diff_dst_md);
+        const memory_desc_wrapper bias_mdw(&bias_md);
 
         set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
 

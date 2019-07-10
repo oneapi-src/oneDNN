@@ -106,4 +106,3 @@ not a special symbol here; any other delimiter can be used:
 Output template: %desc%,%-time%,%-Gflops%
 mb112oc1000ic2048n"resnet:ip1",0.521973,878.881
 ```
-

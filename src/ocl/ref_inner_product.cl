@@ -20,17 +20,15 @@
 #endif
 
 #if INNER_PRODUCT_FWD == 1
-__kernel void ref_inner_product_fwd_kernel(__global DATA_T *src,
-        __global DATA_T *wht, __global DATA_T *bias, __global DATA_T *dst,
+
+__kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
+        __global WEI_DATA_T *wht, __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
         float eltwise_alpha, float eltwise_beta, float sum_scale) {
 
     const int mb = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;
-#    if WITH_BIAS == 1
-    DATA_T a = bias[oc];
-#    else
-    DATA_T a = 0;
-#    endif
+
+    ACC_DATA_T d = 0;
 #    if HAS_SPATIAL == 1
     for (int ic = 0; ic < IC; ++ic)
         for (int kd = 0; kd < KD; ++kd)
@@ -43,28 +41,34 @@ __kernel void ref_inner_product_fwd_kernel(__global DATA_T *src,
         const uint src_off = mb * IC_TOTAL + ic;
         const uint wht_off = oc * IC_TOTAL + ic;
 #    endif
-                    a += src[src_off] * wht[wht_off];
+                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wht[wht_off]);
                 }
+#if WITH_BIAS
+    DATA_T tmp = (DATA_T)d + (DATA_T)BIA_TO_REF(bias[oc]);
+#else
+    DATA_T tmp = (DATA_T)d;
+#endif
 #    if WITH_SUM_ELTWISE == 1
-    a += sum_scale * dst[mb * OC + oc];
-    dst[mb * OC + oc] = fwd_eltwise(a, eltwise_alpha, eltwise_beta);
+    tmp += sum_scale * (DATA_T)DST_TO_REF(dst[mb * OC + oc]);
+    dst[mb * OC + oc] = REF_TO_DST(fwd_eltwise(tmp, eltwise_alpha, eltwise_beta));
 #    else
 #    if WITH_ELTWISE == 1
-    dst[mb * OC + oc] = fwd_eltwise(a, eltwise_alpha, eltwise_beta);
+    dst[mb * OC + oc] = REF_TO_DST(fwd_eltwise(tmp, eltwise_alpha, eltwise_beta));
 #    endif
 #    if WITH_SUM == 1
-    dst[mb * OC + oc] = dst[mb * OC + oc] * sum_scale + a;
+    dst[mb * OC + oc]
+            = REF_TO_DST(DST_TO_REF(dst[mb * OC + oc]) * sum_scale + tmp);
 #    endif
 #    if WITH_ELTWISE == 0 && WITH_SUM == 0
-    dst[mb * OC + oc] = a;
+    dst[mb * OC + oc] = REF_TO_DST(tmp);
 #    endif
 #    endif
 }
 #endif
 
 #if INNER_PRODUCT_BWD_DATA == 1
-__kernel void ref_inner_product_bwd_data_kernel(__global DATA_T *diff_src,
-        __global DATA_T *wht, __global DATA_T *diff_dst) {
+__kernel void ref_inner_product_bwd_data_kernel(__global SRC_DATA_T *diff_src,
+        __global WEI_DATA_T *wht, __global DST_DATA_T *diff_dst) {
 
     const int mb = get_global_id(0) / IC_TOTAL;
     const int ic_total = get_global_id(0) % IC_TOTAL;
@@ -79,17 +83,17 @@ __kernel void ref_inner_product_bwd_data_kernel(__global DATA_T *diff_src,
     for (int oc = 0; oc < OC; ++oc) {
         const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
         const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
-        ds += diff_dst[diff_dst_off] * wht[wht_off];
+        ds += DST_TO_REF(diff_dst[diff_dst_off]) * WEI_TO_REF(wht[wht_off]);
     }
     const uint diff_src_off = SRC_OFF(mb, ic, kd, kh, kw);
-    diff_src[diff_src_off] = ds;
+    diff_src[diff_src_off] = REF_TO_DST(ds);
 }
 #endif
 
 #if INNER_PRODUCT_BWD_WEIGHTS == 1
-__kernel void ref_inner_product_bwd_weights_kernel(__global DATA_T *src,
-        __global DATA_T *diff_wht, __global DATA_T *diff_bias,
-        __global DATA_T *diff_dst) {
+__kernel void ref_inner_product_bwd_weights_kernel(__global SRC_DATA_T *src,
+        __global WEI_DATA_T *diff_wht, __global BIA_DATA_T *diff_bias,
+        __global DST_DATA_T *diff_dst) {
 
     const int oc = get_global_id(0) / IC_TOTAL;
     const int ic_total = get_global_id(0) % IC_TOTAL;
@@ -104,17 +108,18 @@ __kernel void ref_inner_product_bwd_weights_kernel(__global DATA_T *src,
     for (int mb = 0; mb < MB; ++mb) {
         const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
         const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
-        ds += diff_dst[diff_dst_off] * src[src_off];
+        ds += DST_TO_REF(diff_dst[diff_dst_off]) * SRC_TO_REF(src[src_off]);
     }
     const uint diff_wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
-    diff_wht[diff_wht_off] = ds;
+    diff_wht[diff_wht_off] = REF_TO_WEI(ds);
 #    if WITH_BIAS == 1
     if (ic == 0) {
-        diff_bias[oc] = 0.0f;
+        float db = 0.0f;
         for (int mb = 0; mb < MB; ++mb) {
             const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
-            diff_bias[oc] += diff_dst[diff_dst_off];
+            db += DST_TO_REF(diff_dst[diff_dst_off]);
         }
+        diff_bias[oc] = REF_TO_BIA(db);
     }
 #    endif
 }

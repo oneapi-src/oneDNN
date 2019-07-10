@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "ocl/ocl_math_utils.h"
+
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #define IN_OFF(x0, x1, x2, x3, x4, x5)                             \
@@ -265,6 +267,9 @@
 #    define BLOCK_WRITE_IN intel_sub_group_block_write
 #    define GLOBAL_UINT_PT_IN const __global uint *
 #endif
+#if IN_TYPE_BF16
+#    define DT_IN ushort
+#endif
 #if OUT_TYPE_S8
 #    define DT_OUT char
 #    define DT_OUT8 char8
@@ -316,9 +321,29 @@
 #    define BLOCK_WRITE_OUT intel_sub_group_block_write
 #    define GLOBAL_UINT_PT_OUT __global uint *
 #endif
+#if OUT_TYPE_BF16
+#    define DT_OUT ushort
+#endif
 
 #if IN_TYPE_F16 || OUT_TYPE_F16
 #    pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
+#if IN_TYPE_BF16
+#    define IN_TO_FP32(x) convert_bf16_to_f32(x)
+#else
+#    define IN_TO_FP32(x) (x)
+#endif
+
+#if OUT_TYPE_BF16
+#    define OUT_TO_FP32(x) convert_bf16_to_f32(x)
+#    define FP32_TO_OUT(x) convert_f32_to_bf16(x)
+#elif OUT_TYPE_F16
+#    define OUT_TO_FP32(x) convert_float(x)
+#    define FP32_TO_OUT(x) convert_half(x)
+#else
+#    define OUT_TO_FP32(x) (x)
+#    define FP32_TO_OUT(x) (x)
 #endif
 
 #if SUB_GROUP_SIZE != 1
@@ -372,30 +397,20 @@ __kernel void any2any_kernel(__global DT_IN *input, __global DT_OUT *output,
         || d5 >= SRC_DIM5
 #        endif
     ) {
-        output[OUT_OFF(d0,d1,d2,d3,d4,d5)] = 0;
+        output[OUT_OFF(d0,d1,d2,d3,d4,d5)] = FP32_TO_OUT(0);
         return;
     }
 #    endif
     const int in_off = IN_OFF(d0,d1,d2,d3,d4,d5);
     const int out_off = OUT_OFF(d0,d1,d2,d3,d4,d5);
 #    if ALPHA_BETA
-    const float a = convert_float(input[in_off]);
-    const float b = convert_float(output[out_off]);
+    const float a = IN_TO_FP32(input[in_off]);
+    const float b = OUT_TO_FP32(output[out_off]);
     const float tmp = (beta == 0) ? alpha * a : alpha * a + beta * b;
-#        if OUT_TYPE_F16
-        output[out_off] = convert_half(tmp);
-#        else
-        output[out_off] = tmp;
-#        endif
+    output[out_off] = FP32_TO_OUT(tmp);
 #    else
-#        if IN_TYPE_F16 && !OUT_TYPE_F16
-    output[out_off] = convert_float(input[in_off]);
-#        elif !IN_TYPE_F16 && OUT_TYPE_F16
-    output[out_off] = convert_half(input[in_off]);
-#        else
-    output[out_off] = input[in_off];
-#        endif
-#   endif
+    output[out_off] = FP32_TO_OUT(IN_TO_FP32(input[in_off]));
+#    endif
     return;
 #else
 

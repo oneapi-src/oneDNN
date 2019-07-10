@@ -98,7 +98,6 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 && dst_md()->data_type == dst_type
                 && (attr()->has_default_values()
                         || IMPLICATION(with_eltwise, !with_bias()))
-                && IMPLICATION(src_type == f16, !with_eltwise)
                 && !with_sum
                 && dense_consitency_check(src_md(), weights_md(), dst_md())
                 && dense_gemm_consitency_check(src_md(), weights_md(),

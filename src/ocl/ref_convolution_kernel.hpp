@@ -127,7 +127,7 @@ struct ref_convolution_kernel_t {
 
         def_offsets(off_.src_off, jit, "SRC", conf_.ndims);
         def_offsets(off_.wht_off, jit, "WHT", conf_.ndims + conf_.with_groups);
-        def_offsets(off_.bias_off, jit, "BIAS", 1);
+        def_offsets(off_.bias_off, jit, "BIA", 1);
         def_offsets(off_.dst_off, jit, "DST", conf_.ndims);
 
         if (conf_.src_data_type == data_type::f16)
@@ -137,7 +137,7 @@ struct ref_convolution_kernel_t {
 
         def_data_type(jit, conf_.src_data_type, "SRC");
         def_data_type(jit, conf_.weights_data_type, "WEI");
-        def_data_type(jit, conf_.bias_data_type, "BIAS");
+        def_data_type(jit, conf_.bias_data_type, "BIA");
         def_data_type(jit, conf_.dst_data_type, "DST");
         def_data_type(jit, conf_.acc_data_type, "ACC");
 

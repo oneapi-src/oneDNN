@@ -202,6 +202,101 @@
 #    define AS_VECT_INT_T as_int8
 #    define AS_VECT_UINT_T as_uint8
 #endif
+
+#ifdef SRC_DATA_T
+#    if SRC_DT_BF16
+#        define SRC_TO_REF(x) convert_bf16_to_f32(x)
+#    else
+#        define SRC_TO_REF(x) (x)
+#    endif
+#    if SRC_DT_BF16
+#        define TO_SRC(x) convert_f32_to_bf16(x)
+#    elif SRC_DT_U8
+#        define TO_SRC(x) convert_uchar_sat_rte(x)
+#    elif SRC_DT_S8
+#        define TO_SRC(x) convert_char_sat_rte(x)
+#    elif SRC_DT_S32
+#        define TO_SRC(x) convert_int_sat_rte(x)
+#    else
+#        define TO_SRC(x) (x)
+#    endif
+#endif
+
+#ifdef WEI_DATA_T
+#    if WEI_DT_BF16
+#        define WEI_TO_REF(x) convert_bf16_to_f32(x)
+#        define REF_TO_WEI(x) convert_f32_to_bf16(x)
+#    else
+#        define WEI_TO_REF(x) (x)
+#        define REF_TO_WEI(x) (x)
+#    endif
+#    if WEI_DT_BF16
+#        define TO_WEI(x) convert_f32_to_bf16(x)
+#    elif WEI_DT_U8
+#        define TO_WEI(x) convert_uchar_sat_rte(x)
+#    elif WEI_DT_S8
+#        define TO_WEI(x) convert_char_sat_rte(x)
+#    elif WEI_DT_S32
+#        define TO_WEI(x) convert_int_sat_rte(x)
+#    else
+#        define TO_WEI(x) (x)
+#    endif
+#endif
+
+#ifdef BIA_DATA_T
+#    if BIA_DT_BF16
+#        define BIA_TO_REF(x) convert_bf16_to_f32(x)
+#        define REF_TO_BIA(x) convert_f32_to_bf16(x)
+#    else
+#        define BIA_TO_REF(x) (x)
+#        define REF_TO_BIA(x) (x)
+#    endif
+#    if BIA_DT_BF16
+#        define TO_BIA(x) convert_f32_to_bf16(x)
+#    elif BIA_DT_U8
+#        define TO_BIA(x) convert_uchar_sat_rte(x)
+#    elif BIA_DT_S8
+#        define TO_BIA(x) convert_char_sat_rte(x)
+#    elif BIA_DT_S32
+#        define TO_BIA(x) convert_int_sat_rte(x)
+#    else
+#        define TO_BIA(x) (x)
+#    endif
+#endif
+
+#ifdef DST_DATA_T
+#    if DST_DT_BF16
+#        define DST_TO_REF(x) convert_bf16_to_f32(x)
+#        define REF_TO_DST(x) convert_f32_to_bf16(x)
+#    else
+#        define DST_TO_REF(x) (x)
+#        define REF_TO_DST(x) (x)
+#    endif
+#    if DST_DT_BF16
+#        define TO_DST(x) convert_f32_to_bf16(x)
+#    elif DST_DT_U8
+#        define TO_DST(x) convert_uchar_sat_rte(x)
+#    elif DST_DT_S8
+#        define TO_DST(x) convert_char_sat_rte(x)
+#    elif DST_DT_S32
+#        define TO_DST(x) convert_int_sat_rte(x)
+#    else
+#        define TO_DST(x) (x)
+#    endif
+#endif
+
+#ifdef ACC_DATA_T
+#    if ACC_DT_F16
+#        define TO_ACC(x) convert_half(x)
+#    elif ACC_DT_F32
+#        define TO_ACC(x) convert_float(x)
+#    elif ACC_DT_S32
+#        define TO_ACC(x) convert_int(x)
+#    else
+#        error "Unexpected accumulation data type"
+#    endif
+#endif
+
 #if NDIMS == 3
 #    define SRC_OFF(x0, x1, d, h, x2)                                  \
         (((x0) % SRC_B0) * SRC_SB0 + ((x0) / SRC_B0) * SRC_S0          \

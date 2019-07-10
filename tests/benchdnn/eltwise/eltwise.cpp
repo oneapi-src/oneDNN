@@ -98,7 +98,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
 
         // check just absolute error for srelu due to log(1 + e(x)) gives bad
         // accuracy for negative inputs.
-        if (p->alg == alg_t::SRELU)
+        if (p->alg == alg_t::SRELU && fp < 0.7) // log(1 + e(0)) = log(2)
             ok = diff <= trh;
 
         r->errors += !ok;

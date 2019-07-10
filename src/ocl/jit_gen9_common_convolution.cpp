@@ -71,12 +71,14 @@ jit_gen9_common_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+    auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
 
     const auto &jcp = ker_->jcp;
 
     kernel_.set_arg(0, diff_src);
     kernel_.set_arg(1, weights);
     kernel_.set_arg(2, diff_dst);
+    kernel_.set_arg(3, bias);
 
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());

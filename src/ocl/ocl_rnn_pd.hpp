@@ -22,8 +22,8 @@
 #include "common/rnn_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-
 #include "ocl/ocl_engine.hpp"
+#include "rnn_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -81,10 +81,14 @@ protected:
 
         if (diff_src_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
-        if (diff_weights_layer_md_.format_kind == format_kind::any)
+        if (diff_weights_layer_md_.format_kind == format_kind::any) {
             CHECK(memory_desc_init_by_tag(diff_weights_layer_md_, ldigo));
-        if (diff_weights_iter_md_.format_kind == format_kind::any)
+            CHECK(rnn_utils::set_good_strides(diff_weights_layer_md_, ldigo));
+        }
+        if (diff_weights_iter_md_.format_kind == format_kind::any) {
             CHECK(memory_desc_init_by_tag(diff_weights_iter_md_, ldigo));
+            CHECK(rnn_utils::set_good_strides(diff_weights_iter_md_, ldigo));
+        }
         if (diff_dst_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_dst_layer_md_, tnc));
 

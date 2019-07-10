@@ -1,6 +1,6 @@
-# f32
+# f32, bf16
 --reset
---cfg=f32
+--cfg=f32,bf16bf16bf16
 --mb=2
 --dir=FWD_B,BWD_D,BWD_WB --batch=ip_all
 

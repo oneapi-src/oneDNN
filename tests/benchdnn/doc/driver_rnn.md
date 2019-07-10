@@ -51,7 +51,6 @@ The table below shows supported name configurations for this driver:
 | u8     | u8    | u8        | f32            | u8u8u8f32   | TBA
 | f32    | u8    | f32       | u8             | f32u8f32u8  | TBA
 | f32    | u8    | f32       | f32            | f32u8f32f32 | TBA
-
 | f16    | f16   | f16       | f16            | f16         | Only for GPU
 
 

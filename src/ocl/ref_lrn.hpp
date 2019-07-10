@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
 #include "ocl/cl_engine.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/ocl_lrn_pd.hpp"
@@ -183,10 +184,15 @@ struct ref_lrn_bwd_t : public primitive_t {
                     alg_kind::lrn_within_channel)
                 && utils::everyone_is(
                     data_type, desc()->data_desc.data_type)
+                && desc()->data_desc == desc()->diff_data_desc
                 && attr()->has_default_values()
                 && IMPLICATION(data_type == data_type::f16,
                     cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
             if (!ok)
+                return status::unimplemented;
+
+            ws_md_ = *src_md();
+            if (!compare_ws(hint_fwd_pd_))
                 return status::unimplemented;
 
             gws[0] = H() * W();
@@ -230,7 +236,7 @@ struct ref_lrn_bwd_t : public primitive_t {
             return status;
 
         const memory_desc_wrapper src_d(pd()->src_md());
-        const memory_desc_wrapper dst_d(pd()->diff_dst_md());
+        const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
         const int ndims = src_d.ndims();
 
         jit.define_int("NDIMS", ndims);
@@ -261,7 +267,7 @@ struct ref_lrn_bwd_t : public primitive_t {
 
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
-        set_offsets(dst_d, jit_off.dst_off);
+        set_offsets(diff_dst_d, jit_off.dst_off);
         def_offsets(jit_off.src_off, jit, "SRC", ndims);
         def_offsets(jit_off.dst_off, jit, "DST", ndims);
 

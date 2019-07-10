@@ -20,13 +20,13 @@
 #endif
 
 __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
-        const __global WEI_DATA_T *wei, const __global BIAS_DATA_T *bias,
+        const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float sum_scale
 #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
         , float scales
 #endif
-        ) {
+) {
     const int n = get_global_id(0);
     const int goc = get_global_id(1);
     const int oc = goc % OC;
@@ -53,41 +53,29 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
 
                     const uint src_off = SRC_OFF(n, g*IC + ic, id, ih, iw);
                     const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-                    d += src[src_off] * wei[wht_off];
+                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wht_off]);
                 }
-#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
-    #if WITH_BIAS
-    DATA_T tmp = (DATA_T)d + (DATA_T)bias[g*OC+oc];
-    tmp *= scales;
-    #else
-    DATA_T tmp = (DATA_T)d * scales;
-    #endif
+#if WITH_BIAS
+    DATA_T tmp = (DATA_T)d + (DATA_T)BIA_TO_REF(bias[g * OC + oc]);
 #else
-    #if WITH_BIAS
-    DATA_T tmp = d + bias[g*OC+oc];
-    #else
-    DATA_T tmp = d;
-    #endif
+    DATA_T tmp = (DATA_T)d;
+#endif
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+    tmp *= scales;
 #endif
 #if WITH_SUM == 1
-    tmp += sum_scale * (DATA_T)dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
+    tmp += sum_scale
+            * (DATA_T)DST_TO_REF(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]);
 #endif
 #if WITH_ELTWISE == 1
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
 #endif
-#if defined(DST_DT_S32)
-    dst[DST_OFF(n, g*OC + oc, od, oh, ow)] = convert_int_rte(tmp);
-#elif defined(DST_DT_S8)
-    dst[DST_OFF(n, g*OC + oc, od, oh, ow)] = convert_char_rte(tmp);
-#elif defined(DST_DT_U8)
-    dst[DST_OFF(n, g*OC + oc, od, oh, ow)] = convert_uchar_rte(tmp);
-#else
-    dst[DST_OFF(n, g*OC + oc, od, oh, ow)] = tmp;
-#endif
+    dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }
 
 __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
-        const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst) {
+        const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
+        const __global BIA_DATA_T *bias) {
     const int n = get_global_id(0);
     const int gic = get_global_id(1);
     const int ic = gic % IC;
@@ -98,7 +86,7 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
     const int ih = ihw / IW;
     const int iw = ihw % IW;
 
-    ACC_DATA_T d = 0;
+    ACC_DATA_T d = WITH_BIAS ? bias[g * IC + ic] : 0.0;
 
     for (int oc = 0; oc < OC; ++oc)
     for (int kd = 0; kd < KD; ++kd)
@@ -119,14 +107,15 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
         if (oh < OH && ow < OW && od < OD) {
             const uint dst_off = DST_OFF(n, g*OC + oc, od, oh, ow);
             const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-            d += diff_dst[dst_off] * wei[wht_off];
+            d += DST_TO_REF(diff_dst[dst_off])
+                    * WEI_TO_REF(wei[wht_off]);
         }
     }
-    diff_src[SRC_OFF(n, g*IC + ic, id, ih, iw)] = d;
+    diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
 }
 
 __kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
-        __global WEI_DATA_T *diff_wei, __global BIAS_DATA_T *diff_bias,
+        __global WEI_DATA_T *diff_wei, __global BIA_DATA_T *diff_bias,
         const __global DST_DATA_T *diff_dst) {
     const int g = get_global_id(0);
     const int io = get_global_id(1);
@@ -140,14 +129,15 @@ __kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
 
 #if WITH_BIAS
     if (ic == 0 && kh == 0 && kw == 0 & kd == 0) {
-        DST_DATA_T d = 0.0;
+        ACC_DATA_T d = 0.0;
         for (int n = 0; n < MB; ++n)
             for (int od = 0; od < OD; ++od)
                 for (int oh = 0; oh < OH; ++oh)
                     for (int ow = 0; ow < OW; ++ow) {
-                        d += diff_dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
+                        d += DST_TO_REF(
+                                diff_dst[DST_OFF(n, g * OC + oc, od, oh, ow)]);
                     }
-        diff_bias[g*OC + oc] = d;
+        diff_bias[g * OC + oc] = TO_BIA(d);
     }
 #endif
     ACC_DATA_T dw = 0.0;
@@ -167,8 +157,10 @@ __kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
                     int ih = oh * SH - PH + kh * (1 + DH);
                     int iw = ow * SW - PW + kw * (1 + DW);
 
-                    dw += diff_dst[DST_OFF(n, g*OC + oc, od, oh, ow)]
-                        * src[SRC_OFF(n, g*IC + ic, id, ih, iw)];
+                    dw += DST_TO_REF(
+                                  diff_dst[DST_OFF(n, g * OC + oc, od, oh, ow)])
+                            * SRC_TO_REF(
+                                    src[SRC_OFF(n, g * IC + ic, id, ih, iw)]);
                 }
-    diff_wei[WHT_OFF(g, oc, ic, kd, kh, kw)] = dw;
+    diff_wei[WHT_OFF(g, oc, ic, kd, kh, kw)] = TO_WEI(dw);
 }

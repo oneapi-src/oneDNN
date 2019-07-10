@@ -40,9 +40,9 @@
     void f(const exec_ctx_t &ctx, \
             int dir, int lay, int iter, \
             int dic, int slc, int sic, int wic, int batch, int n_layer,     \
-            int n_direction, int n_iter, int n_gates, int n_states,        \
-            int n_bias, size_t *weights_input, int n_parts_wei_i,         \
-            size_t *weights_states, int n_parts_wei_st,                   \
+            int n_dir, int n_iter, int n_gates, int n_states,        \
+            int n_bias, size_t *weights_input, int n_parts_weights_layer,         \
+            size_t *weights_states, int n_parts_weights_iter,                   \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer,                   \
@@ -52,9 +52,9 @@
 #define grid_execution_sig(f)                                              \
     void f(const exec_ctx_t &ctx, int dic, int slc, int sic, int wic,      \
             int batch, int n_layer,                                        \
-            int n_direction, int n_iter, int n_gates, int n_states,        \
-            int n_bias, size_t *weights_input, int n_parts_wei_i,         \
-            size_t *weights_states, int n_parts_wei_st,                   \
+            int n_dir, int n_iter, int n_gates, int n_states,        \
+            int n_bias, size_t *weights_input, int n_parts_weights_layer,         \
+            size_t *weights_states, int n_parts_weights_iter,                   \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer,                   \
@@ -70,11 +70,11 @@
             bool is_B_trans, float beta, gemm_kind_t gemm_kind) const
 
 #define packing_sig(f)                                               \
-    void f(int n_layer, int n_direction, int n_weights, int n_gates, \
+    void f(int n_layer, int n_dir, int n_weights, int n_gates, \
             int batch, int OC_size, int IC_size, size_t *weights_,   \
-            int n_parts, int *gates_per_part, const memory_storage_t &w_) const
+            int n_parts, const int *gates_per_part, const memory_storage_t &w_) const
 
-#define free_packed_sig(f) void f(int n_layer, int n_direction, int n_parts, \
+#define free_packed_sig(f) void f(int n_layer, int n_dir, int n_parts, \
             size_t *weights_)
 
 namespace mkldnn {
@@ -83,7 +83,7 @@ namespace ocl {
 
 namespace rnn_utils {
 
-typedef enum execution_direction_ {
+enum execution_direction_t {
     b2t_l2r,
     b2t_r2l,
     b2t_bi_concat,
@@ -92,21 +92,77 @@ typedef enum execution_direction_ {
     t2b_r2l,
     t2b_bi_concat,
     t2b_bi_sum
-} execution_direction;
+};
 
-bool is_training(const rnn_pd_t &pd);
+enum data_type_conf_t {
+    all_f32,
+    all_f16
+};
 
-size_t ws_states_size(const rnn_pd_t &pd);
-size_t ws_diff_states_size(const rnn_pd_t &pd);
-size_t ws_gates_size(const rnn_pd_t &pd);
-size_t ws_cell_comp_size(const rnn_pd_t &pd);
-size_t ws_grid_comp_size(const rnn_pd_t &pd);
-size_t get_ws_size(const rnn_pd_t &pd);
-size_t get_scratchpad_size(const rnn_pd_t &pd);
+struct rnn_conf_t {
+    execution_direction_t exec_dir;
+    data_type_conf_t dt_conf;
+    int n_layer, n_iter, n_dir, n_gates, n_states;
+    int mb;
+    int slc, sic, dic, dlc;
 
-void set_offsets(const rnn_pd_t &pd, size_t &ws_gates_offset,
-        size_t &ws_states_offset, size_t &ws_diff_states_offset,
-        size_t &ws_grid_comp_offset, size_t &ws_cell_comp_offset);
+    int gates_ld, gates_nld, gates_ws_ld;
+
+    int n_parts_weights_layer, parts_weights_layer[MKLDNN_RNN_MAX_N_PARTS];
+    int n_parts_weights_iter, parts_weights_iter[MKLDNN_RNN_MAX_N_PARTS];
+    int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
+
+    size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
+            part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+
+    // Size of packed data in bytes
+    size_t weights_layer_comp_offset, weights_layer_pack_size,
+        weights_iter_comp_offset, weights_iter_pack_size;
+
+    bool copy_bias;
+    int weights_layer_ld, weights_layer_nld;
+    int diff_weights_layer_ld, diff_weights_layer_nld;
+    int weights_iter_ld, weights_iter_nld;
+    int diff_weights_iter_ld, diff_weights_iter_nld;
+    int states_nld, states_ws_ld;
+    int weights_iter_compensation_size, weights_layer_compensation_size;
+
+    bool is_fwd, is_training, is_lbr;
+    bool use_workspace;
+
+    // Size of workspace for each tensor in bytes
+    size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
+            ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
+
+    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
+        use_iter_packed_gemm;
+};
+
+bool is_ldigo(const memory_desc_wrapper &md);
+bool is_ldgoi(const memory_desc_wrapper &md);
+
+int get_good_ld(int dim, int sizeof_dt);
+void init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+        const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &weights_layer_d,
+        const memory_desc_wrapper &weights_iter_d,
+        const memory_desc_wrapper &dst_layer_d);
+void set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+        const memory_desc_wrapper &weights_layer_d,
+        const memory_desc_wrapper &weights_iter_d,
+        const memory_desc_wrapper &diff_weights_layer_d,
+        const memory_desc_wrapper &diff_weights_iter_d);
+void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
+        size_t &ws_h_state_offset, size_t &ws_c_state_offset,
+        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratchpad_size, size_t &workspace_size);
+void get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
+        size_t &scratchpad_size, size_t &workspace_size);
+status_t set_expected_desc(rnn_conf_t &rnn, memory_desc_t &weights_md,
+        bool is_iter);
+status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 }
 
 }

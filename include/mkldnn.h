@@ -1944,30 +1944,36 @@ mkldnn_status_t MKLDNN_API mkldnn_sgemm(
         const float *B, mkldnn_dim_t ldb,
         float beta, float *C, mkldnn_dim_t ldc);
 
-/// gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
-/// operation and add the result to a scalar-matrix product. For the final
-/// result, a vector is added to each row or column of the output matrix.
+/// mkldnn_gemm_u8s8s32() and mkldnn_gemm_s8s8s32() perform a matrix-matrix
+/// multiplication operation and add the result to a scalar-matrix product.
+/// For the final result, a vector is added to each row or column of the output
+/// matrix.
+///
 /// The operation is defined as:
 ///
-/// C := alpha*(op(A) - A_offset) * (op(B) - B_offset) + beta*C + C_offset
+/// - `C := alpha*(op(A) - A_offset) * (op(B) - B_offset) + beta*C + C_offset`
 ///
 /// where
-///  - op( X ) = X or op( X ) = X**T,
-///  - A_offset is an m-by-k matrix with every element equal to the value oa,
-///  - B_offset is an k-by-n matrix with every element equal to the value ob,
-///  - C_offset is an m-by-n matrix defined by the oc array, size len:
-///    - if offsetc = F: len must be at least 1
-///    - if offsetc = C: len must be at least max(1, m)
-///    - if offsetc = R: len must be at least max(1, n)
-///  - alpha and beta are scalars, and A, B and C are matrices, with op( A )
-///    an m-by-k matrix, op( B ) a k-by-n matrix and C an m-by-n matrix.
+///  - `op( X ) = X` or `op( X ) = X**T`,
+///  - `A_offset` is an m-by-k matrix with every element
+///               equal to the value `ao`,
+///  - `B_offset` is an k-by-n matrix with every element
+///               equal to the value `bo`,
+///  - `C_offset` is an m-by-n matrix defined by the `co` array of size `len`:
+///    - if `offsetc = F`: `len` must be at least `1`,
+///    - if `offsetc = C`: `len` must be at least `max(1, m)`,
+///    - if `offsetc = R`: `len` must be at least `max(1, n)`,
+///  - `alpha` and `beta` are scalars, and
+///  - `A`, `B` and `C` are matrices, with `op( A )` an m-by-k matrix,
+///    `op( B )` a k-by-n matrix and `C` an m-by-n matrix.
 ///
-/// The matrices are assumed to be stored in column-major order (the elements
-/// in a matrix columns are contiguous in memory).
+/// The matrices are assumed to be stored in row-major order (the elements
+/// in a matrix rows are contiguous in memory).
 ///
 /// @note
-///      The API is different compared with the standard BLAS routine
-///      because it returns mkldnn_status_t for error handling.
+///      The API is different compared with the standard BLAS routine.
+///      In particular, the function returns @ref mkldnn_status_t for
+///      error handling.
 ///      XERBLA is not supported: no error message will be printed
 ///      in case of incorrect parameters.
 ///
@@ -1983,13 +1989,17 @@ mkldnn_status_t MKLDNN_API mkldnn_gemm_u8s8s32(
         const int8_t *B, mkldnn_dim_t ldb, int8_t bo,
         float beta, int32_t *C, mkldnn_dim_t ldc, const int32_t *co);
 
-/// gemm_s8u8s32 and gemm_s8s8s32 perform a matrix-matrix multiplication
-/// operation and add the result to a scalar-matrix product. For the final
-/// result, a vector is added to each row or column of the output matrix.
+/// mkldnn_gemm_u8s8s32() and mkldnn_gemm_s8s8s32() perform a matrix-matrix
+/// multiplication operation and add the result to a scalar-matrix product.
+/// For the final result, a vector is added to each row or column of the output
+/// matrix.
 ///
 /// For full description, see mkldnn_gemm_u8s8s32().
 ///
-/// @sa dev_guide_int8_computations
+/// @warning
+///      On some architectures the intermediate saturation might happen,
+///      which would lead to unexpected results. For more details, refer to
+///      @ref dev_guide_int8_computations.
 mkldnn_status_t MKLDNN_API mkldnn_gemm_s8s8s32(
         char transa, char transb, char offsetc,
         mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K,
