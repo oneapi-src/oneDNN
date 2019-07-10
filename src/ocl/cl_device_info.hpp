@@ -53,43 +53,37 @@ struct runtime_version_t {
     int minor;
     int build;
 
-    friend bool operator==(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        return (v1.major == v2.major) && (v1.minor == v2.minor)
-                && (v1.build == v2.build);
+    bool operator==(const runtime_version_t &other) const {
+        return (major == other.major) && (minor == other.minor)
+                && (build == other.build);
     }
 
-    friend bool operator!=(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        return !(v1 == v2);
+    bool operator!=(const runtime_version_t &other) const {
+        return !(*this == other);
     }
 
-    friend bool operator<(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        if (v1.major < v2.major)
+    bool operator<(const runtime_version_t &other) const {
+        if (major < other.major)
             return true;
-        if (v1.major > v2.major)
+        if (major > other.major)
             return false;
-        if (v1.minor < v2.minor)
+        if (minor < other.minor)
             return true;
-        if (v1.minor > v2.minor)
+        if (minor > other.minor)
             return false;
-        return (v1.build < v2.build);
+        return (build < other.build);
     }
 
-    friend bool operator>(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        return (v2 < v1);
+    bool operator>(const runtime_version_t &other) const {
+        return (other < *this);
     }
 
-    friend bool operator<=(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        return !(v1 > v2);
+    bool operator<=(const runtime_version_t &other) const {
+        return !(*this > other);
     }
 
-    friend bool operator>=(
-            const runtime_version_t &v1, const runtime_version_t &v2) {
-        return !(v1 < v2);
+    bool operator>=(const runtime_version_t &other) const {
+        return !(*this < other);
     }
 
     status_t set_from_string(const char *s) {
