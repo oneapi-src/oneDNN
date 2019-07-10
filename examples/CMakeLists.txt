@@ -66,6 +66,10 @@ if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
 endif()
 
+if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+    register_exe(gpu-sycl-interop-cpp gpu_sycl_interop.cpp "test")
+endif()
+
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
     file(GLOB example_sources "cpu_*.cpp" "cpu_*.c")
 
