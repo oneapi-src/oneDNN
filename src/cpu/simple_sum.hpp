@@ -17,10 +17,12 @@
 #ifndef SIMPLE_SUM_HPP
 #define SIMPLE_SUM_HPP
 
-#include "cpu_sum_pd.hpp"
-#include "cpu_primitive.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
+
+#include "cpu_isa_traits.hpp"
+#include "cpu_primitive.hpp"
+#include "cpu_sum_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -46,6 +48,8 @@ struct simple_sum_t: public cpu_primitive_t {
             const int n = n_inputs();
 
             bool ok = true
+                && IMPLICATION(utils::one_of(data_type::bf16, src_data_type,
+                        dst_data_type), mayiuse(avx512_core))
                 && cpu_sum_pd_t::init() == status::success
                 && n <= max_num_arrs;
             if (!ok) return status::unimplemented;

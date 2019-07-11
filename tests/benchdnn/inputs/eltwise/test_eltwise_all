@@ -26,3 +26,6 @@
 --tag=ndhwc
 --alg=relu --alpha=0
 2x16x6x2x8 3x15x5x2x3
+
+# bf16
+--batch=test_eltwise_bfloat16
