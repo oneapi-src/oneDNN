@@ -48,7 +48,7 @@ struct jit_uni_eltwise_injector_f32 {
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu));
+                    eltwise_exp, eltwise_gelu, eltwise_swish));
     }
 
     // note that eltwise.scale is ignored
@@ -120,6 +120,7 @@ private:
     void soft_relu_compute_vector(const Vmm &vmm_src);
     void logistic_compute_vector(const Vmm &vmm_src);
     void gelu_compute_vector(const Vmm &vmm_src);
+    void swish_compute_vector(const Vmm &vmm_src);
 
     void relu_prepare_table();
     void elu_prepare_table();

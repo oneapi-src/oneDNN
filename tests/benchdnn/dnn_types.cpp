@@ -222,6 +222,7 @@ attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
     CASE(LOGISTIC);
     CASE(EXP);
     CASE(GELU);
+    CASE(SWISH);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return KIND_TOTAL;
@@ -242,6 +243,7 @@ const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
     CASE(LOGISTIC, "logistic");
     CASE(EXP, "exp");
     CASE(GELU, "gelu");
+    CASE(SWISH, "swish");
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return "unknown attr::post_ops::kind";
@@ -262,6 +264,7 @@ mkldnn_alg_kind_t attr_t::post_ops_t::kind2mkldnn_kind(
     CASE(LOGISTIC, mkldnn_eltwise_logistic);
     CASE(EXP, mkldnn_eltwise_exp);
     CASE(GELU, mkldnn_eltwise_gelu);
+    CASE(SWISH, mkldnn_eltwise_swish);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return mkldnn_alg_kind_undef;
@@ -399,6 +402,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         case pk::LOGISTIC:
         case pk::EXP:
         case pk::GELU:
+        case pk::SWISH:
             s << kind2str(e.kind) << ":" << e.eltwise.alpha;
             if (e.eltwise.beta != 0.f || e.eltwise.scale != 1.f)
                 s << ":" << e.eltwise.beta << ":" << e.eltwise.scale;
@@ -502,6 +506,7 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
             case attr_t::post_ops_t::LOGISTIC:
             case attr_t::post_ops_t::EXP:
             case attr_t::post_ops_t::GELU:
+            case attr_t::post_ops_t::SWISH:
                 DNN_SAFE_V(mkldnn_post_ops_append_eltwise(ops, e.eltwise.scale,
                             e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
                 break;
@@ -564,6 +569,7 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
     case pk::LOGISTIC: return scale * logistic_fwd(src);
     case pk::EXP: return scale * exp_fwd(src);
     case pk::GELU: return scale * gelu_fwd(src);
+    case pk::SWISH: return scale * swish_fwd(src, alpha);
     default: assert(!"unknown attr::post_ops::kind");
     };
     return NAN;
@@ -587,6 +593,7 @@ float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
     case pk::LOGISTIC: return logistic_bwd(d_dst, src);
     case pk::EXP: return exp_bwd(d_dst, src);
     case pk::GELU: return gelu_bwd(d_dst, src);
+    case pk::SWISH: return swish_bwd(d_dst, src, alpha);
     default: assert(!"unknown attr::post_ops::kind");
     }
     return NAN;

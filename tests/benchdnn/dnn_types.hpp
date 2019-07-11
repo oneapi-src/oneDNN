@@ -100,6 +100,7 @@ struct attr_t {
             LOGISTIC,
             EXP,
             GELU,
+            SWISH,
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
