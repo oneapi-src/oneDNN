@@ -309,6 +309,9 @@ protected:
                 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        SKIP_IF(p.alg_kind == algorithm::eltwise_swish
+                && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support swish yet");
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
     }

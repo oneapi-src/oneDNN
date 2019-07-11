@@ -597,7 +597,7 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
     // x*sigmoid(alpha*x)
     h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
     h->add(h->rsp, vlen);
-    h->uni_vmulps(vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
 template <cpu_isa_t isa>
