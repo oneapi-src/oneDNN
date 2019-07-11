@@ -238,7 +238,7 @@ void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(
                 size_t kw_unroll = (size_t)(ki + j * stride_w - pad_l);
                 /* Note: protect against potential illegal memory addressing due
                  * to 4fma overflow in source. */
-                assert(kw_unroll + unroll_4fma <= iw);
+                assert(kw_unroll + unroll_4fma <= (size_t)iw);
                 size_t aux_input_offset = (size_t)jcp.typesize_in
                         * (kw_unroll + (size_t)ic * iw * ih * jcp.id);
                 v4fmaddps(vmm_out(j, 0), vmm_ker(0),
