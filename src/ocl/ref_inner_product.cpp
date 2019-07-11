@@ -41,6 +41,7 @@ status_t ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
     auto sum_scale = pd()->sum_scale();
+    const float *output_scales = pd()->attr()->output_scales_.scales_;
 
     kernel_.set_arg(0, src);
     kernel_.set_arg(1, weights);
@@ -49,6 +50,7 @@ status_t ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     kernel_.set_arg(4, eltwise_alpha);
     kernel_.set_arg(5, eltwise_beta);
     kernel_.set_arg(6, sum_scale);
+    kernel_.set_arg(7, output_scales[0]);
 
     auto &executor
             = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
@@ -110,6 +112,13 @@ status_t ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 }
 
 using namespace data_type;
+
+template struct ref_inner_product_fwd_t<s8, s8, s8, s32>;
+template struct ref_inner_product_fwd_t<s8, s8, u8, s32>;
+template struct ref_inner_product_fwd_t<s8, s8, s32, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, s8, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, u8, s32>;
+template struct ref_inner_product_fwd_t<u8, s8, s32, s32>;
 
 template struct ref_inner_product_fwd_t<bf16, bf16, bf16, f32>;
 template struct ref_inner_product_bwd_data_t<bf16, bf16, bf16, f32>;

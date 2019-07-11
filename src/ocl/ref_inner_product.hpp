@@ -59,11 +59,12 @@ struct ref_inner_product_fwd_t : public primitive_t {
                     && desc()->weights_desc.data_type == wei_type
                     && desc()->accum_data_type == acc_type
                     && desc()->dst_desc.data_type == dst_type
-                    && utils::one_of(desc()->src_desc.data_type, bf16, f16, f32)
+                    && utils::one_of(desc()->src_desc.data_type, u8, s8, bf16,
+                            f16, f32)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, bf16,
-                                    f16, f32))
-                    && attr()->output_scales_.has_default_values()
+                            utils::one_of(desc()->bias_desc.data_type, u8, s8,
+                                    bf16, f16, f32))
+                    && attr()->output_scales_.count_ == 1
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && IMPLICATION(src_type == data_type::f16,
                             cl_engine->mayiuse(cl_device_ext_t::khr_fp16));

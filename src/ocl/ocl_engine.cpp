@@ -129,6 +129,13 @@ static const pd_create_f ocl_impl_list[] = {
     INSTANCE(gemm_inner_product_bwd_data_t<f32>),
     INSTANCE(gemm_inner_product_bwd_weights_t<f32>),
 
+    INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>),
+    INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>),
+    INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>),
+    INSTANCE(ref_inner_product_fwd_t<s8, s8, s8, s32>),
+    INSTANCE(ref_inner_product_fwd_t<s8, s8, u8, s32>),
+    INSTANCE(ref_inner_product_fwd_t<s8, s8, s32, s32>),
+
     INSTANCE(ref_inner_product_fwd_t<bf16, bf16, bf16, f32>),
     INSTANCE(ref_inner_product_bwd_data_t<bf16, bf16, bf16, f32>),
     INSTANCE(ref_inner_product_bwd_weights_t<bf16>),
