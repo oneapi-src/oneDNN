@@ -229,8 +229,10 @@ struct jit_simple_sum_conf_t {
 
 /* simple reorder */
 struct jit_reorder_conf_t {
-    bool do_reorder, is_alpha_beta, with_group, has_padding;
-    int ndims, par_dims, ker_dims, last_dims;
+    bool do_reorder, with_group, has_padding;
+    bool with_sum_ab, with_sum_a;
+    bool use_ref_impl;
+    int ndims;
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];

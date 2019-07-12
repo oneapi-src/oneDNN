@@ -170,6 +170,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --ip --batch=inputs/ip/test_ip_gpu")
     register_benchdnn_test(test_benchdnn_rnn
         gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_gpu")
+    register_benchdnn_test(test_benchdnn_reorder
+        gpu "-v1 --reorder --batch=inputs/reorder/test_reorder_gpu")
     register_benchdnn_test(test_benchdnn_pool
         gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
     register_benchdnn_test(test_benchdnn_shuffle
