@@ -34,6 +34,7 @@
 #    define DATA_TO_REF convert_float
 #    define CONVERT_DATA_T convert_float
 #    define CONVERT_DATA8_T convert_float8
+#    define CONVERT_FLOAT8_T convert_float8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read
@@ -68,6 +69,7 @@
 #    define DATA_TO_REF convert_half
 #    define CONVERT_DATA_T convert_half
 #    define CONVERT_DATA8_T convert_half8
+#    define CONVERT_FLOAT8_T convert_float8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read_us
@@ -98,15 +100,16 @@
 #    define TO_DEF_ACC_DATA_T(v) convert_bf16_to_f32(v)
 #    define DATA_TO_REF convert_bf16_to_f32
 #    define CONVERT_DATA_T convert_f32_to_bf16
-#    define CONVERT_DATA8_T convert_bf16_8
+#    define CONVERT_DATA8_T convert_f32_to_bf16_vec8
+#    define CONVERT_FLOAT8_T convert_bf16_to_f32_vec8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read_us
 #    define BLOCK_WRITE intel_sub_group_block_write_us
 #    define BLOCK_READ8 intel_sub_group_block_read_us8
 #    define BLOCK_WRITE8 intel_sub_group_block_write_us8
-#    define AS_DATA_T as_bf16
-#    define AS_DATA8_T as_bf16_8
+#    define AS_DATA_T as_ushort
+#    define AS_DATA8_T as_ushort8
 
 #    define AS_UINT_T as_ushort
 #    define AS_UINT8_T as_ushort8
@@ -202,7 +205,7 @@
 #    define VECT_BLOCK_WRITE BLOCK_WRITE8
 #    define VECT_BLOCK_DATA_T BLOCK_DATA8_T
 #    define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA8_T
-#    define CONVERT_VECT_FLOAT_T convert_float8
+#    define CONVERT_VECT_FLOAT_T CONVERT_FLOAT8_T
 #    define CONVERT_VECTOR_DATA_T CONVERT_DATA8_T
 #    define VECT_INT_T int8
 #    define VECT_UINT_T uint8

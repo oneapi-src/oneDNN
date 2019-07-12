@@ -231,7 +231,7 @@ __kernel void ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
             for (int h = 0; h < IH; ++h)
                 for (int w = 0; w < IW; ++w) {
                     uint d_off = SRC_OFF(n, c, d, h, w);
-                    v_mean += src[d_off];
+                    v_mean += TO_DEF_ACC_DATA_T(src[d_off]);
                 }
     }
     v_mean /= MB * ID * IH * IW;
@@ -241,7 +241,7 @@ __kernel void ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
             for (int h = 0; h < IH; ++h)
                 for (int w = 0; w < IW; ++w) {
                     uint d_off = SRC_OFF(n, c, d, h, w);
-                    float m = src[d_off] - v_mean;
+                    float m = TO_DEF_ACC_DATA_T(src[d_off]) - v_mean;
                     v_variance += m * m;
                 }
     }
@@ -259,7 +259,7 @@ __kernel void ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
                 for (int w = 0; w < IW; ++w) {
                     uint d_off = SRC_OFF(n, c, d, h, w);
                     float bn_res
-                            = sm * (src[d_off] - v_mean) * sqrt_variance + sv;
+                            = sm * (TO_DEF_ACC_DATA_T(src[d_off]) - v_mean) * sqrt_variance + sv;
 #        if FUSE_BN_RELU == 1
                     if (bn_res <= 0) {
                         bn_res = 0;
@@ -273,9 +273,9 @@ __kernel void ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
                     }
 #        endif
 #        if WITH_RELU
-                    dst[d_off] = max(bn_res, 0.0f);
+                    dst[d_off] = TO_DATA_T(max(bn_res, 0.0f));
 #        else
-                    dst[d_off] = bn_res;
+                    dst[d_off] = TO_DATA_T(bn_res);
 #        endif
                 }
     }
