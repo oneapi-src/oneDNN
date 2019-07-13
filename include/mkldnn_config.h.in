@@ -17,7 +17,7 @@
 #ifndef MKLDNN_CONFIG_H
 #define MKLDNN_CONFIG_H
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// @cond DO_NOT_DOCUMENT_THIS
 
 // All symbols shall be internal unless marked as MKLDNN_API
 #if defined _WIN32 || defined __CYGWIN__
@@ -50,7 +50,8 @@
 #else
 #   define MKLDNN_DEPRECATED
 #endif
-#endif // DOXYGEN_SHOULD_SKIP_THIS
+
+/// @endcond
 
 // No runtime (disabled)
 #define MKLDNN_RUNTIME_NONE 0u

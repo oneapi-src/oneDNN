@@ -24,11 +24,11 @@
 #include "mkldnn_types.h"
 #include "mkldnn_version.h"
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// @cond DO_NOT_DOCUMENT_THIS
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
 #   include <CL/cl.h>
 #endif
-#endif /* DOXYGEN_SHOULD_SKIP_THIS */
+/// @endcond
 
 #ifdef __cplusplus
 extern "C" {

@@ -24,10 +24,10 @@
 extern "C" {
 #endif
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// @cond DO_NOT_DOCUMENT_THIS
 #include <stddef.h>
 #include <stdint.h>
-#endif
+/// @endcond
 
 /// @addtogroup c_api C API
 /// @{
