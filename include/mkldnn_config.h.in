@@ -65,14 +65,19 @@
 // SYCL runtime
 #define MKLDNN_RUNTIME_SYCL 512u
 
+// Buffer memory API
+#define MKLDNN_SYCL_MEMORY_API_BUFFER 0
+// Software managed virtual pointers memory API
+#define MKLDNN_SYCL_MEMORY_API_VPTR 1
+
 // MKL-DNN CPU engine runtime
 #cmakedefine MKLDNN_CPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_CPU_RUNTIME_CURRENT}
 
 // MKL-DNN GPU engine runtime
 #cmakedefine MKLDNN_GPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_GPU_RUNTIME}
 
-// MKL-DNN SYCL virtual pointers.
-#cmakedefine01 MKLDNN_ENABLE_SYCL_VPTR
+// MKL-DNN SYCL memory API
+#cmakedefine MKLDNN_SYCL_MEMORY_API MKLDNN_SYCL_MEMORY_API_${MKLDNN_SYCL_MEMORY_API}
 
 #if defined(MKLDNN_CPU_RUNTIME) && defined(MKLDNN_GPU_RUNTIME)
 #    if (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_NONE) \

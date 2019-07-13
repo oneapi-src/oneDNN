@@ -39,14 +39,14 @@ sycl_memory_storage_t::sycl_memory_storage_t(
         return;
 
     if (flags & memory_flags_t::alloc) {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         vptr_ = mkldnn::sycl_malloc(size);
         is_owned_ = true;
 #else
         buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
 #endif
     } else if (flags & memory_flags_t::use_backend_ptr) {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         assert(mkldnn::is_sycl_vptr(handle));
         vptr_ = handle;
         is_owned_ = false;
@@ -55,7 +55,7 @@ sycl_memory_storage_t::sycl_memory_storage_t(
         buffer_.reset(new buffer_u8_t(buf_u8));
 #endif
     } else if (flags & memory_flags_t::use_host_ptr) {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         vptr_ = mkldnn::sycl_malloc(size);
         is_owned_ = true;
 
@@ -84,7 +84,7 @@ sycl_memory_storage_t::sycl_memory_storage_t(
     }
 }
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
 sycl_memory_storage_t::~sycl_memory_storage_t() {
     if (is_write_host_back_) {
         auto &guard_manager = guard_manager_t<use_host_ptr_tag>::instance();
@@ -97,7 +97,7 @@ sycl_memory_storage_t::~sycl_memory_storage_t() {
 #endif
 
 status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     if (!vptr_) {
         *mapped_ptr = nullptr;
         return status::success;
@@ -111,7 +111,7 @@ status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
 
     auto &guard_manager = guard_manager_t<map_tag>::instance();
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     auto buf = mkldnn::get_sycl_buffer(vptr_);
 
     auto acc = buf.get_access<cl::sycl::access::mode::read_write>();

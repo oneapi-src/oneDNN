@@ -39,7 +39,7 @@
 #if MKLDNN_WITH_SYCL
 #include <CL/sycl.hpp>
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
 #include "mkldnn_sycl_vptr.hpp"
 #endif
 #endif
@@ -1568,7 +1568,7 @@ struct memory: public handle<mkldnn_memory_t> {
         if (!handle_ptr)
             return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(1));
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         if (offset)
             *offset = get_sycl_offset(handle_ptr);
 
@@ -1584,7 +1584,7 @@ struct memory: public handle<mkldnn_memory_t> {
 #endif
     }
 
-#if MKLDNN_ENABLE_SYCL_VPTR == 0
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
     /// Sets the underlying buffer to the given SYCL buffer.
     ///
     /// @tparam T Type of the buffer.

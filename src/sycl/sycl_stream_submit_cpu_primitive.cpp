@@ -97,7 +97,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
 template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
         const storage_types *... storages) {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     auto buffer_tp
             = std::make_tuple(mkldnn::get_sycl_buffer(storages->vptr())...);
 #else

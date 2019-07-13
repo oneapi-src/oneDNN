@@ -92,7 +92,7 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
                             const sycl::sycl_memory_storage_t *>(mem_storage);
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
                     auto buf = mkldnn::get_sycl_buffer(
                             sycl_mem_storage->vptr());
                     auto acc = buf.get_access<
@@ -141,7 +141,7 @@ status_t sycl_executor_t::copy(
                 = utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
         auto *dst_sycl_storage
                 = utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf_src
                 = mkldnn::get_sycl_buffer(src_sycl_storage->vptr());
         auto sycl_buf_dst
@@ -197,7 +197,7 @@ status_t sycl_executor_t::copy(
 
         auto &sycl_dst
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
         copy_to_buffer(src_ptr_u8, sycl_buf, size);
 #else
@@ -213,7 +213,7 @@ status_t sycl_executor_t::copy(
 
         auto &sycl_src
                 = *utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
         copy_from_buffer(sycl_buf, dst_ptr, size);
 #else

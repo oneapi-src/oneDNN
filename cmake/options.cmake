@@ -131,9 +131,9 @@ set(SYCLROOT "" CACHE STRING
     "path to SYCL installation.
     Use this option to specify custom location for SYCL")
 
-option(MKLDNN_ENABLE_SYCL_VPTR
-    "Enable virtual pointers support for SYCL."
-    OFF)
+set(MKLDNN_SYCL_MEMORY_API "BUFFER" CACHE STRING
+    "specifies API for memory objects when the SYCL runtime is used.
+    Can be BUFFER (default) or VPTR (software managed virtual pointers).")
 
 # =============
 # Miscellaneous

@@ -36,7 +36,7 @@ class sycl_memory_storage_t : public memory_storage_t
 public:
     sycl_memory_storage_t(engine_t *engine,
             unsigned flags, size_t size, void *handle);
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     sycl_memory_storage_t(sycl_memory_storage_t &&other)
         : memory_storage_t(other.engine()), vptr_(other.vptr_), is_owned_(other.is_owned_) {
         other.vptr_ = nullptr;
@@ -46,7 +46,7 @@ public:
         : memory_storage_t(other.engine()), buffer_(std::move(other.buffer_)) {}
 #endif
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     virtual ~sycl_memory_storage_t() override;
 #endif
 
@@ -54,7 +54,7 @@ public:
     sycl_memory_storage_t &operator=(const sycl_memory_storage_t &) = delete;
 
     virtual status_t get_data_handle(void **handle) const override {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         *handle = vptr_;
 #else
         *handle = static_cast<void *>(buffer_.get());
@@ -63,7 +63,7 @@ public:
     }
 
     virtual status_t set_data_handle(void *handle) override {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         assert(mkldnn::is_sycl_vptr(handle));
         vptr_ = handle;
 #else
@@ -76,14 +76,14 @@ public:
     virtual status_t map_data(void **mapped_ptr) const override;
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     void *vptr() const { return vptr_; }
 #else
     buffer_u8_t &buffer() const { return *buffer_; }
 #endif
 
 private:
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     void *vptr_ = nullptr;
     bool is_owned_ = false;
     bool is_write_host_back_ = false;

@@ -231,7 +231,7 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
     if (handle == MKLDNN_MEMORY_ALLOCATE) {
         flags = memory_flags_t::alloc;
     } else if (engine->backend_kind() == backend_kind::sycl) {
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         flags = mkldnn::is_sycl_vptr(handle) ? memory_flags_t::use_backend_ptr
                                              : memory_flags_t::use_host_ptr;
 #else

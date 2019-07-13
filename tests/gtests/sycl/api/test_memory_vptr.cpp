@@ -26,7 +26,7 @@ using namespace cl::sycl;
 
 namespace mkldnn {
 
-#if MKLDNN_ENABLE_SYCL_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
 
 TEST(sycl_memory_vptr_test, Service) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
