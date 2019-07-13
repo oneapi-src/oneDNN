@@ -20,6 +20,7 @@
 #include "common/c_types_map.hpp"
 
 #include <functional>
+#include <mutex>
 #include <unordered_map>
 
 namespace mkldnn {
@@ -41,13 +42,16 @@ struct guard_manager_t : public c_compatible {
 
     status_t enter(
             const void *ptr, const std::function<void()> &callback) {
-        // TODO: implementation is not thread-safe
+        std::lock_guard<std::mutex> guard(mutex_);
+
         assert(registered_callbacks.count(ptr) == 0);
         registered_callbacks[ptr] = callback;
         return status::success;
     }
 
     status_t exit(const void *ptr) {
+        std::lock_guard<std::mutex> guard(mutex_);
+
         assert(registered_callbacks.count(ptr) == 1);
 
         registered_callbacks[ptr]();
@@ -59,6 +63,7 @@ struct guard_manager_t : public c_compatible {
 private:
     std::unordered_map<const void *, std::function<void()>>
             registered_callbacks;
+    std::mutex mutex_;
 };
 
 } // namespace impl
