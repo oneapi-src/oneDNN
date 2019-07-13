@@ -1269,8 +1269,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(
              *  `l_pad > 0 || r_pad > 0`; when `kw > 1`
              * from incorrect 'get_ow_start' and 'get_ow_end' calculation, so
              * disable for now. */
-            bool not_for_4fma
-                    = (rnd_up(jcp.kw, unroll_4fma) + (jcp.ow - 1) * jcp.stride_w
+            bool not_for_4fma = jcp.l_pad > 0 // needed in case jcp.r_pad < 0
+                    || (rnd_up(jcp.kw, unroll_4fma)
+                                    + (jcp.ow - 1) * jcp.stride_w
                             > jcp.iw);
             bool is_dilated
                     = !everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
