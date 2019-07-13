@@ -18,6 +18,8 @@
 #define SYCL_ENGINE_FACTORY_HPP
 
 #include <assert.h>
+#include <cstdio>
+#include <exception>
 #include <memory>
 
 #include "common/c_types_map.hpp"
@@ -41,7 +43,23 @@ public:
         assert(index < count());
         auto devices = get_sycl_devices(engine_kind_);
         auto &dev = devices[index];
-        cl::sycl::context ctx(dev.get_platform());
+
+        auto exception_handler = [](cl::sycl::exception_list eptr_list) {
+            for (auto &eptr : eptr_list) {
+                if (mkldnn_verbose()->level >= 5) {
+                    try {
+                        std::rethrow_exception(eptr);
+                    } catch (const cl::sycl::exception &e) {
+                        printf("Caught asynchronous SYCL exception: %s\n",
+                                e.what());
+                    }
+                } else {
+                    std::rethrow_exception(eptr);
+                }
+            }
+        };
+
+        cl::sycl::context ctx(dev.get_platform(), exception_handler);
         return engine_create(engine, dev, ctx);
     }
 

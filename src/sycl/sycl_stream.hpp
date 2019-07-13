@@ -82,7 +82,7 @@ struct sycl_stream_t : public ocl::cl_stream_t {
     }
 
     virtual status_t wait() override {
-        queue_->wait();
+        queue_->wait_and_throw();
         return status::success;
     }
 
