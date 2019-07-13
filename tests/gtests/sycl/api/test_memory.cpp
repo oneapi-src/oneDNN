@@ -32,7 +32,35 @@ class init_kernel;
 namespace mkldnn {
 
 #if MKLDNN_ENABLE_SYCL_VPTR == 0
-TEST(sycl_memory_test, BasicInterop) {
+TEST(sycl_memory_test, BasicInteropCtor) {
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+
+    engine eng(engine::kind::gpu, 0);
+    memory::dims tz = { 4, 4, 4, 4 };
+
+    size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
+
+    buffer<float, 1> buf{ range<1>(sz) };
+
+    memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
+    memory mem(mem_d, eng, buf);
+
+    auto buf_from_mem = mem.get_sycl_buffer<float>();
+
+    {
+        auto a = buf.get_access<access::mode::write>();
+        for (size_t i = 0; i < sz; ++i)
+            a[i] = float(i);
+    }
+
+    {
+        auto a = buf_from_mem.get_access<access::mode::read>();
+        for (size_t i = 0; i < sz; ++i)
+            ASSERT_EQ(a[i], float(i));
+    }
+}
+
+TEST(sycl_memory_test, BasicInteropGetSet) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "GPU device not found.");
 

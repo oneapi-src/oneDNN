@@ -1445,6 +1445,20 @@ struct memory: public handle<mkldnn_memory_t> {
         reset(result);
     }
 
+#if MKLDNN_WITH_SYCL
+    /// Constructs a memory from a SYCL buffer.
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine.
+    /// @param buf SYCL buffer.
+    template <typename T, int ndims = 1>
+    memory(const desc &md, const engine &aengine,
+            cl::sycl::buffer<T, ndims> &buf)
+        : memory(md, aengine, MKLDNN_MEMORY_NONE) {
+        set_sycl_buffer(buf);
+    }
+#endif
+
     /// Constructs a memory.
     ///
     /// @param md Memory descriptor.
