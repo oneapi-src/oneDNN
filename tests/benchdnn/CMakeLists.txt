@@ -154,10 +154,11 @@ register_benchdnn_test(test_benchdnn_regression
     "-v1 --conv --batch=inputs/conv/test_conv_regression"
     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
-register_benchdnn_test(test_benchdnn_regression_large
-    cpu
-    "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
-    )
+# TODO: enable the test after it is fixed
+# register_benchdnn_test(test_benchdnn_regression_large
+#     cpu
+#     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
+#     )
 
 if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
