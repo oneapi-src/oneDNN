@@ -107,6 +107,9 @@
 #    ifndef MKLDNN_ENABLE_CONCURRENT_EXEC
 #        define MKLDNN_ENABLE_CONCURRENT_EXEC
 #    endif
+#    define MKLDNN_CPU_THREADING_RUNTIME MKLDNN_RUNTIME_SEQ
+#else
+#    define MKLDNN_CPU_THREADING_RUNTIME MKLDNN_CPU_RUNTIME
 #endif
 
 // When defined, Intel SYCL is used.

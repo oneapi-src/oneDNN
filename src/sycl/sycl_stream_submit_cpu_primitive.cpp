@@ -101,8 +101,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
     auto buffer_tp
             = std::make_tuple(mkldnn::get_sycl_buffer(storages->vptr())...);
 #else
-    auto buffer_tp = std::make_tuple(
-            (storages->buffer().template reinterpret<uint8_t>())...);
+    auto buffer_tp = std::make_tuple(storages->buffer()...);
 #endif
     constexpr size_t nbuffers = sizeof...(storage_types);
     fast_dispatch_by_size(
