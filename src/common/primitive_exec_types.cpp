@@ -88,23 +88,36 @@ void exec_ctx_t::register_memory_storage_mapping(
     memory_storage_mapping_.insert({ mem_storage->impl(), data });
 }
 
-void *exec_ctx_t::data_handle(int arg) const {
+void *exec_ctx_t::host_ptr(int arg) const {
     if (args_.count(arg) != 1) return nullptr;
 
     auto *mem = args_.at(arg).mem;
-    if (memory_storage_mapping_.count(mem->memory_storage()->impl()) > 0)
-        return memory_storage_mapping_.at(mem->memory_storage()->impl());
+    auto *mem_storage = mem->memory_storage();
+    return host_ptr(mem_storage);
+}
 
-    if (mem->memory_storage()->is_null())
+void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
+    if (!*mem_storage)
         return nullptr;
 
-    assert(mem->memory_storage()->engine()->backend_kind() == backend_kind::native);
-    return mem->memory_storage()->data_handle();
+    uint8_t *base_ptr = nullptr;
+    if (memory_storage_mapping_.count(mem_storage->impl()) > 0) {
+        base_ptr = static_cast<uint8_t *>(
+                memory_storage_mapping_.at(mem_storage->impl()));
+    } else {
+        assert(mem_storage->engine()->backend_kind() == backend_kind::native);
+        base_ptr = static_cast<uint8_t *>(mem_storage->data_handle());
+    }
+    return base_ptr + mem_storage->offset();
 }
 
 void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
-    if (memory_storage_mapping_.count(storage->impl()) > 0)
-        return memory_storage_mapping_.at(storage->impl());
+    if (!*storage)
+        return nullptr;
+
+    if (memory_storage_mapping_.count(storage->impl()) > 0) {
+        return host_ptr(storage);
+    }
 
     void *mapped_ptr;
     status_t status = storage->map_data(&mapped_ptr);

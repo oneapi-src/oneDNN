@@ -121,12 +121,11 @@ struct ref_sum_t: public cpu_primitive_t {
         using namespace memory_tracking::names;
         const auto n = pd()->n_inputs();
         exec_args_t r_args;
-        auto *sum_reduce = pd()->need_output_reorder()
-            ? this->scratchpad(ctx).get<float>(key_sum_reduction)
-            : nullptr;
+        auto sum_reduce = pd()->need_output_reorder()
+                ? this->scratchpad(ctx).get_memory_storage(key_sum_reduction)
+                : nullptr;
         auto dst = ctx.args().at(MKLDNN_ARG_DST);
-        memory_t acc(dst.mem->engine(), pd()->dst_acc_md(),
-                memory_flags_t::use_backend_ptr, sum_reduce);
+        memory_t acc(dst.mem->engine(), pd()->dst_acc_md(), sum_reduce, false);
         memory_arg_t dst_acc = {&acc, false};
 
         for (int i = 0; i < n; ++i) {

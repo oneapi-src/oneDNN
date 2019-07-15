@@ -17,9 +17,13 @@
 #ifndef CPU_PRIMITIVE_HPP
 #define CPU_PRIMITIVE_HPP
 
+#include <memory>
+
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "engine.hpp"
+#include "memory_storage.hpp"
 #include "memory_tracking.hpp"
 #include "primitive.hpp"
 #include "primitive_exec_types.hpp"
@@ -31,10 +35,9 @@
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
 
 #define CTX_IN_MEM(type, arg) \
-    static_cast<const ARG_TYPE(type) *>(ctx.data_handle(arg))
+    static_cast<const ARG_TYPE(type) *>(ctx.host_ptr(arg))
 
-#define CTX_OUT_MEM(type, arg) \
-    static_cast<ARG_TYPE(type) *>(ctx.data_handle(arg))
+#define CTX_OUT_MEM(type, arg) static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg))
 
 namespace mkldnn {
 namespace impl {
@@ -44,41 +47,44 @@ struct cpu_primitive_t: public primitive_t {
     cpu_primitive_t(const primitive_desc_t *pd,
             bool use_global_scratchpad = false)
         : primitive_t(pd)
-        , scratchpad_buffer_(nullptr)
-        , global_scratchpad_(nullptr)
     {
         const size_t scratchpad_size =
             this->pd()->scratchpad_size(scratchpad_mode::library);
 
         if (scratchpad_size) {
-            if (use_global_scratchpad)
-                global_scratchpad_ = create_scratchpad(scratchpad_size);
-            else
-                scratchpad_buffer_ = malloc(scratchpad_size, 64);
+            if (use_global_scratchpad) {
+                auto *scratchpad_ptr
+                        = create_scratchpad(engine(), scratchpad_size);
+                global_scratchpad_.reset(scratchpad_ptr);
+            } else {
+                memory_storage_t *mem_storage_ptr;
+                auto status = engine()->create_memory_storage(
+                        &mem_storage_ptr, scratchpad_size, 64);
+                assert(status == status::success);
+                MAYBE_UNUSED(status);
+
+                scratchpad_buffer_.reset(mem_storage_ptr);
+            }
         }
     }
 
-    virtual ~cpu_primitive_t() {
-        delete global_scratchpad_;
-        free(scratchpad_buffer_);
+    const memory_storage_t *scratchpad_memory_storage(
+            const exec_ctx_t &ctx) const {
+        if (pd()->attr()->scratchpad_mode_ == scratchpad_mode::user)
+            return ctx.output(MKLDNN_ARG_SCRATCHPAD)->memory_storage();
+
+        return global_scratchpad_ ? global_scratchpad_->get_memory_storage()
+                                  : scratchpad_buffer_.get();
     }
 
-protected:
     memory_tracking::grantor_t scratchpad(const exec_ctx_t &ctx) const {
-        void *ptr = nullptr;
-        if (pd()->attr()->scratchpad_mode_ == scratchpad_mode::user) {
-            ptr = CTX_OUT_MEM(void *, MKLDNN_ARG_SCRATCHPAD);
-        } else {
-            ptr = global_scratchpad_
-                ? global_scratchpad_->get() : scratchpad_buffer_;
-        }
-
-        return pd()->scratchpad_registry().grantor(ptr);
+        return pd()->scratchpad_registry().grantor(
+                scratchpad_memory_storage(ctx), ctx);
     }
 
 private:
-    void *scratchpad_buffer_;
-    scratchpad_t *global_scratchpad_;
+    std::unique_ptr<memory_storage_t> scratchpad_buffer_;
+    std::unique_ptr<scratchpad_t> global_scratchpad_;
 };
 
 }

@@ -17,6 +17,8 @@
 #ifndef COMMON_SCRATCHPAD_HPP
 #define COMMON_SCRATCHPAD_HPP
 
+#include "c_types_map.hpp"
+#include "memory_storage.hpp"
 #include "utils.hpp"
 
 namespace mkldnn {
@@ -24,11 +26,10 @@ namespace impl {
 
 struct scratchpad_t {
     virtual ~scratchpad_t() {}
-    virtual char *get() const = 0;
+    virtual const memory_storage_t *get_memory_storage() const = 0;
 };
 
-scratchpad_t *create_scratchpad(size_t size);
-
+scratchpad_t *create_scratchpad(engine_t *engine, size_t size);
 }
 }
 #endif

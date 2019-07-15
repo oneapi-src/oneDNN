@@ -24,7 +24,6 @@
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
-#include "primitive_desc.hpp"
 
 #define CTX_IN_STORAGE(arg)                               \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
@@ -67,7 +66,8 @@ struct exec_ctx_t {
 
     void register_memory_storage_mapping(
             const memory_storage_t *mem_storage, void *data);
-    void *data_handle(int arg) const;
+    void *host_ptr(int arg) const;
+    void *host_ptr(const memory_storage_t *mem_storage) const;
 
     void *map_memory_storage(const memory_storage_t *storage) const;
     void unmap_memory_storage(

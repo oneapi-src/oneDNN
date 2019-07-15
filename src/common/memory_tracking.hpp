@@ -20,7 +20,9 @@
 #include <assert.h>
 #include <unordered_map>
 
+#include "memory_storage.hpp"
 #include "nstl.hpp"
+#include "primitive_exec_types.hpp"
 #include "utils.hpp"
 
 namespace mkldnn {
@@ -237,21 +239,34 @@ struct registry_t {
         size_ += size + alignment - minimal_alignment;
     }
 
-    void *get(const key_t &key, void *base_ptr) const {
-        if (base_ptr == nullptr) { assert(size() == 0); return nullptr; }
-        if (offset_map_.count(key) != 1) return nullptr;
+    memory_storage_t *get_memory_storage(
+            const key_t &key, const memory_storage_t *base_mem_storage) const {
+        if (!base_mem_storage) {
+            assert(size() == 0);
+            return nullptr;
+        }
+        if (offset_map_.count(key) != 1)
+            return nullptr;
 
         const auto &e = offset_map_.at(key);
-        base_ptr = utils::align_ptr<void>(base_ptr, minimal_alignment);
-        char *ptr = (char *)base_ptr + e.offset;
-        return utils::align_ptr<void>(ptr, e.alignment);
+
+        auto *base_ptr = reinterpret_cast<uint8_t *>(
+                base_mem_storage->base_offset() + base_mem_storage->offset());
+        auto *aligned_base_ptr = utils::align_ptr(base_ptr, minimal_alignment);
+
+        auto *ptr = static_cast<uint8_t *>(aligned_base_ptr) + e.offset;
+        auto *aligned_ptr
+                = static_cast<uint8_t *>(utils::align_ptr(ptr, e.alignment));
+
+        return new memory_storage_t(*base_mem_storage, aligned_ptr - base_ptr);
     }
 
     size_t size() const
     { return size_ > 0 ? size_ + minimal_alignment - 1 : 0; }
 
     registrar_t registrar();
-    grantor_t grantor(void *base_ptr) const;
+    grantor_t grantor(const memory_storage_t *mem_storage,
+            const exec_ctx_t &exec_ctx) const;
 
 protected:
     enum { minimal_alignment = 64 };
@@ -279,26 +294,44 @@ protected:
 };
 
 struct grantor_t {
-    grantor_t(const registry_t &registry, void *base_ptr)
-        : registry_(registry), prefix_(0), base_ptr_(base_ptr) {}
+    grantor_t(const registry_t &registry,
+            const memory_storage_t *base_mem_storage,
+            const exec_ctx_t &exec_ctx)
+        : registry_(registry)
+        , prefix_(0)
+        , base_mem_storage_(base_mem_storage)
+        , exec_ctx_(&exec_ctx) {}
     grantor_t(const grantor_t &parent, const key_t &prefix)
         : registry_(parent.registry_)
         , prefix_(make_prefix(parent.prefix_, prefix))
-        , base_ptr_(parent.base_ptr_) {}
+        , base_mem_storage_(parent.base_mem_storage_)
+        , exec_ctx_(parent.exec_ctx_) {}
 
-    template <typename T = void> T *get(const key_t &key) const
-    { return (T *)registry_.get(make_key(prefix_, key), base_ptr_); }
+    template <typename T = void>
+    T *get(const key_t &key) const {
+        std::unique_ptr<memory_storage_t> mem_storage(get_memory_storage(key));
+        if (!mem_storage)
+            return nullptr;
+        return static_cast<T *>(exec_ctx_->host_ptr(mem_storage.get()));
+    }
+
+    memory_storage_t *get_memory_storage(const key_t &key) const {
+        return registry_.get_memory_storage(
+                make_key(prefix_, key), base_mem_storage_);
+    }
 
 protected:
     const registry_t &registry_;
     const key_t prefix_;
-    void *base_ptr_;
+    const memory_storage_t *base_mem_storage_;
+    const exec_ctx_t *exec_ctx_;
 };
 
 inline registrar_t registry_t::registrar() { return registrar_t(*this); }
-inline grantor_t registry_t::grantor(void *base_ptr) const
-{ return grantor_t(*this, base_ptr); }
-
+inline grantor_t registry_t::grantor(
+        const memory_storage_t *mem_storage, const exec_ctx_t &exec_ctx) const {
+    return grantor_t(*this, mem_storage, exec_ctx);
+}
 }
 }
 }
