@@ -53,7 +53,8 @@ struct ref_eltwise_fwd_t : public primitive_t {
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic,
                                alg_kind::eltwise_exp,
-                               alg_kind::eltwise_gelu)
+                               alg_kind::eltwise_gelu,
+                               alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
                                data_type::f32, data_type::f16, data_type::bf16)
                     && attr()->has_default_values()
@@ -65,7 +66,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
                 return status::unimplemented;
 
             return jit_ref_eltwise_common_kernel::init_conf(jel_,
-                    data_md_, jit_off_, desc()->alg_kind, true);
+                    data_md_, glob_zero_md, jit_off_, desc()->alg_kind, true);
         }
 
         jit_eltwise_conf_t jel_;
@@ -132,16 +133,16 @@ struct ref_eltwise_bwd_t : public primitive_t {
                                alg_kind::eltwise_soft_relu,
                                alg_kind::eltwise_logistic,
                                alg_kind::eltwise_exp,
-                               alg_kind::eltwise_gelu)
+                               alg_kind::eltwise_gelu,
+                               alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
                                data_type::f32, data_type::bf16)
-                    && data_mdw == diff_data_mdw
                     && attr()->has_default_values();
             if (!ok)
                 return status::unimplemented;
 
             return jit_ref_eltwise_common_kernel::init_conf(jel_,
-                    data_md_, jit_off_, desc()->alg_kind, false);
+                    data_md_, diff_data_md_, jit_off_, desc()->alg_kind, false);
         }
 
         jit_eltwise_conf_t jel_;

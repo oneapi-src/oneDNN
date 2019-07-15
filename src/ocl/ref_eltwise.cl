@@ -18,47 +18,50 @@
 
 #include "ocl/ocl_post_ops.h"
 
-#if DT_BF16 == 1
-#   define WITH_BF16 1
-#else
-#   define WITH_BF16 0
-#endif
+#define DATA_OFF(x0, x1, x2, x3, x4, x5) ( \
+    ((x0) % DATA_B0) * DATA_SB0 + ((x0) / DATA_B0) * DATA_S0 + \
+    ((x1) % DATA_B1) * DATA_SB1 + ((x1) / DATA_B1) * DATA_S1 + \
+    ((x2) % DATA_B2) * DATA_SB2 + ((x2) / DATA_B2) * DATA_S2 + \
+    ((x3) % DATA_B3) * DATA_SB3 + ((x3) / DATA_B3) * DATA_S3 + \
+    ((x4) % DATA_B4) * DATA_SB4 + ((x4) / DATA_B4) * DATA_S4 + \
+    ((x5) % DATA_B5) * DATA_SB5 + ((x5) / DATA_B5) * DATA_S5)
 
-#define IN_OFF(x0, x1, x2, x3, x4, x5) ( \
-    ((x0) % SRC_B0) * SRC_SB0 + ((x0) / SRC_B0) * SRC_S0 + \
-    ((x1) % SRC_B1) * SRC_SB1 + ((x1) / SRC_B1) * SRC_S1 + \
-    ((x2) % SRC_B2) * SRC_SB2 + ((x2) / SRC_B2) * SRC_S2 + \
-    ((x3) % SRC_B3) * SRC_SB3 + ((x3) / SRC_B3) * SRC_S3 + \
-    ((x4) % SRC_B4) * SRC_SB4 + ((x4) / SRC_B4) * SRC_S4 + \
-    ((x5) % SRC_B5) * SRC_SB5 + ((x5) / SRC_B5) * SRC_S5)
+#define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) ( \
+    ((x0) % DIFF_DATA_B0) * DIFF_DATA_SB0 + ((x0) / DIFF_DATA_B0) * DIFF_DATA_S0 + \
+    ((x1) % DIFF_DATA_B1) * DIFF_DATA_SB1 + ((x1) / DIFF_DATA_B1) * DIFF_DATA_S1 + \
+    ((x2) % DIFF_DATA_B2) * DIFF_DATA_SB2 + ((x2) / DIFF_DATA_B2) * DIFF_DATA_S2 + \
+    ((x3) % DIFF_DATA_B3) * DIFF_DATA_SB3 + ((x3) / DIFF_DATA_B3) * DIFF_DATA_S3 + \
+    ((x4) % DIFF_DATA_B4) * DIFF_DATA_SB4 + ((x4) / DIFF_DATA_B4) * DIFF_DATA_S4 + \
+    ((x5) % DIFF_DATA_B5) * DIFF_DATA_SB5 + ((x5) / DIFF_DATA_B5) * DIFF_DATA_S5)
+
 
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
     const int i = get_global_id(0);
 
     int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0;
-    d0 = i % SRC_D0;
+    d0 = i % DATA_D0;
     #if NDIMS > 1
-    d1 = (i / SRC_D0) % SRC_D1;
+    d1 = (i / DATA_D0) % DATA_D1;
     #endif
     #if NDIMS > 2
-    d2 = (i / (SRC_D0 * SRC_D1)) % SRC_D2;
+    d2 = (i / (DATA_D0 * DATA_D1)) % DATA_D2;
     #endif
     #if NDIMS > 3
-    d3 = (i / (SRC_D0 * SRC_D1 * SRC_D2)) % SRC_D3;
+    d3 = (i / (DATA_D0 * DATA_D1 * DATA_D2)) % DATA_D3;
     #endif
     #if NDIMS > 4
-    d4 = (i / (SRC_D0 * SRC_D1 * SRC_D2 * SRC_D3)) % SRC_D4;
+    d4 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3)) % DATA_D4;
     #endif
     #if NDIMS > 5
-    d5 = (i / (SRC_D0 * SRC_D1 * SRC_D2 * SRC_D3 * SRC_D4)) % SRC_D5;
+    d5 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3 * DATA_D4)) % DATA_D5;
     #endif
 
-    const size_t off = IN_OFF(d0,d1,d2,d3,d4,d5);
+    const size_t data_off = DATA_OFF(d0,d1,d2,d3,d4,d5);
 
-    POST_OP_DATA_T tmp_s = (WITH_BF16 == 1) ? convert_bf16_to_f32(src[off]) : src[off];
+    POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
-    dst[off]  = (WITH_BF16 == 1) ? convert_f32_to_bf16(fwd_eltwise(tmp_s, alpha, beta)) : fwd_eltwise(tmp_s, alpha, beta);
+    dst[data_off]  = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta));
 }
 
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
@@ -66,27 +69,28 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     const int i = get_global_id(0);
 
     int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0;
-    d0 = i % SRC_D0;
+    d0 = i % DATA_D0;
     #if NDIMS > 1
-    d1 = (i / SRC_D0) % SRC_D1;
+    d1 = (i / DATA_D0) % DATA_D1;
     #endif
     #if NDIMS > 2
-    d2 = (i / (SRC_D0 * SRC_D1)) % SRC_D2;
+    d2 = (i / (DATA_D0 * DATA_D1)) % DATA_D2;
     #endif
     #if NDIMS > 3
-    d3 = (i / (SRC_D0 * SRC_D1 * SRC_D2)) % SRC_D3;
+    d3 = (i / (DATA_D0 * DATA_D1 * DATA_D2)) % DATA_D3;
     #endif
     #if NDIMS > 4
-    d4 = (i / (SRC_D0 * SRC_D1 * SRC_D2 * SRC_D3)) % SRC_D4;
+    d4 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3)) % DATA_D4;
     #endif
     #if NDIMS > 5
-    d5 = (i / (SRC_D0 * SRC_D1 * SRC_D2 * SRC_D3 * SRC_D4)) % SRC_D5;
+    d5 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3 * DATA_D4)) % DATA_D5;
     #endif
 
-    const size_t off = IN_OFF(d0,d1,d2,d3,d4,d5);
+    const size_t data_off = DATA_OFF(d0,d1,d2,d3,d4,d5);
+    const size_t diff_data_off = DIFF_DATA_OFF(d0,d1,d2,d3,d4,d5);
 
-    POST_OP_DATA_T tmp_dd = (WITH_BF16 == 1) ? convert_bf16_to_f32(diff_dst[off]) : diff_dst[off];
-    POST_OP_DATA_T tmp_s = (WITH_BF16 == 1) ? convert_bf16_to_f32(src[off]): src[off];
+    POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
+    POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
-    diff_src[off] = (WITH_BF16 == 1) ? convert_f32_to_bf16(bwd_eltwise(tmp_dd, tmp_s, alpha)) : bwd_eltwise(tmp_dd, tmp_s, alpha);
+    diff_src[diff_data_off] = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha));
 }

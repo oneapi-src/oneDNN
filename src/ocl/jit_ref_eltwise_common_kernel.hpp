@@ -33,7 +33,8 @@ struct jit_ref_eltwise_common_kernel {
     ~jit_ref_eltwise_common_kernel(){}
 
     static status_t init_conf(jit_eltwise_conf_t &jel,
-            const memory_desc_wrapper &data_d, jit_offsets &jit_off,
+            const memory_desc_wrapper &data_d,
+            const memory_desc_wrapper &diff_data_d, jit_offsets &jit_off,
             alg_kind_t alg, bool is_forward) {
 
         const int ndims = data_d.ndims();
@@ -44,6 +45,7 @@ struct jit_ref_eltwise_common_kernel {
         jel.is_forward = is_forward;
 
         set_offsets(data_d, jit_off.src_off);
+        set_offsets(diff_data_d, jit_off.dst_off);
 
         const auto &dims = data_d.dims();
         jel.gws_d[0] = utils::array_product(&dims[0], ndims);
@@ -69,10 +71,12 @@ struct jit_ref_eltwise_common_kernel {
         jit.define_int("ABS", alg_kind::eltwise_abs);
         jit.define_int("EXP", alg_kind::eltwise_exp);
         jit.define_int("GELU", alg_kind::eltwise_gelu);
+        jit.define_int("SWISH", alg_kind::eltwise_swish);
         jit.define_int("ALG_KIND", jel.alg);
 
         jit.define_int("NDIMS", jel.ndims);
-        def_offsets(jit_off.src_off, jit, "SRC", jel.ndims);
+        def_offsets(jit_off.src_off, jit, "DATA", jel.ndims);
+        def_offsets(jit_off.dst_off, jit, "DIFF_DATA", jel.ndims);
 
         return status::success;
     }

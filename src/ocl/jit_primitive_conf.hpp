@@ -418,19 +418,21 @@ inline void def_offsets(const int offs[4][MAX_NDIMS],
     }
 }
 
-inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
-    kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
-    kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
-    kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-    kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-    kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-    kernel_ctx.define_int("TANH", alg_kind::eltwise_tanh);
-    kernel_ctx.define_int("ELU", alg_kind::eltwise_elu);
-    kernel_ctx.define_int("SQUARE", alg_kind::eltwise_square);
-    kernel_ctx.define_int("SQRT", alg_kind::eltwise_sqrt);
-    kernel_ctx.define_int("ABS", alg_kind::eltwise_abs);
-    kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
-    kernel_ctx.define_int("ALG_KIND", alg);
+inline void def_postops(ocl_jit_t &jit, alg_kind_t alg) {
+    jit.define_int("RELU", alg_kind::eltwise_relu);
+    jit.define_int("LINEAR", alg_kind::eltwise_linear);
+    jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
+    jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
+    jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+    jit.define_int("TANH", alg_kind::eltwise_tanh);
+    jit.define_int("ELU", alg_kind::eltwise_elu);
+    jit.define_int("SQUARE", alg_kind::eltwise_square);
+    jit.define_int("SQRT", alg_kind::eltwise_sqrt);
+    jit.define_int("ABS", alg_kind::eltwise_abs);
+    jit.define_int("EXP", alg_kind::eltwise_exp);
+    jit.define_int("GELU", alg_kind::eltwise_gelu);
+    jit.define_int("SWISH", alg_kind::eltwise_swish);
+    jit.define_int("ALG_KIND", alg);
 }
 
 inline void def_data_type(

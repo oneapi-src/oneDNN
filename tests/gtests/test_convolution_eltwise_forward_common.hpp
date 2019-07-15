@@ -107,9 +107,6 @@ protected:
         test_convolution_eltwise_params_t p
                 = ::testing::TestWithParam<
                 test_convolution_eltwise_params_t>::GetParam();
-        SKIP_IF(p.alg == algorithm::eltwise_swish
-                && get_test_engine_kind() == engine::kind::gpu,
-                "GPU does not support swish yet");
 
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(get_test_engine_kind(), 0);
