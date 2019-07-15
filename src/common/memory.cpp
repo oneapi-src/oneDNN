@@ -78,6 +78,14 @@ mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
     zero_pad();
 }
 
+mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
+        const mkldnn::impl::memory_desc_t *md,
+        mkldnn::impl::memory_storage_t *memory_storage, bool do_zero_pad)
+    : engine_(engine), md_(*md), memory_storage_(memory_storage) {
+    if (do_zero_pad)
+        zero_pad();
+}
+
 status_t mkldnn_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, format_tag_t tag) {
     if (any_null(memory_desc)) return invalid_arguments;

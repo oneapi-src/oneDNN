@@ -45,6 +45,10 @@ struct mkldnn_memory : public mkldnn::impl::c_compatible {
     mkldnn_memory(mkldnn::impl::engine_t *engine,
             const mkldnn::impl::memory_desc_t *md, unsigned flags,
             void *handle);
+    mkldnn_memory(mkldnn::impl::engine_t *engine,
+            const mkldnn::impl::memory_desc_t *md,
+            mkldnn::impl::memory_storage_t *memory_storage,
+            bool do_zero_pad = true);
     virtual ~mkldnn_memory() {}
 
     /** returns memory's engine */
