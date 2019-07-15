@@ -134,12 +134,10 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
         Xbyak::Ymm yd,
         Xbyak::Ymm ye,
         Xbyak::Ymm ysum);
-    void nchw_body_sse41(int tail, int HW, prop_kind_t pk,
-        Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
-        Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
-        Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
-    void nchw_tail_sse41(int tail, Xbyak::Reg64 reg_dst,
-        Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi);
+    void nchw_body_sse41(int tail, int HW, prop_kind_t pk, Xbyak::Xmm xe_lo,
+            Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
+    void nchw_tail_sse41(int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo,
+            Xbyak::Xmm xtail_hi);
 
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
     void(*ker)(jit_args_fwd_t *);
