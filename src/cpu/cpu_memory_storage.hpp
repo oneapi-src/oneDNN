@@ -17,6 +17,9 @@
 #ifndef CPU_MEMORY_STORAGE_HPP
 #define CPU_MEMORY_STORAGE_HPP
 
+#include <functional>
+#include <memory>
+
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/memory_storage.hpp"
@@ -26,51 +29,35 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class cpu_memory_storage_t : public memory_storage_t
+class cpu_memory_storage_t : public memory_storage_impl_t
 {
 public:
     cpu_memory_storage_t(
             engine_t *engine, unsigned flags, size_t size, void *handle)
-        : memory_storage_t(engine) {
+        : memory_storage_impl_t(engine, size) {
         if (size == 0 || (!handle && (flags & memory_flags_t::alloc) == 0)) {
-            data_ = nullptr;
-            is_owned_ = false;
             return;
         }
         if (flags & memory_flags_t::alloc) {
-            data_ = malloc(size, 64);
-            is_owned_ = true;
+            void *data_ptr = malloc(size, 64);
+            data_ = decltype(data_)(data_ptr, [](void *ptr) { free(ptr); });
         } else if (flags & memory_flags_t::use_backend_ptr) {
-            data_ = handle;
-            is_owned_ = false;
-        }
-    }
-
-    virtual ~cpu_memory_storage_t() override {
-        if (is_owned_) {
-            free(data_);
+            data_ = decltype(data_)(handle, [](void *) {});
         }
     }
 
     virtual status_t get_data_handle(void **handle) const override {
-        *handle = data_;
+        *handle = data_.get();
         return status::success;
     }
 
     virtual status_t set_data_handle(void *handle) override {
-        if (is_owned_) {
-            free(data_);
-        }
-        data_ = handle;
-        is_owned_ = false;
+        data_ = decltype(data_)(handle, [](void *) {});
         return status::success;
     }
 
 private:
-    void *data_ = nullptr;
-    bool is_owned_ = false;
-
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
+    std::unique_ptr<void, std::function<void(void *)>> data_;
 };
 
 } // namespace cpu

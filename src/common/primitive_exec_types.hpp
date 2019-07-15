@@ -77,7 +77,8 @@ private:
     stream_t *stream_;
     exec_args_t args_;
 
-    std::unordered_map<const memory_storage_t *, void *> memory_storage_mapping_;
+    std::unordered_map<const memory_storage_impl_t *, void *>
+            memory_storage_mapping_;
 };
 
 }

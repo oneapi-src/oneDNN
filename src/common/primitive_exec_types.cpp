@@ -84,16 +84,16 @@ memory_t *exec_ctx_t::memory(int arg) const {
 
 void exec_ctx_t::register_memory_storage_mapping(
         const memory_storage_t *mem_storage, void *data) {
-    assert(memory_storage_mapping_.count(mem_storage) == 0);
-    memory_storage_mapping_.insert({ mem_storage, data });
+    assert(memory_storage_mapping_.count(mem_storage->impl()) == 0);
+    memory_storage_mapping_.insert({ mem_storage->impl(), data });
 }
 
 void *exec_ctx_t::data_handle(int arg) const {
     if (args_.count(arg) != 1) return nullptr;
 
     auto *mem = args_.at(arg).mem;
-    if (memory_storage_mapping_.count(mem->memory_storage()) > 0)
-        return memory_storage_mapping_.at(mem->memory_storage());
+    if (memory_storage_mapping_.count(mem->memory_storage()->impl()) > 0)
+        return memory_storage_mapping_.at(mem->memory_storage()->impl());
 
     if (mem->memory_storage()->is_null())
         return nullptr;
@@ -103,8 +103,8 @@ void *exec_ctx_t::data_handle(int arg) const {
 }
 
 void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
-    if (memory_storage_mapping_.count(storage) > 0)
-        return memory_storage_mapping_.at(storage);
+    if (memory_storage_mapping_.count(storage->impl()) > 0)
+        return memory_storage_mapping_.at(storage->impl());
 
     void *mapped_ptr;
     status_t status = storage->map_data(&mapped_ptr);
@@ -115,7 +115,7 @@ void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
 
 void exec_ctx_t::unmap_memory_storage(
         const memory_storage_t *storage, void *mapped_ptr) const {
-    if (memory_storage_mapping_.count(storage) > 0)
+    if (!*storage || memory_storage_mapping_.count(storage->impl()) > 0)
         return;
 
     status_t status = storage->unmap_data(mapped_ptr);

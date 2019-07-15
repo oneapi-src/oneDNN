@@ -25,37 +25,22 @@
 #include "mkldnn.hpp"
 
 #include <CL/sycl.hpp>
+#include <functional>
 #include <memory>
 
 namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_memory_storage_t : public memory_storage_t
+class sycl_memory_storage_t : public memory_storage_impl_t
 {
 public:
     sycl_memory_storage_t(engine_t *engine,
             unsigned flags, size_t size, void *handle);
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    sycl_memory_storage_t(sycl_memory_storage_t &&other)
-        : memory_storage_t(other.engine()), vptr_(other.vptr_), is_owned_(other.is_owned_) {
-        other.vptr_ = nullptr;
-    }
-#else
-    sycl_memory_storage_t(sycl_memory_storage_t &&other)
-        : memory_storage_t(other.engine()), buffer_(std::move(other.buffer_)) {}
-#endif
-
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    virtual ~sycl_memory_storage_t() override;
-#endif
-
-    sycl_memory_storage_t(const sycl_memory_storage_t &) = delete;
-    sycl_memory_storage_t &operator=(const sycl_memory_storage_t &) = delete;
 
     virtual status_t get_data_handle(void **handle) const override {
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        *handle = vptr_;
+        *handle = vptr_.get();
 #else
         *handle = static_cast<void *>(buffer_.get());
 #endif
@@ -65,7 +50,7 @@ public:
     virtual status_t set_data_handle(void *handle) override {
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         assert(mkldnn::is_sycl_vptr(handle));
-        vptr_ = handle;
+        vptr_.reset(handle, [](void *){});
 #else
         auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(*buf_u8_ptr));
@@ -77,18 +62,16 @@ public:
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    void *vptr() const { return vptr_; }
+    void *vptr() const { return vptr_.get(); }
 #else
     buffer_u8_t &buffer() const { return *buffer_; }
 #endif
 
 private:
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    void *vptr_ = nullptr;
-    bool is_owned_ = false;
-    bool is_write_host_back_ = false;
+    std::unique_ptr<void, std::function<void()>> vptr_;
 #else
-    std::unique_ptr<buffer_u8_t> buffer_;
+    std::shared_ptr<buffer_u8_t> buffer_;
 #endif
 };
 

@@ -34,7 +34,7 @@ struct submit_ctx_t {
     stream_t *stream;
     const primitive_t *prim;
     exec_ctx_t exec_ctx;
-    std::vector<const sycl_memory_storage_t *> sycl_mem_storages;
+    std::vector<const memory_storage_t *> sycl_mem_storages;
 };
 
 struct thunk_params_t {

@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 
 #include <assert.h>
+#include <memory>
 
 namespace mkldnn {
 namespace impl {
@@ -31,25 +32,17 @@ namespace impl {
 //
 // Memory storage is engine-specific and has different implementations for
 // different engines.
-struct memory_storage_t : public c_compatible {
-    memory_storage_t(engine_t *engine) : engine_(engine) {}
-    virtual ~memory_storage_t() = default;
+struct memory_storage_impl_t : public c_compatible {
+    memory_storage_impl_t(engine_t *engine, size_t size)
+        : engine_(engine), size_(size) {}
+    virtual ~memory_storage_impl_t() = default;
 
     engine_t *engine() const { return engine_; }
 
-    void *data_handle() const {
-        void *handle;
-        status_t status = get_data_handle(&handle);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
-        return handle;
-    }
+    size_t size() const { return size_; }
 
     virtual status_t get_data_handle(void **handle) const = 0;
     virtual status_t set_data_handle(void *handle) = 0;
-
-    size_t get_offset() const { return offset_; }
-    void set_offset(size_t offset) { offset_ = offset; }
 
     virtual status_t map_data(void **mapped_ptr) const {
         return get_data_handle(mapped_ptr);
@@ -60,67 +53,108 @@ struct memory_storage_t : public c_compatible {
         return status::success;
     }
 
-    /** returns true if the pointer associated with the storage is NULL */
-    bool is_null() const {
-        void *ptr;
-        status_t status = get_data_handle(&ptr);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
-        return !ptr;
-    }
-
-    virtual bool is_native_handle() const { return false; }
-
-    /** returns a pointer associated with the storage */
-    template <typename pointer_type,
-            typename = typename std::enable_if<
-                    std::is_pointer<pointer_type>::value>::type>
-    explicit operator pointer_type() const {
-        // TODO: implement a better check for an empty storage
-        if (!engine_) {
-            return nullptr;
-        }
-
-        assert(is_native_handle());
-
-        void *ptr;
-        status_t status = get_data_handle(&ptr);
-        assert(status == mkldnn::impl::status::success);
-        UNUSED(status);
-
-        return static_cast<pointer_type>(ptr);
-    }
-
-    operator bool() const { return !is_null(); }
-
-    static memory_storage_t &empty_storage();
-
 private:
     engine_t *engine_;
-    size_t offset_ = 0;
+    size_t size_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(memory_storage_impl_t);
 };
 
-struct empty_memory_storage_t : public memory_storage_t {
-    empty_memory_storage_t(): memory_storage_t(nullptr)
-    {}
+struct memory_storage_t : public c_compatible {
+public:
+    static memory_storage_t &empty_storage() {
+        static memory_storage_t instance;
+        return instance;
+    }
 
-    virtual status_t get_data_handle(void **handle) const override {
-        *handle = nullptr;
+    memory_storage_t(memory_storage_impl_t *impl = nullptr, size_t offset = 0)
+        : impl_(impl), offset_(offset) {}
+    memory_storage_t(const memory_storage_t &other, size_t offset)
+        : impl_(other.impl_), offset_(other.offset() + offset) {
+        assert(offset <= other.size());
+    }
+
+    engine_t *engine() const { return impl_ ? impl_->engine() : nullptr; }
+
+    memory_storage_impl_t *impl() const {
+        return impl_ ? impl_.get() : nullptr;
+    }
+
+    size_t offset() const { return offset_; }
+
+    size_t size() const { return impl_ ? (impl_->size() - offset()) : 0; }
+
+    void set_offset(size_t offset) {
+        assert(impl_);
+        offset_ = offset;
+    }
+
+    // Returns the associated data handle, offset is ignored
+    void *data_handle() const {
+        if (!impl_)
+            return nullptr;
+
+        void *handle;
+        status_t status = impl_->get_data_handle(&handle);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        return handle;
+    }
+
+    // Returns the associated data handle, offset is ignored
+    status_t get_data_handle(void **handle) const {
+        if (!impl_)
+            return status::invalid_arguments;
+
+        return impl_->get_data_handle(handle);
+    }
+
+    // Sets the associated data handle, offset is ignored
+    status_t set_data_handle(void *handle) {
+        if (!impl_) {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        return impl_->set_data_handle(handle);
+    }
+
+    status_t map_data(void **mapped_ptr) const {
+        if (!impl_) {
+            *mapped_ptr = nullptr;
+            return status::success;
+        }
+
+        void *ptr;
+        CHECK(impl_->map_data(&ptr));
+
+        auto *ptr_u8 = static_cast<uint8_t *>(ptr);
+        *mapped_ptr = ptr_u8 + offset();
         return status::success;
     }
 
-    virtual status_t set_data_handle(void *handle) override {
-        assert(!"not expected");
-        return status::runtime_error;
-    }
-};
+    virtual status_t unmap_data(void *mapped_ptr) const {
+        if (!impl_)
+            return status::success;
 
-inline memory_storage_t& memory_storage_t::empty_storage() {
-    static empty_memory_storage_t instance;
-    return instance;
-}
+        auto *ptr_u8 = static_cast<uint8_t *>(mapped_ptr);
+        return impl_->unmap_data(ptr_u8 - offset());
+    }
+
+    // Returns true if the pointer associated with the storage is NULL
+    bool is_null() const {
+        if (!impl_)
+            return true;
+
+        return !data_handle();
+    }
+
+    explicit operator bool() const { return !is_null(); }
+
+private:
+    std::shared_ptr<memory_storage_impl_t> impl_;
+    size_t offset_;
+};
 
 } // namespace impl
 } // namespace mkldnn

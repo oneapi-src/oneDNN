@@ -98,10 +98,15 @@ template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
         const storage_types *... storages) {
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    auto buffer_tp
-            = std::make_tuple(mkldnn::get_sycl_buffer(storages->vptr())...);
+    auto buffer_tp = std::make_tuple(
+            mkldnn
+            : get_sycl_buffer(utils::downcast<const sycl_memory_storage_t *>(
+                    storages->impl())
+                                      ->vptr())...);
 #else
-    auto buffer_tp = std::make_tuple(storages->buffer()...);
+    auto buffer_tp = std::make_tuple(
+            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
+                    ->buffer()...);
 #endif
     constexpr size_t nbuffers = sizeof...(storage_types);
     fast_dispatch_by_size(
@@ -128,20 +133,25 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
         const exec_ctx_t &exec_ctx, cl::sycl::handler &cgh) {
     const_cast<primitive_t *>(prim)->retain();
 
-    std::vector<const sycl_memory_storage_t *> sycl_mem_storages;
+    std::vector<const memory_storage_t *> sycl_mem_storages;
     for (auto &a : exec_ctx.args()) {
         if (a.second.mem->engine()->backend_kind() == backend_kind::sycl) {
-            auto *sycl_mem_storage = utils::downcast<sycl_memory_storage_t *>(
-                    a.second.mem->memory_storage());
-            if (!sycl_mem_storage->is_null()) {
-                sycl_mem_storages.push_back(sycl_mem_storage);
+            auto *mem_storage = a.second.mem->memory_storage();
+            if (!mem_storage->is_null()) {
+                sycl_mem_storages.push_back(mem_storage);
             }
         }
     }
 
     // Keep unique only
-    std::sort(sycl_mem_storages.begin(), sycl_mem_storages.end());
-    auto last = std::unique(sycl_mem_storages.begin(), sycl_mem_storages.end());
+    std::sort(sycl_mem_storages.begin(), sycl_mem_storages.end(),
+            [](const memory_storage_t *lhs, const memory_storage_t *rhs) {
+                return lhs->impl() < rhs->impl();
+            });
+    auto last = std::unique(sycl_mem_storages.begin(), sycl_mem_storages.end(),
+            [](const memory_storage_t *lhs, const memory_storage_t *rhs) {
+                return lhs->impl() == rhs->impl();
+            });
     sycl_mem_storages.erase(last, sycl_mem_storages.end());
 
     auto *submit_ctx = new submit_ctx_t();

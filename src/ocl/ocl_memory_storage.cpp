@@ -27,23 +27,24 @@ namespace ocl {
 
 ocl_memory_storage_t::ocl_memory_storage_t(
         engine_t *engine, unsigned flags, size_t size, void *handle)
-    : memory_storage_t(engine) {
+    : memory_storage_impl_t(engine, size) {
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and 'alloc' flag is not set
     if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0)) {
-        mem_object_ = nullptr;
         return;
     }
     auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
     cl_int err;
     if (flags & memory_flags_t::alloc) {
-        mem_object_ = clCreateBuffer(
+        cl_mem mem_object_ptr = clCreateBuffer(
                 ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
         OCL_CHECK_V(err);
+        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(mem_object_ptr, false);
+
     } else if (flags & memory_flags_t::use_backend_ptr) {
-        mem_object_ = static_cast<cl_mem>(handle);
-        OCL_CHECK_V(clRetainMemObject(mem_object_));
+        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
+                static_cast<cl_mem>(handle), true);
     }
 }
 

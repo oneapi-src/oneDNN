@@ -81,7 +81,10 @@ mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
 mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
         const mkldnn::impl::memory_desc_t *md,
         mkldnn::impl::memory_storage_t *memory_storage, bool do_zero_pad)
-    : engine_(engine), md_(*md), memory_storage_(memory_storage) {
+    : engine_(engine)
+    , md_(*md)
+    , memory_storage_(
+              memory_storage ? memory_storage : new memory_storage_t()) {
     if (do_zero_pad)
         zero_pad();
 }

@@ -54,7 +54,7 @@ status_t ocl_executor_t::parallel_for(
             if (!mem_storage->is_null()) {
                 auto *ocl_mem_storage
                         = utils::downcast<const ocl_memory_storage_t *>(
-                                mem_storage);
+                                mem_storage->impl());
                 ocl_mem = ocl_mem_storage->mem_object();
             }
             set_arg_err
@@ -93,7 +93,8 @@ status_t ocl_executor_t::copy(
         void *src_ptr;
         src.get_data_handle(&src_ptr);
 
-        auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
+        auto &ocl_dst
+                = *utils::downcast<const ocl_memory_storage_t *>(dst.impl());
         cl_mem ocl_mem = ocl_dst.mem_object();
         cl_int err = clEnqueueWriteBuffer(
                 queue, ocl_mem, CL_TRUE, 0, size, src_ptr, 0, nullptr, nullptr);
@@ -106,7 +107,8 @@ status_t ocl_executor_t::copy(
         void *dst_ptr;
         dst.get_data_handle(&dst_ptr);
 
-        auto &ocl_src = *utils::downcast<const ocl_memory_storage_t *>(&src);
+        auto &ocl_src
+                = *utils::downcast<const ocl_memory_storage_t *>(src.impl());
         cl_mem ocl_mem = ocl_src.mem_object();
         cl_int err = clEnqueueReadBuffer(
                 queue, ocl_mem, CL_TRUE, 0, size, dst_ptr, 0, nullptr, nullptr);

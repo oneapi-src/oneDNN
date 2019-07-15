@@ -91,7 +91,8 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
                         = static_cast<const memory_storage_t *>(arg.value());
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
-                            const sycl::sycl_memory_storage_t *>(mem_storage);
+                            const sycl::sycl_memory_storage_t *>(
+                            mem_storage->impl());
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
                     auto buf = mkldnn::get_sycl_buffer(
                             sycl_mem_storage->vptr());
@@ -138,9 +139,11 @@ status_t sycl_executor_t::copy(
     if (src.engine()->backend_kind() == backend_kind::sycl
             && dst.engine()->backend_kind() == backend_kind::sycl) {
         auto *src_sycl_storage
-                = utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
+                = utils::downcast<const sycl::sycl_memory_storage_t *>(
+                        src.impl());
         auto *dst_sycl_storage
-                = utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
+                = utils::downcast<const sycl::sycl_memory_storage_t *>(
+                        dst.impl());
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf_src
                 = mkldnn::get_sycl_buffer(src_sycl_storage->vptr());
@@ -195,8 +198,8 @@ status_t sycl_executor_t::copy(
         src.get_data_handle(&src_ptr);
         auto *src_ptr_u8 = static_cast<uint8_t *>(src_ptr);
 
-        auto &sycl_dst
-                = *utils::downcast<const sycl::sycl_memory_storage_t *>(&dst);
+        auto &sycl_dst = *utils::downcast<const sycl::sycl_memory_storage_t *>(
+                dst.impl());
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
         copy_to_buffer(src_ptr_u8, sycl_buf, size);
@@ -211,8 +214,8 @@ status_t sycl_executor_t::copy(
         void *dst_ptr;
         dst.get_data_handle(&dst_ptr);
 
-        auto &sycl_src
-                = *utils::downcast<const sycl::sycl_memory_storage_t *>(&src);
+        auto &sycl_src = *utils::downcast<const sycl::sycl_memory_storage_t *>(
+                src.impl());
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
         auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
         copy_from_buffer(sycl_buf, dst_ptr, size);
