@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
+#if MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_SEQ
 #define MKLDNN_THR_SYNC 1
 inline int mkldnn_get_max_threads() { return 1; }
 inline int mkldnn_get_num_threads() { return 1; }
@@ -30,7 +30,7 @@ inline void mkldnn_thr_barrier() {}
 
 #define PRAGMA_OMP(...)
 
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
+#elif MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_OMP
 #include <omp.h>
 #define MKLDNN_THR_SYNC 1
 
@@ -44,7 +44,7 @@ inline void mkldnn_thr_barrier() {
 
 #define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
+#elif MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_TBB
 #include "tbb/task_arena.h"
 #include "tbb/parallel_for.h"
 #define MKLDNN_THR_SYNC 0

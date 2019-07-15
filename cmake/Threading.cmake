@@ -26,9 +26,3 @@ set(Threading_cmake_included true)
 # std::call_once that relies on mutexes)
 find_package(Threads REQUIRED)
 list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
-
-# While MKL-DNN defaults to OpenMP (if _OPENMP is defined) without CMake, here
-# we default to sequential threading and let OpenMP.cmake and TBB.cmake to
-# figure things out. This is especially important because OpenMP is used both
-# for threading and vectorization via #pragma omp simd
-set(MKLDNN_CPU_RUNTIME_CURRENT "SEQ")

@@ -71,12 +71,13 @@ endif()
 
 if (MKLDNN_CPU_RUNTIME MATCHES "OMP")
     if (OpenMP_CXX_FOUND)
-        set(MKLDNN_CPU_RUNTIME_CURRENT "OMP")
         append(CMAKE_TEST_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
         append(CMAKE_EXAMPLE_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
     else()
         message(${_omp_severity} "OpenMP library could not be found. "
             "Proceeding might lead to highly sub-optimal performance.")
+        # Override CPU runtime to sequential if allowed to proceed
+        set(MKLDNN_CPU_RUNTIME "SEQ" CACHE STRING "" FORCE)
     endif()
 else()
     # Compilation happens with OpenMP to enable `#pragma omp simd`
