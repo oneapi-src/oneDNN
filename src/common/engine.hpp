@@ -44,10 +44,11 @@ struct mkldnn_engine: public mkldnn::impl::c_compatible {
     /** create memory storage */
     virtual mkldnn::impl::status_t create_memory_storage(
             mkldnn::impl::memory_storage_t **storage, unsigned flags,
-            size_t size, void *handle)
+            size_t size, size_t alignment, void *handle)
             = 0;
     mkldnn::impl::status_t create_memory_storage(
-            mkldnn::impl::memory_storage_t **storage, size_t size);
+            mkldnn::impl::memory_storage_t **storage, size_t size,
+            size_t alignment = 0);
 
     /** create stream */
     virtual mkldnn::impl::status_t create_stream(

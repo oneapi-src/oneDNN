@@ -35,8 +35,8 @@ namespace sycl {
 class sycl_memory_storage_t : public memory_storage_impl_t
 {
 public:
-    sycl_memory_storage_t(engine_t *engine,
-            unsigned flags, size_t size, void *handle);
+    sycl_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
+            size_t alignment, void *handle);
 
     virtual status_t get_data_handle(void **handle) const override {
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
@@ -66,6 +66,8 @@ public:
 #else
     buffer_u8_t &buffer() const { return *buffer_; }
 #endif
+
+    virtual uintptr_t base_offset() const override { return 0; }
 
 private:
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR

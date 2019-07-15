@@ -69,7 +69,7 @@ mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
 
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
-            &memory_storage_ptr, flags, size, handle);
+            &memory_storage_ptr, flags, size, 0, handle);
 
     assert(status == status::success);
     MAYBE_UNUSED(status);

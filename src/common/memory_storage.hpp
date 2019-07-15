@@ -53,6 +53,9 @@ struct memory_storage_impl_t : public c_compatible {
         return status::success;
     }
 
+    // Offset in bytes from the "perfectly" aligned address
+    virtual uintptr_t base_offset() const = 0;
+
 private:
     engine_t *engine_;
     size_t size_;
@@ -150,6 +153,8 @@ public:
     }
 
     explicit operator bool() const { return !is_null(); }
+
+    uintptr_t base_offset() const { return impl_ ? impl_->base_offset() : 0; }
 
 private:
     std::shared_ptr<memory_storage_impl_t> impl_;

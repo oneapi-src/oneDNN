@@ -29,9 +29,12 @@ namespace sycl {
 struct map_tag;
 struct use_host_ptr_tag;
 
-sycl_memory_storage_t::sycl_memory_storage_t(
-        engine_t *engine, unsigned flags, size_t size, void *handle)
+sycl_memory_storage_t::sycl_memory_storage_t(engine_t *engine, unsigned flags,
+        size_t size, size_t alignment, void *handle)
     : memory_storage_impl_t(engine, size) {
+
+    UNUSED(alignment);
+
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and flags have use_backend_ptr

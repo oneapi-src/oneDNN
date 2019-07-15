@@ -32,14 +32,17 @@ namespace cpu {
 class cpu_memory_storage_t : public memory_storage_impl_t
 {
 public:
-    cpu_memory_storage_t(
-            engine_t *engine, unsigned flags, size_t size, void *handle)
+    cpu_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
+            size_t alignment, void *handle)
         : memory_storage_impl_t(engine, size) {
+        if (alignment == 0)
+            alignment = 64;
+
         if (size == 0 || (!handle && (flags & memory_flags_t::alloc) == 0)) {
             return;
         }
         if (flags & memory_flags_t::alloc) {
-            void *data_ptr = malloc(size, 64);
+            void *data_ptr = malloc(size, (int)alignment);
             data_ = decltype(data_)(data_ptr, [](void *ptr) { free(ptr); });
         } else if (flags & memory_flags_t::use_backend_ptr) {
             data_ = decltype(data_)(handle, [](void *) {});
@@ -54,6 +57,10 @@ public:
     virtual status_t set_data_handle(void *handle) override {
         data_ = decltype(data_)(handle, [](void *) {});
         return status::success;
+    }
+
+    virtual uintptr_t base_offset() const override {
+        return reinterpret_cast<uintptr_t>(data_.get());
     }
 
 private:

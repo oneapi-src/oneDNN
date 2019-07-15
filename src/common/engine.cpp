@@ -77,11 +77,11 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
 
-status_t engine_t::create_memory_storage(memory_storage_t **storage, size_t size) {
+status_t engine_t::create_memory_storage(
+        memory_storage_t **storage, size_t size, size_t alignment) {
     return create_memory_storage(
-            storage, memory_flags_t::alloc, size, nullptr);
+            storage, memory_flags_t::alloc, size, alignment, nullptr);
 }
-
 
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
     auto ef = get_engine_factory(kind, get_default_backend(kind));

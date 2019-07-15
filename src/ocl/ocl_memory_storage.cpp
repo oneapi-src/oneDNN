@@ -25,9 +25,12 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-ocl_memory_storage_t::ocl_memory_storage_t(
-        engine_t *engine, unsigned flags, size_t size, void *handle)
+ocl_memory_storage_t::ocl_memory_storage_t(engine_t *engine, unsigned flags,
+        size_t size, size_t alignment, void *handle)
     : memory_storage_impl_t(engine, size) {
+
+    UNUSED(alignment);
+
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and 'alloc' flag is not set

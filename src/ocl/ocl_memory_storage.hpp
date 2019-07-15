@@ -31,8 +31,8 @@ namespace ocl {
 class ocl_memory_storage_t : public memory_storage_impl_t
 {
 public:
-    ocl_memory_storage_t(
-            engine_t *engine, unsigned flags, size_t size, void *handle);
+    ocl_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
+            size_t alignment, void *handle);
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
@@ -49,6 +49,8 @@ public:
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
     cl_mem mem_object() const { return mem_object_.get(); }
+
+    virtual uintptr_t base_offset() const override { return 0; }
 
 private:
     ocl_utils::ocl_wrapper_t<cl_mem> mem_object_;
