@@ -77,6 +77,9 @@ static void set_scalar_arg(
 
 status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
         const ocl::ocl_kernel_t &kernel) {
+    if (range.is_zero())
+        return status::success;
+
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(stream());
     auto *sycl_engine
             = utils::downcast<sycl::sycl_gpu_engine_t *>(sycl_stream->engine());
