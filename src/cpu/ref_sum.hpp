@@ -139,7 +139,7 @@ struct ref_sum_t: public cpu_primitive_t {
             dst_acc = {&acc, true};
             r_args[MKLDNN_ARG_SRC] = dst_acc;
             r_args[MKLDNN_ARG_DST] = dst;
-            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
             reorders_[n]->execute(r_ctx);
         }
 
