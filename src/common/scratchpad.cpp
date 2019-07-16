@@ -15,10 +15,13 @@
 *******************************************************************************/
 
 #include <memory>
+#include <mutex>
 
 #include "engine.hpp"
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
+
+#include "cpu/cpu_engine.hpp"
 
 #include "scratchpad.hpp"
 
@@ -28,17 +31,54 @@ namespace impl {
 /* Allocating memory buffers on a page boundary to reduce TLB/page misses */
 const size_t page_size = 2097152;
 
+engine_t *get_cpu_engine() {
+    static std::unique_ptr<engine_t> cpu_engine;
+    static std::once_flag initialized;
+    std::call_once(initialized, [&]() {
+        engine_t *cpu_engine_ptr;
+        cpu::cpu_engine_factory_t f;
+        auto status = f.engine_create(&cpu_engine_ptr, 0);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        cpu_engine.reset(cpu_engine_ptr);
+    });
+    return cpu_engine.get();
+}
+
+memory_storage_t *create_scratchpad_memory_storage(
+        engine_t *engine, size_t size, size_t alignment) {
+    // XXX: if engine is a non-native CPU engine (read: SYCL) then create
+    // scratchpad through other, native CPU engine.
+    //
+    // SYCL CPU engine has asynchronous execution, and the library has to
+    // extend (if needed) primitive lifetime until a kernel is completed.
+    // For that, the library implements a reference-counting mechanism for
+    // primitives (including internal scratchpads). In some cases a
+    // scratchpad has to be destroyed from inside a kernel. This doesn't
+    // play well with SYCL runtime, so switching to native CPU engine for such
+    // cases.
+    engine_t *mem_engine
+            = (engine->kind() == engine_kind::cpu
+                      && engine->backend_kind() != backend_kind::native)
+            ? get_cpu_engine()
+            : engine;
+
+    memory_storage_t *mem_storage_ptr;
+    auto status = mem_engine->create_memory_storage(
+            &mem_storage_ptr, size, page_size);
+    assert(status == status::success);
+    MAYBE_UNUSED(status);
+    return mem_storage_ptr;
+}
+
 /*
   Implementation of the scratchpad_t interface that is compatible with
   a concurrent execution
 */
 struct concurrent_scratchpad_t : public scratchpad_t {
     concurrent_scratchpad_t(engine_t *engine, size_t size) : size_(size) {
-        memory_storage_t *mem_storage_ptr;
-        auto status = engine->create_memory_storage(
-                &mem_storage_ptr, size, page_size);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
+        auto *mem_storage_ptr
+                = create_scratchpad_memory_storage(engine, size, page_size);
         mem_storage_.reset(mem_storage_ptr);
     }
 

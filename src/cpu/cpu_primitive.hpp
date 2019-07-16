@@ -57,12 +57,8 @@ struct cpu_primitive_t: public primitive_t {
                         = create_scratchpad(engine(), scratchpad_size);
                 global_scratchpad_.reset(scratchpad_ptr);
             } else {
-                memory_storage_t *mem_storage_ptr;
-                auto status = engine()->create_memory_storage(
-                        &mem_storage_ptr, scratchpad_size, 64);
-                assert(status == status::success);
-                MAYBE_UNUSED(status);
-
+                auto *mem_storage_ptr = create_scratchpad_memory_storage(
+                        engine(), scratchpad_size, 64);
                 scratchpad_buffer_.reset(mem_storage_ptr);
             }
         }

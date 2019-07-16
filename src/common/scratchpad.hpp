@@ -24,6 +24,9 @@
 namespace mkldnn {
 namespace impl {
 
+memory_storage_t *create_scratchpad_memory_storage(
+        engine_t *engine, size_t size, size_t alignment);
+
 struct scratchpad_t {
     virtual ~scratchpad_t() {}
     virtual const memory_storage_t *get_memory_storage() const = 0;
