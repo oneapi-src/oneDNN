@@ -47,7 +47,7 @@ based on
 
 ### General Notes
 
-1. All eltise primitives have a common initialization function (e.g.,
+1. All eltwise primitives have a common initialization function (e.g.,
    mkldnn::eltwise_forward::desc::desc()) which takes both parameters
    \f$\alpha\f$, and \f$\beta\f$. These parameters are ignored if they are
    unused.

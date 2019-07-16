@@ -13,7 +13,7 @@ instruction, at the cost of reduced (but acceptable) accuracy.
 ## Int8 Workflow
 
 There are different ways to use lower precision to perform inference.  Please
-go trough the @ref dev_guide_attributes_quantization page to get the initial
+go through the @ref dev_guide_attributes_quantization page to get the initial
 understanding of what kind of quantization model Intel MKL-DNN supports.
 
 ### Quantization Process
@@ -120,7 +120,7 @@ primitives are optimized for high performance on the compatible hardware
 
 ### Intel MKL-DNN Attributes
 
-Intel MKL-DNN primitive behaviour may be extended for additional
+Intel MKL-DNN primitive behavior may be extended for additional
 functionalities involving output data transformation. These additional features
 are configured via **primitive attributes**. The primitive attributes
 definition is an opaque structure for passing extra parameters to a primitive

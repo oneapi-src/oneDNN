@@ -58,7 +58,7 @@ activation applied to the result (see #mkldnn_fuse_norm_relu flag).
    #mkldnn_forward_training the primitive would produce a `workspace`
    memory as one extra output. This memory is required to compute the backward
    propagation. When the primitive is executed with propagation kind
-   #mkldnn_forward_inference, the workspace is not produced. Behaviour would
+   #mkldnn_forward_inference, the workspace is not produced. Behavior would
    be the same as creating a batch normalization primitive with ReLU as a
    post-op (see section below).
 

@@ -246,7 +246,7 @@ primitive_backward.execute(stream, {
 
 @warning
     Do not confuse **workspace** with the @ref dev_guide_attributes_scratchpad.
-    The scrathcpad is a temporary buffer that might be required by a primitive
+    The scratchpad is a temporary buffer that might be required by a primitive
     (no matter what propagation kind is) to perform an operation. It is used
     only during the primitive execution and should not be preserved across the
     calls.
