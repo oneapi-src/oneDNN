@@ -21,7 +21,7 @@
 #include "compute/compute.hpp"
 
 #include "ocl/jit_primitive_conf.hpp"
-#include "ocl/rnn_utils.hpp"
+#include "ocl/rnn/rnn_utils.hpp"
 
 #define DEBUGPRINT 0
 #if DEBUGPRINT

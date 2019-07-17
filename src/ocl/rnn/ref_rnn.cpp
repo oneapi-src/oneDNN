@@ -34,6 +34,7 @@
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
 #include "ref_rnn.hpp"
+#include "../cl_executor.hpp"
 
 namespace mkldnn {
 namespace impl {

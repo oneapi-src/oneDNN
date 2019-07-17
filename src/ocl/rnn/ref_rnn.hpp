@@ -27,12 +27,12 @@
 #include "compute/compute.hpp"
 
 #include "ocl/ocl_engine.hpp"
-#include "ocl/ocl_rnn_pd.hpp"
+#include "ocl/rnn/ocl_rnn_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_utils.hpp"
-#include "ocl/rnn_utils.hpp"
-#include "ocl/jit_ref_rnn_kernel.hpp"
+#include "ocl/rnn/rnn_utils.hpp"
+#include "ocl/rnn/jit_ref_rnn_kernel.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
 
 // not implemented
