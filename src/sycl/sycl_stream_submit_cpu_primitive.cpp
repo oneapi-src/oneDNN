@@ -261,6 +261,65 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
                 sycl_mem_storages[11], sycl_mem_storages[12],
                 sycl_mem_storages[13], sycl_mem_storages[14]);
         break;
+    case 16:
+        fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                sycl_mem_storages[1], sycl_mem_storages[2],
+                sycl_mem_storages[3], sycl_mem_storages[4],
+                sycl_mem_storages[5], sycl_mem_storages[6],
+                sycl_mem_storages[7], sycl_mem_storages[8],
+                sycl_mem_storages[9], sycl_mem_storages[10],
+                sycl_mem_storages[11], sycl_mem_storages[12],
+                sycl_mem_storages[13], sycl_mem_storages[14],
+                sycl_mem_storages[15]);
+        break;
+    case 17:
+        fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                sycl_mem_storages[1], sycl_mem_storages[2],
+                sycl_mem_storages[3], sycl_mem_storages[4],
+                sycl_mem_storages[5], sycl_mem_storages[6],
+                sycl_mem_storages[7], sycl_mem_storages[8],
+                sycl_mem_storages[9], sycl_mem_storages[10],
+                sycl_mem_storages[11], sycl_mem_storages[12],
+                sycl_mem_storages[13], sycl_mem_storages[14],
+                sycl_mem_storages[15], sycl_mem_storages[16]);
+        break;
+    case 18:
+        fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                sycl_mem_storages[1], sycl_mem_storages[2],
+                sycl_mem_storages[3], sycl_mem_storages[4],
+                sycl_mem_storages[5], sycl_mem_storages[6],
+                sycl_mem_storages[7], sycl_mem_storages[8],
+                sycl_mem_storages[9], sycl_mem_storages[10],
+                sycl_mem_storages[11], sycl_mem_storages[12],
+                sycl_mem_storages[13], sycl_mem_storages[14],
+                sycl_mem_storages[15], sycl_mem_storages[16],
+                sycl_mem_storages[17]);
+        break;
+    case 19:
+        fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                sycl_mem_storages[1], sycl_mem_storages[2],
+                sycl_mem_storages[3], sycl_mem_storages[4],
+                sycl_mem_storages[5], sycl_mem_storages[6],
+                sycl_mem_storages[7], sycl_mem_storages[8],
+                sycl_mem_storages[9], sycl_mem_storages[10],
+                sycl_mem_storages[11], sycl_mem_storages[12],
+                sycl_mem_storages[13], sycl_mem_storages[14],
+                sycl_mem_storages[15], sycl_mem_storages[16],
+                sycl_mem_storages[17], sycl_mem_storages[18]);
+        break;
+    case 20:
+        fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                sycl_mem_storages[1], sycl_mem_storages[2],
+                sycl_mem_storages[3], sycl_mem_storages[4],
+                sycl_mem_storages[5], sycl_mem_storages[6],
+                sycl_mem_storages[7], sycl_mem_storages[8],
+                sycl_mem_storages[9], sycl_mem_storages[10],
+                sycl_mem_storages[11], sycl_mem_storages[12],
+                sycl_mem_storages[13], sycl_mem_storages[14],
+                sycl_mem_storages[15], sycl_mem_storages[16],
+                sycl_mem_storages[17], sycl_mem_storages[18],
+                sycl_mem_storages[19]);
+        break;
     default:
         assert(!"Please add another case");
         throw std::runtime_error("Internal error");
