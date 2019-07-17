@@ -202,6 +202,8 @@ void test2() {
     CHECK(mkldnn_primitive_execute(r, stream, 2, r_args));
     CHECK(mkldnn_primitive_destroy(r));
 
+    CHECK(mkldnn_stream_wait(stream));
+
     /* clean-up */
     CHECK(mkldnn_memory_destroy(c3_src));
     CHECK(mkldnn_memory_destroy(c3_weights));
@@ -285,6 +287,8 @@ void test3() {
     };
     CHECK(mkldnn_primitive_execute(l2, stream, 2, l2_args));
     CHECK(mkldnn_primitive_destroy(l2));
+
+    CHECK(mkldnn_stream_wait(stream));
 
     /* clean-up */
     CHECK(mkldnn_memory_destroy(l2_src));
