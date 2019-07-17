@@ -62,6 +62,37 @@ TEST_F(attr_test, TestScratchpadModeEx) {
     }
 }
 
+TEST_F(attr_test, TestScratchpadArg) {
+    engine eng(get_test_engine_kind(), 0);
+
+    const memory::dim N = 2, C = 2, W = 2;
+
+    memory::desc data_md(
+            { N, C, W }, memory::data_type::f32, memory::format_tag::ncw);
+
+    mkldnn::primitive_attr attr;
+    auto softmax_d
+            = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
+    for (auto m : { scratchpad_mode::library, scratchpad_mode::user }) {
+        attr.set_scratchpad_mode(m);
+        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
+
+        memory src(softmax_pd.src_desc(), eng);
+        memory dst(softmax_pd.dst_desc(), eng);
+        memory scratchpad(softmax_pd.scratchpad_desc(), eng);
+
+        fill_data<float>(src.get_desc().get_size() / sizeof(float), src);
+
+        stream s(eng);
+
+        softmax_forward softmax_p(softmax_pd);
+        softmax_p.execute(s,
+                { { MKLDNN_ARG_SRC, src }, { MKLDNN_ARG_DST, dst },
+                        { MKLDNN_ARG_SCRATCHPAD, scratchpad } });
+        s.wait();
+    }
+}
+
 TEST_F(attr_test, TestIntOutputScales) {
     mkldnn::primitive_attr attr;
 
