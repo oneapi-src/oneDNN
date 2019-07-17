@@ -44,6 +44,8 @@ namespace impl {
 namespace sycl {
 
 struct sycl_stream_t : public ocl::cl_stream_t {
+    ~sycl_stream_t() override { wait(); }
+
     static status_t create_stream(
             stream_t **stream, engine_t *engine, unsigned generic_flags) {
         unsigned flags;
