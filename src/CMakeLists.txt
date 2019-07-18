@@ -47,7 +47,7 @@ endif()
 if(NOT MKLDNN_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present in the
     # library
-    message(STATUS "Intel\r VTune\t Amplifier JIT profiling disabled")
+    message(STATUS "Intel(R) VTune(TM) Amplifier JIT profiling disabled")
     add_definitions(-DMKLDNN_ENABLE_JIT_PROFILING=0)
 elseif(UNIX AND NOT APPLE)
     # Not every compiler adds -ldl automatically
