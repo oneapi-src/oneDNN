@@ -385,9 +385,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
-        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
-    }
+    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+
     ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
