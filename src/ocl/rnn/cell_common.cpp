@@ -16,7 +16,7 @@
 /*
  * Common for RNN and LSTM cell execution
  */
-#include "ref_rnn.hpp"
+#include "ocl/rnn/ref_rnn.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,6 +33,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
     const rnn_conf_t &rnn_conf = this->pd()->rnn_conf_;
 
     if (aprop == prop_kind::forward) {
+
         AOC<size_t, 3> off_weights_i(weights_input, n_layer, n_dir,
                 n_parts_weights_layer);
         AOC<size_t, 3> off_weights_st(weights_states, n_layer, n_dir,
@@ -43,10 +44,10 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
 
         cl_ulong offset_states = (cl_ulong)(ws_states_offset_
                 + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1,
-                    0, batch * n_states * rnn_conf.states_ws_ld));
+                    0, batch * rnn_conf.states_ws_ld));
         cl_ulong offset_input = (cl_ulong)(ws_states_offset_
                 + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1,
-                    0, batch * n_states * rnn_conf.states_ws_ld));
+                    0, batch * rnn_conf.states_ws_ld));
         cl_ulong offset_gates = (cl_ulong)(ws_gates_offset_
                 + OFF4(lay, n_layer, dir, n_dir, iter, n_iter,
                     0, batch * rnn_conf.gates_ws_ld));
@@ -61,6 +62,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
                 gemm_iter);
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
                 bias);
+
     } else { // backward
 
         AOC<size_t, 3> off_weights_i(weights_input, n_layer, n_dir,
@@ -98,7 +100,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
             n_gates * dic, slc, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
                 dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
             workspace, ws_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter + 1, n_iter + 1, 0, n_states * batch
+                n_dir, iter + 1, n_iter + 1, 0, batch
                 * rnn_conf.states_ws_ld),
             diff_weights_layer, OFF3(lay, n_layer, dir, n_dir, 0,
                 rnn_conf.diff_weights_layer_nld * rnn_conf.diff_weights_layer_ld),
@@ -108,7 +110,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execu
             n_gates * dic, sic, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
                 dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
             workspace, ws_states_offset_ + OFF4(lay + 1, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, n_states * batch
+                n_dir, iter, n_iter + 1, 0, batch
                 * rnn_conf.states_ws_ld),
             diff_weights_iter, OFF3(lay, n_layer, dir, n_dir, 0,
                 rnn_conf.diff_weights_iter_nld * rnn_conf.diff_weights_iter_ld),

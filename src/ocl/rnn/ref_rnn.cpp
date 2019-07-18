@@ -33,8 +33,7 @@
 #include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
-#include "ref_rnn.hpp"
-#include "../cl_executor.hpp"
+#include "ocl/rnn/ref_rnn.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -537,11 +536,15 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
 #if WS_NAN_FILLING
     if(rnn_conf.is_fwd) {
-        DPRINT("DEBUG ws set: (offset, size) states: %ld %ld gates: %ld %ld\n",
-            ws_states_offset_, rnn_conf.ws_states_size, ws_gates_offset_,
+        DPRINT("DEBUG ws NaN filling: (offset, size) states: %ld %ld c_states: %ld %ld gates: %ld %ld\n",
+            ws_states_offset_, rnn_conf.ws_states_size, ws_c_states_offset_, rnn_conf.ws_c_states_size, ws_gates_offset_,
             rnn_conf.ws_gates_size);
         ws_set(compute_stream, workspace_, ws_states_offset_, NAN,
                 rnn_conf.ws_states_size);
+        if (rnn->with_src_iter_c()) {
+            ws_set(compute_stream, workspace_, ws_c_states_offset_, NAN,
+                rnn_conf.ws_c_states_size);
+        }
         ws_set(compute_stream, workspace_, ws_gates_offset_, NAN,
                 rnn_conf.ws_gates_size);
     }

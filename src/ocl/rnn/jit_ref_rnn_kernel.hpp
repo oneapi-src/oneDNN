@@ -256,11 +256,11 @@ struct jit_ref_rnn_kernel {
 
         kernel_ctx.define_int("WS_GATES_OFFSET", jrnn.ws_gates_offset);
         kernel_ctx.define_int("WS_STATES_OFFSET", jrnn.ws_states_offset);
+        kernel_ctx.define_int("WS_C_STATE_OFFSET", jrnn.ws_c_state_offset);
         kernel_ctx.define_int(
-                "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
+            "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
         kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
-
         kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
         kernel_ctx.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
         kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);

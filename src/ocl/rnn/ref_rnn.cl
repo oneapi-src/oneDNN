@@ -33,12 +33,11 @@
 #define OFF2(i0,D0,i1,D1) \
     ((i0)*(D1)+(i1))
 
-#define OFF_WS_STATES_LAYER(i0,i1,i2,i3,i4) \
-    OFF5((i0), N_DIR, (i1), N_ITER + 1, (i2), N_STATES, (i3), BATCH, \
-               (i4), STATES_WS_LD)
-#define OFF_WS_STATES(i0,i1,i2,i3,i4,i5) \
-    OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), N_STATES, \
-               (i4), BATCH, (i5), STATES_WS_LD)
+// used for the both H- and C-states
+#define OFF_WS_STATE(i0,i1,i2,i3,i4) \
+    OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, \
+               (i3), BATCH, (i4), STATES_WS_LD)
+
 #define OFF_WS_DIFF_STATES(i0,i1,i2,i3,i4,i5) \
     OFF6((i0), N_LAYER + 1,(i1), N_DIR, (i2), N_ITER + 1, (i3), N_STATES + 1, \
                (i4), BATCH, (i5), STATES_WS_LD)
@@ -55,7 +54,7 @@
 // for cell - shorter forms
 
 #define CELL_WS_GATES(i3,i4,i5) OFF_WS_GATES(0,0,0,i3,i4,i5)
-#define CELL_WS_STATES(i3,i4,i5) OFF_WS_STATES(0,0,0,i3,i4,i5)
+#define CELL_WS_STATE(i4,i5) OFF_WS_STATE(0,0,0,i4,i5)
 #define CELL_WS_DIFF_STATES(i3,i4,i5) OFF_WS_DIFF_STATES(0,0,0,i3,i4,i5)
 
 #define OFF_KER_BIAS(i0,i1) \
@@ -218,6 +217,7 @@ __kernel void ref_rnn_copy_init_layer_kernel(__global DATA_T *ws,
         __global DATA_T *src_base, int lr, int rl) {
 
 #if IS_FWD
+
     const int it = get_global_id(2);
     const int b = get_global_id(1);
     const int c = get_global_id(0);
@@ -226,14 +226,16 @@ __kernel void ref_rnn_copy_init_layer_kernel(__global DATA_T *ws,
     __global DATA_T *src = src_base + SRC_L_OFF(it, 0, 0 ) + b * SLC + c;
 
     if (lr) {
-        dst = dst_base + OFF_WS_STATES_LAYER(0, it+1, 0, b, c);
+        dst = dst_base + OFF_WS_STATE(0, 0, it+1, b, c);
         dst[0] = src[0];
     }
     if (rl) {
-        dst = dst_base + OFF_WS_STATES_LAYER(N_DIR-1, N_ITER-it, 0, b, c);
+        dst = dst_base + OFF_WS_STATE(0, N_DIR-1, N_ITER-it, b, c);
         dst[0] = src[0];
     }
+
 #else
+
     const int it = get_global_id(1);
     const int b = get_global_id(0);
 
@@ -279,12 +281,13 @@ __kernel void ref_rnn_copy_init_iter_kernel(__global DATA_T *ws,
 #if IS_FWD
     __global DATA_T *dst = ws + WS_STATES_OFFSET;
     if (s < SIC)
-        dst[OFF_WS_STATES(lay + 1, dir, 0, 0, b, s)] = src_base
+        dst[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_base
             ? src_base[SRC_I_OFF(lay, dir, b, s)]
             : 0.0f;
 #if WITH_SRC_ITER_C
+    __global DATA_T *dst_c = ws + WS_C_STATE_OFFSET;
     if (s < DIC)
-        dst[OFF_WS_STATES(lay + 1, dir, 0, 1, b, s)] = src_c_base
+        dst_c[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_c_base
             ? src_c_base[SRC_I_C_OFF(lay, dir, b, s)]
             : 0.0f;
 #endif
@@ -315,16 +318,16 @@ __kernel void ref_rnn_copy_res_layer_kernel(__global DATA_T *ws,
     int dir = 0;
     if (lr) {
         dst_base[DST_L_OFF(it, b, dir * DIC + s)] =
-                src_base[OFF_WS_STATES(N_LAYER, dir, it+1, 0, b, s)];
+                src_base[OFF_WS_STATE(N_LAYER, dir, it+1, b, s)];
         dir = 1;
     }
     if (rl) {
 #if DIRECTION_KIND == SUM
             dst_base[DST_L_OFF(it, b, s)] +=
-                src_base[OFF_WS_STATES(N_LAYER, dir, N_ITER - it, 0, b, s)];
+                src_base[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)];
 #else
             dst_base[DST_L_OFF(it, b, dir * DIC + s)] =
-                src_base[OFF_WS_STATES(N_LAYER, dir, N_ITER - it, 0, b, s)];
+                src_base[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)];
 #endif
     }
 #else // BWD
@@ -356,12 +359,13 @@ __kernel void ref_rnn_copy_res_iter_kernel(__global DATA_T *ws,
     __global DATA_T *src_base = ws + WS_STATES_OFFSET;
     if (dst_base && s < DIC) {
         dst_base[DST_I_OFF(lay, dir, b, s)] =
-            src_base[OFF_WS_STATES(lay + 1, dir, N_ITER, 0, b, s)];
+            src_base[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)];
     }
 #if WITH_DST_ITER_C
+    __global DATA_T *src_c_base = ws + WS_C_STATE_OFFSET;
     if (dst_c_base && s < DIC) {
         dst_c_base[DST_I_C_OFF(lay, dir, b, s)] =
-            src_base[OFF_WS_STATES(lay + 1, dir, N_ITER, 1, b, s)];
+            src_c_base[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)];
     }
 #endif
 #else
@@ -408,24 +412,41 @@ __kernel void ref_rnn_ws_print_kernel(
     }
     }
     }
-    printf("ws_states: off %d\n", WS_STATES_OFFSET);
-    printf("[lay,dir,iter,state]\n");
+
+    printf("ws_states (H): off %d\n", WS_STATES_OFFSET);
+    printf("[lay,dir,iter]\n");
     wt = ws + WS_STATES_OFFSET;
     for (int j = 0; j < N_LAYER+1; j++) {
     for (int dir = 0; dir < N_DIR; dir++) {
     for (int i = 0; i < N_ITER+1; i++) {
-    for (int st = 0; st < N_STATES; st++) {
-        printf("[%d,%d,%d,%d] : ", j, dir, i, st);
+        printf("[%d,%d,%d] : ", j, dir, i);
         for (int b = 0; b < BATCH; b++) {
         for (int s = 0; s < WIC; s++) {
-            printf(" %f", *(wt + OFF_WS_STATES(j,dir,i,st,b,s)));
+            printf(" %f", *(wt + OFF_WS_STATE(j,dir,i,b,s)));
         }
         }
         printf("\n");
     }
     }
     }
+
+    printf("ws_states (C): off %d\n", WS_C_STATE_OFFSET);
+    printf("[lay,dir,iter]\n");
+    wt = ws + WS_C_STATE_OFFSET;
+    for (int j = 0; j < N_LAYER+1; j++) {
+    for (int dir = 0; dir < N_DIR; dir++) {
+    for (int i = 0; i < N_ITER+1; i++) {
+        printf("[%d,%d,%d] : ", j, dir, i);
+        for (int b = 0; b < BATCH; b++) {
+        for (int s = 0; s < WIC; s++) {
+            printf(" %f", *(wt + OFF_WS_STATE(j,dir,i,b,s)));
+        }
+        }
+        printf("\n");
     }
+    }
+    }
+
     printf("ws_diff_states: off %d\n",WS_DIFF_STATES_OFFSET);
     printf("[lay,dir,state,iter]\n");
     wt = ws + WS_DIFF_STATES_OFFSET;
@@ -453,13 +474,16 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
     const int i = get_global_id(0); // batch
     const int j = get_global_id(1); // dic
 
-    const __global DATA_T *states_tm1_l = ws + WS_STATES_OFFSET
-            + OFF_WS_STATES(lay + 1, dir, iter, 0, 0, 0);
+    const __global DATA_T *c_states_tm1_l = ws + WS_C_STATE_OFFSET
+            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     const __global DATA_T *bias = bias_base + BIAS_OFF(lay, dir, 0, 0);
     __global DATA_T *ws_gates = ws + WS_GATES_OFFSET
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
-    __global DATA_T *states_t_l = ws + WS_STATES_OFFSET
-            + OFF_WS_STATES(lay + 1, dir, iter + 1, 0, 0, 0);
+
+    __global DATA_T *h_states_t_l = ws + WS_STATES_OFFSET
+            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+    __global DATA_T *c_states_t_l = ws + WS_C_STATE_OFFSET
+            + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
 #if CELL_KIND == VANILLA_LSTM
 
@@ -477,18 +501,18 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
     ws_gates[CELL_WS_GATES(i, 2, j)] = g_z;
     ws_gates[CELL_WS_GATES(i, 3, j)] = g_o;
 
-    float Ct = g_f * states_tm1_l[CELL_WS_STATES(1, i, j)] + g_i * g_z;
+    float Ct = g_f * c_states_tm1_l[CELL_WS_STATE(i, j)] + g_i * g_z;
     float Ht = g_o * tanh_fwd(Ct);
 
-    states_t_l[CELL_WS_STATES(0, i, j)] = Ht;
-    states_t_l[CELL_WS_STATES(1, i, j)] = Ct;
+    h_states_t_l[CELL_WS_STATE(i, j)] = Ht;
+    c_states_t_l[CELL_WS_STATE(i, j)] = Ct;
 
 #elif CELL_KIND == VANILLA_RNN
     float g = activation_fwd((float)ws_gates[CELL_WS_GATES(i, 0, j)]
         + bias[OFF_KER_BIAS(0, j)], 0, 0);
 
     ws_gates[CELL_WS_GATES(i, 0, j)] = g;
-    states_t_l[CELL_WS_STATES(0, i, j)] = g;
+    h_states_t_l[CELL_WS_STATE(i, j)] = g;
 #else
 #error "Wrong cell kind"
 #endif
@@ -502,10 +526,10 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
 #if CELL_KIND == VANILLA_LSTM
     __global DATA_T *ws_gates = ws + WS_GATES_OFFSET
         + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
-    __global DATA_T *states_t_l = ws + WS_STATES_OFFSET
-        + OFF_WS_STATES(lay + 1, dir, iter + 1, 0, 0, 0);
-    __global DATA_T *states_tm1_l = ws + WS_STATES_OFFSET
-        + OFF_WS_STATES(lay + 1, dir, iter, 0, 0, 0);
+    __global DATA_T *c_states_t_l = ws + WS_C_STATE_OFFSET
+        + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
+    __global DATA_T *c_states_tm1_l = ws + WS_C_STATE_OFFSET
+        + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     __global DATA_T *diff_states_t_l = ws + WS_DIFF_STATES_OFFSET
         + OFF_WS_DIFF_STATES(lay, dir, iter, 0, 0, 0);
     __global DATA_T *diff_states_tp1_l = ws + WS_DIFF_STATES_OFFSET
@@ -513,7 +537,7 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
     __global DATA_T *diff_states_t_lp1 = ws + WS_DIFF_STATES_OFFSET
         + OFF_WS_DIFF_STATES(lay + 1, dir, iter, 0, 0, 0);
 
-    float Ct = states_t_l[CELL_WS_STATES(1, i, j)];
+    float Ct = c_states_t_l[CELL_WS_STATE(i, j)];
     /// @todo save it in the workspace in fwd pass or recompute it to
     /// save bw
     float tanhCt = tanh_fwd(Ct);
@@ -524,7 +548,7 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
             + one_m_square(tanhCt) * ws_gates[CELL_WS_GATES(i, 3, j)]
             * dHt;
 
-    float dG1 = (float)states_tm1_l[CELL_WS_STATES(1, i, j)] * dCt
+    float dG1 = (float)c_states_tm1_l[CELL_WS_STATE(i, j)] * dCt
         * x_m_square((float)ws_gates[CELL_WS_GATES(i, 1, j)]);
     float dG0 = (float)ws_gates[CELL_WS_GATES(i, 2, j)] * dCt
         * x_m_square((float)ws_gates[CELL_WS_GATES(i, 0, j)]);
