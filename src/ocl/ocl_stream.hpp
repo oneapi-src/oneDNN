@@ -17,6 +17,8 @@
 #ifndef OCL_STREAM_HPP
 #define OCL_STREAM_HPP
 
+#include <memory>
+
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "ocl/cl_stream.hpp"
@@ -36,7 +38,8 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        auto *ocl_stream = new ocl_stream_t(engine, flags);
+        std::unique_ptr<ocl_stream_t> ocl_stream(
+                new ocl_stream_t(engine, flags));
         if (!ocl_stream)
             return status::out_of_memory;
 
@@ -44,7 +47,7 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        *stream = ocl_stream;
+        *stream = ocl_stream.release();
         return status::success;
     }
 
@@ -55,7 +58,8 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        auto *ocl_stream = new ocl_stream_t(engine, flags, queue);
+        std::unique_ptr<ocl_stream_t> ocl_stream(
+                new ocl_stream_t(engine, flags, queue));
         if (!ocl_stream)
             return status::out_of_memory;
 
@@ -63,7 +67,7 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        *stream = ocl_stream;
+        *stream = ocl_stream.release();
         return status::success;
     }
 
@@ -74,11 +78,6 @@ struct ocl_stream_t : public cl_stream_t {
 
     cl_command_queue queue() const { return queue_; }
 
-private:
-    ocl_stream_t(engine_t *engine, unsigned flags)
-        : cl_stream_t(engine, flags), queue_(nullptr) {}
-    ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
-        : cl_stream_t(engine, flags), queue_(queue) {}
     ~ocl_stream_t() {
         wait();
         if (queue_) {
@@ -86,6 +85,11 @@ private:
         }
     }
 
+private:
+    ocl_stream_t(engine_t *engine, unsigned flags)
+        : cl_stream_t(engine, flags), queue_(nullptr) {}
+    ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
+        : cl_stream_t(engine, flags), queue_(queue) {}
     status_t init();
 
     static status_t init_flags(unsigned *flags, unsigned generic_flags) {

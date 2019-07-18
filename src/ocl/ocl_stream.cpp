@@ -26,6 +26,11 @@ namespace impl {
 namespace ocl {
 
 status_t ocl_stream_t::init() {
+    // Restore queue on successful exit, otherwise queue may be released
+    // without retain
+    cl_command_queue queue = queue_;
+    queue_ = nullptr;
+
     assert(engine()->kind() == engine_kind::gpu);
 
     // Out-of-order is not supported
@@ -36,36 +41,32 @@ status_t ocl_stream_t::init() {
     ocl_engine_t *ocl_engine = utils::downcast<ocl_engine_t *>(engine());
 
     // Create queue if it is not set
-    if (!queue_) {
+    if (!queue) {
         cl_int err;
 #ifdef CL_VERSION_2_0
-        queue_ = clCreateCommandQueueWithProperties(
+        queue = clCreateCommandQueueWithProperties(
                 ocl_engine->context(), ocl_engine->device(), nullptr, &err);
 #else
-        queue_ = clCreateCommandQueue(
+        queue = clCreateCommandQueue(
                 ocl_engine->context(), ocl_engine->device(), 0, &err);
 #endif
         OCL_CHECK(err);
     } else {
         // Check that queue is compatible with the engine
         cl_context ocl_ctx;
-        OCL_CHECK(clGetCommandQueueInfo(queue_, CL_QUEUE_CONTEXT,
+        OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_CONTEXT,
                 sizeof(cl_context), &ocl_ctx, nullptr));
 
         cl_device_id ocl_dev;
-        OCL_CHECK(clGetCommandQueueInfo(queue_, CL_QUEUE_DEVICE,
+        OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_DEVICE,
                 sizeof(cl_device_id), &ocl_dev, nullptr));
 
         if (ocl_engine->device() != ocl_dev || ocl_engine->context() != ocl_ctx)
             return status::invalid_arguments;
 
-        cl_int err = clRetainCommandQueue(queue_);
-        if (err != CL_SUCCESS) {
-            queue_ = nullptr;
-        }
-        OCL_CHECK(err);
+        OCL_CHECK(clRetainCommandQueue(queue));
     }
-
+    queue_ = queue;
     cl_stream_t::set_cl_executor(new ocl_executor_t(this));
 
     return status::success;
