@@ -321,6 +321,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
                 sycl_mem_storages[19]);
         break;
     default:
+        delete submit_ctx;
         assert(!"Please add another case");
         throw std::runtime_error("Internal error");
     }

@@ -136,7 +136,7 @@ public:
         return status::success;
     }
 
-    virtual status_t unmap_data(void *mapped_ptr) const {
+    status_t unmap_data(void *mapped_ptr) const {
         if (!impl_)
             return status::success;
 
