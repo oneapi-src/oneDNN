@@ -124,6 +124,14 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
             if (!temp_buf)
                 return status::runtime_error;
         }
+        if (pd()->jrp_.scale_quant) {
+            size_t size = pd()->attr()->output_scales_.count_ * sizeof(float);
+            memory_storage_t *scales_ptr;
+            engine()->create_memory_storage(&scales_ptr, size);
+            scales.reset(scales_ptr);
+            if (!scales)
+                return status::runtime_error;
+        }
 
         return status::success;
     }
@@ -140,6 +148,7 @@ private:
     compute::kernel_t kernel_;
     jit_simple_reorder_kernel *ker_;
     std::unique_ptr<memory_storage_t> temp_buf;
+    std::unique_ptr<memory_storage_t> scales;
 };
 
 } // namespace ocl

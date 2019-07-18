@@ -36,19 +36,32 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     float beta = pd()->beta();
     const bool do_reorder = jrp.do_reorder;
 
+    status_t status = status::success;
     auto ocl_reorder = [&](const memory_storage_t &in_storage,
                                const memory_storage_t &out_storage) {
+        if (scales) {
+            void *tmp_ptr = nullptr;
+            status = scales->map_data(&tmp_ptr);
+            if (status != status::success)
+                return status;
+            memcpy(tmp_ptr, pd()->attr()->output_scales_.scales_,
+                    pd()->attr()->output_scales_.count_ * sizeof(float));
+            status = scales->unmap_data(tmp_ptr);
+            if (status != status::success)
+                return status;
+        }
+
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, in_storage);
         arg_list.set(1, out_storage);
         arg_list.set(2, alpha);
         arg_list.set(3, beta);
+        arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
         auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
         return compute_stream->parallel_for(nd_range, kernel_, arg_list);
     };
 
-    status_t status = status::success;
     if (in_e_kind == engine_kind::gpu && out_e_kind == engine_kind::cpu) {
         if (do_reorder) {
             status = ocl_reorder(input, *temp_buf);

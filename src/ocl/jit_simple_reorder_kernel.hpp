@@ -41,9 +41,15 @@ struct jit_simple_reorder_kernel {
         status_t status = status::success;
 
         const auto &dims = output_md.padded_dims();
-        jrp.with_sum_ab = (pd->alpha() != 1.f || pd->beta() != 0.f);
+        jrp.scale_quant = pd->attr()->output_scales_.mask_ != 0;
+        jrp.scale_mask = jrp.scale_quant ? pd->attr()->output_scales_.mask_ : 0;
+        jrp.with_sum_ab = jrp.scale_quant
+                ? false
+                : (pd->alpha() != 1.f || pd->beta() != 0.f);
         jrp.with_sum_a = jrp.with_sum_ab && pd->beta() == 0.f;
-        jrp.do_reorder = jrp.with_sum_ab ? true : input_md != output_md;
+        jrp.do_reorder = jrp.scale_quant || jrp.with_sum_ab
+                ? true
+                : input_md != output_md;
         jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.ndims = input_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
@@ -80,7 +86,7 @@ struct jit_simple_reorder_kernel {
                         gOIhw2o8i8o2i))
             jrp.with_group = 1;
 
-        if (jrp.has_padding)
+        if (jrp.has_padding || jrp.scale_quant)
             return status;
 
         const bool type_s8_u8
@@ -145,7 +151,10 @@ struct jit_simple_reorder_kernel {
             const memory_desc_wrapper &output_md) {
 
         kernel_ctx.define_int("NDIMS", jrp.ndims);
-        if (jrp.with_sum_a)
+        if (jrp.scale_quant) {
+            kernel_ctx.define_int("SCALE_QUANT", 1);
+            kernel_ctx.define_int("SCALE_MASK", jrp.scale_mask);
+        } else if (jrp.with_sum_a)
             kernel_ctx.define_int("WITH_SUM_A", 1);
         else if (jrp.with_sum_ab)
             kernel_ctx.define_int("WITH_SUM_AB", 1);

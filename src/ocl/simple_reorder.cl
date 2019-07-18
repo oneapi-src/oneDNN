@@ -447,7 +447,22 @@ ushort8 float_to_bfloat8(float8 b) {
 #define CONVERT_IN_TO_OUT8(x) CONVERT_F32_TO_OUT8(x)
 #endif
 
-#if WITH_SUM_A
+#if SCALE_QUANT
+
+#define REORDER(_out, _in, _a, _b)               \
+    do {                                         \
+        const float _x = CONVERT_IN_TO_F32(_in); \
+        const float _s = _a * _x + _b;           \
+        _out = CONVERT_F32_TO_OUT(_s);           \
+    } while (0)
+#define REORDER8(_out, _in, _a, _b)                 \
+    do {                                            \
+        const float8 _x = CONVERT_IN_TO_F32_8(_in); \
+        const float8 _s = _a * _x + _b;             \
+        _out = CONVERT_F32_TO_OUT8(_s);             \
+    } while (0)
+
+#elif WITH_SUM_A
 
 #define REORDER(_out, _in, _a, _b)               \
     do {                                         \
@@ -492,12 +507,37 @@ ushort8 float_to_bfloat8(float8 b) {
 
 #endif // WITH_SUM_AB
 
+#if SCALE_QUANT
+
+#define MASK_D(_d) ((SCALE_MASK >> _d) & 1)
+
+#define SCALE_D0 (MASK_D(0) ? SRC_D0 : 1)
+#define SCALE_D1 (MASK_D(1) ? SRC_D1 : 1)
+#define SCALE_D2 (MASK_D(2) ? SRC_D2 : 1)
+#define SCALE_D3 (MASK_D(3) ? SRC_D3 : 1)
+#define SCALE_D4 (MASK_D(4) ? SRC_D4 : 1)
+#define SCALE_D5 (MASK_D(5) ? SRC_D5 : 1)
+
+#define SCALE_S0 (SCALE_D1 * SCALE_D2 * SCALE_D3 * SCALE_D4 * SCALE_D5)
+#define SCALE_S1 (SCALE_D2 * SCALE_D3 * SCALE_D4 * SCALE_D5)
+#define SCALE_S2 (SCALE_D3 * SCALE_D4 * SCALE_D5)
+#define SCALE_S3 (SCALE_D4 * SCALE_D5)
+#define SCALE_S4 (SCALE_D5)
+#define SCALE_S5 (1)
+
+#define SCALE_OFF(x0, x1, x2, x3, x4, x5)                           \
+    ((x0)*SCALE_S0 * MASK_D(0) + (x1)*SCALE_S1 * MASK_D(1)          \
+            + (x2)*SCALE_S2 * MASK_D(2) + (x3)*SCALE_S3 * MASK_D(3) \
+            + (x4)*SCALE_S4 * MASK_D(4) + (x5)*SCALE_S5 * MASK_D(5))
+
+#endif // SCALE_QUANT
+
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 any2any_kernel(__global DT_IN *input, __global DT_OUT *output, float alpha,
-        float beta) {
+        float beta, __global float *scales) {
 
     input += SRC_OFFSET_PAD;
     output += DST_OFFSET_PAD;
@@ -520,6 +560,9 @@ any2any_kernel(__global DT_IN *input, __global DT_OUT *output, float alpha,
     {
         const int in_off = IN_OFF(d0, d1, d2, 0, 0, 0);
         const int out_off = OUT_OFF(d0, d1, d2, 0, 0, 0);
+#if SCALE_QUANT
+        alpha = scales[SCALE_OFF(d0, d1, d2, 0, 0, 0)];
+#endif
         REORDER(output[out_off], input[in_off], alpha, beta);
     }
 #elif NDIMS <= 5
@@ -540,6 +583,9 @@ any2any_kernel(__global DT_IN *input, __global DT_OUT *output, float alpha,
             for (int d4 = 0; d4 < SRC_D4; ++d4) {
                 const int in_off = IN_OFF(d0, d1, d2, d3, d4, 0);
                 const int out_off = OUT_OFF(d0, d1, d2, d3, d4, 0);
+#if SCALE_QUANT
+                alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, 0)];
+#endif
                 REORDER(output[out_off], input[in_off], alpha, beta);
             }
 #if PAD_FILL_ZERO
@@ -569,6 +615,9 @@ any2any_kernel(__global DT_IN *input, __global DT_OUT *output, float alpha,
             for (int d5 = 0; d5 < DST_D5; ++d5) {
                 const int in_off = IN_OFF(d0, d1, d2, d3, d4, d5);
                 const int out_off = OUT_OFF(d0, d1, d2, d3, d4, d5);
+#if SCALE_QUANT
+                alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, d5)];
+#endif
                 REORDER(output[out_off], input[in_off], alpha, beta);
             }
 #if PAD_FILL_ZERO
