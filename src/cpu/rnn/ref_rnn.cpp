@@ -672,8 +672,14 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
 
     // initialize diff_states to 0
-    if (aprop == prop_kind::backward)
-        array_set(ws_diff_states, 0.0f, rnn.ws_diff_states_size / sizeof(float));
+    if (aprop == prop_kind::backward) {
+        const size_t ws_sz = rnn.ws_diff_states_size / sizeof(float);
+        parallel(0, [&](const int ithr, const int nthr) {
+            size_t start, end;
+            balance211(ws_sz, nthr, ithr, start, end);
+            array_set(ws_diff_states + start, 0.f, end - start);
+        });
+    }
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */
