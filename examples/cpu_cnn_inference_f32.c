@@ -114,7 +114,11 @@ static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
     mkldnn_memory_desc_t user_md;
     CHECK(mkldnn_memory_desc_init_by_tag(
             &user_md, dim, dims, mkldnn_f32, user_tag));
-    CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
+    CHECK(mkldnn_memory_create(
+            memory, &user_md, engine, MKLDNN_MEMORY_ALLOCATE));
+
+    // copy data to memory
+    // ...
 }
 
 mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, // in

@@ -103,13 +103,18 @@ void simple_net_int8() {
 /// The user data will be in its original 32-bit floating point format.
 /// @snippet cpu_cnn_inference_int8.cpp Allocate buffers
 //[Allocate buffers]
-    auto user_src_memory = memory({ { conv_src_tz }, dt::f32, tag::nchw },
-            cpu_engine, user_src.data());
+    auto user_src_memory
+            = memory({ { conv_src_tz }, dt::f32, tag::nchw }, cpu_engine);
+    // Copy user_src to user_src_memory
+    // ...
     auto user_weights_memory
-            = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, cpu_engine,
-                    conv_weights.data());
-    auto user_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x },
-            cpu_engine, conv_bias.data());
+            = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, cpu_engine);
+    // Copy conv_weights to user_weights_memory
+    // ...
+    auto user_bias_memory
+            = memory({ { conv_bias_tz }, dt::f32, tag::x }, cpu_engine);
+    // Copy conv_bias to user_bias_memory
+    // ...
 //[Allocate buffers]
 
 /// Create a memory descriptor for each convolution parameter.
@@ -253,8 +258,10 @@ void simple_net_int8() {
 /// computation output data.
 /// @snippet cpu_cnn_inference_int8.cpp Dequantize the result
 //[Dequantize the result]
-    auto user_dst_memory = memory({ { conv_dst_tz }, dt::f32, tag::nchw },
-            cpu_engine, user_dst.data());
+    auto user_dst_memory
+            = memory({ { conv_dst_tz }, dt::f32, tag::nchw }, cpu_engine);
+    // copy user_dst to user_dst_memory
+    // ...
     primitive_attr dst_attr;
     dst_attr.set_output_scales(dst_mask, dst_scales);
     auto dst_reorder_pd = reorder::primitive_desc(cpu_engine,

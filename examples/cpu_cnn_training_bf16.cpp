@@ -83,13 +83,20 @@ void simple_net() {
         conv_bias[i] = sinf((float)i);
 
     // create memory for user data
-    auto conv_user_src_memory = memory({ { conv_src_tz }, dt::f32, tag::nchw },
-            cpu_engine, net_src.data());
+    auto conv_user_src_memory
+            = memory({ { conv_src_tz }, dt::f32, tag::nchw }, cpu_engine);
+    // copy net_src to conv_user_src_memory
+    // ...
+
     auto conv_user_weights_memory
-            = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, cpu_engine,
-                    conv_weights.data());
-    auto conv_user_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x },
-            cpu_engine, conv_bias.data());
+            = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, cpu_engine);
+    // copy conv_weights to conv_user_weights_memory
+    // ...
+
+    auto conv_user_bias_memory
+            = memory({ { conv_bias_tz }, dt::f32, tag::x }, cpu_engine);
+    // copy conv_bias to conv_user_bias_memory
+    // ...
 
     // create memory descriptors for bfloat16 convolution data w/ no specified
     // format tag(`any`)
@@ -241,8 +248,9 @@ void simple_net() {
 
     // create memory for user diff dst data stored in float data type
     auto pool_user_diff_dst_memory
-            = memory({ { pool_dst_tz }, dt::f32, tag::nchw }, cpu_engine,
-                    net_diff_dst.data());
+            = memory({ { pool_dst_tz }, dt::f32, tag::nchw }, cpu_engine);
+    // copy net_diff_dst to pool_user_diff_dst_memory
+    // ...
 
     // Backward pooling
     // create memory descriptors for pooling
@@ -322,10 +330,14 @@ void simple_net() {
     std::vector<float> conv_diff_bias_buffer(product(conv_bias_tz));
 
     auto conv_user_diff_weights_memory
-            = memory({ { conv_weights_tz }, dt::f32, tag::nchw }, cpu_engine,
-                    conv_user_diff_weights_buffer.data());
+            = memory({ { conv_weights_tz }, dt::f32, tag::nchw }, cpu_engine);
+    // copy conv_user_diff_weights_buffer to conv_user_diff_weights_memory
+    // ...
+
     auto conv_diff_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x },
             cpu_engine, conv_diff_bias_buffer.data());
+    // copy conv_diff_bias_buffer to conv_diff_bias_memory
+    // ...
 
     // create memory descriptors for bfloat16 convolution data
     auto conv_bwd_src_md = memory::desc({ conv_src_tz }, dt::bf16, tag::any);

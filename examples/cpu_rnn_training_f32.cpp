@@ -201,9 +201,11 @@ void simple_net() {
 
     // Memory for the user allocated memory
     // Suppose user data is in tnc format.
-    auto net_src_memory
-            = mkldnn::memory({ { net_src_dims }, dt::f32, tag::tnc },
-                    cpu_engine, net_src.data());
+    auto net_src_memory = mkldnn::memory(
+            { { net_src_dims }, dt::f32, tag::tnc }, cpu_engine);
+    // copy net_src to net_src_memory
+    // ...
+
     // src_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memories in larger memory.
     // View primitives compute the strides to accommodate for padding.
@@ -220,32 +222,37 @@ void simple_net() {
     // primitive prefers it in a different format.
     std::vector<float> user_common_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
-    auto user_common_weights_layer_memory
-            = mkldnn::memory({ common_weights_layer_dims, dt::f32, tag::ldigo },
-                    cpu_engine, user_common_weights_layer.data());
+    auto user_common_weights_layer_memory = mkldnn::memory(
+            { common_weights_layer_dims, dt::f32, tag::ldigo }, cpu_engine);
+    // copy user_common_weights_layer to user_common_weights_layer_memory
+    // ...
 
     std::vector<float> user_common_weights_iter(
             tz_volume(common_weights_iter_dims), 1.0f);
     auto user_common_weights_iter_memory = mkldnn::memory(
-            { { common_weights_iter_dims }, dt::f32, tag::ldigo }, cpu_engine,
-            user_common_weights_layer.data());
+            { { common_weights_iter_dims }, dt::f32, tag::ldigo }, cpu_engine);
+    // copy user_common_weights_iter to user_common_weights_iter_memory
+    // ...
 
     std::vector<float> user_common_bias(tz_volume(common_bias_dims), 1.0f);
-    auto user_common_bias_memory
-            = mkldnn::memory({ { common_bias_dims }, dt::f32, tag::ldgo },
-                    cpu_engine, user_common_bias.data());
+    auto user_common_bias_memory = mkldnn::memory(
+            { { common_bias_dims }, dt::f32, tag::ldgo }, cpu_engine);
+    // copy user_common_bias to user_common_bias_memory
+    // ...
 
     std::vector<float> user_leftmost_dst_layer(
             tz_volume(leftmost_dst_layer_dims), 1.0f);
-    auto user_leftmost_dst_layer_memory
-            = mkldnn::memory({ { leftmost_dst_layer_dims }, dt::f32, tag::tnc },
-                    cpu_engine, user_leftmost_dst_layer.data());
+    auto user_leftmost_dst_layer_memory = mkldnn::memory(
+            { { leftmost_dst_layer_dims }, dt::f32, tag::tnc }, cpu_engine);
+    // copy user_leftmost_dst_layer to user_leftmost_dst_layer_memory
+    // ...
 
     std::vector<float> user_rightmost_dst_layer(
             tz_volume(rightmost_dst_layer_dims), 1.0f);
     auto user_rightmost_dst_layer_memory = mkldnn::memory(
-            { { rightmost_dst_layer_dims }, dt::f32, tag::tnc }, cpu_engine,
-            user_rightmost_dst_layer.data());
+            { { rightmost_dst_layer_dims }, dt::f32, tag::tnc }, cpu_engine);
+    // copy user_rightmost_dst_layer to user_rightmost_dst_layer_memory
+    // ...
 
     // Describe layer, forward pass, leftmost primitive.
     // There are no primitives to the left from here,
@@ -412,8 +419,9 @@ void simple_net() {
     // User-provided memory for backward by data output
     std::vector<float> net_diff_src(tz_volume(net_src_dims), 1.0f);
     auto net_diff_src_memory
-            = mkldnn::memory(formatted_md(net_src_dims, tag::tnc), cpu_engine,
-                    net_diff_src.data());
+            = mkldnn::memory(formatted_md(net_src_dims, tag::tnc), cpu_engine);
+    // copy net_diff_src to net_diff_src_memory
+    // ...
 
     // diff_src follows the same layout we have for net_src
     auto user_leftmost_diff_src_layer_md
@@ -431,13 +439,15 @@ void simple_net() {
     std::vector<float> user_common_diff_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
     auto user_common_diff_weights_layer_memory = mkldnn::memory(
-            formatted_md(common_weights_layer_dims, tag::ldigo), cpu_engine,
-            user_common_diff_weights_layer.data());
+            formatted_md(common_weights_layer_dims, tag::ldigo), cpu_engine);
+    // copy user_common_diff_weights_layer to user_common_diff_weights_layer_memory
+    // ...
 
     std::vector<float> user_common_diff_bias(tz_volume(common_bias_dims), 1.0f);
-    auto user_common_diff_bias_memory
-            = mkldnn::memory(formatted_md(common_bias_dims, tag::ldgo),
-                    cpu_engine, user_common_diff_bias.data());
+    auto user_common_diff_bias_memory = mkldnn::memory(
+            formatted_md(common_bias_dims, tag::ldgo), cpu_engine);
+    // copy user_common_diff_bias to user_common_diff_bias_memory
+    // ...
 
     // User-provided input to the backward primitive.
     // To be updated by the user after forward pass using some cost function.
@@ -448,9 +458,11 @@ void simple_net() {
     };
     // Suppose user data is in tnc format.
     std::vector<float> net_diff_dst(tz_volume(net_diff_dst_dims), 1.0f);
-    auto net_diff_dst_memory
-            = mkldnn::memory(formatted_md(net_diff_dst_dims, tag::tnc),
-                    cpu_engine, net_diff_dst.data());
+    auto net_diff_dst_memory = mkldnn::memory(
+            formatted_md(net_diff_dst_dims, tag::tnc), cpu_engine);
+    // copy net_diff_dst to net_diff_dst_memory
+    // ...
+
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memory in larger memory.
     // View primitives compute the strides to accommodate for padding.

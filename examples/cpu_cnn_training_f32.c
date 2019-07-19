@@ -114,7 +114,10 @@ static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
     mkldnn_memory_desc_t user_md;
     CHECK(mkldnn_memory_desc_init_by_tag(
             &user_md, dim, dims, mkldnn_f32, user_fmt));
-    CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
+    CHECK(mkldnn_memory_create(
+            memory, &user_md, engine, MKLDNN_MEMORY_ALLOCATE));
+    // copy data to memory
+    // ...
 }
 
 mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, /// in
@@ -674,7 +677,9 @@ mkldnn_status_t simple_net() {
             = mkldnn_primitive_desc_query_md(
                     conv_bwd_weights_pd, mkldnn_query_diff_weights_md, 1);
     CHECK(mkldnn_memory_create(&conv_diff_bias_memory, conv_diff_bias_md,
-            engine, conv_diff_bias_buffer));
+            engine, MKLDNN_MEMORY_ALLOCATE));
+    // copy conv_diff_bias_buffer to conv_diff_bias_memory
+    // ...
 
     // finally created backward convolution weights primitive
     mkldnn_primitive_t conv_bwd_weights;

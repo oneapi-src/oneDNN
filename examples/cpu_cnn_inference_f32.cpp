@@ -104,13 +104,20 @@ void simple_net(int times = 100) {
 /// for weights.
 /// @snippet cpu_cnn_inference_f32.cpp Create user memory
 //[Create user memory]
-    auto user_src_memory = memory(
-            { { conv1_src_tz }, dt::f32, tag::nchw }, eng, user_src.data());
+    auto user_src_memory
+            = memory({ { conv1_src_tz }, dt::f32, tag::nchw }, eng);
+    // copy user_src to user_src_memory
+    // ...
     auto user_weights_memory
-            = memory({ { conv1_weights_tz }, dt::f32, tag::oihw }, eng,
-                    conv1_weights.data());
-    auto conv1_user_bias_memory = memory(
-            { { conv1_bias_tz }, dt::f32, tag::x }, eng, conv1_bias.data());
+            = memory({ { conv1_weights_tz }, dt::f32, tag::oihw }, eng);
+    // copy conv1_weights to user_weights_memory
+    // ...
+
+    auto conv1_user_bias_memory
+            = memory({ { conv1_bias_tz }, dt::f32, tag::x }, eng);
+    // copy conv1_bias to conv1_user_bias_memory
+    // ...
+
 //[Create user memory]
 
 /// Create memory descriptors with layout tag::any. The `any` format enables
@@ -274,10 +281,13 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv2_user_weights_memory
-            = memory({ { conv2_weights_tz }, dt::f32, tag::goihw }, eng,
-                    conv2_weights.data());
-    auto conv2_user_bias_memory = memory(
-            { { conv2_bias_tz }, dt::f32, tag::x }, eng, conv2_bias.data());
+            = memory({ { conv2_weights_tz }, dt::f32, tag::goihw }, eng);
+    // copy conv2_weights to conv2_user_weights_memory
+    // ...
+    auto conv2_user_bias_memory
+            = memory({ { conv2_bias_tz }, dt::f32, tag::x }, eng);
+    // copy conv2_bias to conv2_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv2_src_md = memory::desc({ conv2_src_tz }, dt::f32, tag::any);
@@ -390,10 +400,13 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv3_user_weights_memory
-            = memory({ { conv3_weights_tz }, dt::f32, tag::oihw }, eng,
-                    conv3_weights.data());
-    auto conv3_user_bias_memory = memory(
-            { { conv3_bias_tz }, dt::f32, tag::x }, eng, conv3_bias.data());
+            = memory({ { conv3_weights_tz }, dt::f32, tag::oihw }, eng);
+    // copy conv3_weights to conv3_user_weights_memory
+    // ...
+    auto conv3_user_bias_memory
+            = memory({ { conv3_bias_tz }, dt::f32, tag::x }, eng);
+    // copy conv3_bias to conv3_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv3_src_md = memory::desc({ conv3_src_tz }, dt::f32, tag::any);
@@ -463,10 +476,13 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv4_user_weights_memory
-            = memory({ { conv4_weights_tz }, dt::f32, tag::goihw }, eng,
-                    conv4_weights.data());
-    auto conv4_user_bias_memory = memory(
-            { { conv4_bias_tz }, dt::f32, tag::x }, eng, conv4_bias.data());
+            = memory({ { conv4_weights_tz }, dt::f32, tag::goihw }, eng);
+    // copy conv4_weights to conv4_user_weights_memory
+    // ...
+    auto conv4_user_bias_memory
+            = memory({ { conv4_bias_tz }, dt::f32, tag::x }, eng);
+    // copy conv4_bias to conv4_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv4_src_md = memory::desc({ conv4_src_tz }, dt::f32, tag::any);
@@ -535,10 +551,14 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv5_user_weights_memory
-            = memory({ { conv5_weights_tz }, dt::f32, tag::goihw }, eng,
-                    conv5_weights.data());
-    auto conv5_user_bias_memory = memory(
-            { { conv5_bias_tz }, dt::f32, tag::x }, eng, conv5_bias.data());
+            = memory({ { conv5_weights_tz }, dt::f32, tag::goihw }, eng);
+    // copy conv5_weights to conv5_user_weights_memory
+    // ...
+
+    auto conv5_user_bias_memory
+            = memory({ { conv5_bias_tz }, dt::f32, tag::x }, eng);
+    // copy conv5_bias to conv5_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv5_src_md = memory::desc({ conv5_src_tz }, dt::f32, tag::any);
@@ -631,10 +651,14 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto fc6_user_weights_memory
-            = memory({ { fc6_weights_tz }, dt::f32, tag::oihw }, eng,
-                    fc6_weights.data());
-    auto fc6_user_bias_memory = memory(
-            { { fc6_bias_tz }, dt::f32, tag::x }, eng, fc6_bias.data());
+            = memory({ { fc6_weights_tz }, dt::f32, tag::oihw }, eng);
+    // copy fc6_weights to fc6_user_weights_memory
+    // ...
+
+    auto fc6_user_bias_memory
+            = memory({ { fc6_bias_tz }, dt::f32, tag::x }, eng);
+    // copy fc6_bias to fc6_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc6_src_md = memory::desc({ fc6_src_tz }, dt::f32, tag::any);
@@ -681,11 +705,15 @@ void simple_net(int times = 100) {
     std::vector<float> fc7_bias(product(fc7_bias_tz));
 
     // create memory for user data
-    auto fc7_user_weights_memory = memory(
-            { { fc7_weights_tz }, dt::f32, tag::nc }, eng, fc7_weights.data());
+    auto fc7_user_weights_memory
+            = memory({ { fc7_weights_tz }, dt::f32, tag::nc }, eng);
+    // copy fc7_weights to fc7_user_weights_memory
+    // ...
 
-    auto fc7_user_bias_memory = memory(
-            { { fc7_bias_tz }, dt::f32, tag::x }, eng, fc7_bias.data());
+    auto fc7_user_bias_memory
+            = memory({ { fc7_bias_tz }, dt::f32, tag::x }, eng);
+    // copy fc7_bias to fc7_user_bias_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc7_bias_md = memory::desc({ fc7_bias_tz }, dt::f32, tag::any);
@@ -722,12 +750,19 @@ void simple_net(int times = 100) {
     std::vector<float> fc8_bias(product(fc8_bias_tz));
 
     // create memory for user data
-    auto fc8_user_weights_memory = memory(
-            { { fc8_weights_tz }, dt::f32, tag::nc }, eng, fc8_weights.data());
-    auto fc8_user_bias_memory = memory(
-            { { fc8_bias_tz }, dt::f32, tag::x }, eng, fc8_bias.data());
-    auto user_dst_memory = memory(
-            { { fc8_dst_tz }, dt::f32, tag::nc }, eng, user_dst.data());
+    auto fc8_user_weights_memory
+            = memory({ { fc8_weights_tz }, dt::f32, tag::nc }, eng);
+    // copy fc8_weights to fc8_user_weights_memory
+    // ...
+
+    auto fc8_user_bias_memory
+            = memory({ { fc8_bias_tz }, dt::f32, tag::x }, eng);
+    // copy fc8_bias to fc8_user_bias_memory
+    // ...
+
+    auto user_dst_memory = memory({ { fc8_dst_tz }, dt::f32, tag::nc }, eng);
+    // copy user_dst to user_dst_memory
+    // ...
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc8_bias_md = memory::desc({ fc8_bias_tz }, dt::f32, tag::any);
