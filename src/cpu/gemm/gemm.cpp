@@ -110,7 +110,8 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
         return status;
 
 #ifdef USE_CBLAS
-    if (!force_jit_nocopy_gemm) {
+    if (!force_jit_nocopy_gemm && utils::one_of(*transa, 'n', 'N', 't', 'T')
+            && utils::one_of(*transb, 'n', 'N', 't', 'T')) {
         bool trA = *transa == 't' || *transa == 'T';
         bool trB = *transb == 't' || *transb == 'T';
         CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
@@ -127,8 +128,7 @@ mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
             });
         }
         status = mkldnn_success;
-    }
-    else
+    } else
 #endif
     {
     if (mayiuse(sse41)) {

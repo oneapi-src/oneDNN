@@ -185,6 +185,10 @@ mkldnn_status_t ref_gemm(
         const int *lda_, const data_t *B, const int *ldb_, const data_t *beta_,
         data_t *C, const int *ldc_, const data_t *bias) {
 
+    if (!(utils::one_of(*transa_, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb_, 'n', 'N', 't', 'T')))
+        return mkldnn_unimplemented;
+
     bool isTransA = (*transa_ == 'T' || *transa_ == 't');
     bool isTransB = (*transb_ == 'T' || *transb_ == 't');
     const int M = *M_, N = *N_, K = *K_;

@@ -39,6 +39,10 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
     if (*M == 0 || *N == 0 || *K == 0)
         return mkldnn_success;
 
+    if (!(utils::one_of(*transa, 'n', 'N', 't', 'T')
+                && utils::one_of(*transb, 'n', 'N', 't', 'T')))
+        return mkldnn_unimplemented;
+
     bool OCisR = (*offsetc == 'R' || *offsetc == 'r');
     bool OCisC = (*offsetc == 'C' || *offsetc == 'c');
     bool AisN = (*transa == 'N' || *transa == 'n');
