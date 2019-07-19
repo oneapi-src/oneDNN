@@ -27,7 +27,6 @@ namespace impl {
 namespace sycl {
 
 struct map_tag;
-struct use_host_ptr_tag;
 
 sycl_memory_storage_t::sycl_memory_storage_t(engine_t *engine, unsigned flags,
         size_t size, size_t alignment, void *handle)
@@ -55,31 +54,6 @@ sycl_memory_storage_t::sycl_memory_storage_t(engine_t *engine, unsigned flags,
 #else
         auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(buf_u8));
-#endif
-    } else if (flags & memory_flags_t::use_host_ptr) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        void *vptr_alloc = mkldnn::sycl_malloc(size);
-
-        auto buf = mkldnn::get_sycl_buffer(vptr_alloc);
-        {
-            auto acc = buf.get_access<cl::sycl::access::mode::write>();
-            uint8_t *handle_u8 = static_cast<uint8_t *>(handle);
-            for (size_t i = 0; i < size; i++)
-                acc[i] = handle_u8[i];
-        }
-
-        vptr_.reset(vptr_alloc, [](void *ptr) {
-            auto buf = mkldnn::get_sycl_buffer(ptr);
-            auto acc = buf.get_access<cl::sycl::access::mode::read>();
-            uint8_t *handle_u8 = static_cast<uint8_t *>(handle);
-            for (size_t i = 0; i < size; i++)
-                handle_u8[i] = acc[i];
-            mkldnn::sycl_free(ptr);
-        });
-
-#else
-        buffer_.reset(new buffer_u8_t(
-                static_cast<uint8_t *>(handle), cl::sycl::range<1>(size)));
 #endif
     }
 }

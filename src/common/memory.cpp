@@ -233,6 +233,15 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
 
+    // If VPTR API is not used then return an error if SYCL memory is
+    // initialized with a raw pointer.
+    if (engine->backend_kind() == backend_kind::sycl) {
+#if MKLDNN_SYCL_MEMORY_API != MKLDNN_SYCL_MEMORY_API_VPTR
+        if (handle && handle != MKLDNN_MEMORY_ALLOCATE)
+            return invalid_arguments;
+#endif
+    }
+
     memory_desc_t z_md = types::zero_md();
     if (md == nullptr) md = &z_md;
 
@@ -241,13 +250,6 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
     unsigned flags = 0;
     if (handle == MKLDNN_MEMORY_ALLOCATE) {
         flags = memory_flags_t::alloc;
-    } else if (engine->backend_kind() == backend_kind::sycl) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        flags = mkldnn::is_sycl_vptr(handle) ? memory_flags_t::use_backend_ptr
-                                             : memory_flags_t::use_host_ptr;
-#else
-        flags = memory_flags_t::use_host_ptr;
-#endif
     } else {
         flags = memory_flags_t::use_backend_ptr;
     }
