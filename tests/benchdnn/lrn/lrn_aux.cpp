@@ -55,7 +55,7 @@ int str2desc(desc_t *desc, const char *str) {
      * note: symbol `_` is ignored
      *
      * implicit rules:
-     *  alpha = 0.0001
+     *  alpha = 1 / 8192 = 0.000122 ~~ 0.0001, but has exact representation
      *  beta = 0.75
      *  k = 1
      *  ls = 5
@@ -68,7 +68,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d{0};
     d.mb = 2;
     d.ls = 5;
-    d.alpha = 0.0001;
+    d.alpha = 1. / 8192;
     d.beta = 0.75;
     d.k = 1;
     d.name = "\"wip\"";
@@ -130,7 +130,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.iw != d.ih || d.id > 1) s << "iw" << d.iw;
 
     if (canonical || d.ls != 5) s << "ls" << d.ls;
-    if (canonical || d.alpha != 0.0001) s << "alpha" << d.alpha;
+    if (canonical || d.alpha != 1. / 8192) s << "alpha" << d.alpha;
     if (canonical || d.beta != 0.75) s << "beta" << d.beta;
     if (canonical || d.k != 1) s << "k" << d.k;
 

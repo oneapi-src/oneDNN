@@ -92,6 +92,10 @@ private:
 /* some extra control parameters which shouldn't be placed in prb_t */
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
+inline int get_summands(const prb_t *p) {
+    return p->ls * (p->alg == ACROSS ? 1 : p->ls * (p->id > 1 ? p->ls : 1));
+}
+
 inline size_t data_off(const prb_t *p,
         int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
     return (((mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
