@@ -235,7 +235,8 @@ void _jit_avx512_common_conv_fwd_kernel<Zmm>::compute_loop_4fma_1st(
             int j_end = get_ow_end(ur_w, ki, pad_r);
 
             for (int j = j_start, prf_count=0; j < j_end; j++) {
-                size_t kw_unroll = (size_t)(ki + j * stride_w - pad_l);
+                size_t kw_unroll = ki + j * static_cast<size_t>(stride_w)
+                    - pad_l;
                 /* Note: protect against potential illegal memory addressing due
                  * to 4fma overflow in source. */
                 assert(kw_unroll + unroll_4fma <= (size_t)iw);
