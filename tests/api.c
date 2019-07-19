@@ -81,6 +81,7 @@ void test1() {
     CHECK(mkldnn_engine_destroy(engine));
 }
 
+#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_SYCL
 void test2() {
     /* AlexNet: c3
      * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}
@@ -314,10 +315,13 @@ void test3() {
     free(src);
     free(dst);
 }
+#endif
 
 int main() {
     test1();
+#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_SYCL
     test2();
     test3();
+#endif
     return 0;
 }
