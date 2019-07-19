@@ -622,6 +622,27 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     return status::success;
 };
 
+/* Fix for MSVS warning C4661 */
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+
+
 template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;
 template
