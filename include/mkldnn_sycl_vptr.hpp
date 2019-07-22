@@ -23,7 +23,7 @@
 
 namespace mkldnn {
 
-void *MKLDNN_API sycl_malloc(size_t size);
+void MKLDNN_API *sycl_malloc(size_t size);
 
 void MKLDNN_API sycl_free(void *ptr);
 
