@@ -1,0 +1,13 @@
+# f32
+--reset
+--dir=FWD_B,BWD_D,BWD_WB
+--mb=128 --batch=ip_gnmt
+--mb=40 --batch=ip_wd
+--mb=256 --batch=ip_wd
+--mb=112 --batch=ip_resnet50
+--mb=64 --batch=ip_resnet50_sparse
+--mb=128 --batch=ip_googlenetv1
+--mb=224 --batch=ip_googlenetv3
+--mb=64 --batch=ip_vgg16
+--mb=2048 --batch=ip_ncf
+--mb=1024 --batch=ip_alexnet
