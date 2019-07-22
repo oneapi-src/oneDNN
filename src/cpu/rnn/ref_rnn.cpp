@@ -675,7 +675,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     if (aprop == prop_kind::backward) {
         const size_t ws_sz = rnn.ws_diff_states_size / sizeof(float);
         parallel(0, [&](const int ithr, const int nthr) {
-            size_t start, end;
+            size_t start = 0, end = 0;
             balance211(ws_sz, nthr, ithr, start, end);
             array_set(ws_diff_states + start, 0.f, end - start);
         });
