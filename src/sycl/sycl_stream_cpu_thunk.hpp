@@ -51,6 +51,7 @@ struct thunk_params_t {
 
 // OpenCL for CPU cannot find mangled functions so use
 // C linkage for the thunk
-extern "C" void mkldnn_impl_sycl_cpu_thunk(const mkldnn::impl::sycl::thunk_params_t *params);
+extern "C" void MKLDNN_API mkldnn_impl_sycl_cpu_thunk(
+        const mkldnn::impl::sycl::thunk_params_t *params);
 
 #endif // SYCL_STREAM_CPU_THUNK_HPP

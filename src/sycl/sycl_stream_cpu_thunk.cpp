@@ -27,7 +27,7 @@
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::sycl;
 
-extern "C" void MKLDNN_API mkldnn_impl_sycl_cpu_thunk(const thunk_params_t *params) {
+extern "C" void mkldnn_impl_sycl_cpu_thunk(const thunk_params_t *params) {
 
     auto *submit_ctx = reinterpret_cast<submit_ctx_t *>(params->submit_ctx_ptr);
     auto *prim = submit_ctx->prim;
