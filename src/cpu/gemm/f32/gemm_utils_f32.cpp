@@ -166,7 +166,9 @@ void calc_nthr_nocopy_avx512_common(int m,
     //  - if there is not enough parallelism along M or N
     if (mkldnn_thr_syncable()) {
         if (n <= 2 * BN_NOCOPY_AVX512_COMMON &&
-                m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr) {
+                m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr
+                && k > m
+                && k > n) {
             nthr_k = k / BK_NOCOPY_AVX512_COMMON;
             if (nthr_k > nthr / 4)
                 nthr_k = nthr / 4;
