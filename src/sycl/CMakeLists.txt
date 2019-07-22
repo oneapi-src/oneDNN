@@ -25,5 +25,12 @@ file(GLOB_RECURSE SOURCES
 
 add_library(${TARGET_NAME} OBJECT ${SOURCES})
 
+if(MKLDNN_SYCL_COMPUTECPP)
+    add_sycl_to_target(
+        TARGET ${TARGET_NAME}
+        SOURCES ${SOURCES}
+    )
+endif()
+
 set(${LIB_NAME}_SUB_OBJS ${${LIB_NAME}_SUB_OBJS}
     $<TARGET_OBJECTS:${TARGET_NAME}> PARENT_SCOPE)

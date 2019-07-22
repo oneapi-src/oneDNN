@@ -43,10 +43,10 @@ if(IntelSYCL_FOUND)
 else()
     find_package(ComputeCpp)
     if(ComputeCpp_FOUND)
-        set(SYCL_TARGET Codeplay::ComputeCpp)
-        set(SYCL_FLAGS ${COMPUTECPP_FLAGS})
-        set(SYCL_INCLUDE_DIRS ${COMPUTECPP_INCLUDE_DIRS})
-        set(SYCL_LIBRARIES ${COMPUTECPP_LIBRARIES})
+        set(SYCL_TARGET ComputeCpp::ComputeCpp)
+        set(SYCL_FLAGS ${ComputeCpp_FLAGS})
+        set(SYCL_INCLUDE_DIRS ${ComputeCpp_INCLUDE_DIRS})
+        set(SYCL_LIBRARIES ${ComputeCpp_LIBRARIES})
         set(MKLDNN_SYCL_COMPUTECPP true)
     endif()
 endif()
@@ -61,12 +61,15 @@ if(SYCL_FOUND AND NOT TARGET SYCL::SYCL)
         ${SYCL_TARGET} IMPORTED_LINK_INTERFACE_LIBRARIES)
     get_target_property(imp_location
         ${SYCL_TARGET} IMPORTED_LOCATION)
+    get_target_property(imp_location_debug
+        ${SYCL_TARGET} IMPORTED_LOCATION_DEBUG)
     get_target_property(imp_include_dirs
         ${SYCL_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
 
     set_target_properties(SYCL::SYCL PROPERTIES
         IMPORTED_LINK_INTERFACE_LIBRARIES "${imp_libs}"
         IMPORTED_LOCATION "${imp_location}"
+        IMPORTED_LOCATION_DEBUG "${imp_location_debug}"
         INTERFACE_INCLUDE_DIRECTORIES "${imp_include_dirs}")
 endif()
 

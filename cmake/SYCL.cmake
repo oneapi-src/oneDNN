@@ -24,6 +24,10 @@ if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND
     return()
 endif()
 
+set(_computecpp_flags "-Wno-sycl-undef-func -no-serial-memop")
+set(COMPUTECPP_USER_FLAGS "${_computecpp_flags} ${COMPUTECPP_USER_FLAGS}"
+    CACHE STRING "" FORCE)
+
 find_package(SYCL REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
