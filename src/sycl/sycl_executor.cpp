@@ -104,18 +104,18 @@ status_t sycl_executor_t::parallel_for(const ocl::cl_nd_range_t &range,
                     cgh.set_arg(i, acc);
 #else
                     auto &sycl_buf = sycl_mem_storage->buffer();
-                    cgh.set_arg(i,
+                    cgh.set_arg((int)i,
                             sycl_buf.get_access<
                                     cl::sycl::access::mode::read_write>(cgh));
 #endif
                 } else {
-                    cgh.set_arg(i, nullptr);
+                    cgh.set_arg((int)i, nullptr);
                 }
             } else {
                 // XXX: workaround for bug in the SYCL library:
                 // set_arg() does not work with constant scalars
-                set_scalar_arg(
-                        cgh, i, arg.size(), const_cast<void *>(arg.value()));
+                set_scalar_arg(cgh, (int)i, arg.size(),
+                        const_cast<void *>(arg.value()));
             }
         }
         if (range.local_range()) {
