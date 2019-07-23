@@ -556,21 +556,18 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
 int doit(const prb_t *p, res_t *r) {
     mkldnn_convolution_desc_t cd;
     mkldnn_primitive_desc_t cpd;
-    mkldnn_primitive_t c{};
+    mkldnn_primitive_t c;
 
     SAFE(init_pd(p, cd, cpd, r), WARN);
 
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
-    prb_t *p_temp = nullptr;
-    if (p->alg == AUTO || p->alg == WINO) {
-        p_temp = new prb_t((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag,
-                p->dtag, p->alg, p->attr, p->mb);
-        if (p->alg == AUTO) p_temp->alg = alg_kind2alg(cd.alg_kind);
-        p_temp->cfg = auto_cfg(p_temp->alg, p->cfg);
-        p = p_temp;
-    }
+    const auto alg = alg_kind2alg(cd.alg_kind);
+    const auto cfg = auto_cfg(alg, p->cfg);
+    prb_t p_new((desc_t)*p, p->dir, cfg, p->stag, p->wtag, p->dtag, alg,
+            p->attr, p->mb);
+    p = &p_new;
 
     DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
@@ -651,15 +648,12 @@ int doit(const prb_t *p, res_t *r) {
             }
         }
     } else {
-        delete p_temp;
         SAFE(FAIL, CRIT);
     }
 
     measure_perf(r->timer, c, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
-
-    delete p_temp;
 
     return OK;
 }
