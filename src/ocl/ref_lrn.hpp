@@ -32,7 +32,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
 struct ref_lrn_fwd_t : public primitive_t {
     struct pd_t : public ocl_lrn_fwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
@@ -43,6 +42,7 @@ struct ref_lrn_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
         status_t init() {
+            using namespace data_type;
             assert(engine()->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
@@ -53,10 +53,10 @@ struct ref_lrn_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind,
                                alg_kind::lrn_across_channels,
                                alg_kind::lrn_within_channel)
-                    && utils::everyone_is(
-                               data_type, desc()->data_desc.data_type)
+                    && utils::one_of(desc()->data_desc.data_type,
+                        f32, f16, bf16)
                     && attr()->has_default_values()
-                    && IMPLICATION(data_type == data_type::f16,
+                    && IMPLICATION(desc()->data_desc.data_type == f16,
                                compute_engine->mayiuse(
                                        compute::device_ext_t::khr_fp16));
             if (!ok)
@@ -162,7 +162,6 @@ private:
     compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t data_type>
 struct ref_lrn_bwd_t : public primitive_t {
     struct pd_t : public ocl_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
@@ -183,10 +182,10 @@ struct ref_lrn_bwd_t : public primitive_t {
                     alg_kind::lrn_across_channels,
                     alg_kind::lrn_within_channel)
                 && utils::everyone_is(
-                    data_type, desc()->data_desc.data_type)
+                    data_type::f32, desc()->data_desc.data_type)
                 && desc()->data_desc == desc()->diff_data_desc
                 && attr()->has_default_values()
-                && IMPLICATION(data_type == data_type::f16,
+                && IMPLICATION(desc()->data_desc.data_type == data_type::f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;

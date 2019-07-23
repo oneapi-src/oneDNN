@@ -20,8 +20,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
-status_t ref_softmax_fwd_t<data_type>::execute_generic(
+status_t ref_softmax_fwd_t::execute_generic(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -39,8 +38,7 @@ status_t ref_softmax_fwd_t<data_type>::execute_generic(
     return status;
 }
 
-template <impl::data_type_t data_type>
-status_t ref_softmax_bwd_t<data_type>::execute_generic(
+status_t ref_softmax_bwd_t::execute_generic(
         const exec_ctx_t &ctx) const {
     auto &dst = CTX_IN_STORAGE(MKLDNN_ARG_DST);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
@@ -58,11 +56,6 @@ status_t ref_softmax_bwd_t<data_type>::execute_generic(
 
     return status;
 }
-
-template struct ref_softmax_fwd_t<data_type::bf16>;
-template struct ref_softmax_fwd_t<data_type::f16>;
-template struct ref_softmax_fwd_t<data_type::f32>;
-template struct ref_softmax_bwd_t<data_type::f32>;
 
 } // namespace ocl
 } // namespace impl

@@ -32,7 +32,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
 struct ref_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public ocl_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
@@ -45,13 +44,16 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
 
         status_t init() {
+            using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
+            auto src_data_t = src_md()->data_type;
+            auto dst_data_t = dst_md()->data_type;
 
             bool ok = true && is_fwd()
-                    && utils::everyone_is(data_type, src_md()->data_type,
-                               dst_md()->data_type)
-                    && IMPLICATION(data_type == data_type::f16,
+                    && (utils::everyone_is(f16, src_data_t, dst_data_t)
+                        || utils::everyone_is(f32, src_data_t, dst_data_t))
+                    && IMPLICATION(src_data_t == f16,
                                !is_training() && stats_is_src())
                     && (attr()->has_default_values() || with_relu_post_op())
                     && compute_engine->mayiuse(
@@ -59,7 +61,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             if (!ok)
                 return status::unimplemented;
 
-            if (src_md()->data_type == data_type::s8 && !stats_is_src())
+            if (src_data_t == s8 && !stats_is_src())
                 return status::unimplemented;
 
             if (is_training() && fuse_norm_relu())
@@ -85,7 +87,8 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             nullptr, nullptr, nullptr, nullptr };
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic * sizeof(data_t);
+                    * pd()->jbn_.ic
+                    * types::data_type_size(pd()->src_md()->data_type);
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);
             temp_reduce.reset(temp_reduce_ptr);
@@ -117,8 +120,6 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
     }
     ~ref_batch_normalization_fwd_t() { delete ker_; }
 
-    typedef typename prec_traits<data_type>::type data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -135,7 +136,6 @@ private:
     std::unique_ptr<memory_storage_t> temp_reduce;
 };
 
-template <impl::data_type_t data_type>
 struct ref_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public ocl_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
@@ -148,12 +148,13 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_bwd_t);
 
         status_t init() {
+            using namespace data_type;
             bool ok = true
                     && is_bwd()
-                    && utils::everyone_is(data_type, src_md()->data_type,
-                               diff_src_md()->data_type)
+                    && utils::everyone_is(f32, src_md()->data_type,
+                            diff_src_md()->data_type)
                     && IMPLICATION(use_scaleshift(),
-                               utils::everyone_is(data_type,
+                               utils::everyone_is(f32,
                                        weights_md()->data_type,
                                        diff_weights_md()->data_type))
                     && attr()->has_default_values();
@@ -190,7 +191,8 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
         if (pd()->jbn_.use_16mb_unroll) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic * sizeof(data_t);
+                    * pd()->jbn_.ic
+                    * types::data_type_size(pd()->src_md()->data_type);;
 
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);
@@ -218,8 +220,6 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         ker_ = new jit_ref_bnorm_common_kernel(pd()->jbn_);
     }
     ~ref_batch_normalization_bwd_t() { delete ker_; }
-
-    typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);

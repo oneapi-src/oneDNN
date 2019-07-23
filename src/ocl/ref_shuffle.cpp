@@ -22,9 +22,8 @@ namespace ocl {
 
 using namespace format_tag;
 
-template <int data_type_size>
 template <mkldnn_format_tag_t tag>
-status_t ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
+status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     auto &src = pd()->is_fwd()
                     ? CTX_IN_STORAGE(MKLDNN_ARG_SRC)
                     : CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
@@ -45,9 +44,7 @@ status_t ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
 
     return status;
 }
-template status_t ref_shuffle_t<4>::execute_<any>(const exec_ctx_t &ctx) const;
-template status_t ref_shuffle_t<2>::execute_<any>(const exec_ctx_t &ctx) const;
-template status_t ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
+template status_t ref_shuffle_t::execute_<any>(const exec_ctx_t &ctx) const;
 
 } // namespace ocl
 } // namespace impl

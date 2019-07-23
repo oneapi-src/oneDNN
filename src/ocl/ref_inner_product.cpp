@@ -26,10 +26,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
-        data_type_t acc_type>
-status_t ref_inner_product_fwd_t<src_type, wei_type, dst_type,
-        acc_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -62,10 +59,8 @@ status_t ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     return status;
 }
 
-template <data_type_t diff_src_type, data_type_t wei_type,
-        data_type_t diff_dst_type, data_type_t acc_type>
-status_t ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-        acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+status_t ref_inner_product_bwd_data_t::execute_backward_data(
+        const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -88,8 +83,7 @@ status_t ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     return status;
 }
 
-template <impl::data_type_t data_type>
-status_t ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
+status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
@@ -114,24 +108,6 @@ status_t ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 
     return status;
 }
-
-using namespace data_type;
-
-template struct ref_inner_product_fwd_t<s8, s8, s8, s32>;
-template struct ref_inner_product_fwd_t<s8, s8, u8, s32>;
-template struct ref_inner_product_fwd_t<s8, s8, s32, s32>;
-template struct ref_inner_product_fwd_t<u8, s8, s8, s32>;
-template struct ref_inner_product_fwd_t<u8, s8, u8, s32>;
-template struct ref_inner_product_fwd_t<u8, s8, s32, s32>;
-
-template struct ref_inner_product_fwd_t<bf16, bf16, bf16, f32>;
-template struct ref_inner_product_bwd_data_t<bf16, bf16, bf16, f32>;
-template struct ref_inner_product_bwd_weights_t<bf16>;
-
-template struct ref_inner_product_fwd_t<f32>;
-template struct ref_inner_product_fwd_t<f16>;
-template struct ref_inner_product_bwd_data_t<f32, f32, f32, f32>;
-template struct ref_inner_product_bwd_weights_t<f32>;
 
 } // namespace ocl
 } // namespace impl

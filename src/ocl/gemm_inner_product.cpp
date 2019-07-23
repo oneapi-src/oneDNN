@@ -22,10 +22,8 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
-        data_type_t acc_type>
-status_t gemm_inner_product_fwd_t<src_type, wei_type, dst_type,
-        acc_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t gemm_inner_product_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -58,14 +56,8 @@ status_t gemm_inner_product_fwd_t<src_type, wei_type, dst_type,
     return status::success;
 }
 
-using namespace data_type;
-template struct gemm_inner_product_fwd_t<f16>;
-template struct gemm_inner_product_fwd_t<f32>;
-
-template <data_type_t diff_src_type, data_type_t wei_type,
-        data_type_t diff_dst_type, data_type_t acc_type>
-status_t gemm_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-        acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+status_t gemm_inner_product_bwd_data_t::execute_backward_data(
+        const exec_ctx_t &ctx) const {
     exec_args_t gemm_args;
     gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_WEIGHTS);
     gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
@@ -79,10 +71,8 @@ status_t gemm_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     return status::success;
 }
 
-template struct gemm_inner_product_bwd_data_t<f32>;
 
-template <data_type_t data_type>
-status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
+status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -120,7 +110,6 @@ status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     return status::success;
 }
 
-template struct gemm_inner_product_bwd_weights_t<f32>;
 }
 }
 }

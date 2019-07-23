@@ -31,7 +31,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
 struct ref_softmax_fwd_t : public primitive_t {
     struct pd_t : public ocl_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
@@ -49,9 +48,11 @@ struct ref_softmax_fwd_t : public primitive_t {
                     && utils::one_of(desc()->prop_kind,
                                prop_kind::forward_inference,
                                prop_kind::forward_training)
-                    && data_type == desc()->data_desc.data_type
-                    && IMPLICATION(data_type == data_type::f16,
-                               compute_engine->mayiuse(
+                    && utils::one_of(desc()->data_desc.data_type,
+                        data_type::f32, data_type::f16, data_type::bf16)
+                    && IMPLICATION(
+                            desc()->data_desc.data_type == data_type::f16,
+                                compute_engine->mayiuse(
                                        compute::device_ext_t::khr_fp16))
                     && attr()->has_default_values();
             if (!ok)
@@ -104,7 +105,6 @@ protected:
     compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t data_type>
 struct ref_softmax_bwd_t : public primitive_t {
     struct pd_t : public ocl_softmax_bwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,

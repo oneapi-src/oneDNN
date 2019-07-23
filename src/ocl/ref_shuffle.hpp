@@ -30,13 +30,11 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template<int data_type_size>
 struct ref_shuffle_t : public primitive_t {
-    using shuffle_class = ref_shuffle_t<data_type_size>;
     struct pd_t : public ocl_shuffle_pd_t {
         using ocl_shuffle_pd_t::ocl_shuffle_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:ref:any", shuffle_class);
+        DECLARE_COMMON_PD_T("ocl:ref:any", ref_shuffle_t);
 
         status_t init() {
             using namespace format_tag;
@@ -44,8 +42,9 @@ struct ref_shuffle_t : public primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true
-                    && data_type_size
-                            == types::data_type_size(data_md()->data_type)
+                    && utils::one_of(
+                        (int)types::data_type_size(data_md()->data_type),
+                        1, 2, 4)
                     && IMPLICATION(
                                desc()->data_desc.data_type == data_type::f16,
                                compute_engine->mayiuse(

@@ -26,8 +26,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
-status_t ref_batch_normalization_fwd_t<data_type>::execute_forward(
+status_t ref_batch_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
@@ -123,8 +122,7 @@ status_t ref_batch_normalization_fwd_t<data_type>::execute_forward(
     return status;
 }
 
-template <impl::data_type_t data_type>
-status_t ref_batch_normalization_bwd_t<data_type>::execute_backward(
+status_t ref_batch_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
 
     auto *compute_stream
@@ -193,10 +191,6 @@ status_t ref_batch_normalization_bwd_t<data_type>::execute_backward(
 
     return status;
 }
-
-template struct ref_batch_normalization_fwd_t<data_type::f16>;
-template struct ref_batch_normalization_fwd_t<data_type::f32>;
-template struct ref_batch_normalization_bwd_t<data_type::f32>;
 
 } // namespace ocl
 } // namespace impl

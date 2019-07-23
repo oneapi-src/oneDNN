@@ -30,8 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <data_type_t data_type, data_type_t acc_type>
-status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
+status_t ref_pooling_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -53,8 +52,7 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     return status;
 }
 
-template <data_type_t data_type, data_type_t acc_type>
-status_t ref_pooling_bwd_t<data_type, acc_type>::execute_backward(
+status_t ref_pooling_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -76,11 +74,6 @@ status_t ref_pooling_bwd_t<data_type, acc_type>::execute_backward(
     return status;
 }
 
-template struct ref_pooling_fwd_t<data_type::f32>;
-template struct ref_pooling_bwd_t<data_type::f32>;
-template struct ref_pooling_fwd_t<data_type::f16>;
-template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
-template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

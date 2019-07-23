@@ -28,10 +28,8 @@ namespace ocl {
 
 using math::saturate;
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
-        data_type_t acc_type>
-status_t jit_gen9_common_convolution_fwd_t<src_type, wei_type, dst_type,
-        acc_type>::execute_forward(const exec_ctx_t &ctx) const {
+status_t jit_gen9_common_convolution_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -50,7 +48,7 @@ status_t jit_gen9_common_convolution_fwd_t<src_type, wei_type, dst_type,
     arg_list.set(4, jcp.relu_negative_slope);
     arg_list.set(5, jcp.sum_scale);
 
-    if (src_type == data_type::u8) {
+    if (pd()->desc()->src_desc.data_type == data_type::u8) {
         float scales = pd()->attr()->output_scales_.scales_[0];
         arg_list.set(6, scales);
         arg_list.set(7, jcp.wht_slm_size, nullptr);
@@ -63,11 +61,8 @@ status_t jit_gen9_common_convolution_fwd_t<src_type, wei_type, dst_type,
     return status;
 }
 
-template <data_type_t diff_src_type, data_type_t wei_type,
-        data_type_t diff_dst_type, data_type_t acc_type>
-status_t
-jit_gen9_common_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-        acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+status_t jit_gen9_common_convolution_bwd_data_t::execute_backward_data(
+        const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -90,11 +85,8 @@ jit_gen9_common_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     return status;
 }
 
-template <data_type_t src_type, data_type_t diff_wei_type,
-        data_type_t diff_dst_type, data_type_t acc_type>
-status_t jit_gen9_common_convolution_bwd_weights_t<src_type, diff_wei_type,
-        diff_dst_type, acc_type>::execute_backward_weights(const exec_ctx_t
-                &ctx) const {
+status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
+        const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -151,15 +143,6 @@ status_t jit_gen9_common_convolution_bwd_weights_t<src_type, diff_wei_type,
 
     return status::success;
 }
-
-using namespace data_type;
-
-template struct jit_gen9_common_convolution_fwd_t<u8, s8, u8, s32>;
-template struct jit_gen9_common_convolution_fwd_t<f16>;
-template struct jit_gen9_common_convolution_fwd_t<f32>;
-template struct jit_gen9_common_convolution_bwd_data_t<f16, f16, f16, f16>;
-template struct jit_gen9_common_convolution_bwd_data_t<f32, f32, f32, f32>;
-template struct jit_gen9_common_convolution_bwd_weights_t<f32, f32, f32, f32>;
 
 } // namespace ocl
 } // namespace impl

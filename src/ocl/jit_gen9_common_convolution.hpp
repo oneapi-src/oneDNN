@@ -37,9 +37,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
 struct jit_gen9_common_convolution_fwd_t : public primitive_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -62,40 +59,28 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             bool with_relu = (eltwise_idx != -1)
                 ? attr()->post_ops_.entry_[eltwise_idx].is_relu(true, false)
                 : false;
+            auto src_data_t = this->desc()->src_desc.data_type;
 
             bool ok = true
-                    && utils::one_of(this->desc()->prop_kind, forward_training,
-                               forward_inference)
-                    && this->desc()->alg_kind == alg_kind::convolution_direct
-                    && this->desc()->src_desc.data_type == src_type
-                    && this->desc()->weights_desc.data_type == wei_type
-                    && this->desc()->accum_data_type == acc_type
-                    && this->desc()->dst_desc.data_type == dst_type
-                    && IMPLICATION(this->with_bias(),
-                               true
-                                       && IMPLICATION(src_type == u8,
-                                                  utils::one_of(
-                                                          this->desc()
-                                                                  ->bias_desc
-                                                                  .data_type,
-                                                          f32, f16, s32, s8,
-                                                          u8))
-                                       && IMPLICATION(src_type == f32,
-                                                  this->desc()->bias_desc
-                                                                  .data_type
-                                                          == f32))
+                && utils::one_of(this->desc()->prop_kind, forward_training,
+                           forward_inference)
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(true,
+                    expect_data_types(u8, s8, data_type::undef, u8, s32),
+                    expect_data_types(f32, f32, f32, f32, f32),
+                    expect_data_types(f16, f16, f16, f16, f16))
+                && IMPLICATION(this->with_bias(), true
+                    && IMPLICATION(src_data_t == u8, utils::one_of(
+                        this->desc()->bias_desc.data_type, f32, f16, s32, s8, u8
+                        )))
+                && compute_engine->mayiuse(
+                    compute::device_ext_t::intel_subgroups)
+                && IMPLICATION(src_data_t == f16, true
+                    && compute_engine->mayiuse(compute::device_ext_t:: khr_fp16)
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_type == f16,
-                               true
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          khr_fp16)
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          intel_subgroups_short))
-                    && IMPLICATION(eltwise_idx != -1, with_relu)
-                    && !has_zero_dim_memory();
+                        compute::device_ext_t::intel_subgroups_short))
+                && IMPLICATION(eltwise_idx != -1, with_relu)
+                && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
 
@@ -116,9 +101,9 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
         const char *kernel_name = nullptr;
         if (pd()->jcp_.is_depthwise)
             kernel_name = "gen9_common_conv_dw_fwd_kernel";
-        else if (src_type == data_type::f16)
+        else if (pd()->desc()->src_desc.data_type == data_type::f16)
             kernel_name = "gen9_common_conv_fwd_f16_kernel";
-        else if (src_type == data_type::f32)
+        else if (pd()->desc()->src_desc.data_type == data_type::f32)
             kernel_name = "gen9_common_conv_fwd_f32_kernel";
         else
             assert(!"not expected");
@@ -145,11 +130,6 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
 
     ~jit_gen9_common_convolution_fwd_t() { delete ker_; }
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -161,9 +141,6 @@ private:
     compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_src_type>
 struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public ocl_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -175,29 +152,26 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
                 "ocl:ncsp:any", jit_gen9_common_convolution_bwd_data_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true && this->desc()->prop_kind == backward_data
-                    && this->desc()->alg_kind == alg_kind::convolution_direct
-                    && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                    && this->desc()->weights_desc.data_type == wei_type
-                    && this->desc()->accum_data_type == acc_type
-                    && this->desc()->diff_src_desc.data_type == diff_src_type
-                    && (IMPLICATION(this->with_bias()
-                                        && diff_dst_type != data_type::f16,
-                                this->desc()->bias_desc.data_type
-                                        == data_type::f32)
+                && this->desc()->alg_kind == alg_kind::convolution_direct
+                && utils::one_of(true,
+                    expect_data_types(f32, f32, data_type::undef, f32, f32),
+                    expect_data_types(f16, f16, data_type::undef, f16, f16))
+                && (IMPLICATION(this->with_bias() &&
+                                this->desc()->diff_dst_desc.data_type != f16,
+                                this->desc()->bias_desc.data_type == f32)
                                || IMPLICATION(this->with_bias()
-                                                  && diff_dst_type
-                                                          == data_type::f16,
-                                          this->desc()->bias_desc.data_type
-                                                  == data_type::f16))
-                    && compute_engine->mayiuse(
+                                && this->desc()->diff_dst_desc.data_type == f16,
+                                this->desc()->bias_desc.data_type == f16))
+                && compute_engine->mayiuse(
                                compute::device_ext_t::intel_subgroups)
-                    && !has_zero_dim_memory();
+                && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;
 
@@ -239,11 +213,6 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
 
     ~jit_gen9_common_convolution_bwd_data_t() { delete ker_; }
 
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
@@ -255,9 +224,6 @@ private:
     compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_wei_type>
 struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public ocl_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
@@ -270,6 +236,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                 "ocl:ncsp:any", jit_gen9_common_convolution_bwd_weights_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *compute_engine
@@ -277,14 +244,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
 
             bool ok = true && this->desc()->prop_kind == backward_weights
                     && this->desc()->alg_kind == alg_kind::convolution_direct
-                    && this->desc()->src_desc.data_type == src_type
-                    && this->desc()->diff_weights_desc.data_type
-                            == diff_wei_type
-                    && this->desc()->diff_dst_desc.data_type == diff_dst_type
-                    && this->desc()->accum_data_type == acc_type
-                    && IMPLICATION(this->with_bias(),
-                               this->desc()->diff_bias_desc.data_type
-                                       == diff_wei_type)
+                    && expect_data_types(f32, f32, f32, f32, f32)
                     && compute_engine->mayiuse(
                                compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory();
@@ -377,11 +337,6 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
     }
 
     ~jit_gen9_common_convolution_bwd_weights_t() { delete ker_; }
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<diff_wei_type>::type diff_wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

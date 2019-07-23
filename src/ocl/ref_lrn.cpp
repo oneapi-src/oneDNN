@@ -20,8 +20,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t data_type>
-status_t ref_lrn_fwd_t<data_type>::execute_forward(
+status_t ref_lrn_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -45,8 +44,7 @@ status_t ref_lrn_fwd_t<data_type>::execute_forward(
     return status;
 }
 
-template <impl::data_type_t data_type>
-status_t ref_lrn_bwd_t<data_type>::execute_backward(
+status_t ref_lrn_bwd_t::execute_backward(
     const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
@@ -67,10 +65,6 @@ status_t ref_lrn_bwd_t<data_type>::execute_backward(
     return status;
 }
 
-template struct ref_lrn_fwd_t<data_type::bf16>;
-template struct ref_lrn_fwd_t<data_type::f16>;
-template struct ref_lrn_fwd_t<data_type::f32>;
-template struct ref_lrn_bwd_t<data_type::f32>;
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn
