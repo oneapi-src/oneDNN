@@ -675,6 +675,8 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
 
+    dnn_mem_t d_dst_dt, placeholder_d_src_dt;
+
     args_t args;
 
     if (p->dir & FLAG_FWD) {
@@ -727,10 +729,9 @@ int doit(const prb_t *p, res_t *r) {
         }
     } else {
         dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
-        dnn_mem_t d_dst_dt(data_desc, engine_tgt);
+        d_dst_dt = dnn_mem_t(data_desc, engine_tgt);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
-        dnn_mem_t placeholder_d_src_dt;
         if (!p->inplace) {
             placeholder_d_src_dt = dnn_mem_t(data_desc, engine_tgt);
         }
