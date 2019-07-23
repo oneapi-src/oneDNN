@@ -146,8 +146,9 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
 
     // * algorithm specific
     args_ok = true
-        && IMPLICATION(cell_kind == alg_kind::vanilla_gru,
-                       DIC == SIC);
+            && IMPLICATION(utils::one_of(cell_kind, alg_kind::vanilla_gru,
+                                   alg_kind::lbr_gru),
+                    DIC == SIC);
     if (!args_ok) return invalid_arguments;
     int extra_bias =
             cell_kind == alg_kind::lbr_gru;
