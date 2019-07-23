@@ -85,6 +85,7 @@ activation_t str2activation(const char *str) {
     CASE(RELU);
     CASE(LOGISTIC);
     CASE(TANH);
+    CASE(UNDEF);
 #undef CASE
     assert(!"unknown activation");
     return TANH;
@@ -96,6 +97,7 @@ const char *activation2str(activation_t act) {
     case RELU: str = "RELU"; break;
     case LOGISTIC: str = "LOGISTIC"; break;
     case TANH: str = "TANH"; break;
+    case UNDEF: str = "UNDEF"; break;
     default: assert(!"unknown activation");
     }
     return str;
@@ -107,6 +109,7 @@ mkldnn_alg_kind_t activation2kind(activation_t act) {
     case RELU: alg_kind = mkldnn_eltwise_relu; break;
     case LOGISTIC: alg_kind = mkldnn_eltwise_logistic; break;
     case TANH: alg_kind = mkldnn_eltwise_tanh; break;
+    case UNDEF: alg_kind = mkldnn_alg_kind_undef; break;
     default: assert(!"unknown activation");
     }
     return alg_kind;
