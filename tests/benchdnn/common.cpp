@@ -384,8 +384,15 @@ static char *dirname(char *path) {
     }
     return path;
 }
+
+int readlink(const char *path, char *buf, size_t buf_max) {
+    (void)path;
+    // NULL means take the path of myself
+    return GetModuleFileName(NULL, buf, (DWORD)buf_max);
+}
 #else
 #include <libgen.h>
+#include <unistd.h>
 #endif /* _WIN32 */
 
 std::string locate_batch_file(const std::string &fname) {
@@ -421,8 +428,33 @@ std::string locate_batch_file(const std::string &fname) {
     for (int n = 0; n < n_paths; ++n) {
         const std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
-        print(50, "batch file used: %s\n", fullname.c_str());
-        if (ifs.is_open()) return fullname;
+        if (ifs.is_open()) {
+            print(50, "batch file used: %s\n", fullname.c_str());
+            return fullname;
+        }
+    }
+
+    // Search in default inputs directory
+    // Takes dirname(executable)/inputs/file_name on Linux
+    // Takes dirname(executable)/../inputs/file_name on Windows
+    fdir.resize(PATH_MAX);
+    int length = readlink("/proc/self/exe", &fdir[0], PATH_MAX);
+    if (length) {
+        std::string s_fdir = std::string(dirname(&fdir[0]));
+        for (int i_try = 0; i_try < 2; ++i_try) {
+            fdir = s_fdir + std::string("/inputs/") + std::string(driver_name);
+            if (i_try == 1) { // Windows has different folder structure
+                fdir = s_fdir + std::string("/../inputs/")
+                        + std::string(driver_name);
+            }
+            const std::string fullname = fdir + "/" + fname;
+            ifs.open(fullname);
+            if (ifs.is_open()) {
+                search_paths[n_paths++] = std::move(fdir);
+                print(50, "batch file used: %s\n", fullname.c_str());
+                return fullname;
+            }
+        }
     }
 
     fprintf(stderr, "cannot open file %s\n", fname.c_str());

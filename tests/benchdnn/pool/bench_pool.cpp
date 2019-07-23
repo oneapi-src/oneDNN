@@ -84,6 +84,7 @@ void check_correctness(const desc_t *c) {
 }
 
 int bench(int argc, char **argv) {
+    driver_name = "pool";
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = false || parse_bench_settings(argv[0])
@@ -96,7 +97,7 @@ int bench(int argc, char **argv) {
                         perf_template_csv, argv[0])
                 || parse_reset(reset_parameters, argv[0]);
         if (!parsed_options) {
-            catch_unknown_options(argv[0], "pool");
+            catch_unknown_options(argv[0]);
 
             desc_t c;
             SAFE_V(str2desc(&c, argv[0]));

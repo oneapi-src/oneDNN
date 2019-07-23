@@ -228,12 +228,12 @@ void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
 }
 
 /* utilities */
-void catch_unknown_options(const char *str, const char *driver_name) {
+void catch_unknown_options(const char *str) {
     last_parsed_is_problem = true; // if reached, means problem parsing
 
     const std::string pattern = "--";
     if (pattern.find(str, 0, pattern.size()) != eol) {
-        fprintf(stderr, "%s driver: unknown option: `%s`, exiting...\n",
+        fprintf(stderr, "%s driver: ERROR: unknown option: `%s`, exiting...\n",
                 driver_name, str);
         exit(2);
     }
@@ -241,7 +241,9 @@ void catch_unknown_options(const char *str, const char *driver_name) {
 
 int parse_last_argument() {
     if (!last_parsed_is_problem)
-        fprintf(stderr, "WARNING: No problem found for a given option!\n");
+        fprintf(stderr,
+                "%s driver: WARNING: No problem found for a given option!\n",
+                driver_name);
     return OK;
 }
 } // namespace parser

@@ -149,7 +149,7 @@ void parse_dims(dims_t &dims, const char *str);
 
 void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
 
-void catch_unknown_options(const char *str, const char *driver_name);
+void catch_unknown_options(const char *str);
 
 int parse_last_argument();
 } // namespace parser
