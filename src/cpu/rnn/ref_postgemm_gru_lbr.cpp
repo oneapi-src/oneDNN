@@ -32,8 +32,11 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
+template <typename T1, typename T2, typename acc_data_t, typename src_data_t>
+void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, const float *scales,
+        const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
+        src_data_t *states_t_l_, src_data_t *states_tm1_l_, float *bias_,
+        float *ws_grid_, acc_data_t *ws_cell_) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -45,11 +48,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
             float Wh_b = ws_gemm_state(i, 2, j) + bias(3, j);
-            ws_gates(i, 0, j) = logistic_fwd(
+            ws_gates(i, 0, j) = func1(scales, // default func1 is sigmoid
                     ws_gates(i, 0, j) + ws_gemm_state(i, 0, j) + bias(0, j));
-            ws_gates(i, 1, j) = logistic_fwd(
+            ws_gates(i, 1, j) = func1(scales + 1, // default func1 is sigmoid
                     ws_gates(i, 1, j) + ws_gemm_state(i, 1, j) + bias(1, j));
-            ws_gates(i, 2, j) = tanh_fwd(
+            ws_gates(i, 2, j) = func2(scales + 2, // default func2 is tanh
                     ws_gates(i, 2, j) + ws_gates(i, 1, j) * Wh_b + bias(2, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j)
                     + (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
@@ -57,6 +60,24 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
                 ws_Wh_b(i, j) = Wh_b;
         }
     });
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto logistic_f
+            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
+    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, scales, rnn,
+                ws_gates_, states_t_l_, states_tm1_l_, bias_, ws_grid_,
+                ws_cell_);
+    else
+        gru_lbr_fwd_postgemm_template(linear_f, linear_f, scales, rnn,
+                ws_gates_, states_t_l_, states_tm1_l_, bias_, ws_grid_,
+                ws_cell_);
 }
 
 template <>
@@ -99,6 +120,6 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_lbr_postgemm) {
     });
 }
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

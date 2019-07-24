@@ -32,8 +32,10 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
-template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
+template <typename T1, typename acc_data_t, typename src_data_t>
+void gru_fwd_part1_postgemm_template(T1 func1, const float *scales,
+        const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
+        src_data_t *states_t_l_, src_data_t *states_tm1_l_, float *bias_) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -42,15 +44,34 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
-            ws_gates(i, 0, j) = logistic_fwd(ws_gates(i, 0, j) + bias(0, j));
-            ws_gates(i, 1, j) = logistic_fwd(ws_gates(i, 1, j) + bias(1, j));
+            ws_gates(i, 0, j) // default func1 is sigmoid
+                    = func1(scales, ws_gates(i, 0, j) + bias(0, j));
+            ws_gates(i, 1, j) // default func1 is sigmoid
+                    = func1(scales + 1, ws_gates(i, 1, j) + bias(1, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 1, j);
         }
     });
 }
 
 template <>
-rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
+rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto logistic_f
+            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_fwd_part1_postgemm_template(logistic_f, scales, rnn, ws_gates_,
+                states_t_l_, states_tm1_l_, bias_);
+    else
+        gru_fwd_part1_postgemm_template(linear_f, scales, rnn, ws_gates_,
+                states_t_l_, states_tm1_l_, bias_);
+}
+
+  template <typename T1, typename acc_data_t, typename src_data_t>
+void gru_fwd_part2_postgemm_template(T1 func1, const float *scales,
+        const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
+        src_data_t *states_t_l_, src_data_t *states_tm1_l_, float *bias_) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
@@ -59,11 +80,26 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
         for (int j = 0; j < rnn.dic; j++) {
-            ws_gates(i, 2, j) = tanh_fwd(ws_gates(i, 2, j) + bias(2, j));
+            ws_gates(i, 2, j) // default func1 is tanh
+                    = func1(scales + 2, ws_gates(i, 2, j) + bias(2, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j)
                     + (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
         }
     });
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_fwd_part2_postgemm_template(tanh_f, scales, rnn, ws_gates_,
+                states_t_l_, states_tm1_l_, bias_);
+    else
+        gru_fwd_part2_postgemm_template(linear_f, scales, rnn, ws_gates_,
+                states_t_l_, states_tm1_l_, bias_);
 }
 
 template <>
@@ -136,7 +172,6 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part2_postgemm) {
 }
 
 #undef AOC
-}
-}
-}
-    
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

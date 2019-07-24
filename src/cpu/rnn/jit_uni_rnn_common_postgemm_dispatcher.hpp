@@ -33,7 +33,7 @@ namespace impl {
 namespace cpu {
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
-float activation(float s, float alpha, float cliping, float dd);
+float activation(float s, float alpha, float cliping);
 
 template<prop_kind_t aprop, impl::data_type_t src_type>
 struct rnn_postgemm_dispatcher {
@@ -50,12 +50,26 @@ struct rnn_postgemm_dispatcher {
     {
         rnn_postgemm_ = nullptr;
         rnn_postgemm_part2_ = nullptr;
+
+        // add check if in testing mode
+        if (pd->attr()->rnn_tparams_.test_mode_) {
+            auto ngates = utils::map(pd->cell_kind(), 0, alg_kind::vanilla_rnn,
+                    1, alg_kind::vanilla_lstm, 4, alg_kind::vanilla_gru, 3,
+                    alg_kind::lbr_gru, 3);
+            assert(pd->attr()->rnn_tparams_.ngates_ == ngates);
+            MAYBE_UNUSED(ngates);
+        }
+
+	bool jit_path = pd->desc()->prop_kind == prop_kind::forward_inference
+	  && !pd->attr()->rnn_tparams_.test_mode_;
+
+
         switch (pd->cell_kind()) {
         case alg_kind::vanilla_lstm:
             // ref path
             postgemm_func = &class_name::lstm_postgemm;
             // jitted path
-            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            if (jit_path) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_lstm_cell_postgemm_fwd<avx512_core, src_type>(
@@ -86,7 +100,7 @@ struct rnn_postgemm_dispatcher {
             default: assert(!"Unsupported activation function"); break;
             }
             // jitted path
-            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            if (jit_path) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_rnn_cell_postgemm_fwd<avx512_core, src_type>(
@@ -106,7 +120,7 @@ struct rnn_postgemm_dispatcher {
             postgemm_func = &class_name::gru_part1_postgemm;
             postgemm_part2_func = &class_name::gru_part2_postgemm;
             // jitted path
-            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            if (jit_path) {
                 if (mayiuse(avx512_core)) {
                     rnn_postgemm_ =
                         new jit_uni_gru_cell_postgemm_part1_fwd<avx512_core, src_type>(
@@ -135,7 +149,7 @@ struct rnn_postgemm_dispatcher {
             // ref path
             postgemm_func = &class_name::gru_lbr_postgemm;
             // jitted path
-            if (pd->desc()->prop_kind == prop_kind::forward_inference) {
+            if (jit_path) {
                 if (mayiuse(avx512_core))
                     rnn_postgemm_ =
                         new jit_uni_gru_lbr_cell_postgemm_fwd<avx512_core, src_type>(
@@ -193,7 +207,7 @@ struct rnn_postgemm_dispatcher {
     }
 
 private:
-    float (*activation_func)(float dd, float s, float alpha, float cliping);
+    float (*activation_func)(float s, float alpha, float cliping);
     rnn_postgemm_sig(rnn_postgemm);
     rnn_postgemm_sig(lstm_postgemm);
     rnn_postgemm_sig(gru_part1_postgemm);
