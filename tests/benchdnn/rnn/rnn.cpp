@@ -93,6 +93,35 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
     return OK;
 }
 
+int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
+        dnn_mem_t &mem2) {
+
+    dt_conf_t c = p.cfg[kind];
+    if (c.dt == mkldnn_u8)
+        return fill_memory(p, kind, mem1, mem2);
+
+    auto dims = mem2.md_.dims;
+    auto L = dims[0];
+    auto D = dims[1];
+    auto I = dims[2];
+    auto G = dims[3];
+    auto O = dims[4];
+
+    for (int64_t i = 0; i < mem1.nelems(); i++)
+        mem2.set_elem(i, 0.0f);
+    for (int64_t l = 0; l < L; l++)
+        for (int64_t d = 0; d < D; d++)
+            for (int64_t g = 0; g < G; g++)
+                for (int64_t o = 0; o < O; o++) {
+                    auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
+                    mem2.set_elem(l * D * I * G * O + d * I * G * O
+                                    + i_off * G * O + g * O + o,
+                            1.0f / p.n_gates());
+                }
+    mem1.reorder(mem2);
+    return OK;
+}
+
 inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
         mkldnn_primitive_desc_t rpd[2], res_t *r) {
     const bool is_bwd = p.prop == mkldnn_backward;
@@ -467,9 +496,9 @@ int doit(const prb_t &p, res_t *r) {
     SAFE(fill_memory(p, states, *states_dt, *states_fp), WARN);
     if (p.alg == VANILLA_LSTM)
         SAFE(fill_memory(p, c_states, *c_states_dt, *c_states_fp), WARN);
-    SAFE(fill_memory(p, weights_input, *weights_input_dt, *weights_input_fp),
+    SAFE(fill_weights(p, weights_input, *weights_input_dt, *weights_input_fp),
             WARN);
-    SAFE(fill_memory(p, weights_states, *weights_states_dt, *weights_states_fp),
+    SAFE(fill_weights(p, weights_states, *weights_states_dt, *weights_states_fp),
             WARN);
     SAFE(fill_memory(p, bias, *bias_dt, *bias_fp), WARN);
     SAFE(fill_memory(p, dst_last_layer, *dst_last_layer_dt, *dst_last_layer_fp),
@@ -495,10 +524,10 @@ int doit(const prb_t &p, res_t *r) {
             SAFE(fill_memory(p, dst_diff_c_states, *dst_diff_c_states_dt,
                      *dst_diff_c_states_fp),
                 WARN);
-        SAFE(fill_memory(p, dst_diff_weights_input, *dst_diff_weights_input_dt,
+        SAFE(fill_weights(p, dst_diff_weights_input, *dst_diff_weights_input_dt,
                      *dst_diff_weights_input_fp),
                 WARN);
-        SAFE(fill_memory(p, dst_diff_weights_states,
+        SAFE(fill_weights(p, dst_diff_weights_states,
                      *dst_diff_weights_states_dt, *dst_diff_weights_states_fp),
                 WARN);
         SAFE(fill_memory(
