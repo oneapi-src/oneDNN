@@ -60,7 +60,7 @@ protected:
         using namespace data_type;
         using namespace types;
 
-        auto is_blocked = [&](memory_desc_t md, int ndims) {
+        auto is_blocked = [&](const memory_desc_t &md, int ndims) {
             return md.format_kind == format_kind::blocked && md.ndims == ndims;
         };
 
@@ -159,7 +159,7 @@ protected:
         using namespace format_tag;
         using namespace types;
 
-        auto is_blocked = [&](memory_desc_t md, int ndims) {
+        auto is_blocked = [&](const memory_desc_t &md, int ndims) {
             return md.format_kind == format_kind::blocked && md.ndims == ndims;
         };
 
