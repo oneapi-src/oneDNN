@@ -320,20 +320,37 @@ private:
 };
 
 // RAII wrapper for an OpenCL kernel and its arguments
+//
+// Some OpenCL implementations do not retain the enclosed program object so
+// retain it manually.
 struct ocl_kernel_t {
-    ocl_kernel_t(cl_kernel kernel = nullptr) : kernel_(kernel) {}
+    ocl_kernel_t(cl_kernel kernel = nullptr) : kernel_(kernel) {
+        if (kernel_) {
+            OCL_CHECK_V(clGetKernelInfo(kernel, CL_KERNEL_PROGRAM,
+                    sizeof(program_), &program_, nullptr));
+            OCL_CHECK_V(clRetainProgram(program_));
+        }
+    }
 
     ocl_kernel_t(const ocl_kernel_t &other)
-        : kernel_(other.kernel_), nargs_(other.nargs_) {
+        : kernel_(other.kernel_)
+        , program_(other.program_)
+        , nargs_(other.nargs_) {
         if (kernel_) {
             clRetainKernel(kernel_);
+        }
+        if (program_) {
+            clRetainProgram(program_);
         }
         utils::array_copy(args_, other.args_, nargs_);
     }
 
     ocl_kernel_t(ocl_kernel_t &&other)
-        : kernel_(other.kernel_), nargs_(other.nargs_) {
+        : kernel_(other.kernel_)
+        , program_(other.program_)
+        , nargs_(other.nargs_) {
         other.kernel_ = nullptr;
+        other.program_ = nullptr;
         utils::array_copy(args_, other.args_, nargs_);
     }
 
@@ -344,9 +361,17 @@ struct ocl_kernel_t {
             clReleaseKernel(kernel_);
         }
 
+        if (program_) {
+            clReleaseProgram(program_);
+        }
+
         kernel_ = other.kernel_;
         if (kernel_) {
             clRetainKernel(kernel_);
+        }
+        program_ = other.program_;
+        if (program_) {
+            clRetainProgram(program_);
         }
         nargs_ = other.nargs_;
         for (size_t i = 0; i < nargs_; i++) {
@@ -358,6 +383,9 @@ struct ocl_kernel_t {
     ~ocl_kernel_t() {
         if (kernel_) {
             clReleaseKernel(kernel_);
+        }
+        if (program_) {
+            clReleaseProgram(program_);
         }
     }
 
@@ -397,6 +425,7 @@ private:
     static constexpr int max_args = 20;
 
     cl_kernel kernel_ = nullptr;
+    cl_program program_ = nullptr;
     size_t nargs_ = 0;
     ocl_kernel_arg_t args_[max_args];
 };
