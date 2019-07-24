@@ -55,6 +55,23 @@
     } \
 } while(0)
 
+#define DNN_SAFE_CLEAN(f, s, clean)                                            \
+    do {                                                                       \
+        mkldnn_status_t status = f;                                            \
+        if (status != mkldnn_success) {                                        \
+            if (s == CRIT || s == WARN) {                                      \
+                print(0, "error [%s:%d]: '%s' -> %s(%d)\n",                    \
+                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
+                        (int)status);                                          \
+                fflush(0);                                                     \
+                if (s == CRIT)                                                 \
+                    exit(2);                                                   \
+            }                                                                  \
+            clean();                                                           \
+            return FAIL;                                                       \
+        }                                                                      \
+    } while (0)
+
 /* aux */
 using bfloat16_t = mkldnn::impl::bfloat16_t;
 using float16_t = mkldnn::impl::float16_t;
