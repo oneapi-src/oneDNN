@@ -59,7 +59,12 @@ public:
             }
         };
 
-        cl::sycl::context ctx(dev.get_platform(), exception_handler);
+        // XXX: we could use the platform to construct the context to cover
+        // more devices. However in this case SYCL runtime may build a SYCL
+        // kernel for all devices from the context (e.g. build both CPU and
+        // GPU). This doesn't work for the CPU thunk kernel which works on CPU
+        // only because it calls a native CPU function.
+        cl::sycl::context ctx(dev, exception_handler);
         return engine_create(engine, dev, ctx);
     }
 
