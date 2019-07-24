@@ -65,7 +65,7 @@ TEST_F(sycl_stream_test, BasicInterop) {
     auto ocl_dev = make_ocl_wrapper(eng->get_sycl_device().get());
     auto ocl_ctx = make_ocl_wrapper(eng->get_sycl_context().get());
 
-    cl_int err;
+    ::cl_int err;
     cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
             ocl_ctx, ocl_dev, nullptr, &err);
     OCL_CHECK(err);
