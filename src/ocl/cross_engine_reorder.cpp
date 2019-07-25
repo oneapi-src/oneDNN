@@ -19,9 +19,66 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
+static mkldnn_engine_kind_t cross_engine_reorder_engine_kind = mkldnn_gpu;
+
+extern "C" mkldnn_status_t MKLDNN_API mkldnn_impl_gpu_reorder_set_engine_kind(
+        mkldnn_engine_kind_t engine_kind) {
+    cross_engine_reorder_engine_kind = engine_kind;
+    return mkldnn_success;
+}
+
 namespace mkldnn {
 namespace impl {
 namespace ocl {
+
+status_t cross_engine_reorder_t::pd_t::init() {
+    bool args_ok = true
+            && utils::one_of(engine_kind::cpu, src_engine()->kind(),
+                    dst_engine()->kind())
+            && utils::one_of(engine_kind::gpu, src_engine()->kind(),
+                    dst_engine()->kind())
+            && (dst_engine()->kind() != src_engine()->kind());
+
+    if (!args_ok)
+        return status::unimplemented;
+
+    reorder_engine_kind_ = cross_engine_reorder_engine_kind;
+
+    memory_desc_wrapper src_mdw(src_md());
+    memory_desc_wrapper dst_mdw(dst_md());
+
+    // Do not run 4o8i8o4i-like formats on CPU as they assume GPU-specific
+    // permutation.
+    if (src_mdw.matches_one_of_tag(
+                format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)
+            || dst_mdw.matches_one_of_tag(
+                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)) {
+        reorder_engine_kind_ = engine_kind::gpu;
+    }
+
+    engine_t *reorder_engine = src_engine()->kind() == reorder_engine_kind_
+            ? src_engine()
+            : dst_engine();
+
+    auto r_impls = reorder_engine->get_reorder_implementation_list();
+    const primitive_attr_t r_attr(*attr());
+    for (auto r = r_impls; *r; ++r) {
+        reorder_pd_t *r_pd = nullptr;
+        if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
+                    reorder_engine, dst_md())
+                == status::success) {
+
+            r_pd->init_info();
+            reorder_.reset(r_pd);
+            break;
+        }
+    }
+
+    if (!reorder_)
+        return status::unimplemented;
+
+    return status::success;
+}
 
 status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
@@ -29,8 +86,6 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
-    const auto src_e_kind = pd()->src_engine()->kind();
-    const auto dst_e_kind = pd()->dst_engine()->kind();
 
     auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
         exec_args_t r_args;
@@ -40,32 +95,27 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                 = memory_arg_t{ const_cast<memory_t *>(dst_mem), false };
 
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
-        return gpu_reorder_->execute(r_ctx);
+        return reorder_->execute(r_ctx);
     };
 
-    if (src_e_kind == engine_kind::gpu && dst_e_kind == engine_kind::cpu) {
+    status_t status = status::success;
+    if (pd()->src_engine()->kind() == pd()->reorder_engine_kind_) {
         if (do_reorder_) {
             status = exec_reorder(ctx.input(MKLDNN_ARG_FROM), temp_buf.get());
         }
         if (status == status::success) {
-            // Copy to cpu
             memory_desc_wrapper dst_mdw(pd()->dst_md());
             status = compute_stream->copy(
                     do_reorder_ ? *temp_buf->memory_storage() : src, dst,
                     dst_mdw.size());
         }
-    } else if (src_e_kind == engine_kind::cpu
-            && dst_e_kind == engine_kind::gpu) {
-        // Copy to gpu
+    } else {
         memory_desc_wrapper src_mdw(pd()->src_md());
         status = compute_stream->copy(src,
                 do_reorder_ ? *temp_buf->memory_storage() : dst,
                 src_mdw.size());
         if (status == status::success && do_reorder_)
             status = exec_reorder(temp_buf.get(), ctx.output(MKLDNN_ARG_TO));
-    } else {
-        status = exec_reorder(
-                ctx.input(MKLDNN_ARG_FROM), ctx.output(MKLDNN_ARG_TO));
     }
     return status;
 }

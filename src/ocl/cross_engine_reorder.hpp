@@ -43,59 +43,28 @@ struct cross_engine_reorder_t : public primitive_t {
 
         pd_t(const pd_t &rhs)
             : reorder_pd_t(rhs)
-            , gpu_reorder_pd_(rhs.gpu_reorder_pd_->clone()) {}
+            , reorder_(rhs.reorder_->clone())
+            , reorder_engine_kind_(rhs.reorder_engine_kind_) {}
 
         DECLARE_COMMON_PD_T("ocl:cross_engine::any", cross_engine_reorder_t);
 
         DECLARE_OCL_REORDER_CREATE();
 
-        status_t init() {
-            bool args_ok = true
-                    && utils::one_of(engine_kind::cpu, src_engine()->kind(),
-                            dst_engine()->kind())
-                    && utils::one_of(engine_kind::gpu, src_engine()->kind(),
-                            dst_engine()->kind())
-                    && (dst_engine()->kind() != src_engine()->kind());
+        status_t init();
 
-            if (!args_ok)
-                return status::unimplemented;
-
-            auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
-                    dst_engine()->kind() == engine_kind::gpu ? dst_engine()
-                                                             : src_engine());
-
-            auto r_impls = engine_->get_reorder_implementation_list();
-            const primitive_attr_t r_attr(*attr());
-            for (auto r = r_impls; *r; ++r) {
-                reorder_pd_t *r_pd = nullptr;
-                if ((*r)(&r_pd, compute_engine, &r_attr, compute_engine,
-                            src_md(), compute_engine, dst_md())
-                        == status::success) {
-
-                    r_pd->init_info();
-                    gpu_reorder_pd_.reset(r_pd);
-                    break;
-                }
-            }
-
-            if (!gpu_reorder_pd_)
-                return status::unimplemented;
-
-            return status::success;
-        }
-
-        std::unique_ptr<primitive_desc_t> gpu_reorder_pd_;
+        std::unique_ptr<primitive_desc_t> reorder_;
+        engine_kind_t reorder_engine_kind_ = engine_kind::gpu;
     };
 
     virtual status_t init() override {
         status_t status;
 
-        primitive_t *gpu_reorder_ptr;
-        status = pd()->gpu_reorder_pd_->create_primitive(&gpu_reorder_ptr);
+        primitive_t *reorder_ptr;
+        status = pd()->reorder_->create_primitive(&reorder_ptr);
         if (status != status::success)
             return status;
 
-        gpu_reorder_.reset(gpu_reorder_ptr);
+        reorder_.reset(reorder_ptr);
 
         bool with_sum_ab = (pd()->alpha() != 1.0 || pd()->beta() != 0.0);
         do_reorder_ = with_sum_ab
@@ -103,10 +72,14 @@ struct cross_engine_reorder_t : public primitive_t {
                         != memory_desc_wrapper(pd()->dst_md());
 
         if (do_reorder_) {
-            temp_buf.reset(new memory_t(engine(),
-                    pd()->src_engine()->kind() == engine_kind::cpu
-                            ? pd()->src_md()
-                            : pd()->dst_md(),
+            engine_t *temp_eng
+                    = (pd()->src_engine()->kind() == pd()->reorder_engine_kind_)
+                    ? pd()->src_engine()
+                    : pd()->dst_engine();
+            temp_buf.reset(new memory_t(temp_eng,
+                    (pd()->src_engine()->kind() == pd()->reorder_engine_kind_)
+                            ? pd()->dst_md()
+                            : pd()->src_md(),
                     memory_flags_t::alloc, nullptr));
             if (!temp_buf)
                 return status::out_of_memory;
@@ -122,7 +95,7 @@ struct cross_engine_reorder_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    std::unique_ptr<primitive_t> gpu_reorder_;
+    std::unique_ptr<primitive_t> reorder_;
     std::unique_ptr<memory_t> temp_buf;
     bool do_reorder_;
 };
