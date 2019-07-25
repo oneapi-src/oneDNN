@@ -101,6 +101,16 @@ template <> struct qz<float, bfloat16_t> {
     { return (bfloat16_t)(alpha * in + (beta ? beta * out : 0)); }
 };
 
+template <> struct qz<float16_t, float16_t> {
+    float operator()(float16_t in, float16_t out, float alpha, float beta)
+    { return (float16_t)(alpha * (float)in + (beta ? beta * (float)out : 0)); }
+};
+
+template <> struct qz<float, float16_t> {
+    float operator()(float in, float16_t out, float alpha, float beta)
+    { return (float16_t)(alpha * in + (beta ? beta * out : 0)); }
+};
+
 }
 }
 }
