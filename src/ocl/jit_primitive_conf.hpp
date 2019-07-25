@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/primitive_attr.hpp"
+#include "common/utils.hpp"
 #include "compute/compute.hpp"
 #include "ocl/ocl_utils.hpp"
 
@@ -30,6 +31,66 @@ namespace impl {
 namespace ocl {
 
 #define MAX_NDIMS 6
+
+struct jit_memory_desc_info_t {
+    // Max 2 levels of blocking
+    static const int nlevels = 2;
+
+    int ndims;
+    data_type_t data_type;
+
+    int offset0;
+    int dims[MAX_NDIMS];
+    int padded_dims[MAX_NDIMS];
+    int blocks[MAX_NDIMS][nlevels + 1];
+    int strides[MAX_NDIMS][nlevels + 1];
+
+    static jit_memory_desc_info_t create(const memory_desc_wrapper &mdw) {
+        jit_memory_desc_info_t jit_md_info;
+
+        jit_md_info.ndims = mdw.ndims();
+        jit_md_info.data_type = mdw.data_type();
+        jit_md_info.offset0 = mdw.offset0();
+
+        auto &blk = mdw.blocking_desc();
+        dim_t blk_stride
+                = utils::array_product(blk.inner_blks, blk.inner_nblks);
+
+        for (int d = 0; d < mdw.ndims(); ++d) {
+            utils::array_set(jit_md_info.blocks[d], 1, nlevels + 1);
+            utils::array_set(jit_md_info.strides[d], 0, nlevels + 1);
+        }
+
+        for (int d = 0; d < mdw.ndims(); ++d) {
+            jit_md_info.dims[d] = mdw.dims()[d];
+            jit_md_info.padded_dims[d] = mdw.padded_dims()[d];
+            jit_md_info.strides[d][0] = blk.strides[d];
+        }
+
+        int levels[MAX_NDIMS] = { 0 };
+        for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
+            int d = blk.inner_idxs[iblk];
+            ++levels[d];
+
+            jit_md_info.blocks[d][levels[d]] = blk.inner_blks[iblk];
+            blk_stride /= blk.inner_blks[iblk];
+            jit_md_info.strides[d][levels[d]] = blk_stride;
+        }
+
+        // Permute inner blocks for O dimension in OIhw4o8i8o4i and
+        // gOIhw4o8i8o4i formats.
+        //
+        // This is specific for GPU and required for the
+        // implementations relying on the subgroup extension.
+        if (mdw.matches_one_of_tag(
+                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)) {
+            int d = (levels[0] == 2) ? 0 : 1;
+            nstl::swap(jit_md_info.blocks[d][2], jit_md_info.blocks[d][1]);
+            nstl::swap(jit_md_info.strides[d][2], jit_md_info.strides[d][1]);
+        }
+        return jit_md_info;
+    }
+};
 
 struct jit_offsets {
     int src_off[4][MAX_NDIMS];
@@ -472,6 +533,43 @@ inline void def_data_type(
         kernel_ctx.add_option(tempstr);
         break;
     default: assert(!"unsupported data type"); break;
+    }
+}
+
+inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
+        const jit_memory_desc_info_t &jit_md_info, const char *prefix) {
+    char temp[32];
+
+    def_data_type(kernel_ctx, jit_md_info.data_type, prefix);
+
+    snprintf(temp, sizeof(temp), "%s_OFFSET0", prefix);
+    kernel_ctx.define_int(temp, jit_md_info.offset0);
+
+    snprintf(temp, sizeof(temp), "%s_NDIMS", prefix);
+    kernel_ctx.define_int(temp, jit_md_info.ndims);
+
+    for (int d = 0; d < 6; ++d) {
+        int dim = (d < jit_md_info.ndims) ? jit_md_info.dims[d] : 0;
+        int padded_dim
+                = (d < jit_md_info.ndims) ? jit_md_info.padded_dims[d] : 0;
+
+        snprintf(temp, sizeof(temp), "%s_D%d", prefix, d);
+        kernel_ctx.define_int(temp, dim);
+
+        snprintf(temp, sizeof(temp), "%s_PD%d", prefix, d);
+        kernel_ctx.define_int(temp, padded_dim);
+
+        for (int l = 0; l < jit_md_info.nlevels + 1; ++l) {
+            int block = (d < jit_md_info.ndims) ? jit_md_info.blocks[d][l] : 1;
+            int stride
+                    = (d < jit_md_info.ndims) ? jit_md_info.strides[d][l] : 0;
+
+            snprintf(temp, sizeof(temp), "%s_B%d_%d", prefix, d, l);
+            kernel_ctx.define_int(temp, block);
+
+            snprintf(temp, sizeof(temp), "%s_S%d_%d", prefix, d, l);
+            kernel_ctx.define_int(temp, stride);
+        }
     }
 }
 

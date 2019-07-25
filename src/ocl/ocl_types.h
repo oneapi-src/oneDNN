@@ -312,6 +312,26 @@
 #    endif
 #endif
 
+#define OFF_MD(prefix, x0, x1, x2, x3, x4, x5)                       \
+    ((x0 / prefix##_B0_2) / prefix##_B0_1 * prefix##_S0_0)           \
+            + ((x0 / prefix##_B0_2) % prefix##_B0_1 * prefix##_S0_1) \
+            + ((x0 % prefix##_B0_2) * prefix##_S0_2)                 \
+            + ((x1 / prefix##_B1_2) / prefix##_B1_1 * prefix##_S1_0) \
+            + ((x1 / prefix##_B1_2) % prefix##_B1_1 * prefix##_S1_1) \
+            + ((x1 % prefix##_B1_2) * prefix##_S1_2)                 \
+            + ((x2 / prefix##_B2_2) / prefix##_B2_1 * prefix##_S2_0) \
+            + ((x2 / prefix##_B2_2) % prefix##_B2_1 * prefix##_S2_1) \
+            + ((x2 % prefix##_B2_2) * prefix##_S2_2)                 \
+            + ((x3 / prefix##_B3_2) / prefix##_B3_1 * prefix##_S3_0) \
+            + ((x3 / prefix##_B3_2) % prefix##_B3_1 * prefix##_S3_1) \
+            + ((x3 % prefix##_B3_2) * prefix##_S3_2)                 \
+            + ((x4 / prefix##_B4_2) / prefix##_B4_1 * prefix##_S4_0) \
+            + ((x4 / prefix##_B4_2) % prefix##_B4_1 * prefix##_S4_1) \
+            + ((x4 % prefix##_B4_2) * prefix##_S4_2)                 \
+            + ((x5 / prefix##_B5_2) / prefix##_B5_1 * prefix##_S5_0) \
+            + ((x5 / prefix##_B5_2) % prefix##_B5_1 * prefix##_S5_1) \
+            + ((x5 % prefix##_B5_2) * prefix##_S5_2)
+
 #if NDIMS == 3
 #    define SRC_OFF(x0, x1, d, h, x2)                                  \
         (((x0) % SRC_B0) * SRC_SB0 + ((x0) / SRC_B0) * SRC_S0          \
