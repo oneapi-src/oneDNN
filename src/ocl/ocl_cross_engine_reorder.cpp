@@ -27,19 +27,19 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &input = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
-    auto &output = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
-    const auto in_e_kind = pd()->src_engine()->kind();
-    const auto out_e_kind = pd()->dst_engine()->kind();
+    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
+    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
+    const auto src_e_kind = pd()->src_engine()->kind();
+    const auto dst_e_kind = pd()->dst_engine()->kind();
 
     const auto &jrp = ker_->jrp;
     float alpha = pd()->alpha();
     float beta = pd()->beta();
     const bool do_reorder = jrp.do_reorder;
 
-    status_t status = status::success;
-    auto ocl_reorder = [&](const memory_storage_t &in_storage,
-                               const memory_storage_t &out_storage) {
+    status_t status;
+    auto ocl_reorder = [&](const memory_storage_t &src_storage,
+                               const memory_storage_t &dst_storage) {
         if (scales) {
             void *tmp_ptr = nullptr;
             status = scales->map_data(&tmp_ptr);
@@ -54,8 +54,8 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         }
 
         compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, in_storage);
-        arg_list.set(1, out_storage);
+        arg_list.set(0, src_storage);
+        arg_list.set(1, dst_storage);
         arg_list.set(2, alpha);
         arg_list.set(3, beta);
         arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
@@ -64,26 +64,26 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         return compute_stream->parallel_for(nd_range, kernel_, arg_list);
     };
 
-    if (in_e_kind == engine_kind::gpu && out_e_kind == engine_kind::cpu) {
+    if (src_e_kind == engine_kind::gpu && dst_e_kind == engine_kind::cpu) {
         if (do_reorder) {
-            status = ocl_reorder(input, *temp_buf);
+            status = ocl_reorder(src, *temp_buf);
         }
         if (status == status::success) {
             // Copy to cpu
             memory_desc_wrapper dst_mdw(pd()->dst_md());
             status = compute_stream->copy(
-                    do_reorder ? *temp_buf : input, output, dst_mdw.size());
+                    do_reorder ? *temp_buf : src, dst, dst_mdw.size());
         }
-    } else if (in_e_kind == engine_kind::cpu
-            && out_e_kind == engine_kind::gpu) {
+    } else if (src_e_kind == engine_kind::cpu
+            && dst_e_kind == engine_kind::gpu) {
         // Copy to gpu
         memory_desc_wrapper src_mdw(pd()->src_md());
         status = compute_stream->copy(
-                input, do_reorder ? *temp_buf : output, src_mdw.size());
+                src, do_reorder ? *temp_buf : dst, src_mdw.size());
         if (status == status::success && do_reorder)
-            status = ocl_reorder(*temp_buf, output);
+            status = ocl_reorder(*temp_buf, dst);
     } else {
-        status = ocl_reorder(input, output);
+        status = ocl_reorder(src, dst);
     }
     return status;
 }

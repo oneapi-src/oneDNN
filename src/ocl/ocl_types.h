@@ -182,7 +182,7 @@
 #    define DATA_T int
 #    define CONVERT_DATA_T convert_int_sat_rte
 #    define POST_OP_DATA_T float
-#else
+#elif !defined(DT_UNDEF)
 #    error "Unexpected data type"
 #endif
 

@@ -300,6 +300,9 @@ struct jit_reorder_conf_t {
     int block[3];
     int sub_group_size;
     int scale_mask;
+
+    jit_memory_desc_info_t src_md_info;
+    jit_memory_desc_info_t dst_md_info;
 };
 
 /* eltwise */
