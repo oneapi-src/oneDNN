@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "common/utils.hpp"
-#include "ocl/ocl_cross_engine_reorder_pd.hpp"
+#include "ocl/ocl_cross_engine_reorder.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 

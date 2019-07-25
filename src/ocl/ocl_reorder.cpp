@@ -15,7 +15,8 @@
 *******************************************************************************/
 
 #include "common/engine.hpp"
-#include "ocl/ocl_cross_engine_reorder_pd.hpp"
+#include "ocl/ocl_cross_engine_reorder.hpp"
+#include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
 
 namespace mkldnn {

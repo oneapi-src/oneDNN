@@ -39,8 +39,8 @@ namespace impl {
 namespace ocl {
 
 struct ocl_cross_engine_reorder_t : public primitive_t {
-    struct pd_t : public reorder_pd_t {
-        using reorder_pd_t::reorder_pd_t;
+    struct pd_t : public ocl_reorder_pd_t {
+        using ocl_reorder_pd_t::ocl_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("cross_engine::any", ocl_cross_engine_reorder_t);
 
@@ -70,9 +70,10 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
                     && utils::one_of(dst_engine_->kind(), engine_kind::gpu,
                             engine_kind::cpu)
                     && (attr()->has_default_values()
-                        || IMPLICATION(post_ops.len_ != 0,
-                            post_ops.len_ == 1
-                            && post_ops.entry_[0].kind == primitive_kind::sum));
+                            || IMPLICATION(post_ops.len_ != 0,
+                                    post_ops.len_ == 1
+                                            && post_ops.entry_[0].kind
+                                                    == primitive_kind::sum));
             if (!args_ok)
                 return status::unimplemented;
 
@@ -82,17 +83,16 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
 
             args_ok = args_ok
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(utils::one_of(data_type::f16,
-                                           src_md()->data_type,
-                                           dst_md()->data_type),
-                               true
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          khr_fp16)
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          intel_subgroups_short));
+                            compute::device_ext_t::intel_subgroups)
+                    && IMPLICATION(
+                            utils::one_of(data_type::f16, src_md()->data_type,
+                                    dst_md()->data_type),
+                            true
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short));
 
             jit_simple_reorder_kernel::init_conf(
                     this, jrp_, src_md(), dst_md());
