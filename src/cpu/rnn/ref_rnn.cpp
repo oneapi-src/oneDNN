@@ -208,9 +208,11 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
         src_data_t *ws_l2r_ptr = &(ws_states(0, it + 1, b, 0));
         src_data_t *ws_r2l_ptr = &(ws_states(rnn.n_dir - 1, rnn.n_iter - it, b, 0));
         if (rnn.exec_dir != r2l)
+            PRAGMA_OMP_SIMD()
             for (int c = 0; c < rnn.slc; c++)
                 ws_l2r_ptr[c] = xxt[c];
         if (rnn.exec_dir != l2r)
+            PRAGMA_OMP_SIMD()
             for (int c = 0; c < rnn.slc; c++)
                 ws_r2l_ptr[c] = xxt[c];
     });
