@@ -26,15 +26,15 @@
 #undef SRC_OFF
 #undef DST_OFF
 
-#define SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_G(SRC, x0, x1, x2, x3, x4, x5)
-#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_G(DST, x0, x1, x2, x3, x4, x5)
+#define SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC, x0, x1, x2, x3, x4, x5)
+#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
 #if WITH_GROUP
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_G(SRC, gr, x0, x1, x2, x3, x4)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_G(DST, gr, x0, x1, x2, x3, x4)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, gr, x0, x1, x2, x3, x4)
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, gr, x0, x1, x2, x3, x4)
 #else
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_G(SRC, x0, x1, x2, x3, x4, 0)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_G(DST, x0, x1, x2, x3, x4, 0)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, x0, x1, x2, x3, x4, 0)
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
 #endif
 
 #if SRC_DT_S8
@@ -346,7 +346,7 @@ ushort8 float_to_bfloat8(float8 b) {
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-any2any_kernel(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
+simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
         float beta, __global float *scales) {
 
     src += SRC_OFFSET0;

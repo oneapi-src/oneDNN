@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "common/utils.hpp"
-#include "ocl/ocl_cross_engine_reorder.hpp"
+#include "ocl/cross_engine_reorder.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
@@ -23,7 +23,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
+status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -32,58 +32,40 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto src_e_kind = pd()->src_engine()->kind();
     const auto dst_e_kind = pd()->dst_engine()->kind();
 
-    const auto &jrp = ker_->jrp;
-    float alpha = pd()->alpha();
-    float beta = pd()->beta();
-    const bool do_reorder = jrp.do_reorder;
+    auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
+        exec_args_t r_args;
+        r_args[MKLDNN_ARG_SRC]
+                = memory_arg_t{ const_cast<memory_t *>(src_mem), true };
+        r_args[MKLDNN_ARG_DST]
+                = memory_arg_t{ const_cast<memory_t *>(dst_mem), false };
 
-    status_t status;
-    auto ocl_reorder = [&](const memory_storage_t &src_storage,
-                               const memory_storage_t &dst_storage) {
-        if (scales) {
-            void *tmp_ptr = nullptr;
-            status = scales->map_data(&tmp_ptr);
-            if (status != status::success)
-                return status;
-            utils::array_copy((float *)tmp_ptr,
-                    pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_);
-            status = scales->unmap_data(tmp_ptr);
-            if (status != status::success)
-                return status;
-        }
-
-        compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, src_storage);
-        arg_list.set(1, dst_storage);
-        arg_list.set(2, alpha);
-        arg_list.set(3, beta);
-        arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
-
-        auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
-        return compute_stream->parallel_for(nd_range, kernel_, arg_list);
+        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        return gpu_reorder_->execute(r_ctx);
     };
 
     if (src_e_kind == engine_kind::gpu && dst_e_kind == engine_kind::cpu) {
-        if (do_reorder) {
-            status = ocl_reorder(src, *temp_buf);
+        if (do_reorder_) {
+            status = exec_reorder(ctx.input(MKLDNN_ARG_FROM), temp_buf.get());
         }
         if (status == status::success) {
             // Copy to cpu
             memory_desc_wrapper dst_mdw(pd()->dst_md());
             status = compute_stream->copy(
-                    do_reorder ? *temp_buf : src, dst, dst_mdw.size());
+                    do_reorder_ ? *temp_buf->memory_storage() : src, dst,
+                    dst_mdw.size());
         }
     } else if (src_e_kind == engine_kind::cpu
             && dst_e_kind == engine_kind::gpu) {
         // Copy to gpu
         memory_desc_wrapper src_mdw(pd()->src_md());
-        status = compute_stream->copy(
-                src, do_reorder ? *temp_buf : dst, src_mdw.size());
-        if (status == status::success && do_reorder)
-            status = ocl_reorder(*temp_buf, dst);
+        status = compute_stream->copy(src,
+                do_reorder_ ? *temp_buf->memory_storage() : dst,
+                src_mdw.size());
+        if (status == status::success && do_reorder_)
+            status = exec_reorder(temp_buf.get(), ctx.output(MKLDNN_ARG_TO));
     } else {
-        status = ocl_reorder(src, dst);
+        status = exec_reorder(
+                ctx.input(MKLDNN_ARG_FROM), ctx.output(MKLDNN_ARG_TO));
     }
     return status;
 }

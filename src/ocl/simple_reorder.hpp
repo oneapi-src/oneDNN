@@ -14,23 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_CROSS_ENGINE_REORDER_PD_HPP
-#define OCL_CROSS_ENGINE_REORDER_PD_HPP
+#ifndef OCL_SIMPLE_REORDER_HPP
+#define OCL_SIMPLE_REORDER_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
 #include "ocl/jit_simple_reorder_kernel.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
 #include "ocl/ocl_utils.hpp"
-
-/* cross reorder manages all reorders between ocl and other engines.
- * It manages:
- * 1. reorder on alien side
- * 2. transition between engines
- * 3. reorder on ocl side if needed
- */
 
 extern const char *simple_reorder_kernel;
 
@@ -38,50 +30,46 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ocl_cross_engine_reorder_t : public primitive_t {
+struct simple_reorder_t : public primitive_t {
     struct pd_t : public ocl_reorder_pd_t {
         using ocl_reorder_pd_t::ocl_reorder_pd_t;
 
-        DECLARE_COMMON_PD_T("cross_engine::any", ocl_cross_engine_reorder_t);
+        DECLARE_COMMON_PD_T("ocl:simple:any", simple_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
-                const primitive_attr_t *attr, engine_t *src_engine,
-                const memory_desc_t *src_md, engine_t *dst_engine,
-                const memory_desc_t *dst_md) {
-
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
-            if (_pd == nullptr)
-                return status::out_of_memory;
-            if (_pd->init() != status::success) {
-                delete _pd;
-                return status::unimplemented;
-            }
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
-        }
+        DECLARE_OCL_REORDER_CREATE();
 
         status_t init() {
             const auto &post_ops = attr()->post_ops_;
-            bool args_ok = true
-                    && utils::one_of(engine_kind::gpu, src_engine_->kind(),
-                            dst_engine_->kind())
-                    && utils::one_of(src_engine_->kind(), engine_kind::gpu,
-                            engine_kind::cpu)
-                    && utils::one_of(dst_engine_->kind(), engine_kind::gpu,
-                            engine_kind::cpu)
+
+            bool ok = true
+                    && (src_engine() == dst_engine())
+                    && (src_engine()->kind() == engine_kind::gpu)
+                    && utils::one_of(src_md()->data_type, data_type::u8,
+                            data_type::s8, data_type::f16, data_type::s32,
+                            data_type::f32, data_type::bf16)
+                    && utils::one_of(dst_md()->data_type, data_type::u8,
+                            data_type::s8, data_type::f16, data_type::s32,
+                            data_type::f32, data_type::bf16)
+                    && IMPLICATION(
+                            utils::one_of(data_type::f16, src_md()->data_type,
+                                    dst_md()->data_type),
+                            utils::downcast<compute::compute_engine_t *>(
+                                    src_engine())
+                                    ->mayiuse(compute::device_ext_t::khr_fp16))
                     && (attr()->has_default_values()
                             || IMPLICATION(post_ops.len_ != 0,
                                     post_ops.len_ == 1
                                             && post_ops.entry_[0].kind
                                                     == primitive_kind::sum));
-            if (!args_ok)
+
+            if (!ok)
                 return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
-                    dst_engine_->kind() == engine_kind::gpu ? dst_engine_
-                                                            : src_engine_);
+                    dst_engine()->kind() == engine_kind::gpu ? dst_engine()
+                                                             : src_engine());
 
-            args_ok = args_ok
+            ok = ok
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(
@@ -94,9 +82,11 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            jit_simple_reorder_kernel::init_conf(
+            if (!ok)
+                return status::unimplemented;
+
+            return jit_simple_reorder_kernel::init_conf(
                     this, jrp_, src_md(), dst_md());
-            return status::success;
         }
 
         jit_reorder_conf_t jrp_;
@@ -112,18 +102,10 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
         if (status != status::success)
             return status;
 
-        compute_engine->create_kernel(&kernel_, "any2any_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
-        if (pd()->jrp_.do_reorder) {
-            size_t size = pd()->jrp_.nelems * sizeof(float);
-            memory_storage_t *temp_buf_ptr;
-            engine()->create_memory_storage(&temp_buf_ptr, size);
-            temp_buf.reset(temp_buf_ptr);
-            if (!temp_buf)
-                return status::runtime_error;
-        }
         if (pd()->jrp_.scale_quant) {
             size_t size = pd()->attr()->output_scales_.count_ * sizeof(float);
             memory_storage_t *scales_ptr;
@@ -136,18 +118,13 @@ struct ocl_cross_engine_reorder_t : public primitive_t {
         return status::success;
     }
 
-    ocl_cross_engine_reorder_t(const pd_t *apd) : primitive_t(apd) {
-        ker_ = new jit_simple_reorder_kernel(pd()->jrp_);
-    }
-    ~ocl_cross_engine_reorder_t() { delete ker_; }
+    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
-    jit_simple_reorder_kernel *ker_;
-    std::unique_ptr<memory_storage_t> temp_buf;
     std::unique_ptr<memory_storage_t> scales;
 };
 

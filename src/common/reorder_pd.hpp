@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "primitive_attr.hpp"
+#include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
