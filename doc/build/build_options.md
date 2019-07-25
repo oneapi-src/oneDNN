@@ -46,9 +46,8 @@ portable.
 
 ### Runtimes
 CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
-is the default build mode and is recommended for the best performance. TBB
-support is experimental. This behavior is controlled by the
-`MKLDNN_CPU_RUNTIME` CMake option.
+is the default build mode and is recommended for the best performance. 
+This behavior is controlled by the `MKLDNN_CPU_RUNTIME` CMake option.
 
 #### OpenMP
 Intel MKL-DNN uses OpenMP runtime library provided by the compiler.
@@ -62,8 +61,6 @@ both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
 #### TBB
-TBB support is experimental.
-
 To build Intel MKL-DNN with TBB support, set the `TBBROOT` environmental
 variable to point to the TBB installation path or pass the path directly to
 cmake:

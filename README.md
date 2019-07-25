@@ -34,7 +34,58 @@ applications enabled with Intel MKL-DNN:
 * [PyTorch\*](https://pytorch.org/)
 * [Tensorflow\*](https://www.tensorflow.org)
 
-## License
+# Installation
+
+Pre-built binaries for Linux, Windows and macOS are available for download
+in the [releases section](https://github.com/intel/mkl-dnn/releases). Package
+names use the following convention:
+
+| OS         | Package name
+| :--        | :-- 
+| Linux:     | mkldnn_lnx_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].tgz
+| Windows\*  | mkldnn_win_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].zip
+| macOS\*:   | mkldnn_mac_<version>_cpu_<cpu runtime>.tgz
+
+Several packages are available for each operating system to ensure
+interoperability with CPU or GPU runtime libraries used by the application.
+
+| Configuration | Dependency
+| :--           | :-- 
+| cpu_iomp      | Intel OpenMP runtime
+| cpu_gomp      | GNU\* OpenMP runtime
+| cpu_vcomp     | Microsoft Visual C OpenMP runtime
+| cpu_tbb       | Threading Building Blocks
+
+The packages do not include library dependencies and these need to be resolved
+in application build time. See [System Requirements](#system-requirements)
+section below and
+[Build Options](http://intel.github.io/mkl-dnn/dev_guide_build_options.html)
+section in the [developer guide](http://intel.github.io/mkl-dnn) for more
+details on CPU and GPU runtimes.
+
+If the configuration you need is not available you can
+[build the library from source](http://intel.github.io/mkl-dnn/dev_guide_build.html).
+
+# Contributing
+We welcome community contributions to Intel MKL-DNN. If you have an idea on how
+to improve the library:
+
+* For changes impacting the public API, submit
+  an [RFC pull request](CONTRIBUTING.md#RFC_pull_requests).
+* Ensure that the changes are consistent with the
+ [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
+ and [coding style](CONTRIBUTING.md#coding_style).
+* Ensure that you can build the product and run all the examples with your
+  patch.
+* Submit a [pull request](https://github.com/intel/mkl-dnn/pulls).
+
+For additional details, see [contribution guidelines](CONTRIBUTING.md).
+
+# Support
+Please submit your questions, feature requests, and bug reports on the
+[GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
+
+# License
 Intel MKL-DNN is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
 software includes the following third-party components:
