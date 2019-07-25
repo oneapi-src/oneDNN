@@ -59,9 +59,7 @@ struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
         if (status)
             return status;
 
-#ifdef DEBUG_PRINT
-        printf("OPT:\n%s\n", kernel_ctx.get_options());
-#endif
+        kernel_ctx.print_options();
         return status::success;
     }
 };
@@ -79,9 +77,7 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
 
         kernel_ctx.add_option(trans ? "-DUSE_TRANS" : "-DUSE_NOTRANS");
 
-#ifdef DEBUG_PRINT
-        printf("OPT:\n%s\n", kernel_ctx.get_options());
-#endif
+        kernel_ctx.print_options();
         return status::success;
     }
 
@@ -105,9 +101,7 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
         kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
 
-#ifdef DEBUG_PRINT
-        printf("OPT:\n%s\n", kernel_ctx.get_options());
-#endif
+        kernel_ctx.print_options();
         return status::success;
     }
 
@@ -135,9 +129,7 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
         if (with_eltwise)
             def_postops(kernel_ctx, alg);
 
-#ifdef DEBUG_PRINT
-        printf("OPT:\n%s\n", kernel_ctx.get_options());
-#endif
+        kernel_ctx.print_options();
         return status::success;
     }
 

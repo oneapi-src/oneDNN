@@ -543,9 +543,7 @@ struct jit_gen9_common_conv_fwd_kernel {
         else if (jcp.is_nhwc)
             kernel_ctx.define_int("NHWC", 1);
 
-#ifdef DEBUG_PRINT
-        printf("OPT:\n%s\n", kernel_ctx.get_options());
-#endif
+        kernel_ctx.print_options();
         return status::success;
     }
 

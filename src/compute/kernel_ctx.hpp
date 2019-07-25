@@ -18,6 +18,9 @@
 #define COMPUTE_KERNEL_CTX_HPP
 
 #include <cassert>
+#ifdef DEBUG_PRINT
+#include <iostream>
+#endif
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
@@ -74,6 +77,19 @@ public:
         case data_type::s32: define_int("DT_S32", 1); break;
         default: assert(!"unknown data type"); break;
         }
+    }
+
+    std::string get_options() const {
+        std::ostringstream oss;
+        for (auto &opt : option_set_)
+            oss << " " << opt;
+        return oss.str();
+    }
+
+    void print_options() const {
+#ifdef DEBUG_PRINT
+       std::cout << "OPT:\n" << get_options() << std::endl;
+#endif
     }
 
     template <typename T>
