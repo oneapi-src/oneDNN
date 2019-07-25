@@ -414,7 +414,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     {
         return order_keep
             && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
-            && input_d.data_type() == f32 && output_d.data_type() == bf16;
+            && input_d.data_type() == f32 && output_d.data_type() == bf16
+            && attr->has_default_values();
     }
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
@@ -515,7 +516,8 @@ typename utils::enable_if<
     static bool is_applicable(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
-            && input_d.data_type() == f32 && output_d.data_type() == bf16;
+            && input_d.data_type() == f32 && output_d.data_type() == bf16
+            && attr->has_default_values();
     }
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
@@ -1202,8 +1204,6 @@ struct simple_reorder_t: public cpu_primitive_t {
             bool args_ok = true
                 && src_md->data_type == type_i
                 && dst_md->data_type == type_o
-                && IMPLICATION(utils::one_of(data_type::bf16, type_i, type_o),
-                        mayiuse(avx512_core))
                 && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::
                 is_applicable(src_md, dst_md, attr);
             if (!args_ok)
