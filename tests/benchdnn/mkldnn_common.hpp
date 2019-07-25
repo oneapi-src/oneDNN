@@ -156,6 +156,11 @@ extern "C" mkldnn_status_t mkldnn_engine_create_with_backend(
 extern "C" mkldnn_status_t mkldnn_engine_get_backend_kind(
         mkldnn_engine_t engine, int *backend_kind);
 
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+extern "C" mkldnn_status_t MKLDNN_API mkldnn_impl_gpu_reorder_set_engine_kind(
+        mkldnn_engine_kind_t engine_kind);
+#endif
+
 inline int init() {
     /* Create engine with CPU native backend: backend_kind == 0 */
     DNN_SAFE(mkldnn_engine_create_with_backend(&engine_ref, mkldnn_cpu, 0, 0),
@@ -170,6 +175,22 @@ inline int init() {
                          &stream_tgt, engine_tgt, mkldnn_stream_default_flags),
                 CRIT);
     }
+
+    // Optimization to reduce testing time for GPU.
+    //
+    // For CPU <-> GPU reorders, the library creates GPU-side kernels.
+    // Benchdnn heavily relies on reorders so this greatly increases execution
+    // time because of a big overhead on building OpenCL kernels.
+    //
+    // This moves all such reorders to CPU to reduce testing time. Reorder, sum
+    // and concat primitives are used to test GPU reorders so leave them
+    // without changes.
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    if (prim != REORDER && prim != SUM && prim != CONCAT) {
+        mkldnn_impl_gpu_reorder_set_engine_kind(mkldnn_cpu);
+    }
+#endif
+
     return OK;
 }
 
