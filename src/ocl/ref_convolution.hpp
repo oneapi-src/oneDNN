@@ -58,8 +58,8 @@ struct ref_convolution_fwd_t: public primitive_t {
                     *this->weights_md(), *this->weights_md(1), *this->dst_md(),
                     *this->attr());
         }
-        bool with_eltwise() const {
-            return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
+        bool with_eltwise(int position) const {
+            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
         }
 
         bool with_sum() const {
@@ -69,7 +69,7 @@ struct ref_convolution_fwd_t: public primitive_t {
         float eltwise_alpha() const {
             const int eltwise_idx =
                 attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise()
+            return with_eltwise(0) || with_eltwise(1)
                 ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
                 : 1.0f;
         }
@@ -77,7 +77,7 @@ struct ref_convolution_fwd_t: public primitive_t {
         float eltwise_beta() const {
             const int eltwise_idx =
                 attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise()
+            return with_eltwise(0) || with_eltwise(1)
                 ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
                 : 0.0f;
         }
@@ -93,7 +93,7 @@ struct ref_convolution_fwd_t: public primitive_t {
         alg_kind_t eltwise_alg_kind() const {
             const int eltwise_idx =
                 attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise()
+            return with_eltwise(0) || with_eltwise(1)
                 ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
                 : mkldnn_alg_kind_undef;
         }
@@ -118,9 +118,7 @@ struct ref_convolution_fwd_t: public primitive_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status
-                = pd()->kernel()->apply_const(kernel_ctx, pd()->with_eltwise(),
-                        pd()->with_sum(), pd()->eltwise_alg_kind());
+        auto status = pd()->kernel()->apply_const(kernel_ctx);
         if (status != status::success)
             return status;
 
@@ -183,8 +181,7 @@ struct ref_convolution_bwd_data_t: public primitive_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = pd()->kernel()->apply_const(
-                kernel_ctx, false, false, mkldnn_alg_kind_undef);
+        auto status = pd()->kernel()->apply_const(kernel_ctx);
         if (status != status::success)
             return status;
 
@@ -247,8 +244,7 @@ struct ref_convolution_bwd_weights_t: public primitive_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = pd()->kernel()->apply_const(
-                kernel_ctx, false, false, mkldnn_alg_kind_undef);
+        auto status = pd()->kernel()->apply_const(kernel_ctx);
         if (status != status::success)
             return status;
 

@@ -93,7 +93,8 @@ struct jit_conv_conf_t {
     bool with_bias, with_sum, with_sum_relu, with_groups;
 
     bool with_eltwise;
-    bool with_relu;
+    bool with_post_sum_eltwise;
+    bool eltwise_alg_relu;
     post_ops_t::entry_t::eltwise_t eltwise;
 
     bool is_depthwise;
@@ -293,6 +294,8 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.kh = (ndims == 3) ? 1 : weights_mdw.dims()[with_groups + ndims - 2];
     jcp.kw = weights_mdw.dims()[with_groups + ndims - 1];
 
+    jcp.is_depthwise = jcp.with_groups && jcp.oc_without_padding == 1
+            && jcp.ic_without_padding == 1;
     jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
     jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
 
@@ -315,19 +318,15 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 1.0;
 
     const int eltwise_ind = p.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise)
+    jcp.with_eltwise = eltwise_ind == 0;
+    jcp.with_post_sum_eltwise = eltwise_ind == 1;
+    if (jcp.with_eltwise || jcp.with_post_sum_eltwise)
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-    jcp.with_relu
-            = (jcp.with_eltwise && jcp.eltwise.alg == alg_kind::eltwise_relu);
-    if (jcp.with_relu)
+
+    jcp.eltwise_alg_relu
+            = (eltwise_ind != -1 && jcp.eltwise.alg == alg_kind::eltwise_relu);
+    if (jcp.eltwise_alg_relu)
         jcp.relu_negative_slope = jcp.eltwise.alpha;
-    if (p.len_ == 2 && sum_idx != -1) {
-        jcp.with_sum_relu = p.entry_[sum_idx].is_sum(jcp.sum_scale == 1.0)
-                && p.entry_[1].is_relu();
-    } else {
-        jcp.with_sum_relu = 0;
-    }
 
     jcp.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
 }

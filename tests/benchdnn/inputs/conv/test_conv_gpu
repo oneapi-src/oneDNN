@@ -26,3 +26,5 @@ mb2ic512ih14oc32oh14kh1ph0n
 --mb=2
 --dir=FWD_B --batch=conv_gpu
 
+# test scale and post-ops
+--batch=test_conv_attrs_gpu

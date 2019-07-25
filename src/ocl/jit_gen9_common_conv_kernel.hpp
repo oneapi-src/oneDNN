@@ -181,10 +181,12 @@ struct jit_gen9_common_conv_fwd_kernel {
                         * jcp.mb_block;
 
 #ifdef DEBUG_PRINT
-            printf("LWS = %ld\n", jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
+            printf("LWS = %ld\n",
+                    jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
             fflush(0);
             printf("USE SLM %ld KB\n",
-                    utils::div_up(jcp.wht_slm_size + jcp.src_slm_size, 1024));
+                    utils::div_up(
+                            jcp.wht_slm_size + jcp.src_slm_size, 1024));
             fflush(0);
             printf("LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n", jcp.lws_d[0],
                     jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0], jcp.gws_d[1],
@@ -447,9 +449,11 @@ struct jit_gen9_common_conv_fwd_kernel {
         kernel_ctx.define_int("OWB", utils::div_up(jcp.ow, jcp.ow_block));
         kernel_ctx.define_int("OHB", utils::div_up(jcp.oh, jcp.oh_block));
         kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
+        kernel_ctx.define_int("WITH_ELTWISE", jcp.with_eltwise
+                || jcp.with_post_sum_eltwise);
+        if (jcp.with_eltwise || jcp.with_post_sum_eltwise)
+            def_postops(kernel_ctx, jcp.eltwise.alg);
         kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
         kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);
@@ -684,14 +688,10 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         kernel_ctx.define_int("IH_BLOCK", jcp.ih_block);
         kernel_ctx.define_int("IW_BLOCK", jcp.iw_block);
         kernel_ctx.define_int("IWB", utils::div_up(jcp.iw, jcp.iw_block));
-        kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
-        kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
-        kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);
         kernel_ctx.define_int("IC_BLOCK", jcp.ic_block);
+        kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
 
         kernel_ctx.define_int("LWS_0", jcp.lws_d[0]);
         kernel_ctx.define_int("LWS_1", jcp.lws_d[1]);
@@ -943,10 +943,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         kernel_ctx.define_int("OC_PADDED", jcp.oc);
         kernel_ctx.define_int("OH_BLOCK", jcp.oh_block);
         kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
-        kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
-        kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("MB_BLOCK", jcp.mb_block);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);

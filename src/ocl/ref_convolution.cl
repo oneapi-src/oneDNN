@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "ocl/ocl_types.h"
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
 #include "ocl/ocl_post_ops.h"
 #endif
 
@@ -23,7 +23,7 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float sum_scale
-#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
         , float scales
 #endif
 ) {
@@ -55,21 +55,32 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
                     const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wht_off]);
                 }
+    POST_OP_DATA_T tmp = d;
+
 #if WITH_BIAS
-    DATA_T tmp = (DATA_T)d + (DATA_T)BIA_TO_REF(bias[g * OC + oc]);
-#else
-    DATA_T tmp = (DATA_T)d;
+    tmp += (POST_OP_DATA_T)BIA_TO_REF(bias[g*OC+oc]);
 #endif
-#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+
+#if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
     tmp *= scales;
 #endif
-#if WITH_SUM == 1
-    tmp += sum_scale
-            * (DATA_T)DST_TO_REF(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]);
-#endif
+
 #if WITH_ELTWISE == 1
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
 #endif
+
+#if WITH_SUM == 1
+    #if SUM_SCALE == 1
+    tmp += (POST_OP_DATA_T)dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
+    #else
+    tmp += sum_scale * (POST_OP_DATA_T)dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
+    #endif
+#endif
+
+#if WITH_POST_SUM_ELTWISE == 1
+    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
+#endif
+
     dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }
 

@@ -45,8 +45,9 @@ status_t jit_gen9_common_convolution_fwd_t::execute_forward(
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, jcp.relu_negative_slope);
-    arg_list.set(5, jcp.sum_scale);
+    arg_list.set(4, jcp.eltwise.alpha);
+    arg_list.set(5, jcp.eltwise.beta);
+    arg_list.set(6, jcp.sum_scale);
 
     auto nd_range = compute::nd_range_t(jcp.gws_d, jcp.lws_d);
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
