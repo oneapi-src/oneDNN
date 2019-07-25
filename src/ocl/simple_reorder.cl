@@ -83,7 +83,7 @@
             + ((x5) / SRC_B5) * SRC_S5)
 #else
 #define IN_OFF(x0, x1, x2, x3, x4, x5)                                   \
-    (4 * (x0 % 8) + ((x0 % 32) / 8) * 256 + ((x0) / SRC_B0) * SRC_S0     \
+    (4 * (p[x0 % 32] % 8) + (p[x0 % 32] / 8) * 256 + ((x0) / SRC_B0) * SRC_S0     \
             + (x1 % 4) + ((x1 % 32) / 4) * 32 + ((x1) / SRC_B1) * SRC_S1 \
             + ((x2) % SRC_B2) * SRC_SB2 + ((x2) / SRC_B2) * SRC_S2       \
             + ((x3) % SRC_B3) * SRC_SB3 + ((x3) / SRC_B3) * SRC_S3       \
@@ -177,7 +177,7 @@
             + ((x5) / DST_B5) * DST_S5)
 #else
 #define OUT_OFF(x0, x1, x2, x3, x4, x5)                                  \
-    (4 * (x0 % 8) + ((x0 % 32) / 8) * 256 + ((x0) / DST_B0) * DST_S0     \
+    (4 * (p[x0 % 32] % 8) + (p[x0  % 32] / 8) * 256 + ((x0) / DST_B0) * DST_S0     \
             + (x1 % 4) + ((x1 % 32) / 4) * 32 + ((x1) / DST_B1) * DST_S1 \
             + ((x2) % DST_B2) * DST_SB2 + ((x2) / DST_B2) * DST_S2       \
             + ((x3) % DST_B3) * DST_SB3 + ((x3) / DST_B3) * DST_S3       \
