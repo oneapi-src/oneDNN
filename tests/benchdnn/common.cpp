@@ -458,6 +458,15 @@ int64_t div_up(const int64_t a, const int64_t b){
     return (a + b - 1) / b;
 }
 
+int64_t next_pow2(int64_t a) {
+    assert(a > 0 && a <= ((int64_t)1 << 62));
+    if (a > 1)
+        a--;
+    while (a & (a - 1))
+        a &= (a - 1);
+    return a << 1;
+}
+
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
 #include <xmmintrin.h>

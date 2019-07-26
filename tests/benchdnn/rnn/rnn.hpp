@@ -159,7 +159,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
     int min, max; /* representative */
-    int f_min, f_max; /* fill range */
+    float f_min, f_max; /* fill range */
     float f_mean, f_stddev; /* mean and std deviation of normally distributed data */
     double eps; /* acceptable error */
 } _dt_conf_t[data_kind_total];
@@ -182,7 +182,7 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, mkldnn_prop_kind_t prop,
             alg_t alg, mkldnn_rnn_direction_t direction, const attr_t &attr,
             policy_t scale_policy, unsigned int flags, activation_t activation,
-            float alpha, float beta, int mb = 0)
+            float alpha, float beta, bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop)
@@ -194,14 +194,22 @@ struct prb_t : public desc_t {
         , beta(beta)
         , attr(attr)
         , scale_policy(scale_policy)
-        , ops(0.0) {
+        , ops(0.0)
+        , skip_nonlinear(skip_nonlinear)
+        , linear_cscale(0.0f) {
         count_ops();
-#define max(a, b) ((a > b) ? a : b)
-        wc = max(sic, max(slc, dic));
-#undef max
+        wc = MAX2(sic, MAX2(slc, dic));
 
         if (mb) this->mb = mb;
-        wei_oc_scales = NULL;
+        wei_oc_scales = nullptr;
+        linear_scales = nullptr;
+
+        // We always allocate linear scales. Even if they are not
+        // used, they get dereferenced when built in debug mode.
+        linear_scales = (float *)zmalloc(sizeof(float) * n_gates(), 64);
+        // Here we use the range of INPUT to set the scales
+        set_tparams(cfg[input].f_min, cfg[input].f_max);
+
         if (scale_policy == PER_OC)
             wei_oc_scales
                     = (float *)zmalloc(sizeof(float) * dic * n_gates(), 64);
@@ -210,6 +218,8 @@ struct prb_t : public desc_t {
     ~prb_t() {
         if (wei_oc_scales)
             zfree(wei_oc_scales);
+        if (linear_scales)
+            zfree(linear_scales);
     }
 
     void count_ops() {
@@ -255,8 +265,14 @@ struct prb_t : public desc_t {
     float wei_scale;
     float *wei_oc_scales;
 
+    bool skip_nonlinear;
+    float *linear_scales;
+    float linear_cscale;
+
 private:
+    /* Todo: fused the two functions in set_shifts_scales */
     void set_qparams(float fp_min, float fp_max);
+    void set_tparams(float fp_min, float fp_max);
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };

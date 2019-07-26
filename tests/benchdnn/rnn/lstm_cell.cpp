@@ -24,8 +24,10 @@
 
 namespace rnn {
 
-void lstm_fwd_postgemm(const prb_t &p, float *gates_, const float *bias_,
-        const float *src_iter_c_, float *dst_iter_h_, float *dst_iter_c_) {
+template <typename T1, typename T2>
+void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
+        float *gates_, const float *bias_, const float *src_iter_c_,
+        float *dst_iter_h_, float *dst_iter_c_) {
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
     AOC<const float> bias(bias_, p.n_gates(), p.dic);
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
@@ -64,34 +66,48 @@ void lstm_fwd_postgemm(const prb_t &p, float *gates_, const float *bias_,
     // run the eltwise
     mkldnn::impl::parallel_nd(p.mb, [&](int64_t ib) {
         for (int64_t ih = 0; ih < p.dic; ih++) {
-            gates(ib, 0, ih)
-                    = logistic(maybe_deq_w(gates(ib, 0, ih), 0 * p.dic + ih)
+            gates(ib, 0, ih) = func1(p.linear_scales[0],
+                    maybe_deq_w(gates(ib, 0, ih), 0 * p.dic + ih)
                             + bias(0, ih));
-            gates(ib, 1, ih)
-                    = logistic(maybe_deq_w(gates(ib, 1, ih), 1 * p.dic + ih)
+            gates(ib, 1, ih) = func1(p.linear_scales[1],
+                    maybe_deq_w(gates(ib, 1, ih), 1 * p.dic + ih)
                             + bias(1, ih));
-            gates(ib, 2, ih)
-                    = tanhf(maybe_deq_w(gates(ib, 2, ih), 2 * p.dic + ih)
+            gates(ib, 2, ih) = func2(p.linear_scales[2],
+                    maybe_deq_w(gates(ib, 2, ih), 2 * p.dic + ih)
                             + bias(2, ih));
-            gates(ib, 3, ih)
-                    = logistic(maybe_deq_w(gates(ib, 3, ih), 3 * p.dic + ih)
+            gates(ib, 3, ih) = func1(p.linear_scales[3],
+                    maybe_deq_w(gates(ib, 3, ih), 3 * p.dic + ih)
                             + bias(3, ih));
             for (int64_t ig = 0; ig < 4; ig++) {
                 print(80,
                         "activation 1 a[" IFMT "][" IFMT "][" IFMT "] = %.7f\n",
                         ib, ig, ih, gates(ib, ig, ih));
             }
+
+            // compute C_t_l and H_t_l
+            float tmp = gates(ib, ohf, ih) * src_iter_c(ib, ih)
+                    + gates(ib, ohi, ih) * gates(ib, ohc, ih);
+            dst_iter_c(ib, ih) = tmp;
+            h_dst(ib, ih) = maybe_q_d(
+                    gates(ib, oho, ih) * func2(p.linear_cscale, tmp));
+            print(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
+                    src_iter_c(ib, ih), h_dst(ib, ih));
         }
     });
+}
 
-    // compute C_t_l and H_t_l
-    for (int64_t i = 0; i < p.mb; i++)
-        for (int64_t j = 0; j < p.dic; j++) {
-            float tmp = gates(i, ohf, j) * src_iter_c(i, j)
-                    + gates(i, ohi, j) * gates(i, ohc, j);
-            dst_iter_c(i, j) = tmp;
-            h_dst(i, j) = maybe_q_d(gates(i, oho, j) * tanhf(tmp));
-        }
+void lstm_fwd_postgemm(const prb_t &p, float *gates_, const float *bias_,
+        const float *src_iter_c_, float *dst_iter_h_, float *dst_iter_c_) {
+    if (p.skip_nonlinear)
+        lstm_fwd_postgemm_template(
+                [](float scale, float val) { return scale * val; },
+                [](float scale, float val) { return scale * val; }, p, gates_,
+                bias_, src_iter_c_, dst_iter_h_, dst_iter_c_);
+    else
+        lstm_fwd_postgemm_template(
+                [](float scale, float val) { return logistic(val); },
+                [](float scale, float val) { return tanhf(val); }, p, gates_,
+                bias_, src_iter_c_, dst_iter_h_, dst_iter_c_);
 }
 
 void lstm_fwd(const prb_t &p, float *dst_iter_h_, float *dst_iter_c_,
@@ -110,10 +126,12 @@ void lstm_fwd(const prb_t &p, float *dst_iter_h_, float *dst_iter_c_,
     lstm_fwd_postgemm(p, gates_, bias_, src_iter_c_, dst_iter_h_, dst_iter_c_);
 }
 
-void lstm_bwd_pregemm(const prb_t &p, const float *src_iter_c_,
-        const float *dst_iter_c_, const float *diff_dst_layer_,
-        const float *diff_dst_iter_h_, const float *diff_dst_iter_c_,
-        const float *gates_, float *diff_src_iter_c_, float *b_gates_) {
+template <typename T1>
+void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
+        const float *src_iter_c_, const float *dst_iter_c_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_h_,
+        const float *diff_dst_iter_c_, const float *gates_,
+        float *diff_src_iter_c_, float *b_gates_) {
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
     AOC<const float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.mb, p.wc);
@@ -137,11 +155,12 @@ void lstm_bwd_pregemm(const prb_t &p, const float *src_iter_c_,
             float hi = gates(ib, ohi, ih);
             float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
             float c = dst_iter_c(ib, ih);
-            float dho = tanhf(c) * dh;
+            float tanhC = func1(p.linear_cscale, c);
+            float dho = tanhC * dh;
             b_gates(ib, oho, ih) = x_m_square(ho) * dho;
 
             float dc_next = diff_dst_iter_c(ib, ih);
-            float dc = ho * dh * dtanhf(c) + dc_next;
+            float dc = ho * dh * one_m_square(tanhC) + dc_next;
             diff_src_iter_c(ib, ih) = hf * dc;
 
             float c_old = src_iter_c(ib, ih);
@@ -154,6 +173,23 @@ void lstm_bwd_pregemm(const prb_t &p, const float *src_iter_c_,
             float dhc = hi * dc;
             b_gates(ib, ohc, ih) = one_m_square(hc) * dhc;
         }
+}
+
+void lstm_bwd_pregemm(const prb_t &p, const float *src_iter_c_,
+        const float *dst_iter_c_, const float *diff_dst_layer_,
+        const float *diff_dst_iter_h_, const float *diff_dst_iter_c_,
+        const float *gates_, float *diff_src_iter_c_, float *b_gates_) {
+    if (p.skip_nonlinear)
+        lstm_bwd_pregemm_template(
+                [](float scale, float val) { return scale * val; }, p,
+                src_iter_c_, dst_iter_c_, diff_dst_layer_, diff_dst_iter_h_,
+                diff_dst_iter_c_, gates_, diff_src_iter_c_, b_gates_);
+
+    else
+        lstm_bwd_pregemm_template(
+                [](float scale, float val) { return tanhf(val); }, p,
+                src_iter_c_, dst_iter_c_, diff_dst_layer_, diff_dst_iter_h_,
+                diff_dst_iter_c_, gates_, diff_src_iter_c_, b_gates_);
 }
 
 void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_h_,

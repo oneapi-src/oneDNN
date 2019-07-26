@@ -31,28 +31,35 @@
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
+// Using hidden attr API for testing RNN
+mkldnn_status_t mkldnn_primitive_attr_set_rnn_tparams(
+        mkldnn_primitive_attr_t attr, bool mode, mkldnn_dim_t ngates,
+        const float *scales, float cscale);
+
 namespace rnn {
 
 #define CALL_MKLDNN_RNN 1
 
-mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const prb_t &p) {
-    mkldnn_primitive_attr_t mkldnn_attr = NULL;
+void create_mkldnn_rnn_attr(
+        const prb_t &p, mkldnn_primitive_attr_t *mkldnn_attr) {
+    DNN_SAFE_V(mkldnn_primitive_attr_create(mkldnn_attr));
 
-    DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
+    if (p.skip_nonlinear)
+        DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_tparams(*mkldnn_attr, true,
+                p.n_gates(), p.linear_scales, p.linear_cscale));
+
     if (p.scale_policy == PER_OC) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_weights_qparams(
-                mkldnn_attr, p.dic * p.n_gates(), 0x3, p.wei_oc_scales));
+                *mkldnn_attr, p.dic * p.n_gates(), 0x3, p.wei_oc_scales));
     } else if (p.scale_policy == COMMON && p.wei_scale != 1.) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_weights_qparams(
-                mkldnn_attr, 1, 0, &p.wei_scale));
+                *mkldnn_attr, 1, 0, &p.wei_scale));
     }
 
     if (p.data_scale != 1.0 || p.data_shift != 0.0) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_data_qparams(
-                mkldnn_attr, p.data_scale, p.data_shift));
+                *mkldnn_attr, p.data_scale, p.data_shift));
     }
-
-    return mkldnn_attr;
 }
 
 int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
@@ -243,7 +250,8 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
                          &diff_c_last_iteration_d),
                 WARN);
     }
-    auto mkldnn_attr = create_mkldnn_rnn_attr(p);
+    mkldnn_primitive_attr_t mkldnn_attr;
+    create_mkldnn_rnn_attr(p, &mkldnn_attr);
     mkldnn_status_t init_status = mkldnn_success;
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
         init_status = mkldnn_primitive_desc_create(

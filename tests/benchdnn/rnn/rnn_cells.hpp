@@ -21,6 +21,7 @@
 #include "rnn/rnn_aux.hpp"
 
 namespace rnn {
+
 void rnn_fwd(const prb_t &p, float *dst_iter_h_, float *gates_,
         const float *weights_layer_, const float *weights_iter_h_,
         const float *bias_, const float *src_layer_, const float *src_iter_h_);

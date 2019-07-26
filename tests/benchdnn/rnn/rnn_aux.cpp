@@ -207,13 +207,14 @@ int str2desc(desc_t *desc, const char *str) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    s
-        << "--prop=" << prop2str(p.prop)
-        << " --alg=" << alg2str(p.alg)
-        << " --activation=" << activation2str(p.activation)
-        << " --direction=" << direction2str(p.direction)
-        << " --cfg=" << cfg2str(p.cfg)
-        << " --scaling=" << policy2str(p.scale_policy);
+    s << "--prop=" << prop2str(p.prop) << " --alg=" << alg2str(p.alg)
+      << " --skip-nonlinear=" << bool2str(p.skip_nonlinear);
+    if (p.alg == VANILLA_RNN)
+        s << " --activation=" << activation2str(p.activation);
+
+    s << " --direction=" << direction2str(p.direction)
+      << " --cfg=" << cfg2str(p.cfg)
+      << " --scaling=" << policy2str(p.scale_policy);
 
     s << " "
         << "l" << p.n_layer
@@ -580,6 +581,41 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
         for (int64_t i = 0; i < nelems; i++) {
             wei_oc_scales[i] = K * (1. + (float)i / nelems);
         }
+    }
+}
+
+void prb_t::set_tparams(float fp_min, float fp_max) {
+    if (skip_nonlinear) {
+        assert(linear_scales != nullptr);
+        // Here, we assume that the inputs of the cells are in [fp_min,fp_max]. We
+        // pick the scaling factors to ensure that the output of the
+        // linear pre/post gemm is in [fp_min,fp_max]
+
+        // Also, we rely on the fact that for forward, the weights
+        // matrices are sparse, and contain coefficient equal to
+        // 1/n_gates() to compensate for the gemm accumulation. So
+        // here, we account only for the postgemm accumulation, and
+        // the fact that we want to use diferent scales per gate.
+
+        // For BWD_W, we cannot assume sparssness though since the
+        // gates and diff_dst_* are dense.
+        int64_t fwd_acc_dim = n_gates();
+        int64_t bwdd_acc_dim = dic;
+        int64_t bwdw_acc_dim = mb;
+        int64_t acc_dim = 0;
+        if (prop == mkldnn_backward)
+            acc_dim = n_gates()
+                    * MAX2(fwd_acc_dim, MAX2(bwdd_acc_dim, bwdw_acc_dim));
+        else
+            acc_dim = fwd_acc_dim;
+        // make scaling exact by choosing powers of two.
+        int64_t n_cscale = (alg == VANILLA_LSTM);
+        int64_t divisor = next_pow2(acc_dim + n_cscale);
+        float factor = (1.0f / (float)(divisor));
+        for (int64_t i = 0; i < n_gates(); i++)
+            linear_scales[i] = (i + 1) * factor;
+        if (n_cscale)
+            linear_cscale = (n_gates() + 1) * factor;
     }
 }
 

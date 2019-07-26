@@ -24,7 +24,8 @@
 
 namespace rnn {
 
-void gru_fwd_postgemm_part1(const prb_t &p, float *gates_,
+template <typename T>
+void gru_fwd_postgemm_part1_template(T func1, const prb_t &p, float *gates_,
         const float *src_iter_h_, const float *bias_, float *dst_iter_h_) {
     AOC<const float> bias(bias_, p.n_gates(), p.dic);
     AOC<const float> src_iter_h(src_iter_h_, p.mb, p.wc);
@@ -34,7 +35,8 @@ void gru_fwd_postgemm_part1(const prb_t &p, float *gates_,
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t j = 0; j < p.n_gates() - 1; j++)
             for (int64_t k = 0; k < p.dic; k++) {
-                gates(i, j, k) = logistic(gates(i, j, k) + bias(j, k));
+                gates(i, j, k) = func1(
+                        p.linear_scales[j], gates(i, j, k) + bias(j, k));
             }
 
     for (int64_t i = 0; i < p.mb; i++)
@@ -43,7 +45,20 @@ void gru_fwd_postgemm_part1(const prb_t &p, float *gates_,
         }
 }
 
-void gru_fwd_postgemm_part2(const prb_t &p, float *gates_,
+void gru_fwd_postgemm_part1(const prb_t &p, float *gates_,
+        const float *src_iter_h_, const float *bias_, float *dst_iter_h_) {
+    if (p.skip_nonlinear)
+        gru_fwd_postgemm_part1_template(
+                [](float scale, float a) { return scale * a; }, p, gates_,
+                src_iter_h_, bias_, dst_iter_h_);
+    else
+        gru_fwd_postgemm_part1_template(
+                [](float scale, float a) { return logistic(a); }, p, gates_,
+                src_iter_h_, bias_, dst_iter_h_);
+}
+
+template <typename T>
+void gru_fwd_postgemm_part2_template(T func1, const prb_t &p, float *gates_,
         const float *src_iter_h_, const float *bias_, float *dst_iter_h_) {
     AOC<const float> bias(bias_, p.n_gates(), p.dic);
     AOC<const float> src_iter_h(src_iter_h_, p.mb, p.wc);
@@ -51,7 +66,8 @@ void gru_fwd_postgemm_part2(const prb_t &p, float *gates_,
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t k = 0; k < p.dic; k++) {
-            gates(i, 2, k) = tanhf(gates(i, 2, k) + bias(2, k));
+            gates(i, 2, k)
+                    = func1(p.linear_scales[2], gates(i, 2, k) + bias(2, k));
         }
 
     for (int64_t i = 0; i < p.mb; i++)
@@ -59,6 +75,18 @@ void gru_fwd_postgemm_part2(const prb_t &p, float *gates_,
             dst_iter_h(i, k) = (float)((double)gates(i, 0, k) * src_iter_h(i, k)
                     + (1.0 - (double)gates(i, 0, k)) * gates(i, 2, k));
         }
+}
+
+void gru_fwd_postgemm_part2(const prb_t &p, float *gates_,
+        const float *src_iter_h_, const float *bias_, float *dst_iter_h_) {
+    if (p.skip_nonlinear)
+        gru_fwd_postgemm_part2_template(
+                [](float scale, float a) { return scale * a; }, p, gates_,
+                src_iter_h_, bias_, dst_iter_h_);
+    else
+        gru_fwd_postgemm_part2_template(
+                [](float scale, float a) { return tanhf(a); }, p, gates_,
+                src_iter_h_, bias_, dst_iter_h_);
 }
 
 void gru_fwd(const prb_t &p, float *dst_iter_h_, float *gates_,
@@ -111,22 +139,23 @@ void gru_bwd_pregemm_part1(const prb_t &p, const float *src_iter_,
             diff_src_iter(ib, ih) = dh * u;
         }
 }
+
 void gru_bwd_pregemm_part2(const prb_t &p, const float *src_iter_,
         const float *gates_, float *diff_src_iter_, float *b_gates_,
         float *ws_local_) {
+    float *dhr_ = ws_local_;
+    float *hr_ = ws_local_ + p.mb * p.wc;
+
     AOC<const float> src_iter(src_iter_, p.mb, p.wc);
     AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dic);
     AOC<float> diff_src_iter(diff_src_iter_, p.mb, p.wc);
     AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
+    AOC<float> dhr(dhr_, p.mb, p.wc);
+    AOC<float> hr(hr_, p.mb, p.wc);
 
     // dhr = Wc dc^;
     // dr = h * dhr; dr^ = x_m_square(r) * dr;
     const int64_t ohr = 1;
-
-    float *dhr_ = ws_local_;
-    float *hr_ = ws_local_ + p.mb * p.wc;
-    AOC<float> dhr(dhr_, p.mb, p.wc);
-    AOC<float> hr(hr_, p.mb, p.wc);
 
     for (int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dic; ih++) {
