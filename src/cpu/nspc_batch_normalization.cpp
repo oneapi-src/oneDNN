@@ -32,6 +32,13 @@
 #define SAFE_TO_USE_OMP_SIMD 1
 #endif
 
+#if (__GNUC__ == 5) && (__GNUC_MINOR__ == 4)
+#define SIMD_LEN_16
+#else
+#define SIMD_LEN_16 simdlen(16)
+#endif
+
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -381,7 +388,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                 }
 
 #if SAFE_TO_USE_OMP_SIMD
-                PRAGMA_OMP_SIMD(simdlen(16))
+                PRAGMA_OMP_SIMD(SIMD_LEN_16)
 #endif
                 for (dim_t c = 0; c < nb_c_blk * c_blk; c++) {
                     const size_t c_off = s_off + c;
