@@ -37,8 +37,7 @@
 #define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
 #endif
 
-#if SRC_DT_S8
-#define SRC_DATA8_T char8
+#if SRC_DT_S8 || SRC_DT_U8
 #define SRC_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -50,7 +49,6 @@
 #endif // SRC_DT_S8
 
 #if SRC_DT_U8
-#define SRC_DATA8_T uchar8
 #define SRC_BLOCK_READ(src) \
     as_uchar(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -62,7 +60,6 @@
 #endif // SRC_DT_U8
 
 #if SRC_DT_F16
-#define SRC_DATA8_T half8
 #define SRC_BLOCK_READ(src) \
     as_half(intel_sub_group_block_read_us((const __global ushort *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -74,7 +71,6 @@
 #endif // SRC_DT_F16
 
 #if SRC_DT_S32
-#define SRC_DATA8_T int8
 #define SRC_BLOCK_READ(src) \
     as_int(intel_sub_group_block_read((const __global uint *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -86,7 +82,6 @@
 #endif // SRC_DT_S32
 
 #if SRC_DT_F32
-#define SRC_DATA8_T float8
 #define SRC_BLOCK_READ(src) \
     as_float(intel_sub_group_block_read((const __global uint *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -98,7 +93,6 @@
 #endif // SRC_DT_F32
 
 #if SRC_DT_BF16
-#define SRC_DATA8_T ushort8
 #define SRC_BLOCK_READ(src) \
     as_ushort(intel_sub_group_block_read_us((const __global ushort *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -110,7 +104,6 @@
 #endif // SRC_DT_F16
 
 #if DST_DT_S8
-#define DST_DATA8_T char8
 #define DST_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -122,7 +115,6 @@
 #endif // DST_DT_S8
 
 #if DST_DT_U8
-#define DST_DATA8_T uchar8
 #define DST_BLOCK_READ(src) \
     as_uchar(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -134,7 +126,6 @@
 #endif // SRC_DT_U8
 
 #if DST_DT_F16
-#define DST_DATA8_T half8
 #define DST_BLOCK_READ(src) \
     as_half(intel_sub_group_block_read_us((const __global ushort *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -146,7 +137,6 @@
 #endif // DST_DT_F16
 
 #if DST_DT_S32
-#define DST_DATA8_T int8
 #define DST_BLOCK_READ(src) \
     as_int(intel_sub_group_block_read((const __global uint *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -158,7 +148,6 @@
 #endif // DST_DT_S32
 
 #if DST_DT_F32
-#define DST_DATA8_T float8
 #define DST_BLOCK_READ(src) \
     as_float(intel_sub_group_block_read((const __global uint *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -170,7 +159,6 @@
 #endif // DST_DT_F32
 
 #if DST_DT_BF16
-#define DST_DATA8_T ushort8
 #define DST_BLOCK_READ(src) \
     as_ushort(intel_sub_group_block_read_us((const __global ushort *)(src)))
 #define DST_BLOCK_READ8(src) \
@@ -181,127 +169,59 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
-#if SRC_DT_BF16 || DST_DT_BF16
-float8 bfloat_to_float8(ushort8 b) {
-    float8 r;
-    for (int i = 0; i < 8; ++i) {
-        r[i] = convert_bf16_to_f32(b[i]);
-    }
-    return r;
-}
-ushort8 float_to_bfloat8(float8 b) {
-    ushort8 r;
-    for (int i = 0; i < 8; ++i) {
-        r[i] = convert_f32_to_bf16(b[i]);
-    }
-    return r;
-}
-#endif // SRC_DT_BF16 || DST_DT_BF16
-
-#if SRC_DT_BF16
-#define SRC_TO_F32 convert_bf16_to_f32
-#define SRC_TO_F32_8 bfloat_to_float8
-#else
-#define SRC_TO_F32 convert_float
-#define SRC_TO_F32_8 convert_float8
-#endif
-
-#if DST_DT_BF16
-#define DST_TO_F32 convert_bf16_to_f32
-#define DST_TO_F32_8 bfloat_to_float8
-#else
-#define DST_TO_F32 convert_float
-#define DST_TO_F32_8 convert_float8
-#endif
-
-#if DST_DT_S8
-#define F32_TO_DST convert_char_sat_rte
-#define F32_TO_DST8 convert_char8_sat_rte
-#elif DST_DT_U8
-#define F32_TO_DST convert_uchar_sat_rte
-#define F32_TO_DST8 convert_uchar8_sat_rte
-#elif DST_DT_F16
-#define F32_TO_DST convert_half
-#define F32_TO_DST8 convert_half8
-#elif DST_DT_F32
-#define F32_TO_DST convert_float
-#define F32_TO_DST8 convert_float8
-#elif DST_DT_S32
-#define F32_TO_DST convert_int_sat_rte
-#define F32_TO_DST8 convert_int8_sat_rte
-#elif DST_DT_BF16
-#define F32_TO_DST convert_f32_to_bf16
-#define F32_TO_DST8 float_to_bfloat8
-#else
-#define F32_TO_DST
-#define F32_TO_DST8
-#endif
-
 #if SRC_DT_BF16 && DST_DT_BF16
 #define SRC_TO_DST(x) (x)
 #define SRC_TO_DST8(x) (x)
-#elif SRC_DT_BF16 || DST_DT_BF16
-#define SRC_TO_DST(x) F32_TO_DST(SRC_TO_F32(x))
-#define SRC_TO_DST8(x) F32_TO_DST8(SRC_TO_F32_8(x))
-#elif (SRC_DT_U8 || SRC_DT_S32) && DST_DT_S8
-#define SRC_TO_DST(x) convert_char_sat(x)
-#define SRC_TO_DST8(x) convert_char8_sat(x)
-#elif (SRC_DT_S8 || SRC_DT_S32) && DST_DT_U8
-#define SRC_TO_DST(x) convert_uchar_sat(x)
-#define SRC_TO_DST8(x) convert_uchar8_sat(x)
-#elif (SRC_DT_S8 || SRC_DT_U8) && DST_DT_S32
-#define SRC_TO_DST(x) convert_int(x)
-#define SRC_TO_DST8(x) convert_int8(x)
 #else
-#define SRC_TO_DST(x) F32_TO_DST(x)
-#define SRC_TO_DST8(x) F32_TO_DST8(x)
+#define SRC_TO_DST(x) TO_DST(SRC_TO_REF(x))
+#define SRC_TO_DST8(x) TO_DST8(SRC_TO_REF8(x))
 #endif
 
 #if SCALE_QUANT
 
-#define REORDER(_out, _in, _a, _b)        \
-    do {                                  \
-        const float _x = SRC_TO_F32(_in); \
-        const float _s = _a * _x + _b;    \
-        _out = F32_TO_DST(_s);            \
+#define REORDER(_out, _src, _a, _b)        \
+    do {                                   \
+        const float _x = SRC_TO_REF(_src); \
+        const float _s = _a * _x + _b;     \
+        _out = TO_DST(_s);                 \
     } while (0)
-#define REORDER8(_out, _in, _a, _b)          \
-    do {                                     \
-        const float8 _x = SRC_TO_F32_8(_in); \
-        const float8 _s = _a * _x + _b;      \
-        _out = F32_TO_DST8(_s);              \
+#define REORDER8(_out, _src, _a, _b)                         \
+    do {                                                     \
+        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
+        const float8 _s = _a * _x + _b;                      \
+        _out = TO_DST8(_s);                                  \
     } while (0)
 
 #elif WITH_SUM_A
 
 #define REORDER(_dst, _src, _a, _b)        \
     do {                                   \
-        const float _x = SRC_TO_F32(_src); \
+        const float _x = SRC_TO_REF(_src); \
         const float _s = _a * _x;          \
-        _dst = F32_TO_DST(_s);             \
+        _dst = TO_DST(_s);                 \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b)          \
-    do {                                      \
-        const float8 _x = SRC_TO_F32_8(_src); \
-        const float8 _s = _a * _x;            \
-        _dst = F32_TO_DST8(_s);               \
+#define REORDER8(_dst, _src, _a, _b)                         \
+    do {                                                     \
+        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
+        const float8 _s = _a * _x;                           \
+        _dst = TO_DST8(_s);                                  \
     } while (0)
 
 #elif WITH_SUM_AB
 
 #define REORDER(_dst, _src, _a, _b)         \
     do {                                    \
-        const float _x = SRC_TO_F32(_src);  \
-        const float _y = DST_TO_F32(_dst);  \
+        const float _x = SRC_TO_REF(_src);  \
+        const float _y = DST_TO_REF(_dst);  \
         const float _s = _a * _x + _b * _y; \
-        _dst = F32_TO_DST(_s);              \
+        _dst = TO_DST(_s);                  \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b)          \
-    do {                                      \
-        const float8 _x = SRC_TO_F32_8(_src); \
-        const float8 _y = DST_TO_F32_8(_dst); \
-        const float8 _s = _a * _x + _b * _y;  \
-        _dst = F32_TO_DST8(_s);               \
+#define REORDER8(_dst, _src, _a, _b)                         \
+    do {                                                     \
+        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
+        const float8 _y = convert_float8(DST_TO_REF8(_dst)); \
+        const float8 _s = _a * _x + _b * _y;                 \
+        _dst = TO_DST8(_s);                                  \
     } while (0)
 
 #else // WITH_SUM_AB == 0

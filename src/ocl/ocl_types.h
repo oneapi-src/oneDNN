@@ -19,6 +19,9 @@
 
 #include "ocl/ocl_math_utils.h"
 
+#define CONCAt2(a, b) a##b
+#define CONCAT2(a, b) CONCAt2(a, b)
+
 #if DT_F32 == 1
 #    define DATA_T float
 #    define DATA8_T float8
@@ -219,10 +222,13 @@
 #endif
 
 #ifdef SRC_DATA_T
+#    define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
 #    if SRC_DT_BF16
 #        define SRC_TO_REF(x) convert_bf16_to_f32(x)
+#        define SRC_TO_REF8(x) convert_bf16_to_f32_8(x)
 #    else
 #        define SRC_TO_REF(x) (x)
+#        define SRC_TO_REF8(x) (x)
 #    endif
 #    if SRC_DT_BF16
 #        define TO_SRC(x) convert_f32_to_bf16(x)
@@ -280,23 +286,38 @@
 #endif
 
 #ifdef DST_DATA_T
+#    define DST_DATA8_T CONCAT2(DST_DATA_T, 8)
 #    if DST_DT_BF16
 #        define DST_TO_REF(x) convert_bf16_to_f32(x)
+#        define DST_TO_REF8(x) convert_bf16_to_f32_8(x)
 #        define REF_TO_DST(x) convert_f32_to_bf16(x)
+#        define REF_TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
 #    else
 #        define DST_TO_REF(x) (x)
+#        define DST_TO_REF8(x) (x)
 #        define REF_TO_DST(x) (x)
+#        define REF_TO_DST8(x) (x)
 #    endif
 #    if DST_DT_BF16
 #        define TO_DST(x) convert_f32_to_bf16(x)
+#        define TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
+#    elif DST_DT_F16
+#        define TO_DST(x) convert_half(x)
+#        define TO_DST8(x) convert_half8(x)
 #    elif DST_DT_U8
 #        define TO_DST(x) convert_uchar_sat_rte(x)
+#        define TO_DST8(x) convert_uchar8_sat_rte(x)
 #    elif DST_DT_S8
 #        define TO_DST(x) convert_char_sat_rte(x)
+#        define TO_DST8(x) convert_char8_sat_rte(x)
 #    elif DST_DT_S32
 #        define TO_DST(x) convert_int_sat_rte(x)
+#        define TO_DST8(x) convert_int8_sat_rte(x)
+#    elif DST_DT_F32
+#        define TO_DST(x) convert_float(x)
+#        define TO_DST8(x) convert_float8(x)
 #    else
-#        define TO_DST(x) (x)
+#        error "Not expected"
 #    endif
 #endif
 
