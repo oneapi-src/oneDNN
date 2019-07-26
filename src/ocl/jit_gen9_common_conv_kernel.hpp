@@ -142,14 +142,8 @@ struct jit_gen9_common_conv_fwd_kernel {
                             : jcp.mb / (jcp.mb_block * 1);
                 }
             } else {
-                jcp.oc_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
-                                       mkldnn_u8)
-                        ? 32
-                        : 16;
-                jcp.ic_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
-                                       mkldnn_u8)
-                        ? 32
-                        : 16;
+                jcp.oc_block = 16;
+                jcp.ic_block = 16;
                 jcp.mb_block = 32;
                 jcp.sub_group_size = 8;
 
@@ -221,39 +215,6 @@ struct jit_gen9_common_conv_fwd_kernel {
                         * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
                 jcp.gws_d[2] = jcp.mb % 2 == 0 ? jcp.mb / 2
                                                : jcp.mb; // unroll mb by 2
-                break;
-            } else if (utils::one_of(
-                               src_mdw.data_type(), mkldnn_s8, mkldnn_u8)) {
-                jcp.mb_block = 32;
-                jcp.oc_block = 32;
-                jcp.ic_block = 32;
-                jcp.slm_ic = 1;
-                jcp.sub_group_size = 8;
-                jcp.lws_d[0] = 2 * 8;
-                jcp.lws_d[1] = utils::max_div(jcp.ow, 16);
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
-                jcp.gws_d[1] = jcp.oh * jcp.ow;
-                jcp.gws_d[2] = jcp.mb / jcp.mb_block;
-                jcp.wht_slm_size = jcp.ic_block * (jcp.lws_d[0] / 8)
-                        * jcp.oc_block * jcp.kw;
-                jcp.src_slm_size = jcp.ic_block
-                        * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
-                        * jcp.mb_block;
-#ifdef DEBUG_PRINT
-                printf("1st: LWS = %ld\n",
-                        jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
-                fflush(0);
-                printf("1st: USE SLM %ld KB\n",
-                        utils::div_up(
-                                jcp.wht_slm_size + jcp.src_slm_size, 1024));
-                fflush(0);
-                printf("1st: LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n",
-                        jcp.lws_d[0], jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0],
-                        jcp.gws_d[1], jcp.gws_d[2]);
-                printf("SRC_SP_GROUP=%ld\n",
-                        jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
-#endif
                 break;
             } else if (!jcp.is_depthwise){
                 jcp.mb_block = (jcp.mb % 16 == 0) ? 16 : 1;
@@ -366,23 +327,14 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         switch (jcp.ver) {
         case ver_1stconv:
-            if (utils::one_of(src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = utils::pick(jcp.ndims - 3, ncw, chwn, ncdhw);
-                dst_tag = jcp.mb % 16 == 0
-                        ? utils::pick(jcp.ndims - 3, ncw, NChw32n32c, ncdhw)
-                        : utils::pick(jcp.ndims - 3, ncw, nChw16c, ncdhw);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, goiw, gOhwi32o, goidhw)
-                        : utils::pick(jcp.ndims - 3, oiw, Ohwi32o, oidhw);
-            } else {
-                src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
-                dst_tag = jcp.mb % 16 == 0
-                        ? utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
-                        : utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
-                        : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
-            }
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = jcp.mb % 16 == 0
+                    ? utils::pick(
+                              jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
+                    : utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                    : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             break;
         case ver_16mb16c:
             if (utils::one_of(src_mdw.data_type(), mkldnn_f16)) {
@@ -401,13 +353,6 @@ struct jit_gen9_common_conv_fwd_kernel {
                             ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
                             : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o);
                 }
-            } else if (utils::one_of(
-                               src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
-                dst_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, gOiw16o, gOIhw4o8i8o4i, gOidhw16o)
-                        : utils::pick(jcp.ndims - 3, Oiw16o, OIhw4o8i8o4i, Oidhw16o);
             } else {
                 src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
                 dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);

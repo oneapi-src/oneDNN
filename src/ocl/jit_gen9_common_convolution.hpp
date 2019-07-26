@@ -66,13 +66,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
                            forward_inference)
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && utils::one_of(true,
-                    expect_data_types(u8, s8, data_type::undef, u8, s32),
                     expect_data_types(f32, f32, f32, f32, f32),
                     expect_data_types(f16, f16, f16, f16, f16))
-                && IMPLICATION(this->with_bias(), true
-                    && IMPLICATION(src_data_t == u8, utils::one_of(
-                        this->desc()->bias_desc.data_type, f32, f16, s32, s8, u8
-                        )))
                 && compute_engine->mayiuse(
                     compute::device_ext_t::intel_subgroups)
                 && IMPLICATION(src_data_t == f16, true

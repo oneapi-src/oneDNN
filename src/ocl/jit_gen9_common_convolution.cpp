@@ -48,13 +48,6 @@ status_t jit_gen9_common_convolution_fwd_t::execute_forward(
     arg_list.set(4, jcp.relu_negative_slope);
     arg_list.set(5, jcp.sum_scale);
 
-    if (pd()->desc()->src_desc.data_type == data_type::u8) {
-        float scales = pd()->attr()->output_scales_.scales_[0];
-        arg_list.set(6, scales);
-        arg_list.set(7, jcp.wht_slm_size, nullptr);
-        arg_list.set(8, jcp.src_slm_size, nullptr);
-    }
-
     auto nd_range = compute::nd_range_t(jcp.gws_d, jcp.lws_d);
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
