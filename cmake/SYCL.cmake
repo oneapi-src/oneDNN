@@ -38,4 +38,18 @@ list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)
 if(MKLDNN_SYCL_INTEL)
     # Specify OpenCL version to avoid warnings
     add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
+
+    # Use TBB library from SYCL bundle if it is there
+    if(NOT TBBROOT)
+        get_target_property(sycl_lib_path SYCL::SYCL IMPORTED_LOCATION)
+        get_filename_component(sycl_lib_dir "${sycl_lib_path}" PATH)
+
+        find_path(_tbbroot
+            NAMES "include/tbb/tbb.h"
+            PATHS "${sycl_lib_dir}/../../tbb"
+        NO_DEFAULT_PATH)
+        if(_tbbroot)
+            set(TBBROOT "${_tbbroot}" CACHE STRING "" FORCE)
+        endif()
+    endif()
 endif()

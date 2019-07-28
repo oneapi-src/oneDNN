@@ -23,7 +23,11 @@ endif()
 set(TBB_cmake_included true)
 include("cmake/Threading.cmake")
 
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "TBB")
+if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
+    if(NOT TBBROOT)
+        return()
+    endif()
+elseif(NOT MKLDNN_CPU_RUNTIME STREQUAL "TBB")
     return()
 endif()
 

@@ -108,13 +108,10 @@ endif()
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND
-   NOT MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
-    include("cmake/OpenMP.cmake")
-endif()
+include("cmake/SYCL.cmake")
+include("cmake/OpenMP.cmake")
 include("cmake/TBB.cmake")
 include("cmake/OpenCL.cmake")
-include("cmake/SYCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
@@ -124,6 +121,16 @@ include("cmake/version.cmake")
 enable_testing()
 
 include_directories(include)
+
+if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
+    if(TBB_FOUND)
+        set(MKLDNN_CPU_THREADING_RUNTIME "TBB")
+    else()
+        set(MKLDNN_CPU_THREADING_RUNTIME "SEQ")
+    endif()
+else()
+    set(MKLDNN_CPU_THREADING_RUNTIME "${MKLDNN_CPU_RUNTIME}")
+endif()
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/mkldnn_config.h.in"
