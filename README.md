@@ -42,19 +42,19 @@ names use the following convention:
 
 | OS      | Package name
 | :------ | :-----------
-| Linux:  | mkldnn_lnx_\<version\>_cpu_\<cpu runtime\>[_gpu_\<gpu runtime\>].tgz
-| Windows | mkldnn_win_\<version\>_cpu_\<cpu runtime\>[_gpu_\<gpu runtime\>].zip
-| macOS:  | mkldnn_mac_\<version\>_cpu_\<cpu runtime\>.tgz
+| Linux   | `mkldnn_lnx_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].tgz`
+| Windows | `mkldnn_win_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].zip`
+| macOS   | `mkldnn_mac_<version>_cpu_<cpu runtime>.tgz`
 
 Several packages are available for each operating system to ensure
 interoperability with CPU or GPU runtime libraries used by the application.
 
 | Configuration | Dependency
-| :------------ | :---------
-| cpu_iomp      | Intel OpenMP runtime
-| cpu_gomp      | GNU\* OpenMP runtime
-| cpu_vcomp     | Microsoft Visual C OpenMP runtime
-| cpu_tbb       | Threading Building Blocks
+| :-------------| :---------
+| `cpu_iomp`    | Intel OpenMP runtime
+| `cpu_gomp`    | GNU\* OpenMP runtime
+| `cpu_vcomp`   | Microsoft Visual C OpenMP runtime
+| `cpu_tbb`     | Threading Building Blocks
 
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
@@ -170,13 +170,13 @@ Common dependencies:
 
 Runtime specific dependencies:
 
-| Runtime configuration  | Compiler                      | Dependency
-| :--------------------- | :---------------------------- | :---------
-| MKLDNN_CPU_RUNTIME=OMP | GCC                           | GNU OpenMP runtime (libgomp.so)
-| MKLDNN_CPU_RUNTIME=OMP | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
-| MKLDNN_CPU_RUNTIME=OMP | Clang                         | Intel OpenMP runtime (libiomp5.so)
-| MKLDNN_CPU_RUNTIME=TBB | any                           | Threading Building Blocks (libtbb.so)
-| MKLDNN_GPU_RUNTIME=OCL | any                           | Intel Graphics Compute Runtime for OpenCL (libOpenCL.so)
+| Runtime configuration    | Compiler                      | Dependency
+| :----------------------- | :---------------------------- | :---------
+| `MKLDNN_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (libgomp.so)
+| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
+| `MKLDNN_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
+| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.so)
+| `MKLDNN_GPU_RUNTIME=OCL` | any                           | Intel Graphics Compute Runtime for OpenCL (libOpenCL.so)
 
 #### Windows
 Common dependencies:
@@ -184,12 +184,12 @@ Common dependencies:
 
 Runtime specific dependencies:
 
-| Runtime configuration  | Compiler                      | Dependency
-| :--------------------- | :---------------------------- | :---------
-| MKLDNN_CPU_RUNTIME=OMP | Microsoft Visual C++ Compiler | No additional requirements
-| MKLDNN_CPU_RUNTIME=OMP | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
-| MKLDNN_CPU_RUNTIME=TBB | any                           | Threading Building Blocks (tbb.dll)
-| MKLDNN_GPU_RUNTIME=OCL | any                           | Intel Graphics Driver (OpenCL.dll)
+| Runtime configuration    | Compiler                      | Dependency
+| :----------------------- | :---------------------------- | :---------
+| `MKLDNN_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
+| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
+| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (tbb.dll)
+| `MKLDNN_GPU_RUNTIME=OCL` | any                           | Intel Graphics Driver (OpenCL.dll)
 
 #### macOS
 Common dependencies:
@@ -197,10 +197,10 @@ Common dependencies:
 
 Runtime specific dependencies:
 
-| Runtime configuration  | Compiler                      | Dependency
-| :--------------------- | :---------------------------- | :---------
-| MKLDNN_CPU_RUNTIME=OMP | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
-| MKLDNN_CPU_RUNTIME=TBB | any                           | Threading Building Blocks (libtbb.dylib)
+| Runtime configuration    | Compiler                      | Dependency
+| :----------------------- | :---------------------------- | :---------
+| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
+| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.dylib)
 
 ### Validated Configurations
 CPU engine was validated on RedHat\* Enterprise Linux 7 with
@@ -244,9 +244,9 @@ Runtime specific dependencies:
 
 | Runtime configuration | Requirements
 | :-------------------- | :-----------
-| cpu_gomp              | No additional requirements
-| cpu_iomp              | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
-| cpu_tbb               | Threading Building Blocks 2017 or later
+| `cpu_gomp`            | No additional requirements
+| `cpu_iomp`            | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
+| `cpu_tbb`             | Threading Building Blocks 2017 or later
 
 ### Windows
 Common dependencies:
@@ -256,9 +256,9 @@ Runtime specific dependencies:
 
 | Runtime configuration | Requirements
 | :-------------------- | :-----------
-| cpu_vcomp             | No additional requirements
-| cpu_iomp              | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
-| cpu_tbb               | Threading Building Blocks 2017 or later
+| `cpu_vcomp`           | No additional requirements
+| `cpu_iomp`            | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
+| `cpu_tbb`             | Threading Building Blocks 2017 or later
 
 ### macOS
 Common dependencies:
@@ -268,8 +268,8 @@ Runtime specific dependencies:
 
 | Runtime configuration | Requirements
 | :-------------------- | :-----------
-| cpu_iomp              | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
-| cpu_tbb               | Threading Building Blocks 2017 or later
+| `cpu_iomp`            | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
+| `cpu_tbb`             | Threading Building Blocks 2017 or later
 
 --------
 
