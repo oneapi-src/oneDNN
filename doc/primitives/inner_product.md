@@ -99,8 +99,7 @@ The following post-ops are supported by inner product primitives:
 
 | Propagation | Type    | Operation | Description
 | :--         | :--     | :--       | :--
-| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result (currently only #mkldnn_eltwise_relu algorithm is supported)
-
+| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result
 
 ## Implementation Limitations
 

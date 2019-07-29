@@ -181,7 +181,7 @@ post-ops are supported:
 | Propagation | Type      | Operation                                                      | Restrictions           | Description
 | :--         | :--       | :--                                                            | :--                    | :--
 | forward     | attribute | [Output scale](@ref mkldnn::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result (currently only #mkldnn_eltwise_relu algorithm is supported)
+| forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result
 | forward     | post-op   | [sum](@ref mkldnn::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 @note The library doesn't prevent using post-ops in training, but note that
