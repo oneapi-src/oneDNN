@@ -86,7 +86,8 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         }
     };
 
-    auto ker = [&](data_t *d, int mb, int oc, int oh, int ow) {
+    // pass by value due to icc170 and icc180 problem on KNL
+    auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
         const acc_data_t alpha
                 = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
         const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
@@ -198,7 +199,8 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         }
     };
 
-    auto get_omega = [&](int mb, int oc, int oh, int ow) {
+    // pass by value due to icc170 and icc180 problem on KNL
+    auto get_omega = [=](int mb, int oc, int oh, int ow) {
         acc_data_t sum = 0;
         if (across_channels) {
             const int c_st = nstl::max(oc - half_size + 0, 0);
@@ -223,7 +225,8 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         return (acc_data_t)(k + alpha * sum / summands);
     };
 
-    auto ker = [&](data_t *d, int mb, int oc, int oh, int ow) {
+    // pass by value due to icc170 and icc180 problem on KNL
+    auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
         acc_data_t A = 0, B = 0;
         if (across_channels) {
             const int c_st = nstl::max(oc - half_size + 0, 0);
