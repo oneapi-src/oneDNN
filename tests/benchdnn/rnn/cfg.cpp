@@ -96,15 +96,15 @@ const _dt_conf_t conf_f32 = {
     { mkldnn_u8, 0, UINT8_MAX, MIN_U8, MAX_U8, MEAN_U8, STDDEV_U8, EPS_U8 }
 #define U8_ENTRY_S8_EXACT \
     { mkldnn_s8, INT8_MIN, INT8_MAX, MIN_S8, MAX_S8, MEAN_S8, STDDEV_S8, 0.f }
-#define U8_ENTRY_F32_EXACT                                                  \
-    {                                                                       \
-        mkldnn_f32, -int_max_exact, int_max_exact, MIN_U8, MAX_U8, MEAN_U8, \
-                STDDEV_U8, 0.0f                                             \
+#define U8_ENTRY_F32_EXACT                                                     \
+    {                                                                          \
+        mkldnn_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+                STDDEV_F32, 0.0f                                               \
     }
-#define U8_ENTRY_F32_INEXACT                                                \
-    {                                                                       \
-        mkldnn_f32, -int_max_exact, int_max_exact, MIN_U8, MAX_U8, MEAN_U8, \
-                STDDEV_U8, EPS_U8                                           \
+#define U8_ENTRY_F32_INEXACT                                                   \
+    {                                                                          \
+        mkldnn_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+                STDDEV_F32, EPS_S8                                             \
     }
 
 const _dt_conf_t conf_u8u8u8u8 = {
