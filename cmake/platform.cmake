@@ -38,6 +38,16 @@ if($ENV{MKLDNN_WERROR})
     set(MKLDNN_WERROR $ENV{MKLDNN_WERROR})
 endif()
 
+if(WIN32 AND MKLDNN_SYCL_INTEL)
+    # XXX: Intel SYCL compiler defines __GNUC__ and __STDC__ macros on
+    # Windows. It is not aligned with clang behavior so manually undefine them.
+    add_definitions(-U__GNUC__ -U__STDC__)
+    # XXX: workaround for 'unknown type name IUnknown' from combaseapi.h
+    add_definitions(-DCINTERFACE)
+    # XXX: ignore __declspec warning
+    append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
+endif()
+
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "/WX")

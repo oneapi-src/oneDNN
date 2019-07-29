@@ -32,7 +32,16 @@ find_package(SYCL REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
 
-include_directories(${SYCL_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
+# XXX: OpenCL in SYCL bundle cannot be found by FindOpenCL due to the specific
+# directory layout. This workaround ensures that local OpenCL SDK doesn't
+# create any conflicts with SYCL headers.
+if(WIN32 AND MKLDNN_SYCL_INTEL)
+    include_directories(${SYCL_INCLUDE_DIRS})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter ${OpenCL_INCLUDE_DIRS}")
+else()
+    include_directories(${SYCL_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
+endif()
+
 list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)
 
 if(MKLDNN_SYCL_INTEL)

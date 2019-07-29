@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+# XXX: Intel SYCL compiler doesn't support SEH with -fsycl option
+if(WIN32 AND MKLDNN_SYCL_INTEL)
+    add_definitions(-DGTEST_HAS_SEH=0)
+endif()
+
 add_subdirectory (gtest)
 
 set(APP_NAME "gtest")
