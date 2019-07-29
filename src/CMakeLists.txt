@@ -144,7 +144,7 @@ endif()
 # On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
-    if(NOT(MINGW))
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
         foreach(BUILD_TYPE Release Debug RelWithDebInfo MinSizeRel)
             append_to_windows_path_list(CTESTCONFIG_PATH
                 "${CMAKE_CURRENT_BINARY_DIR}/${BUILD_TYPE}")
