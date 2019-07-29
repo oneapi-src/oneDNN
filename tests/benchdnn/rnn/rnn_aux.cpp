@@ -398,6 +398,15 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     printf("rel_eps(%a) eps(%a) %ld\n", rel_eps, p.cfg[kind].eps, acc_dim);
 #endif
 
+    /* Note: we do an eltwise comparison only when:
+       - we use skip_nonlinear
+       - we do not use skip_nonlinear and we test only one cell execution
+       If the above conditions are not met, we check only norm-1,
+       norm-2 and infnorm
+    */
+    bool check_norm0
+            = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
+
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp = mem_fp.get_elem(i);
@@ -417,77 +426,98 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 #endif
         diff_norm.update(fp, dt);
 
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const float diff_threshold = p.cfg[kind].dt == mkldnn_f16 ? 1e-2 : 0.0f;
-
         bool ok = true;
-        if (p.cfg[kind].dt == mkldnn_u8)
-            ok = diff <= 1; // For int8, we allow only to be off by 1.
-        else
-            ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
+        if (check_norm0) {
+            const float diff = fabsf(fp - dt);
+            const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+            const float diff_threshold
+                    = p.cfg[kind].dt == mkldnn_f16 ? 1e-2 : 0.0f;
 
-        if (!ok) {
-            r->errors++;
-            if (r->errors < 10 || verbose >= 10) {
-                int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
-                    oc = 0, b = 0;
-                switch (kind) {
-                case input:
-                    inv_ntc_off_f(p, i, n, t, c);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            n, t, c, fp, dt, diff, rel_diff);
-                    break;
-                case states:
-                    inv_ldnc_off_f(p, i, l, d, n, c);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            l, d, n, c, fp, dt, diff, rel_diff);
-                    break;
-                case weights_input:
-                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            l, d, w, ic, oc, fp, dt, diff, rel_diff);
-                    break;
-                case weights_states:
-                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            l, d, w, ic, oc, fp, dt, diff, rel_diff);
-                    break;
-                case bias:
-                    inv_ldgo_off_f(p, i, l, d, b, c);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            l, d, b, c, fp,  dt, diff, rel_diff);
-                    break;
-                case dst_last_layer:
-                    inv_tnc_off_f(p, i, t, n, c);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            t, n, c, fp, dt, diff, rel_diff);
-                    break;
-                case dst_last_iteration:
-                case dst_c_last_iteration:
-                    inv_ldnc_off_f(p, i, l, d, n, c);
-                    print(0, "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "] "
-                             "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                            (long)i, final_compare ? "" : "REORDER ", skind,
-                            l, d, n, c, fp, dt, diff, rel_diff);
-                    break;
-                default: assert("unknown data kind"); return FAIL;
+            if (p.cfg[kind].dt == mkldnn_u8)
+                ok = diff <= 1; // For int8, we allow only to be off by 1.
+            else
+                ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
+
+            if (!ok) {
+                r->errors++;
+                if (r->errors < 10 || verbose >= 10) {
+                    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
+                            oc = 0, b = 0;
+                    switch (kind) {
+                    case input:
+                        inv_ntc_off_f(p, i, n, t, c);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                n, t, c, fp, dt, diff, rel_diff);
+                        break;
+                    case states:
+                        inv_ldnc_off_f(p, i, l, d, n, c);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                l, d, n, c, fp, dt, diff, rel_diff);
+                        break;
+                    case weights_input:
+                        inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "," IFMT "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                l, d, w, ic, oc, fp, dt, diff, rel_diff);
+                        break;
+                    case weights_states:
+                        inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "," IFMT "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                l, d, w, ic, oc, fp, dt, diff, rel_diff);
+                        break;
+                    case bias:
+                        inv_ldgo_off_f(p, i, l, d, b, c);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                l, d, b, c, fp, dt, diff, rel_diff);
+                        break;
+                    case dst_last_layer:
+                        inv_tnc_off_f(p, i, t, n, c);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                t, n, c, fp, dt, diff, rel_diff);
+                        break;
+                    case dst_last_iteration:
+                    case dst_c_last_iteration:
+                        inv_ldnc_off_f(p, i, l, d, n, c);
+                        print(0,
+                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                "," IFMT
+                                "] "
+                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                (long)i, final_compare ? "" : "REORDER ", skind,
+                                l, d, n, c, fp, dt, diff, rel_diff);
+                        break;
+                    default: assert("unknown data kind"); return FAIL;
+                    }
                 }
             }
         }
-
 #if 1
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50) {
@@ -541,6 +571,14 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     diff_norm.done();
+
+    if (!check_norm0) {
+        auto rel_eps = 16 * p.cfg[kind].eps;
+        if ((diff_norm.rel_diff(norm_t::L1) > rel_eps)
+                || (diff_norm.rel_diff(norm_t::L2) > rel_eps)
+                || (diff_norm.rel_diff(norm_t::L8) > rel_eps))
+            r->errors++;
+    }
 
     if (final_compare || r->errors) {
         const int vl = r->errors ? 0 : 2;
