@@ -39,6 +39,19 @@ struct concat_pd_t : public primitive_desc_t {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = concat_desc_t();
+        desc_.primitive_kind = primitive_kind::concat;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.concat_dimension = concat_dim_;
+        desc_.src_mds = src_mds_;
+    }
+
+    const concat_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
@@ -80,6 +93,7 @@ protected:
     std::vector<memory_desc_t> src_image_mds_;
 
 protected:
+    concat_desc_t desc_;
     /* inits src_image_mds_ and dst_md_ in simple cases. The call may fail */
     status_t init() {
         bool ok = true && set_default_params() == status::success

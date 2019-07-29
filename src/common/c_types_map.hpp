@@ -18,6 +18,7 @@
 #define TYPE_MAPPING_HPP
 
 #include "gemm_types.hpp"
+#include "internal_desc_types.hpp"
 #include "mkldnn_types.h"
 
 namespace mkldnn {
@@ -523,6 +524,11 @@ using rnn_desc_t = mkldnn_rnn_desc_t;
 /* Internal type, declared in gemm_types.hpp */
 using gemm_desc_t = mkldnn_gemm_desc_t;
 
+/* Internal types, for the primitives which don't have descs */
+using concat_desc_t = mkldnn_concat_desc_t;
+using reorder_desc_t = mkldnn_reorder_desc_t;
+using sum_desc_t = mkldnn_sum_desc_t;
+
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = mkldnn_op_desc_t;
 using const_c_op_desc_t = const_mkldnn_op_desc_t;
@@ -542,6 +548,9 @@ struct op_desc_t {
         inner_product_desc_t inner_product;
         rnn_desc_t rnn;
         gemm_desc_t gemm;
+        concat_desc_t concat;
+        reorder_desc_t reorder;
+        sum_desc_t sum;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type, name) \
@@ -564,6 +573,9 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
     DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
     DECL_CTOR_AND_CONVERTERS(gemm_desc_t, gemm);
+    DECL_CTOR_AND_CONVERTERS(concat_desc_t, concat);
+    DECL_CTOR_AND_CONVERTERS(reorder_desc_t, reorder);
+    DECL_CTOR_AND_CONVERTERS(sum_desc_t, sum);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly

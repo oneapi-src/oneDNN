@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "engine.hpp"
 #include "primitive_attr.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
@@ -37,9 +38,22 @@ struct reorder_pd_t : public primitive_desc_t {
         , dst_engine_(dst_engine)
         , scratchpad_engine_(nullptr)
         , src_md_(*src_md)
-        , dst_md_(*dst_md) {}
+        , dst_md_(*dst_md) {
 
-    virtual const op_desc_t *op_desc() const override { return nullptr; }
+        // Fill a desc that is intended for internal use only
+        desc_ = reorder_desc_t();
+        desc_.primitive_kind = primitive_kind::reorder;
+        desc_.src_md = src_md_;
+        desc_.dst_md = dst_md_;
+        desc_.src_engine_kind = src_engine_->kind();
+        desc_.dst_engine_kind = dst_engine_->kind();
+    }
+
+    const reorder_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
+    }
+
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
@@ -74,6 +88,7 @@ struct reorder_pd_t : public primitive_desc_t {
     }
 
 protected:
+    reorder_desc_t desc_;
     engine_t *src_engine_;
     engine_t *dst_engine_;
     engine_t *scratchpad_engine_;

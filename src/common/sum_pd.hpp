@@ -42,6 +42,19 @@ struct sum_pd_t : public primitive_desc_t {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = sum_desc_t();
+        desc_.primitive_kind = primitive_kind::sum;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.scales = scales_;
+        desc_.src_mds = src_mds_;
+    }
+
+    const sum_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
@@ -82,6 +95,7 @@ protected:
     std::vector<memory_desc_t> src_mds_;
 
 protected:
+    sum_desc_t desc_;
     /* inits dst_md_ in simple cases. The call may fail. */
     status_t init() {
         for (int i = 0; i < n_; ++i) {
