@@ -43,6 +43,8 @@ public:
 
     operator bool() const { return bool(impl_); }
 
+    kernel_impl_t *impl() const { return impl_.get(); }
+
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const;
 

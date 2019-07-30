@@ -97,6 +97,8 @@ struct runtime_version_t {
 
 struct device_info_t {
 public:
+    virtual ~device_info_t() = default;
+
     virtual status_t init() = 0;
     virtual bool has(device_ext_t ext) const = 0;
 

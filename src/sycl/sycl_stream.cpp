@@ -17,7 +17,6 @@
 #include "sycl/sycl_stream.hpp"
 
 #include "sycl/sycl_engine.hpp"
-#include "sycl/sycl_executor.hpp"
 #include "ocl/ocl_utils.hpp"
 
 #include <CL/cl.h>
@@ -135,8 +134,6 @@ status_t sycl_stream_t::init() {
             return status::invalid_arguments;
 
     }
-
-    cl_stream_t::set_cl_executor(new sycl_executor_t(this));
 
     return status::success;
 }

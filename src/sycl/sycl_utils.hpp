@@ -18,6 +18,7 @@
 #define SYCL_UTILS_HPP
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 
 #include <CL/sycl.hpp>
 #include <vector>
@@ -62,6 +63,30 @@ inline void copy_to_buffer(void *src_ptr, buffer_u8_t &dst_buf, size_t size) {
     for (size_t i = 0; i < size; i++) {
         sycl_host_acc[i] = src_u8_ptr[i];
     }
+}
+
+inline cl::sycl::nd_range<3> to_sycl_nd_range(
+        const compute::nd_range_t &range) {
+    auto *global_range = range.global_range();
+    auto *local_range = range.local_range();
+
+    auto sycl_global_range = cl::sycl::range<3>(
+            global_range[0], global_range[1], global_range[2]);
+    if (!local_range) {
+        assert(!"not expected");
+        return cl::sycl::nd_range<3>(
+                sycl_global_range, cl::sycl::range<3>(1, 1, 1));
+    }
+
+    auto sycl_local_range = cl::sycl::range<3>(
+            local_range[0], local_range[1], local_range[2]);
+    return cl::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
+}
+
+inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
+    auto *global_range = range.global_range();
+    return cl::sycl::range<3>(
+            global_range[0], global_range[1], global_range[2]);
 }
 
 } // namespace sycl
