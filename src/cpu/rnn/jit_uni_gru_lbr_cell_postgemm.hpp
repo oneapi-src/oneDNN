@@ -77,7 +77,7 @@ protected:
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G1(2), G2(3), tmp1_vmm(5);
+        Vmm G0(1), G1(2), G2(3), tmp1_vmm(5), tmp2_vmm(6);
 
         // constant table map
         Address one_addr = ptr[table_reg];
@@ -114,27 +114,43 @@ protected:
         {
             // Compute gate 0
             uni_vmovups(G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G0, G0, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
-            uni_vaddps(G0, G0, ptr[addr_ws_gemm_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G0, G0, tmp1_vmm);
+            uni_vmovups(tmp1_vmm,
+                    ptr[addr_ws_gemm_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vaddps(G0, G0, tmp1_vmm);
             sigmoid_injector_->compute_vector(G0.getIdx());
 
             // Compute gate 1
             uni_vmovups(G1, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G1, G1, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
-            uni_vaddps(G1, G1, ptr[addr_ws_gemm_reg + 1 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G1, G1, tmp1_vmm);
+            uni_vmovups(tmp1_vmm,
+                    ptr[addr_ws_gemm_reg + 1 * rnn_.dic * gate_dt_size]);
+            uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
 
             // compute last gate
             uni_vmovups(G2, ptr[addr_ws_gemm_reg + 2 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G2, G2, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
-            uni_vfmadd213ps(G2, G1, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]); // G2 * G1 + gates2
-            uni_vaddps(G2, G2, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G2, G2, tmp1_vmm);
+            uni_vmovups(tmp1_vmm,
+                    ptr[addr_ws_gates_reg
+                            + 2 * rnn_.dic * gate_dt_size]); // G2 * G1 + gates2
+            uni_vfmadd213ps(G2, G1, tmp1_vmm);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G2, G2, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(tmp1_vmm, one_addr);
             uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            uni_vmulps(G0, G0, ptr[addr_states_tm1_l_reg]);
+            uni_vmovups(tmp2_vmm, ptr[addr_states_tm1_l_reg]);
+            uni_vmulps(G0, G0, tmp2_vmm);
             uni_vfmadd231ps(G0, tmp1_vmm, G2);
 
             // write back the result
