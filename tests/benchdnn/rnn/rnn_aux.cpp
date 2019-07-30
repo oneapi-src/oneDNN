@@ -365,21 +365,64 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     const char *skind = rnn_data_kind2str(kind);
 
     diff_norm_t diff_norm;
-
     r->errors = 0;
     r->total = nelems;
+
+//#define BENCHDNN_RNN_PRINT_STATISTICS
+#ifdef BENCHDNN_RNN_PRINT_STATISTICS
+    double min_dt, max_dt, mean_dt = 0.0f, var_dt = 0.0f;
+    double min_fp, max_fp, mean_fp = 0.0f, var_fp = 0.0f;
+    min_dt = max_dt = mem_dt.get_elem(0);
+    min_fp = max_fp = mem_fp.get_elem(0);
+#endif
+
+    int64_t fwd_acc_dim
+            = 2 * p.n_gates() + 1; // factor 2 is because of the sum of 2 GEMMs
+    if (p.alg == VANILLA_GRU)
+        fwd_acc_dim *= p.sic;
+    int64_t bwdd_acc_dim = p.n_gates() * p.dic;
+    int64_t bwdw_acc_dim = p.mb;
+    int64_t acc_dim = fwd_acc_dim;
+    if (p.prop == mkldnn_backward)
+        acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
+    // Here the factor 4 just gives some wiggle room for fp32 testing
+    float rel_eps = 4
+            * (1 + (p.prop == mkldnn_backward)) // double wiggle room for bwd
+            * ((p.direction == mkldnn_bidirectional_sum)
+                    + 1) // double threshold if bidir_sum
+            * ceilf(log2f(acc_dim * p.n_iter)) * p.cfg[kind].eps;
+#ifdef BENCHDNN_RNN_PRINT_STATISTICS
+    printf("rel_eps(%a) eps(%a) %ld\n", rel_eps, p.cfg[kind].eps, acc_dim);
+#endif
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp = mem_fp.get_elem(i);
+#ifdef BENCHDNN_RNN_PRINT_STATISTICS
+        min_dt = MIN2(dt, min_dt);
+        min_fp = MIN2(dt, min_fp);
+        max_dt = MAX2(dt, max_dt);
+        max_fp = MAX2(dt, max_fp);
+        mean_dt += dt;
+        mean_fp += fp;
+        if (i > 0) {
+            double tmp_dt = (double(i + 1) * dt - mean_dt);
+            var_dt += (tmp_dt * tmp_dt) / (i * (i + 1));
+            double tmp_fp = (double(i + 1) * fp - mean_fp);
+            var_fp += (tmp_fp * tmp_fp) / (i * (i + 1));
+        }
+#endif
         diff_norm.update(fp, dt);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const float diff_threshold = p.cfg[kind].dt == mkldnn_f16 ? 1e-2 : 1e-5;
+        const float diff_threshold = p.cfg[kind].dt == mkldnn_f16 ? 1e-2 : 0.0f;
 
-        const bool ok = (fabs(fp) > diff_threshold ? rel_diff : diff)
-                <= p.cfg[kind].eps;
+        bool ok = true;
+        if (p.cfg[kind].dt == mkldnn_u8)
+            ok = diff <= 1; // For int8, we allow only to be off by 1.
+        else
+            ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
 
         if (!ok) {
             r->errors++;
@@ -518,6 +561,13 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
     if (final_compare && r->state == UNTESTED)
         r->state = PASSED; /* optimism */
+
+#ifdef BENCHDNN_RNN_PRINT_STATISTICS
+    printf("dt: min(%a) max(%a) mean(%a), var(%a)\n", min_dt, max_dt,
+            mean_dt / nelems, var_dt / nelems);
+    printf("fp: min(%a) max(%a) mean(%a), var(%a)\n", min_fp, max_fp,
+            mean_fp / nelems, var_fp / nelems);
+#endif
 
     return r->state == FAILED ? FAIL : OK;
 }
