@@ -80,7 +80,7 @@ protected:
         auto dims = p.sizes;
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
         auto slc = dims.slc, sic = dims.sic, dlc = dims.dlc, dic = dims.dic;
-        int s, g;
+        int s, g, bias_extra_gate;
 
         switch (p.aalgorithm) {
         case vanilla_lstm:
@@ -92,9 +92,11 @@ protected:
             g = 1; s = 1; break;
         };
 
+        bias_extra_gate = p.aalgorithm == gru_linear_before_reset ? 1 : 0;
+
         auto weights_layer_dims = {l, d, slc, g, dic};
         auto weights_iter_dims = {l, d, sic, g, dic};
-        auto bias_dims = {l, d, g, dic};
+        auto bias_dims = {l, d, g + bias_extra_gate, dic};
         auto src_layer_dims = {t, mb, slc};
         auto src_iter_dims = {l, d, s, mb, sic};
         auto dst_layer_dims = {t, mb, dlc};
