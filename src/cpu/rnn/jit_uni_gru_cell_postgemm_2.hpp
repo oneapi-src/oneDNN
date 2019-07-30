@@ -73,7 +73,7 @@ protected:
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G2(2), tmp1_vmm(3);
+        Vmm G0(1), G2(2), tmp1_vmm(3), tmp2_vmm(4);
 
         // constant table map
         Address one_addr = ptr[table_reg];
@@ -99,14 +99,17 @@ protected:
         {
             // Compute gate 2: G2 = tanh(G2 + b2)
             uni_vmovups(G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G2, G2, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G2, G2, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
             uni_vmovups(tmp1_vmm, one_addr);
             uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            uni_vmulps(G0, G0, ptr[addr_states_tm1_l_reg]);
+            uni_vmovups(tmp2_vmm, ptr[addr_states_tm1_l_reg]);
+            uni_vmulps(G0, G0, tmp2_vmm);
             uni_vfmadd231ps(G0, tmp1_vmm, G2);
             uni_vmovups(ptr[addr_states_t_l_reg], G0);
 
