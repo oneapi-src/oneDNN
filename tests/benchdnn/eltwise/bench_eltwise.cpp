@@ -86,6 +86,7 @@ void check_correctness() {
         case pk::BRELU:
         case pk::ELU:
         case pk::RELU:
+        case pk::SWISH:
             // Test several alpha values but single beta
             if (i_beta != 0) continue;
 

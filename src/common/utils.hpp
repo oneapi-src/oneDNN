@@ -55,9 +55,9 @@ namespace impl {
 static_assert(sizeof(void*) == 8, "Intel(R) MKL-DNN supports 64 bit only");
 
 #define CHECK(f) do { \
-    status_t status = f; \
-    if (status != status::success) \
-    return status; \
+    status_t _status_ = f; \
+    if (_status_ != status::success) \
+    return _status_; \
 } while (0)
 
 #define IMPLICATION(cause, effect) (!(cause) || !!(effect))

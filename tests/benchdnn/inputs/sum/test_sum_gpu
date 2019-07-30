@@ -11,6 +11,13 @@
 --stag=ncdhw:ncdhw:ncdhw
 --scales=1.25:3:0.5    16x2x6x4x3
 
+--reset
+--ddt=f32
+--sdt=f32:f32:f32:f32:f32:f32:f32:f32:f32:f32
+--stag=abcd:aBcd16b:ABcd16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b
+--dtag=abcd,aBcd16b,ABcd16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b
+--scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2    16x32x48x5
+
 # f16
 --reset
 
@@ -23,3 +30,10 @@
 --dtag=undef,ncdhw
 --stag=ncdhw:ncdhw:ncdhw
 --scales=1.25:3:0.5    16x2x6x4x3
+
+--reset
+--ddt=f16
+--sdt=f16:f16:f16:f16:f16:f16:f16:f16:f16:f16
+--stag=abcd:aBcd16b:ABcd16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b
+--dtag=abcd,aBcd16b,ABcd16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b
+--scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2    16x32x48x5

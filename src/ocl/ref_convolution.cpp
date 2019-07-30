@@ -21,6 +21,10 @@ namespace impl {
 namespace ocl {
 
 status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
     auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
@@ -30,47 +34,46 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto eltwise_beta = pd()->eltwise_beta();
     auto sum_scale = pd()->sum_scale();
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, weights);
-    kernel_.set_arg(2, bias);
-    kernel_.set_arg(3, dst);
-    kernel_.set_arg(4, eltwise_alpha);
-    kernel_.set_arg(5, eltwise_beta);
-    kernel_.set_arg(6, sum_scale);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, weights);
+    arg_list.set(2, bias);
+    arg_list.set(3, dst);
+    arg_list.set(4, eltwise_alpha);
+    arg_list.set(5, eltwise_beta);
+    arg_list.set(6, sum_scale);
     if (utils::one_of(pd()->src_md()->data_type, data_type::u8,
         data_type::s8)) {
         float scales = pd()->attr()->output_scales_.scales_[0];
-        kernel_.set_arg(7, scales);
+        arg_list.set(7, scales);
     }
 
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = cl_nd_range_t(jit_kernel->gws());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
     return status;
 }
 
 status_t ref_convolution_bwd_data_t::execute_backward_data
     (const exec_ctx_t &ctx) const {
 
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
     auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
 
-    kernel_.set_arg(0, diff_src);
-    kernel_.set_arg(1, weights);
-    kernel_.set_arg(2, diff_dst);
-    kernel_.set_arg(3, bias);
-
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, diff_src);
+    arg_list.set(1, weights);
+    arg_list.set(2, diff_dst);
+    arg_list.set(3, bias);
 
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = cl_nd_range_t(jit_kernel->gws());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -78,22 +81,23 @@ status_t ref_convolution_bwd_data_t::execute_backward_data
 status_t ref_convolution_bwd_weights_t::execute_backward_weights
     (const exec_ctx_t &ctx) const {
 
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &diff_weights = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS);
     auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, diff_weights);
-    kernel_.set_arg(2, diff_bias);
-    kernel_.set_arg(3, diff_dst);
-
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, diff_weights);
+    arg_list.set(2, diff_bias);
+    arg_list.set(3, diff_dst);
 
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = cl_nd_range_t(jit_kernel->gws());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }

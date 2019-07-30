@@ -181,7 +181,7 @@
 
 #ifdef NN
 __attribute__((intel_reqd_sub_group_size(16)))
-kernel void gen9_gemm_nocopy_superkernel(global int *plan, int threads,
+kernel void gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
         int k, float alpha, float beta, int last_k_block, float eltwise_alpha,
@@ -290,7 +290,7 @@ kernel void gen9_gemm_nocopy_superkernel(global int *plan, int threads,
 
 #ifdef NT
 __attribute__((intel_reqd_sub_group_size(16)))
-kernel void gen9_gemm_nocopy_superkernel(global int *plan, int threads,
+kernel void gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
         int k, float alpha, float beta, int last_k_block, float eltwise_alpha,

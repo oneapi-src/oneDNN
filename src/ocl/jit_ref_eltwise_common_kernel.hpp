@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -32,7 +33,8 @@ struct jit_ref_eltwise_common_kernel {
     ~jit_ref_eltwise_common_kernel(){}
 
     static status_t init_conf(jit_eltwise_conf_t &jel,
-            const memory_desc_wrapper &data_d, jit_offsets &jit_off,
+            const memory_desc_wrapper &data_d,
+            const memory_desc_wrapper &diff_data_d, jit_offsets &jit_off,
             alg_kind_t alg, bool is_forward) {
 
         const int ndims = data_d.ndims();
@@ -43,6 +45,7 @@ struct jit_ref_eltwise_common_kernel {
         jel.is_forward = is_forward;
 
         set_offsets(data_d, jit_off.src_off);
+        set_offsets(diff_data_d, jit_off.dst_off);
 
         const auto &dims = data_d.dims();
         jel.gws_d[0] = utils::array_product(&dims[0], ndims);
@@ -52,25 +55,28 @@ struct jit_ref_eltwise_common_kernel {
         return status::success;
     }
 
-    static status_t init_const_def(ocl_jit_t &jit,
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
         const jit_eltwise_conf_t &jel, const jit_offsets &jit_off) {
 
-        jit.set_data_type(jel.data_type);
-        jit.define_int("RELU", alg_kind::eltwise_relu);
-        jit.define_int("LINEAR", alg_kind::eltwise_linear);
-        jit.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-        jit.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-        jit.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-        jit.define_int("TANH", alg_kind::eltwise_tanh);
-        jit.define_int("ELU", alg_kind::eltwise_elu);
-        jit.define_int("SQUARE", alg_kind::eltwise_square);
-        jit.define_int("SQRT", alg_kind::eltwise_sqrt);
-        jit.define_int("ABS", alg_kind::eltwise_abs);
-        jit.define_int("EXP", alg_kind::eltwise_exp);
-        jit.define_int("ALG_KIND", jel.alg);
+        kernel_ctx.set_data_type(jel.data_type);
+        kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
+        kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
+        kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
+        kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
+        kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);
+        kernel_ctx.define_int("TANH", alg_kind::eltwise_tanh);
+        kernel_ctx.define_int("ELU", alg_kind::eltwise_elu);
+        kernel_ctx.define_int("SQUARE", alg_kind::eltwise_square);
+        kernel_ctx.define_int("SQRT", alg_kind::eltwise_sqrt);
+        kernel_ctx.define_int("ABS", alg_kind::eltwise_abs);
+        kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
+        kernel_ctx.define_int("GELU", alg_kind::eltwise_gelu);
+        kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
+        kernel_ctx.define_int("ALG_KIND", jel.alg);
+        kernel_ctx.define_int("NDIMS", jel.ndims);
 
-        jit.define_int("NDIMS", jel.ndims);
-        def_offsets(jit_off.src_off, jit, "SRC", jel.ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA", jel.ndims);
 
         return status::success;
     }

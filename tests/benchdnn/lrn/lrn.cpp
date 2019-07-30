@@ -45,11 +45,12 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     r->errors = 0;
     r->total = nelems;
-    float trh = 8e-7 * p->ls;
+    const int summands = get_summands(p);
+    float trh = 1e-6 * summands;
     if (p->dt == mkldnn_f16)
-        trh = 1e-3 * p->ls;
+        trh = 1e-3 * summands;
     if (p->dt == mkldnn_bf16)
-        trh = 1e-2 * p->ls;
+        trh = 1e-2 * summands;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);

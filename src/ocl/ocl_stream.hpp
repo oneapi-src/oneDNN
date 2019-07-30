@@ -17,9 +17,11 @@
 #ifndef OCL_STREAM_HPP
 #define OCL_STREAM_HPP
 
+#include <memory>
+
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "ocl/cl_stream.hpp"
+#include "compute/compute.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_utils.hpp"
 
@@ -27,7 +29,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ocl_stream_t : public cl_stream_t {
+struct ocl_stream_t : public compute::compute_stream_t {
     static status_t create_stream(
             stream_t **stream, engine_t *engine, unsigned generic_flags) {
 
@@ -36,7 +38,8 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        auto *ocl_stream = new ocl_stream_t(engine, flags);
+        std::unique_ptr<ocl_stream_t> ocl_stream(
+                new ocl_stream_t(engine, flags));
         if (!ocl_stream)
             return status::out_of_memory;
 
@@ -44,7 +47,7 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        *stream = ocl_stream;
+        *stream = ocl_stream.release();
         return status::success;
     }
 
@@ -55,7 +58,8 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        auto *ocl_stream = new ocl_stream_t(engine, flags, queue);
+        std::unique_ptr<ocl_stream_t> ocl_stream(
+                new ocl_stream_t(engine, flags, queue));
         if (!ocl_stream)
             return status::out_of_memory;
 
@@ -63,7 +67,7 @@ struct ocl_stream_t : public cl_stream_t {
         if (status != status::success)
             return status;
 
-        *stream = ocl_stream;
+        *stream = ocl_stream.release();
         return status::success;
     }
 
@@ -74,11 +78,9 @@ struct ocl_stream_t : public cl_stream_t {
 
     cl_command_queue queue() const { return queue_; }
 
-private:
-    ocl_stream_t(engine_t *engine, unsigned flags)
-        : cl_stream_t(engine, flags), queue_(nullptr) {}
-    ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
-        : cl_stream_t(engine, flags), queue_(queue) {}
+    virtual status_t copy(const memory_storage_t &src,
+            const memory_storage_t &dst, size_t size) const override;
+
     ~ocl_stream_t() {
         wait();
         if (queue_) {
@@ -86,6 +88,11 @@ private:
         }
     }
 
+private:
+    ocl_stream_t(engine_t *engine, unsigned flags)
+        : compute_stream_t(engine, flags), queue_(nullptr) {}
+    ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
+        : compute_stream_t(engine, flags), queue_(queue) {}
     status_t init();
 
     static status_t init_flags(unsigned *flags, unsigned generic_flags) {

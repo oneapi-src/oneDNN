@@ -143,7 +143,18 @@ T exp_fwd(T s) {
 
 template <typename T>
 T exp_bwd(T dd, T s) {
-    return dd * exp_fwd<T>(s);
+    return dd * (::expf((float)s));
+}
+
+template <typename T, typename A>
+T swish_fwd(T s, A alpha) {
+    return (T)(s / (1.0f + ::expf(-alpha * (float)s)));
+}
+
+template <typename T, typename A>
+T swish_bwd(T dd, T s, A alpha) {
+    float v = logistic_fwd<float>(alpha * s);
+    return dd * (v + s * alpha * v * (1 - v));
 }
 
 struct eltwise_test_params {
@@ -188,6 +199,7 @@ void check_eltwise_fwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic:    ref_d = logistic_fwd(s);                break;
         case algorithm::eltwise_exp:         ref_d = exp_fwd(s);                     break;
         case algorithm::eltwise_gelu:        ref_d = gelu_fwd(s);                    break;
+        case algorithm::eltwise_swish:       ref_d = swish_fwd(s, p.alpha);          break;
         default: assert(!"unknown alg_kind");
         }
         dst_data[i] = ref_d;
@@ -257,6 +269,9 @@ void check_eltwise_bwd(const eltwise_test_params &p,
         case algorithm::eltwise_logistic: ref_ds = logistic_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_exp:      ref_ds = exp_bwd(ref_dd, ref_s); break;
         case algorithm::eltwise_gelu:     ref_ds = gelu_bwd(ref_dd, ref_s); break;
+        case algorithm::eltwise_swish:
+            ref_ds = swish_bwd(ref_dd, ref_s, p.alpha);
+            break;
         default: assert(!"unknown alg_kind");
         }
 
@@ -283,14 +298,11 @@ private:
 protected:
     virtual void SetUp() {
         data_type = data_traits<data_t>::data_type;
-
         SKIP_IF(data_type == memory::data_type::f16
                 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
         SKIP_IF(data_type == memory::data_type::bf16
-                && get_test_engine_kind() == engine::kind::gpu,
-                "GPU does not support bf16 data type.");
-        SKIP_IF(data_type == memory::data_type::bf16
+                && get_test_engine_kind() == engine::kind::cpu
                 && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
@@ -321,6 +333,7 @@ protected:
         data_t data_deviation
                 = (p.alg_kind == algorithm::eltwise_elu
                         || p.alg_kind == algorithm::eltwise_exp)
+                        || (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square
                     ? data_t(6.0) : data_t(200.0);
@@ -402,7 +415,8 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
     EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_square, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_abs, __VA_ARGS__)), \
-    EXPAND(PARAMS(eltwise_exp, __VA_ARGS__))
+    EXPAND(PARAMS(eltwise_exp, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_swish, __VA_ARGS__))
 
 #define PARAMS_ALL_ALG_SDPART(...) \
     EXPAND(PARAMS(eltwise_sqrt, __VA_ARGS__)), \
@@ -422,7 +436,7 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise)
         TEST_CONCAT(str, _f16), eltwise_test_half, ::testing::Values(__VA_ARGS__)); \
     INSTANTIATE_TEST_SUITE_P_( \
         TEST_CONCAT(str, _f32), eltwise_test_float, ::testing::Values(__VA_ARGS__)); \
-    CPU_INSTANTIATE_TEST_SUITE_P( \
+    INSTANTIATE_TEST_SUITE_P_( \
         TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
 
 INST_TEST_CASE(SimpleZeroDim,

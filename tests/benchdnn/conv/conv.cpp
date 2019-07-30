@@ -281,12 +281,13 @@ int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r) {
-    const bool extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t *p_mem_00 = extra_mem
-            ? new dnn_mem_t(mem_dt.md_, mkldnn_f32,
-                      get_default_tag(mem_dt.md_.ndims), engine_ref)
-            : &mem_fp;
-    dnn_mem_t &mem_00 = *p_mem_00;
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem) {
+        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, mkldnn_f32, tag, engine_ref);
+    }
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
     const auto &c = p->cfg[SRC];
     const int range = c.f_max - c.f_min + 1;
@@ -302,10 +303,9 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     });
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (extra_mem) {
+    if (need_extra_mem) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_src(p, mem_fp, mem_00, r), WARN);
-        delete &mem_00;
     }
 
     return OK;
@@ -318,11 +318,12 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
     const bool check_reorder = diff_data_type && !wino_s8 && !s8_s8;
 
-    dnn_mem_t *p_mem_00 = check_reorder
-            ? new dnn_mem_t(mem_dt.md_, mkldnn_f32,
-                      get_default_tag(mem_dt.md_.ndims), engine_ref)
-            : &mem_fp;
-    dnn_mem_t &mem_00 = *p_mem_00;
+    dnn_mem_t extra_mem;
+    if (check_reorder) {
+        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, mkldnn_f32, tag, engine_ref);
+    }
+    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
     const auto &c = p->cfg[WEI];
     const int range = c.f_max - c.f_min + 1;
@@ -342,7 +343,6 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     if (check_reorder) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_wei(p, mem_fp, mem_00, r), WARN);
-        delete &mem_00;
     }
 
     return OK;
@@ -350,11 +350,11 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r) {
-    const bool extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t *p_mem_00 = extra_mem
-            ? new dnn_mem_t(mem_dt.md_, mkldnn_f32, mkldnn_x, engine_ref)
-            : &mem_fp;
-    dnn_mem_t &mem_00 = *p_mem_00;
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem)
+        extra_mem = dnn_mem_t(mem_dt.md_, mkldnn_f32, mkldnn_x, engine_ref);
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
     const auto &c = p->cfg[BIA];
     const int range = c.f_max - c.f_min + 1;
@@ -370,10 +370,9 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     }
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (extra_mem) {
+    if (need_extra_mem) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_bia(p, mem_fp, mem_00, r), WARN);
-        delete &mem_00;
     }
 
     return OK;
@@ -381,12 +380,13 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r) {
-    const bool extra_mem = mem_dt.dt() != mem_fp.dt();
-    dnn_mem_t *p_mem_00 = extra_mem
-            ? new dnn_mem_t(mem_dt.md_, mkldnn_f32,
-                      get_default_tag(mem_dt.md_.ndims), engine_ref)
-            : &mem_fp;
-    dnn_mem_t &mem_00 = *p_mem_00;
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem) {
+        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, mkldnn_f32, tag, engine_ref);
+    }
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
     const auto &c = p->cfg[DST];
     const int range = c.f_max - c.f_min + 1;
@@ -402,10 +402,9 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     });
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    if (extra_mem) {
+    if (need_extra_mem) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_dst(p, mem_fp, mem_00, r), WARN);
-        delete &mem_00;
     }
 
     return OK;
@@ -555,26 +554,20 @@ inline int init_pd(const prb_t *p, mkldnn_convolution_desc_t &cd,
 }
 
 int doit(const prb_t *p, res_t *r) {
-    res_t res_zero{};
-    *r = res_zero;
-
     mkldnn_convolution_desc_t cd;
     mkldnn_primitive_desc_t cpd;
-    mkldnn_primitive_t c{};
+    mkldnn_primitive_t c;
 
     SAFE(init_pd(p, cd, cpd, r), WARN);
 
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
         return OK;
 
-    prb_t *p_temp = nullptr;
-    if (p->alg == AUTO || p->alg == WINO) {
-        p_temp = new prb_t((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag,
-                p->dtag, p->alg, p->attr, p->mb);
-        if (p->alg == AUTO) p_temp->alg = alg_kind2alg(cd.alg_kind);
-        p_temp->cfg = auto_cfg(p_temp->alg, p->cfg);
-        p = p_temp;
-    }
+    const auto alg = alg_kind2alg(cd.alg_kind);
+    const auto cfg = auto_cfg(alg, p->cfg);
+    prb_t p_new((desc_t)*p, p->dir, cfg, p->stag, p->wtag, p->dtag, alg,
+            p->attr, p->mb);
+    p = &p_new;
 
     DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
@@ -587,10 +580,9 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t src_dt(src_dt_d, p->cfg[SRC].dt, engine_tgt);
     dnn_mem_t wei_dt(wei_dt_d, p->cfg[WEI].dt, engine_tgt);
     dnn_mem_t dst_dt(dst_dt_d, p->cfg[DST].dt, engine_tgt);
-    dnn_mem_t *p_bia_dt = p->dir & FLAG_BIA
-            ? new dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
-            : new dnn_mem_t();
-    dnn_mem_t &bia_dt = *p_bia_dt;
+    dnn_mem_t bia_dt;
+    if (p->dir & FLAG_BIA)
+        bia_dt = dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt);
 
     auto src_tag = get_default_tag(src_dt.md_.ndims);
     auto wei_tag = get_default_tag(wei_dt.md_.ndims);
@@ -599,10 +591,9 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
     dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
     dnn_mem_t dst_fp(dst_dt_d, fp, src_tag, engine_ref);
-    dnn_mem_t *p_bia_fp = p->dir & FLAG_BIA
-            ? new dnn_mem_t(bia_dt_d, fp, mkldnn_x, engine_ref)
-            : new dnn_mem_t();
-    dnn_mem_t &bia_fp = *p_bia_fp;
+    dnn_mem_t bia_fp;
+    if (p->dir & FLAG_BIA)
+        bia_fp = dnn_mem_t(bia_dt_d, fp, mkldnn_x, engine_ref);
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
@@ -657,19 +648,12 @@ int doit(const prb_t *p, res_t *r) {
             }
         }
     } else {
-        delete p_bia_dt;
-        delete p_bia_fp;
-        delete p_temp;
         SAFE(FAIL, CRIT);
     }
 
     measure_perf(r->timer, c, args);
 
     DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
-
-    delete p_bia_dt;
-    delete p_bia_fp;
-    delete p_temp;
 
     return OK;
 }

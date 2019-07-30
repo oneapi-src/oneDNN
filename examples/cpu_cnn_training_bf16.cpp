@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 /// @example cpu_cnn_training_bf16.cpp
-/// @copydoc cpu_cnn_training_bf16_cpp
+/// @copybrief cpu_cnn_training_bf16_cpp
 ///
 /// @page cpu_cnn_training_bf16_cpp CNN bf16 training example
 /// This C++ API example demonstrates how to build an AlexNet model training

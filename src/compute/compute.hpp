@@ -14,28 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_EXECUTOR_HPP
-#define OCL_EXECUTOR_HPP
+#ifndef COMPUTE_HPP
+#define COMPUTE_HPP
 
-#include "ocl/cl_executor.hpp"
+#include "compute/compute_engine.hpp"
+#include "compute/compute_stream.hpp"
+#include "compute/device_info.hpp"
+#include "compute/kernel.hpp"
+#include "compute/kernel_arg_list.hpp"
+#include "compute/kernel_ctx.hpp"
+#include "compute/utils.hpp"
 
-namespace mkldnn {
-namespace impl {
-namespace ocl {
-
-struct ocl_stream_t;
-
-// Implementation of cl_executor_t for OpenCL
-struct ocl_executor_t : public cl_executor_t {
-    ocl_executor_t(ocl_stream_t *stream);
-    virtual status_t parallel_for(
-            const cl_nd_range_t &range, const ocl_kernel_t &kernel) override;
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) override;
-};
-
-} // namespace ocl
-} // namespace impl
-} // namespace mkldnn
-
-#endif
+#endif // COMPUTE_HPP

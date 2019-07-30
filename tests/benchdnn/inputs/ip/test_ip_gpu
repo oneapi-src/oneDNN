@@ -1,3 +1,12 @@
+# int8
+--reset
+--mb=2
+--dir=FWD_B
+--cfg=s8s8s32s32,s8s8s8s32,s8s8u8s32,u8s8s32s32,u8s8s8s32,u8s8u8s32
+# output scales per oc are not supported
+#--attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5' --batch=ip_all
+--attr=oscale=common:2.25;post_ops='sum:0.5;tanh' --batch=ip_all
+
 # f32, bf16
 --reset
 --cfg=f32,bf16bf16bf16

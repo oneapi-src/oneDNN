@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "ocl/ocl_executor.hpp"
+#include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_utils.hpp"
 
 #include "ocl/ocl_stream.hpp"
@@ -26,6 +26,11 @@ namespace impl {
 namespace ocl {
 
 status_t ocl_stream_t::init() {
+    // Restore queue on successful exit, otherwise queue may be released
+    // without retain
+    cl_command_queue queue = queue_;
+    queue_ = nullptr;
+
     assert(engine()->kind() == engine_kind::gpu);
 
     // Out-of-order is not supported
@@ -33,41 +38,71 @@ status_t ocl_stream_t::init() {
     if (!args_ok)
         return status::unimplemented;
 
-    ocl_engine_t *ocl_engine = utils::downcast<ocl_engine_t *>(engine());
+    ocl_gpu_engine_t *ocl_engine
+            = utils::downcast<ocl_gpu_engine_t *>(engine());
 
     // Create queue if it is not set
-    if (!queue_) {
+    if (!queue) {
         cl_int err;
 #ifdef CL_VERSION_2_0
-        queue_ = clCreateCommandQueueWithProperties(
+        queue = clCreateCommandQueueWithProperties(
                 ocl_engine->context(), ocl_engine->device(), nullptr, &err);
 #else
-        queue_ = clCreateCommandQueue(
+        queue = clCreateCommandQueue(
                 ocl_engine->context(), ocl_engine->device(), 0, &err);
 #endif
         OCL_CHECK(err);
     } else {
         // Check that queue is compatible with the engine
         cl_context ocl_ctx;
-        OCL_CHECK(clGetCommandQueueInfo(queue_, CL_QUEUE_CONTEXT,
+        OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_CONTEXT,
                 sizeof(cl_context), &ocl_ctx, nullptr));
 
         cl_device_id ocl_dev;
-        OCL_CHECK(clGetCommandQueueInfo(queue_, CL_QUEUE_DEVICE,
+        OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_DEVICE,
                 sizeof(cl_device_id), &ocl_dev, nullptr));
 
         if (ocl_engine->device() != ocl_dev || ocl_engine->context() != ocl_ctx)
             return status::invalid_arguments;
 
-        cl_int err = clRetainCommandQueue(queue_);
-        if (err != CL_SUCCESS) {
-            queue_ = nullptr;
-        }
+        OCL_CHECK(clRetainCommandQueue(queue));
+    }
+    queue_ = queue;
+    return status::success;
+}
+
+status_t ocl_stream_t::copy(const memory_storage_t &src,
+        const memory_storage_t &dst, size_t size) const {
+
+    if (size == 0)
+        return status::success;
+
+    if (src.engine()->kind() == engine_kind::cpu
+            && src.engine()->backend_kind() == backend_kind::native) {
+        assert(dst.engine()->kind() == engine_kind::gpu);
+
+        void *src_ptr;
+        src.get_data_handle(&src_ptr);
+
+        auto &ocl_dst
+                = *utils::downcast<const ocl_memory_storage_t *>(dst.impl());
+        cl_mem ocl_mem = ocl_dst.mem_object();
+        cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+                src_ptr, 0, nullptr, nullptr);
+        OCL_CHECK(err);
+    } else {
+        assert(src.engine()->kind() == engine_kind::gpu);
+
+        void *dst_ptr;
+        dst.get_data_handle(&dst_ptr);
+
+        auto &ocl_src
+                = *utils::downcast<const ocl_memory_storage_t *>(src.impl());
+        cl_mem ocl_mem = ocl_src.mem_object();
+        cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+                dst_ptr, 0, nullptr, nullptr);
         OCL_CHECK(err);
     }
-
-    cl_stream_t::set_cl_executor(new ocl_executor_t(this));
-
     return status::success;
 }
 

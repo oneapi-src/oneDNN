@@ -21,17 +21,17 @@
 #include <stdio.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "common/primitive_iterator.hpp"
+#include "compute/compute.hpp"
 
-#include "ocl/cl_engine.hpp"
-#include "ocl/ocl_rnn_pd.hpp"
+#include "ocl/rnn/ocl_rnn_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_utils.hpp"
-#include "ocl/rnn_utils.hpp"
-#include "ocl/jit_ref_rnn_kernel.hpp"
+#include "ocl/rnn/rnn_utils.hpp"
+#include "ocl/rnn/jit_ref_rnn_kernel.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
 
 // not implemented
@@ -97,9 +97,9 @@ struct _ref_rnn_common_t : public primitive_t {
             using namespace format_tag;
 
             assert(this->engine()->kind() == engine_kind::gpu);
-            auto *cl_engine
-                = utils::downcast<const cl_engine_t *>(this->engine());
-
+            auto *compute_engine
+                    = utils::downcast<const compute::compute_engine_t *>(
+                            this->engine());
 
             const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -111,23 +111,27 @@ struct _ref_rnn_common_t : public primitive_t {
 
             bool ok = true
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
-                               alg_kind::vanilla_lstm)
+                            alg_kind::vanilla_lstm)
                     && IMPLICATION(aprop == prop_kind::forward,
-                               one_of(this->desc()->prop_kind, forward_training,
-                                       forward_inference))
+                            one_of(this->desc()->prop_kind, forward_training,
+                                    forward_inference))
                     && IMPLICATION(aprop == backward,
-                               one_of(this->desc()->prop_kind, backward))
+                            one_of(this->desc()->prop_kind, backward))
                     && src_layer_dt == src_type
                     && everyone_is(
-                               weights_type, weights_iter_dt, weights_layer_dt)
+                            weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && IMPLICATION(src_type == data_type::f16,
-                        this->desc()->prop_kind == forward_inference)
-                    && cl_engine->mayiuse(cl_device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_type == data_type::f16, true
-                            && cl_engine->mayiuse(cl_device_ext_t::khr_fp16)
-                            && cl_engine->mayiuse(
-                                cl_device_ext_t::intel_subgroups_short));
+                            this->desc()->prop_kind == forward_inference)
+                    && compute_engine->mayiuse(
+                            compute::device_ext_t::intel_subgroups)
+                    && IMPLICATION(src_type == data_type::f16,
+                            true
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short));
             if (!ok) {
                 return status::unimplemented;
             }
@@ -346,33 +350,37 @@ struct _ref_rnn_common_t : public primitive_t {
     };  // struct pd_t : public base_pd_t
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_rnn_kernel);
-        jit_ref_rnn_kernel::init_const_def(jit, pd()->jrnn_, pd()->jit_off_);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
+        jit_ref_rnn_kernel::init_const_def(
+                kernel_ctx, pd()->jrnn_, pd()->jit_off_);
 
-        copy_init_layer_kernel_
-            = jit.get_kernel("ref_rnn_copy_init_layer_kernel");
-        if (!copy_init_layer_kernel_) return status::runtime_error;
-        copy_init_iter_kernel_
-            = jit.get_kernel("ref_rnn_copy_init_iter_kernel");
-        if (!copy_init_iter_kernel_) return status::runtime_error;
-        copy_res_layer_kernel_
-            = jit.get_kernel("ref_rnn_copy_res_layer_kernel");
-        if (!copy_res_layer_kernel_) return status::runtime_error;
-        copy_res_iter_kernel_ = jit.get_kernel("ref_rnn_copy_res_iter_kernel");
-        if (!copy_res_iter_kernel_) return status::runtime_error;
-        ws_set_kernel_ = jit.get_kernel("ref_rnn_ws_set_kernel");
-        if (!ws_set_kernel_) return status::runtime_error;
-        elemwise_fwd_kernel_ = jit.get_kernel("ref_rnn_elemwise_fwd_kernel");
-        if (!elemwise_fwd_kernel_) return status::runtime_error;
-        elemwise_bwd_kernel_ = jit.get_kernel("ref_rnn_elemwise_bwd_kernel");
-        if (!elemwise_bwd_kernel_) return status::runtime_error;
-        gates_reduction_kernel_
-            = jit.get_kernel("ref_rnn_gates_reduction_kernel");
-        if (!gates_reduction_kernel_) return status::runtime_error;
+        std::vector<const char *> kernel_names = {
+            "ref_rnn_copy_init_layer_kernel",
+            "ref_rnn_copy_init_iter_kernel",
+            "ref_rnn_copy_res_layer_kernel",
+            "ref_rnn_copy_res_iter_kernel",
+            "ref_rnn_ws_set_kernel",
+            "ref_rnn_elemwise_fwd_kernel",
+            "ref_rnn_elemwise_bwd_kernel",
+            "ref_rnn_gates_reduction_kernel"
+        };
+
+        std::vector<compute::kernel_t> kernels;
+        auto status = compute_engine->create_kernels(
+                &kernels, kernel_names, kernel_ctx);
+        CHECK(status);
+
+        copy_init_layer_kernel_ = kernels[0];
+        copy_init_iter_kernel_ = kernels[1];
+        copy_res_layer_kernel_ = kernels[2];
+        copy_res_iter_kernel_ = kernels[3];
+        ws_set_kernel_ = kernels[4];
+        elemwise_fwd_kernel_ = kernels[5];
+        elemwise_bwd_kernel_ = kernels[6];
+        gates_reduction_kernel_ = kernels[7];
 
 #if DEBUGPRINT
         ws_print_kernel_ = jit.get_kernel("ref_rnn_ws_print_kernel");
@@ -524,22 +532,23 @@ private:
     free_packed_sig(free_no_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
-    void copy_init_layer(const stream_t *s, bool lr, bool rl, int n_iter,
-            int batch, int slc, const memory_storage_t &ws,
+    void copy_init_layer(compute::compute_stream_t *compute_stream, bool lr,
+            bool rl, int n_iter, int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
-    void copy_init_iter(const stream_t *s, int n_layer, int n_dir,
-            int batch, int sic, int dic,
-            const memory_storage_t &ws, const memory_storage_t &firstit_states,
+    void copy_init_iter(compute::compute_stream_t *compute_stream, int n_layer,
+            int n_dir, int batch, int sic, int dic, const memory_storage_t &ws,
+            const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
             const memory_storage_t &diff_dst_iter_c) const;
-    void copy_res_layer(const stream_t *s, bool lr, bool rl, int n_iter,
-            int batch, int slc, int dlc, const memory_storage_t &dst_last_layer,
+    void copy_res_layer(compute::compute_stream_t *compute_stream, bool lr,
+            bool rl, int n_iter, int batch, int slc, int dlc,
+            const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer,
             const memory_storage_t &ws) const;
-    void copy_res_iter(const stream_t *s, int n_layer, int n_dir,
-            int batch, int sic, int dic,
+    void copy_res_iter(compute::compute_stream_t *compute_stream, int n_layer,
+            int n_dir, int batch, int sic, int dic,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
@@ -548,23 +557,25 @@ private:
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dic, int batch, const memory_storage_t &gates,
             const memory_storage_t &diff_bias) const;
-    void ws_set(const stream_t *s, const memory_storage_t &workspace,
-            const cl_ulong ws_offset, const float val, const size_t size) const;
+    void ws_set(compute::compute_stream_t *compute_stream,
+            const memory_storage_t &workspace, const cl_ulong ws_offset,
+            const float val, const size_t size) const;
 #if DEBUGPRINT
-    void ws_print(const stream_t *s, const memory_storage_t &workspace) const;
+    void ws_print(compute::compute_stream_t *s,
+            const memory_storage_t &workspace) const;
     ocl_kernel_t ws_print_kernel_;
 #endif
 
     jit_ref_rnn_kernel *ker_;
-    ocl_kernel_t copy_init_layer_kernel_;
-    ocl_kernel_t copy_init_iter_kernel_;
-    ocl_kernel_t copy_res_layer_kernel_;
-    ocl_kernel_t copy_res_iter_kernel_;
+    compute::kernel_t copy_init_layer_kernel_;
+    compute::kernel_t copy_init_iter_kernel_;
+    compute::kernel_t copy_res_layer_kernel_;
+    compute::kernel_t copy_res_iter_kernel_;
 
-    ocl_kernel_t ws_set_kernel_;
-    ocl_kernel_t elemwise_fwd_kernel_;
-    ocl_kernel_t elemwise_bwd_kernel_;
-    ocl_kernel_t gates_reduction_kernel_;
+    compute::kernel_t ws_set_kernel_;
+    compute::kernel_t elemwise_fwd_kernel_;
+    compute::kernel_t elemwise_bwd_kernel_;
+    compute::kernel_t gates_reduction_kernel_;
 
     /* GEMM primitives */
     primitive_t *gemm_layer_ = nullptr;

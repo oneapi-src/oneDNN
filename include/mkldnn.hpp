@@ -311,6 +311,8 @@ enum class algorithm {
     eltwise_abs = mkldnn_eltwise_abs,
     /// Eltwise: square root
     eltwise_sqrt = mkldnn_eltwise_sqrt,
+    /// Eltwise: x*sigmoid(a*x)
+    eltwise_swish = mkldnn_eltwise_swish,
     /// Eltwise: linear
     eltwise_linear = mkldnn_eltwise_linear,
     /// Eltwise: bounded_relu

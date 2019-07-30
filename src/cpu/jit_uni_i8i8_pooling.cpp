@@ -108,7 +108,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Mmx mmx_tmp = Mmx(2);
 
     enum : int { max_vidx_base = isa == avx2 ? 7 : 2 };
-    //"avg" pool uses/needs more registers coz of unrolling.
+    //"avg" pool uses more registers for unrolling.
     enum : int { avg_vidx_base = isa == avx2 ? 4 : 2 };
 
     Vmm max_base_vr(int idx) const { return vreg(max_vidx_base + idx); }
@@ -1115,11 +1115,11 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
     // Compute address of src mapped page boundary minus vector length
     const auto src_safe_access = reinterpret_cast<char *>(
             (reinterpret_cast<uintptr_t>(src_i8 + src_d.size() - 1) | 0xFFF)
-            - cpu_isa_traits<isa>::vlen - 1);
+            - (cpu_isa_traits<isa>::vlen - 1));
 
     const auto dst_safe_access = reinterpret_cast<char *>(
             (reinterpret_cast<uintptr_t>(dst_i8 + dst_d.size() - 1) | 0xFFF)
-            - cpu_isa_traits<isa>::vlen - 1);
+            - (cpu_isa_traits<isa>::vlen - 1));
 
     parallel_nd(jpp.mb, jpp.oh, jpp.ow,
             [&](int n, int oh, int ow) {

@@ -57,6 +57,7 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum {
         typesize = sizeof(float),
+        unroll_4fma = 4,
         ker_reg_base_idx = 28,
     };
 

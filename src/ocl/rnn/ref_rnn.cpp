@@ -33,8 +33,7 @@
 #include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
-#include "ref_rnn.hpp"
-#include "cl_executor.hpp"
+#include "ocl/rnn/ref_rnn.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -47,48 +46,6 @@ using namespace alg_kind;
 using namespace rnn_utils;
 
 #define AOC array_offset_calculator
-
-//************************* Cell execution *************************//
-/// @todo shall this be templated on activation function to enable svml calls
-/// particularly
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::rnn_elemwise)) {
-    stream_t *s = ctx.stream();
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-    auto nd_range = cl_nd_range_t({batch, dic});
-
-    ocl_kernel_t kernel = (aprop == prop_kind::forward)
-        ? elemwise_fwd_kernel_: elemwise_bwd_kernel_;
-    kernel.set_arg(0, dir);
-    kernel.set_arg(1, lay);
-    kernel.set_arg(2, iter);
-    kernel.set_arg(3, workspace);
-    kernel.set_arg(4, bias);
-    executor.parallel_for(nd_range, kernel);
-}
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::lstm_elemwise))
-{
-    stream_t *s = ctx.stream();
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-    auto nd_range = cl_nd_range_t({batch, dic});
-    ocl_kernel_t kernel = (aprop == prop_kind::forward)
-        ? elemwise_fwd_kernel_: elemwise_bwd_kernel_;
-    kernel.set_arg(0, dir);
-    kernel.set_arg(1, lay);
-    kernel.set_arg(2, iter);
-    kernel.set_arg(3, workspace);
-    kernel.set_arg(4, bias);
-    executor.parallel_for(nd_range, kernel);
-}
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gru_lbr_elemwise))
-{
-    assert(!"unimplemented");
-}
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
@@ -218,117 +175,18 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
     int dir, int lay, int iter,
     int n_gates, int dic, int batch,
     const memory_storage_t &ws, const memory_storage_t &diff_bias) const {
-    auto s = ctx.stream();
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-    gates_reduction_kernel_.set_arg(0, dir);
-    gates_reduction_kernel_.set_arg(1, lay);
-    gates_reduction_kernel_.set_arg(2, iter);
-    gates_reduction_kernel_.set_arg(3, diff_bias);
-    gates_reduction_kernel_.set_arg(4, ws);
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto nd_range = cl_nd_range_t({ n_gates, dic });
-    executor.parallel_for(nd_range, gates_reduction_kernel_);
-}
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, dir);
+    arg_list.set(1, lay);
+    arg_list.set(2, iter);
+    arg_list.set(3, diff_bias);
+    arg_list.set(4, ws);
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution))
-{
-    const rnn_conf_t &rnn_conf = this->pd()->rnn_conf_;
-
-    if (aprop == prop_kind::forward) {
-        AOC<size_t, 3> off_weights_i(weights_input, n_layer, n_dir,
-                n_parts_weights_layer);
-        AOC<size_t, 3> off_weights_st(weights_states, n_layer, n_dir,
-                n_parts_weights_iter);
-
-        cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0));
-        cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0));
-
-        cl_ulong offset_states = (cl_ulong)(ws_states_offset_
-                + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1,
-                    0, batch * n_states * rnn_conf.states_ws_ld));
-        cl_ulong offset_input = (cl_ulong)(ws_states_offset_
-                + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1,
-                    0, batch * n_states * rnn_conf.states_ws_ld));
-        cl_ulong offset_gates = (cl_ulong)(ws_gates_offset_
-                + OFF4(lay, n_layer, dir, n_dir, iter, n_iter,
-                    0, batch * rnn_conf.gates_ws_ld));
-
-        gemm_primitive(ctx, n_gates * dic, batch, slc, n_gates * dic, slc,
-                batch, wic, n_gates * dic, batch, w_input, offset_w_input,
-                workspace, offset_input, workspace, offset_gates, false, 0.0f,
-                gemm_layer);
-        gemm_primitive(ctx, n_gates * dic, batch, sic, n_gates * dic, sic,
-                batch, wic, n_gates * dic, batch, w_state, offset_w_state,
-                workspace, offset_states, workspace, offset_gates, false, 1.0f,
-                gemm_iter);
-        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
-                bias);
-    } else { // backward
-
-        AOC<size_t, 3> off_weights_i(weights_input, n_layer, n_dir,
-                n_parts_weights_layer);
-        AOC<size_t, 3> off_weights_st(weights_states, n_layer, n_dir,
-                n_parts_weights_iter);
-
-        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch,
-            workspace, bias);
-
-        cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0));
-        cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0));
-
-        gemm_primitive(ctx,
-            sic, batch, n_gates * dic, sic, n_gates * dic, batch, n_gates * dic,
-            wic, batch, w_state, offset_w_state, workspace, ws_gates_offset_
-                + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                        batch * rnn_conf.gates_ws_ld),
-            workspace, ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, (n_states + 1) * batch
-                * rnn_conf.states_ws_ld),
-            false, 0.0f, gemm_iter);
-        gemm_primitive(ctx,
-            sic, batch, n_gates * dic, slc, n_gates * dic, batch, n_gates * dic,
-            wic, batch, w_input, offset_w_input, workspace, ws_gates_offset_
-                + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                    batch * rnn_conf.gates_ws_ld),
-            workspace, ws_diff_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, (n_states + 1) * batch
-                * rnn_conf.states_ws_ld) + n_states * batch
-                * rnn_conf.states_ws_ld,
-            false, 0.0f, gemm_layer);
-        gemm_primitive(ctx,
-            n_gates * dic, slc, batch, n_gates * dic, batch, wic, batch,
-            n_gates * dic, slc, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
-                dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
-            workspace, ws_states_offset_ + OFF4(lay, n_layer + 1, dir,
-                n_dir, iter + 1, n_iter + 1, 0, n_states * batch
-                * rnn_conf.states_ws_ld),
-            diff_weights_layer, OFF3(lay, n_layer, dir, n_dir, 0,
-                rnn_conf.diff_weights_layer_nld * rnn_conf.diff_weights_layer_ld),
-            true, 1.0f, gemm_diff_wei_layer);
-        gemm_primitive(ctx,
-            n_gates * dic, sic, batch, n_gates * dic, batch, wic, batch,
-            n_gates * dic, sic, workspace, ws_gates_offset_ + OFF4(lay, n_layer,
-                dir, n_dir, iter, n_iter, 0, batch * rnn_conf.gates_ws_ld),
-            workspace, ws_states_offset_ + OFF4(lay + 1, n_layer + 1, dir,
-                n_dir, iter, n_iter + 1, 0, n_states * batch
-                * rnn_conf.states_ws_ld),
-            diff_weights_iter, OFF3(lay, n_layer, dir, n_dir, 0,
-                rnn_conf.diff_weights_iter_nld * rnn_conf.diff_weights_iter_ld),
-            true, 1.0f, gemm_diff_wei_iter);
-
-        gates_reduction(ctx, dir, lay, iter, n_gates, dic, batch,
-            workspace, diff_bias);
-    }
-}
-
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution_gru_lbr)) {
-    assert(!"unimplemented");
-}
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution_gru)) {
-    assert(!"unimplemented");
+    auto nd_range = compute::nd_range_t({ n_gates, dic });
+    compute_stream->parallel_for(nd_range, gates_reduction_kernel_, arg_list);
 }
 
 //*************** Grid computations strategy: linear ***************//
@@ -370,124 +228,138 @@ grid_execution_sig(
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
-        const stream_t *s, bool lr, bool rl, int n_iter, int batch, int slc,
-        const memory_storage_t &ws, const memory_storage_t &input,
+        compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
+        int batch, int slc, const memory_storage_t &ws,
+        const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
 
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
     if (aprop == prop_kind::forward) {
-        copy_init_layer_kernel_.set_arg(0, ws);
-        copy_init_layer_kernel_.set_arg(1, input);
-        copy_init_layer_kernel_.set_arg(2, (cl_int)lr);
-        copy_init_layer_kernel_.set_arg(3, (cl_int)rl);
-        executor.parallel_for(cl_nd_range_t({slc, batch, n_iter}),
-            copy_init_layer_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, input);
+        arg_list.set(2, (cl_int)lr);
+        arg_list.set(3, (cl_int)rl);
+        compute_stream->parallel_for(compute::nd_range_t({ slc, batch, n_iter }),
+                copy_init_layer_kernel_, arg_list);
     } else {
-        copy_init_layer_kernel_.set_arg(0, ws);
-        copy_init_layer_kernel_.set_arg(1, diff_dst_layer);
-        copy_init_layer_kernel_.set_arg(2, (cl_int)0);
-        copy_init_layer_kernel_.set_arg(3, (cl_int)0);
-        executor.parallel_for(cl_nd_range_t({batch, n_iter}),
-            copy_init_layer_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, diff_dst_layer);
+        arg_list.set(2, (cl_int)0);
+        arg_list.set(3, (cl_int)0);
+        compute_stream->parallel_for(compute::nd_range_t({ batch, n_iter }),
+                copy_init_layer_kernel_, arg_list);
     }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
-        const stream_t *s, int n_layer, int n_dir,
+        compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dic, const memory_storage_t &ws,
-        const memory_storage_t &firstit_states, const memory_storage_t &firstit_c_states,
-        const memory_storage_t &diff_dst_iter, const memory_storage_t &diff_dst_iter_c) const {
-
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
+        const memory_storage_t &firstit_states,
+        const memory_storage_t &firstit_c_states,
+        const memory_storage_t &diff_dst_iter,
+        const memory_storage_t &diff_dst_iter_c) const {
 
     if (aprop == prop_kind::forward) {
-        copy_init_iter_kernel_.set_arg(0, ws);
-        copy_init_iter_kernel_.set_arg(1, firstit_states);
-        copy_init_iter_kernel_.set_arg(2, firstit_c_states);
-        executor.parallel_for(cl_nd_range_t(
-            {sic, batch, n_layer * n_dir}),
-            copy_init_iter_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, firstit_states);
+        arg_list.set(2, firstit_c_states);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ sic, batch, n_layer * n_dir }),
+                copy_init_iter_kernel_, arg_list);
     } else {
-        copy_init_iter_kernel_.set_arg(0, ws);
-        copy_init_iter_kernel_.set_arg(1, diff_dst_iter);
-        copy_init_iter_kernel_.set_arg(2, diff_dst_iter_c);
-        executor.parallel_for(cl_nd_range_t(
-            {dic, batch, n_layer * n_dir}),
-            copy_init_iter_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, diff_dst_iter);
+        arg_list.set(2, diff_dst_iter_c);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ dic, batch, n_layer * n_dir }),
+                copy_init_iter_kernel_, arg_list);
     }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
-        const stream_t *s, bool lr, bool rl, int n_iter, int batch, int slc,
-        int dic, const memory_storage_t &dst_last_layer,
-        const memory_storage_t &diff_src_layer, const memory_storage_t &ws) const {
+        compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
+        int batch, int slc, int dic, const memory_storage_t &dst_last_layer,
+        const memory_storage_t &diff_src_layer,
+        const memory_storage_t &ws) const {
 
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
     if (aprop == prop_kind::forward) {
-        copy_res_layer_kernel_.set_arg(0, ws);
-        copy_res_layer_kernel_.set_arg(1, dst_last_layer);
-        copy_res_layer_kernel_.set_arg(2, (cl_int)lr);
-        copy_res_layer_kernel_.set_arg(3, (cl_int)rl);
-        executor.parallel_for(cl_nd_range_t({dic, batch, n_iter}),
-            copy_res_layer_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, dst_last_layer);
+        arg_list.set(2, (cl_int)lr);
+        arg_list.set(3, (cl_int)rl);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ dic, batch, n_iter }),
+                copy_res_layer_kernel_, arg_list);
     } else {
-        copy_res_layer_kernel_.set_arg(0, ws);
-        copy_res_layer_kernel_.set_arg(1, diff_src_layer);
-        copy_res_layer_kernel_.set_arg(2, (cl_int)lr);
-        copy_res_layer_kernel_.set_arg(3, (cl_int)rl);
-        executor.parallel_for(cl_nd_range_t({slc, batch, n_iter}),
-            copy_res_layer_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, diff_src_layer);
+        arg_list.set(2, (cl_int)lr);
+        arg_list.set(3, (cl_int)rl);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ slc, batch, n_iter }),
+                copy_res_layer_kernel_, arg_list);
     }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
-        const stream_t *s, int n_layer, int n_dir,
-        int batch, int sic, int dic, const memory_storage_t &dst_last_iter, const memory_storage_t &dst_last_iter_c,
-        const memory_storage_t &diff_src_iter, const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws) const {
+        compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+        int batch, int sic, int dic, const memory_storage_t &dst_last_iter,
+        const memory_storage_t &dst_last_iter_c,
+        const memory_storage_t &diff_src_iter,
+        const memory_storage_t &diff_src_iter_c,
+        const memory_storage_t &ws) const {
 
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
     if (aprop == prop_kind::forward) {
-        copy_res_iter_kernel_.set_arg(0, ws);
-        copy_res_iter_kernel_.set_arg(1, dst_last_iter);
-        copy_res_iter_kernel_.set_arg(2, dst_last_iter_c);
-        executor.parallel_for(cl_nd_range_t(
-            {dic, batch, n_layer * n_dir}),
-            copy_res_iter_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, dst_last_iter);
+        arg_list.set(2, dst_last_iter_c);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ dic, batch, n_layer * n_dir }),
+                copy_res_iter_kernel_, arg_list);
     } else {
-        copy_res_iter_kernel_.set_arg(0, ws);
-        copy_res_iter_kernel_.set_arg(1, diff_src_iter);
-        copy_res_iter_kernel_.set_arg(2, diff_src_iter_c);
-        executor.parallel_for(cl_nd_range_t(
-            {sic, batch, n_layer * n_dir}),
-            copy_res_iter_kernel_);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, ws);
+        arg_list.set(1, diff_src_iter);
+        arg_list.set(2, diff_src_iter_c);
+        compute_stream->parallel_for(
+                compute::nd_range_t({ sic, batch, n_layer * n_dir }),
+                copy_res_iter_kernel_, arg_list);
     }
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_set(
-    const stream_t *s, const memory_storage_t &workspace_,
-    const cl_ulong ws_offset, const float val, const size_t size) const {
+        compute::compute_stream_t *compute_stream,
+        const memory_storage_t &workspace_, const cl_ulong ws_offset,
+        const float val, const size_t size) const {
 
-    ws_set_kernel_.set_arg(0, workspace_);
-    ws_set_kernel_.set_arg(1, ws_offset);
-    ws_set_kernel_.set_arg(2, val);
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
-    auto nd_range = cl_nd_range_t({size});
-    executor.parallel_for(nd_range, ws_set_kernel_);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, workspace_);
+    arg_list.set(1, ws_offset);
+    arg_list.set(2, val);
+    auto nd_range = compute::nd_range_t({ size });
+    compute_stream->parallel_for(nd_range, ws_set_kernel_, arg_list);
 }
 
 #if DEBUGPRINT
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_print(
-    const stream_t *s, const memory_storage_t &workspace_) const {
+        compute::compute_stream_t *compute_stream,
+        const memory_storage_t &workspace_) const {
 
-    ws_print_kernel_.set_arg(0, workspace_);
-    auto &executor = *(utils::downcast<const cl_stream_t *>(s)->cl_executor());
-    auto nd_range = cl_nd_range_t({1});
-    executor.parallel_for(nd_range, ws_print_kernel_);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, workspace_);
+    auto nd_range = compute::nd_range_t({ 1 });
+    compute_stream->parallel_for(nd_range, ws_print_kernel_, arg_list);
 }
 #endif
 
@@ -552,6 +424,9 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     const exec_ctx_t &ctx) const {
 
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto rnn = this->pd();
     const rnn_conf_t &rnn_conf = this->pd()->rnn_conf_;
 
@@ -577,8 +452,6 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     int n_parts_weights_layer = rnn_conf.n_parts_weights_layer;
 
     bool is_fwd = rnn_conf.is_fwd;
-
-    stream_t *s = ctx.stream();
 
     auto &input_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_LAYER);
     auto &states_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_ITER);
@@ -663,19 +536,23 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
 #if WS_NAN_FILLING
     if(rnn_conf.is_fwd) {
-        DPRINT("DEBUG ws set: (offset, size) states: %ld %ld gates: %ld %ld\n",
-            ws_states_offset_, rnn_conf.ws_states_size, ws_gates_offset_,
+        DPRINT("DEBUG ws NaN filling: (offset, size) states: %ld %ld c_states: %ld %ld gates: %ld %ld\n",
+            ws_states_offset_, rnn_conf.ws_states_size, ws_c_states_offset_, rnn_conf.ws_c_states_size, ws_gates_offset_,
             rnn_conf.ws_gates_size);
-        ws_set(s, workspace_, ws_states_offset_, NAN,
+        ws_set(compute_stream, workspace_, ws_states_offset_, NAN,
                 rnn_conf.ws_states_size);
-        ws_set(s, workspace_, ws_gates_offset_, NAN,
+        if (rnn->with_src_iter_c()) {
+            ws_set(compute_stream, workspace_, ws_c_states_offset_, NAN,
+                rnn_conf.ws_c_states_size);
+        }
+        ws_set(compute_stream, workspace_, ws_gates_offset_, NAN,
                 rnn_conf.ws_gates_size);
     }
 #endif
 
     // initialize diff_state to 0
     if (aprop == prop_kind::backward) {
-        ws_set(s, workspace_, ws_diff_states_offset_, 0.0f,
+        ws_set(compute_stream, workspace_, ws_diff_states_offset_, 0.0f,
                 rnn_conf.ws_diff_states_size);
     }
 
@@ -693,17 +570,17 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             rnn_conf.parts_weights_layer, w_input_native_);
 
     DPRINT("\n%s(%d) WS before copy init\n\n",__FUNCTION__,__LINE__);
-    WS_PRINT(s, workspace_);
+    WS_PRINT(compute_stream, workspace_);
 
     // we first need to copy the initial states and input into ws
-    copy_init_layer(s, is_lr, is_rl, n_iter, batch, slc,
-        workspace_, input_native_, diff_dst_layer_native_);
-    copy_init_iter(s, n_layer, n_dir, batch, sic, dic,
-        workspace_, states_native_, c_states_native_, diff_dst_iter_native_,
-        diff_dst_iter_c_native_);
+    copy_init_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc,
+            workspace_, input_native_, diff_dst_layer_native_);
+    copy_init_iter(compute_stream, n_layer, n_dir, batch, sic, dic, workspace_,
+            states_native_, c_states_native_, diff_dst_iter_native_,
+            diff_dst_iter_c_native_);
 
     DPRINT("\n%s(%d) WS before grid\n\n",__FUNCTION__,__LINE__);
-    WS_PRINT(s, workspace_);
+    WS_PRINT(compute_stream, workspace_);
 
     // run the execution on the grid
     (this->*grid_computation)(
@@ -722,15 +599,15 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             );
 
     DPRINT("\n%s(%d) WS before copy res\n\n",__FUNCTION__,__LINE__);
-    WS_PRINT(s, workspace_);
+    WS_PRINT(compute_stream, workspace_);
 
     // Finally we copy the results to the result buffers
 
-    copy_res_layer(s, is_lr, is_rl, n_iter, batch, slc, dic,
-        dst_last_layer_native_, diff_src_layer_native_, workspace_);
-    copy_res_iter(s, n_layer, n_dir, batch, sic, dic,
-        dst_last_iter_native_, dst_last_iter_c_native_, diff_src_iter_native_,
-        diff_src_iter_c_native_,workspace_);
+    copy_res_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc, dic,
+            dst_last_layer_native_, diff_src_layer_native_, workspace_);
+    copy_res_iter(compute_stream, n_layer, n_dir, batch, sic, dic,
+            dst_last_iter_native_, dst_last_iter_c_native_,
+            diff_src_iter_native_, diff_src_iter_c_native_, workspace_);
 
     // NOT USED YET
 #if 0
@@ -744,6 +621,27 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     return status::success;
 };
+
+/* Fix for MSVS warning C4661 */
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
+template<> cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
+template<> cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
+template<> elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
+template<> elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+
 
 template
 struct _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;

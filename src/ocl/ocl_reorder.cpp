@@ -34,7 +34,8 @@ static const rpd_create_f ocl_ce_reorder_impl_list[] = {
 };
 } // namespace
 
-const rpd_create_f *cl_engine_impl_list_t::get_reorder_implementation_list() {
+const rpd_create_f *
+ocl_gpu_engine_impl_list_t::get_reorder_implementation_list() {
     return ocl_ce_reorder_impl_list;
 }
 

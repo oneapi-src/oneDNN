@@ -39,7 +39,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
-__kernel void gen9_common_conv_fwd_kernel(const __global float *src,
+__kernel void gen9_common_conv_fwd_f32_kernel(const __global float *src,
 #if USE_IMAGE == 1
         __read_only image2d_t wei,
 #else

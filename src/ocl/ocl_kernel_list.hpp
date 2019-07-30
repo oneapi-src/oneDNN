@@ -14,38 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CL_EXECUTOR_HPP
-#define CL_EXECUTOR_HPP
-
-#include "common/c_types_map.hpp"
-#include "ocl/ocl_utils.hpp"
-
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-// Executor provides OpenCL-like functionality whose implementation
-// is specific for a given stream.
-struct cl_executor_t {
-    cl_executor_t(stream_t *stream) : stream_(stream) {}
-    virtual ~cl_executor_t() = default;
-
-    stream_t *stream() { return stream_; }
-
-    virtual status_t parallel_for(
-            const cl_nd_range_t &range, const ocl_kernel_t &kernel)
-            = 0;
-
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size)
-            = 0;
-
-private:
-    stream_t *stream_;
-};
+const char *get_ocl_kernel_source(const char *kernel_name);
 
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn
-
-#endif

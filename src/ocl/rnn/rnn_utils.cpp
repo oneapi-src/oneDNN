@@ -219,9 +219,12 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
 
     rnn_conf.use_workspace = rnn_conf.is_training;
     rnn_conf.ws_states_size = (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
-        * (rnn_conf.n_iter + 1) * rnn_conf.n_states * rnn_conf.mb
-        * rnn_conf.states_ws_ld;
-    rnn_conf.ws_c_states_size = 0;
+        * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld;
+    bool is_lstm = rd.cell_kind == mkldnn_vanilla_lstm;
+    rnn_conf.ws_c_states_size = is_lstm
+        ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
+            * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld
+        : 0;
     rnn_conf.ws_diff_states_size = rnn_conf.is_training
         ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir * (rnn_conf.n_iter + 1)
           * (rnn_conf.n_states + 1) * rnn_conf.mb * rnn_conf.states_ws_ld

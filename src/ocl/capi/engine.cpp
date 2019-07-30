@@ -31,7 +31,7 @@ status_t mkldnn_engine_create_ocl(engine_t **engine, engine_kind_t kind,
     if (!args_ok)
         return status::invalid_arguments;
 
-    ocl_engine_factory_t f;
+    ocl_engine_factory_t f(kind);
     return f.engine_create(engine, device, context);
 }
 
@@ -43,7 +43,7 @@ status_t mkldnn_engine_get_ocl_context(engine_t *engine, cl_context *context) {
     if (!args_ok)
         return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     *context = ocl_engine->context();
     return status::success;
 }
@@ -56,7 +56,7 @@ status_t mkldnn_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
     if (!args_ok)
         return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     *device = ocl_engine->device();
     return status::success;
 }

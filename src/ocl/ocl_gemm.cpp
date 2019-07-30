@@ -61,14 +61,14 @@ mkldnn_status_t gemm_generic(cl_command_queue queue, const char *transa,
     OCL_CHECK(clGetCommandQueueInfo(
             queue, CL_QUEUE_DEVICE, sizeof(ocl_dev), &ocl_dev, nullptr));
 
-    std::unique_ptr<ocl_engine_t> engine;
+    std::unique_ptr<ocl_gpu_engine_t> engine;
     engine_t *engine_ptr;
 
-    status = ocl_engine_factory_t().engine_create(
-            &engine_ptr, ocl_dev, ocl_ctx);
+    status = ocl_engine_factory_t(engine_kind::gpu)
+                     .engine_create(&engine_ptr, ocl_dev, ocl_ctx);
     if (status != status::success)
         return status;
-    engine.reset(utils::downcast<ocl_engine_t *>(engine_ptr));
+    engine.reset(utils::downcast<ocl_gpu_engine_t *>(engine_ptr));
 
     // Create stream
     std::unique_ptr<stream_t> s;

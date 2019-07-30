@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "ocl/cl_engine.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_ref_inner_product_common_kernel.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -32,9 +32,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
 struct ref_inner_product_fwd_t : public primitive_t {
     struct pd_t : public ocl_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -46,33 +43,40 @@ struct ref_inner_product_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_inner_product_fwd_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
             assert(engine()->kind() == engine_kind::gpu);
-            auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true
-                    && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
-                    && set_default_params() == status::success
-                    && desc()->src_desc.data_type == src_type
-                    && desc()->weights_desc.data_type == wei_type
-                    && desc()->accum_data_type == acc_type
-                    && desc()->dst_desc.data_type == dst_type
-                    && utils::one_of(desc()->src_desc.data_type, bf16, f16, f32)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, bf16,
-                                    f16, f32))
-                    && attr()->output_scales_.has_default_values()
-                    && dense_consitency_check(src_md(), weights_md(), dst_md())
-                    && IMPLICATION(src_type == data_type::f16,
-                            cl_engine->mayiuse(cl_device_ext_t::khr_fp16));
+                && utils::one_of(desc()->prop_kind, forward_training,
+                        forward_inference)
+                && set_default_params() == status::success
+                && utils::one_of(true,
+                    expect_data_types(u8, s8, data_type::undef, s8, s32),
+                    expect_data_types(u8, s8, data_type::undef, u8, s32),
+                    expect_data_types(u8, s8, data_type::undef, s32, s32),
+                    expect_data_types(s8, s8, data_type::undef, s8, s32),
+                    expect_data_types(s8, s8, data_type::undef, u8, s32),
+                    expect_data_types(s8, s8, data_type::undef, s32, s32),
+                    expect_data_types(bf16, bf16, data_type::undef, bf16, f32),
+                    expect_data_types(f32, f32, f32, f32, f32),
+                    expect_data_types(f16, f16, f16, f16, f16))
+                && IMPLICATION(with_bias(),
+                    utils::one_of(desc()->bias_desc.data_type, u8, s8,
+                        bf16, f16, f32))
+                && attr()->output_scales_.count_ == 1
+                && dense_consitency_check(src_md(), weights_md(), dst_md())
+                && IMPLICATION(desc()->src_desc.data_type == f16,
+                    compute_engine->mayiuse(compute::device_ext_t::khr_fp16));
             if (!ok)
                 return status::unimplemented;
 
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
                     src_md(), weights_md(), dst_md(), *this->attr(), jit_off_,
-                    acc_type);
+                    desc()->accum_data_type);
         }
         bool with_eltwise() const {
             return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -119,16 +123,15 @@ struct ref_inner_product_fwd_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, pd()->with_eltwise(),
-                pd()->with_sum(), pd()->eltwise_alg_kind());
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, pd()->with_eltwise(), pd()->with_sum(),
+                pd()->eltwise_alg_kind());
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_fwd_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_fwd_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -140,11 +143,6 @@ struct ref_inner_product_fwd_t : public primitive_t {
     }
     ~ref_inner_product_fwd_t() { delete ker_; }
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -153,12 +151,9 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_src_type>
 struct ref_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public ocl_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -170,39 +165,38 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::gpu);
+
             bool ok = true
-                    && utils::one_of(
-                               this->desc()->prop_kind, backward, backward_data)
-                    && this->set_default_params() == status::success
-                    && desc()->diff_src_desc.data_type == diff_src_type
-                    && desc()->weights_desc.data_type == wei_type
-                    && desc()->accum_data_type == acc_type
-                    && desc()->diff_dst_desc.data_type == diff_dst_type
-                    && attr()->has_default_values();
+                && utils::one_of(
+                    this->desc()->prop_kind, backward, backward_data)
+                && this->set_default_params() == status::success
+                && utils::one_of(true,
+                    expect_data_types(bf16, bf16, data_type::undef, bf16, f32),
+                    expect_data_types(f32, f32, data_type::undef, f32, f32))
+                && attr()->has_default_values();
             if (!ok)
                 return status::unimplemented;
 
             return jit_ref_inner_product_fwd_kernel::init_conf(jip_, desc_,
                     diff_src_md(), weights_md(), diff_dst_md(), *this->attr(),
-                    jit_off_, acc_type);
+                    jit_off_, desc()->accum_data_type);
         }
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;
     };
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, false, false,
-                mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_bwd_data_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_bwd_data_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -214,11 +208,6 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
     }
     ~ref_inner_product_bwd_data_t() { delete ker_; }
 
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
@@ -227,10 +216,9 @@ private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
-template <impl::data_type_t data_type>
 struct ref_inner_product_bwd_weights_t : public primitive_t {
     struct pd_t : public ocl_inner_product_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -243,21 +231,17 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_weights_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             assert(engine()->kind() == engine_kind::gpu);
             bool ok = true
-                    && utils::one_of(this->desc()->prop_kind, backward,
-                               backward_weights)
-                    && this->set_default_params() == status::success
-                    && utils::everyone_is(data_type,
-                               this->desc()->src_desc.data_type,
-                               this->desc()->diff_dst_desc.data_type,
-                               this->desc()->diff_weights_desc.data_type)
-                    && IMPLICATION(this->with_bias(),
-                               data_type
-                                       == this->desc()
-                                                  ->diff_bias_desc.data_type)
-                    && attr()->has_default_values();
+                && utils::one_of(this->desc()->prop_kind, backward,
+                           backward_weights)
+                && this->set_default_params() == status::success
+                && utils::one_of(true,
+                    expect_data_types(bf16, bf16, bf16, bf16, f32),
+                    expect_data_types(f32, f32, f32, f32, f32))
+                && attr()->has_default_values();
             if (!ok)
                 return status::unimplemented;
 
@@ -270,16 +254,14 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_inner_product_kernel);
-        jit_ref_inner_product_fwd_kernel::init_const_def(
-                jit, pd()->jip_, pd()->jit_off_, false, false,
-                mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+        jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
+                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_inner_product_bwd_weights_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_inner_product_bwd_weights_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -291,8 +273,6 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
     }
     ~ref_inner_product_bwd_weights_t() { delete ker_; }
 
-    typedef typename prec_traits<data_type>::type data_t;
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
@@ -301,7 +281,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_ref_inner_product_fwd_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

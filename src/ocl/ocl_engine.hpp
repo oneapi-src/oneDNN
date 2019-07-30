@@ -17,103 +17,20 @@
 #ifndef OCL_ENGINE_HPP
 #define OCL_ENGINE_HPP
 
-#include "mkldnn.h"
-
-#include "common/c_types_map.hpp"
-#include "common/engine.hpp"
-#include "common/stream.hpp"
-#include "common/utils.hpp"
-#include "ocl/cl_device_info.hpp"
-#include "ocl/cl_engine.hpp"
-#include "ocl/ocl_utils.hpp"
+#include "ocl/ocl_gpu_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class cl_engine_impl_list_t
-{
-public:
-    static const engine_t::concat_primitive_desc_create_f *
-    get_concat_implementation_list();
-    static const engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list();
-    static const engine_t::sum_primitive_desc_create_f *
-    get_sum_implementation_list();
-    static const engine_t::primitive_desc_create_f *get_implementation_list();
-};
-
-class ocl_engine_t : public cl_engine_t
-{
-public:
-    static status_t get_ocl_devices(std::vector<cl_device_id> *devices);
-
-    ocl_engine_t(cl_device_id adevice)
-        : cl_engine_t(engine_kind::gpu, backend_kind::ocl,
-                  cl_device_info_t(adevice))
-        , device_(adevice)
-        , context_(nullptr)
-        , is_user_context_(false) {}
-    ocl_engine_t(cl_device_id adevice, cl_context acontext)
-        : cl_engine_t(engine_kind::gpu, backend_kind::ocl,
-                  cl_device_info_t(adevice))
-        , device_(adevice)
-        , context_(acontext)
-        , is_user_context_(true) {}
-    virtual ~ocl_engine_t() override {
-        if (context_) {
-            clReleaseContext(context_);
-        }
-    }
-
-    status_t init();
-
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, size_t alignment,
-            void *handle) override;
-
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, cl_command_queue queue);
-
-    virtual const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override {
-        return cl_engine_impl_list_t::get_concat_implementation_list();
-    }
-
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const override {
-        return cl_engine_impl_list_t::get_reorder_implementation_list();
-    }
-
-    virtual const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override {
-        return cl_engine_impl_list_t::get_sum_implementation_list();
-    }
-
-    virtual const primitive_desc_create_f *
-    get_implementation_list() const override {
-        return cl_engine_impl_list_t::get_implementation_list();
-    }
-
-    virtual cl_device_id device() const { return device_; }
-    virtual cl_context context() const { return context_; }
-
-    virtual cl_device_id ocl_device() const override { return device(); }
-    virtual cl_context ocl_context() const override { return context(); }
-
-    stream_t *service_stream() const { return service_stream_.get(); }
-
-private:
-    cl_device_id device_;
-    cl_context context_;
-    bool is_user_context_;
-
-    std::unique_ptr<stream_t> service_stream_;
-};
-
 class ocl_engine_factory_t : public engine_factory_t
 {
 public:
+    ocl_engine_factory_t(engine_kind_t engine_kind) {
+        assert(engine_kind == engine_kind::gpu);
+        MAYBE_UNUSED(engine_kind);
+    }
+
     virtual size_t count() const override {
         std::vector<cl_device_id> ocl_devices;
         status_t status
@@ -135,7 +52,7 @@ public:
         if (index >= ocl_devices.size())
             return status::invalid_arguments;
 
-        auto *ocl_engine = new ocl_engine_t(ocl_devices[index]);
+        auto *ocl_engine = new ocl_gpu_engine_t(ocl_devices[index]);
         if (!ocl_engine)
             return status::out_of_memory;
 
@@ -150,7 +67,7 @@ public:
 
     status_t engine_create(
             engine_t **engine, cl_device_id device, cl_context context) {
-        auto *ocl_engine = new ocl_engine_t(device, context);
+        auto *ocl_engine = new ocl_gpu_engine_t(device, context);
         if (!ocl_engine)
             return status::out_of_memory;
 
@@ -163,9 +80,8 @@ public:
         return status::success;
     }
 };
-
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn
 
-#endif
+#endif // OCL_ENGINE_HPP

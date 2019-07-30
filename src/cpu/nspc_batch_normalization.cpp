@@ -32,6 +32,13 @@
 #define SAFE_TO_USE_OMP_SIMD 1
 #endif
 
+#if (__GNUC__ == 5) && (__GNUC_MINOR__ == 4)
+#define SIMD_LEN_16
+#else
+#define SIMD_LEN_16 simdlen(16)
+#endif
+
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -271,6 +278,12 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     const bool calculate_diff_stats = !pd()->use_global_stats();
     const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
+    /* Note: potential seg-fault from incorrectly compiled vectorized-loop.
+     * Explicit tail-processing fixes this issue. */
+    const dim_t c_blk = mayiuse(avx512_common) ? 16 : 8;
+    const dim_t tail = C % c_blk;
+    const dim_t nb_c_blk = (size_t)C / c_blk;
+
     assert(mkldnn_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
@@ -373,10 +386,11 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                             diff_dst + s_off);
                     _src = reinterpret_cast<const acc_data_t *>(src + s_off);
                 }
+
 #if SAFE_TO_USE_OMP_SIMD
-                PRAGMA_OMP_SIMD()
+                PRAGMA_OMP_SIMD(SIMD_LEN_16)
 #endif
-                for (dim_t c = 0; c < C; c++) {
+                for (dim_t c = 0; c < nb_c_blk * c_blk; c++) {
                     const size_t c_off = s_off + c;
                     acc_data_t gamma = use_scaleshift ? scaleshift[c] : 1;
                     acc_data_t sqrt_variance = static_cast<acc_data_t>(
@@ -393,6 +407,27 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                     }
                     v_diff_src *= gamma * sqrt_variance;
                     _diff_src[c] = v_diff_src;
+                }
+                for (dim_t c = 0; c < tail; c++) {
+                    const size_t c_off = s_off + nb_c_blk * c_blk + c;
+                    acc_data_t gamma
+                            = use_scaleshift ? scaleshift[nb_c_blk * c_blk + c] : 1;
+                    acc_data_t sqrt_variance = static_cast<acc_data_t>(
+                            1.0f / sqrtf(variance[nb_c_blk * c_blk + c] + eps));
+                    acc_data_t v_diff_src;
+                    if (fuse_norm_relu && !ws[c_off])
+                        v_diff_src = 0;
+                    else
+                        v_diff_src = _diff_dst[nb_c_blk * c_blk + c];
+                    if (calculate_diff_stats) {
+                        v_diff_src -= diff_beta_loc[nb_c_blk * c_blk + c] / (SP * N)
+                                + (_src[nb_c_blk * c_blk + c]
+                                          - mean[nb_c_blk * c_blk + c])
+                                        * diff_gamma_loc[nb_c_blk * c_blk + c]
+                                        * sqrt_variance / (SP * N);
+                    }
+                    v_diff_src *= gamma * sqrt_variance;
+                    _diff_src[nb_c_blk * c_blk + c] = v_diff_src;
                 }
                 if (d_type == bf16) {
                     // convert diff_src from f32 to b16

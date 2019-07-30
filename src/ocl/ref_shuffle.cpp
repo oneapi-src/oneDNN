@@ -22,9 +22,8 @@ namespace ocl {
 
 using namespace format_tag;
 
-template <int data_type_size>
 template <mkldnn_format_tag_t tag>
-status_t ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
+status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     auto &src = pd()->is_fwd()
                     ? CTX_IN_STORAGE(MKLDNN_ARG_SRC)
                     : CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
@@ -34,19 +33,18 @@ status_t ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
 
     const auto &jshfl = pd()->jshfl_;
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, dst);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, dst);
 
-    auto nd_range = cl_nd_range_t(jshfl.gws_d);
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jshfl.gws_d);
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }
-template status_t ref_shuffle_t<4>::execute_<any>(const exec_ctx_t &ctx) const;
-template status_t ref_shuffle_t<2>::execute_<any>(const exec_ctx_t &ctx) const;
-template status_t ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
+template status_t ref_shuffle_t::execute_<any>(const exec_ctx_t &ctx) const;
 
 } // namespace ocl
 } // namespace impl

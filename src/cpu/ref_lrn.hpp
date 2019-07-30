@@ -87,14 +87,12 @@ struct ref_lrn_bwd_t: public cpu_primitive_t {
 
         status_t init() {
             using namespace format_tag;
-            using namespace alg_kind;
             using namespace data_type;
 
             bool ok = true
                 && !is_fwd()
-                && utils::one_of(desc()->alg_kind, lrn_across_channels
-                        /*, lrn_within_channel */) // not supported yet
-                && utils::everyone_is(d_type, src_md()->data_type, diff_src_md()->data_type)
+                && utils::everyone_is(d_type, src_md()->data_type,
+                        diff_src_md()->data_type)
                 && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                 && attr()->has_default_values();
             if (!ok) return status::unimplemented;

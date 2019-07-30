@@ -56,22 +56,24 @@ public:
 
     virtual const reorder_primitive_desc_create_f *
     get_reorder_implementation_list() const override {
-        return ocl::cl_engine_impl_list_t::get_reorder_implementation_list();
+        return ocl::ocl_gpu_engine_impl_list_t::
+                get_reorder_implementation_list();
     }
 
     virtual const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
-        return ocl::cl_engine_impl_list_t::get_concat_implementation_list();
+        return ocl::ocl_gpu_engine_impl_list_t::
+                get_concat_implementation_list();
     }
 
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
-        return ocl::cl_engine_impl_list_t::get_sum_implementation_list();
+        return ocl::ocl_gpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
     virtual const primitive_desc_create_f *
     get_implementation_list() const override {
-        return ocl::cl_engine_impl_list_t::get_implementation_list();
+        return ocl::ocl_gpu_engine_impl_list_t::get_implementation_list();
     }
 };
 

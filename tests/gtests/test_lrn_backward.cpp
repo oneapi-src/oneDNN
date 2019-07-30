@@ -43,99 +43,35 @@ struct lrn_test_params {
     mkldnn_status_t expected_status;
 };
 
-template <typename data_t, typename acc_data_t = data_t>
-void check_lrn_fwd(
-        const lrn_test_params &p, const memory &src, const memory &dst) {
-    auto src_ptr = map_memory<data_t>(src);
-    auto dst_ptr = map_memory<data_t>(dst);
-
-    const memory::dim C = p.test_ld.c;
-    const memory::dim H = p.test_ld.h;
-    const memory::dim W = p.test_ld.w;
-    const memory::dim size = p.test_ld.local_size;
-    const memory::dim CSIZE
-            = p.aalgorithm == algorithm::lrn_across_channels ? size : 1;
-    const memory::dim HWSIZE = size + 1 - CSIZE;
-    const memory::dim summands = p.aalgorithm == algorithm::lrn_across_channels
-            ? size
-            : size * size;
-    auto padded_c = src.get_desc().data.padded_dims[1];
-
-    const memory::desc src_d = src.get_desc();
-    const memory::desc dst_d = dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-
-    auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
-        return ((n * padded_c + c) * p.test_ld.h + h) * p.test_ld.w + w;
-    };
-
-    auto ker = [&](data_t *d, memory::dim n, memory::dim oc, memory::dim oh,
-                       memory::dim ow) {
-        acc_data_t sum = 0.0;
-        for (memory::dim c = oc; c < oc + CSIZE; ++c) {
-            if (c < (CSIZE - 1) / 2)
-                continue;
-            if (c >= C + (CSIZE - 1) / 2)
-                continue;
-            for (memory::dim h = oh; h < oh + HWSIZE; ++h) {
-                if (h < (HWSIZE - 1) / 2)
-                    continue;
-                if (h >= H + (HWSIZE - 1) / 2)
-                    continue;
-                for (memory::dim w = ow; w < ow + HWSIZE; ++w) {
-                    if (w < (HWSIZE - 1) / 2)
-                        continue;
-                    if (w >= W + (HWSIZE - 1) / 2)
-                        continue;
-                    acc_data_t s = src_ptr[src_mdw.off_l(
-                            off(n, c - (CSIZE - 1) / 2, h - (HWSIZE - 1) / 2,
-                                    w - (HWSIZE - 1) / 2),
-                            true)];
-                    sum += s * s;
-                }
-            }
-        }
-
-        auto const norm_coef = std::pow(
-                p.test_ld.k + p.test_ld.alpha * sum / summands, p.test_ld.beta);
-        acc_data_t ref_out = static_cast<acc_data_t>(
-                src_ptr[src_mdw.off_l(off(n, oc, oh, ow), true)] / norm_coef);
-        acc_data_t eps = static_cast<acc_data_t>(1.e-7f * (2 * summands + 5));
-        memory::data_type data_type = data_traits<data_t>::data_type;
-        if (data_type == mkldnn::memory::data_type::bf16)
-            eps = static_cast<acc_data_t>(1.e-3f * (2 * summands + 5));
-        acc_data_t out = d[0];
-        acc_data_t norm_max = (std::max)(fabs(out), fabs(ref_out));
-        if (norm_max < eps)
-            norm_max = 1.;
-        ASSERT_NEAR(out, ref_out, eps * norm_max);
-    };
-
-    const memory::dim N = p.test_ld.mb;
-    mkldnn::impl::parallel_nd(N, padded_c, H, W,
-            [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
-                ker(&dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)], n, c, h, w);
-            });
+template <typename acc_data_t>
+acc_data_t fast_inv_powf(acc_data_t omega, float beta) {
+    if (beta == 0.75f)
+        return (acc_data_t)(1.0f / sqrtf(sqrtf(omega) * omega));
+    return (acc_data_t)(1.0f / std::pow(omega, beta));
 }
 
 template <typename data_t, typename acc_data_t = data_t>
 void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         const memory &diff_dst, const memory &diff_src) {
-    ASSERT_TRUE(p.aalgorithm == algorithm::lrn_across_channels);
-
     auto src_ptr = map_memory<data_t>(src);
     auto diff_dst_ptr = map_memory<data_t>(diff_dst);
     auto diff_src_ptr = map_memory<data_t>(diff_src);
 
-    const memory::dim MB = p.test_ld.mb;
+    const memory::dim N = p.test_ld.mb;
     const memory::dim C = p.test_ld.c;
     const memory::dim H = p.test_ld.h;
     const memory::dim W = p.test_ld.w;
-    const memory::dim local_size = p.test_ld.local_size;
-    auto padded_c = src.get_desc().data.padded_dims[1];
+    const auto padded_c = src.get_desc().data.padded_dims[1];
 
-    data_t *ref_diff_src_ptr = new data_t[MB * (padded_c)*H * W];
+    const float alpha = p.test_ld.alpha;
+    const float beta = p.test_ld.beta;
+    const memory::dim size = p.test_ld.local_size;
+    const memory::dim half_size = (size - 1) / 2;
+    const memory::dim summands = p.aalgorithm == algorithm::lrn_across_channels
+            ? size
+            : size * size;
+
+    data_t *ref_diff_src_ptr = new data_t[N * padded_c * H * W];
 
     const memory::desc src_d = src.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
@@ -148,82 +84,107 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         return ((n * padded_c + c) * H + h) * W + w;
     };
 
-    auto get_omega = [=](acc_data_t c_k, memory::dim kernel_size, float alpha,
-                             memory::dim C, const data_t *src, memory::dim n,
-                             memory::dim c, memory::dim h, memory::dim w) {
-        acc_data_t sum = 0.0;
+    auto get_omega = [&](memory::dim n, memory::dim oc, memory::dim oh,
+                             memory::dim ow) {
+        acc_data_t sum = 0;
 
-        memory::dim half_kernel_size = (kernel_size - 1) / 2;
-        memory::dim c_start = (c < half_kernel_size) ? 0 : c - half_kernel_size;
-        memory::dim c_end = c + kernel_size - half_kernel_size;
-        c_end = c_end < C ? c_end : C;
-        for (memory::dim i = c_start; i < c_end; ++i) {
-            acc_data_t value = src[src_mdw.off_l(off(n, i, h, w))];
-            sum += value * value;
+        if (p.aalgorithm == algorithm::lrn_across_channels) {
+            const memory::dim c_st = std::max(oc - half_size, (memory::dim)0);
+            const memory::dim c_en = std::min(oc + half_size + 1, C);
+
+            for (memory::dim c = c_st; c < c_en; ++c) {
+                acc_data_t s = src_ptr[src_mdw.off_l(off(n, c, oh, ow), true)];
+                sum += s * s;
+            }
+        } else if (p.aalgorithm == algorithm::lrn_within_channel) {
+            const memory::dim h_st = std::max(oh - half_size, (memory::dim)0);
+            const memory::dim h_en = std::min(oh + half_size + 1, H);
+            const memory::dim w_st = std::max(ow - half_size, (memory::dim)0);
+            const memory::dim w_en = std::min(ow + half_size + 1, W);
+
+            for (memory::dim h = h_st; h < h_en; ++h) {
+                for (memory::dim w = w_st; w < w_en; ++w) {
+                    acc_data_t s
+                            = src_ptr[src_mdw.off_l(off(n, oc, h, w), true)];
+                    sum += s * s;
+                }
+            }
         }
-        sum *= alpha / kernel_size;
-        return c_k + sum;
+
+        return (acc_data_t)(p.test_ld.k + p.test_ld.alpha * sum / summands);
     };
 
-    auto ker = [&](data_t *d, memory::dim mb, memory::dim oc, memory::dim oh,
+    auto ker = [&](data_t *d, memory::dim n, memory::dim oc, memory::dim oh,
                        memory::dim ow) {
-        const float alpha = p.test_ld.alpha;
-        const float beta = p.test_ld.beta;
-        const float k = p.test_ld.k;
-        const memory::dim kernel_size = p.test_ld.local_size;
-        memory::dim ks_start = kernel_size / 2 > oc ? kernel_size / 2 - oc : 0;
-        memory::dim ks_stop = C - oc <= kernel_size / 2
-                ? C - oc + kernel_size / 2
-                : kernel_size;
+        acc_data_t A = 0, B = 0;
 
-        acc_data_t A = 0, B = 0, omega_mid = 0;
+        if (p.aalgorithm == algorithm::lrn_across_channels) {
+            const memory::dim c_st = std::max(oc - half_size, (memory::dim)0);
+            const memory::dim c_en = std::min(oc + half_size + 1, C);
 
-        for (memory::dim ks = ks_start; ks < ks_stop; ks++) {
-            memory::dim _t = oc + ks - (kernel_size / 2);
-            acc_data_t omega = get_omega(static_cast<acc_data_t>(k),
-                    kernel_size, alpha, C, src_ptr, mb, _t, oh, ow);
+            for (memory::dim c = c_st; c < c_en; c++) {
+                const acc_data_t omega = get_omega(n, c, oh, ow);
+                const acc_data_t omega_in_beta
+                        = fast_inv_powf<acc_data_t>(omega, p.test_ld.beta);
+                const acc_data_t tmp = diff_dst_ptr[diff_dst_mdw.off_l(
+                                               off(n, c, oh, ow), true)]
+                        * omega_in_beta;
 
-            if (ks == kernel_size / 2)
-                omega_mid = omega;
+                if (c == oc)
+                    A = tmp;
 
-            acc_data_t t = src_ptr[src_mdw.off_l(off(mb, _t, oh, ow), true)]
-                    / powf((float)omega, (float)beta);
-            B += (1.0f / omega) * t
-                    * diff_dst_ptr[diff_dst_mdw.off_l(
-                              off(mb, _t, oh, ow), true)];
+                B += (src_ptr[src_mdw.off_l(off(n, c, oh, ow), true)] * tmp
+                        / omega);
+            }
+        } else if (p.aalgorithm == algorithm::lrn_within_channel) {
+            const memory::dim h_st = std::max(oh - half_size, (memory::dim)0);
+            const memory::dim h_en = std::min(oh + half_size + 1, H);
+            const memory::dim w_st = std::max(ow - half_size, (memory::dim)0);
+            const memory::dim w_en = std::min(ow + half_size + 1, W);
+
+            for (memory::dim h = h_st; h < h_en; h++)
+                for (memory::dim w = w_st; w < w_en; w++) {
+                    const acc_data_t omega = get_omega(n, oc, h, w);
+                    const acc_data_t omega_in_beta
+                            = fast_inv_powf<acc_data_t>(omega, p.test_ld.beta);
+                    const acc_data_t tmp = diff_dst_ptr[diff_dst_mdw.off_l(
+                                                   off(n, oc, h, w), true)]
+                            * omega_in_beta;
+
+                    if (h == oh && w == ow)
+                        A = tmp;
+
+                    B += (src_ptr[src_mdw.off_l(off(n, oc, h, w), true)] * tmp
+                            / omega);
+                }
         }
 
-        A = (1.0f / powf((float)omega_mid, (float)beta))
-                * diff_dst_ptr[diff_dst_mdw.off_l(off(mb, oc, oh, ow), true)];
-        B *= src_ptr[src_mdw.off_l(off(mb, oc, oh, ow), true)];
-        B *= (2.0f * alpha * beta) / kernel_size;
+        B *= src_ptr[src_mdw.off_l(off(n, oc, oh, ow), true)];
+        B *= (2.0f * alpha * beta / summands);
         *d = A - B;
     };
 
-    mkldnn::impl::parallel_nd(MB, C, H, W,
-            [&](memory::dim mb, memory::dim c, memory::dim h, memory::dim w) {
+    mkldnn::impl::parallel_nd(N, C, H, W,
+            [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
                 if (is_current_test_failed())
                     return;
 
                 ker(&ref_diff_src_ptr[diff_src_mdw.off_l(
-                            off(mb, c, h, w), true)],
-                        mb, c, h, w);
-                auto A = ref_diff_src_ptr[diff_src_mdw.off_l(
-                        off(mb, c, h, w), true)];
-                auto B = diff_src_ptr[diff_src_mdw.off_l(
-                        off(mb, c, h, w), true)];
-                acc_data_t eps = static_cast<acc_data_t>(1.e-6
-                        * ((2 * (2 * local_size + 3) + 6) * local_size
-                                  + (2 * local_size + 3) + 9));
+                            off(n, c, h, w), true)],
+                        n, c, h, w);
+                auto exp = ref_diff_src_ptr[diff_src_mdw.off_l(
+                        off(n, c, h, w), true)];
+                auto got = diff_src_ptr[diff_src_mdw.off_l(
+                        off(n, c, h, w), true)];
+                acc_data_t eps = static_cast<acc_data_t>(2e-6 * size * size);
                 memory::data_type data_type = data_traits<data_t>::data_type;
                 if (data_type == mkldnn::memory::data_type::bf16)
-                    eps = static_cast<acc_data_t>(1.e-3f
-                            * ((2 * (2 * local_size + 3) + 6) * local_size
-                                      + (2 * local_size + 3) + 9));
-                acc_data_t norm_max = (std::max)(fabs(A), fabs(B));
-                if (norm_max < eps)
-                    norm_max = 1.;
-                ASSERT_NEAR(A, B, eps * norm_max);
+                    eps = static_cast<acc_data_t>(1e-2 * size * size);
+                float diff = std::fabs(exp - got);
+                if (got > 1e-2) // rel_diff
+                    diff /= std::fabs(got);
+
+                ASSERT_NEAR(diff, 0.0, eps);
             });
 
     delete[] ref_diff_src_ptr;
@@ -248,11 +209,11 @@ private:
     engine eng;
     stream strm;
     memory::data_type data_type;
-    bool is_training;
 
 protected:
     virtual void SetUp() {
         data_type = data_traits<data_t>::data_type;
+
         SKIP_IF(data_type == memory::data_type::bf16
                 && get_test_engine_kind() == engine::kind::gpu,
                 "GPU does not support bf16 data type.");
@@ -261,6 +222,10 @@ protected:
                 "ISA does not support bf16 data type.");
 
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+
+        ASSERT_TRUE(p.aalgorithm == algorithm::lrn_across_channels
+                || p.aalgorithm == algorithm::lrn_within_channel);
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -286,11 +251,8 @@ protected:
         diff_dst_desc.reset(new memory::desc(
                 { ld.mb, ld.c, ld.h, ld.w }, data_type, p.diff_data_format));
 
-        is_training = p.aprop_kind == prop_kind::forward_training;
-
         Forward();
-        if (is_training)
-            Backward();
+        Backward();
     }
 
     void Forward() {
@@ -311,17 +273,11 @@ protected:
         auto l = lrn_forward(lrn_fwd_prim_desc);
         std::unordered_map<int, memory> args = { { MKLDNN_ARG_SRC, src->get() },
             { MKLDNN_ARG_DST, dst->get() } };
-        if (is_training) {
-            auto workspace_md = lrn_fwd_prim_desc.workspace_desc();
-            workspace = memory(workspace_md, eng);
-            args.insert({ MKLDNN_ARG_WORKSPACE, workspace });
-        }
+        auto workspace_md = lrn_fwd_prim_desc.workspace_desc();
+        workspace = memory(workspace_md, eng);
+        args.insert({ MKLDNN_ARG_WORKSPACE, workspace });
         l.execute(strm, args);
         strm.wait();
-
-        check_zero_tail<data_t>(0, dst->get());
-
-        check_lrn_fwd<data_t, float>(p, src->get(), dst->get());
     }
 
     void Backward() {
@@ -378,9 +334,6 @@ static auto EF_cases = [](algorithm lk) {
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, { -1, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f }, true,
                     mkldnn_invalid_arguments },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, -10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f }, true,
-                    mkldnn_invalid_arguments },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, { 2, 10, -4, 4, 5, 1.0e-4f, 0.75f, 3.0f }, true,
                     mkldnn_invalid_arguments });
@@ -390,55 +343,31 @@ static auto nChw16c_padded_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
                     fmt::nChw16c, { 2, 17, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 19, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 12, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
+                    fmt::nChw16c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
 };
 
 static auto nChw8c_padded_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 7, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 9, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 12, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
+                    fmt::nChw8c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
 };
 
 static auto cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 20, 12, 7, 7, 3, 1.0e-2f, 0.5f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 20, 12, 7, 7, 3, 1.0e-2f, 0.5f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 20, 12, 7, 7, 3, 1.0e-2f, 0.5f, 6.5f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 20, 12, 7, 7, 3, 1.0e-2f, 0.5f, 6.5f } });
+                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.0f } });
 };
 
 static auto NHWC_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
                     fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 3.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
                     fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 3.0f } });
 };
 
@@ -446,114 +375,47 @@ static auto nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 8, 1, 1, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 8, 1, 1, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 8, 1, 1, 5, 1.0e-4f, 0.75f, 2.2f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 8, 1, 1, 5, 1.0e-4f, 0.75f, 2.2f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 0.1f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 0.1f } });
+                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } });
 };
 
 static auto nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
                     fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 16, 1, 1, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 16, 1, 1, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 16, 1, 1, 5, 1.0e-4f, 0.75f, 2.2f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 16, 1, 1, 5, 1.0e-4f, 0.75f, 2.2f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 0.1f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 1, 32, 5, 5, 3, 1.0e-2f, 0.7f, 0.1f } });
+                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } });
 };
 
 static auto CaffeNCHW_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
                     fmt::nchw, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } });
 };
 
 static auto CaffeNHWC_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
                     fmt::nhwc, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } });
 };
 
 static auto Caffe_nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } });
 };
 
 static auto Caffe_nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
                     fmt::nChw16c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } });
 };
+
 static auto AlexnetNCHW_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
                     fmt::nchw, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
 
@@ -561,11 +423,7 @@ static auto AlexnetNHWC_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
                     fmt::nhwc, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nhwc,
                     fmt::nhwc, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
 
@@ -573,11 +431,7 @@ static auto Alexnet_nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
 
@@ -585,11 +439,7 @@ static auto Alexnet_nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
                     fmt::nChw16c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
                     fmt::nChw16c,
                     { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
@@ -598,11 +448,7 @@ static auto GoogleNetV1NCHW_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
-                    fmt::nchw, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nchw,
                     fmt::nchw, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
 
@@ -610,11 +456,7 @@ static auto GoogleNetV1_nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw8c,
                     fmt::nChw8c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
 
@@ -622,11 +464,7 @@ static auto GoogleNetV1_nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
                     fmt::nChw16c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
             lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_scoring, lk, fmt::nChw16c,
                     fmt::nChw16c,
                     { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
 };
@@ -676,7 +514,7 @@ using bfloat16_within = lrn_test<bfloat16_t>;
 INST_TEST_CASE(float_across, algorithm::lrn_across_channels)
 INST_TEST_CASE(bfloat16_across, algorithm::lrn_across_channels)
 
-//INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
-//INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
+INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
+INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
 
 } // namespace mkldnn

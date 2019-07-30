@@ -657,25 +657,13 @@ jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
                 this->getCode()));
 }
 
-template<>
+template <>
 jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
-    const struct nhwc_across &J,
-    float A,
-    float K,
-    prop_kind_t pk,
-    void *code_ptr,
-    size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , alpha(A), k(K)
-{
-    static const uint32_t mask[] = {
-        0, 0, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-        0xffffffff, 0xffffffff, 0xffffffff, 0, 0
-    };
+        const struct nhwc_across &J, float A, float K, prop_kind_t pk,
+        void *code_ptr, size_t code_size)
+    : jit_generator(code_ptr, code_size), alpha(A), k(K) {
 
-    static uint32_t store[] = {
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
+    static uint32_t store[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     Xbyak::Reg64 c = r9;
 
     Xbyak::Xmm xdst_lo = xmm0;
@@ -692,8 +680,7 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     Xbyak::Xmm xe_hi = xmm9;
     Xbyak::Xmm xsum_lo = xmm10;
     Xbyak::Xmm xsum_hi = xmm11;
-    Xbyak::Xmm xmask_lo = xmm12;
-    Xbyak::Xmm xmask_hi = xmm13;
+    // unused: xmm12, xmm13;
     Xbyak::Xmm xbase_lo = xmm14;
     Xbyak::Xmm xbase_hi = xmm15;
 
@@ -719,25 +706,27 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     xorps(xsum_lo, xsum_lo);
     xorps(xsum_hi, xsum_hi);
 
-    mov(imm_addr64, reinterpret_cast<size_t>(&mask[0]));
-    movups(xmask_lo, ptr[imm_addr64]);
-    movups(xmask_hi, ptr[imm_addr64 + 4 * sizeof(float)]);
-    movups(xa_lo, ptr[src - 8]);
-    movups(xa_hi, ptr[src - 8 + 4 * sizeof(float)]);
-    andps(xa_lo, xmask_lo);
-    andps(xa_hi, xmask_hi);
+    /* load the 2 first blocks of channels
+     * block:         | -- low -- | -- hi --  |
+     * C:             [c1,c2,c3,c4,c5,c6,c7,c8]
+     * xa_lo << 2 [0,0,c1,c2]
+     * xa_hi                [c3,c4,c5,c6]
+     * xb_lo << 1   [0,c1,c2,c3]
+     * xb_hi                   [c4,c5,c6,c7]
+     *                | --  data  --     (...)
+     *                ^ memory boundary
+     */
+    movups(xa_lo, ptr[src]);
+    movups(xa_hi, ptr[src + 2 * sizeof(float)]);
+    pslldq(xa_lo, 2 * sizeof(float));
     mulps(xa_lo, xa_lo);
     mulps(xa_hi, xa_hi);
     addps(xsum_lo, xa_lo);
     addps(xsum_hi, xa_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
 
-    mov(imm_addr64, reinterpret_cast<size_t>(&mask[1]));
-    movups(xmask_lo, ptr[imm_addr64]);
-    movups(xmask_hi, ptr[imm_addr64 + 4 * sizeof(float)]);
-    movups(xb_lo, ptr[src - 4]);
-    movups(xb_hi, ptr[src - 4 + 4 * sizeof(float)]);
-    andps(xb_lo, xmask_lo);
-    andps(xb_hi, xmask_hi);
+    movups(xb_lo, ptr[src]);
+    movups(xb_hi, ptr[src + 3 * sizeof(float)]);
+    pslldq(xb_lo, 1 * sizeof(float));
     mulps(xb_lo, xb_lo);
     mulps(xb_hi, xb_hi);
     addps(xsum_lo, xb_lo);
@@ -821,6 +810,17 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     cmp(c, 0);
     jne(lrn_loop, T_NEAR);
 
+    /* compute last 3 blocks of channels:
+     * block:       | -- low -- | -- hi --  |
+     * C:           [c1,c2,c3,c4,c5,c6,c7,c8]
+     * xc_lo|xc_hi  [c1,c2,c3,c4|c5,c6,c7,c8]
+     * xd_lo           [c2,c3,c4,c5]
+     * xd_hi >> 1                  [c6,c7,c8, 0]
+     * xe_lo              [c3,c4,c5,c6]
+     * xe_hi >> 2                     [c7,c8, 0, 0]
+     *                  (...) --  data  --  | -- illegal reading -- (...)
+     *                                      ^ memory boundary
+     */
     movups(xc_lo, ptr[src]);
     movups(xc_hi, ptr[src + 4 * sizeof(float)]);
     mulps(xc_lo, xc_lo);
@@ -828,25 +828,17 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     addps(xsum_lo, xc_lo);
     addps(xsum_hi, xc_hi);
 
-    mov(imm_addr64, reinterpret_cast<size_t>(&mask[2]));
-    movups(xmask_lo, ptr[imm_addr64]);
-    movups(xmask_hi, ptr[imm_addr64 + 4 * sizeof(float)]);
-    movups(xd_lo, ptr[src + 4]);
-    movups(xd_hi, ptr[src + 4 + 4 * sizeof(float)]);
-    andps(xd_lo, xmask_lo);
-    andps(xd_hi, xmask_hi);
+    movups(xd_lo, ptr[src + 1 * sizeof(float)]);
+    movups(xd_hi, ptr[src + 4 * sizeof(float)]);
+    psrldq(xd_hi, 1 * sizeof(float));
     mulps(xd_lo, xd_lo);
     mulps(xd_hi, xd_hi);
     addps(xsum_lo, xd_lo);
     addps(xsum_hi, xd_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
 
-    mov(imm_addr64, reinterpret_cast<size_t>(&mask[3]));
-    movups(xmask_lo, ptr[imm_addr64]);
-    movups(xmask_hi, ptr[imm_addr64 + 4 * sizeof(float)]);
-    movups(xe_lo, ptr[src + 8]);
-    movups(xe_hi, ptr[src + 8 + 4 * sizeof(float)]);
-    andps(xe_lo, xmask_lo);
-    andps(xe_hi, xmask_hi);
+    movups(xe_lo, ptr[src + 2 * sizeof(float)]);
+    movups(xe_hi, ptr[src + 4 * sizeof(float)]);
+    psrldq(xe_hi, 2 * sizeof(float));
     mulps(xe_lo, xe_lo);
     mulps(xe_hi, xe_hi);
     addps(xsum_lo, xe_lo);
@@ -950,35 +942,35 @@ void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_tail_sse41(
     int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
 {}
 
-template<>
-void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_tail_sse41(
-    int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi)
-{
+template <>
+void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_tail_sse41(int tail,
+        Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi) {
     Xbyak::Xmm xmm_tmp = xmm10;
-    movaps(xmm_tmp, xtail_lo);
-    size_t offset = 0;
+    movaps(xmm_tmp, xtail_hi);
 
-    if (tail > 4) {
-        movups(ptr[reg_dst], xtail_lo);
-        movaps(xmm_tmp, xtail_hi);
-        offset += 4 * sizeof(float);
+    if (tail > 3) {
+        /* Store upper-half directly */
+        movups(ptr[reg_dst + (tail - 4) * sizeof(float)], xtail_hi);
+        movaps(xmm_tmp, xtail_lo);
         tail -= 4;
     }
-    movss(ptr[reg_dst + offset], xmm_tmp);
-    for (int i = 1; i < tail; i++)
-    {
-        psrldq(xmm_tmp, 4);
-        movss(ptr[reg_dst + offset + i * sizeof(float)], xmm_tmp);
+    if (tail > 0) {
+        /* Store on a single-element basis when 'tail' overlaps
+         * with 'src' */
+        psrldq(xmm_tmp, (4 - tail) * sizeof(float));
+        movss(ptr[reg_dst], xmm_tmp);
+
+        for (int i = 1; i < tail; i++) {
+            psrldq(xmm_tmp, sizeof(float));
+            movss(ptr[reg_dst + i * sizeof(float)], xmm_tmp);
+        }
     }
 }
 
-template<>
-void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_body_sse41(
-    int tail, int HW, prop_kind_t pk,
-    Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
-    Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
-    Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi)
-{
+template <>
+void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_body_sse41(int tail, int HW,
+        prop_kind_t pk, Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo,
+        Xbyak::Xmm xsum_hi) {
     Xbyak::Xmm xdst_lo = xmm0;
     Xbyak::Xmm xdst_hi = xmm1;
     Xbyak::Xmm xbase_lo = xmm6;
@@ -1078,12 +1070,10 @@ void jit_uni_lrn_fwd_kernel_f32<sse41>::nchw_body_sse41(
     movaps(ptr[store_addr + 9 * 4 * sizeof(float)], xe_hi);
 }
 
-template<>
-void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse41(
-    int tail, int HW, prop_kind_t pk,
-    Xbyak::Xmm xmask_lo, Xbyak::Xmm xmask_hi,
-    Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
-    Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi) {}
+template <>
+void jit_uni_lrn_fwd_kernel_f32<avx2>::nchw_body_sse41(int tail, int HW,
+        prop_kind_t pk, Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo,
+        Xbyak::Xmm xsum_hi) {}
 
 template<>
 jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
@@ -1179,25 +1169,42 @@ jit_uni_lrn_fwd_kernel_f32<avx2>::jit_uni_lrn_fwd_kernel_f32(
                 this->getCode()));
 }
 
-template<>
+template <>
 jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
-    struct nchw_across J,
-    float A,
-    float K,
-    prop_kind_t pk,
-    void* code_ptr,
-    size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , alpha(A), k(K)
-{
-    static const uint32_t mask[] = {
-        0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-        0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0
-    };
+        struct nchw_across J, float A, float K, prop_kind_t pk, void *code_ptr,
+        size_t code_size)
+    : jit_generator(code_ptr, code_size), alpha(A), k(K) {
+
+    /* Load from within the memory boundary of 'src' and apply a zero-mask to
+     * the 'x_hi' register:
+     *  block:       src  |tail = 3
+     *  src:      [x,x,x,x|a,b,c]
+     *  x_hi:           [x,a,b,c]
+     *  mask:           [0,1,1,1]
+     *      (...) --  data  --  | -- illegal reading -- (...)
+     *                          ^ memory boundary
+     *
+     * 'x_lo' is loaded with the elements between 'src' and 'x_hi' when
+     * tail.size is between [5:7]. The register is then left-shifted to
+     * clear the overlapping elements with 'x_hi'.
+     *  block: - src - |  tail = 7
+     *  src:  (...) [x,|a,b,c,d,e,f,g]
+     *  x_hi                 [d,e,f,g]
+     *  x_lo           [a,b,c,d]
+     *    x_lo >> 1: [0,a,b,c]
+     *           (...) --  data  --  | -- illegal reading -- (...)
+     *                               ^ memory boundary
+     *
+     *  - seg-fault happens if read occurs anywhere outside the
+     *  memory boundary.
+     * */
+    static const uint32_t mask[]
+            = { 0, 0, 0, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff };
+    assert(J.HW > 3);
 
     Xbyak::Reg64 c = r10;
 
-    Xbyak::Xmm xmask_lo = xmm2;
+    // unused: xmm2
     Xbyak::Xmm xmask_hi = xmm3;
     Xbyak::Xmm xsum_lo = xmm4;
     Xbyak::Xmm xsum_hi = xmm5;
@@ -1211,6 +1218,14 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     Xbyak::Xmm xd_hi = xmm13;
     Xbyak::Xmm xe_lo = xmm14;
     Xbyak::Xmm xe_hi = xmm15;
+
+    const int vlen = cpu_isa_traits<sse41>::vlen / sizeof(float);
+
+    bool compute_tail = J.tail != 0;
+    bool load_lo = J.tail == 0 || J.tail > 4;
+
+    size_t h_offset = vlen;
+    size_t l_shift = 0;
 
     this->preamble();
 
@@ -1235,11 +1250,16 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     movaps(ptr[store_addr + 0 * 4 * sizeof(float)], xalpha);
     movaps(ptr[store_addr + 1 * 4 * sizeof(float)], xk);
 
-    if (J.tail != 0)
-    {
-        mov(imm_addr64, reinterpret_cast<size_t>(&mask[7 - J.tail]));
-        movups(xmask_lo, ptr[imm_addr64]);
-        movups(xmask_hi, ptr[imm_addr64 + 4 * sizeof(float)]);
+    if(compute_tail){
+        assert(J.tail > 0 && J.tail < 2 * vlen);
+        h_offset = J.tail - vlen;
+        l_shift = nstl::min(2 * vlen - J.tail, vlen);
+
+        /* if 'tail' is between [1:3], need to zero-mask for underflow */
+        size_t m_off = nstl::min(J.tail - 1, 3);
+        mov(imm_addr64,
+                reinterpret_cast<size_t>(&mask[m_off]));
+        movups(xmask_hi, ptr[imm_addr64]);
     }
     // init xa, xb
     xorps(xa_lo, xa_lo);
@@ -1248,25 +1268,18 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     xorps(xb_hi, xb_hi);
 
     // read xc, xd
-    if (J.tail != 0) {
-        movups(xc_lo, ptr[src + J.HW * 0]);
-        movups(xc_hi, ptr[src + J.HW * 0 + 4 * sizeof(float)]);
-        andps(xc_lo, xmask_lo);
+    if (load_lo) movups(xc_lo, ptr[src + J.HW * 0]);
+    movups(xc_hi, ptr[src + J.HW * 0 + h_offset * sizeof(float)]);
+    if (compute_tail) {
+        pslldq(xc_lo, l_shift * sizeof(float));
         andps(xc_hi, xmask_hi);
     }
-    else {
-        movups(xc_lo, ptr[src + J.HW * 0]);
-        movups(xc_hi, ptr[src + J.HW * 0 + 4 * sizeof(float)]);
-    }
-    if (J.tail != 0) {
-        movups(xd_lo, ptr[src + J.HW * 4]);
-        movups(xd_hi, ptr[src + J.HW * 4 + 4 * sizeof(float)]);
-        andps(xd_lo, xmask_lo);
+
+    if (load_lo) movups(xd_lo, ptr[src + J.HW * 4]);
+    movups(xd_hi, ptr[src + J.HW * 4 + h_offset * sizeof(float)]);
+    if (compute_tail) {
+        pslldq(xd_lo, l_shift * sizeof(float));
         andps(xd_hi, xmask_hi);
-    }
-    else {
-        movups(xd_lo, ptr[src + J.HW * 4]);
-        movups(xd_hi, ptr[src + J.HW * 4 + 4 * sizeof(float)]);
     }
 
     // put xa, xb, xc, xd into store to free-up regs
@@ -1294,20 +1307,14 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     Label lrn_loop;
     L(lrn_loop);
 
-    if (J.tail != 0) {
-        movups(xe_lo, ptr[src + J.HW * 8]);
-        movups(xe_hi, ptr[src + J.HW * 8 + 4 * sizeof(float)]);
-        andps(xe_lo, xmask_lo);
+    if (load_lo) movups(xe_lo, ptr[src + J.HW * 8]);
+    movups(xe_hi, ptr[src + J.HW * 8 + h_offset * sizeof(float)]);
+    if (compute_tail) {
+        pslldq(xe_lo, l_shift * sizeof(float));
         andps(xe_hi, xmask_hi);
     }
-    else {
-        movups(xe_lo, ptr[src + J.HW * 8]);
-        movups(xe_hi, ptr[src + J.HW * 8 + 4 * sizeof(float)]);
-    }
 
-    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
-        xe_lo, xe_hi,
-        xsum_lo, xsum_hi);
+    nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
 
     add(src, J.HW * 4);
     add(dst, J.HW * 4);
@@ -1320,17 +1327,13 @@ jit_uni_lrn_fwd_kernel_f32<sse41>::jit_uni_lrn_fwd_kernel_f32(
     xorps(xe_lo, xe_lo);
     xorps(xe_hi, xe_hi);
 
-    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
-        xe_lo, xe_hi,
-        xsum_lo, xsum_hi);
+    nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
     add(src, J.HW * 4);
     add(dst, J.HW * 4);
     if (pk != prop_kind::forward_inference)
         add(scratch, J.HW * 4);
 
-    nchw_body_sse41(J.tail, J.HW, pk, xmask_lo, xmask_hi,
-        xe_lo, xe_hi,
-        xsum_lo, xsum_hi);
+    nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
 
     add(rsp, stack_space_needed);
 

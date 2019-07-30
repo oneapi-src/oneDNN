@@ -18,9 +18,10 @@
 #define JIT_REF_RNN_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 
 #include "ocl/jit_primitive_conf.hpp"
-#include "ocl/rnn_utils.hpp"
+#include "ocl/rnn/rnn_utils.hpp"
 
 #define DEBUGPRINT 0
 #if DEBUGPRINT
@@ -163,104 +164,109 @@ struct jit_ref_rnn_kernel {
         return status::success;
     };
 
-    static status_t init_const_def(ocl_jit_t &jit, const jit_rnn_conf_t &jrnn,
-            const jit_rnn_offsets &jit_off) {
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            const jit_rnn_conf_t &jrnn, const jit_rnn_offsets &jit_off) {
 
-        jit.set_data_type(jrnn.src_dt);
+        kernel_ctx.set_data_type(jrnn.src_dt);
 
-        jit.define_int("IS_FWD", jrnn.is_fwd);
-        jit.define_int("WITH_BIAS", jrnn.with_bias);
-        jit.define_int("WITH_SRC_ITER", jrnn.with_src_iter);
-        jit.define_int("WITH_SRC_ITER_C", jrnn.with_src_iter_c);
-        jit.define_int("WITH_DST_ITER", jrnn.with_dst_iter);
-        jit.define_int("WITH_DST_ITER_C", jrnn.with_dst_iter_c);
-        jit.define_int("IS_LBR", jrnn.is_lbr);
+        kernel_ctx.define_int("IS_FWD", jrnn.is_fwd);
+        kernel_ctx.define_int("WITH_BIAS", jrnn.with_bias);
+        kernel_ctx.define_int("WITH_SRC_ITER", jrnn.with_src_iter);
+        kernel_ctx.define_int("WITH_SRC_ITER_C", jrnn.with_src_iter_c);
+        kernel_ctx.define_int("WITH_DST_ITER", jrnn.with_dst_iter);
+        kernel_ctx.define_int("WITH_DST_ITER_C", jrnn.with_dst_iter_c);
+        kernel_ctx.define_int("IS_LBR", jrnn.is_lbr);
 
-        jit.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
-        jit.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
-        jit.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
-        jit.define_int("LBR_GRU",
-                alg_kind::lbr_gru);
-        jit.define_int("CELL_KIND", jrnn.cell_kind);
+        kernel_ctx.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
+        kernel_ctx.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
+        kernel_ctx.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
+        kernel_ctx.define_int("LBR_GRU", alg_kind::lbr_gru);
+        kernel_ctx.define_int("CELL_KIND", jrnn.cell_kind);
 
-        jit.define_int("ELTWISE_RELU", alg_kind::eltwise_relu);
-        jit.define_int("ELTWISE_TANH", alg_kind::eltwise_tanh);
-        jit.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
-        jit.define_int("ACTIVATION_KIND", jrnn.activation_kind);
+        kernel_ctx.define_int("ELTWISE_RELU", alg_kind::eltwise_relu);
+        kernel_ctx.define_int("ELTWISE_TANH", alg_kind::eltwise_tanh);
+        kernel_ctx.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
+        kernel_ctx.define_int("ACTIVATION_KIND", jrnn.activation_kind);
 
-        jit.define_int("L2R", mkldnn_unidirectional_left2right);
-        jit.define_int("R2L", mkldnn_unidirectional_right2left);
-        jit.define_int("CONCAT", mkldnn_bidirectional_concat);
-        jit.define_int("SUM", mkldnn_bidirectional_sum);
-        jit.define_int("UNIDEF", mkldnn_unidirectional);
-        jit.define_int("DIRECTION_KIND", jrnn.direction_kind);
+        kernel_ctx.define_int("L2R", mkldnn_unidirectional_left2right);
+        kernel_ctx.define_int("R2L", mkldnn_unidirectional_right2left);
+        kernel_ctx.define_int("CONCAT", mkldnn_bidirectional_concat);
+        kernel_ctx.define_int("SUM", mkldnn_bidirectional_sum);
+        kernel_ctx.define_int("UNIDEF", mkldnn_unidirectional);
+        kernel_ctx.define_int("DIRECTION_KIND", jrnn.direction_kind);
 
-        jit.define_int("BATCH", jrnn.batch);
-        jit.define_int("N_DIR", jrnn.n_dir);
-        jit.define_int("N_LAYER", jrnn.n_layer);
-        jit.define_int("N_ITER", jrnn.n_iter);
-        jit.define_int("N_GATES", jrnn.n_gates);
-        jit.define_int("N_BIAS", jrnn.n_bias);
-        jit.define_int("N_STATES", jrnn.n_states);
+        kernel_ctx.define_int("BATCH", jrnn.batch);
+        kernel_ctx.define_int("N_DIR", jrnn.n_dir);
+        kernel_ctx.define_int("N_LAYER", jrnn.n_layer);
+        kernel_ctx.define_int("N_ITER", jrnn.n_iter);
+        kernel_ctx.define_int("N_GATES", jrnn.n_gates);
+        kernel_ctx.define_int("N_BIAS", jrnn.n_bias);
+        kernel_ctx.define_int("N_STATES", jrnn.n_states);
 
-        jit.define_int("SLC", jrnn.slc);
-        jit.define_int("SIC", jrnn.sic);
-        jit.define_int("DIC", jrnn.dic);
-        jit.define_int("WIC", jrnn.wic);
+        kernel_ctx.define_int("SLC", jrnn.slc);
+        kernel_ctx.define_int("SIC", jrnn.sic);
+        kernel_ctx.define_int("DIC", jrnn.dic);
+        kernel_ctx.define_int("WIC", jrnn.wic);
 
-        jit.define_int("N_PARTS_WEI_ST", jrnn.n_parts_weights_iter);
-        jit.define_int("N_PARTS_WEI_I", jrnn.n_parts_weights_layer);
+        kernel_ctx.define_int("N_PARTS_WEI_ST", jrnn.n_parts_weights_iter);
+        kernel_ctx.define_int("N_PARTS_WEI_I", jrnn.n_parts_weights_layer);
 
-        def_offsets(jit_off.src_layer_off, jit, "SRC_L", jrnn.src_layer_ndims);
-        def_offsets(jit_off.src_iter_off, jit, "SRC_I", jrnn.src_iter_ndims);
+        def_offsets(jit_off.src_layer_off, kernel_ctx, "SRC_L",
+                jrnn.src_layer_ndims);
+        def_offsets(
+                jit_off.src_iter_off, kernel_ctx, "SRC_I", jrnn.src_iter_ndims);
         if (jrnn.with_src_iter_c)
-            def_offsets(jit_off.src_iter_c_off, jit, "SRC_I_C",
+            def_offsets(jit_off.src_iter_c_off, kernel_ctx, "SRC_I_C",
                     jrnn.src_iter_c_ndims);
-        def_offsets(jit_off.weights_layer_off, jit, "WEI_L",
+        def_offsets(jit_off.weights_layer_off, kernel_ctx, "WEI_L",
                 jrnn.weights_layer_ndims);
-        def_offsets(jit_off.weights_iter_off, jit, "WEI_I",
+        def_offsets(jit_off.weights_iter_off, kernel_ctx, "WEI_I",
                 jrnn.weights_iter_ndims);
-        def_offsets(jit_off.dst_layer_off, jit, "DST_L", jrnn.dst_layer_ndims);
-        def_offsets(jit_off.dst_iter_off, jit, "DST_I", jrnn.dst_iter_ndims);
+        def_offsets(jit_off.dst_layer_off, kernel_ctx, "DST_L",
+                jrnn.dst_layer_ndims);
+        def_offsets(
+                jit_off.dst_iter_off, kernel_ctx, "DST_I", jrnn.dst_iter_ndims);
         if (jrnn.with_dst_iter_c)
-            def_offsets(jit_off.dst_iter_c_off, jit, "DST_I_C",
+            def_offsets(jit_off.dst_iter_c_off, kernel_ctx, "DST_I_C",
                     jrnn.dst_iter_c_ndims);
-        def_offsets(jit_off.bias_off, jit, "BIAS", jrnn.bias_ndims);
+        def_offsets(jit_off.bias_off, kernel_ctx, "BIAS", jrnn.bias_ndims);
 
         if (!jrnn.is_fwd) {
-            def_offsets(jit_off.diff_src_layer_off, jit, "DIFF_SRC_L",
+            def_offsets(jit_off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
                     jrnn.diff_src_layer_ndims);
-            def_offsets(jit_off.diff_src_iter_off, jit, "DIFF_SRC_I",
+            def_offsets(jit_off.diff_src_iter_off, kernel_ctx, "DIFF_SRC_I",
                     jrnn.diff_src_iter_ndims);
             if (jrnn.with_src_iter_c)
-                def_offsets(jit_off.diff_src_iter_c_off, jit, "DIFF_SRC_I_C",
-                        jrnn.diff_src_iter_c_ndims);
-            def_offsets(jit_off.diff_weights_layer_off, jit, "DIFF_WEI_L",
-                    jrnn.diff_weights_layer_ndims);
-            def_offsets(jit_off.diff_weights_iter_off, jit, "DIFF_WEI_I",
+                def_offsets(jit_off.diff_src_iter_c_off, kernel_ctx,
+                        "DIFF_SRC_I_C", jrnn.diff_src_iter_c_ndims);
+            def_offsets(jit_off.diff_weights_layer_off, kernel_ctx,
+                    "DIFF_WEI_L", jrnn.diff_weights_layer_ndims);
+            def_offsets(jit_off.diff_weights_iter_off, kernel_ctx, "DIFF_WEI_I",
                     jrnn.diff_weights_iter_ndims);
-            def_offsets(jit_off.diff_dst_layer_off, jit, "DIFF_DST_L",
+            def_offsets(jit_off.diff_dst_layer_off, kernel_ctx, "DIFF_DST_L",
                     jrnn.diff_dst_layer_ndims);
-            def_offsets(jit_off.diff_dst_iter_off, jit, "DIFF_DST_I",
+            def_offsets(jit_off.diff_dst_iter_off, kernel_ctx, "DIFF_DST_I",
                     jrnn.diff_dst_iter_ndims);
             if (jrnn.with_dst_iter_c)
-                def_offsets(jit_off.diff_dst_iter_c_off, jit, "DIFF_DST_I_C",
-                        jrnn.diff_dst_iter_c_ndims);
-            def_offsets(jit_off.diff_bias_off, jit, "DIFF_BIAS",
+                def_offsets(jit_off.diff_dst_iter_c_off, kernel_ctx,
+                        "DIFF_DST_I_C", jrnn.diff_dst_iter_c_ndims);
+            def_offsets(jit_off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
                     jrnn.diff_bias_ndims);
         }
 
-        jit.define_int("WS_GATES_OFFSET", jrnn.ws_gates_offset);
-        jit.define_int("WS_STATES_OFFSET", jrnn.ws_states_offset);
-        jit.define_int("WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
-        jit.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
-        jit.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
+        kernel_ctx.define_int("WS_GATES_OFFSET", jrnn.ws_gates_offset);
+        kernel_ctx.define_int("WS_STATES_OFFSET", jrnn.ws_states_offset);
+        kernel_ctx.define_int("WS_C_STATE_OFFSET", jrnn.ws_c_state_offset);
+        kernel_ctx.define_int(
+            "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
+        kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
+        kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
+        kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
+        kernel_ctx.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
+        kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
 
-        jit.define_int("STATES_WS_LD", jrnn.states_ws_ld);
-        jit.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
-        jit.define_int("DEBUGPRINT", DEBUGPRINT);
-
-        DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n", jit.get_options());
+        DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n",
+                kernel_ctx.get_options());
 
         return status::success;
     }

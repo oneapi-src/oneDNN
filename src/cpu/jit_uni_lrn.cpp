@@ -161,10 +161,16 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 
     dat_tag_ = memory_desc_matches_one_of_tag(*src_md(), nChw8c, nchw, nhwc);
 
+    const int HW = data_d.dims()[2] * data_d.dims()[3];
+
     bool args_ok_across = true
         && desc()->alg_kind == lrn_across_channels
         && desc()->local_size == 5
-        && one_of(dat_tag_, nChw8c, nchw, nhwc);
+        && one_of(dat_tag_, nChw8c, nchw, nhwc)
+        /* SSE41: prevent loads smaller than the size of xmm registers,
+         * otherwise it will result in an illegal memory read (seg-fault)
+         * due to protected memory. */
+        && IMPLICATION(isa == sse41 && dat_tag_ == nchw, HW >= 4);
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
     bool args_ok_within = true

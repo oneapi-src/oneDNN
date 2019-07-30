@@ -40,8 +40,10 @@ struct wino_reorder_t : public cpu_primitive_t {
             bool args_ok = true
                 && id.data_type() == type_i
                 && od.data_type() == type_o
-                && id.matches_tag(utils::pick(id.ndims() - 4,
-                            format_tag::oihw, format_tag::goihw))
+                && (id.matches_tag(utils::pick(id.ndims() - 4,
+                           format_tag::oihw, format_tag::goihw)) ||
+                    id.matches_tag(utils::pick(id.ndims() - 4,
+                           format_tag::hwio, format_tag::hwigo)))
                 && od.format_kind() == format_kind::wino
                 && utils::one_of(od.wino_desc().wino_format,
                         mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
@@ -161,34 +163,63 @@ private:
         else if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
             g = (float *)G_4x4_3x3;
         else {
-            assert("Unknown winograd weights target layout");
+            assert(!"Unknown winograd weights target layout");
             return;
         }
 
-        int Z = oc_ * ic_;
+        const bool has_oihw_format = false
+            || src_d.matches_tag(format_tag::oihw)
+            || src_d.matches_tag(format_tag::goihw);
+
+        const int Z = oc_ * ic_;
+        const int or_ioc_ = or_ic_ * or_oc_;
         assert(r_ == kh_ && r_ == kw_);
 
         for (int iic = 0; iic < ic_; iic++) {
         for (int ob = 0; ob < nb_oc_; ob++) {
-            const in_data_t *__restrict _inp
-                    = input + (ob * oc_block_ * or_ic_ + iic) * kh_ * kw_;
+
+            const in_data_t *__restrict _inp = has_oihw_format
+                    ? input + (ob * oc_block_ * or_ic_ + iic) * kh_ * kw_
+                    : input + iic * or_oc_ + ob * oc_block_;
             out_data_t *__restrict _out
                     = tmp_wei + (iic * nb_oc_ + ob) * oc_block_;
 
             parallel_nd(size_wspace_, [&](int i) { wspace[i] = 0.f; });
 
-            parallel_nd(r_, w_alpha_, oc_block_,
-                [&](int ih, int j, int ioc) {
-                for (int iw = 0; iw < r_; ++iw) {
-                    int inp_oc = ob * oc_block_ + ioc;
-                    int inp_ic = iic;
-                    in_data_t inp_v = (inp_ic < or_ic_ && inp_oc < or_oc_)
-                        ? _inp[ioc * or_ic_ * kh_ * kw_ + ih * kw_ + iw]
-                        : 0.f;
-                    wspace[(ih * w_alpha_ + j) * oc_block_ + ioc]
-                            += inp_v * g[j * r_ + iw];
-                }
-            });
+            if (has_oihw_format) {
+                parallel_nd(r_, w_alpha_, oc_block_,
+                    [&](int ih, int j, int ioc) {
+                    for (int iw = 0; iw < r_; ++iw) {
+                        int inp_oc = ob * oc_block_ + ioc;
+                        int inp_ic = iic;
+                        in_data_t inp_v = (inp_ic < or_ic_ && inp_oc < or_oc_)
+                            ? _inp[ioc * or_ic_ * kh_ * kw_ + ih * kw_ + iw]
+                            : 0.f;
+                        wspace[(ih * w_alpha_ + j) * oc_block_ + ioc]
+                                += inp_v * g[j * r_ + iw];
+                    }
+                });
+            } else { // hwio format case
+                parallel_nd(r_, w_alpha_,
+                    [&](int ih, int j) {
+                    for (int iw = 0; iw < kw_; ++iw) {
+                        const float g_multiplier = g[j * r_ + iw];
+                        const in_data_t *__restrict inp_base = _inp
+                            + or_ioc_ * (iw + ih * kw_);
+                        in_data_t *__restrict wspace_base = wspace
+                            + (ih * w_alpha_ + j) * oc_block_;
+
+                        for (int ioc = 0; ioc < oc_block_; ++ioc) {
+                            int inp_oc = ob * oc_block_ + ioc;
+                            int inp_ic = iic;
+                            in_data_t inp_v = (inp_ic < or_ic_
+                                && inp_oc < or_oc_) ? inp_base[ioc] : 0.f;
+
+                            wspace_base[ioc] += inp_v * g_multiplier;
+                        }
+                    }
+                });
+            }
 
             parallel_nd(w_alpha_, w_alpha_, oc_block_,
                 [&](int i, int j, int ioc) {
@@ -352,7 +383,7 @@ private:
             reorder_to_aaOBiOo(output, tmp_wei); break;
         case mkldnn_wino_wei_OBaaIBOIio:
             reorder_to_OBaaIBOIio(output, tmp_wei); break;
-        default: assert("Unknown wino format"); break;
+        default: assert(!"Unknown wino format"); break;
         }
 
         return status::success;

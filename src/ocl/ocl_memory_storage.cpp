@@ -37,7 +37,7 @@ ocl_memory_storage_t::ocl_memory_storage_t(engine_t *engine, unsigned flags,
     if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0)) {
         return;
     }
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     cl_int err;
     if (flags & memory_flags_t::alloc) {
         cl_mem mem_object_ptr = clCreateBuffer(
@@ -75,7 +75,7 @@ status_t ocl_memory_storage_t::map_data(void **mapped_ptr) const {
         map_flags |= CL_MAP_WRITE;
     }
 
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine());
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     auto *service_stream
             = utils::downcast<ocl_stream_t *>(ocl_engine->service_stream());
 
@@ -90,7 +90,7 @@ status_t ocl_memory_storage_t::unmap_data(void *mapped_ptr) const {
     if (!mapped_ptr)
         return status::success;
 
-    auto *ocl_engine = utils::downcast<ocl_engine_t *>(engine());
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     auto *service_stream
             = utils::downcast<ocl_stream_t *>(ocl_engine->service_stream());
     auto service_queue = service_stream->queue();

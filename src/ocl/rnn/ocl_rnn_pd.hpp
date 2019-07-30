@@ -23,7 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "ocl/ocl_engine.hpp"
-#include "rnn_utils.hpp"
+#include "ocl/rnn/rnn_utils.hpp"
 
 namespace mkldnn {
 namespace impl {

@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl_shuffle_pd.hpp"
 
@@ -73,20 +74,20 @@ struct jit_ref_shuffle_kernel {
         return status::success;
     }
 
-    static status_t init_const_def(ocl_jit_t &jit,
-        const jit_shuffle_conf_t &jshfl, const jit_offsets &jit_off) {
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            const jit_shuffle_conf_t &jshfl, const jit_offsets &jit_off) {
 
-        jit.set_data_type(jshfl.data_type);
-        jit.define_int("NDIMS", jshfl.ndims);
-        jit.define_int("AXIS", jshfl.axis);
-        jit.define_int("AXIS_SIZE", jshfl.axis_size);
-        jit.define_int("GROUP_SIZE", jshfl.group_size);
-        jit.define_int("TRANSPOSE_ROW", jshfl.transpose_row);
-        jit.define_int("TRANSPOSE_COL", jshfl.transpose_col);
-        jit.define_int("INNER_SIZE", jshfl.inner_size);
-        jit.define_int("OUTER_SIZE", jshfl.outer_size);
+        kernel_ctx.set_data_type(jshfl.data_type);
+        kernel_ctx.define_int("NDIMS", jshfl.ndims);
+        kernel_ctx.define_int("AXIS", jshfl.axis);
+        kernel_ctx.define_int("AXIS_SIZE", jshfl.axis_size);
+        kernel_ctx.define_int("GROUP_SIZE", jshfl.group_size);
+        kernel_ctx.define_int("TRANSPOSE_ROW", jshfl.transpose_row);
+        kernel_ctx.define_int("TRANSPOSE_COL", jshfl.transpose_col);
+        kernel_ctx.define_int("INNER_SIZE", jshfl.inner_size);
+        kernel_ctx.define_int("OUTER_SIZE", jshfl.outer_size);
 
-        def_offsets(jit_off.src_off, jit, "SRC", jshfl.ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", jshfl.ndims);
         return status::success;
     }
 

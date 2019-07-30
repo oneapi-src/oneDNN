@@ -17,3 +17,6 @@
 --dir=FWD_D,BWD_D
 --dt=f32
 --tag=nChw4c,nChw16c --axis=1 1x12x56x56 1x24x56x56 1x36x56x56 1x68x56x56
+
+# bf16
+--batch=test_shuffle_bfloat16

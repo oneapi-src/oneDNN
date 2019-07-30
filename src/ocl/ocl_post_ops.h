@@ -17,87 +17,117 @@
 #ifndef OCL_POST_OPS_H
 #define OCL_POST_OPS_H
 
-DATA_T relu_fwd(DATA_T s, DATA_T alpha) {
+POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return s > 0 ? s : s * alpha;
 }
-DATA_T relu_bwd(DATA_T dd, DATA_T s, DATA_T alpha) {
+POST_OP_DATA_T relu_bwd(
+        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return s > 0 ? dd : dd * alpha;
 }
 
-DATA_T linear_fwd(DATA_T s, DATA_T alpha, DATA_T beta) {
+POST_OP_DATA_T linear_fwd(
+        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
     return alpha * s + beta;
 }
-DATA_T linear_bwd(DATA_T dd, DATA_T alpha) {
+POST_OP_DATA_T linear_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T alpha) {
     return dd * alpha;
 }
 
-DATA_T bounded_relu_fwd(DATA_T s, DATA_T alpha) {
+POST_OP_DATA_T bounded_relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     s = s > 0 ? s : 0;
     return s > alpha ? alpha : s;
 }
-DATA_T bounded_relu_bwd(DATA_T dd, DATA_T s, DATA_T alpha) {
+POST_OP_DATA_T bounded_relu_bwd(
+        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return dd * (0 < s && s < alpha ? 1 : 0);
 }
 
-DATA_T soft_relu_fwd(DATA_T s) {
+POST_OP_DATA_T soft_relu_fwd(POST_OP_DATA_T s) {
     return s < log(DATA_MAX) ? log1p(exp(s)) : s;
 }
-DATA_T soft_relu_bwd(DATA_T dd, DATA_T s) {
+POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd / (1 + exp(-s));
 }
 
-DATA_T logistic_fwd(DATA_T s) {
+POST_OP_DATA_T logistic_fwd(POST_OP_DATA_T s) {
     return 1 / (1 + exp(-s));
 }
-DATA_T logistic_bwd(DATA_T dd, DATA_T s) {
-    DATA_T v = logistic_fwd(s);
+POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    POST_OP_DATA_T v = logistic_fwd(s);
     return dd * v * (1 - v);
 }
 
-DATA_T square_fwd(DATA_T s){
-    return s*s;
+POST_OP_DATA_T square_fwd(POST_OP_DATA_T s) {
+    return s * s;
 }
-DATA_T square_bwd(DATA_T dd, DATA_T s){
-    return dd * 2*s;
+POST_OP_DATA_T square_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    return dd * 2 * s;
 }
 
-DATA_T sqrt_fwd(DATA_T s){
+POST_OP_DATA_T sqrt_fwd(POST_OP_DATA_T s) {
     return s > 0 ? (sqrt(s)) : 0;
 }
-DATA_T sqrt_bwd(DATA_T dd, DATA_T s){
-    return s > 0 ?  dd / (2 * sqrt(s)) : 0;
+POST_OP_DATA_T sqrt_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    return s > 0 ? dd / (2 * sqrt(s)) : 0;
 }
 
-DATA_T abs_fwd(DATA_T s){
+POST_OP_DATA_T abs_fwd(POST_OP_DATA_T s) {
     return s > 0 ? s : -s;
 }
-DATA_T abs_bwd(DATA_T dd, DATA_T s){
+POST_OP_DATA_T abs_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return s > 0 ? dd : s < 0 ? -dd : 0;
 }
 
-DATA_T tanh_fwd(DATA_T s){
+POST_OP_DATA_T tanh_fwd(POST_OP_DATA_T s) {
     return tanh(s);
 }
-DATA_T tanh_bwd(DATA_T dd, DATA_T s){
-    DATA_T e = tanh_fwd(s);
+POST_OP_DATA_T tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    POST_OP_DATA_T e = tanh_fwd(s);
     return dd * (1 - e) * (1 + e);
 }
 
-DATA_T elu_fwd(DATA_T s, DATA_T alpha){
-    return s > 0 ? s :  alpha * expm1(s);
+POST_OP_DATA_T elu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+    return s > 0 ? s : alpha * expm1(s);
 }
-DATA_T elu_bwd(DATA_T dd, DATA_T s, DATA_T alpha){
-    return  dd * (s > 0 ? 1 : alpha * exp(s));
+POST_OP_DATA_T elu_bwd(
+        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+    return dd * (s > 0 ? 1 : alpha * exp(s));
 }
 
-DATA_T exp_fwd(DATA_T s) {
+POST_OP_DATA_T exp_fwd(POST_OP_DATA_T s) {
     return exp(s);
 }
-DATA_T exp_bwd(DATA_T dd, DATA_T s) {
+POST_OP_DATA_T exp_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd * exp_fwd(s);
 }
 
-DATA_T fwd_eltwise(DATA_T x, DATA_T alpha_, DATA_T beta_) {
+POST_OP_DATA_T gelu_fwd(POST_OP_DATA_T s) {
+    const float a = 0.797884;
+    const float b = 0.044715;
+    const float g = a * s * (1.0f + b * s * s);
+    return (0.5f * s * (1.0f + tanh_fwd(g)));
+}
+POST_OP_DATA_T gelu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    const float a = 0.797884;
+    const float b = 0.044715;
+    const float g = a * s * (1.0f + b * s * s);
+    const float dg = a * (1.0f + 3.0f * b * s * s);
+    return dd
+            * (0.5f * (1.0f + tanh_fwd(g))
+                    * (1.0f + s * (1.0f - tanh_fwd(g)) * dg));
+}
+
+POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+    return s / (1.0f + exp(-alpha * s));
+}
+POST_OP_DATA_T swish_bwd(
+        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+    POST_OP_DATA_T v = logistic_fwd(alpha * s);
+    return dd * (v + s * alpha * v * (1.0f - v));
+}
+
+POST_OP_DATA_T fwd_eltwise(
+        POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
     case RELU: return relu_fwd(x, alpha_); break;
@@ -111,6 +141,8 @@ DATA_T fwd_eltwise(DATA_T x, DATA_T alpha_, DATA_T beta_) {
     case SQRT: return sqrt_fwd(x); break;
     case ABS: return abs_fwd(x); break;
     case EXP: return exp_fwd(x); break;
+    case GELU: return gelu_fwd(x); break;
+    case SWISH: return swish_fwd(x, alpha_); break;
     default: return x; break;
     }
 #else
@@ -118,7 +150,8 @@ DATA_T fwd_eltwise(DATA_T x, DATA_T alpha_, DATA_T beta_) {
 #endif
 }
 
-DATA_T bwd_eltwise(DATA_T x, DATA_T y, DATA_T alpha_) {
+POST_OP_DATA_T bwd_eltwise(
+        POST_OP_DATA_T x, POST_OP_DATA_T y, POST_OP_DATA_T alpha_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
     case RELU: return relu_bwd(x, y, alpha_); break;
@@ -132,6 +165,8 @@ DATA_T bwd_eltwise(DATA_T x, DATA_T y, DATA_T alpha_) {
     case SQRT: return sqrt_bwd(x, y); break;
     case ABS: return abs_bwd(x, y); break;
     case EXP: return exp_bwd(x, y); break;
+    case GELU: return gelu_bwd(x, y); break;
+    case SWISH: return swish_bwd(x, y, alpha_); break;
     default: return x; break;
     }
 #else

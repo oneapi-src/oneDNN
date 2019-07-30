@@ -47,7 +47,7 @@ endif()
 if(NOT MKLDNN_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present in the
     # library
-    message(STATUS "Intel\r VTune\t Amplifier JIT profiling disabled")
+    message(STATUS "Intel(R) VTune(TM) Amplifier JIT profiling disabled")
     add_definitions(-DMKLDNN_ENABLE_JIT_PROFILING=0)
 elseif(UNIX AND NOT APPLE)
     # Not every compiler adds -ldl automatically
@@ -78,8 +78,8 @@ endif()
 add_library(${LIB_NAME}
     ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${${LIB_NAME}_SUB_OBJS})
 
-set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${PROJECT_VERSION}.0")
-set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "0")
+set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${MKLDNN_VERSION_MAJOR}.${MKLDNN_VERSION_MINOR}")
+set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${MKLDNN_VERSION_MAJOR}")
 set_property(TARGET ${LIB_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
 target_include_directories(${LIB_NAME} PUBLIC

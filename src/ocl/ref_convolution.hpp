@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 
+#include "compute/compute.hpp"
 #include "ocl/ocl_convolution_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ref_convolution_kernel.hpp"
@@ -36,17 +37,20 @@ struct ref_convolution_fwd_t: public primitive_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
 
         status_t init() {
-            const auto *cl_engine = utils::downcast<cl_engine_t *>(engine());
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
-                && utils::one_of(desc()->prop_kind,
-                        prop_kind::forward_training,
-                        prop_kind::forward_inference)
-                && desc()->alg_kind == alg_kind::convolution_direct
-                && IMPLICATION(utils::one_of(data_type::f16,
-                            src_md_.data_type, weights_md_.data_type,
-                            dst_md_.data_type),
-                        cl_engine->mayiuse(cl_device_ext_t::khr_fp16))
-                && this->set_default_formats();
+                    && utils::one_of(desc()->prop_kind,
+                               prop_kind::forward_training,
+                               prop_kind::forward_inference)
+                    && desc()->alg_kind == alg_kind::convolution_direct
+                    && IMPLICATION(
+                               utils::one_of(data_type::f16, src_md_.data_type,
+                                       weights_md_.data_type,
+                                       dst_md_.data_type),
+                               compute_engine->mayiuse(
+                                       compute::device_ext_t::khr_fp16))
+                    && this->set_default_formats();
             if (!ok)
                 return status::unimplemented;
 
@@ -110,17 +114,18 @@ struct ref_convolution_fwd_t: public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_convolution_kernel);
-        auto status = pd()->kernel()->apply_const(jit, pd()->with_eltwise(),
-            pd()->with_sum(), pd()->eltwise_alg_kind());
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
+        auto status
+                = pd()->kernel()->apply_const(kernel_ctx, pd()->with_eltwise(),
+                        pd()->with_sum(), pd()->eltwise_alg_kind());
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_convolution_fwd_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_convolution_fwd_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -136,7 +141,7 @@ struct ref_convolution_fwd_t: public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_convolution_bwd_data_t: public primitive_t {
@@ -174,17 +179,17 @@ struct ref_convolution_bwd_data_t: public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_convolution_kernel);
-        auto status = pd()->kernel()->apply_const(jit, false, false,
-            mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
+        auto status = pd()->kernel()->apply_const(
+                kernel_ctx, false, false, mkldnn_alg_kind_undef);
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_convolution_bwd_data_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_convolution_bwd_data_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -200,7 +205,7 @@ struct ref_convolution_bwd_data_t: public primitive_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_convolution_bwd_weights_t: public primitive_t {
@@ -238,17 +243,17 @@ struct ref_convolution_bwd_weights_t: public primitive_t {
     };
 
     status_t init() override {
-        auto jit = ocl_jit_t(ref_convolution_kernel);
-        auto status = pd()->kernel()->apply_const(jit, false, false,
-            mkldnn_alg_kind_undef);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
+
+        auto status = pd()->kernel()->apply_const(
+                kernel_ctx, false, false, mkldnn_alg_kind_undef);
         if (status != status::success)
             return status;
 
-        status = jit.build(engine());
-        if (status != status::success)
-            return status;
-
-        kernel_ = jit.get_kernel("ref_convolution_bwd_weights_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "ref_convolution_bwd_weights_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -264,7 +269,7 @@ struct ref_convolution_bwd_weights_t: public primitive_t {
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 }

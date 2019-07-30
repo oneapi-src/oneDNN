@@ -20,6 +20,7 @@
 #include "memory_tracking.hpp"
 
 #include "cpu_concat_pd.hpp"
+#include "cpu_isa_traits.hpp"
 #include "cpu_primitive.hpp"
 
 namespace mkldnn {
@@ -45,6 +46,8 @@ struct simple_concat_t: public cpu_primitive_t {
         status_t init() {
             const memory_desc_wrapper dst_d(dst_md());
             bool ok = true
+                && IMPLICATION(data_type == data_type::bf16,
+                        mayiuse(avx512_core))
                 && cpu_concat_pd_t::init() == status::success
                 && dst_d.ndims() <= 6;
             if (!ok) return status::unimplemented;

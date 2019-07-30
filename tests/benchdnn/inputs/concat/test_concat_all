@@ -17,3 +17,6 @@
 6x48x3x4x5:6x32x3x4x5:6x16x3x4x5
 6x48x3x4x5:6x31x3x4x5:6x16x3x4x5
 6x47x3x4x5:6x33x3x4x5:6x15x3x4x5
+
+# bf16
+--batch=test_concat_bfloat16

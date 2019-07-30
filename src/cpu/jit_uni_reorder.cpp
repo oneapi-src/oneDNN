@@ -780,7 +780,12 @@ kernel_t *kernel_t::create(const kernel_t::desc_t &desc) {
 }
 
 static void prb_block_for_cache(tr::prb_t &prb) {
-    if (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16) {
+    const bool do_blocking = false
+        || (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16)
+        || (prb.ndims > 1 && prb.nodes[1].is % 64 == 0
+                && prb.nodes[1].n > 16);
+
+    if (do_blocking) {
         /** an attempt to use caches more efficient and
          * address the 4K-aliasing issue */
         /* TODO: improve the logic around here */

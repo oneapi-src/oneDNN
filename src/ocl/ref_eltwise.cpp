@@ -27,6 +27,9 @@ namespace ocl {
  * */
 
 status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
 
@@ -35,21 +38,21 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
 
     const auto &jel = pd()->jel_;
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, dst);
-    kernel_.set_arg(2, alpha);
-    kernel_.set_arg(3, beta);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, dst);
+    arg_list.set(2, alpha);
+    arg_list.set(3, beta);
 
-    auto nd_range = cl_nd_range_t(jel.gws_d);
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-    status_t status = executor.parallel_for(nd_range, kernel_);
-
-    return status;
+    auto nd_range = compute::nd_range_t(jel.gws_d);
+    return compute_stream->parallel_for(nd_range, kernel_, arg_list);
 }
 
 status_t ref_eltwise_bwd_t::execute_backward_dense(
         const exec_ctx_t &ctx) const {
+    compute::compute_stream_t *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
@@ -58,15 +61,14 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
 
     const auto &jel = pd()->jel_;
 
-    kernel_.set_arg(0, src);
-    kernel_.set_arg(1, diff_src);
-    kernel_.set_arg(2, diff_dst);
-    kernel_.set_arg(3, alpha);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, diff_src);
+    arg_list.set(2, diff_dst);
+    arg_list.set(3, alpha);
 
-    auto nd_range = cl_nd_range_t(jel.gws_d);
-    auto &executor
-            = *(utils::downcast<cl_stream_t *>(ctx.stream())->cl_executor());
-    status_t status = executor.parallel_for(nd_range, kernel_);
+    auto nd_range = compute::nd_range_t(jel.gws_d);
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
 }

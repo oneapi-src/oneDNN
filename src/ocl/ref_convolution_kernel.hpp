@@ -18,6 +18,7 @@
 #define REF_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -93,60 +94,61 @@ struct ref_convolution_kernel_t {
         return status::success;
     }
 
-    status_t apply_const(ocl_jit_t &jit, bool with_eltwise,
-        bool with_sum, alg_kind_t alg) const {
-        jit.define_int("NDIMS", conf_.ndims);
-        jit.define_int("G", conf_.ngroups);
-        jit.define_int("WITH_GROUPS", conf_.with_groups);
-        jit.define_int("MB", conf_.mb);
-        jit.define_int("IC", conf_.ic);
-        jit.define_int("ID", conf_.id);
-        jit.define_int("IH", conf_.ih);
-        jit.define_int("IW", conf_.iw);
-        jit.define_int("OC", conf_.oc);
-        jit.define_int("OD", conf_.od);
-        jit.define_int("OH", conf_.oh);
-        jit.define_int("OW", conf_.ow);
-        jit.define_int("KD", conf_.kd);
-        jit.define_int("KH", conf_.kh);
-        jit.define_int("KW", conf_.kw);
-        jit.define_int("SD", conf_.stride_d);
-        jit.define_int("SH", conf_.stride_h);
-        jit.define_int("SW", conf_.stride_w);
-        jit.define_int("PD", conf_.f_pad);
-        jit.define_int("PH", conf_.t_pad);
-        jit.define_int("PW", conf_.l_pad);
-        jit.define_int("PD_R", conf_.back_pad);
-        jit.define_int("PH_R", conf_.b_pad);
-        jit.define_int("PW_R", conf_.r_pad);
-        jit.define_int("DD", conf_.dilate_d);
-        jit.define_int("DH", conf_.dilate_h);
-        jit.define_int("DW", conf_.dilate_w);
-        jit.define_int("WITH_BIAS", conf_.with_bias);
-        jit.define_int("SUB_GROUP_SIZE", conf_.sub_group_size);
+    status_t apply_const(compute::kernel_ctx_t &kernel_ctx, bool with_eltwise,
+            bool with_sum, alg_kind_t alg) const {
+        kernel_ctx.define_int("NDIMS", conf_.ndims);
+        kernel_ctx.define_int("G", conf_.ngroups);
+        kernel_ctx.define_int("WITH_GROUPS", conf_.with_groups);
+        kernel_ctx.define_int("MB", conf_.mb);
+        kernel_ctx.define_int("IC", conf_.ic);
+        kernel_ctx.define_int("ID", conf_.id);
+        kernel_ctx.define_int("IH", conf_.ih);
+        kernel_ctx.define_int("IW", conf_.iw);
+        kernel_ctx.define_int("OC", conf_.oc);
+        kernel_ctx.define_int("OD", conf_.od);
+        kernel_ctx.define_int("OH", conf_.oh);
+        kernel_ctx.define_int("OW", conf_.ow);
+        kernel_ctx.define_int("KD", conf_.kd);
+        kernel_ctx.define_int("KH", conf_.kh);
+        kernel_ctx.define_int("KW", conf_.kw);
+        kernel_ctx.define_int("SD", conf_.stride_d);
+        kernel_ctx.define_int("SH", conf_.stride_h);
+        kernel_ctx.define_int("SW", conf_.stride_w);
+        kernel_ctx.define_int("PD", conf_.f_pad);
+        kernel_ctx.define_int("PH", conf_.t_pad);
+        kernel_ctx.define_int("PW", conf_.l_pad);
+        kernel_ctx.define_int("PD_R", conf_.back_pad);
+        kernel_ctx.define_int("PH_R", conf_.b_pad);
+        kernel_ctx.define_int("PW_R", conf_.r_pad);
+        kernel_ctx.define_int("DD", conf_.dilate_d);
+        kernel_ctx.define_int("DH", conf_.dilate_h);
+        kernel_ctx.define_int("DW", conf_.dilate_w);
+        kernel_ctx.define_int("WITH_BIAS", conf_.with_bias);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", conf_.sub_group_size);
 
-        def_offsets(off_.src_off, jit, "SRC", conf_.ndims);
-        def_offsets(off_.wht_off, jit, "WHT", conf_.ndims + conf_.with_groups);
-        def_offsets(off_.bias_off, jit, "BIA", 1);
-        def_offsets(off_.dst_off, jit, "DST", conf_.ndims);
+        def_offsets(off_.src_off, kernel_ctx, "SRC", conf_.ndims);
+        def_offsets(off_.wht_off, kernel_ctx, "WHT",
+                conf_.ndims + conf_.with_groups);
+        def_offsets(off_.bias_off, kernel_ctx, "BIA", 1);
+        def_offsets(off_.dst_off, kernel_ctx, "DST", conf_.ndims);
 
         if (conf_.src_data_type == data_type::f16)
-            jit.set_data_type(data_type::f16);
+            kernel_ctx.set_data_type(data_type::f16);
         else
-            jit.set_data_type(data_type::f32);
+            kernel_ctx.set_data_type(data_type::f32);
 
-        def_data_type(jit, conf_.src_data_type, "SRC");
-        def_data_type(jit, conf_.weights_data_type, "WEI");
-        def_data_type(jit, conf_.bias_data_type, "BIA");
-        def_data_type(jit, conf_.dst_data_type, "DST");
-        def_data_type(jit, conf_.acc_data_type, "ACC");
+        def_data_type(kernel_ctx, conf_.src_data_type, "SRC");
+        def_data_type(kernel_ctx, conf_.weights_data_type, "WEI");
+        def_data_type(kernel_ctx, conf_.bias_data_type, "BIA");
+        def_data_type(kernel_ctx, conf_.dst_data_type, "DST");
+        def_data_type(kernel_ctx, conf_.acc_data_type, "ACC");
 
         if (with_eltwise) {
-            def_postops(jit, alg);
+            def_postops(kernel_ctx, alg);
         }
-        jit.define_int("WITH_ELTWISE",with_eltwise);
-        jit.define_int("WITH_SUM",with_sum);
-        jit.define_int("WITH_SUM_ELTWISE",with_sum && with_eltwise);
+        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
+        kernel_ctx.define_int("WITH_SUM", with_sum);
+        kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
 
         return status::success;
     }

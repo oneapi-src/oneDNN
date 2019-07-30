@@ -363,6 +363,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init() {
     const memory_desc_wrapper data_d(src_md());
     bool ok = true
             && mayiuse(avx512_common)
+            && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
             && is_fwd()
             && !has_zero_dim_memory()
             && everyone_is(d_type, data_d.data_type())
@@ -828,6 +829,7 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
     const memory_desc_wrapper data_d(src_md());
     bool ok = true
             && mayiuse(avx512_common)
+            && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
             && !is_fwd()
             && utils::everyone_is(d_type, data_d.data_type())
             && !has_zero_dim_memory()

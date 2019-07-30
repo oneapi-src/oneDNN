@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_simple_sum_kernel.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -73,14 +74,14 @@ struct simple_sum_t : public primitive_t {
     }
 
     virtual status_t init() override {
-        auto jit = ocl_jit_t(simple_sum_kernel);
-        jit_simple_sum_kernel::init_const_def(jit, pd()->jss_);
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine());
+        compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = jit.build(engine());
-        if (status != status::success)
-            return status;
+        jit_simple_sum_kernel::init_const_def(kernel_ctx, pd()->jss_);
 
-        kernel_ = jit.get_kernel("simple_sum_kernel");
+        compute_engine->create_kernel(
+                &kernel_, "simple_sum_kernel", kernel_ctx);
         if (!kernel_)
             return status::runtime_error;
 
@@ -97,7 +98,7 @@ struct simple_sum_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_simple_sum_kernel *ker_;
-    ocl_kernel_t kernel_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

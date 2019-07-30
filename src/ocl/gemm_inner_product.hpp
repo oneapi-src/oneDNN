@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 
 extern const char *gemm_inner_product_kernel;
@@ -57,13 +58,14 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 }
 }
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
 struct gemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public ocl_inner_product_fwd_pd_t {
-        using ocl_inner_product_fwd_pd_t::ocl_inner_product_fwd_pd_t;
-
+        pd_t(engine_t *engine,
+            const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+            : ocl_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+        {}
         pd_t(const pd_t &rhs): ocl_inner_product_fwd_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
@@ -79,6 +81,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
 
         status_t init() {
+            using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
 
@@ -93,9 +96,9 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                 && set_default_params() == status::success
                 && is_fwd()
                 && !has_zero_dim_memory()
-                && src_md()->data_type == src_type
-                && weights_md()->data_type == wei_type
-                && dst_md()->data_type == dst_type
+                && utils::one_of(true,
+                    expect_data_types(f16, f16, f16, f16, f16),
+                    expect_data_types(f32, f32, f32, f32, f32))
                 && (attr()->has_default_values()
                         || IMPLICATION(with_eltwise, !with_bias()))
                 && !with_sum
@@ -116,8 +119,9 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                     this->engine(),
                     wei_tr ? transpose::trans : transpose::notrans,
                     transpose::notrans, oc, mb, ic_total,
-                    wei_tr ? ic_total : oc, ic_total, oc, wei_type,
-                    src_type, dst_type, 1.0, 0.0, *attr());
+                    wei_tr ? ic_total : oc, ic_total, oc,
+                    weights_md()->data_type, src_md()->data_type,
+                    dst_md()->data_type, 1.0, 0.0, *attr());
             if (!gemm_ok)
                 return status::unimplemented;
 
@@ -133,18 +137,16 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             return gemm_status;
 
         if (pd()->with_bias()) {
-            auto jit = ocl_jit_t(gemm_inner_product_kernel);
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
+            compute::kernel_ctx_t kernel_ctx;
 
-            jit.set_data_type(src_type);
-            jit.define_int("MB", pd()->MB());
-            jit.define_int("OC", pd()->OC());
+            kernel_ctx.set_data_type(pd()->src_md()->data_type);
+            kernel_ctx.define_int("MB", pd()->MB());
+            kernel_ctx.define_int("OC", pd()->OC());
 
-            status_t bias_kernel_status = jit.build(engine());
-            if (bias_kernel_status != status::success)
-                return bias_kernel_status;
-
-            bias_kernel_
-                = jit.get_kernel("gemm_inner_product_forward_bias");
+            compute_engine->create_kernel(&bias_kernel_,
+                    "gemm_inner_product_forward_bias", kernel_ctx);
             if (!bias_kernel_)
                 return status::runtime_error;
         }
@@ -164,17 +166,17 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
-    ocl_kernel_t bias_kernel_;
+    compute::kernel_t bias_kernel_;
 };
 
-template <impl::data_type_t diff_src_type,
-        impl::data_type_t wei_type = diff_src_type,
-        impl::data_type_t diff_dst_type = diff_src_type,
-        impl::data_type_t acc_type = diff_src_type>
 struct gemm_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public ocl_inner_product_bwd_data_pd_t {
-        using ocl_inner_product_bwd_data_pd_t::ocl_inner_product_bwd_data_pd_t;
-
+        pd_t(engine_t *engine,
+            const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+            : ocl_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+        {}
         pd_t(const pd_t &rhs): ocl_inner_product_bwd_data_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
@@ -199,9 +201,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
                 && set_default_params() == status::success
                 && this->desc()->prop_kind == backward_data
                 && !has_zero_dim_memory()
-                && diff_src_md()->data_type == diff_src_type
-                && weights_md()->data_type == wei_type
-                && diff_dst_md()->data_type == diff_dst_type
+                && expect_data_types(f32, f32, data_type::undef, f32, f32)
                 && attr()->has_default_values()
                 && dense_consitency_check(diff_src_md(), weights_md(),
                         diff_dst_md())
@@ -221,8 +221,9 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
                     this->engine(),
                     wei_tr ? transpose::trans : transpose::notrans,
                     transpose::notrans, ic_total, mb, oc,
-                    wei_tr ? oc : ic_total, oc, ic_total, wei_type,
-                    diff_src_type, diff_dst_type, 1.0, 0.0, *attr());
+                    wei_tr ? oc : ic_total, oc, ic_total,
+                    weights_md()->data_type, diff_src_md()->data_type,
+                    diff_dst_md()->data_type, 1.0, 0.0, *attr());
             if (!gemm_ok)
                 return status::unimplemented;
 
@@ -254,12 +255,15 @@ private:
     primitive_t *gemm_ = nullptr;
 };
 
-template <impl::data_type_t data_type>
 struct gemm_inner_product_bwd_weights_t : public primitive_t {
     using ocl_ip_bwd_weights_pd_t = ocl_inner_product_bwd_weights_pd_t;
     struct pd_t : public ocl_ip_bwd_weights_pd_t {
-        using ocl_ip_bwd_weights_pd_t::ocl_ip_bwd_weights_pd_t;
-
+        pd_t(engine_t *engine,
+            const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+            : ocl_ip_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+        {}
         pd_t(const pd_t &rhs): ocl_ip_bwd_weights_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
@@ -284,9 +288,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
                 && set_default_params() == status::success
                 && this->desc()->prop_kind == backward_weights
                 && !has_zero_dim_memory()
-                && src_md()->data_type == data_type
-                && diff_weights_md()->data_type == data_type
-                && diff_dst_md()->data_type == data_type
+                && expect_data_types(f32, f32, f32, f32, f32)
                 && attr()->has_default_values()
                 && dense_consitency_check(src_md(), diff_weights_md(),
                         diff_dst_md())
@@ -303,13 +305,15 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             if (wei_tr()) {
                 gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
                         transpose::notrans, transpose::trans, oc, ic_total, mb,
-                        oc, ic_total, oc, data_type, data_type, data_type,
+                        oc, ic_total, oc, src_md()->data_type,
+                        src_md()->data_type,src_md()->data_type,
                         1.0, 0.0, *attr()) == status::success;
             } else {
                 gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
                         transpose::notrans, transpose::trans, ic_total, oc, mb,
-                        ic_total, oc, ic_total, data_type, data_type,
-                        data_type, 1.0, 0.0, *attr()) == status::success;
+                        ic_total, oc, ic_total, src_md()->data_type,
+                        src_md()->data_type, src_md()->data_type,
+                        1.0, 0.0, *attr()) == status::success;
             }
             if (!gemm_ok)
                 return status::unimplemented;
@@ -331,18 +335,16 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             return gemm_status;
 
         if (pd()->with_bias()) {
-            auto jit = ocl_jit_t(gemm_inner_product_kernel);
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine());
+            compute::kernel_ctx_t kernel_ctx;
 
-            jit.set_data_type(data_type);
-            jit.define_int("MB", pd()->MB());
-            jit.define_int("OC", pd()->OC());
+            kernel_ctx.set_data_type(pd()->src_md()->data_type);
+            kernel_ctx.define_int("MB", pd()->MB());
+            kernel_ctx.define_int("OC", pd()->OC());
 
-            status_t bias_kernel_status = jit.build(engine());
-            if (bias_kernel_status != status::success)
-                return bias_kernel_status;
-
-            bias_kernel_
-                = jit.get_kernel("gemm_inner_product_backward_weights_bias");
+            compute_engine->create_kernel(&bias_kernel_,
+                    "gemm_inner_product_backward_weights_bias", kernel_ctx);
             if (!bias_kernel_)
                 return status::runtime_error;
         }
@@ -361,7 +363,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     primitive_t *gemm_ = nullptr;
-    ocl_kernel_t bias_kernel_;
+    compute::kernel_t bias_kernel_;
 };
 
 }

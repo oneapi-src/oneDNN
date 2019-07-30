@@ -14,27 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_EXECUTOR_HPP
-#define SYCL_EXECUTOR_HPP
+#ifndef OCL_GPU_KERNEL_HPP
+#define OCL_GPU_KERNEL_HPP
 
-#include "ocl/cl_executor.hpp"
+#include <CL/cl.h>
+#include <assert.h>
+#include <string>
+
+#include "compute/compute.hpp"
+#include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
-namespace sycl {
+namespace ocl {
 
-struct sycl_stream_t;
+class ocl_gpu_kernel_t : public compute::kernel_impl_t
+{
+public:
+    ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
+    virtual ~ocl_gpu_kernel_t() override;
 
-struct sycl_executor_t : public ocl::cl_executor_t {
-    sycl_executor_t(sycl_stream_t *stream);
-    virtual status_t parallel_for(const ocl::cl_nd_range_t &range,
-            const ocl::ocl_kernel_t &kernel) override;
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) override;
+    cl_kernel ocl_kernel() const { return ocl_kernel_; }
+
+    status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
+            const compute::kernel_arg_list_t &arg_list) const override;
+
+private:
+    cl_kernel ocl_kernel_;
 };
 
-} // namespace sycl
+} // namespace ocl
 } // namespace impl
 } // namespace mkldnn
 
-#endif
+#endif // OCL_GPU_KERNEL_HPP

@@ -208,9 +208,11 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
         src_data_t *ws_l2r_ptr = &(ws_states(0, it + 1, b, 0));
         src_data_t *ws_r2l_ptr = &(ws_states(rnn.n_dir - 1, rnn.n_iter - it, b, 0));
         if (rnn.exec_dir != r2l)
+            PRAGMA_OMP_SIMD()
             for (int c = 0; c < rnn.slc; c++)
                 ws_l2r_ptr[c] = xxt[c];
         if (rnn.exec_dir != l2r)
+            PRAGMA_OMP_SIMD()
             for (int c = 0; c < rnn.slc; c++)
                 ws_r2l_ptr[c] = xxt[c];
     });
@@ -310,18 +312,24 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
     auto firstit_states_d = memory_desc_wrapper(pd()->src_md(1));
     auto firstit_c_states_d = memory_desc_wrapper(pd()->src_md(2));
     if (firstit_states_) {
-        parallel_nd(
-                rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
-                    for (int s = 0; s < rnn.sic; s++)
-                        ws_states(lay + 1, dir, 0, b, s) = maybe_q(
-                                firstit_states_[firstit_states_d.blk_off(
-                                        lay, dir, b, s)]);
-                    if (pd()->cell_kind() == alg_kind::vanilla_lstm)
-                        for (int s = 0; s < rnn.dic; s++)
-                            ws_c_states(lay + 1, dir, 0, b, s) =
-                                    firstit_c_states_[firstit_c_states_d.blk_off(
-                                            lay, dir, b, s)];
-                });
+        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
+                [&](int lay, int dir, int b) {
+            const auto *ss = &firstit_states_[firstit_states_d.blk_off(
+                    lay, dir, b, 0)];
+            auto *dd = &ws_states(lay + 1, dir, 0, b, 0);
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.sic; s++)
+                dd[s] = maybe_q(ss[s]);
+
+            if (pd()->cell_kind() == alg_kind::vanilla_lstm) {
+                const auto *ss = &firstit_c_states_[firstit_c_states_d.blk_off(
+                        lay, dir, b, 0)];
+                auto *dd = &ws_c_states(lay + 1, dir, 0, b, 0);
+                PRAGMA_OMP_SIMD()
+                for (int s = 0; s < rnn.dic; s++)
+                    dd[s] = ss[s];
+            }
+        });
     } else {
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
@@ -390,28 +398,36 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
         else
             return (dst_data_t)s;
     };
+
     parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
         int dir = 0;
+
         if (rnn.exec_dir != r2l) {
-            for (int s = 0; s < rnn.dic; s++) {
-                dst_layer_[dst_layer_d.blk_off(it, b, dir * rnn.dic + s)]
-                        = maybe_deq(ws_states(rnn.n_layer, dir, it + 1, b, s));
-            }
+            const auto *ss = &ws_states(rnn.n_layer, dir, it + 1, b, 0);
+            auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, dir * rnn.dic)];
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] = maybe_deq(ss[s]);
+
             dir = 1;
         }
+
         if (rnn.exec_dir != l2r) {
-            for (int s = 0; s < rnn.dic; s++)
-                switch (rnn.exec_dir) {
-                case bi_sum:
-                    dst_layer_[dst_layer_d.blk_off(it, b, s)]
-                            += maybe_deq(ws_states(
-                                    rnn.n_layer, dir, rnn.n_iter - it, b, s));
-                    break;
-                default:
-                    dst_layer_[dst_layer_d.blk_off(it, b, dir * rnn.dic + s)]
-                            = maybe_deq(ws_states(
-                                    rnn.n_layer, dir, rnn.n_iter - it, b, s));
-                }
+            const auto *ss =
+                &ws_states(rnn.n_layer, dir, rnn.n_iter - it, b, 0);
+
+            if (rnn.exec_dir == bi_sum) {
+                auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, 0)];
+                PRAGMA_OMP_SIMD()
+                for (int s = 0; s < rnn.dic; s++)
+                    dd[s] += maybe_deq(ss[s]);
+            } else {
+                auto *dd =
+                    &dst_layer_[dst_layer_d.blk_off(it, b, dir * rnn.dic)];
+                PRAGMA_OMP_SIMD()
+                for (int s = 0; s < rnn.dic; s++)
+                    dd[s] = maybe_deq(ss[s]);
+            }
         }
     });
 }
@@ -449,12 +465,16 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
         float *dst_iter_c_, float *diff_src_iter_,
         float *diff_src_iter_c_, const src_data_t *ws_states_,
         float *ws_c_states_, const float *ws_diff_states_) const {
+    if (dst_iter_ == nullptr) return;
+
     auto dst_iter_d = memory_desc_wrapper(pd()->dst_md(1));
     auto dst_iter_c_d = memory_desc_wrapper(pd()->dst_md(2));
+
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
     AOC<const float, 5> ws_c_states(ws_c_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.mb, rnn.states_ws_ld);
+
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
 
@@ -467,20 +487,22 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
         else
             return (output_data_t)s;
     };
-    if (dst_iter_) {
-        parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb,
-                [&](int lay, int dir, int b) {
-            for (int s = 0; s < rnn.dic; s++) {
-                dst_iter_[dst_iter_d.blk_off(lay, dir, b, s)]
-                        = maybe_deq(ws_states(lay + 1, dir, rnn.n_iter, b, s));
-            }
-            if (pd()->cell_kind() == alg_kind::vanilla_lstm)
-                    for (int s = 0; s < rnn.dic; s++) {
-                        dst_iter_c_[dst_iter_c_d.blk_off(lay, dir, b, s)]
-                                = ws_c_states(lay + 1, dir, rnn.n_iter, b, s);
-                    }
-            });
-    }
+
+    parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        const auto *ss = &ws_states(lay + 1, dir, rnn.n_iter, b, 0);
+        auto *dd = &dst_iter_[dst_iter_d.blk_off(lay, dir, b, 0)];
+        PRAGMA_OMP_SIMD()
+        for (int s = 0; s < rnn.dic; s++)
+            dd[s] = maybe_deq(ss[s]);
+
+        if (pd()->cell_kind() == alg_kind::vanilla_lstm) {
+            const auto *ss = &ws_c_states(lay + 1, dir, rnn.n_iter, b, 0);
+            auto *dd = &dst_iter_c_[dst_iter_c_d.blk_off(lay, dir, b, 0)];
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] = ss[s];
+        }
+    });
 }
 
 template <>
@@ -672,8 +694,14 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
 
     // initialize diff_states to 0
-    if (aprop == prop_kind::backward)
-        array_set(ws_diff_states, 0.0f, rnn.ws_diff_states_size / sizeof(float));
+    if (aprop == prop_kind::backward) {
+        const size_t ws_sz = rnn.ws_diff_states_size / sizeof(float);
+        parallel(0, [&](const int ithr, const int nthr) {
+            size_t start = 0, end = 0;
+            balance211(ws_sz, nthr, ithr, start, end);
+            array_set(ws_diff_states + start, 0.f, end - start);
+        });
+    }
 
     /* Pack(if using packed gemm API) or copy(if input arrays have bad leading
      * dimension */

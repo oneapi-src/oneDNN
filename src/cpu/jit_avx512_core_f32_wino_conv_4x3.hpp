@@ -57,7 +57,8 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             * (jcp.ic / jcp.nb_ic);
         break;
     case WSCHED_WEI_S_D_Giot_W:
-        U_sz = (size_t)(jcp.nthr + 1) * alpha * alpha * jcp.ic * jcp.oc;
+        U_sz = (jcp.nthr + static_cast<size_t>(1)) * alpha * alpha
+                * jcp.ic * jcp.oc;
         M_sz = (size_t)alpha * alpha * jcp.oc * jcp.ntiles;
         V_sz = (size_t)alpha * alpha * jcp.ic * jcp.ntiles;
         break;

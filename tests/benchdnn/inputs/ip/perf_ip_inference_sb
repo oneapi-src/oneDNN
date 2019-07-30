@@ -1,0 +1,14 @@
+# inference_sb -- inference with small batch size
+# f32
+--reset
+--dir=FWD_B
+--mb=1
+--batch=ip_gnmt
+--batch=ip_wd
+--batch=ip_resnet50
+--batch=ip_resnet50_sparse
+--batch=ip_googlenetv1
+--batch=ip_googlenetv3
+--batch=ip_vgg16
+--batch=ip_ncf
+--batch=ip_alexnet

@@ -27,7 +27,7 @@ following table:
 | :------------------- | :------------------------------------------------------------------- |
 | Engine               | [mkldnn::engine(kind, ocl_dev, ocl_ctx)](@ref mkldnn::engine)        |
 | Stream               | [mkldnn::stream(engine, ocl_queue)](@ref mkldnn::stream)             |
-| Memory               | [mkldnn::memory(memory_desc, engine, &ocl_mem)](@ref mkldnn::memory) |
+| Memory               | [mkldnn::memory(memory_desc, engine, ocl_mem)](@ref mkldnn::memory)  |
 
 @note Intel MKL-DNN follows retain/release OpenCL semantics when using OpenCL
 objects during construction. An OpenCL object is retained on construction and

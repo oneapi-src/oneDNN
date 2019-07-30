@@ -584,6 +584,23 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
+        const Vmm &vmm_src) {
+    const int alpha_off = 25;
+    // Save src data on stack for later usage
+    h->sub(h->rsp, vlen);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+    // x*alpha
+    h->uni_vmulps(vmm_src, vmm_src, table_val(alpha_off));
+    // sigmoid(x*alpha)
+    logistic_compute_vector(vmm_src);
+    // x*sigmoid(alpha*x)
+    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_prepare_table() {
     for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(float2int(alpha_));
     for (size_t d = 0; d < vlen / sizeof(float); ++d) h->dd(0);
@@ -703,6 +720,7 @@ int jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
     case alg_kind::eltwise_square: return 0;
     case alg_kind::eltwise_abs: return 0;
     case alg_kind::eltwise_sqrt: return 2;
+    case alg_kind::eltwise_swish: return 4;
     case alg_kind::eltwise_linear: return 1;
     case alg_kind::eltwise_bounded_relu: return 0;
     case alg_kind::eltwise_soft_relu: return 4;
@@ -730,6 +748,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(size_t start_idx,
         case eltwise_square: square_compute_vector(Vmm(idx)); break;
         case eltwise_abs: abs_compute_vector(Vmm(idx)); break;
         case eltwise_sqrt: sqrt_compute_vector(Vmm(idx)); break;
+        case eltwise_swish: swish_compute_vector(Vmm(idx)); break;
         case eltwise_linear: linear_compute_vector(Vmm(idx)); break;
         case eltwise_bounded_relu: bounded_relu_compute_vector(Vmm(idx)); break;
         case eltwise_soft_relu: soft_relu_compute_vector(Vmm(idx)); break;
@@ -772,6 +791,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
         case eltwise_soft_relu: soft_relu_prepare_table(); break;
         case eltwise_abs: abs_prepare_table(); break;
         case eltwise_sqrt: sqrt_prepare_table(); break;
+        case eltwise_swish: elu_prepare_table(); break;
         case eltwise_linear: linear_prepare_table(); break;
         case eltwise_bounded_relu: bounded_relu_prepare_table(); break;
         case eltwise_square: break;
@@ -1136,7 +1156,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         assert(utils::one_of(desc.alg_kind, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu));
+                    eltwise_exp, eltwise_gelu, eltwise_swish));
 
         preamble();
 
@@ -1271,7 +1291,7 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
         && utils::one_of(desc()->alg_kind, eltwise_relu, eltwise_tanh,
                 eltwise_elu, eltwise_square, eltwise_abs, eltwise_sqrt,
                 eltwise_linear, eltwise_bounded_relu, eltwise_soft_relu,
-                eltwise_logistic, eltwise_exp, eltwise_gelu)
+                eltwise_logistic, eltwise_exp, eltwise_gelu, eltwise_swish)
         && memory_desc_wrapper(src_md()).is_dense(true)
         && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
                 math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))

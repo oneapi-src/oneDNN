@@ -12,3 +12,6 @@
 --dtag=undef,ncdhw,ndhwc,nCdhw8c,nCdhw16c
 --stag=nCdhw8c:ncdhw:ndhwc
 --scales=1.25:3:0.5    16x2x6x4x3
+
+# bf16
+--batch=test_sum_bfloat16

@@ -19,6 +19,7 @@
 
 #include "common/batch_normalization_pd.hpp"
 #include "common/c_types_map.hpp"
+#include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
 namespace mkldnn {
@@ -102,39 +103,39 @@ struct jit_ref_bnorm_common_kernel {
         return status::success;
     };
 
-    static status_t init_const_def(ocl_jit_t &jit, const jit_bnorm_conf_t &jbn,
-            const jit_offsets &jit_off) {
-        jit.set_data_type(jbn.data_type);
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            const jit_bnorm_conf_t &jbn, const jit_offsets &jit_off) {
+        kernel_ctx.set_data_type(jbn.data_type);
 
-        jit.define_int("NDIMS", jbn.ndims);
-        jit.define_int("MB", jbn.mb);
-        jit.define_int("IC", jbn.ic);
-        jit.define_int("ID", jbn.id);
-        jit.define_int("IH", jbn.ih);
-        jit.define_int("IW", jbn.iw);
-        jit.define_int("LWS_0", jbn.lws_d[0]);
-        jit.define_int("LWS_1", jbn.lws_d[1]);
-        jit.define_int("LWS_2", jbn.lws_d[2]);
-        jit.define_int("USE_16MB_UNROLL", jbn.use_16mb_unroll);
-        jit.define_int("MB_CHUNK", jbn.mb_chunk);
-        jit.define_int("SP_CHUNK", jbn.sp_chunk);
-        jit.define_int("MB_BLOCK", jbn.mb_block);
+        kernel_ctx.define_int("NDIMS", jbn.ndims);
+        kernel_ctx.define_int("MB", jbn.mb);
+        kernel_ctx.define_int("IC", jbn.ic);
+        kernel_ctx.define_int("ID", jbn.id);
+        kernel_ctx.define_int("IH", jbn.ih);
+        kernel_ctx.define_int("IW", jbn.iw);
+        kernel_ctx.define_int("LWS_0", jbn.lws_d[0]);
+        kernel_ctx.define_int("LWS_1", jbn.lws_d[1]);
+        kernel_ctx.define_int("LWS_2", jbn.lws_d[2]);
+        kernel_ctx.define_int("USE_16MB_UNROLL", jbn.use_16mb_unroll);
+        kernel_ctx.define_int("MB_CHUNK", jbn.mb_chunk);
+        kernel_ctx.define_int("SP_CHUNK", jbn.sp_chunk);
+        kernel_ctx.define_int("MB_BLOCK", jbn.mb_block);
 
         if (jbn.is_forward)
-            jit.define_int("BNORM_FWD", 1);
+            kernel_ctx.define_int("BNORM_FWD", 1);
         else if (jbn.is_backward)
-            jit.define_int("BNORM_BWD", 1);
+            kernel_ctx.define_int("BNORM_BWD", 1);
 
-        jit.define_int("WITH_RELU", jbn.with_relu);
-        jit.define_int("SAVE_STATS", jbn.save_stats);
-        jit.define_int("IS_TRAINING", jbn.is_training);
-        jit.define_int("FUSE_BN_RELU", jbn.fuse_norm_relu);
-        jit.define_int("CALCULATE_STATS", jbn.calculate_stats);
-        jit.define_int("USE_SCALESHIFT", jbn.use_scaleshift);
-        jit.define_int("CALCULATE_DIFF_STATS", jbn.calculate_diff_stats);
-        jit.define_int("DIFF_SCALESHIFT", jbn.diff_scaleshift);
+        kernel_ctx.define_int("WITH_RELU", jbn.with_relu);
+        kernel_ctx.define_int("SAVE_STATS", jbn.save_stats);
+        kernel_ctx.define_int("IS_TRAINING", jbn.is_training);
+        kernel_ctx.define_int("FUSE_BN_RELU", jbn.fuse_norm_relu);
+        kernel_ctx.define_int("CALCULATE_STATS", jbn.calculate_stats);
+        kernel_ctx.define_int("USE_SCALESHIFT", jbn.use_scaleshift);
+        kernel_ctx.define_int("CALCULATE_DIFF_STATS", jbn.calculate_diff_stats);
+        kernel_ctx.define_int("DIFF_SCALESHIFT", jbn.diff_scaleshift);
 
-        def_offsets(jit_off.src_off, jit, "SRC", jbn.ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", jbn.ndims);
 
         return status::success;
     }

@@ -60,21 +60,24 @@ protected:
         using namespace data_type;
         using namespace types;
 
-        auto is_blocked = [&](memory_desc_t md, int ndims) {
-            return md.format_kind == format_kind::blocked && md.ndims == ndims;
+        auto is_blocked = [&](const memory_desc_t &md, int ndims,
+                bool require_last_dim_contiguous) {
+            return md.format_kind == format_kind::blocked && md.ndims == ndims
+                && IMPLICATION(require_last_dim_contiguous,
+                        md.format_desc.blocking.strides[md.ndims - 1] == 1);
         };
 
         bool ok = true;
-        ok = ok && is_blocked(src_layer_md_, 3)
-                && is_blocked(dst_layer_md_, 3);
+        ok = ok && is_blocked(src_layer_md_, 3, true)
+                && is_blocked(dst_layer_md_, 3, true);
         ok = ok && IMPLICATION(!is_zero_md(&src_iter_md_),
-                           is_blocked(src_iter_md_, 4))
+                           is_blocked(src_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&src_iter_c_md_),
-                           is_blocked(src_iter_c_md_, 4))
+                           is_blocked(src_iter_c_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&dst_iter_md_),
-                           is_blocked(dst_iter_md_, 4))
+                           is_blocked(dst_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&dst_iter_c_md_),
-                           is_blocked(dst_iter_c_md_, 4));
+                           is_blocked(dst_iter_c_md_, 4, true));
 
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok && (weights_layer_md_.format_desc.rnn_packed_desc.format
@@ -159,21 +162,24 @@ protected:
         using namespace format_tag;
         using namespace types;
 
-        auto is_blocked = [&](memory_desc_t md, int ndims) {
-            return md.format_kind == format_kind::blocked && md.ndims == ndims;
+        auto is_blocked = [&](const memory_desc_t &md, int ndims,
+                bool require_last_dim_contiguous) {
+            return md.format_kind == format_kind::blocked && md.ndims == ndims
+                && IMPLICATION(require_last_dim_contiguous,
+                        md.format_desc.blocking.strides[md.ndims - 1] == 1);
         };
 
         bool ok = true;
-        ok = ok && is_blocked(src_layer_md_, 3)
-                && is_blocked(dst_layer_md_, 3);
+        ok = ok && is_blocked(src_layer_md_, 3, true)
+                && is_blocked(dst_layer_md_, 3, true);
         ok = ok && IMPLICATION(!is_zero_md(&src_iter_md_),
-                           is_blocked(src_iter_md_, 4))
+                           is_blocked(src_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&src_iter_c_md_),
-                           is_blocked(src_iter_c_md_, 4))
+                           is_blocked(src_iter_c_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&dst_iter_md_),
-                           is_blocked(dst_iter_md_, 4))
+                           is_blocked(dst_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&dst_iter_c_md_),
-                           is_blocked(dst_iter_c_md_, 4));
+                           is_blocked(dst_iter_c_md_, 4, true));
 
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok && (weights_layer_md_.format_desc.rnn_packed_desc.format
@@ -190,16 +196,16 @@ protected:
         ok = ok && IMPLICATION(!is_zero_md(&bias_md_),
                            memory_desc_matches_tag(bias_md_, ldgo));
 
-        ok = ok && is_blocked(diff_src_layer_md_, 3)
-                && is_blocked(diff_dst_layer_md_, 3);
+        ok = ok && is_blocked(diff_src_layer_md_, 3, true)
+                && is_blocked(diff_dst_layer_md_, 3, true);
         ok = ok && IMPLICATION(!is_zero_md(&diff_src_iter_md_),
-                           is_blocked(diff_src_iter_md_, 4))
+                           is_blocked(diff_src_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&diff_src_iter_c_md_),
-                           is_blocked(diff_src_iter_c_md_, 4))
+                           is_blocked(diff_src_iter_c_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&diff_dst_iter_md_),
-                           is_blocked(diff_dst_iter_md_, 4))
+                           is_blocked(diff_dst_iter_md_, 4, true))
                 && IMPLICATION(!is_zero_md(&diff_dst_iter_c_md_),
-                           is_blocked(diff_dst_iter_c_md_, 4));
+                           is_blocked(diff_dst_iter_c_md_, 4, true));
 
         ok = ok && rnn_utils::is_ldigo(&diff_weights_layer_md_)
                 && rnn_utils::is_ldigo(&diff_weights_iter_md_);

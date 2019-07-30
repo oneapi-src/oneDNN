@@ -210,7 +210,8 @@ struct prb_t : public desc_t {
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t) n_directions() * n_layer * n_iter;
         int64_t cell_ops = (int64_t) 2 * (n_gates() * dic) * mb * (sic + slc);
-        ops = num_cells * cell_ops;
+        int64_t prop_multiplier = prop == mkldnn_backward ? 2 : 1;
+        ops = prop_multiplier * num_cells * cell_ops;
     }
 
     int64_t n_directions() const {

@@ -22,8 +22,9 @@
 #if INNER_PRODUCT_FWD == 1
 
 __kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
-        __global WEI_DATA_T *wht, __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
-        float eltwise_alpha, float eltwise_beta, float sum_scale) {
+        __global WEI_DATA_T *wht, __global BIA_DATA_T *bias,
+        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
+        float sum_scale, float output_scale) {
 
     const int mb = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;
@@ -43,26 +44,25 @@ __kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
 #    endif
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wht[wht_off]);
                 }
-#if WITH_BIAS
-    DATA_T tmp = (DATA_T)d + (DATA_T)BIA_TO_REF(bias[oc]);
-#else
-    DATA_T tmp = (DATA_T)d;
-#endif
+    DATA_T tmp = d;
+#    if WITH_BIAS
+    tmp += BIA_TO_REF(bias[oc]);
+#    endif
+
+    tmp *= output_scale;
+
 #    if WITH_SUM_ELTWISE == 1
-    tmp += sum_scale * (DATA_T)DST_TO_REF(dst[mb * OC + oc]);
-    dst[mb * OC + oc] = REF_TO_DST(fwd_eltwise(tmp, eltwise_alpha, eltwise_beta));
+    tmp += sum_scale * DST_TO_REF(dst[mb * OC + oc]);
+    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
 #    else
-#    if WITH_ELTWISE == 1
-    dst[mb * OC + oc] = REF_TO_DST(fwd_eltwise(tmp, eltwise_alpha, eltwise_beta));
+#        if WITH_ELTWISE == 1
+    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
+#        endif
+#        if WITH_SUM == 1
+    tmp = sum_scale * DST_TO_REF(dst[mb * OC + oc]) + tmp;
+#        endif
 #    endif
-#    if WITH_SUM == 1
-    dst[mb * OC + oc]
-            = REF_TO_DST(DST_TO_REF(dst[mb * OC + oc]) * sum_scale + tmp);
-#    endif
-#    if WITH_ELTWISE == 0 && WITH_SUM == 0
-    dst[mb * OC + oc] = REF_TO_DST(tmp);
-#    endif
-#    endif
+    dst[mb * OC + oc] = TO_DST(tmp);
 }
 #endif
 

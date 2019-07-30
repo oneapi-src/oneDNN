@@ -1,0 +1,17 @@
+--mb=128
+--alg=VANILLA_LSTM
+--activation=TANH
+--batch=rnn_gnmt_decoder
+
+--mb=128
+--alg=VANILLA_LSTM
+--activation=TANH
+--batch=rnn_gnmt_encoder
+
+--mb=128
+--alg=VANILLA_RNN
+--batch=rnn_ds2
+
+--mb=128
+--alg=LBR_GRU
+--batch=rnn_ds2

@@ -122,14 +122,14 @@ N/A.
 Convolution primitive supports the following combination of data types for
 source, destination, and weights memory objects:
 
-| Propagation        | Source    | Weights   | Destination       | Bias
-| :--                | :--       | :--       | :--               | :--
-| forward / backward | f32       | f32       | f32               | f32
-| forward            | f16       | f16       | f16               | f16
-| forward            | u8, s8    | s8        | u8, s8, s32, f32  | u8, s8, s32, f32
-| forward            | bf16      | bf16      | f32, bf16         | f32, bf16
-| backward           | f32, bf16 | bf16      | bf16              |
-| weights update     | bf16      | f32, bf16 | bf16              | f32, bf16
+| Propagation        | Source    | Weights   | Destination       | Bias             |
+| :--                | :--       | :--       | :--               | :--              |
+| forward / backward | f32       | f32       | f32               | f32              |
+| forward            | f16       | f16       | f16               | f16              |
+| forward            | u8, s8    | s8        | u8, s8, s32, f32  | u8, s8, s32, f32 |
+| forward            | bf16      | bf16      | f32, bf16         | f32, bf16        |
+| backward           | f32, bf16 | bf16      | bf16              |                  |
+| weights update     | bf16      | f32, bf16 | bf16              | f32, bf16        |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -181,7 +181,7 @@ post-ops are supported:
 | Propagation | Type      | Operation                                                      | Restrictions           | Description
 | :--         | :--       | :--                                                            | :--                    | :--
 | forward     | attribute | [Output scale](@ref mkldnn::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result (currently only #mkldnn_eltwise_relu algorithm is supported)
+| forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result
 | forward     | post-op   | [sum](@ref mkldnn::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 @note The library doesn't prevent using post-ops in training, but note that

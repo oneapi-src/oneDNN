@@ -65,43 +65,45 @@ static_assert(sizeof(plan_element_t) == 8,
         "Plan element structure has been padded by the compiler.");
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_beta(stream_t *s,
-        int64_t m, int64_t n, c_t alpha, const memory_storage_t &a,
-        int64_t offset_a, int64_t lda) const {
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_beta(
+        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
+        c_t alpha, const memory_storage_t &a, int64_t offset_a,
+        int64_t lda) const {
     assert(beta_kernel_);
 
-    beta_kernel_.set_arg(0, m);
-    beta_kernel_.set_arg(1, n);
-    beta_kernel_.set_arg(2, alpha);
-    beta_kernel_.set_arg(3, a);
-    beta_kernel_.set_arg(4, offset_a);
-    beta_kernel_.set_arg(5, lda);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, m);
+    arg_list.set(1, n);
+    arg_list.set(2, alpha);
+    arg_list.set(3, a);
+    arg_list.set(4, offset_a);
+    arg_list.set(5, lda);
 
     size_t gws[3] = { 1, size_t(n), 1 };
     size_t lws[3] = { 1, 1, 1 };
-    auto nd_range = cl_nd_range_t(gws, lws);
+    auto nd_range = compute::nd_range_t(gws, lws);
 
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-
-    return executor.parallel_for(nd_range, beta_kernel_);
+    return compute_stream->parallel_for(nd_range, beta_kernel_, arg_list);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_copy(stream_t *s,
-        int64_t x, int64_t y, const memory_storage_t &a, int64_t offset_a,
-        int64_t lda, c_t alpha, const memory_storage_t &b, int64_t offset_b,
-        bool outer, bool trans) const {
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_copy(
+        compute::compute_stream_t *compute_stream, int64_t x, int64_t y,
+        const memory_storage_t &a, int64_t offset_a, int64_t lda, c_t alpha,
+        const memory_storage_t &b, int64_t offset_b, bool outer,
+        bool trans) const {
     auto &kernel = copy_kernel_[outer][trans];
 
     assert(kernel);
-    kernel.set_arg(0, x);
-    kernel.set_arg(1, y);
-    kernel.set_arg(2, a);
-    kernel.set_arg(3, offset_a);
-    kernel.set_arg(4, lda);
-    kernel.set_arg(5, alpha);
-    kernel.set_arg(6, b);
-    kernel.set_arg(7, offset_b);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, x);
+    arg_list.set(1, y);
+    arg_list.set(2, a);
+    arg_list.set(3, offset_a);
+    arg_list.set(4, lda);
+    arg_list.set(5, alpha);
+    arg_list.set(6, b);
+    arg_list.set(7, offset_b);
 
     int unroll_m, unroll_n;
     jit_gen9_gemm_copy_kernel<c_type>::get_unrolls(unroll_m, unroll_n);
@@ -111,30 +113,30 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_copy(stream_t *s,
     size_t gws[3] = { size_t(x), size_t((y + unroll - 1) / unroll), 1 };
     size_t lws[3] = { 1, 1, 1 };
 
-    auto nd_range = cl_nd_range_t(gws, lws);
+    auto nd_range = compute::nd_range_t(gws, lws);
 
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-
-    return executor.parallel_for(nd_range, kernel);
+    return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(stream_t *s,
-        int64_t m, int64_t n, int64_t k, const memory_storage_t &base,
-        int32_t offset_a, int32_t offset_b, const memory_storage_t &c,
-        int64_t offset_c, int64_t ldc, bool beta0) const {
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(
+        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
+        int64_t k, const memory_storage_t &base, int32_t offset_a,
+        int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
+        int64_t ldc, bool beta0) const {
     auto &kernel = compute_kernel_[beta0];
 
     assert(kernel);
-    kernel.set_arg(0, m);
-    kernel.set_arg(1, n);
-    kernel.set_arg(2, k);
-    kernel.set_arg(3, base);
-    kernel.set_arg(4, offset_a);
-    kernel.set_arg(5, offset_b);
-    kernel.set_arg(6, c);
-    kernel.set_arg(7, offset_c);
-    kernel.set_arg(8, ldc);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, m);
+    arg_list.set(1, n);
+    arg_list.set(2, k);
+    arg_list.set(3, base);
+    arg_list.set(4, offset_a);
+    arg_list.set(5, offset_b);
+    arg_list.set(6, c);
+    arg_list.set(7, offset_c);
+    arg_list.set(8, ldc);
 
     int unroll_m, unroll_n;
     jit_gen9_gemm_compute_kernel<c_type>::get_unrolls(unroll_m, unroll_n);
@@ -152,41 +154,40 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(stream_t *s,
     if (c_type == data_type::f16)
         lws[1] = 1;
 
-    auto nd_range = cl_nd_range_t(gws, lws);
+    auto nd_range = compute::nd_range_t(gws, lws);
 
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-
-    return executor.parallel_for(nd_range, kernel);
+    return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(stream_t *s,
-        const memory_storage_t &a, const memory_storage_t &b,
-        const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
-        c_t eltwise_alpha, c_t eltwise_beta) const {
+status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
+        compute::compute_stream_t *compute_stream, const memory_storage_t &a,
+        const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
+        int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
+        int32_t ldc, int32_t m, int32_t n, int32_t k, c_t alpha, c_t beta,
+        int last_k_block, c_t eltwise_alpha, c_t eltwise_beta) const {
 
     auto &kernel = nocopy_kernel_;
 
     assert(kernel);
-    kernel.set_arg(0, a);
-    kernel.set_arg(1, b);
-    kernel.set_arg(2, c);
-    kernel.set_arg(3, offset_a);
-    kernel.set_arg(4, offset_b);
-    kernel.set_arg(5, offset_c);
-    kernel.set_arg(6, lda);
-    kernel.set_arg(7, ldb);
-    kernel.set_arg(8, ldc);
-    kernel.set_arg(9, m);
-    kernel.set_arg(10, n);
-    kernel.set_arg(11, k);
-    kernel.set_arg(12, alpha);
-    kernel.set_arg(13, beta);
-    kernel.set_arg(14, last_k_block);
-    kernel.set_arg(15, eltwise_alpha);
-    kernel.set_arg(16, eltwise_beta);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, a);
+    arg_list.set(1, b);
+    arg_list.set(2, c);
+    arg_list.set(3, offset_a);
+    arg_list.set(4, offset_b);
+    arg_list.set(5, offset_c);
+    arg_list.set(6, lda);
+    arg_list.set(7, ldb);
+    arg_list.set(8, ldc);
+    arg_list.set(9, m);
+    arg_list.set(10, n);
+    arg_list.set(11, k);
+    arg_list.set(12, alpha);
+    arg_list.set(13, beta);
+    arg_list.set(14, last_k_block);
+    arg_list.set(15, eltwise_alpha);
+    arg_list.set(16, eltwise_beta);
 
     bool transa = (pd()->desc()->transa == mkldnn_trans);
     bool transb = (pd()->desc()->transb == mkldnn_trans);
@@ -213,17 +214,14 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(stream_t *s,
     size_t gws[3] = { nthreads_x * subgroup_size, nthreads_y, 1 };
     size_t lws[3] = { lthreads_x * subgroup_size, lthreads_y, 1 };
 
-    auto nd_range = cl_nd_range_t(gws, lws);
-
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-
-    return executor.parallel_for(nd_range, kernel);
+    auto nd_range = compute::nd_range_t(gws, lws);
+    return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
-        stream_t *s, const memory_storage_t &plan, int32_t threads,
-        const memory_storage_t &a, const memory_storage_t &b,
+        compute::compute_stream_t *compute_stream, const memory_storage_t &plan,
+        int32_t threads, const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
         int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
@@ -232,25 +230,26 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
     auto &kernel = nocopy_superkernel_;
 
     assert(kernel);
-    kernel.set_arg(0, plan);
-    kernel.set_arg(1, threads);
-    kernel.set_arg(2, a);
-    kernel.set_arg(3, b);
-    kernel.set_arg(4, c);
-    kernel.set_arg(5, offset_a);
-    kernel.set_arg(6, offset_b);
-    kernel.set_arg(7, offset_c);
-    kernel.set_arg(8, lda);
-    kernel.set_arg(9, ldb);
-    kernel.set_arg(10, ldc);
-    kernel.set_arg(11, m);
-    kernel.set_arg(12, n);
-    kernel.set_arg(13, k);
-    kernel.set_arg(14, alpha);
-    kernel.set_arg(15, beta);
-    kernel.set_arg(16, last_k_block);
-    kernel.set_arg(17, eltwise_alpha);
-    kernel.set_arg(18, eltwise_beta);
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, plan);
+    arg_list.set(1, threads);
+    arg_list.set(2, a);
+    arg_list.set(3, b);
+    arg_list.set(4, c);
+    arg_list.set(5, offset_a);
+    arg_list.set(6, offset_b);
+    arg_list.set(7, offset_c);
+    arg_list.set(8, lda);
+    arg_list.set(9, ldb);
+    arg_list.set(10, ldc);
+    arg_list.set(11, m);
+    arg_list.set(12, n);
+    arg_list.set(13, k);
+    arg_list.set(14, alpha);
+    arg_list.set(15, beta);
+    arg_list.set(16, last_k_block);
+    arg_list.set(17, eltwise_alpha);
+    arg_list.set(18, eltwise_beta);
 
     size_t lthreads = nstl::min(hw_threads_, threads);
 
@@ -258,11 +257,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
     size_t lws[3] = { subgroup_size, 1, 1 };
     size_t gws[3] = { lthreads * subgroup_size, 1, 1 };
 
-    auto nd_range = cl_nd_range_t(gws, lws);
-
-    auto &executor = *(utils::downcast<cl_stream_t *>(s)->cl_executor());
-
-    return executor.parallel_for(nd_range, kernel);
+    auto nd_range = compute::nd_range_t(gws, lws);
+    return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
@@ -295,6 +291,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute(
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
         const exec_ctx_t &ctx) const {
+
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     using a_t = typename prec_traits<a_type>::type;
     using b_t = typename prec_traits<b_type>::type;
@@ -348,7 +347,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     }
 
     if (!nocopy && beta != 0. && beta != 1.) {
-        status = launch_beta(ctx.stream(), m, n, beta_native, c, off_c0, ldc);
+        status = launch_beta(compute_stream, m, n, beta_native, c, off_c0, ldc);
         if (status)
             return status;
     }
@@ -372,9 +371,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                     = off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
 
             if (!nocopy) {
-                status = launch_copy(ctx.stream(), size_k, size_m, a, off_a_src,
-                        lda, alpha_native, *temp_buf_, off_a_packed, false,
-                        !transa);
+                status = launch_copy(compute_stream, size_k, size_m, a,
+                        off_a_src, lda, alpha_native, *temp_buf_, off_a_packed,
+                        false, !transa);
                 if (status)
                     return status;
             }
@@ -388,7 +387,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                         + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                 if (!nocopy && ((Bn == 0) || (n > block_n))) {
-                    status = launch_copy(ctx.stream(), size_k, size_n, b,
+                    status = launch_copy(compute_stream, size_k, size_n, b,
                             off_b_src, ldb, one_native, *temp_buf_,
                             off_b_packed, true, transb);
                     if (status)
@@ -399,13 +398,13 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
 
                 if (nocopy) {
                     float eff_beta = (Bk == 0) ? beta : 1.0f;
-                    status = launch_nocopy(ctx.stream(), a, b, c, off_a_src,
+                    status = launch_nocopy(compute_stream, a, b, c, off_a_src,
                             off_b_src, off_c, lda, ldb, ldc, size_m, size_n,
                             size_k, alpha, eff_beta, (int)last_k_block,
                             eltwise_alpha, eltwise_beta);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
-                    status = launch_compute(ctx.stream(), size_m, size_n,
+                    status = launch_compute(compute_stream, size_m, size_n,
                             size_k, *temp_buf_, off_a_packed, off_b_packed, c,
                             off_c, ldc, beta0);
                 }
@@ -421,6 +420,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
         const exec_ctx_t &ctx) const {
+
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     using a_t = typename prec_traits<a_type>::type;
     using b_t = typename prec_traits<b_type>::type;
@@ -543,8 +545,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     int32_t threads = km * kn;
     bool last_k_block = true;
 
-    return launch_nocopy_superkernel(ctx.stream(), *temp_buf_, threads, a, b, c,
-            off_a, off_b, off_c, lda, ldb, ldc, m, n, k, alpha, beta,
+    return launch_nocopy_superkernel(compute_stream, *temp_buf_, threads, a, b,
+            c, off_a, off_b, off_c, lda, ldb, ldc, m, n, k, alpha, beta,
             (int)last_k_block, eltwise_alpha, eltwise_beta);
 }
 
