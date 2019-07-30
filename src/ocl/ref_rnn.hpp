@@ -261,7 +261,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     create_gemm_pd(&gemm_iter_pd_, sic, batch, n_gates * dic,
                         slc, n_gates * dic, wic, weights_type, src_type,
                         src_type, false, 0.0f),
-                    create_gemm_pd(&gemm_layer_pd_, sic, batch, n_gates * dic,
+                    create_gemm_pd(&gemm_layer_pd_, slc, batch, n_gates * dic,
                         sic, n_gates * dic, wic, weights_type, src_type,
                         src_type, false, 0.0f),
                     create_gemm_pd(&gemm_diff_wei_layer_pd_, n_gates * dic, slc,
