@@ -23,8 +23,8 @@
 --tag=NChw16n16c     --batch=pool_ker_in_pad_2d
 --tag=NCdhw16n16c     --batch=pool_ker_in_pad_3d
 
-# s8, f16
---cfg=s8,f16
+# s8, f16, bf16
+--cfg=s8,f16,bf16
 
 --dir=FWD_I
 --mb=2
