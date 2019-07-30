@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/utils.hpp"
 #include "ocl/ocl_cross_engine_reorder_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -44,8 +45,9 @@ status_t ocl_cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
             status = scales->map_data(&tmp_ptr);
             if (status != status::success)
                 return status;
-            memcpy(tmp_ptr, pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_ * sizeof(float));
+            utils::array_copy((float *)tmp_ptr,
+                    pd()->attr()->output_scales_.scales_,
+                    pd()->attr()->output_scales_.count_);
             status = scales->unmap_data(tmp_ptr);
             if (status != status::success)
                 return status;
