@@ -17,6 +17,8 @@
 #ifndef MKLDNN_VERSION_H
 #define MKLDNN_VERSION_H
 
+// clang-format off
+
 /// Major version
 #define MKLDNN_VERSION_MAJOR @MKLDNN_VERSION_MAJOR@
 
@@ -28,5 +30,7 @@
 
 /// Git commit hash
 #define MKLDNN_VERSION_HASH  "@MKLDNN_VERSION_HASH@"
+
+// clang-format on
 
 #endif

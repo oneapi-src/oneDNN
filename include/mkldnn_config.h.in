@@ -64,11 +64,15 @@
 // OpenCL runtime
 #define MKLDNN_RUNTIME_OCL 256u
 
+// clang-format off
+
 // MKL-DNN CPU engine runtime
 #cmakedefine MKLDNN_CPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_CPU_RUNTIME_CURRENT}
 
 // MKL-DNN GPU engine runtime
 #cmakedefine MKLDNN_GPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_GPU_RUNTIME}
+
+// clang-format on
 
 #if defined(MKLDNN_CPU_RUNTIME) && defined(MKLDNN_GPU_RUNTIME)
 #    if (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_NONE) \
