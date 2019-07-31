@@ -38,7 +38,7 @@ struct mkldnn_engine : public mkldnn::impl::c_compatible {
             mkldnn::impl::backend_kind_t backend_kind)
         : kind_(kind), backend_kind_(backend_kind) {
         size_t cache_capacity
-                = mkldnn::impl::getenv_int("MKLDNN_CACHE_CAPACITY", 0);
+                = mkldnn::impl::getenv_int("MKLDNN_CACHE_CAPACITY", 200);
         primitive_cache_ = mkldnn::impl::utils::make_unique<
                 mkldnn::impl::lru_primitive_cache_t>(cache_capacity);
 
