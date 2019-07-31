@@ -38,6 +38,8 @@
     "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF extensions"
 #define AVX512_MIC_4OPS \
     "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions"
+#define AVX512_CORE_BF16 \
+    "Intel AVX-512 with Intel DL Boost and bfloat16 support"
 
 namespace mkldnn {
 namespace impl {
@@ -85,6 +87,7 @@ double get_msec() {
 
 const char *get_isa_info() {
     using namespace mkldnn::impl::cpu;
+    if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
     if (mayiuse(avx512_mic_4ops))  return AVX512_MIC_4OPS;
     if (mayiuse(avx512_mic))       return AVX512_MIC;
     if (mayiuse(avx512_core_vnni)) return AVX512_CORE_VNNI;
