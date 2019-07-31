@@ -37,15 +37,81 @@ struct key_t {
 
     bool operator==(const key_t &rhs) const {
         MKLDNN_SHORT_CIRCUIT_SELF_COMPARISON(rhs);
-        return false;
+
+        bool ret = true && primitive_kind_ == rhs.primitive_kind_
+                && impl_id_ == rhs.impl_id_ && impl_nthr_ == rhs.impl_nthr_
+                && *attr_ == *rhs.attr_;
+
+        if (!ret) return ret;
+        switch (primitive_kind_) {
+            // NOTE: make sure that op_descs for all primitives are compared below
+            case primitive_kind::batch_normalization:
+                ret = cast_and_compare<batch_normalization_desc_t>(
+                        op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::concat:
+                ret = cast_and_compare<concat_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::convolution:
+                ret = cast_and_compare<convolution_desc_t>(
+                        op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::deconvolution:
+                ret = cast_and_compare<deconvolution_desc_t>(
+                        op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::eltwise:
+                ret = cast_and_compare<eltwise_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::gemm:
+                ret = cast_and_compare<gemm_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::inner_product:
+                ret = cast_and_compare<inner_product_desc_t>(
+                        op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::layer_normalization:
+                ret = cast_and_compare<layer_normalization_desc_t>(
+                        op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::lrn:
+                ret = cast_and_compare<lrn_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::pooling:
+                ret = cast_and_compare<pooling_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::reorder:
+                ret = cast_and_compare<reorder_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::rnn:
+                ret = cast_and_compare<rnn_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::shuffle:
+                ret = cast_and_compare<shuffle_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::softmax:
+                ret = cast_and_compare<softmax_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            case primitive_kind::sum:
+                ret = cast_and_compare<sum_desc_t>(op_desc_, rhs.op_desc_);
+                break;
+            default: assert(!"unknown primitive_kind");
+        }
+        return ret;
     }
 
-private:
     mkldnn_primitive_kind_t primitive_kind_;
     const op_desc_t *op_desc_;
     const primitive_attr_t *attr_;
     std::type_index impl_id_;
     int impl_nthr_;
+
+private:
+    template <typename T>
+    bool cast_and_compare(const op_desc_t *lhs, const op_desc_t *rhs) const {
+        return *(reinterpret_cast<const T *>(lhs))
+                == *(reinterpret_cast<const T *>(rhs));
+    }
 };
 
 } // namespace primitive_hashing
