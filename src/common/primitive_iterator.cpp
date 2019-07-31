@@ -86,4 +86,4 @@ status_t mkldnn_primitive_desc_create(primitive_desc_t **primitive_desc,
     return safe_ptr_assign<primitive_desc_t>(*primitive_desc, *it);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

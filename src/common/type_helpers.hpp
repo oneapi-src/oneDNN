@@ -359,4 +359,4 @@ format_tag_t memory_desc_matches_one_of_tag(const memory_desc_t &md,
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

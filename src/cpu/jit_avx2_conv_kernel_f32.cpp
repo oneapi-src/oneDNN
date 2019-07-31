@@ -1498,4 +1498,4 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common()
 }
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

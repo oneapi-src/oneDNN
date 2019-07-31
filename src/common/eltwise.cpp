@@ -84,4 +84,4 @@ status_t mkldnn_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
             diff_data_desc, alpha, beta);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

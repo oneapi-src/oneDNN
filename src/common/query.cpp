@@ -56,4 +56,4 @@ int mkldnn_primitive_desc_query_s32(const primitive_desc_t *primitive_desc,
     return args_ok ? res_s32 : 0;
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

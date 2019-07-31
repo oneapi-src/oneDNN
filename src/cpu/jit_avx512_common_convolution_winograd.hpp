@@ -316,4 +316,4 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16]);
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

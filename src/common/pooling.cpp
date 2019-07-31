@@ -120,4 +120,4 @@ status_t mkldnn_pooling_backward_desc_init(pooling_desc_t *pool_desc,
             padding_r);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

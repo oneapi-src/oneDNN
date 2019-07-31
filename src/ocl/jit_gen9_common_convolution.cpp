@@ -142,4 +142,4 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

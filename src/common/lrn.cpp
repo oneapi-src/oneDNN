@@ -88,4 +88,4 @@ status_t mkldnn_lrn_backward_desc_init(lrn_desc_t *lrn_desc,
             diff_data_desc, local_size, alpha, beta, k);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

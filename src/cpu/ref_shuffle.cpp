@@ -170,4 +170,4 @@ template void ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
 }
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

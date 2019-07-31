@@ -67,4 +67,4 @@ status_t mkldnn_softmax_backward_desc_init(softmax_desc_t *softmax_desc,
     return softmax_desc_init(softmax_desc, prop_kind::backward_data,
             data_desc, diff_desc, softmax_axis);
 }
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

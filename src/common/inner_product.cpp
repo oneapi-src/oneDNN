@@ -103,4 +103,4 @@ status_t mkldnn_inner_product_backward_weights_desc_init(
             diff_bias_desc, diff_dst_desc);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

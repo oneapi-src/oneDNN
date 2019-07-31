@@ -1160,4 +1160,4 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
 }
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
