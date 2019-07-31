@@ -67,11 +67,11 @@ if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
 endif()
 
 if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
-    register_exe(gpu-sycl-interop-cpp gpu_sycl_interop.cpp "test")
+    register_exe(sycl-interop-cpp sycl_interop.cpp "test")
     if(MKLDNN_SYCL_COMPUTECPP)
         add_sycl_to_target(
-            TARGET gpu-sycl-interop-cpp
-            SOURCES gpu_sycl_interop.cpp
+            TARGET sycl-interop-cpp
+            SOURCES sycl_interop.cpp
         )
     endif()
 endif()
