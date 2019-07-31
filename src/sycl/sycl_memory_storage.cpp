@@ -41,36 +41,53 @@ sycl_memory_storage_t::sycl_memory_storage_t(engine_t *engine, unsigned flags,
         return;
 
     if (flags & memory_flags_t::alloc) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        void *vptr_alloc = mkldnn::sycl_malloc(size);
-        vptr_.reset(vptr_alloc, [](void *ptr) { mkldnn::sycl_free(ptr); });
-#else
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
         buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
+        auto &sycl_dev = sycl_engine->device();
+        auto &sycl_ctx = sycl_engine->context();
+
+        void *usm_ptr_alloc = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
+        usm_ptr_ = decltype(usm_ptr_)(usm_ptr_alloc,
+                [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+        void *vptr_alloc = mkldnn::sycl_malloc(size);
+        vptr_ptr_ = decltype(vptr_ptr_)(
+                vptr_alloc, [](void *ptr) { mkldnn::sycl_free(ptr); });
 #endif
     } else if (flags & memory_flags_t::use_backend_ptr) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        assert(mkldnn::is_sycl_vptr(handle));
-        vptr_.reset(handle, [](void *) {});
-#else
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
         auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(buf_u8));
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+        assert(mkldnn::is_sycl_vptr(handle));
+        vptr_ = decltype(vptr_)((handle, [](void *) {});
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+        usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
 #endif
     }
 }
 
 #if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+// TODO: why???
 sycl_memory_storage_t::~sycl_memory_storage_t() {
 }
 #endif
 
 status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    if (!vptr_) {
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+    *mapped_ptr = usm_ptr_.get();
+    return status::success;
+#endif
+
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
+    if (!buffer_) {
         *mapped_ptr = nullptr;
         return status::success;
     }
-#else
-    if (!buffer_) {
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+    if (!vptr_) {
         *mapped_ptr = nullptr;
         return status::success;
     }
@@ -78,24 +95,28 @@ status_t sycl_memory_storage_t::map_data(void **mapped_ptr) const {
 
     auto &guard_manager = guard_manager_t<map_tag>::instance();
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
+    auto acc = buffer_->get_access<cl::sycl::access::mode::read_write>();
+    auto *acc_ptr = new decltype(acc)(acc);
+    *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
+    auto unmap_callback = [=]() { delete acc_ptr; };
+    return guard_manager.enter(this, unmap_callback);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
     auto buf = mkldnn::get_sycl_buffer(vptr_);
 
     auto acc = buf.get_access<cl::sycl::access::mode::read_write>();
     auto *acc_ptr = new decltype(acc)(acc);
     *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
     auto unmap_callback = [=]() { delete acc_ptr; };
-#else
-    auto acc = buffer_->get_access<cl::sycl::access::mode::read_write>();
-    auto *acc_ptr = new decltype(acc)(acc);
-    *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
-    auto unmap_callback = [=]() { delete acc_ptr; };
-
-#endif
     return guard_manager.enter(this, unmap_callback);
+#endif
 }
 
 status_t sycl_memory_storage_t::unmap_data(void *mapped_ptr) const {
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+    return status::success;
+#endif
+
     if (!mapped_ptr)
         return status::success;
 

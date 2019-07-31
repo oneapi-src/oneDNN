@@ -44,6 +44,17 @@ void init_thunk_params(thunk_params_t *p) {
     p->size = N;
 }
 
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+template <size_t N, typename... ptr_types>
+void init_thunk_params(thunk_params_t *p, void *ptr, ptr_types... ptrs) {
+    p->native_pointers[N - sizeof...(ptr_types) - 1]
+            = reinterpret_cast<uintptr_t>(ptr);
+    init_thunk_params<N>(p, ptrs...);
+}
+template <typename... param_types>
+using make_kernel_tag = mkldnn_submit_primitive_tag<param_types...>;
+
+#else
 template <size_t N, typename accessor_t, typename... accessor_types>
 void init_thunk_params(
         thunk_params_t *p, accessor_t acc, accessor_types... accessors) {
@@ -56,61 +67,64 @@ template <typename... accessor_types>
 using make_kernel_tag
         = mkldnn_submit_primitive_tag<typename accessor_types::value_type...>;
 
-template <typename... accessor_types>
-status_t submit_cpu_primitive_with_accessors_impl(submit_ctx_t *submit_ctx,
-        cl::sycl::handler &cgh, accessor_types... accessors) {
+#endif
+
+template <typename... param_types>
+status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
+        cl::sycl::handler &cgh, param_types... params) {
     // Trick the compiler by capturing scalar values in the kernel
     // instead of pointers what is not allowed.
     uintptr_t submit_ctx_ptr = reinterpret_cast<uintptr_t>(submit_ctx);
-    cgh.single_task<make_kernel_tag<accessor_types...>>([=]() {
-        thunk_params_t params;
-        params.submit_ctx_ptr = submit_ctx_ptr;
+    cgh.single_task<make_kernel_tag<param_types...>>([=]() {
+        thunk_params_t thunk_params;
+        thunk_params.submit_ctx_ptr = submit_ctx_ptr;
 
-        // Extract pointers from SYCL accessors
-        init_thunk_params<sizeof...(accessor_types)>(&params, accessors...);
+        // Extract pointers from params
+        init_thunk_params<sizeof...(param_types)>(&thunk_params, params...);
 
         // Call C-linkage thunk which executes CPU primitive natively
-        mkldnn_impl_sycl_cpu_thunk(&params);
+        mkldnn_impl_sycl_cpu_thunk(&thunk_params);
     });
     return status::success;
 }
 
-template <typename tuple_t, size_t... Is>
-status_t submit_cpu_primitive_with_accessors(submit_ctx_t *submit_ctx,
-        cl::sycl::handler &cgh, const tuple_t &acc_tuple,
-        nstl::index_sequence<Is...>) {
-    return submit_cpu_primitive_with_accessors_impl(
-            submit_ctx, cgh, std::get<Is>(acc_tuple)...);
-}
-
-template <typename buffer_tuple_t, size_t... Is>
+template <typename params_tuple_t, size_t... Is>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
-        buffer_tuple_t &buffer_tp, nstl::index_sequence<Is...>) {
-    constexpr size_t nacc = std::tuple_size<buffer_tuple_t>::value;
+        params_tuple_t &params_tp, nstl::index_sequence<Is...>) {
+    constexpr size_t nacc = std::tuple_size<params_tuple_t>::value;
     MAYBE_UNUSED(nacc);
-    submit_cpu_primitive_with_accessors_impl(submit_ctx, cgh,
-            std::get<Is>(buffer_tp)
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+    submit_cpu_primitive_with_params_impl(
+            submit_ctx, cgh, std::get<Is>(params_tp)...);
+#else
+    submit_cpu_primitive_with_params_impl(submit_ctx, cgh,
+            std::get<Is>(params_tp)
                     .template get_access<cl::sycl::access::mode::read_write>(
                             cgh)...);
+#endif
 }
 
 template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
         const storage_types *... storages) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    auto buffer_tp = std::make_tuple(
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
+    auto params_tp = std::make_tuple(
+            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
+                    ->buffer()...);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+    auto params_tp = std::make_tuple(
+            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
+                    ->usm_ptr()...);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+    auto params_tp = std::make_tuple(
             mkldnn
             : get_sycl_buffer(utils::downcast<const sycl_memory_storage_t *>(
                     storages->impl())
                                       ->vptr())...);
-#else
-    auto buffer_tp = std::make_tuple(
-            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
-                    ->buffer()...);
 #endif
-    constexpr size_t nbuffers = sizeof...(storage_types);
+    constexpr size_t nparams = sizeof...(storage_types);
     fast_dispatch_by_size(
-            submit_ctx, cgh, buffer_tp, nstl::make_index_sequence<nbuffers>{});
+            submit_ctx, cgh, params_tp, nstl::make_index_sequence<nparams>{});
 }
 
 } // namespace

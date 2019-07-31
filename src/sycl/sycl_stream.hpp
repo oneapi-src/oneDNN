@@ -119,6 +119,9 @@ struct sycl_stream_t : public compute::compute_stream_t {
 
     virtual status_t copy(const memory_storage_t &src,
             const memory_storage_t &dst, size_t size) const override {
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+        assert(!"not implemented");
+#endif
         if (size == 0)
             return status::success;
 
@@ -135,21 +138,27 @@ struct sycl_stream_t : public compute::compute_stream_t {
             auto *dst_sycl_storage
                     = utils::downcast<const sycl::sycl_memory_storage_t *>(
                             dst.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
+            auto &sycl_buf_src = src_sycl_storage->buffer();
+            auto &sycl_buf_dst = dst_sycl_storage->buffer();
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+            assert(false);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
             auto sycl_buf_src
                     = mkldnn::get_sycl_buffer(src_sycl_storage->vptr());
             auto sycl_buf_dst
                     = mkldnn::get_sycl_buffer(dst_sycl_storage->vptr());
-#else
-            auto &sycl_buf_src = src_sycl_storage->buffer();
-            auto &sycl_buf_dst = dst_sycl_storage->buffer();
 #endif
+
+#if (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER) \
+        || (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR)
             size_t src_size = sycl_buf_src.get_size();
             size_t dst_size = sycl_buf_dst.get_size();
 
             assert(src_size == dst_size);
             MAYBE_UNUSED(src_size);
             MAYBE_UNUSED(dst_size);
+#endif
 
             // FIXME: Intel SYCL fails to compile the SYCL kernel for GPU due to
             // unresolved references to mkldnn_impl_sycl_cpu_thunk so switch to
@@ -192,11 +201,13 @@ struct sycl_stream_t : public compute::compute_stream_t {
             auto &sycl_dst
                     = *utils::downcast<const sycl::sycl_memory_storage_t *>(
                             dst.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
-            copy_to_buffer(src_ptr_u8, sycl_buf, size);
-#else
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
             auto &sycl_buf = sycl_dst.buffer();
+            copy_to_buffer(src_ptr_u8, sycl_buf, size);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+            assert(false);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
             copy_to_buffer(src_ptr_u8, sycl_buf, size);
 #endif
         } else if (dst.engine()->kind() == engine_kind::cpu
@@ -209,11 +220,13 @@ struct sycl_stream_t : public compute::compute_stream_t {
             auto &sycl_src
                     = *utils::downcast<const sycl::sycl_memory_storage_t *>(
                             src.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
-            copy_from_buffer(sycl_buf, dst_ptr, size);
-#else
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
             auto &sycl_buf = sycl_src.buffer();
+            copy_from_buffer(sycl_buf, dst_ptr, size);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+            assert(false);
+#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
+            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
             copy_from_buffer(sycl_buf, dst_ptr, size);
 #endif
         } else {

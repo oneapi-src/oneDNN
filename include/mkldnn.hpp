@@ -1447,7 +1447,8 @@ struct memory: public handle<mkldnn_memory_t> {
         reset(result);
     }
 
-#if MKLDNN_WITH_SYCL
+#if MKLDNN_WITH_SYCL \
+        && (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER)
     /// Constructs a memory from a SYCL buffer.
     ///
     /// @param md Memory descriptor.
@@ -1551,7 +1552,7 @@ struct memory: public handle<mkldnn_memory_t> {
     }
 #endif
 
-#if MKLDNN_WITH_SYCL
+#if MKLDNN_WITH_SYCL && (MKLDNN_SYCL_MEMORY_API != MKLDNN_SYCL_MEMORY_API_USM)
     /// Returns the underlying SYCL buffer object.
     ///
     /// @tparam T Type of the requested buffer.

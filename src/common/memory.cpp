@@ -233,10 +233,10 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
 
-    // If VPTR API is not used then return an error if SYCL memory is
+    // If buffer API is used then return an error if SYCL memory is
     // initialized with a raw pointer.
     if (engine->backend_kind() == backend_kind::sycl) {
-#if MKLDNN_SYCL_MEMORY_API != MKLDNN_SYCL_MEMORY_API_VPTR
+#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
         if (handle && handle != MKLDNN_MEMORY_ALLOCATE)
             return invalid_arguments;
 #endif
