@@ -68,6 +68,10 @@ endif()
 
 if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     register_exe(gpu-sycl-interop-cpp gpu_sycl_interop.cpp "test")
+    add_sycl_to_target(
+        TARGET gpu-sycl-interop-cpp
+        SOURCES gpu_sycl_interop.cpp
+    )
 endif()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
