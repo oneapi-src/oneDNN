@@ -14,18 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example gpu_getting_started.cpp
-/// @copybrief gpu_getting_started_cpp
-/// > Annotated version: @ref gpu_getting_started_cpp
+/// @example cross_engine_reorder.cpp
+/// @copybrief cross_engine_reorder_cpp
+/// > Annotated version: @ref cross_engine_reorder_cpp
 
 #include <iostream>
 #include <sstream>
 
-/// @page gpu_getting_started_cpp Getting started on GPU
+/// @page cross_engine_reorder_cpp Getting started on GPU
 /// This C++ API example demonstrates programming for Intel(R) Processor
 /// Graphics with Intel(R) MKL-DNN.
 ///
-/// > Example code: @ref gpu_getting_started.cpp
+/// > Example code: @ref cross_engine_reorder.cpp
 ///
 ///   - How to create Intel MKL-DNN memory objects for both GPU and CPU.
 ///   - How to get data from the user's buffer into an Intel MKL-DNN
@@ -35,7 +35,7 @@
 ///   - How to create Intel MKL-DNN primitives on GPU.
 ///   - How to execute the primitives on GPU.
 ///
-/// @section gpu_getting_started_cpp_headers Public headers
+/// @section cross_engine_reorder_cpp_headers Public headers
 ///
 /// To start using Intel MKL-DNN, we must first include the @ref mkldnn.hpp
 /// header file in the application. We also include @ref mkldnn_debug.h, which
@@ -44,8 +44,8 @@
 ///
 /// All C++ API types and functions reside in the `mkldnn` namespace.
 /// For simplicity of the example we import this namespace.
-/// @page gpu_getting_started_cpp
-/// @snippet gpu_getting_started.cpp Prologue
+/// @page cross_engine_reorder_cpp
+/// @snippet cross_engine_reorder.cpp Prologue
 // [Prologue]
 #include "mkldnn.hpp"
 
@@ -88,12 +88,12 @@ int find_negative(const memory &mem, const memory::dims adims) {
     return negs;
 }
 
-/// @page gpu_getting_started_cpp
-/// @section gpu_getting_started_cpp_tutorial gpu_getting_started_tutorial() function
-/// @page gpu_getting_started_cpp
-void gpu_getting_started_tutorial() {
-    /// @page gpu_getting_started_cpp
-    /// @subsection gpu_getting_started_cpp_sub1 Engine and stream
+/// @page cross_engine_reorder_cpp
+/// @section cross_engine_reorder_cpp_tutorial cross_engine_reorder_tutorial() function
+/// @page cross_engine_reorder_cpp
+void cross_engine_reorder_tutorial() {
+    /// @page cross_engine_reorder_cpp
+    /// @subsection cross_engine_reorder_cpp_sub1 Engine and stream
     ///
     /// All Intel MKL-DNN primitives and memory objects are attached to a
     /// particular @ref mkldnn::engine, which is an abstraction of a
@@ -108,7 +108,7 @@ void gpu_getting_started_tutorial() {
     /// and the index of the device of the given kind. There is only one CPU
     /// engine and one GPU engine, so the index for both engines must be 0.
     ///
-    /// @snippet gpu_getting_started.cpp Initialize engine
+    /// @snippet cross_engine_reorder.cpp Initialize engine
     // [Initialize engine]
     auto cpu_engine = engine(engine::kind::cpu, 0);
     auto gpu_engine = engine(engine::kind::gpu, 0);
@@ -120,15 +120,15 @@ void gpu_getting_started_tutorial() {
     ///
     /// In this example, a GPU stream is created.
     ///
-    /// @snippet gpu_getting_started.cpp Initialize stream
+    /// @snippet cross_engine_reorder.cpp Initialize stream
     // [Initialize stream]
     auto stream_gpu = stream(gpu_engine);
     // [Initialize stream]
 
-    /// @subsection gpu_getting_started_cpp_sub2 Wrapping data into Intel MKL-DNN GPU memory object
+    /// @subsection cross_engine_reorder_cpp_sub2 Wrapping data into Intel MKL-DNN GPU memory object
     /// Fill the data in CPU memory first, and then move data from CPU to GPU
     /// memory by reorder.
-    /// @snippet gpu_getting_started.cpp reorder cpu2gpu
+    /// @snippet cross_engine_reorder.cpp reorder cpu2gpu
     //  [reorder cpu2gpu]
     const auto tz = memory::dims {2, 16, 1, 1};
     auto m_cpu
@@ -141,7 +141,7 @@ void gpu_getting_started_tutorial() {
     auto r1 = reorder(m_cpu, m_gpu);
     //  [reorder cpu2gpu]
 
-    /// @subsection gpu_getting_started_cpp_sub3 Creating a ReLU primitive
+    /// @subsection cross_engine_reorder_cpp_sub3 Creating a ReLU primitive
     ///
     /// Let's now create a ReLU primitive for GPU.
     ///
@@ -168,7 +168,7 @@ void gpu_getting_started_tutorial() {
     ///    creating primitive objects once and executing them multiple times.
     ///
     /// The code:
-    /// @snippet gpu_getting_started.cpp Create a ReLU primitive
+    /// @snippet cross_engine_reorder.cpp Create a ReLU primitive
     // [Create a ReLU primitive]
     //  ReLU op descriptor (uses a GPU memory as source memory.
     //  no engine- or implementation-specific information)
@@ -182,15 +182,15 @@ void gpu_getting_started_tutorial() {
     auto relu = eltwise_forward(relu_pd);
     // [Create a ReLU primitive]
 
-    /// @subsection gpu_getting_started_cpp_sub4 Getting results from an Intel MKL-DNN GPU memory object
+    /// @subsection cross_engine_reorder_cpp_sub4 Getting results from an Intel MKL-DNN GPU memory object
     /// After the ReLU operation, users need to get data from GPU to CPU memory
     /// by reorder.
-    /// @snippet gpu_getting_started.cpp reorder gpu2cpu
+    /// @snippet cross_engine_reorder.cpp reorder gpu2cpu
     //  [reorder gpu2cpu]
     auto r2 = reorder(m_gpu, m_cpu);
     //  [reorder gpu2cpu]
 
-    /// @subsection gpu_getting_started_cpp_sub5 Executing all primitives
+    /// @subsection cross_engine_reorder_cpp_sub5 Executing all primitives
     ///
     /// Finally, let's execute all primitives and wait for their completion
     /// via the following sequence:
@@ -218,7 +218,7 @@ void gpu_getting_started_tutorial() {
     /// non-blocking. This means that we need to call @ref
     /// mkldnn::stream::wait before accessing the results.
     ///
-    /// @snippet gpu_getting_started.cpp Execute primitives
+    /// @snippet cross_engine_reorder.cpp Execute primitives
     // [Execute primitives]
     // wrap source data from CPU to GPU
     r1.execute(stream_gpu, m_cpu, m_gpu);
@@ -231,13 +231,13 @@ void gpu_getting_started_tutorial() {
     stream_gpu.wait();
     // [Execute primitives]
 
-    /// @page gpu_getting_started_cpp
-    /// @subsection gpu_getting_started_cpp_sub6 Validate the result
+    /// @page cross_engine_reorder_cpp
+    /// @subsection cross_engine_reorder_cpp_sub6 Validate the result
     ///
     /// Now that we have the computed the result on CPU memory, let's validate
     /// that it is actually correct.
     ///
-    /// @snippet gpu_getting_started.cpp Check the results
+    /// @snippet cross_engine_reorder.cpp Check the results
     // [Check the results]
     if (find_negative(m_cpu, tz) != 0) {
         std::stringstream ss;
@@ -248,8 +248,8 @@ void gpu_getting_started_tutorial() {
     // [Check the results]
 }
 
-/// @page gpu_getting_started_cpp
-/// @section gpu_getting_started_cpp_main main() function
+/// @page cross_engine_reorder_cpp
+/// @section cross_engine_reorder_cpp_main main() function
 ///
 /// We now just call everything we prepared earlier.
 ///
@@ -258,12 +258,12 @@ void gpu_getting_started_tutorial() {
 /// The Intel MKL-DNN C++ API throws exceptions of type @ref mkldnn::error,
 /// which contains the error status (of type @ref mkldnn_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
-/// @snippet gpu_getting_started.cpp Main
+/// @snippet cross_engine_reorder.cpp Main
 
 // [Main]
 int main(int argc, char **argv) {
     try {
-        gpu_getting_started_tutorial();
+        cross_engine_reorder_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
                   << "Error status: " << mkldnn_status2str(e.status)
@@ -287,4 +287,4 @@ int main(int argc, char **argv) {
 /// Example passes
 /// ~~~
 ///
-/// @page gpu_getting_started_cpp
+/// @page cross_engine_reorder_cpp

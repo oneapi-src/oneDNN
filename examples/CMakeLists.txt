@@ -34,28 +34,37 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set_if(UNIX LIBM m)
 
-register_exe(cpu-getting-started cpu_getting_started.cpp "test")
-register_exe(cpu-memory-format-propagation cpu_memory_format_propagation.cpp "test")
-register_exe(cpu-performance-profiling-cpp cpu_performance_profiling.cpp "test")
+file(GLOB sources *.cpp *.c)
 
-register_exe(cpu-cnn-inference-f32-c cpu_cnn_inference_f32.c "test")
-register_exe(cpu-cnn-inference-f32-cpp cpu_cnn_inference_f32.cpp "test")
-register_exe(cpu-cnn-training-f32-c cpu_cnn_training_f32.c "test" ${LIBM})
-register_exe(cpu-cnn-training-f32-cpp cpu_cnn_training_f32.cpp "test" ${LIBM})
-register_exe(cpu-cnn-training-bf16-cpp cpu_cnn_training_bf16.cpp "test" ${LIBM})
-register_exe(cpu-cnn-inference-int8-cpp cpu_cnn_inference_int8.cpp "test")
-register_exe(cpu-rnn-inference-f32-cpp cpu_rnn_inference_f32.cpp "test")
-register_exe(cpu-rnn-inference-int8 cpu_rnn_inference_int8.cpp "test")
-register_exe(cpu-rnn-training-f32 cpu_rnn_training_f32.cpp "test")
-
-if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
-    register_exe(gpu-getting-started-c gpu_getting_started.c "test")
-    register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
-    register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
-endif()
+foreach(src ${sources})
+    get_filename_component(src_name ${src} NAME)
+    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
+    if(${example_name} MATCHES "^(cpu)") 
+        # Example name contains cpu-
+        register_exe(${example_name} ${src} "test" ${LIBM})
+    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
+        # Example name contains cross-engine or gpu-
+        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+            register_exe(${example_name} ${src} "test" ${LIBM})
+        endif() 
+    else()
+        register_exe(${example_name} ${src} "" ${LIBM})
+       
+        # Adding test for CPU
+        add_test("cpu-${example_name}" "${example_name}" cpu) 
+        maybe_configure_windows_test("cpu-${example_name}" TEST)
+        
+        # Adding test for GPU
+        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+           add_test("gpu-${example_name}" "${example_name}" gpu)             
+           maybe_configure_windows_test("gpu-${example_name}" TEST)
+        endif()
+    endif()
+endforeach()
 
 if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-    file(GLOB example_sources "cpu_*.cpp" "cpu_*.c")
+    file(GLOB example_sources 
+         "cpu_*.cpp" "c_*.c" "cnn_*.c" "cnn_*.cpp" "rnn_*.cpp" "*.h*")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt

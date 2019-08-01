@@ -14,19 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_performance_profiling.cpp
+/// @example performance_profiling.cpp
 /// This example demonstrates the best practices for application performance
 /// optimizations with Intel MKL-DNN.
 ///
-/// > Annotated version: @ref cpu_performance_profiling_cpp
+/// > Annotated version: @ref performance_profiling_cpp
+/// @page performance_profiling_cpp Performance Profiling Example
 
 #include <chrono>
 #include <iostream>
 #include <stdio.h>
-#include <string>
+#include <vector>
 
-/// @page cpu_performance_profiling_cpp Performance Profiling Example
-/// > Example code: @ref cpu_performance_profiling.cpp
+#include "example_utils.hpp"
+
+/// > Example code: @ref performance_profiling.cpp
 ///
 /// This example uses [MKLDNN_VERBOSE](@ref dev_guide_verbose) trace output
 /// to tune Intel MKL-DNN code to align
@@ -56,9 +58,9 @@
 /// implements all of the best practices for inference resulting in the
 /// best overall performance.
 ///
-/// @section cpu_performance_profiling_cpp_walkthrough Walkthrough
+/// @section performance_profiling_cpp_walkthrough Walkthrough
 ///
-/// The program in \ref cpu_performance_profiling.cpp includes all three
+/// The program in \ref performance_profiling.cpp includes all three
 /// implementations introduced above. You can select the specific implementation
 /// using command line options.
 ///
@@ -76,47 +78,41 @@
 /// The program starts by creating Intel MKL-DNN memory objects in **NCHW**
 /// format. These are called `user_` because they are meant to represent the
 /// user's source data entering Intel MKL-DNN with the NCHW format.
-/// @page cpu_performance_profiling_cpp
-/// @snippet cpu_performance_profiling.cpp Set dimensions
-/// @page cpu_performance_profiling_cpp
-/// @snippet cpu_performance_profiling.cpp Create memory objects
-/// @page cpu_performance_profiling_cpp
+/// @page performance_profiling_cpp
+/// @snippet performance_profiling.cpp Set dimensions
+/// @page performance_profiling_cpp
+/// @snippet performance_profiling.cpp Create memory objects
+/// @page performance_profiling_cpp
 /// @note You can change the batch size to easily increase/decrease the workload.
 ///
 /// The following descriptions of each implementation will reference each other,
 /// and are meant to be read in order.
 ///
-// [Prologue]
-#include "mkldnn.hpp"
+
 using namespace mkldnn;
 
+// [Prologue]
 // Set Strides and Padding
 const memory::dims strides = {4, 4};
 const memory::dims padding = {0, 0};
 
-// Initialize engine
-engine cpu(engine::kind::cpu, 0);
-
-// Initialize stream
-stream s(cpu);
-// [Prologue]
-
 // function to init data
 void init_data(memory &m, float v) {
-    auto data = (float *)m.get_data_handle();
-    auto size = m.get_desc().get_size() / sizeof(*data);
+    size_t size = m.get_desc().get_size() / sizeof(float);
+    std::vector<float> data(size);
+    read_from_mkldnn_memory(data.data(), m);
     for (size_t i = 0; i < size; ++i)
         data[i] = v;
 }
 
 // function to execute non-fused relu
-void create_and_execute_relu(memory data) {
+void create_and_execute_relu(memory &data, engine &eng, stream &s) {
     // relu operates on whatever data format is given to it
 
     // create a primitive
     auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
             algorithm::eltwise_relu, data.get_desc(), 0.f, 0.f);
-    auto relu_pd = eltwise_forward::primitive_desc(relu_d, cpu);
+    auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
     auto relu = eltwise_forward(relu_pd);
 
     // execute it (in-place)
@@ -140,8 +136,8 @@ primitive_attr create_attr_with_relu_post_op() {
 
 // Implementation for naive convolution on nchw (data) and oihw (weights),
 // followed by execution of non-fused relu
-void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
-    /// @section cpu_performance_profiling_cpp_implementation1 Naive Implementation
+void conv_relu_naive(memory user_src, memory user_wei, memory user_dst, engine &eng, stream &s) {
+    /// @section performance_profiling_cpp_implementation1 Naive Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
     /// ./program.exe naive
@@ -154,16 +150,16 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
     /// destination, and weight data. Then it uses those `md` to create the
     /// convolution descriptor `conv_d`, which tells Intel MKL-DNN to use
     /// plain format (NCHW) for the convolution.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create mem_desc
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create mem_desc
     // [Create mem_desc]
     // copy the dimensions and format from user's memory
     auto conv_src_md = memory::desc(user_src.get_desc());
     auto conv_wei_md = memory::desc(user_wei.get_desc());
     auto conv_dst_md = memory::desc(user_dst.get_desc());
     // [Create mem_desc]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_desc
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_desc
     // [Create conv_desc]
     // create a convolution descriptor
     auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
@@ -175,33 +171,33 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
     /// NCHW format from `md` by way of the `conv_d`. Finally it creates
     /// the convolution primitive `conv` and adds it to the stream `s`, and then
     /// executes the `create_and_execute_relu(user_dst)` function.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_prim_desc
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_prim_desc
     // [Create conv_prim_desc]
     // create a convolution primitive descriptor
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, cpu);
+    auto conv_pd = convolution_forward::primitive_desc(conv_d, eng);
     // [Create conv_prim_desc]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_primitive
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_primitive
     // [Create conv_primitive]
     // create convolution primitive
     auto conv = convolution_forward(conv_pd);
     // [Create conv_primitive]
-    // @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Add to stream
+    // @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Add to stream
     // [Add to stream]
     // execute convolution by adding it to the stream s
     conv.execute(s,
             {{MKLDNN_ARG_SRC, user_src}, {MKLDNN_ARG_WEIGHTS, user_wei},
                     {MKLDNN_ARG_DST, user_dst}});
     // [Add to stream]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create and execute relu
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create and execute relu
     // [Create and execute relu]
     // execute relu (on convolution's destination format, whatever it is)
-    create_and_execute_relu(user_dst);
+    create_and_execute_relu(user_dst, eng, s);
     // [Create and execute relu]
-    /// @page cpu_performance_profiling_cpp
+    /// @page performance_profiling_cpp
     /// @note The function for creation and execution of ReLU primitive is
     /// defined elsewhere to keep this example clean. It is an non-intensive
     /// operation, so the `create_and_execute_relu()` function uses whatever
@@ -228,9 +224,9 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
 
 // Implementation for convolution on blocked format for data and
 // weights, followed by execution of non-fused relu
-void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
-    /// @page cpu_performance_profiling_cpp
-    /// @section cpu_performance_profiling_cpp_implementation2 Blocked format implementation
+void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst, engine &eng, stream &s){
+    /// @page performance_profiling_cpp
+    /// @section performance_profiling_cpp_implementation2 Blocked format implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
     /// ./program.exe blocked
@@ -242,9 +238,9 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     /// the mkldnn::memory::format_tag for each md to `ANY`. Then it uses those
     /// md to create the convolution descriptor conv_d, which tells Intel
     /// MKL-DNN to use whatever format it recommends for the convolution.
-    /// Intel MKL-DNN will choose the CPU-friendly blocked format.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create mem_desc with tag=any
+    /// Intel MKL-DNN will choose the a friendly blocked format.
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create mem_desc with tag=any
     // [Create mem_desc with tag=any]
     // copy the dimensions and format from user's memory
     auto conv_src_md = memory::desc(user_src.get_desc());
@@ -256,8 +252,8 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     conv_wei_md.data.format_kind = mkldnn_format_kind_any;
     conv_dst_md.data.format_kind = mkldnn_format_kind_any;
     // [Create mem_desc with tag=any]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_desc implementation2
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_desc implementation2
     // [Create conv_desc implementation2]
     // create a convolution descriptor
     auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
@@ -268,11 +264,11 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     /// convolution primitive conv as in naive implementation.
     /// However, in this implementation the structs will inherit blocked format
     /// from md by way of the conv_d.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_prim_desc implementation2
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_prim_desc implementation2
     // [Create conv_prim_desc implementation2]
     // create a convolution primitive descriptor and primitive
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, cpu);
+    auto conv_pd = convolution_forward::primitive_desc(conv_d, eng);
     // [Create conv_prim_desc implementation2]
     /// Since the resulting convolution primitive will expect
     /// blocked source data, conditional reorders are inserted to convert
@@ -280,13 +276,13 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     /// The input data user_src is NCHW, so this conditional will be triggered:
     ///
     /// @note The reoders are applied using Intel MKL-DNN `reorder` primitive.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Conditionally create and execute reorder prims
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Conditionally create and execute reorder prims
     // [Conditionally create and execute reorder prims]
     // prepare convolution source
     memory conv_src = user_src;
     if (conv_pd.src_desc() != user_src.get_desc()) {
-        conv_src = memory(conv_pd.src_desc(), cpu);
+        conv_src = memory(conv_pd.src_desc(), eng);
         auto r_pd = reorder::primitive_desc(user_src, conv_src);
         reorder(r_pd).execute(s, user_src, conv_src);
     }
@@ -294,7 +290,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     // prepare convolution weights
     memory conv_wei = user_wei;
     if (conv_pd.weights_desc() != user_wei.get_desc()) {
-        conv_wei = memory(conv_pd.weights_desc(), cpu);
+        conv_wei = memory(conv_pd.weights_desc(), eng);
         auto r_pd = reorder::primitive_desc(user_wei, conv_wei);
         reorder(r_pd).execute(s, user_wei, conv_wei);
     }
@@ -302,37 +298,37 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     // prepare convolution destination
     memory conv_dst = user_dst;
     if (conv_pd.dst_desc() != user_dst.get_desc())
-        conv_dst = memory(conv_pd.dst_desc(), cpu);
+        conv_dst = memory(conv_pd.dst_desc(), eng);
     // [Conditionally create and execute reorder prims]
     /// Finally it creates the convolution primitive `conv` and adds it to the
     /// stream `s` with the reordered data (`conv_src`, `conv_wei`, `conv_dst1`)
     /// as inputs and then executes the
     /// `create_and_execute_relu(conv_dst)` function.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_primitive implementation2
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_primitive implementation2
     // [Create conv_primitive implementation2]
     // create convolution primitive
     auto conv = convolution_forward(conv_pd);
     // [Create conv_primitive implementation2]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Add to stream implementation2
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Add to stream implementation2
     // [Add to stream implementation2]
     // execute convolution by adding it to the stream s
     conv.execute(s,
             {{MKLDNN_ARG_SRC, conv_src}, {MKLDNN_ARG_WEIGHTS, conv_wei},
                     {MKLDNN_ARG_DST, conv_dst}});
     // [Add to stream implementation2]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create and execute relu implementation2
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create and execute relu implementation2
     // [Create and execute relu implementation2]
     // execute relu (on convolution's destination format, whatever it is)
-    create_and_execute_relu(conv_dst);
+    create_and_execute_relu(conv_dst, eng, s);
     // [Create and execute relu implementation2]
     if (conv_pd.dst_desc() != user_dst.get_desc()) {
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
-    /// @page cpu_performance_profiling_cpp
+    /// @page performance_profiling_cpp
     /// Blocked memory format is recommended for Intel MKL-DNN primitive
     /// execution and provides better performance, as shown in the
     /// MKLDNN_VERBOSE output by the convolution and relu execution times of
@@ -370,15 +366,15 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
 // Implementation for convolution on blocked format for data and
 // weights and the relu operation fused via a post-op attribute added to the
 // convolution prim_descriptor
-void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
-    /// @section cpu_performance_profiling_cpp_implementation3 Fused Implementation
+void conv_relu_fused(memory user_src, memory user_wei, memory user_dst, engine eng, stream s) {
+    /// @section performance_profiling_cpp_implementation3 Fused Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
     /// ./program.exe fused
     /// ~~~
     /// The program will call the implementation defined in the function
     /// `conv_relu_fused()`.
-    /// @page cpu_performance_profiling_cpp
+    /// @page performance_profiling_cpp
     ///
     /// First the memory descriptors and convolution descriptor are created as
     /// in *naive implementation*.
@@ -398,19 +394,19 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
             conv_dst_md, strides, padding, padding);
     /// Then in preparation for the convolution prim desctiptor, a ReLU post-op
     /// is built and added to the primitive attribute `attr`:
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create post_op attr with relu
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create post_op attr with relu
 
     // Next the convolution prim descriptor is created, which inherits the ReLU
     /// post-op by way of the attributes `attr`:
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create prim_desc with attr
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create prim_desc with attr
     // [Create prim_desc with attr]
     // create an attribute for fused relu
     auto attr = create_attr_with_relu_post_op();
 
     // create a convolution primitive descriptor
-    auto conv_pd = convolution_forward::primitive_desc(conv_d, attr, cpu);
+    auto conv_pd = convolution_forward::primitive_desc(conv_d, attr, eng);
     // [Create prim_desc with attr]
     /// Then conditional reorders are applied as in *blocked format
     /// implementation* to convert `user_` format NCHW to blocked. Finally, it
@@ -419,7 +415,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     // prepare convolution source
     memory conv_src = user_src;
     if (conv_pd.src_desc() != user_src.get_desc()) {
-        conv_src = memory(conv_pd.src_desc(), cpu);
+        conv_src = memory(conv_pd.src_desc(), eng);
         auto r_pd = reorder::primitive_desc(user_src, conv_src);
         reorder(r_pd).execute(s, user_src, conv_src);
     }
@@ -427,7 +423,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     // prepare convolution weights
     memory conv_wei = user_wei;
     if (conv_pd.weights_desc() != user_wei.get_desc()) {
-        conv_wei = memory(conv_pd.weights_desc(), cpu);
+        conv_wei = memory(conv_pd.weights_desc(), eng);
         auto r_pd = reorder::primitive_desc(user_wei, conv_wei);
         reorder(r_pd).execute(s, user_wei, conv_wei);
     }
@@ -435,18 +431,18 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     // prepare convolution destination
     memory conv_dst = user_dst;
     if (conv_pd.dst_desc() != user_dst.get_desc())
-        conv_dst = memory(conv_pd.dst_desc(), cpu);
-    /// @page cpu_performance_profiling_cpp
+        conv_dst = memory(conv_pd.dst_desc(), eng);
+    /// @page performance_profiling_cpp
     /// @note There is no separate addition to the stream for the ReLU
     /// operation because it has been added as a post-op to the `conv` primitive.
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Create conv_primitive implementation3
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Create conv_primitive implementation3
     // [Create conv_primitive implementation3]
     // create convolution primitive
     auto conv = convolution_forward(conv_pd);
     // [Create conv_primitive implementation3]
-    /// @page cpu_performance_profiling_cpp
-    /// @snippet cpu_performance_profiling.cpp Add to stream implementation3
+    /// @page performance_profiling_cpp
+    /// @snippet performance_profiling.cpp Add to stream implementation3
     // [Add to stream implementation3]
     // execute convolution by adding it to the stream s
     conv.execute(s,
@@ -458,7 +454,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
-    /// @page cpu_performance_profiling_cpp
+    /// @page performance_profiling_cpp
     /// This implementation complies with best practices for f32 inference by
     /// using the Intel MKL-DNN recommended blocked format for convolution and
     /// adding ReLU as a post-op to execute a fused version of conv + ReLU.
@@ -474,8 +470,8 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     /// ~~~
 }
 
-/// @page cpu_performance_profiling_cpp
-/// @section cpu_performance_profiling_cpp_roundup Performance summary
+/// @page performance_profiling_cpp
+/// @section performance_profiling_cpp_roundup Performance summary
 ///
 /// | Implmentation | Time, ms | Cumulative speedup |
 /// | :--            |     --: |                --: |
@@ -484,8 +480,8 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
 /// | Fused          |   103.9 |               3.2 |
 ///
 /// **  **
-/// @page cpu_performance_profiling_cpp
-/// @section cpu_performance_profiling_cpp_config Configuration Notice
+/// @page performance_profiling_cpp
+/// @section performance_profiling_cpp_config Configuration Notice
 /// @note This example is meant to demonstrate Intel MKL-DNN best practices.
 /// @note It is not meant for benchmarking purposes. The platform is not fully
 /// @note optimized, so the primitive execution times are only relevant in
@@ -504,6 +500,12 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
 /// * RAM (DDR4): 1.45 TB
 
 int main(int argc, char *argv[]) {
+    // Initialize engine
+    engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
+    engine eng(engine_kind, 0);
+
+    // Initialize stream
+    stream s(eng);
     // [Set dimensions]
     // set dimensions for synthetic data and weights
     const memory::dim BATCH = 1000;
@@ -516,14 +518,11 @@ int main(int argc, char *argv[]) {
     // create MKL-DNN memory objects for user's tensors (in nchw and oihw formats)
     // @note here the library allocates memory
     auto user_src = memory({{BATCH, IC, IH, IW}, memory::data_type::f32,
-                                   memory::format_tag::nchw},
-            cpu);
+                    memory::format_tag::nchw}, eng);
     auto user_wei = memory({{OC, IC, KH, KW}, memory::data_type::f32,
-                                   memory::format_tag::oihw},
-            cpu);
+                    memory::format_tag::oihw}, eng);
     auto user_dst = memory({{BATCH, OC, OH, OW}, memory::data_type::f32,
-                                   memory::format_tag::nchw},
-            cpu);
+                    memory::format_tag::nchw}, eng);
     // [Create memory objects]
 
     // fill source, destination, and weights with synthetic data
@@ -534,21 +533,21 @@ int main(int argc, char *argv[]) {
     // set implementation ("naive"||"blocked"||"fused") setting implementation
     // to "validation" will run all implementations
     std::string implementation;
-    if (argc == 1)
+    if (argc <= 2)
         implementation = "validation";
-    else if (argc == 2)
-        implementation = argv[1];
+    else if (argc == 3)
+        implementation = argv[2];
 
-    if (!(implementation == "validation" || implementation == "naive"
-                || implementation == "blocked" || implementation == "fused")) {
-        std::cout << "\nUsage: " << argv[0] << " [implementation]\n\n";
+    if (!(implementation == "validation"
+                || implementation == "naive"
+                || implementation == "blocked"
+                || implementation == "fused")) {
         std::cout << "The implementation can be one of:\n";
         std::cout << " - naive: NCHW format without fusion\n";
         std::cout << " - blocked: format propagation without fusion\n";
         std::cout << " - fused: format propagation with fusion\n";
         std::cout << " - validation: runs all implementations\n\n";
-        std::cout
-                << "Validation will be run if no parameters are specified\n\n";
+        std::cout << "Validation will run if no parameters are specified\n\n";
 
         return -1;
     }
@@ -556,21 +555,21 @@ int main(int argc, char *argv[]) {
     if (implementation == "naive" || implementation == "validation") {
         std::cout << "implementation: naive\n";
         // run conv + relu w/o fusing
-        conv_relu_naive(user_src, user_wei, user_dst);
+        conv_relu_naive(user_src, user_wei, user_dst, eng, s);
         std::cout << "conv + relu w/ nchw format completed\n";
     }
 
     if (implementation == "blocked" || implementation == "validation") {
         std::cout << "implementation: blocked\n";
         // run conv + relu w/o fusing
-        conv_relu_blocked(user_src, user_wei, user_dst);
+        conv_relu_blocked(user_src, user_wei, user_dst, eng, s);
         std::cout << "conv + relu w/ blocked format completed\n";
     }
 
     if (implementation == "fused" || implementation == "validation") {
         std::cout << "implementation: fused\n";
         // run conv + relu w/ fusing
-        conv_relu_fused(user_src, user_wei, user_dst);
+        conv_relu_fused(user_src, user_wei, user_dst, eng, s);
         std::cout << "conv + relu w/ fusing completed\n";
     }
 

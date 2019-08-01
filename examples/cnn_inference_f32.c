@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_cnn_inference_f32.c
-/// @copybrief cpu_cnn_inference_f32_c
-/// > Annotated version: @ref cpu_cnn_inference_f32_c
+/// @example cnn_inference_f32.c
+/// @copybrief cnn_inference_f32_c
+/// > Annotated version: @ref cnn_inference_f32_c
 
-/// @page cpu_cnn_inference_f32_c CNN f32 inference example
+/// @page cnn_inference_f32_c CNN f32 inference example
 /// This C API example demonstrates how to build an AlexNet neural
 /// network topology for forward-pass inference.
 ///
-/// > Example code: @ref cpu_cnn_inference_f32.c
+/// > Example code: @ref cnn_inference_f32.c
 ///
 /// Some key take-aways include:
 ///
@@ -39,15 +39,14 @@
 /// The example implements the AlexNet layers
 /// as numbered primitives (for example, conv1, pool1, conv2).
 ///
-/// @include cpu_cnn_inference_f32.c
+/// @include cnn_inference_f32.c
 
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "mkldnn.h"
+
+#include "example_utils.h"
 
 #define BATCH 8
 #define IC 3
@@ -62,25 +61,6 @@
 #define POOL_OW 27
 #define POOL_STRIDE 2
 #define POOL_PAD 0
-
-#define CHECK(f) \
-    do { \
-        mkldnn_status_t s = f; \
-        if (s != mkldnn_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
-    } while (0)
 
 static size_t product(mkldnn_dim_t *arr, size_t size) {
     size_t prod = 1;
@@ -114,7 +94,8 @@ static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
     mkldnn_memory_desc_t user_md;
     CHECK(mkldnn_memory_desc_init_by_tag(
             &user_md, dim, dims, mkldnn_f32, user_tag));
-    CHECK(mkldnn_memory_create(memory, &user_md, engine, data));
+    CHECK(mkldnn_memory_create(memory, &user_md, engine, MKLDNN_MEMORY_ALLOCATE));
+    write_to_mkldnn_memory(data, *memory);
 }
 
 mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, // in
@@ -134,7 +115,7 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, // in
     if (!mkldnn_memory_desc_equal(user_memory_md, prim_memory_md)) {
         // memory_create(&p, m, NULL) means allocate memory
         CHECK(mkldnn_memory_create(prim_memory, prim_memory_md, prim_engine,
-                MKLDNN_MEMORY_ALLOCATE));
+            MKLDNN_MEMORY_ALLOCATE));
         mkldnn_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
             CHECK(mkldnn_reorder_primitive_desc_create(&reorder_pd,
@@ -163,10 +144,10 @@ mkldnn_status_t prepare_reorder(mkldnn_memory_t *user_memory, // in
     return mkldnn_success;
 }
 
-mkldnn_status_t simple_net() {
+mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
 
     mkldnn_engine_t engine;
-    CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
+    CHECK(mkldnn_engine_create(&engine, engine_kind, 0));
 
     // build a simple net
     uint32_t n = 0;
@@ -332,7 +313,6 @@ mkldnn_status_t simple_net() {
             = mkldnn_primitive_desc_query_md(lrn_pd, mkldnn_query_dst_md, 0);
     CHECK(mkldnn_memory_create(
             &lrn_dst_memory, lrn_dst_md, engine, MKLDNN_MEMORY_ALLOCATE));
-
     mkldnn_memory_t lrn_ws_memory;
     const mkldnn_memory_desc_t *lrn_ws_md = mkldnn_primitive_desc_query_md(
             lrn_pd, mkldnn_query_workspace_md, 0);
@@ -473,7 +453,7 @@ mkldnn_status_t simple_net() {
 }
 
 int main(int argc, char **argv) {
-    mkldnn_status_t result = simple_net();
-    printf("%s\n", (result == mkldnn_success) ? "passed" : "failed");
+    mkldnn_status_t result = simple_net(parse_engine_kind(argc, argv));
+    printf("%s\n", (result == mkldnn_success) ? "Example Passed!" : "Example Failed!");
     return result;
 }

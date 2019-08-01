@@ -14,21 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_rnn_training_f32.cpp
-/// @copybrief cpu_rnn_training_f32_cpp
+/// @example rnn_training_f32.cpp
+/// @copybrief rnn_training_f32_cpp
 ///
-/// @page cpu_rnn_training_f32_cpp RNN f32 training example
+/// @page rnn_training_f32_cpp RNN f32 training example
 /// This C++ API example demonstrates how to build GNMT model training.
 ///
-/// @include cpu_rnn_training_f32.cpp
+/// @include rnn_training_f32.cpp
 
 #include <cstring>
-#include <iostream>
 #include <math.h>
 #include <numeric>
-#include <string>
 
-#include "mkldnn.hpp"
+#include "example_utils.hpp"
 
 using namespace mkldnn;
 
@@ -65,12 +63,12 @@ const int common_feature_size = 1024;
 const int common_n_layers = 1;
 const int lstm_n_gates = 4;
 
-void simple_net() {
+void simple_net(engine::kind engine_kind) {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    auto cpu_engine = engine(engine::kind::cpu, 0);
-    stream s(cpu_engine);
+    auto eng = engine(engine_kind, 0);
+    stream s(eng);
 
     bool is_training = true;
     auto fwd_inf_train = is_training ? prop_kind::forward_training
@@ -201,8 +199,9 @@ void simple_net() {
 
     // Memory for the user allocated memory
     // Suppose user data is in tnc format.
-    auto net_src_memory = mkldnn::memory(
-            {{net_src_dims}, dt::f32, tag::tnc}, cpu_engine, net_src.data());
+    auto net_src_memory
+            = mkldnn::memory({{net_src_dims}, dt::f32, tag::tnc}, eng);
+    write_to_mkldnn_memory(net_src.data(), net_src_memory);
     // src_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memories in larger memory.
     // View primitives compute the strides to accommodate for padding.
@@ -219,32 +218,36 @@ void simple_net() {
     // primitive prefers it in a different format.
     std::vector<float> user_common_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
-    auto user_common_weights_layer_memory
-            = mkldnn::memory({common_weights_layer_dims, dt::f32, tag::ldigo},
-                    cpu_engine, user_common_weights_layer.data());
+    auto user_common_weights_layer_memory = mkldnn::memory(
+            { common_weights_layer_dims, dt::f32, tag::ldigo }, eng);
+    write_to_mkldnn_memory(
+            user_common_weights_layer.data(), user_common_weights_layer_memory);
 
     std::vector<float> user_common_weights_iter(
             tz_volume(common_weights_iter_dims), 1.0f);
-    auto user_common_weights_iter_memory
-            = mkldnn::memory({{common_weights_iter_dims}, dt::f32, tag::ldigo},
-                    cpu_engine, user_common_weights_layer.data());
+    auto user_common_weights_iter_memory = mkldnn::memory(
+            { { common_weights_iter_dims }, dt::f32, tag::ldigo }, eng);
+    write_to_mkldnn_memory(
+            user_common_weights_layer.data(), user_common_weights_iter_memory);
 
     std::vector<float> user_common_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_bias_memory
-            = mkldnn::memory({{common_bias_dims}, dt::f32, tag::ldgo},
-                    cpu_engine, user_common_bias.data());
+            = mkldnn::memory({ { common_bias_dims }, dt::f32, tag::ldgo }, eng);
+    write_to_mkldnn_memory(user_common_bias.data(), user_common_bias_memory);
 
     std::vector<float> user_leftmost_dst_layer(
             tz_volume(leftmost_dst_layer_dims), 1.0f);
-    auto user_leftmost_dst_layer_memory
-            = mkldnn::memory({{leftmost_dst_layer_dims}, dt::f32, tag::tnc},
-                    cpu_engine, user_leftmost_dst_layer.data());
+    auto user_leftmost_dst_layer_memory = mkldnn::memory(
+            { { leftmost_dst_layer_dims }, dt::f32, tag::tnc }, eng);
+    write_to_mkldnn_memory(
+            user_leftmost_dst_layer.data(), user_leftmost_dst_layer_memory);
 
     std::vector<float> user_rightmost_dst_layer(
             tz_volume(rightmost_dst_layer_dims), 1.0f);
-    auto user_rightmost_dst_layer_memory
-            = mkldnn::memory({{rightmost_dst_layer_dims}, dt::f32, tag::tnc},
-                    cpu_engine, user_rightmost_dst_layer.data());
+    auto user_rightmost_dst_layer_memory = mkldnn::memory(
+            { { rightmost_dst_layer_dims }, dt::f32, tag::tnc }, eng);
+    write_to_mkldnn_memory(
+            user_rightmost_dst_layer.data(), user_rightmost_dst_layer_memory);
 
     // Describe layer, forward pass, leftmost primitive.
     // There are no primitives to the left from here,
@@ -262,17 +265,17 @@ void simple_net() {
             generic_md(leftmost_dst_iter_c_dims) // dst_iter_c_desc
     );
     // Describe primitive
-    auto leftmost_prim_desc = mkldnn::lstm_forward::primitive_desc(
-            leftmost_layer_desc, cpu_engine);
+    auto leftmost_prim_desc
+            = mkldnn::lstm_forward::primitive_desc(leftmost_layer_desc, eng);
 
     //
     // Need to connect leftmost and rightmost via "iter" parameters.
     // We allocate memory here based on the shapes provided by RNN primitive.
     //
     auto leftmost_dst_iter_memory
-            = mkldnn::memory(leftmost_prim_desc.dst_iter_desc(), cpu_engine);
+            = mkldnn::memory(leftmost_prim_desc.dst_iter_desc(), eng);
     auto leftmost_dst_iter_c_memory
-            = mkldnn::memory(leftmost_prim_desc.dst_iter_c_desc(), cpu_engine);
+            = mkldnn::memory(leftmost_prim_desc.dst_iter_c_desc(), eng);
 
     // rightmost src_iter will be a sub-memory of dst_iter of leftmost
     auto rightmost_src_iter_md
@@ -303,7 +306,7 @@ void simple_net() {
             memory::desc() // dst_iter_c_desc
     );
     auto rightmost_prim_desc
-            = lstm_forward::primitive_desc(rightmost_layer_desc, cpu_engine);
+            = lstm_forward::primitive_desc(rightmost_layer_desc, eng);
 
     //
     // Weights and biases, layer memory
@@ -315,8 +318,8 @@ void simple_net() {
     auto common_weights_layer_memory = user_common_weights_layer_memory;
     if (leftmost_prim_desc.weights_layer_desc()
             != common_weights_layer_memory.get_desc()) {
-        common_weights_layer_memory = mkldnn::memory(
-                leftmost_prim_desc.weights_layer_desc(), cpu_engine);
+        common_weights_layer_memory
+                = mkldnn::memory(leftmost_prim_desc.weights_layer_desc(), eng);
         reorder(user_common_weights_layer_memory, common_weights_layer_memory)
                 .execute(s, user_common_weights_layer_memory,
                         common_weights_layer_memory);
@@ -325,8 +328,8 @@ void simple_net() {
     auto common_weights_iter_memory = user_common_weights_iter_memory;
     if (leftmost_prim_desc.weights_iter_desc()
             != common_weights_iter_memory.get_desc()) {
-        common_weights_iter_memory = mkldnn::memory(
-                leftmost_prim_desc.weights_iter_desc(), cpu_engine);
+        common_weights_iter_memory
+                = mkldnn::memory(leftmost_prim_desc.weights_iter_desc(), eng);
         reorder(user_common_weights_iter_memory, common_weights_iter_memory)
                 .execute(s, user_common_weights_iter_memory,
                         common_weights_iter_memory);
@@ -335,7 +338,7 @@ void simple_net() {
     auto common_bias_memory = user_common_bias_memory;
     if (leftmost_prim_desc.bias_desc() != common_bias_memory.get_desc()) {
         common_bias_memory
-                = mkldnn::memory(leftmost_prim_desc.bias_desc(), cpu_engine);
+                = mkldnn::memory(leftmost_prim_desc.bias_desc(), eng);
         reorder(user_common_bias_memory, common_bias_memory)
                 .execute(s, user_common_bias_memory, common_bias_memory);
     }
@@ -347,8 +350,8 @@ void simple_net() {
     auto leftmost_dst_layer_memory = user_leftmost_dst_layer_memory;
     if (leftmost_prim_desc.dst_layer_desc()
             != leftmost_dst_layer_memory.get_desc()) {
-        leftmost_dst_layer_memory = mkldnn::memory(
-                leftmost_prim_desc.dst_layer_desc(), cpu_engine);
+        leftmost_dst_layer_memory
+                = mkldnn::memory(leftmost_prim_desc.dst_layer_desc(), eng);
         reorder(user_leftmost_dst_layer_memory, leftmost_dst_layer_memory)
                 .execute(s, user_leftmost_dst_layer_memory,
                         leftmost_dst_layer_memory);
@@ -357,8 +360,8 @@ void simple_net() {
     auto rightmost_dst_layer_memory = user_rightmost_dst_layer_memory;
     if (rightmost_prim_desc.dst_layer_desc()
             != rightmost_dst_layer_memory.get_desc()) {
-        rightmost_dst_layer_memory = mkldnn::memory(
-                rightmost_prim_desc.dst_layer_desc(), cpu_engine);
+        rightmost_dst_layer_memory
+                = mkldnn::memory(rightmost_prim_desc.dst_layer_desc(), eng);
         reorder(user_rightmost_dst_layer_memory, rightmost_dst_layer_memory)
                 .execute(s, user_rightmost_dst_layer_memory,
                         rightmost_dst_layer_memory);
@@ -369,7 +372,7 @@ void simple_net() {
     // communication between forward and backward primitives during
     // training.
     auto create_ws = [=](mkldnn::lstm_forward::primitive_desc &pd) {
-        return mkldnn::memory(pd.workspace_desc(), cpu_engine);
+        return mkldnn::memory(pd.workspace_desc(), eng);
     };
     auto leftmost_workspace_memory = create_ws(leftmost_prim_desc);
     auto rightmost_workspace_memory = create_ws(rightmost_prim_desc);
@@ -408,8 +411,8 @@ void simple_net() {
     // User-provided memory for backward by data output
     std::vector<float> net_diff_src(tz_volume(net_src_dims), 1.0f);
     auto net_diff_src_memory
-            = mkldnn::memory(formatted_md(net_src_dims, tag::tnc), cpu_engine,
-                    net_diff_src.data());
+            = mkldnn::memory(formatted_md(net_src_dims, tag::tnc), eng);
+    write_to_mkldnn_memory(net_diff_src.data(), net_diff_src_memory);
 
     // diff_src follows the same layout we have for net_src
     auto user_leftmost_diff_src_layer_md
@@ -419,7 +422,6 @@ void simple_net() {
             = net_diff_src_memory.get_desc().submemory_desc(
                     rightmost_src_layer_dims,
                     {leftmost_seq_length, 0, 0}); // t, n, c offsets
-
     auto leftmost_diff_src_layer_memory = net_diff_src_memory;
     auto rightmost_diff_src_layer_memory = net_diff_src_memory;
 
@@ -427,13 +429,15 @@ void simple_net() {
     std::vector<float> user_common_diff_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
     auto user_common_diff_weights_layer_memory = mkldnn::memory(
-            formatted_md(common_weights_layer_dims, tag::ldigo), cpu_engine,
-            user_common_diff_weights_layer.data());
+            formatted_md(common_weights_layer_dims, tag::ldigo), eng);
+    write_to_mkldnn_memory(user_common_diff_weights_layer.data(),
+            user_common_diff_weights_layer_memory);
 
     std::vector<float> user_common_diff_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_diff_bias_memory
-            = mkldnn::memory(formatted_md(common_bias_dims, tag::ldgo),
-                    cpu_engine, user_common_diff_bias.data());
+            = mkldnn::memory(formatted_md(common_bias_dims, tag::ldgo), eng);
+    write_to_mkldnn_memory(
+            user_common_diff_bias.data(), user_common_diff_bias_memory);
 
     // User-provided input to the backward primitive.
     // To be updated by the user after forward pass using some cost function.
@@ -445,8 +449,8 @@ void simple_net() {
     // Suppose user data is in tnc format.
     std::vector<float> net_diff_dst(tz_volume(net_diff_dst_dims), 1.0f);
     auto net_diff_dst_memory
-            = mkldnn::memory(formatted_md(net_diff_dst_dims, tag::tnc),
-                    cpu_engine, net_diff_dst.data());
+            = mkldnn::memory(formatted_md(net_diff_dst_dims, tag::tnc), eng);
+    write_to_mkldnn_memory(net_diff_dst.data(), net_diff_dst_memory);
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memory in larger memory.
     // View primitives compute the strides to accommodate for padding.
@@ -484,15 +488,15 @@ void simple_net() {
             generic_md(leftmost_dst_iter_c_dims) // diff_dst_iter_c_desc
     );
     auto leftmost_bwd_prim_desc = lstm_backward::primitive_desc(
-            leftmost_layer_bwd_desc, cpu_engine, leftmost_prim_desc);
+            leftmost_layer_bwd_desc, eng, leftmost_prim_desc);
 
     // As the batch dimensions are different between leftmost and rightmost
     // we need to use a sub-memory. rightmost needs less memory, so it will
     // be a sub-memory of leftmost.
-    auto leftmost_diff_dst_iter_memory = mkldnn::memory(
-            leftmost_bwd_prim_desc.diff_dst_iter_desc(), cpu_engine);
+    auto leftmost_diff_dst_iter_memory
+            = mkldnn::memory(leftmost_bwd_prim_desc.diff_dst_iter_desc(), eng);
     auto leftmost_diff_dst_iter_c_memory = mkldnn::memory(
-            leftmost_bwd_prim_desc.diff_dst_iter_c_desc(), cpu_engine);
+            leftmost_bwd_prim_desc.diff_dst_iter_c_desc(), eng);
 
     auto rightmost_diff_src_iter_md
             = leftmost_diff_dst_iter_memory.get_desc().submemory_desc(
@@ -530,7 +534,7 @@ void simple_net() {
             memory::desc() // diff_dst_iter_c_desc
     );
     auto rightmost_bwd_prim_desc = lstm_backward::primitive_desc(
-            rightmost_layer_bwd_desc, cpu_engine, rightmost_prim_desc);
+            rightmost_layer_bwd_desc, eng, rightmost_prim_desc);
 
     //
     // Memory for backward pass
@@ -546,8 +550,8 @@ void simple_net() {
     auto common_weights_layer_bwd_memory = common_weights_layer_memory;
     if (leftmost_bwd_prim_desc.weights_layer_desc()
             != leftmost_prim_desc.weights_layer_desc()) {
-        common_weights_layer_bwd_memory = memory(
-                leftmost_bwd_prim_desc.weights_layer_desc(), cpu_engine);
+        common_weights_layer_bwd_memory
+                = memory(leftmost_bwd_prim_desc.weights_layer_desc(), eng);
         reorder(common_weights_layer_memory, common_weights_layer_bwd_memory)
                 .execute(s, common_weights_layer_memory,
                         common_weights_layer_bwd_memory);
@@ -556,8 +560,8 @@ void simple_net() {
     auto common_weights_iter_bwd_memory = common_weights_iter_memory;
     if (leftmost_bwd_prim_desc.weights_iter_desc()
             != leftmost_prim_desc.weights_iter_desc()) {
-        common_weights_iter_bwd_memory = memory(
-                leftmost_bwd_prim_desc.weights_iter_desc(), cpu_engine);
+        common_weights_iter_bwd_memory
+                = memory(leftmost_bwd_prim_desc.weights_iter_desc(), eng);
         reorder(common_weights_iter_memory, common_weights_iter_bwd_memory)
                 .execute(s, common_weights_iter_memory,
                         common_weights_iter_bwd_memory);
@@ -565,8 +569,8 @@ void simple_net() {
 
     auto common_bias_bwd_memory = common_bias_memory;
     if (leftmost_bwd_prim_desc.bias_desc() != common_bias_memory.get_desc()) {
-        common_bias_bwd_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.bias_desc(), cpu_engine);
+        common_bias_bwd_memory
+                = mkldnn::memory(leftmost_bwd_prim_desc.bias_desc(), eng);
         reorder(common_bias_memory, common_bias_bwd_memory)
                 .execute(s, common_bias_memory, common_bias_bwd_memory);
     }
@@ -578,7 +582,7 @@ void simple_net() {
     if (leftmost_bwd_prim_desc.diff_weights_layer_desc()
             != common_diff_weights_layer_memory.get_desc()) {
         common_diff_weights_layer_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.diff_weights_layer_desc(), cpu_engine);
+                leftmost_bwd_prim_desc.diff_weights_layer_desc(), eng);
         reorder_common_diff_weights_layer = true;
     }
 
@@ -586,8 +590,8 @@ void simple_net() {
     auto reorder_common_diff_bias = false;
     if (leftmost_bwd_prim_desc.diff_bias_desc()
             != common_diff_bias_memory.get_desc()) {
-        common_diff_bias_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.diff_bias_desc(), cpu_engine);
+        common_diff_bias_memory
+                = mkldnn::memory(leftmost_bwd_prim_desc.diff_bias_desc(), eng);
         reorder_common_diff_bias = true;
     }
 
@@ -595,8 +599,8 @@ void simple_net() {
     auto leftmost_dst_layer_bwd_memory = leftmost_dst_layer_memory;
     if (leftmost_bwd_prim_desc.dst_layer_desc()
             != leftmost_dst_layer_bwd_memory.get_desc()) {
-        leftmost_dst_layer_bwd_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.dst_layer_desc(), cpu_engine);
+        leftmost_dst_layer_bwd_memory
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_layer_desc(), eng);
         reorder(leftmost_dst_layer_memory, leftmost_dst_layer_bwd_memory)
                 .execute(s, leftmost_dst_layer_memory,
                         leftmost_dst_layer_bwd_memory);
@@ -605,8 +609,8 @@ void simple_net() {
     auto rightmost_dst_layer_bwd_memory = rightmost_dst_layer_memory;
     if (rightmost_bwd_prim_desc.dst_layer_desc()
             != rightmost_dst_layer_bwd_memory.get_desc()) {
-        rightmost_dst_layer_bwd_memory = mkldnn::memory(
-                rightmost_bwd_prim_desc.dst_layer_desc(), cpu_engine);
+        rightmost_dst_layer_bwd_memory
+                = mkldnn::memory(rightmost_bwd_prim_desc.dst_layer_desc(), eng);
         reorder(rightmost_dst_layer_memory, rightmost_dst_layer_bwd_memory)
                 .execute(s, rightmost_dst_layer_memory,
                         rightmost_dst_layer_bwd_memory);
@@ -615,13 +619,13 @@ void simple_net() {
     // Similar to forward, the backward primitives are connected
     // via "iter" parameters.
     auto common_diff_weights_iter_memory = mkldnn::memory(
-            leftmost_bwd_prim_desc.diff_weights_iter_desc(), cpu_engine);
+            leftmost_bwd_prim_desc.diff_weights_iter_desc(), eng);
 
     auto leftmost_dst_iter_bwd_memory = leftmost_dst_iter_memory;
     if (leftmost_bwd_prim_desc.dst_iter_desc()
             != leftmost_dst_iter_bwd_memory.get_desc()) {
-        leftmost_dst_iter_bwd_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.dst_iter_desc(), cpu_engine);
+        leftmost_dst_iter_bwd_memory
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_iter_desc(), eng);
         reorder(leftmost_dst_iter_memory, leftmost_dst_iter_bwd_memory)
                 .execute(s, leftmost_dst_iter_memory,
                         leftmost_dst_iter_bwd_memory);
@@ -630,8 +634,8 @@ void simple_net() {
     auto leftmost_dst_iter_c_bwd_memory = leftmost_dst_iter_c_memory;
     if (leftmost_bwd_prim_desc.dst_iter_c_desc()
             != leftmost_dst_iter_c_bwd_memory.get_desc()) {
-        leftmost_dst_iter_c_bwd_memory = mkldnn::memory(
-                leftmost_bwd_prim_desc.dst_iter_c_desc(), cpu_engine);
+        leftmost_dst_iter_c_bwd_memory
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_iter_c_desc(), eng);
         reorder(leftmost_dst_iter_c_memory, leftmost_dst_iter_c_bwd_memory)
                 .execute(s, leftmost_dst_iter_c_memory,
                         leftmost_dst_iter_c_bwd_memory);
@@ -681,7 +685,6 @@ void simple_net() {
                     {MKLDNN_ARG_DIFF_DST_ITER_C,
                             leftmost_diff_dst_iter_c_memory},
                     {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory}});
-
     if (reorder_common_diff_weights_layer) {
         reorder(common_diff_weights_layer_memory,
                 user_common_diff_weights_layer_memory)
@@ -704,8 +707,8 @@ void simple_net() {
 
 int main(int argc, char **argv) {
     try {
-        simple_net();
-        std::cout << "ok\n";
+        simple_net(parse_engine_kind(argc, argv));
+        std::cout << "Simple Net example passes!\n";
     } catch (error &e) {
         std::cerr << "status: " << e.status << std::endl;
         std::cerr << "message: " << e.message << std::endl;

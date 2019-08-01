@@ -64,23 +64,31 @@ elseif(APPLE)
     set(CTESTCONFIG_PATH "${MKLDNNROOT}/lib")
 endif()
 
-# Register example
-#   name -- name of the executable
-#   srcs -- list of source, if many must be enclosed with ""
-function(register_example name srcs)
-    add_executable(${name} ${srcs})
-    find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
-    target_link_libraries(${name} MKLDNN::mkldnn ${LIBM})
-    add_test(${name} ${name})
+# Common configuration for tests / test cases on Windows and Apple
+function(maybe_configure_test name kind)
     if(WIN32)
         string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
-        set_property(TEST ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
+        set_property(${kind} ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
         if(CMAKE_GENERATOR MATCHES "Visual Studio")
             configure_file(template.vcxproj.user ${name}.vcxproj.user @ONLY)
         endif()
     elseif(APPLE)
-        set_property(TEST ${name} PROPERTY ENVIRONMENT
+        set_property(${kind} ${name} PROPERTY ENVIRONMENT
                 "DYLD_LIBRARY_PATH=${CTESTCONFIG_PATH}:$ENV{DYLD_LIBRARY_PATH}")
+    endif()
+endfunction()
+
+# Register example
+#   name -- name of the executable
+#   srcs -- list of source, if many must be enclosed with ""
+#   test -- "test" to mark executable as a test, "" otherwise
+function(register_example name srcs test)
+    add_executable(${name} ${srcs})
+    find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
+    target_link_libraries(${name} MKLDNN::mkldnn ${LIBM})
+    if("x${test}" STREQUAL "xtest")
+        add_test(${name} ${name})
+        maybe_configure_test("${example_name}" TEST)
     endif()
 endfunction()
 
@@ -89,5 +97,25 @@ file(GLOB sources *.cpp *.c)
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    register_example(${example_name} ${src})
+    if(${example_name} MATCHES "^(cpu)") 
+        # Example name contains cpu-
+        register_example(${example_name} ${src} "test" ${LIBM})
+    elseif(${example_name} MATCHES "^(cross-engine|gpu)")  
+        # Example Name contains cross-engine or gpu-
+        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+            register_example(${example_name} ${src} "test" ${LIBM})
+        endif() 
+    else()
+        register_example(${example_name} ${src} "" ${LIBM})
+        
+        # Adding test for CPU
+        add_test("cpu-${example_name}" "${example_name}" cpu)
+        maybe_configure_test("cpu-${example_name}" TEST)
+        
+        # Adding test for GPU 
+        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+            add_test("gpu-${example_name}" "${example_name}" gpu)            
+            maybe_configure_test("gpu-${example_name}" TEST)
+        endif()
+    endif()
 endforeach()

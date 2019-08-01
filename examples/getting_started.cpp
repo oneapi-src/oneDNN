@@ -14,21 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_getting_started.cpp
+/// @example getting_started.cpp
 /// This C++ API example demonstrates basics of Intel MKL-DNN programming
 /// model.
 ///
-/// > Annotated version: @ref cpu_getting_started_cpp
+/// > Annotated version: @ref getting_started_cpp
 
-#include <cmath>
-#include <iostream>
-#include <numeric>
 #include <sstream>
-#include <string>
+#include <cmath>
+#include <numeric>
 #include <vector>
 
-/// @page cpu_getting_started_cpp Getting started
-/// > Example code: @ref cpu_getting_started.cpp
+#include "example_utils.hpp"
+#include "mkldnn_debug.h"
+
+using namespace mkldnn;
+// [Prologue]
+
+/// @page getting_started_cpp Getting started
+/// > Example code: @ref getting_started.cpp
 ///
 /// This C++ API example demonstrates basics of Intel MKL-DNN programming
 /// model:
@@ -40,44 +44,33 @@
 /// - How to execute the primitives.
 ///
 /// The example uses the ReLU operation and consists of the following steps:
-/// 1. Creating @ref cpu_getting_started_cpp_sub1 to execute a primitive.
-/// 2. Performing @ref cpu_getting_started_cpp_sub2.
-/// 3. @ref cpu_getting_started_cpp_sub3 (using different flavors).
-/// 4. @ref cpu_getting_started_cpp_sub4.
-/// 5. @ref cpu_getting_started_cpp_sub5.
-/// 6. @ref cpu_getting_started_cpp_sub6 (checking that the resulting image does
+/// 1. Creating @ref getting_started_cpp_sub1 to execute a primitive.
+/// 2. Performing @ref getting_started_cpp_sub2.
+/// 3. @ref getting_started_cpp_sub3 (using different flavors).
+/// 4. @ref getting_started_cpp_sub4.
+/// 5. @ref getting_started_cpp_sub5.
+/// 6. @ref getting_started_cpp_sub6 (checking that the resulting image does
 ///    not contain negative values).
 ///
-/// These steps are implemented in the @ref cpu_getting_started_cpp_tutorial which
-/// in turn is called from @ref cpu_getting_started_cpp_main which is also
+/// These steps are implemented in the @ref getting_started_cpp_tutorial which
+/// in turn is called from @ref getting_started_cpp_main which is also
 /// responsible for error handling.
 ///
-/// @section cpu_getting_started_cpp_headers Public headers
+/// @section getting_started_cpp_headers Public headers
 ///
 /// To start using Intel MKL-DNN we should first include @ref mkldnn.hpp
-/// header file in the program. We also include @ref mkldnn_debug.h that
-/// contains some debugging facilities like returning a string representation
-/// for common Intel MKL-DNN C types.
-///
-/// All C++ API types and functions reside in `mkldnn` namespace.
-/// For simplicity of the example we import this namespace.
-/// @page cpu_getting_started_cpp
-/// @snippet cpu_getting_started.cpp Prologue
-// [Prologue]
-#include "mkldnn.hpp"
+/// header file in the program. We also include @ref mkldnn_debug.h in
+/// example_utils.hpp that contains some debugging facilities like returning
+/// a string representation for common Intel MKL-DNN C types.
 
-// Optional header to access debug functions like `mkldnn_status2str()`
-#include "mkldnn_debug.h"
-
-using namespace mkldnn;
 // [Prologue]
 
-/// @page cpu_getting_started_cpp
-/// @section cpu_getting_started_cpp_tutorial cpu_getting_started_tutorial() function
-/// @page cpu_getting_started_cpp
-void cpu_getting_started_tutorial() {
-    /// @page cpu_getting_started_cpp
-    /// @subsection cpu_getting_started_cpp_sub1 Engine and stream
+/// @page getting_started_cpp
+/// @section getting_started_cpp_tutorial getting_started_tutorial() function
+/// @page getting_started_cpp
+void getting_started_tutorial(engine::kind engine_kind) {
+    /// @page getting_started_cpp
+    /// @subsection getting_started_cpp_sub1 Engine and stream
     ///
     /// All Intel MKL-DNN primitives and memory objects are attached to a
     /// particular @ref mkldnn::engine, which is an abstraction of an
@@ -89,12 +82,11 @@ void cpu_getting_started_tutorial() {
     /// another.
     ///
     /// To create an engine we should specify the @ref mkldnn::engine::kind
-    /// and the index of the device of the given kind. There is only one CPU
-    /// engine, so the index must be 0.
+    /// and the index of the device of the given kind.
     ///
-    /// @snippet cpu_getting_started.cpp Initialize engine
+    /// @snippet getting_started.cpp Initialize engine
     // [Initialize engine]
-    engine cpu_engine(engine::kind::cpu, 0);
+    engine eng(engine_kind, 0);
     // [Initialize engine]
 
     /// In addition to an engine, all primitives require a @ref mkldnn::stream
@@ -102,9 +94,9 @@ void cpu_getting_started_tutorial() {
     /// tied to a particular engine.
     ///
     /// The creation is pretty straightforward:
-    /// @snippet cpu_getting_started.cpp Initialize stream
+    /// @snippet getting_started.cpp Initialize stream
     // [Initialize stream]
-    stream cpu_stream(cpu_engine);
+    stream engine_stream(eng);
     // [Initialize stream]
 
     /// In the simple cases, when a program works with one device only (e.g.
@@ -113,7 +105,7 @@ void cpu_getting_started_tutorial() {
     /// hold Intel MKL-DNN engine and stream and are use them throughout the
     /// code.
 
-    /// @subsection cpu_getting_started_cpp_sub2 Data preparation (code outside of Intel MKL-DNN)
+    /// @subsection getting_started_cpp_sub2 Data preparation (code outside of Intel MKL-DNN)
     ///
     /// Now that the preparation work is done, let's create some data to work
     /// with. We will create a 4D tensor in NHWC format, which is quite
@@ -129,7 +121,7 @@ void cpu_getting_started_tutorial() {
     /// dimension, which is always the first logical dimension (see also @ref
     /// dev_guide_conventions).
     ///
-    /// @snippet cpu_getting_started.cpp Create user's data
+    /// @snippet getting_started.cpp Create user's data
     // [Create user's data]
     const int N = 1, H = 13, W = 13, C = 3;
 
@@ -160,8 +152,7 @@ void cpu_getting_started_tutorial() {
                     image[off] = -std::cos(off / 10.f);
                 }
     // [Create user's data]
-
-    /// @subsection cpu_getting_started_cpp_sub3 Wrapping data into Intel MKL-DNN memory object
+    /// @subsection getting_started_cpp_sub3 Wrapping data into Intel MKL-DNN memory object
     ///
     /// Now, having the image ready, let's wrap it in an @ref mkldnn::memory
     /// object to be able to pass the data to Intel MKL-DNN primitives.
@@ -186,7 +177,7 @@ void cpu_getting_started_tutorial() {
     /// However, for the sake of demonstration, we will show both steps
     /// explicitly.
 
-    /// @subsubsection cpu_getting_started_cpp_sub31 Memory descriptor
+    /// @subsubsection getting_started_cpp_sub31 Memory descriptor
     ///
     /// To initialize the @ref mkldnn::memory::desc we need to pass:
     ///   1. The tensor's dimensions, **the semantic order** of which is
@@ -202,7 +193,7 @@ void cpu_getting_started_tutorial() {
     ///      correctly handle the data.
     ///
     /// The code:
-    /// @snippet cpu_getting_started.cpp Init src_md
+    /// @snippet getting_started.cpp Init src_md
     // [Init src_md]
     auto src_md = memory::desc(
             {N, C, H, W}, // logical dims, the order is defined by a primitive
@@ -241,13 +232,13 @@ void cpu_getting_started_tutorial() {
     /// perspective, hence we will use `dst` to name the output memory). The
     /// `md` is an acronym for Memory Descriptor.
 
-    /// @paragraph cpu_getting_started_cpp_sub311 Alternative way to create a memory descriptor
+    /// @paragraph getting_started_cpp_sub311 Alternative way to create a memory descriptor
     ///
     /// Before we continue with memory creation, let us show the alternative
     /// way to create the same memory descriptor: instead of using the
     /// @ref mkldnn::memory::format_tag we can directly specify the strides
     /// of each tensor dimension:
-    /// @snippet cpu_getting_started.cpp Init alt_src_md
+    /// @snippet getting_started.cpp Init alt_src_md
     // [Init alt_src_md]
     auto alt_src_md = memory::desc(
             {N, C, H, W}, // logical dims, the order is defined by a primitive
@@ -268,16 +259,18 @@ void cpu_getting_started_tutorial() {
     ///     Using the wrong order might lead to incorrect results or even a
     ///     crash.
 
-    /// @subsubsection cpu_getting_started_cpp_sub32 Creating a memory object
+    /// @subsubsection getting_started_cpp_sub32 Creating a memory object
     ///
     /// Having a memory descriptor and an engine prepared let's create
     /// an input and an output memory objects for ReLU primitive
-    /// @snippet cpu_getting_started.cpp Create memory objects
+    /// @snippet getting_started.cpp Create memory objects
     // [Create memory objects]
-    // src_mem refers to a buffer owned by the `image` vector
-    auto src_mem = memory(src_md, cpu_engine, image.data());
+    // src_mem contains a copy of image after write_to_mkldnn_memory function
+    auto src_mem = memory(src_md, eng);
+    write_to_mkldnn_memory(image.data(), src_mem);
+
     // For dst_mem the library allocates buffer
-    auto dst_mem = memory(src_md, cpu_engine);
+    auto dst_mem = memory(src_md, eng);
     // [Create memory objects]
 
     /// We already have a memory buffer for the source memory object.  We pass
@@ -301,8 +294,7 @@ void cpu_getting_started_tutorial() {
     ///
     /// In subsequent section we will show how to get the buffer (pointer)
     /// from the `dst_mem` memory object.
-
-    /// @subsection cpu_getting_started_cpp_sub4 Creating a ReLU primitive
+    /// @subsection getting_started_cpp_sub4 Creating a ReLU primitive
     ///
     /// Let's now create a ReLU primitive.
     ///
@@ -336,7 +328,7 @@ void cpu_getting_started_tutorial() {
     ///    creating primitive objects once and executing them multiple times.
     ///
     /// The code:
-    /// @snippet cpu_getting_started.cpp Create a ReLU primitive
+    /// @snippet getting_started.cpp Create a ReLU primitive
     // [Create a ReLU primitive]
     //  ReLU op descriptor (no engine- or implementation-specific information)
     auto relu_d = eltwise_forward::desc(
@@ -348,9 +340,9 @@ void cpu_getting_started_tutorial() {
 
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library
-    auto relu_pd
-            = eltwise_forward::primitive_desc(relu_d, // an operation descriptor
-                    cpu_engine // an engine the primitive will be created for
+    auto relu_pd = eltwise_forward::primitive_desc(
+            relu_d,     // an operation descriptor
+            eng  // an engine the primitive will be created for
             );
 
     // ReLU primitive
@@ -374,7 +366,7 @@ void cpu_getting_started_tutorial() {
     /// one of the key features of the library and will be discussed in detail
     /// in the next topic: @ref cpu_memory_format_propagation_cpp.
 
-    /// @subsection cpu_getting_started_cpp_sub5 Executing the ReLU primitive
+    /// @subsection getting_started_cpp_sub5 Executing the ReLU primitive
     ///
     /// Finally, let's execute the primitive and wait for its completion.
     ///
@@ -389,18 +381,18 @@ void cpu_getting_started_tutorial() {
     /// blocking or non-blocking. This means that we need to call @ref
     /// mkldnn::stream::wait before accessing the results.
     ///
-    /// @snippet cpu_getting_started.cpp Execute ReLU primitive
+    /// @snippet getting_started.cpp Execute ReLU primitive
     // [Execute ReLU primitive]
     // Execute ReLU (out-of-place)
-    relu.execute(cpu_stream, // The execution stream
-            {
-                    // A map with all inputs and outputs
-                    {MKLDNN_ARG_SRC, src_mem}, // Source tag and memory obj
-                    {MKLDNN_ARG_DST, dst_mem}, // Destination tag and memory obj
+    relu.execute(
+            engine_stream, // The execution stream
+            {           // A map with all inputs and outputs
+                {MKLDNN_ARG_SRC, src_mem}, // Source tag and memory obj
+                {MKLDNN_ARG_DST, dst_mem}, // Destination tag and memory obj
             });
 
     // Wait the stream to complete the execution
-    cpu_stream.wait();
+    engine_stream.wait();
     // [Execute ReLU primitive]
 
     /// The @ref dev_guide_eltwise is one of the primitives that support
@@ -408,17 +400,17 @@ void cpu_getting_started_tutorial() {
     /// be the same. To perform in-place transformation user needs to pass
     /// the same memory object for the both `MKLDNN_ARG_SRC` and
     /// `MKLDNN_ARG_DST` tags:
-    /// @snippet cpu_getting_started.cpp Execute ReLU primitive in-place
+    /// @snippet getting_started.cpp Execute ReLU primitive in-place
     // [Execute ReLU primitive in-place]
     // Execute ReLU (in-place)
-    // relu.execute(cpu_stream,  {
+    // relu.execute(engine_stream,  {
     //          {MKLDNN_ARG_SRC, src_mem},
     //          {MKLDNN_ARG_DST, src_mem},
     //         });
     // [Execute ReLU primitive in-place]
 
-    /// @page cpu_getting_started_cpp
-    /// @subsection cpu_getting_started_cpp_sub6 Obtaining the result and validation
+    /// @page getting_started_cpp
+    /// @subsection getting_started_cpp_sub6 Obtaining the result and validation
     ///
     /// Now that we have the computed result let's validate that it is
     /// actually correct. The result is stored in the `dst_mem` memory object.
@@ -433,12 +425,13 @@ void cpu_getting_started_tutorial() {
     ///     However, for engines other than CPU the handle might be
     ///     runtime-specific type, such as `cl_mem` in case of GPU/OpenCL.
     ///
-    /// @snippet cpu_getting_started.cpp Check the results
+    /// @snippet getting_started.cpp Check the results
     // [Check the results]
     // Obtain a buffer for the `dst_mem` and cast it to `float *`.
     // This is safe since we created `dst_mem` as f32 tensor with known
     // memory format.
-    float *relu_image = static_cast<float *>(dst_mem.get_data_handle());
+    std::vector<float> relu_image(image_size);
+    read_from_mkldnn_memory(relu_image.data(), dst_mem);
 
     // Check the results
     for (int n = 0; n < N; ++n)
@@ -462,9 +455,9 @@ void cpu_getting_started_tutorial() {
     // [Check the results]
 }
 
-/// @page cpu_getting_started_cpp
+/// @page getting_started_cpp
 ///
-/// @section cpu_getting_started_cpp_main main() function
+/// @section getting_started_cpp_main main() function
 ///
 /// We now just call everything we prepared earlier.
 ///
@@ -473,12 +466,14 @@ void cpu_getting_started_tutorial() {
 /// The Intel MKL-DNN C++ API throws exceptions of type @ref mkldnn::error,
 /// which contains the error status (of type @ref mkldnn_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
-/// @page cpu_getting_started_cpp
-/// @snippet cpu_getting_started.cpp Main
+/// @page getting_started_cpp
+/// @snippet getting_started.cpp Main
 // [Main]
 int main(int argc, char **argv) {
     try {
-        cpu_getting_started_tutorial();
+         engine::kind engine_kind = parse_engine_kind(argc, argv);
+         getting_started_tutorial(engine_kind);
+         std::cout << "Example passes" << std::endl;
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
                   << "Error status: " << mkldnn_status2str(e.status)
@@ -489,7 +484,6 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    std::cout << "Example passes" << std::endl;
     return 0;
 }
 // [Main]
@@ -508,7 +502,7 @@ int main(int argc, char **argv) {
 /// happens.  For instance, if we replace
 ///
 /// ~~~cpp
-/// relu.execute(cpu_stream, {
+/// relu.execute(engine_stream, {
 ///         {MKLDNN_ARG_SRC, src_mem},
 ///         {MKLDNN_ARG_DST, dst_mem},
 ///     });
@@ -517,7 +511,7 @@ int main(int argc, char **argv) {
 /// with
 ///
 /// ~~~cpp
-/// relu.execute(cpu_stream, {
+/// relu.execute(engine_stream, {
 ///         {MKLDNN_ARG_SRC, src_mem},
 ///         // {MKLDNN_ARG_DST, dst_mem}, // Oops, forgot about this one
 ///     });
@@ -530,4 +524,4 @@ int main(int argc, char **argv) {
 /// Error status: invalid_arguments
 /// ~~~
 ///
-/// @page cpu_getting_started_cpp
+/// @page getting_started_cpp

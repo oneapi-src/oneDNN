@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_cnn_inference_f32.cpp
-/// @copybrief cpu_cnn_inference_f32_cpp
-/// > Annotated version: @ref cpu_cnn_inference_f32_cpp
+/// @example cnn_inference_f32.cpp
+/// @copybrief cnn_inference_f32_cpp
+/// > Annotated version: @ref cnn_inference_f32_cpp
 
-/// @page cpu_cnn_inference_f32_cpp CNN f32 inference example
+/// @page cnn_inference_f32_cpp CNN f32 inference example
 /// This C++ API example demonstrates how to build an AlexNet neural
 /// network topology for forward-pass inference.
 ///
-/// > Example code: @ref cpu_cnn_inference_f32.cpp
+/// > Example code: @ref cnn_inference_f32.cpp
 ///
 /// Some key take-aways include:
 ///
@@ -41,13 +41,11 @@
 #include <assert.h>
 
 #include <chrono>
-#include <iostream>
 #include <numeric>
-#include <string>
 #include <vector>
 #include <unordered_map>
 
-#include "mkldnn.hpp"
+#include "example_utils.hpp"
 
 using namespace mkldnn;
 
@@ -58,21 +56,21 @@ memory::dim product(const memory::dims &dims) {
             std::multiplies<memory::dim>());
 }
 
-void simple_net(int times = 100) {
+void simple_net(engine::kind engine_kind, int times = 100) {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
-    /// Initialize a CPU engine and stream. The last parameter in the call represents
+    /// Initialize an engine and stream. The last parameter in the call represents
     /// the index of the engine.
-    /// @snippet cpu_cnn_inference_f32.cpp Initialize engine and stream
+    /// @snippet cnn_inference_f32.cpp Initialize engine and stream
     //[Initialize engine and stream]
-    engine eng(engine::kind::cpu, 0);
+    engine eng(engine_kind, 0);
     stream s(eng);
     //[Initialize engine and stream]
 
     /// Create a vector for the primitives and a vector to hold memory
     /// that will be used as arguments.
-    /// @snippet cpu_cnn_inference_f32.cpp Create network
+    /// @snippet cnn_inference_f32.cpp Create network
     //[Create network]
     std::vector<primitive> net;
     std::vector<std::unordered_map<int, memory>> net_args;
@@ -91,7 +89,7 @@ void simple_net(int times = 100) {
     memory::dims conv1_padding = {0, 0};
 
     /// Allocate buffers for input and output data, weights, and bias.
-    /// @snippet cpu_cnn_inference_f32.cpp Allocate buffers
+    /// @snippet cnn_inference_f32.cpp Allocate buffers
     //[Allocate buffers]
     std::vector<float> user_src(batch * 3 * 227 * 227);
     std::vector<float> user_dst(batch * 1000);
@@ -102,14 +100,17 @@ void simple_net(int times = 100) {
     /// Create memory that describes data layout in the buffers. This example uses
     /// tag::nchw (batch-channels-height-width) for input data and tag::oihw
     /// for weights.
-    /// @snippet cpu_cnn_inference_f32.cpp Create user memory
+    /// @snippet cnn_inference_f32.cpp Create user memory
     //[Create user memory]
-    auto user_src_memory = memory(
-            {{conv1_src_tz}, dt::f32, tag::nchw}, eng, user_src.data());
-    auto user_weights_memory = memory({{conv1_weights_tz}, dt::f32, tag::oihw},
-            eng, conv1_weights.data());
-    auto conv1_user_bias_memory = memory(
-            {{conv1_bias_tz}, dt::f32, tag::x}, eng, conv1_bias.data());
+    auto user_src_memory
+            = memory({{ conv1_src_tz}, dt::f32, tag::nchw}, eng);
+    write_to_mkldnn_memory(user_src.data(), user_src_memory);
+    auto user_weights_memory
+            = memory({{ conv1_weights_tz}, dt::f32, tag::oihw}, eng);
+    write_to_mkldnn_memory(conv1_weights.data(), user_weights_memory);
+    auto conv1_user_bias_memory
+            = memory({{ conv1_bias_tz }, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv1_bias.data(), conv1_user_bias_memory);
     //[Create user memory]
 
     /// Create memory descriptors with layout tag::any. The `any` format enables
@@ -118,7 +119,7 @@ void simple_net(int times = 100) {
     /// sizes, strides, padding, and so on). If the resulting format is different
     /// from `nchw`, the user data must be transformed to the format required for
     /// the convolution (as explained below).
-    /// @snippet cpu_cnn_inference_f32.cpp Create convolution memory descriptors
+    /// @snippet cnn_inference_f32.cpp Create convolution memory descriptors
     //[Create convolution memory descriptors]
     auto conv1_src_md = memory::desc({conv1_src_tz}, dt::f32, tag::any);
     auto conv1_bias_md = memory::desc({conv1_bias_tz}, dt::f32, tag::any);
@@ -132,7 +133,7 @@ void simple_net(int times = 100) {
     /// Propagation kind is set to prop_kind::forward_inference to optimize for
     /// inference execution and omit computations that are necessary only for
     /// backward propagation.
-    /// @snippet cpu_cnn_inference_f32.cpp Create convolution descriptor
+    /// @snippet cnn_inference_f32.cpp Create convolution descriptor
     //[Create convolution descriptor]
     auto conv1_desc = convolution_forward::desc(prop_kind::forward_inference,
             algorithm::convolution_direct, conv1_src_md, conv1_weights_md,
@@ -143,7 +144,7 @@ void simple_net(int times = 100) {
     /// Create a convolution primitive descriptor. Once created, this
     /// descriptor has specific formats instead of the `any` format specified
     /// in the convolution descriptor.
-    /// @snippet cpu_cnn_inference_f32.cpp Create convolution primitive descriptor
+    /// @snippet cnn_inference_f32.cpp Create convolution primitive descriptor
     //[Create convolution primitive descriptor]
     auto conv1_prim_desc = convolution_forward::primitive_desc(conv1_desc, eng);
     //[Create convolution primitive descriptor]
@@ -151,7 +152,7 @@ void simple_net(int times = 100) {
     /// Check whether data and weights formats required by convolution is different
     /// from the user format. In case it is different change the layout using
     /// reorder primitive.
-    /// @snippet cpu_cnn_inference_f32.cpp Reorder data and weights
+    /// @snippet cnn_inference_f32.cpp Reorder data and weights
     //[Reorder data and weights]
     auto conv1_src_memory = user_src_memory;
     if (conv1_prim_desc.src_desc() != user_src_memory.get_desc()) {
@@ -170,13 +171,13 @@ void simple_net(int times = 100) {
     //[Reorder data and weights]
 
     /// Create a memory primitive for output.
-    /// @snippet cpu_cnn_inference_f32.cpp Create memory for output
+    /// @snippet cnn_inference_f32.cpp Create memory for output
     //[Create memory for output]
     auto conv1_dst_memory = memory(conv1_prim_desc.dst_desc(), eng);
     //[Create memory for output]
 
     /// Create a convolution primitive and add it to the net.
-    /// @snippet cpu_cnn_inference_f32.cpp Create memory for output
+    /// @snippet cnn_inference_f32.cpp Create memory for output
     //[Create convolution primitive]
     net.push_back(convolution_forward(conv1_prim_desc));
     net_args.push_back({{MKLDNN_ARG_SRC, conv1_src_memory},
@@ -193,7 +194,7 @@ void simple_net(int times = 100) {
     /// format for ReLU (as well as for other operation primitives until another
     /// convolution or inner product is encountered) the same as the one chosen
     /// for convolution. Also note that ReLU is done in-place by using conv1 memory.
-    /// @snippet cpu_cnn_inference_f32.cpp Create relu primitive
+    /// @snippet cnn_inference_f32.cpp Create relu primitive
     //[Create relu primitive]
     auto relu1_desc = eltwise_forward::desc(prop_kind::forward_inference,
             algorithm::eltwise_relu, conv1_dst_memory.get_desc(),
@@ -240,7 +241,7 @@ void simple_net(int times = 100) {
     /// For training execution, pooling requires a private workspace memory
     /// to perform the backward pass. However, pooling should not use 'workspace'
     /// for inference, because this is detrimental to performance.
-    /// @snippet cpu_cnn_inference_f32.cpp Create pooling primitive
+    /// @snippet cnn_inference_f32.cpp Create pooling primitive
     ///
     /// The example continues to create more layers according
     /// to the AlexNet topology.
@@ -271,10 +272,11 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv2_user_weights_memory
-            = memory({{conv2_weights_tz}, dt::f32, tag::goihw}, eng,
-                    conv2_weights.data());
-    auto conv2_user_bias_memory = memory(
-            {{conv2_bias_tz}, dt::f32, tag::x}, eng, conv2_bias.data());
+            = memory({{conv2_weights_tz}, dt::f32, tag::goihw}, eng);
+    write_to_mkldnn_memory(conv2_weights.data(), conv2_user_weights_memory);
+    auto conv2_user_bias_memory
+            = memory({{conv2_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv2_bias.data(), conv2_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv2_src_md = memory::desc({conv2_src_tz}, dt::f32, tag::any);
@@ -387,10 +389,11 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv3_user_weights_memory
-            = memory({{conv3_weights_tz}, dt::f32, tag::oihw}, eng,
-                    conv3_weights.data());
-    auto conv3_user_bias_memory = memory(
-            {{conv3_bias_tz}, dt::f32, tag::x}, eng, conv3_bias.data());
+            = memory({{conv3_weights_tz}, dt::f32, tag::oihw}, eng);
+    write_to_mkldnn_memory(conv3_weights.data(), conv3_user_weights_memory);
+    auto conv3_user_bias_memory
+            = memory({{conv3_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv3_bias.data(), conv3_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv3_src_md = memory::desc({conv3_src_tz}, dt::f32, tag::any);
@@ -460,10 +463,11 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv4_user_weights_memory
-            = memory({{conv4_weights_tz}, dt::f32, tag::goihw}, eng,
-                    conv4_weights.data());
-    auto conv4_user_bias_memory = memory(
-            {{conv4_bias_tz}, dt::f32, tag::x}, eng, conv4_bias.data());
+            = memory({{conv4_weights_tz}, dt::f32, tag::goihw}, eng);
+    write_to_mkldnn_memory(conv4_weights.data(), conv4_user_weights_memory);
+    auto conv4_user_bias_memory
+            = memory({{conv4_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv4_bias.data(), conv4_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv4_src_md = memory::desc({conv4_src_tz}, dt::f32, tag::any);
@@ -532,10 +536,11 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto conv5_user_weights_memory
-            = memory({{conv5_weights_tz}, dt::f32, tag::goihw}, eng,
-                    conv5_weights.data());
-    auto conv5_user_bias_memory = memory(
-            {{conv5_bias_tz}, dt::f32, tag::x}, eng, conv5_bias.data());
+            = memory({{conv5_weights_tz}, dt::f32, tag::goihw}, eng);
+    write_to_mkldnn_memory(conv5_weights.data(), conv5_user_weights_memory);
+    auto conv5_user_bias_memory
+            = memory({{conv5_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv5_bias.data(), conv5_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv5_src_md = memory::desc({conv5_src_tz}, dt::f32, tag::any);
@@ -626,10 +631,12 @@ void simple_net(int times = 100) {
     std::vector<float> fc6_bias(product(fc6_bias_tz));
 
     // create memory for user data
-    auto fc6_user_weights_memory = memory(
-            {{fc6_weights_tz}, dt::f32, tag::oihw}, eng, fc6_weights.data());
+    auto fc6_user_weights_memory
+            = memory({{fc6_weights_tz}, dt::f32, tag::oihw}, eng);
+    write_to_mkldnn_memory(fc6_weights.data(), fc6_user_weights_memory);
     auto fc6_user_bias_memory
-            = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng, fc6_bias.data());
+            = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc6_bias.data(), fc6_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc6_src_md = memory::desc({fc6_src_tz}, dt::f32, tag::any);
@@ -676,10 +683,12 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto fc7_user_weights_memory = memory(
-            {{fc7_weights_tz}, dt::f32, tag::nc}, eng, fc7_weights.data());
+            {{fc7_weights_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(fc7_weights.data(), fc7_user_weights_memory);
 
     auto fc7_user_bias_memory
-            = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng, fc7_bias.data());
+            = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc7_bias.data(), fc7_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc7_bias_md = memory::desc({fc7_bias_tz}, dt::f32, tag::any);
@@ -717,11 +726,14 @@ void simple_net(int times = 100) {
 
     // create memory for user data
     auto fc8_user_weights_memory = memory(
-            {{fc8_weights_tz}, dt::f32, tag::nc}, eng, fc8_weights.data());
+            {{fc8_weights_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(fc8_weights.data(), fc8_user_weights_memory);
     auto fc8_user_bias_memory
-            = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng, fc8_bias.data());
+            = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc8_bias.data(), fc8_user_bias_memory);
     auto user_dst_memory
-            = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng, user_dst.data());
+            = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(user_dst.data(), user_dst_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc8_bias_md = memory::desc({fc8_bias_tz}, dt::f32, tag::any);
@@ -757,10 +769,10 @@ void simple_net(int times = 100) {
                 {MKLDNN_ARG_TO, user_dst_memory}});
     }
 
-    /// @page cpu_cnn_inference_f32_cpp
+    /// @page cnn_inference_f32_cpp
     /// Finally, execute the primitives. For this example, the net is executed
     /// multiple times and each execution is timed individually.
-    /// @snippet cpu_cnn_inference_f32.cpp Execute model
+    /// @snippet cnn_inference_f32.cpp Execute model
     //[Execute model]
     for (int j = 0; j < times; ++j) {
         assert(net.size() == net_args.size() && "something is missing");
@@ -778,7 +790,7 @@ int main(int argc, char **argv) {
                 chrono::steady_clock::now().time_since_epoch())
                              .count();
         int times = 100;
-        simple_net(times);
+        simple_net(parse_engine_kind(argc, argv), times);
         auto end = chrono::duration_cast<chrono::milliseconds>(
                 chrono::steady_clock::now().time_since_epoch())
                            .count();

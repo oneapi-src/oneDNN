@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example gpu_getting_started.c
-/// @copybrief gpu_getting_started_c
-/// > Annotated version: @ref gpu_getting_started_c
+/// @example cross_engine_reorder.c
+/// @copybrief cross_engine_reorder_c
+/// > Annotated version: @ref cross_engine_reorder_c
 
-/// @page gpu_getting_started_c Getting started on GPU
-/// This C API example demonstrates programming for Intel(R) Processor
-/// Graphics with Intel MKL-DNN.
+/// @page cross_engine_reorder_c Reorder between CPU and GPU engines
+/// This C API example demonstrates programming flow when reordering memory
+/// between CPU and GPU engines
 ///
-/// > Example code: @ref gpu_getting_started.c
+/// > Example code: @ref cross_engine_reorder.c
 ///
 /// - How to create Intel MKL-DNN memory objects.
 ///   - How to get data from user's buffer into an Intel MKL-DNN
@@ -31,8 +31,8 @@
 /// - How to create Intel MKL-DNN primitives.
 /// - How to execute the primitives.
 ///
-/// @include gpu_getting_started.c
-/// @page gpu_getting_started_c
+/// @include cross_engine_reorder.c
+/// @page cross_engine_reorder_c
 
 #include <stdio.h>
 #include <stdlib.h>
