@@ -117,6 +117,8 @@ register_benchdnn_test(test_benchdnn_reorder_bf16
     cpu "-v1 --reorder --batch=inputs/reorder/test_reorder_bfloat16")
 register_benchdnn_test(test_benchdnn_bnorm
     cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_all")
+register_benchdnn_test(test_benchdnn_lnorm
+    cpu "-v1 --lnorm  --batch=inputs/lnorm/test_lnorm_all")
 register_benchdnn_test(test_benchdnn_bnorm_bf16
     cpu "-v1 --bnorm  --batch=inputs/bnorm/test_bnorm_bfloat16")
 register_benchdnn_test(test_benchdnn_ip

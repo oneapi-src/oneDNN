@@ -86,6 +86,7 @@ struct base_perf_report_t {
         HANDLE("dtag", if (dtag()) s << fmt_tag2str(*dtag()));
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
         HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
+        HANDLE("stat_tag", if (stat_tag()) s << fmt_tag2str(*stat_tag()));
 
         HANDLE("bw", s << get_bw());
         HANDLE("flops", s << get_flops());
@@ -129,6 +130,7 @@ struct base_perf_report_t {
     { return nullptr; }
     virtual const mkldnn_data_type_t *ddt() const { return nullptr; }
     virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
+    virtual const mkldnn_format_tag_t *stat_tag() const { return nullptr; }
     virtual const std::vector<mkldnn_format_tag_t> *stag() const
     { return nullptr; }
     virtual const mkldnn_format_tag_t *dtag() const { return nullptr; }

@@ -26,6 +26,7 @@
 #include "cpu/cpu_isa_traits.hpp"
 
 #include "batch_normalization_pd.hpp"
+#include "layer_normalization_pd.hpp"
 #include "pooling_pd.hpp"
 #include "concat_pd.hpp"
 #include "reorder_pd.hpp"
@@ -646,6 +647,8 @@ DEFINE_STUB(shuffle);
 }
 
 void init_info(batch_normalization_pd_t *s, char *b)
+{ init_info_bnorm(s, b); }
+void init_info(layer_normalization_pd_t *s, char *b)
 { init_info_bnorm(s, b); }
 void init_info(concat_pd_t *s, char *b)
 { init_info_mem(s, b); }

@@ -121,6 +121,7 @@ enum prim_t {
     IP,
     SHUFFLE,
     REORDER,
+    LNORM,
     BNORM,
     RNN,
     SOFTMAX,

@@ -75,6 +75,7 @@ const char *prim2str(prim_t prim) {
     CASE(SHUFFLE, "shuffle");
     CASE(REORDER, "reorder");
     CASE(BNORM, "bnorm");
+    CASE(LNORM, "lnorm");
     CASE(RNN, "rnn");
     CASE(SOFTMAX, "softmax");
     CASE(POOL, "pool");

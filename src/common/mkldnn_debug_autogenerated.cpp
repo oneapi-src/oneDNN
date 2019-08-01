@@ -191,6 +191,8 @@ const char *mkldnn_fmt_tag2str(mkldnn_format_tag_t v) {
     if (v == mkldnn_x) return "x";
     if (v == mkldnn_nc) return "nc";
     if (v == mkldnn_cn) return "cn";
+    if (v == mkldnn_tn) return "tn";
+    if (v == mkldnn_nt) return "nt";
     if (v == mkldnn_ncw) return "ncw";
     if (v == mkldnn_nwc) return "nwc";
     if (v == mkldnn_nchw) return "nchw";
@@ -372,6 +374,7 @@ const char *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v) {
     if (v == mkldnn_pooling) return "pooling";
     if (v == mkldnn_lrn) return "lrn";
     if (v == mkldnn_batch_normalization) return "batch_normalization";
+    if (v == mkldnn_layer_normalization) return "layer_normalization";
     if (v == mkldnn_inner_product) return "inner_product";
     if (v == mkldnn_rnn) return "rnn";
     if (v == mkldnn_gemm) return "gemm";
@@ -411,6 +414,14 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_lbr_gru) return "lbr_gru";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
+}
+
+const char *mkldnn_normalization_flags2str(mkldnn_normalization_flags_t v) {
+    if (v == mkldnn_use_global_stats) return "use_global_stats";
+    if (v == mkldnn_use_scaleshift) return "use_scaleshift";
+    if (v == mkldnn_fuse_norm_relu) return "fuse_norm_relu";
+    assert(!"unknown normalization_flags");
+    return "unknown normalization_flags";
 }
 
 const char *mkldnn_rnn_flags2str(mkldnn_rnn_flags_t v) {

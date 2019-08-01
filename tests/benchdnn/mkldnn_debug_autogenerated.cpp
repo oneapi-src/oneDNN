@@ -63,7 +63,9 @@ mkldnn_format_tag_t str2fmt_tag(const char *str) {
     CASE(ba);
     CASE(bac);
     CASE(bacd);
+    CASE(bca);
     CASE(bcda);
+    CASE(bcdea);
     CASE(cba);
     CASE(cdba);
     CASE(cdeba);
@@ -179,6 +181,8 @@ mkldnn_format_tag_t str2fmt_tag(const char *str) {
     CASE(x);
     CASE(nc);
     CASE(cn);
+    CASE(tn);
+    CASE(nt);
     CASE(ncw);
     CASE(nwc);
     CASE(nchw);
@@ -191,6 +195,7 @@ mkldnn_format_tag_t str2fmt_tag(const char *str) {
     CASE(oiw);
     CASE(owi);
     CASE(wio);
+    CASE(iwo);
     CASE(oihw);
     CASE(hwio);
     CASE(ohwi);
@@ -199,6 +204,7 @@ mkldnn_format_tag_t str2fmt_tag(const char *str) {
     CASE(oidhw);
     CASE(dhwio);
     CASE(odhwi);
+    CASE(idhwo);
     CASE(goiw);
     CASE(goihw);
     CASE(hwigo);

@@ -34,6 +34,7 @@
 #include "shuffle/shuffle.hpp"
 #include "reorder/reorder.hpp"
 #include "bnorm/bnorm.hpp"
+#include "lnorm/lnorm.hpp"
 #include "rnn/rnn.hpp"
 #include "softmax/softmax.hpp"
 #include "pool/pool.hpp"
@@ -65,6 +66,7 @@ int main(int argc, char **argv) {
         else if (!strcmp("--shuffle", argv[0])) prim = SHUFFLE;
         else if (!strcmp("--reorder", argv[0])) prim = REORDER;
         else if (!strcmp("--bnorm", argv[0])) prim = BNORM;
+        else if (!strcmp("--lnorm", argv[0])) prim = LNORM;
         else if (!strcmp("--rnn", argv[0])) prim = RNN;
         else if (!strcmp("--softmax", argv[0])) prim = SOFTMAX;
         else if (!strcmp("--pool", argv[0])) prim = POOL;
@@ -86,6 +88,7 @@ int main(int argc, char **argv) {
     case SHUFFLE: shuffle::bench(argc, argv); break;
     case REORDER: reorder::bench(argc, argv); break;
     case BNORM: bnorm::bench(argc, argv); break;
+    case LNORM: lnorm::bench(argc, argv); break;
     case RNN: rnn::bench(argc, argv); break;
     case SOFTMAX: softmax::bench(argc, argv); break;
     case POOL: pool::bench(argc, argv); break;

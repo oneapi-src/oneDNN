@@ -70,6 +70,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_s8s8s32.cpp
                               test_gemm_bf16bf16f32.cpp
                               test_rnn_forward.cpp
+                              test_layer_normalization.cpp
                               )
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore

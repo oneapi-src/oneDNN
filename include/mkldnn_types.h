@@ -340,6 +340,10 @@ typedef enum {
     mkldnn_nc = mkldnn_ab,
     /// 2D CNN activations tensor, an alias to #mkldnn_ba
     mkldnn_cn = mkldnn_ba,
+    /// 2D RNN statistics tensor, an alias to #mkldnn_ab
+    mkldnn_tn = mkldnn_ab,
+    /// 2D RNN statistics tensor, an alias to #mkldnn_ba
+    mkldnn_nt = mkldnn_ba,
     /// 3D CNN activations tensor, an alias to #mkldnn_abc
     mkldnn_ncw = mkldnn_abc,
     /// 3D CNN activations tensor, an alias to #mkldnn_acb
@@ -631,8 +635,10 @@ typedef enum {
     mkldnn_pooling,
     /// An LRN primitive.
     mkldnn_lrn,
-    /// An batch normalization primitive.
+    /// A batch normalization primitive.
     mkldnn_batch_normalization,
+    /// A layer normalization primitive.
+    mkldnn_layer_normalization,
     /// An inner product primitive.
     mkldnn_inner_product,
     /// A rnn primitive.
@@ -1135,6 +1141,38 @@ typedef struct {
     unsigned flags;
 } mkldnn_batch_normalization_desc_t;
 
+/// A descriptor of a Layer Normalization operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #mkldnn_layer_normalization.
+    mkldnn_primitive_kind_t primitive_kind;
+    /// The kind of propagation. Possible values: #mkldnn_forward_training,
+    /// #mkldnn_forward_inference, #mkldnn_backward, and #mkldnn_backward_data.
+    mkldnn_prop_kind_t prop_kind;
+    /// Source and destination memory descriptor.
+    mkldnn_memory_desc_t data_desc;
+    /// Source and destination gradient memory descriptor.
+    mkldnn_memory_desc_t diff_data_desc;
+    /// Scale and shift data and gradient memory descriptors.
+    ///
+    /// Scaleshift memory descriptor uses 2D #mkldnn_ab
+    /// format[2, normalized_dim] where 1-st dimension contains gamma parameter,
+    /// 2-nd dimension contains beta parameter. Normalized_dim is equal to the
+    /// last logical dimension of the data tensor across which normalization is
+    /// performed.
+    mkldnn_memory_desc_t data_scaleshift_desc;
+    mkldnn_memory_desc_t diff_data_scaleshift_desc;
+    /// Mean and variance data memory descriptors.
+    ///
+    /// Statistics (mean and variance) memory descriptor is the k-dimensional tensor
+    /// where k is equal to data_tensor_ndims - 1 and may have any plain
+    /// (stride[last_dim] == 1) user-provided format.
+    mkldnn_memory_desc_t stat_desc;
+    /// Layer normalization epsilon parameter.
+    float layer_norm_epsilon;
+    unsigned flags;
+} mkldnn_layer_normalization_desc_t;
+
 /// A descriptor of an inner product operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
@@ -1526,6 +1564,7 @@ typedef enum {
     mkldnn_query_pooling_d, ///< pooling descriptor
     mkldnn_query_lrn_d, ///< lrn descriptor
     mkldnn_query_batch_normalization_d, ///< batch normalization descriptor
+    mkldnn_query_layer_normalization_d, ///< layer normalization descriptor
     mkldnn_query_inner_product_d, ///< inner product descriptor
     mkldnn_query_rnn_d, ///< rnn descriptor
     mkldnn_query_gemm_d, ///< GEMM descriptor
