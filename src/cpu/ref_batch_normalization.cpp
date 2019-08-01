@@ -105,6 +105,16 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const bool fuse_norm_relu = pd()->fuse_norm_relu();
     const bool calculate_stats = !pd()->stats_is_src();
 
+    /* fast return */
+    if (this->pd()->has_zero_dim_memory()) {
+        if (calculate_stats && save_stats)
+            for (dim_t c = 0; c < pd()->C(); c++) {
+                mean[c] = 0;
+                variance[c] = 0;
+            }
+        return;
+    }
+
     const bool with_relu = pd()->with_relu_post_op();
     auto maybe_post_op = [&](acc_data_t res) {
         return (with_relu && res < 0.0f) ? 0.0f : res;
