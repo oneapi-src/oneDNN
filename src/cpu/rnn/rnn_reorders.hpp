@@ -393,10 +393,13 @@ private:
                     int g = (p > 0) ? parts[p - 1] : 0;
                     int m_p = to_igo ? parts[p] * O : I;
                     int k_p = to_igo ? I : parts[p] * O;
-                    sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda, &ldb,
+                    auto st = sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
+                            &ldb,
                             &input_tr[to_igo ? off_igo(l, d, 0, g, 0)
-                                                     : off_goi(l, d, 0, g, 0)],
+                                             : off_goi(l, d, 0, g, 0)],
                             output);
+                    assert(st == mkldnn_success);
+                    MAYBE_UNUSED(st);
                     output += size_packed_cell[p] / sizeof(float);
                 }
             }

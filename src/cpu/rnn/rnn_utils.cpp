@@ -141,15 +141,17 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.copy_bias = rnn.dt_conf != all_f32;
 
     rnn.use_layer_packed_gemm
-        = (utils::one_of(weights_layer_d.format_kind(), format_kind::any,
-                   format_kind::rnn_packed)
-           && is_inference && rnn.n_iter == 1)
-        || is_int8;
+            = (pack_sgemm_supported()
+                      && (utils::one_of(weights_layer_d.format_kind(),
+                                  format_kind::any, format_kind::rnn_packed)
+                              && is_inference && rnn.n_iter == 1))
+            || is_int8;
     rnn.use_iter_packed_gemm
-        = (utils::one_of(weights_iter_d.format_kind(), format_kind::any,
-                   format_kind::rnn_packed)
-           && is_inference && rnn.mb >= 16)
-        || is_int8;
+            = (pack_sgemm_supported()
+                      && (utils::one_of(weights_iter_d.format_kind(),
+                                  format_kind::any, format_kind::rnn_packed)
+                              && is_inference && rnn.mb >= 16))
+            || is_int8;
 
     int sizeof_states_dt
             = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
