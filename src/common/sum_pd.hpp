@@ -21,7 +21,6 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
-#include "nstl.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 
@@ -78,9 +77,9 @@ struct sum_pd_t : public primitive_desc_t {
 
 protected:
     int n_;
-    nstl::vector<float> scales_;
+    std::vector<float> scales_;
     memory_desc_t dst_md_, dst_acc_md_;
-    nstl::vector<memory_desc_t> src_mds_;
+    std::vector<memory_desc_t> src_mds_;
 
 protected:
     /* inits dst_md_ in simple cases. The call may fail. */

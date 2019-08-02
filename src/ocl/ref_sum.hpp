@@ -78,7 +78,7 @@ struct ref_sum_t : public primitive_impl_t {
                 delete rpd;
         }
 
-        nstl::vector<const reorder_pd_t *> reorder_pds_;
+        std::vector<const reorder_pd_t *> reorder_pds_;
     };
 
     ref_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
@@ -108,7 +108,7 @@ struct ref_sum_t : public primitive_impl_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    nstl::vector<primitive_t *> reorders_;
+    std::vector<primitive_t *> reorders_;
 };
 } // namespace ocl
 } // namespace impl

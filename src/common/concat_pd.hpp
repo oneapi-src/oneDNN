@@ -20,7 +20,6 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "nstl.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 
@@ -73,12 +72,12 @@ struct concat_pd_t : public primitive_desc_t {
 protected:
     int n_, concat_dim_;
     memory_desc_t dst_md_;
-    nstl::vector<memory_desc_t> src_mds_;
+    std::vector<memory_desc_t> src_mds_;
 
     /* contains images of srcs in the dst memory (if possible)
      * Lives here to simplify some implementations. An implementation might
      * use this auxiliary array iff init() returned success */
-    nstl::vector<memory_desc_t> src_image_mds_;
+    std::vector<memory_desc_t> src_image_mds_;
 
 protected:
     /* inits src_image_mds_ and dst_md_ in simple cases. The call may fail */
