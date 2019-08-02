@@ -10,19 +10,19 @@ list(APPEND CMAKE_MODULE_PATH ${PACKAGE_PREFIX_DIR}/@LIB_CONFIG_INSTALL_DIR@)
 if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     find_package(SYCL REQUIRED)
     set(MKLDNN_COMPILE_FLAGS "${SYCL_FLAGS} -DCL_TARGET_OPENCL_VERSION=220")
-endif()
 
-# Use TBB library from SYCL bundle if it is there
-if(NOT TBBROOT)
-    get_target_property(sycl_lib_path SYCL::SYCL IMPORTED_LOCATION)
-    get_filename_component(sycl_lib_dir "${sycl_lib_path}" PATH)
+    # Use TBB library from SYCL bundle if it is there
+    if(NOT TBBROOT)
+        get_target_property(sycl_lib_path SYCL::SYCL IMPORTED_LOCATION)
+        get_filename_component(sycl_lib_dir "${sycl_lib_path}" PATH)
 
-    find_path(_tbbroot
-        NAMES "include/tbb/tbb.h"
-        PATHS "${sycl_lib_dir}/../../tbb"
-    NO_DEFAULT_PATH)
-    if(_tbbroot)
-        set(TBBROOT "${_tbbroot}" CACHE STRING "" FORCE)
+        find_path(_tbbroot
+            NAMES "include/tbb/tbb.h"
+            PATHS "${sycl_lib_dir}/../../tbb"
+        NO_DEFAULT_PATH)
+        if(_tbbroot)
+            set(TBBROOT "${_tbbroot}" CACHE STRING "" FORCE)
+        endif()
     endif()
 endif()
 
