@@ -17,6 +17,8 @@
 #ifndef Z_MAGIC_HPP
 #define Z_MAGIC_HPP
 
+#define for_ for
+
 #define CHAIn2(a,b) a b
 #define CHAIN2(a,b) CHAIn2(a,b)
 

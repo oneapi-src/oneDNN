@@ -30,6 +30,8 @@
 #include "dnn_types.hpp"
 #include "mkldnn_debug.hpp"
 
+#define for_ for
+
 #define DNN_SAFE(f, s) do { \
     mkldnn_status_t status = f; \
     if (status != mkldnn_success) { \

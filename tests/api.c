@@ -21,6 +21,8 @@
 
 #include "mkldnn.h"
 
+#define for_ for
+
 #define CHECK(f) do { \
     mkldnn_status_t s = f; \
     if (s != mkldnn_success) { \

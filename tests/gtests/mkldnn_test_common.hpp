@@ -45,6 +45,8 @@
 #include "src/common/bfloat16.hpp"
 #include "src/common/nstl.hpp"
 
+#define for_ for
+
 using mkldnn::impl::f16_support::float16_t;
 using mkldnn::impl::bfloat16_t;
 
