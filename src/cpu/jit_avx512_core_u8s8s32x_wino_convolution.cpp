@@ -1173,8 +1173,8 @@ execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
     auto wino_src = scratchpad.template get<src_data_t>(key_wino_V);
     auto wino_dst = scratchpad.template get<acc_data_t>(key_wino_M);
 
-    for (int mbb = 0; mbb < jcp.nb_mb; mbb++) {
-    for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
+    for_(int mbb = 0; mbb < jcp.nb_mb; mbb++)
+    for_(int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb)
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
@@ -1271,7 +1271,7 @@ execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
 
             dst_trans_->ker_(&dst_trans_p);
         });
-    }}}
+    }
 }
 
 template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::s8>;

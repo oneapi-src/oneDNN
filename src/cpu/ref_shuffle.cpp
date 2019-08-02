@@ -67,8 +67,8 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
                 nCdhw4c)) {
 #if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
 #       pragma omp parallel for collapse(3) schedule(static)
-        for (int mb = 0; mb < MB; ++mb)
-        for (int cb = 0; cb < C; cb += blksize)
+        for_(int mb = 0; mb < MB; ++mb)
+        for_(int cb = 0; cb < C; cb += blksize)
         for (int sp = 0; sp < SP; ++sp) {
             const size_t off = mb * stride_mb + sp * blksize;
             const size_t output_off = off + cb * SP;

@@ -90,8 +90,8 @@ void check_pool_fwd(const pool_bwd_test_params &p, const memory &src,
                 : (ih_end - ih_start) * (iw_end - iw_start)
                     * (id_end - id_start);
 
-            for (memory::dim id = id_start; id < id_end; ++id)
-            for (memory::dim ih = ih_start; ih < ih_end; ++ih)
+            for_(memory::dim id = id_start; id < id_end; ++id)
+            for_(memory::dim ih = ih_start; ih < ih_end; ++ih)
             for (memory::dim iw = iw_start; iw < iw_end; ++iw) {
                 memory::dim iidx = n * padded_c * pd.id * pd.ih * pd.iw
                         + c * pd.id * pd.ih * pd.iw
@@ -162,8 +162,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
     );
 
     mkldnn::impl::parallel_nd(pd.mb, pd.c, [&](memory::dim n, memory::dim c) {
-        for (memory::dim od = 0; od < pd.od; od++)
-        for (memory::dim oh = 0; oh < pd.oh; oh++)
+        for_(memory::dim od = 0; od < pd.od; od++)
+        for_(memory::dim oh = 0; oh < pd.oh; oh++)
         for (memory::dim ow = 0; ow < pd.ow; ow++) {
             memory::dim oidx = n * pd.c * pd.od * pd.oh * pd.ow
                     + c * pd.od * pd.oh * pd.ow
@@ -173,8 +173,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                 memory::dim kw_max = ws_data(ws_mdw.off_l(oidx, true)) % pd.kw;
                 memory::dim kh_max = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw) % pd.kh;
                 memory::dim kd_max = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw) / pd.kh;
-                for (memory::dim kd = 0; kd < pd.kd; kd++)
-                for (memory::dim kh = 0; kh < pd.kh; kh++)
+                for_(memory::dim kd = 0; kd < pd.kd; kd++)
+                for_(memory::dim kh = 0; kh < pd.kh; kh++)
                 for (memory::dim kw = 0; kw < pd.kw; kw++) {
                     memory::dim iw = ow * pd.strw - pd.padl + kw;
                     memory::dim ih = oh * pd.strh - pd.padt + kh;
@@ -204,8 +204,8 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
                     : (ih_end - ih_start) * (iw_end - iw_start)
                         * (id_end - id_start);
 
-                for (int id = id_start; id < id_end; id++)
-                for (int ih = ih_start; ih < ih_end; ih++)
+                for_(int id = id_start; id < id_end; id++)
+                for_(int ih = ih_start; ih < ih_end; ih++)
                 for (int iw = iw_start; iw < iw_end; iw++)
                 {
                     memory::dim iidx = n * pd.c * pd.id * pd.ih * pd.iw

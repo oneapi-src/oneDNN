@@ -1739,8 +1739,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
     align(16);
     L(kh_label);
     if (check_last_kh) {
-        for (int ki = 0; ki < kw; ki++)
-        for (int oc = 0; oc < oc_block; oc += 4)
+        for_(int ki = 0; ki < kw; ki++)
+        for_(int oc = 0; oc < oc_block; oc += 4)
         for (int kk = 0; kk < jcp.nb_ic_blocking; kk++) {
             bool last_kernel_loads = (kk == jcp.nb_ic_blocking - 1
                 && ki == kw - 1 && (oc + 4) == oc_block);
@@ -1809,8 +1809,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop_4fma(
             }
         }
     } else {
-        for (int ki = 0; ki < kw; ki++)
-        for (int oc = 0; oc < oc_block; oc += 4)
+        for_(int ki = 0; ki < kw; ki++)
+        for_(int oc = 0; oc < oc_block; oc += 4)
         for (int kk = 0; kk < jcp.nb_ic_blocking; kk++) {
             kernel_loads(ki, oc, kk);
 

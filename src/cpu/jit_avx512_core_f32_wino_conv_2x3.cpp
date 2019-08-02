@@ -1000,8 +1000,8 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
     auto ptr_V = scratchpad.get<float>(key_wino_V);
     auto ptr_M = scratchpad.get<float>(key_wino_M);
 
-    for (int mb = 0; mb < jcp.mb; mb++) {
-    for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
+    for_(int mb = 0; mb < jcp.mb; mb++)
+    for_(int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb)
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2),
@@ -1095,7 +1095,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
 
             dst_trans_->ker_(&dst_trans_p);
         });
-    }}}
+    }
 }
 
 } // namespace cpu

@@ -130,18 +130,18 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
         acc_data_t v_variance = calculate_stats ? 0 : variance[c];
 
         if (calculate_stats) {
-            for (int n = 0; n < N; ++n)
-            for (int d = 0; d < D; ++d)
-            for (int h = 0; h < H; ++h)
+            for_(int n = 0; n < N; ++n)
+            for_(int d = 0; d < D; ++d)
+            for_(int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
                 v_mean += maybe_up_convert(
                         src[data_offset(data_d, n, c, d, h, w)]);
             }
             v_mean /= W * N * H * D;
 
-            for (int n = 0; n < N; ++n)
-            for (int d = 0; d < D; ++d)
-            for (int h = 0; h < H; ++h)
+            for_(int n = 0; n < N; ++n)
+            for_(int d = 0; d < D; ++d)
+            for_(int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
                 acc_data_t m = src[data_offset(data_d, n, c, d, h, w)] - v_mean;
                 v_variance += m * m;
@@ -155,9 +155,9 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
                 / sqrt_variance;
         acc_data_t sv = use_scaleshift ? scaleshift[scaleshift_d.off(1, c)] : 0;
 
-        for (dim_t n = 0; n < N; ++n)
-        for (dim_t d = 0; d < D; ++d)
-        for (dim_t h = 0; h < H; ++h)
+        for_(dim_t n = 0; n < N; ++n)
+        for_(dim_t d = 0; d < D; ++d)
+        for_(dim_t h = 0; h < H; ++h)
         for (dim_t w = 0; w < W; ++w) {
             auto d_off = data_offset(data_d, n, c, d, h, w);
             acc_data_t bn_res
@@ -275,9 +275,9 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
             diff_scaleshift[diff_scaleshift_d.off(1, c)] = diff_beta;
         }
 
-        for (dim_t n = 0; n < N; ++n)
-        for (dim_t d = 0; d < D; ++d)
-        for (dim_t h = 0; h < H; ++h)
+        for_(dim_t n = 0; n < N; ++n)
+        for_(dim_t d = 0; d < D; ++d)
+        for_(dim_t h = 0; h < H; ++h)
         for (dim_t w = 0; w < W; ++w) {
             const size_t s_off = data_offset(data_d, n, c, d, h, w);
             const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);

@@ -41,9 +41,9 @@
 
 #if POOLING_FWD == 1
 #if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __kernel void ref_pooling_fwd_kernel(
         __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
 
@@ -246,9 +246,9 @@ __kernel void ref_pooling_fwd_kernel(
 #endif
 #if POOLING_BWD == 1
 #if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __kernel void ref_pooling_bwd_kernel(__global DATA_T *diff_src,
         __global int *ws, __global DATA_T *diff_dst) {
 

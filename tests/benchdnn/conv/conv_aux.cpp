@@ -251,8 +251,8 @@ void prb_t::count_ops() {
     int64_t ih_t = is_deconv ? this->oh : this->ih;
     int64_t iw_t = is_deconv ? this->ow : this->iw;
     double sp_ops = 0;
-    for (int64_t od = 0; od < od_t; ++od) {
-    for (int64_t oh = 0; oh < oh_t; ++oh) {
+    for_(int64_t od = 0; od < od_t; ++od)
+    for_(int64_t oh = 0; oh < oh_t; ++oh)
     for (int64_t ow = 0; ow < ow_t; ++ow) {
         for (int64_t kd = 0; kd < this->kd; ++kd) {
             const int64_t id = od * this->sd - this->pd + kd * (this->dd + 1);
@@ -267,8 +267,6 @@ void prb_t::count_ops() {
                 }
             }
         }
-    }
-    }
     }
 
     ops = 2 * this->mb * this->oc * this->ic / this->g * sp_ops;

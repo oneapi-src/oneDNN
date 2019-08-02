@@ -213,9 +213,9 @@ void test2() {
 
     const mkldnn_dim_t N = c3_dst_sizes[0], C = c3_dst_sizes[1],
           H = c3_dst_sizes[2], W = c3_dst_sizes[3];
-    for (mkldnn_dim_t n = 0; n < N; ++n)
-    for (mkldnn_dim_t c = 0; c < C; ++c)
-    for (mkldnn_dim_t h = 0; h < H; ++h)
+    for_(mkldnn_dim_t n = 0; n < N; ++n)
+    for_(mkldnn_dim_t c = 0; c < C; ++c)
+    for_(mkldnn_dim_t h = 0; h < H; ++h)
     for (mkldnn_dim_t w = 0; w < W; ++w)
     {
         mkldnn_dim_t off = ((n*C + c)*H + h)*W + w;
@@ -294,9 +294,9 @@ void test3() {
 
     const mkldnn_dim_t N = l2_data_sizes[0], C = l2_data_sizes[1],
           H = l2_data_sizes[2], W = l2_data_sizes[3];
-    for (mkldnn_dim_t n = 0; n < N; ++n)
-    for (mkldnn_dim_t c = 0; c < C; ++c)
-    for (mkldnn_dim_t h = 0; h < H; ++h)
+    for_(mkldnn_dim_t n = 0; n < N; ++n)
+    for_(mkldnn_dim_t c = 0; c < C; ++c)
+    for_(mkldnn_dim_t h = 0; h < H; ++h)
     for (mkldnn_dim_t w = 0; w < W; ++w)
     {
         size_t off = ((n*C + c)*H + h)*W + w;

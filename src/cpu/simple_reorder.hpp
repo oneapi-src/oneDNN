@@ -155,8 +155,8 @@ typename utils::enable_if<tag_i == format_tag::any && (false
 
         parallel_nd(G, OC, [&](int g, int oc) {
             cp[g * OC + oc] = 0;
-            for (int ic = 0; ic < IC; ic++)
-            for (int h = 0; h < H; h++)
+            for_(int ic = 0; ic < IC; ic++)
+            for_(int h = 0; h < H; h++)
             for (int w = 0; w < W; w++) {
                 auto i = input[input_d.blk_off<!w_groups>(g, oc, ic, h, w)];
                 auto &o = output[output_d.blk_off<!w_groups>(g, oc, ic, h, w)];
@@ -247,7 +247,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             int32_t *c, const float *s, const int oc_block, const int ic_block) {
 #           define index AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
 
-            for (int ic = 0; ic < ic_block; ++ic) {
+            for_(int ic = 0; ic < ic_block; ++ic)
             for (int oc = 0; oc < oc_block; ++oc) {
                 const auto plain_off
                         = oc * plain_d.blocking_desc().strides[w_groups + 0]
@@ -255,7 +255,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[plain_off], s[oc] * adj_scale);
                 c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
-            }
             }
 #           undef index
         };
@@ -275,7 +274,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         parallel_nd(G, NB_OC, [&](int g, int O) {
             for (int I = 0; I < NB_IC; I++)
-                for (int h = 0; h < H; h++)
+                for_(int h = 0; h < H; h++)
                 for (int w = 0; w < W; w++) {
                     auto i = &input[wei_blk_off(
                             input_d, g, i_mult * O, i_mult * I, h, w)];
@@ -376,7 +375,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         parallel_nd(Gp/blksize, OC, [&](int gb, int O) {
                 for (int I = 0; I < IC; I++) {
-                    for (int h = 0; h < H; h++)
+                    for_(int h = 0; h < H; h++)
                     for (int w = 0; w < W; w++)
                     {
                         const int g_block = nstl::min(G - gb * blksize, blksize);
@@ -728,7 +727,7 @@ typename utils::enable_if<tag_i == format_tag::any
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o, int block) {
             if (alpha == 1.0 && beta == 0.0) {
-                for (int l = 0; l < L; ++l)
+                for_(int l = 0; l < L; ++l)
                 for (int blk = 0; blk < block; ++blk) {
                     const dim_t flat_off = 0
                         + blk * flat_d.blocking_desc().strides[blk_idx]
@@ -742,7 +741,7 @@ typename utils::enable_if<tag_i == format_tag::any
                     }
                 }
             } else {
-                for (int l = 0; l < L; ++l)
+                for_(int l = 0; l < L; ++l)
                 for (int blk = 0; blk < block; ++blk) {
                     const dim_t flat_off = 0
                         + blk * flat_d.blocking_desc().strides[blk_idx]
@@ -870,7 +869,7 @@ typename utils::enable_if<tag_i == format_tag::any
 #           define blk_off AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
 
             if (alpha == 1.0 && beta == 0.0) {
-                for (int h0 = 0; h0 < block_h0; ++h0)
+                for_(int h0 = 0; h0 < block_h0; ++h0)
                 for (int h1 = 0; h1 < block_h1; ++h1) {
                     const dim_t flat_off = 0
                         + h0 * flat_d.blocking_desc().strides[with_g + 0]
@@ -884,7 +883,7 @@ typename utils::enable_if<tag_i == format_tag::any
                     }
                 }
             } else {
-                for (int h0 = 0; h0 < block_h0; ++h0)
+                for_(int h0 = 0; h0 < block_h0; ++h0)
                 for (int h1 = 0; h1 < block_h1; ++h1) {
                     const dim_t flat_off = 0
                         + h0 * flat_d.blocking_desc().strides[with_g + 0]

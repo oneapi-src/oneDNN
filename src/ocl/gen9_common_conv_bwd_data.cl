@@ -24,9 +24,9 @@
 
 #if BWD_DATA == 1
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #    if VER_16MB16C == 1 || VER_8OW16C == 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #    endif
 __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
         __global DATA_T *wei, __global DATA_T *diff_dst, __global DATA_T *bias) {
@@ -405,7 +405,7 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
 #        endif
                     DATA_T blockA[IW_BLOCK];
 
-            __attribute__((opencl_unroll_hint(IW_BLOCK)))
+            __attribute__((opencl_unroll_hint(IW_BLOCK))) // attr:no-format
             for (int i = 0; i < IW_BLOCK; i++) {
 #                if KW != 1
                 if (iw + i + PW < kw * (1 + DW)) {
@@ -431,7 +431,7 @@ __kernel void gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
                 (const __global BLOCK_DATA_T *)(&(diff_dst1)[ow * OC_BLOCK])));
             }
 
-            __attribute__((opencl_unroll_hint(IW_BLOCK)))
+            __attribute__((opencl_unroll_hint(IW_BLOCK))) // attr:no-format
             for (int i = 0; i < IW_BLOCK; i++) {
 #        if IS_DW
                 blockC00[i] = fma(blockA[i], (DATA_T)blockB00, blockC00[i]);

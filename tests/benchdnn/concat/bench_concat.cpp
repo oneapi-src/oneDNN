@@ -52,10 +52,10 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for (const auto &i_sdt: sdt)
-    for (const auto &i_ddt: ddt)
-    for (const auto &i_stag: stag)
-    for (const auto &i_dtag: dtag)
+    for_(const auto &i_sdt: sdt)
+    for_(const auto &i_ddt: ddt)
+    for_(const auto &i_stag: stag)
+    for_(const auto &i_dtag: dtag)
     for (const auto &i_axis: axis) {
         if (sdims.size() != i_stag.size()) // expect 1:1 match of sdims and tag
             SAFE_V(FAIL);

@@ -31,9 +31,9 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f) / sqrt_var;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
 
-        for (int64_t mb = 0; mb < p->mb; ++mb)
-        for (int64_t d = 0; d < p->id; ++d)
-        for (int64_t h = 0; h < p->ih; ++h)
+        for_(int64_t mb = 0; mb < p->mb; ++mb)
+        for_(int64_t d = 0; d < p->id; ++d)
+        for_(int64_t h = 0; h < p->ih; ++h)
         for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float res = gamma * (((float *)src)[off] - smean) + beta;
@@ -61,9 +61,9 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         float d_gamma = 0;
         float d_beta = 0;
 
-        for (int64_t mb = 0; mb < p->mb; ++mb)
-        for (int64_t d = 0; d < p->id; ++d)
-        for (int64_t h = 0; h < p->ih; ++h)
+        for_(int64_t mb = 0; mb < p->mb; ++mb)
+        for_(int64_t d = 0; d < p->id; ++d)
+        for_(int64_t h = 0; h < p->ih; ++h)
         for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];
@@ -80,9 +80,9 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             ((float *)d_ss)[p->ic + c] = d_beta;
         }
 
-        for (int64_t mb = 0; mb < p->mb; ++mb)
-        for (int64_t d = 0; d < p->id; ++d)
-        for (int64_t h = 0; h < p->ih; ++h)
+        for_(int64_t mb = 0; mb < p->mb; ++mb)
+        for_(int64_t d = 0; d < p->id; ++d)
+        for_(int64_t h = 0; h < p->ih; ++h)
         for (int64_t w = 0; w < p->iw; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
             float dd = ((float *)d_dst)[off];

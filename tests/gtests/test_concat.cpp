@@ -64,10 +64,10 @@ class concat_test: public ::testing::TestWithParam<concat_test_params> {
             auto DST_H = dst_dims[ndims-2];
             auto DST_W = dst_dims[ndims-1];
 
-            for (memory::dim n = 0; n < N; n++)
-            for (memory::dim c = 0; c < C; c++)
-            for (memory::dim d = 0; d < D; d++)
-            for (memory::dim h = 0; h < H; h++)
+            for_(memory::dim n = 0; n < N; n++)
+            for_(memory::dim c = 0; c < C; c++)
+            for_(memory::dim d = 0; d < D; d++)
+            for_(memory::dim h = 0; h < H; h++)
             for (memory::dim w = 0; w < W; w++) {
                 auto src_idx = w + W*h + H*W*d + D*H*W*c + C_PADDED*D*H*W*n;
 

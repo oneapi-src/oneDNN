@@ -55,10 +55,10 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    for (const auto &i_dir: dir)
-    for (const auto &i_dt: dt)
-    for (const auto &i_tag: tag)
-    for (const auto &i_alg: alg)
+    for_(const auto &i_dir: dir)
+    for_(const auto &i_dt: dt)
+    for_(const auto &i_tag: tag)
+    for_(const auto &i_alg: alg)
     for (const auto &i_mb: mb) {
         const prb_t p(*c, i_mb, i_dir, i_dt, i_tag, i_alg);
         std::stringstream ss;

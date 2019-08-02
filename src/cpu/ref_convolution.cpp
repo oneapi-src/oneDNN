@@ -80,9 +80,9 @@ execute_forward(const exec_ctx_t &ctx) const {
     auto ker = [=](int g, int mb, int oc, int od, int oh,
             int ow) {
         acc_data_t d = 0;
-        for (int ic = 0; ic < IC; ++ic)
-        for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+        for_(int ic = 0; ic < IC; ++ic)
+        for_(int kd = 0; kd < KD; ++kd)
+        for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             const int id = od * KSD - padFront + kd * (1 + KDD);
             const int ih = oh * KSH - padT + kh * (1 + KDH);
@@ -182,9 +182,9 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     auto ker = [=](int g, int mb, int ic, int id, int ih,
             int iw) {
         acc_data_t d = 0;
-        for (int oc = 0; oc < OC; ++oc)
-        for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+        for_(int oc = 0; oc < OC; ++oc)
+        for_(int kd = 0; kd < KD; ++kd)
+        for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             if (iw + padL < kw * (1 + KDW)
                 || ih + padT < kh * (1 + KDH)
@@ -285,9 +285,9 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
     const int ndims = pd()->desc()->src_desc.ndims;
 
 auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
-        for (int mb = 0; mb < MB; ++mb)
-        for (int od = 0; od < OD; ++od)
-        for (int oh = 0; oh < OH; ++oh)
+        for_(int mb = 0; mb < MB; ++mb)
+        for_(int od = 0; od < OD; ++od)
+        for_(int oh = 0; oh < OH; ++oh)
         for (int ow = 0; ow < OW; ++ow) {
             if (ow*KSW + kw * (1 + KDW) < padL
                 || oh*KSH + kh * (1 + KDH) < padT
@@ -315,9 +315,9 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
     };
 
     auto ker_bias = [=](acc_data_t &d, int g, int oc) {
-        for (int mb = 0; mb < MB; ++mb)
-        for (int od = 0; od < OD; ++od)
-        for (int oh = 0; oh < OH; ++oh)
+        for_(int mb = 0; mb < MB; ++mb)
+        for_(int od = 0; od < OD; ++od)
+        for_(int oh = 0; oh < OH; ++oh)
         for (int ow = 0; ow < OW; ++ow) {
             if (ndims == 5)
                 d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, od, oh,
@@ -341,9 +341,9 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
                 = saturate<diff_wei_data_t>(db);
         }
 
-        for (int ic = 0; ic < IC; ++ic)
-        for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+        for_(int ic = 0; ic < IC; ++ic)
+        for_(int kd = 0; kd < KD; ++kd)
+        for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             acc_data_t dw = 0;
             ker(dw, g, oc, ic, kd, kh, kw);

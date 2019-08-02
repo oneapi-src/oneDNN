@@ -67,8 +67,8 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
         [&](memory::dim g, memory::dim oc) {
         memory::dim bidx = g * c.oc / c.ng + oc;
         bias_data[bias_mdw.off_l(bidx, true)] = 0.0;
-        for (memory::dim mb = 0; mb < c.mb; ++mb)
-        for (memory::dim oh = 0; oh < c.oh; ++oh)
+        for_(memory::dim mb = 0; mb < c.mb; ++mb)
+        for_(memory::dim oh = 0; oh < c.oh; ++oh)
         for (memory::dim ow = 0; ow < c.ow; ++ow)
         {
             memory::dim oidx = mb * c.oc * c.oh * c.ow

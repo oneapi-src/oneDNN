@@ -97,8 +97,8 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
             bool is_initialized = false;
             int num_summands = 0;
 
-            for (memory::dim kd = 0; kd < pd.kd; ++kd)
-            for (memory::dim kh = 0; kh < pd.kh; ++kh)
+            for_(memory::dim kd = 0; kd < pd.kd; ++kd)
+            for_(memory::dim kh = 0; kh < pd.kh; ++kh)
             for (memory::dim kw = 0; kw < pd.kw; ++kw)
             {
                 const memory::dim id = od * pd.strd - pd.padf + kd;

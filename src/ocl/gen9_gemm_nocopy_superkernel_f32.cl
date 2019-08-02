@@ -180,7 +180,7 @@
     }
 
 #ifdef NN
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
@@ -289,7 +289,7 @@ kernel void gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
 
 
 #ifdef NT
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,

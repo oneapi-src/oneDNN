@@ -139,8 +139,8 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
         for (int64_t oc = 0; oc < OCG; ++oc)
         {
-            for (int64_t d = 0; d < num_d; ++d)
-            for (int64_t h = 0; h < num_h; ++h)
+            for_(int64_t d = 0; d < num_d; ++d)
+            for_(int64_t h = 0; h < num_h; ++h)
             for (int64_t w = 0; w < num_w; ++w)
             {
                 int64_t dst_off = (((mb * OC + g * OCG + oc) * OD + od[d])
@@ -221,8 +221,8 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
         compute_bounds(p->iw, p->ow, kw, p->sw, p->pw, p->dw, ow_s, ow_e);
 
         for (int64_t mb = 0; mb < p->mb; ++mb) {
-            for (int64_t od = od_s; od < od_e; ++od) {
-            for (int64_t oh = oh_s; oh < oh_e; ++oh) {
+            for_(int64_t od = od_s; od < od_e; ++od)
+            for_(int64_t oh = oh_s; oh < oh_e; ++oh)
             for (int64_t ow = ow_s; ow < ow_e; ++ow) {
                 const int64_t id = od * p->sd - p->pd + kd * (p->dd + 1);
                 const int64_t ih = oh * p->sh - p->ph + kh * (p->dh + 1);
@@ -232,8 +232,6 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
                 size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
                 dw += ((float*)diff_dst_m)[dst_off]
                     * ((float*)src_m)[src_off];
-            }
-            }
             }
         }
     };
@@ -255,9 +253,9 @@ void compute_ref_bwd_bias(const prb_t *p, dnn_mem_t &diff_bia_m,
        size_t bia_off = bia_off_f(p, g, oc);
        double sum = 0;
 
-       for (int64_t mb = 0; mb < p->mb; ++mb)
-       for (int64_t od = 0; od < p->od; ++od)
-       for (int64_t oh = 0; oh < p->oh; ++oh)
+       for_(int64_t mb = 0; mb < p->mb; ++mb)
+       for_(int64_t od = 0; od < p->od; ++od)
+       for_(int64_t oh = 0; oh < p->oh; ++oh)
        for (int64_t ow = 0; ow < p->ow; ++ow)
        {
            size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);

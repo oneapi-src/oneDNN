@@ -125,8 +125,8 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
             int64_t l_base = mb * p->id * p->ih * p->iw + c * 239 * 2; // l[0] must be even
             float *s = (float *)src + data_off(p, mb, c, 0, 0, 0);
 
-            for (int64_t d = 0; d < p->id; ++d)
-            for (int64_t h = 0; h < p->ih; ++h)
+            for_(int64_t d = 0; d < p->id; ++d)
+            for_(int64_t h = 0; h < p->ih; ++h)
             for (int64_t w = 0; w < p->iw; ++w) {
 
                 const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
@@ -252,8 +252,8 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             float *dd = (float *)d_dst + off;
             float *rmask = (float *)mask + off;
 
-            for (int64_t d = 0; d < p->id; ++d)
-            for (int64_t h = 0; h < p->ih; ++h)
+            for_(int64_t d = 0; d < p->id; ++d)
+            for_(int64_t h = 0; h < p->ih; ++h)
             for (int64_t w = 0; w < p->iw; ++w) {
 
                 const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
@@ -352,8 +352,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     r->total += rely_on_norm ? 1 : nelems;
 
     diff_norm_t diff_norm;
-    for (int64_t n = 0; n < N; n++) {
-    for (int64_t c = 0; c < C; c++) {
+    for_(int64_t n = 0; n < N; n++)
+    for_(int64_t c = 0; c < C; c++)
     for (int64_t sp = 0; sp < SP; ++sp) {
         int64_t i = (n * C + c) * SP + sp;
         const float dt = dt_mem.get_elem(i);
@@ -412,8 +412,6 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                     (long)i, p->dir & FLAG_BWD ? "D_" : "", skind, ind_str.c_str(),
                     fp, dt, diff, rel_diff);
         }
-    }
-    }
     }
 
     diff_norm.done();

@@ -379,7 +379,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
             for (int mb = 0; mb < jcp.mb; ++mb)
             {
                 size_t offset = offset_ + (size_t)mb * jcp.ngroups * dst_step;
-                for (int od = 0; od < jcp.od; ++od)
+                for_(int od = 0; od < jcp.od; ++od)
                 for (int oh = 0; oh < jcp.oh; ++oh)
                 PRAGMA_OMP_SIMD(reduction(+:db))
                 for (int ow = 0; ow < jcp.ow; ++ow) {

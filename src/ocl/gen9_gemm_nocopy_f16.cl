@@ -174,7 +174,8 @@
     } while (0)
 
 #ifdef NN
-__attribute__((intel_reqd_sub_group_size(16))) kernel void
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
+kernel void
 gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
@@ -254,7 +255,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 #endif
 
 #ifdef NT
-__attribute__((intel_reqd_sub_group_size(16))) kernel void
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
+kernel void
 gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
@@ -332,7 +334,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 #endif
 
 #ifdef TN
-__attribute__((intel_reqd_sub_group_size(16))) kernel void
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
+kernel void
 gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
@@ -407,7 +410,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 #endif
 
 #ifdef TT
-__attribute__((intel_reqd_sub_group_size(16))) kernel void
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
+kernel void
 gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,

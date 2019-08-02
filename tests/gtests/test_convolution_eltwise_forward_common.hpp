@@ -57,8 +57,8 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
             dst_data[didx] = bias_data
                     ? bias_data[g * c.oc / c.ng + oc] : data_t_dst{0};
 
-            for (memory::dim ic = 0; ic < c.ic / c.ng; ic++)
-            for (memory::dim kh = 0; kh < c.kh; kh++)
+            for_(memory::dim ic = 0; ic < c.ic / c.ng; ic++)
+            for_(memory::dim kh = 0; kh < c.kh; kh++)
             for (memory::dim kw = 0; kw < c.kw; kw++)
             {
                 memory::dim ih = oh * c.strh - c.padh + kh * (1 + c.dilh);

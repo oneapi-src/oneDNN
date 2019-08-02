@@ -61,13 +61,13 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for (const auto &i_dir: dir)
-    for (const auto &i_dt: dt)
-    for (const auto &i_tag: tag)
-    for (const auto &i_alg: alg)
-    for (const auto &i_alpha: alpha)
-    for (const auto &i_beta: beta)
-    for (const auto &i_inplace: inplace)
+    for_(const auto &i_dir: dir)
+    for_(const auto &i_dt: dt)
+    for_(const auto &i_tag: tag)
+    for_(const auto &i_alg: alg)
+    for_(const auto &i_alpha: alpha)
+    for_(const auto &i_beta: beta)
+    for_(const auto &i_inplace: inplace)
     for (const auto &i_mb: mb) {
         using pk = attr_t::post_ops_t::kind_t;
 

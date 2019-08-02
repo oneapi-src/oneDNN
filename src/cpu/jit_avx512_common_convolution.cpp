@@ -1154,7 +1154,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         for (int img = ti->img_start; img < ti->img_end; ++img) {
             p.flags = (img == ti->img_start) * FLAG_MB_FIRST;
 
-            for (int g = ti->g_start; g < ti->g_end; ++g) {
+            for_(int g = ti->g_start; g < ti->g_end; ++g)
             for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
                 const int _ic = g * jcp.nb_ic + ic_b;
                 tr_ctx.src = &ti->src[src_d.blk_off(img, _ic)];
@@ -1178,7 +1178,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     kernel_->jit_ker(&p);
                 }
             }
-            }
         }
     } else {
         for (int img = ti->img_start; img < ti->img_end; ++img) {
@@ -1194,8 +1193,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     barrier(&ti->tr_src_bctx[ti->ithr_but_oc], nthr_oc_b_);
             }
 
-            for (int g = ti->g_start; g < ti->g_end; ++g) {
-            for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
+            for_(int g = ti->g_start; g < ti->g_end; ++g)
+            for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
             for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
                 const int _oc = g * jcp.nb_oc + oc_b;
                 const int _ic = g * jcp.nb_ic + ic_b;
@@ -1208,8 +1207,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                         diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                         0, (img == ti->img_start), 0);
 
-            }
-            }
             }
 
             const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
@@ -1271,8 +1268,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         auto src_h = ti->src + src_d.blk_off(img, 0, ih_s + kh_top_overflow);
         auto diff_dst_h = ti->diff_dst + diff_dst_d.blk_off(img, 0, oh_s);
 
-        for (int g = ti->g_start; g < ti->g_end; ++g)
-        for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
+        for_(int g = ti->g_start; g < ti->g_end; ++g)
+        for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
@@ -1346,8 +1343,8 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         int kd_pad_off = nstl::min(jcp.kd - 1, kd_front_pad) * jcp.kh * jcp.kw
                 * jcp.ic_block * jcp.oc_block * jcp.typesize_out;
 
-        for (int g = ti->g_start; g < ti->g_end; ++g) {
-        for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
+        for_(int g = ti->g_start; g < ti->g_end; ++g)
+        for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
@@ -1363,8 +1360,6 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off);
 
             p.flags = ic_b == 0 ? 0 : 1;
-        }
-        }
         }
 
         const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;

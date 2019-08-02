@@ -63,13 +63,13 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    for (const auto &i_prop: prop)
-    for (const auto &i_cfg: cfg)
-    for (const auto &i_alg: alg)
-    for (const auto &i_scale_policy: scale_policy)
-    for (const auto &i_direction: direction)
-    for (const auto &i_activation: activation)
-    for (const auto &i_skip_nonlinear : skip_nonlinear)
+    for_(const auto &i_prop: prop)
+    for_(const auto &i_cfg: cfg)
+    for_(const auto &i_alg: alg)
+    for_(const auto &i_scale_policy: scale_policy)
+    for_(const auto &i_direction: direction)
+    for_(const auto &i_activation: activation)
+    for_(const auto &i_skip_nonlinear : skip_nonlinear)
     for (const auto &i_mb : mb) {
         check_case_validity(i_cfg, i_scale_policy);
         mkldnn_prop_kind_t prop_kind = prop2prop_kind(i_prop);

@@ -50,8 +50,8 @@ float get_omega(const prb_t *p, const dnn_mem_t &src, int64_t mb, int64_t c,
         const int64_t w_st = MAX2(w - half_size + 0, 0);
         const int64_t w_en = MIN2(w + half_size + 1, p->iw);
 
-        for (int64_t ds = d_st; ds < d_en; ++ds)
-        for (int64_t hs = h_st; hs < h_en; ++hs)
+        for_(int64_t ds = d_st; ds < d_en; ++ds)
+        for_(int64_t hs = h_st; hs < h_en; ++hs)
         for (int64_t ws = w_st; ws < w_en; ++ws) {
             const auto off = data_off(p, mb, c, ds, hs, ws);
             const float s = src.get_elem(off);
@@ -102,8 +102,8 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                     const int64_t w_st = MAX2(w - half_size + 0, 0);
                     const int64_t w_en = MIN2(w + half_size + 1, p->iw);
 
-                    for (int64_t ds = d_st; ds < d_en; ++ds)
-                    for (int64_t hs = h_st; hs < h_en; ++hs)
+                    for_(int64_t ds = d_st; ds < d_en; ++ds)
+                    for_(int64_t hs = h_st; hs < h_en; ++hs)
                     for (int64_t ws = w_st; ws < w_en; ++ws) {
                         const auto off = data_off(p, mb, c, ds, hs, ws);
                         const float omega

@@ -191,7 +191,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
         nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, icbb, icb_work,
                          ihb, num_ih_blocks);
         for (size_t iwork = start; iwork < end; ++iwork) {
-            for (int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
+            for_(int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
             for (int id = 0; id < jcp.id; ++id) {
                 auto par_conv = jit_conv_call_s();
 

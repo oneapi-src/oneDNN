@@ -303,9 +303,9 @@ protected:
             float ref_variance = calculate_stats ? float(0) :
                     variance_data[c];
             if (calculate_stats) {
-                for (memory::dim n = 0; n < bp.mb; n++)
-                for (memory::dim d = 0; d < bp.d; d++)
-                for (memory::dim h = 0; h < bp.h; h++)
+                for_(memory::dim n = 0; n < bp.mb; n++)
+                for_(memory::dim d = 0; d < bp.d; d++)
+                for_(memory::dim h = 0; h < bp.h; h++)
                 for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sidx = n * padded_c * bp.d * bp.h * bp.w +
                         c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
@@ -321,9 +321,9 @@ protected:
                         0., eps);
                 }
 
-                for (memory::dim n = 0; n < bp.mb; n++)
-                for (memory::dim d = 0; d < bp.d; d++)
-                for (memory::dim h = 0; h < bp.h; h++)
+                for_(memory::dim n = 0; n < bp.mb; n++)
+                for_(memory::dim d = 0; d < bp.d; d++)
+                for_(memory::dim h = 0; h < bp.h; h++)
                 for (memory::dim w = 0; w < bp.w; w++) {
                     size_t sidx = n * padded_c * bp.d * bp.h * bp.w
                     + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
@@ -344,9 +344,9 @@ protected:
                 static_cast<float>(sqrt(ref_variance + p.epsilon));
             float ref_rsqrt_variance = float(1) / (ref_sqrt_variance);
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-            for (memory::dim d = 0; d < bp.d; d++)
-            for (memory::dim h = 0; h < bp.h; h++)
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
             for (memory::dim w = 0; w < bp.w; w++) {
                 size_t sdidx = n * padded_c * bp.d * bp.h * bp.w +
                     c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
@@ -443,9 +443,9 @@ protected:
             auto gamma =
                 use_weights ? weights_data[weights_mdw.off_l(c, true)] : 1;
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-            for (memory::dim d = 0; d < bp.d; d++)
-            for (memory::dim h = 0; h < bp.h; h++)
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
             for (memory::dim w = 0; w < bp.w; w++) {
                 size_t sidx = n * padded_c * bp.d * bp.h * bp.w +
                     c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;
@@ -473,9 +473,9 @@ protected:
                 ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-            for (memory::dim d = 0; d < bp.d; d++)
-            for (memory::dim h = 0; h < bp.h; h++)
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
             for (memory::dim w = 0; w < bp.w; w++) {
                 size_t sidx = n * padded_c * bp.d * bp.h * bp.w +
                     c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w + w;

@@ -84,8 +84,8 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     };
 
     auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
-        for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+        for_(int kd = 0; kd < KD; ++kd)
+        for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             const int id = od * SD - padF + kd;
             const int ih = oh * SH - padT + kh;
@@ -118,8 +118,8 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             ? KD * KW * KH
             : (id_end - id_start) * (ih_end - ih_start) * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id)
-        for (int ih = ih_start; ih < ih_end; ++ih)
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
         for (int iw = iw_start; iw < iw_end; ++iw) {
             auto src_offset = (size_t)IW * IH * ID * C * mb
                     + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
@@ -223,8 +223,8 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     };
 
     auto ker_max = [=](float *d, int mb, int c, int od, int oh, int ow) {
-        for (int kd = 0; kd < KD; ++kd)
-        for (int kh = 0; kh < KH; ++kh)
+        for_(int kd = 0; kd < KD; ++kd)
+        for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             const int id = od * SD - padF + kd;
             const int ih = oh * SH - padT + kh;
@@ -261,8 +261,8 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
             ? KD * KW * KH
             : (id_end - id_start) * (ih_end - ih_start) * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id)
-        for (int ih = ih_start; ih < ih_end; ++ih)
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
         for (int iw = iw_start; iw < iw_end; ++iw) {
             auto src_offset
                 = (size_t)IW * IH * ID * C * mb
@@ -354,8 +354,8 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     auto ker_zero = [=](int mb, int c) {
         size_t diff_src_offset
                 = (size_t)mb * C * ID * IH * IW + (size_t)c * ID * IH * IW;
-        for (int id = 0; id < ID; ++id)
-        for (int ih = 0; ih < IH; ++ih)
+        for_(int id = 0; id < ID; ++id)
+        for_(int ih = 0; ih < IH; ++ih)
         for (int iw = 0; iw < IW; ++iw) {
             diff_src[diff_src_offset++] = 0;
         }
@@ -406,8 +406,8 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                 : (size_t)(id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id)
-        for (int ih = ih_start; ih < ih_end; ++ih)
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
         for (int iw = iw_start; iw < iw_end; ++iw) {
             size_t diff_src_offset = (size_t)mb * C * ID * IH * IW
                     + (size_t)c * ID * IH * IW + (size_t)id * IH * IW
@@ -430,7 +430,7 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
             size_t diff_dst_offset_b
                     = (size_t)mb * C * OD * OH * OW + (size_t)c * OD * OH * OW;
             ker_zero(mb, c);
-            for (int od = od_start; od < od_end; ++od)
+            for_(int od = od_start; od < od_end; ++od)
             for (int oh = oh_start; oh < oh_end; ++oh) {
                 size_t diff_dst_offset = diff_dst_offset_b
                         + (size_t)od * OH * OW + (size_t)oh * OW;
@@ -445,7 +445,7 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
             size_t diff_dst_offset_b
                     = (size_t)mb * C * OD * OH * OW + (size_t)c * OD * OH * OW;
             ker_zero(mb, c);
-            for (int od = od_start; od < od_end; ++od)
+            for_(int od = od_start; od < od_end; ++od)
             for (int oh = oh_start; oh < oh_end; ++oh) {
                 size_t diff_dst_offset = diff_dst_offset_b
                         + (size_t)od * OH * OW + (size_t)oh * OW;
@@ -504,8 +504,8 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
 
     auto ker_zero = [=](float *diff_src) {
         size_t diff_src_offset = 0;
-        for (int id = 0; id < ID; ++id)
-        for (int ih = 0; ih < IH; ++ih)
+        for_(int id = 0; id < ID; ++id)
+        for_(int ih = 0; ih < IH; ++ih)
         for (int iw = 0; iw < IW; ++iw) {
             diff_src[diff_src_offset++] = 0.0f;
         }
@@ -557,8 +557,8 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
                 : (size_t)(id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id)
-        for (int ih = ih_start; ih < ih_end; ++ih)
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
         for (int iw = iw_start; iw < iw_end; ++iw) {
             size_t diff_src_offset
                     = (size_t)id * IH * IW + (size_t)ih * IW + (size_t)iw;
@@ -591,7 +591,7 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
             cvt_bfloat16_to_float(
                     diff_dst_fp32, &diff_dst[diff_dst_offset_b], dst_sp_size);
 
-            for (int od = od_start; od < od_end; ++od)
+            for_(int od = od_start; od < od_end; ++od)
             for (int oh = oh_start; oh < oh_end; ++oh) {
                 size_t diff_dst_offset
                         = (size_t)od * OH * OW + (size_t)oh * OW;
@@ -619,7 +619,7 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
             cvt_bfloat16_to_float(
                     diff_dst_fp32, &diff_dst[diff_dst_offset_b], dst_sp_size);
 
-            for (int od = od_start; od < od_end; ++od)
+            for_(int od = od_start; od < od_end; ++od)
             for (int oh = oh_start; oh < oh_end; ++oh) {
                 size_t diff_dst_offset
                         = (size_t)od * OH * OW + (size_t)oh * OW;

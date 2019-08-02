@@ -178,7 +178,7 @@ private:
         const int or_ioc_ = or_ic_ * or_oc_;
         assert(r_ == kh_ && r_ == kw_);
 
-        for (int iic = 0; iic < ic_; iic++) {
+        for_(int iic = 0; iic < ic_; iic++)
         for (int ob = 0; ob < nb_oc_; ob++) {
 
             const in_data_t *__restrict _inp = has_oihw_format
@@ -241,7 +241,7 @@ private:
                     _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
                 }
             });
-        }}
+        }
     }
 
     void reorder_to_aaOIoi(out_data_t *__restrict output,
@@ -255,7 +255,7 @@ private:
             utils::array_set((int32_t *)dst_bias, 0, bias_size);
         }
         int index = 0;
-        for (int u_h = 0; u_h < w_alpha_; u_h++) {
+        for_(int u_h = 0; u_h < w_alpha_; u_h++)
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
             parallel_nd(nb_oc_, oc_block_, [&](int ob, int o) {
                 int u_h_shift = u_h * w_alpha_ * ic_ * oc_;
@@ -263,7 +263,7 @@ private:
                 int u_h_shift_b = u_h * w_alpha_ * oc_;
                 int u_w_shift_b = u_w * oc_;
                 int oc_block_shift = ob * oc_block_ * ic_ + o * ic_block_;
-                for (int ib = 0; ib < nb_ic_; ib++) {
+                for_(int ib = 0; ib < nb_ic_; ib++)
                 for (int i = 0; i < ic_block_; i++) {
                     int _i = ib * ic_block_;
                     int _o = ob * oc_block_;
@@ -284,18 +284,18 @@ private:
                         else
                             dst_bias[bias_offset] = 0;
                     }
-                }}
+                }
             });
             index++;
-        }}
+        }
     }
 
     void reorder_to_aaOio(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
         parallel_nd(w_alpha_, w_alpha_, nb_oc_,
             [&](int u_h, int u_w, int ob) {
-            for (int ib = 0; ib < nb_ic_; ib++) {
-            for (int i = 0; i < ic_block_; i++) {
+            for_(int ib = 0; ib < nb_ic_; ib++)
+            for_(int i = 0; i < ic_block_; i++)
             for (int o = 0; o < oc_block_; o++) {
                 int src_offset = u_h * w_alpha_ * ic_ * oc_ + u_w * ic_ * oc_
                     + (ib * ic_block_ + i) * oc_ + (ob * oc_block_ + o);
@@ -306,7 +306,7 @@ private:
                     + ob * nb_ic_ * ic_block_ * oc_block_
                     + ib * ic_block_ * oc_block_ + i * oc_block_ + o;
                 output[dst_offset] = tmp_wei[src_offset];
-            }}}
+            }
         });
     }
 
@@ -321,7 +321,7 @@ private:
                     + (((u_h * w_alpha_ + u_w) * oc_chunks + occ) * nb_ic_ + ib)
                     * oc2_block_ * ic_block_ * oc_block_;
                 int wei_offset = 0;
-                for (int i = 0; i < ic_block_; i++) {
+                for_(int i = 0; i < ic_block_; i++)
                 for (int ob2 = 0; ob2 < oc2_block_; ob2++) {
                     for (int o = 0; o < oc_block_; o++) {
                         int icp = ib * ic_block_ + i;
@@ -333,7 +333,7 @@ private:
                         wei_ptr[wei_offset + o] = tmp_wei[src_offset];
                     }
                     wei_offset += oc_block_;
-                }}
+                }
             }
         });
     }
@@ -345,10 +345,10 @@ private:
 
         parallel_nd(oc_chunks, w_alpha_, w_alpha_,
             [&](int occ, int u_h, int u_w) {
-            for (int icc = 0; icc < ic_chunks; icc++) {
+            for_(int icc = 0; icc < ic_chunks; icc++)
             for (int ob = 0; ob < oc2_block_; ob++) {
                 int ocp = (occ * oc2_block_ + ob) * oc_block_;
-                for (int ib = 0; ib < ic2_block_; ib++) {
+                for_(int ib = 0; ib < ic2_block_; ib++)
                 for (int i = 0; i < ic_block_; i++) {
                     int icp = (icc * ic2_block_ + ib) * ic_block_ + i;
 
@@ -360,8 +360,8 @@ private:
                             + ib) * ic_block_ + i) * oc_block_;
                     for (int o = 0; o < oc_block_; o++)
                         output[wei_offset + o] = tmp_wei[src_offset + o];
-                }}
-            }}
+                }
+            }
         });
     }
 

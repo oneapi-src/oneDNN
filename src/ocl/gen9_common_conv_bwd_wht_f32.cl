@@ -26,9 +26,9 @@
 
 #if BWD_WEIGHTS == 1
 
-__attribute__((reqd_work_group_size(SUB_GROUP_SIZE, 1, 1)))
+__attribute__((reqd_work_group_size(SUB_GROUP_SIZE, 1, 1))) // attr:no-format
 #    if VER_16MB16C == 1 || VER_8OW16C == 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #    endif
 __kernel void gen9_reduce_bwd_weights_kernel(__global float *diff_wei,
         __global float *wht_work, __global float *diff_bias,
@@ -153,7 +153,7 @@ __kernel void gen9_reduce_bwd_weights_kernel(__global float *diff_wei,
 #    endif
 }
 
-__attribute__((reqd_work_group_size(1, 1, 1)))
+__attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
 __kernel void gen9_load_tails_bwd_weights_kernel(
         __global float *src, __global float *tails) {
 
@@ -191,9 +191,9 @@ __kernel void gen9_load_tails_bwd_weights_kernel(
         }
 }
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #    if VER_16MB16C == 1 || VER_8OW16C == 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #    endif
 __kernel void gen9_common_conv_bwd_weights_kernel(
         __global float *src, __global float *diff_wei,

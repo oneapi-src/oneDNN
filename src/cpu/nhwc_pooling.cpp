@@ -134,8 +134,8 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                 array_nhwc_initialize<true>(
                         OC, dst + dst_offset_init, ws, ws_offset_init, ws_dt);
 
-            for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
+            for_(int kd = 0; kd < KD; ++kd)
+            for_(int kh = 0; kh < KH; ++kh)
             for (int kw = 0; kw < KW; ++kw) {
                 const int id = od * SD - padF + kd;
                 const int ih = oh * SH - padT + kh;
@@ -174,8 +174,8 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             // as the typical kernel is small
             size_t num_summands = 0;
 
-            for (int id = id_start; id < id_end; ++id)
-            for (int ih = ih_start; ih < ih_end; ++ih)
+            for_(int id = id_start; id < id_end; ++id)
+            for_(int ih = ih_start; ih < ih_end; ++ih)
             for (int iw = iw_start; iw < iw_end; ++iw) {
                 size_t src_offset_init = strided_offset(mb, src_n_stride, id,
                         src_d_stride, ih, src_h_stride, iw, src_w_stride);
@@ -272,8 +272,8 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                 array_nhwc_initialize<true>(
                         OC, dst_f32, ws, ws_offset_init, ws_dt);
 
-            for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
+            for_(int kd = 0; kd < KD; ++kd)
+            for_(int kh = 0; kh < KH; ++kh)
             for (int kw = 0; kw < KW; ++kw) {
                 const int id = od * SD - padF + kd;
                 const int ih = oh * SH - padT + kh;
@@ -315,8 +315,8 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
             // as the typical kernel is small
             size_t num_summands = 0;
 
-            for (int id = id_start; id < id_end; ++id)
-            for (int ih = ih_start; ih < ih_end; ++ih)
+            for_(int id = id_start; id < id_end; ++id)
+            for_(int ih = ih_start; ih < ih_end; ++ih)
             for (int iw = iw_start; iw < iw_end; ++iw) {
                 size_t src_offset_init = strided_offset(mb, src_n_stride, id,
                         src_d_stride, ih, src_h_stride, iw, src_w_stride);
@@ -405,8 +405,8 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         int oh_right = min((ih + padT) / SH + 1, OH);
         int ow_right = min((iw + padL) / SW + 1, OW);
 
-        for (int od = od_left; od < od_right; ++od)
-        for (int oh = oh_left; oh < oh_right; ++oh)
+        for_(int od = od_left; od < od_right; ++od)
+        for_(int oh = oh_left; oh < oh_right; ++oh)
         for (int ow = ow_left; ow < ow_right; ++ow) {
             const int kd = id - od*SD + padF;
             const int kh = ih - oh*SH + padT;
@@ -552,8 +552,8 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         int oh_right = min((ih + padT) / SH + 1, OH);
         int ow_right = min((iw + padL) / SW + 1, OW);
 
-        for (int od = od_left; od < od_right; ++od)
-        for (int oh = oh_left; oh < oh_right; ++oh)
+        for_(int od = od_left; od < od_right; ++od)
+        for_(int oh = oh_left; oh < oh_right; ++oh)
         for (int ow = ow_left; ow < ow_right; ++ow) {
             const int kd = id - od * SD + padF;
             const int kh = ih - oh * SH + padT;

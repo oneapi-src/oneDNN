@@ -209,7 +209,7 @@
 
 
 #ifdef NN
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
@@ -286,7 +286,7 @@ kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
 
 
 #ifdef NT
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
@@ -362,7 +362,7 @@ kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
 
 
 #ifdef TN
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,
@@ -439,7 +439,7 @@ kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
 
 
 #ifdef TT
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void gen9_gemm_nocopy_kernel(global float *A, global float *B,
     global float *C, long offset_a, long offset_b, long offset_c, int lda,
     int ldb, int ldc, int m, int n, int k, float alpha, float beta,

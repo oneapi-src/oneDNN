@@ -484,13 +484,13 @@ void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
 
             float *__restrict im_ = im_ic + id * jcp.ih * jcp.iw;
 
-            for (int oh = 0; oh < jcp.oh; ++oh) {
+            for_(int oh = 0; oh < jcp.oh; ++oh)
             for (int kh = 0; kh < jcp.kh; ++kh) {
                 const int ih = oh * jcp.stride_h - jcp.t_pad
                     + kh * (1 + jcp.dilate_h);
                 if (ih < 0 || ih >= jcp.ih) continue;
 
-                for (int ow = 0; ow < jcp.ow; ++ow) {
+                for_(int ow = 0; ow < jcp.ow; ++ow)
                 for (int kw = 0; kw < jcp.kw; ++kw) {
                     const int iw = ow * jcp.stride_w - jcp.l_pad
                         + kw * (1 + jcp.dilate_w);
@@ -500,8 +500,8 @@ void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
                         ((kh * jcp.kw + kw) * jcp.oh + oh) * jcp.ow + ow;
                     const size_t im_idx = ih*jcp.iw + iw;
                     im_[im_idx] += col_[col_idx];
-                }}
-            }}
+                }
+            }
 
             col_ += jcp.kh * jcp.kw * jcp.os;
             id += (1 + jcp.dilate_d);
@@ -520,13 +520,13 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
         PRAGMA_OMP_SIMD()
         for (int is = 0; is < iS; ++is) im_[is] = 0.;
 
-        for (int kh = 0; kh < jcp.kh; ++kh) {
+        for_(int kh = 0; kh < jcp.kh; ++kh)
         for (int oh = 0; oh < jcp.oh; ++oh) {
             const int ih =
                     oh * jcp.stride_h - jcp.t_pad + kh * (1 + jcp.dilate_h);
             if (ih < 0 || ih >= jcp.ih) continue;
 
-            for (int kw = 0; kw < jcp.kw; ++kw) {
+            for_(int kw = 0; kw < jcp.kw; ++kw)
             for (int ow = 0; ow < jcp.ow; ++ow) {
                 const int iw =
                         ow * jcp.stride_w - jcp.l_pad + kw * (1 + jcp.dilate_w);
@@ -536,8 +536,6 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
                 const size_t im_idx = ih*jcp.iw + iw;
                 im_[im_idx] += col_[col_idx];
             }
-            }
-        }
         }
     });
 }

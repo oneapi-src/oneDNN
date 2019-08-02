@@ -942,8 +942,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
         if (nthr_ic_b_ > 1)
             barrier(&ti->tr_diff_dst_bctx[ti->ithr_but_ic], nthr_ic_b_);
 #endif
-        for (int g = ti->g_start; g < ti->g_end; ++g) {
-        for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b) {
+        for_(int g = ti->g_start; g < ti->g_end; ++g)
+        for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
@@ -976,8 +976,6 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
             p.channel = (img == ti->img_start);
             kernel_->jit_ker(&p);
         }
-        }
-        }
     }
 }
 
@@ -992,7 +990,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t
     const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     if (nthr_mb_ == 1 && is_bf16_out) {
         // reduction is not required, only conversion
-        for (int g = ti->g_start; g < ti->g_end; g++)
+        for_(int g = ti->g_start; g < ti->g_end; g++)
         for (int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; oc_b++) {
             const size_t acc_size = (size_t)ti->ic_b_work * jcp.kh * jcp.kw
                 * ((jcp.ndims == 5) ? jcp.kd : 1) * jcp.ic_block * jcp.oc_block;

@@ -56,10 +56,10 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for (const auto &i_sdt: sdt)
-    for (const auto &i_ddt: ddt)
-    for (const auto &i_stag: stag)
-    for (const auto &i_dtag: dtag)
+    for_(const auto &i_sdt: sdt)
+    for_(const auto &i_ddt: ddt)
+    for_(const auto &i_stag: stag)
+    for_(const auto &i_dtag: dtag)
     for (const auto &i_oflag: oflag) {
         reorder_conf_t reorder_conf{dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);

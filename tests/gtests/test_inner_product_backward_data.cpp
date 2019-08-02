@@ -50,8 +50,8 @@ void compute_ref_inner_product_bwd_data(int ndims,
 
     mkldnn::impl::parallel_nd(ipd.mb, ipd.ic, [&](memory::dim n, memory::dim ic) {
         if (has_spatial) {
-            for (memory::dim kd = 0; kd < ipd.kd; ++kd)
-            for (memory::dim kh = 0; kh < ipd.kh; ++kh)
+            for_(memory::dim kd = 0; kd < ipd.kd; ++kd)
+            for_(memory::dim kh = 0; kh < ipd.kh; ++kh)
             for (memory::dim kw = 0; kw < ipd.kw; ++kw) {
                 memory::dim dsidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
                     + ic * ipd.kd * ipd.kh * ipd.kw

@@ -263,9 +263,10 @@
 #endif // SCALE_QUANT
 
 #if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
+__kernel void
 simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
         float beta, __global float *scales) {
 

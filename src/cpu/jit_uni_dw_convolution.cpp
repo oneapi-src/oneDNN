@@ -500,7 +500,7 @@ void jit_uni_dw_convolution_bwd_weights_t<sse41,
                                     + bias_offset];
                 }
             }
-            for (int kh = 0; kh < jcp.kh; ++kh)
+            for_(int kh = 0; kh < jcp.kh; ++kh)
             for (int kw = 0; kw < jcp.kw; ++kw) {
                 size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
                 PRAGMA_OMP_SIMD()

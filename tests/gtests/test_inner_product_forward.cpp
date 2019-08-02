@@ -54,8 +54,8 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
         dst_data[dst_mdw.off_l(oidx, true)] = bias_data ?
                 bias_data[bias_mdw.off_l(oc, true)] : data_t{0};
         for (memory::dim ic = 0; ic < ipd.ic; ic++) {
-            for (memory::dim kd = 0; kd < ipd.kd; kd++)
-            for (memory::dim kh = 0; kh < ipd.kh; kh++)
+            for_(memory::dim kd = 0; kd < ipd.kd; kd++)
+            for_(memory::dim kh = 0; kh < ipd.kh; kh++)
             for (memory::dim kw = 0; kw < ipd.kw; kw++) {
                 memory::dim iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
                         + ic * ipd.kd * ipd.kh * ipd.kw
