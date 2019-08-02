@@ -115,7 +115,8 @@ static int jit_dump_flag = 0;
 static bool jit_dump_flag_initialized = false;
 bool jit_dump_enabled() {
     if (!jit_dump_flag_initialized) {
-        jit_dump_flag = getenv_int("DNNL_JIT_DUMP");
+        jit_dump_flag = getenv_int("MKLDNN_JIT_DUMP");
+        jit_dump_flag = getenv_int("DNNL_JIT_DUMP", jit_dump_flag);
         jit_dump_flag_initialized = true;
     }
     return jit_dump_flag != 0;

@@ -69,6 +69,7 @@ const verbose_t *dnnl_verbose() {
     if (!initialized) {
         const int len = 2;
         char val[len] = {0};
+        if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.level = atoi(val);
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.level = atoi(val);
         initialized = true;
     }
