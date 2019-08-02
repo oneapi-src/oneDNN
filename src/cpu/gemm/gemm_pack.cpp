@@ -14,11 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "mkldnn_thread.hpp"
+#include "mkldnn_types.h"
+
 #include "gemm_pack.hpp"
+
 #include "cpu_isa_traits.hpp"
+
 #include "gemm.hpp"
 #include "gemm_driver.hpp"
-#include "mkldnn_thread.hpp"
 #include "os_blas.hpp"
 
 namespace mkldnn {

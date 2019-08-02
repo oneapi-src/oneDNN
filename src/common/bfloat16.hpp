@@ -18,11 +18,12 @@
 #define BFLOAT16_HPP
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
 
-#include "mkldnn_config.h"
+#include "mkldnn.h"
 
 namespace mkldnn {
 namespace impl {
