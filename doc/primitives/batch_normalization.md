@@ -18,7 +18,7 @@ cases of higher and lower dimensions. Variable names follow the standard
 \f[
     dst(n, c, h, w) =
        \gamma(c) \cdot
-       \frac{src(n, c, h, w) - \mu(c)} {\sqrt{\sigma(c) + \varepsilon}}
+       \frac{src(n, c, h, w) - \mu(c)} {\sqrt{\sigma^2(c) + \varepsilon}}
        + \beta(c),
 \f]
 
@@ -27,7 +27,7 @@ where
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
 (see #mkldnn_use_scaleshift flag),
 
-- \f$\mu(c), \sigma(c)\f$ are computed at run-time or provided by a user
+- \f$\mu(c), \sigma^2(c)\f$ are computed at run-time or provided by a user
 mean and variance for channel (see #mkldnn_use_global_stats flag),
 and
 
@@ -38,7 +38,7 @@ used:
 
 - \f$\mu(c) = \frac{1}{NHW} \sum\limits_{nhw} src(n, c, h, w)_{}\f$,
 
-- \f$\sigma(c) = \frac{1}{NHW} \sum\limits_{nhw} {}_{} (src(n, c, h, w) - \mu(c))^2\f$.
+- \f$\sigma^2(c) = \frac{1}{NHW} \sum\limits_{nhw} {}_{} (src(n, c, h, w) - \mu(c))^2\f$.
 
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
@@ -69,7 +69,7 @@ The backward propagation computes
 \f$diff\_\gamma(c)^*\f$, and \f$diff\_\beta(c)^*\f$
 based on
 \f$diff\_dst(n, c, h, w)\f$, \f$src(n, c, h, w)\f$, \f$\mu(c)\f$,
-\f$\sigma(c)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
+\f$\sigma^2(c)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
 
 The tensors marked with an asterisk are used only when the primitive is
 configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
@@ -133,7 +133,7 @@ The operation supports the following combinations of data types:
 
 #### Mean and Variance
 
-The mean (\f$\mu\f$) and variance (\f$\sigma\f$) are
+The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are
 separate 1D tensors of size \f$C\f$.
 
 The format of the corresponding memory object must be #mkldnn_x (#mkldnn_a).
