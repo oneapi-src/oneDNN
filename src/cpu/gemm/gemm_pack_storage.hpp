@@ -187,6 +187,9 @@ struct gemm_pack_storage_t {
             sums_header->finalize<sums_dt>(cur_off, nslice());
 
         header->size = cur_off;
+
+        /* Compute kernels overrun to preload data. */
+        header->size += align_data;
     }
 
 protected:
