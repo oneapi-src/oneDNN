@@ -17,7 +17,10 @@
 #ifndef OCL_RNN_UTILS_HPP
 #define OCL_RNN_UTILS_HPP
 
-#include "ocl_rnn_pd.hpp"
+#include "mkldnn_types.h"
+
+#include "memory_desc_wrapper.hpp"
+#include "c_types_map.hpp"
 
 #define OFF6(i0,d0,i1,d1,i2,d2,i3,d3,i4,d4,i5,d5) \
     ((((((i0)*(d1)+(i1))*(d2)+(i2))*(d3)+(i3))*(d4)+(i4))*(d5)+(i5))
