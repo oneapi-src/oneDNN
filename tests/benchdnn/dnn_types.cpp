@@ -514,7 +514,6 @@ dnnl_format_tag_t get_default_tag(int ndims) {
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
     if (!attr.oscale.is_def()) {
-        using policy_t = attr_t::scale_t::policy_t;
         const auto &s = attr.oscale;
         if (s.policy == policy_t::COMMON) {
             d *= s.scale;

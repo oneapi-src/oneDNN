@@ -176,10 +176,6 @@ extern const _dt_conf_t conf_f32u8f32u8;
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 
-enum policy_t { NONE = 0, COMMON, PER_OC };
-policy_t str2policy(const char *str);
-const char *policy2str(attr_t::scale_t::policy_t policy);
-
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
             alg_t alg, dnnl_rnn_direction_t direction, const attr_t &attr,
@@ -212,7 +208,7 @@ struct prb_t : public desc_t {
         // Here we use the range of INPUT to set the scales
         set_tparams(cfg[input].f_min, cfg[input].f_max);
 
-        if (scale_policy == PER_OC)
+        if (scale_policy == policy_t::PER_OC)
             wei_oc_scales
                     = (float *)zmalloc(sizeof(float) * dic * n_gates(), 64);
         set_qparams(-1., 1.);

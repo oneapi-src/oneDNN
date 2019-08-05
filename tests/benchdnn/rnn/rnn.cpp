@@ -46,10 +46,10 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_tparams(*dnnl_attr, true,
                 p.n_gates(), p.linear_scales, p.linear_cscale));
 
-    if (p.scale_policy == PER_OC) {
+    if (p.scale_policy == policy_t::PER_OC) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
                 *dnnl_attr, p.dic * p.n_gates(), 0x3, p.wei_oc_scales));
-    } else if (p.scale_policy == COMMON && p.wei_scale != 1.) {
+    } else if (p.scale_policy == policy_t::COMMON && p.wei_scale != 1.) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
                 *dnnl_attr, 1, 0, &p.wei_scale));
     }

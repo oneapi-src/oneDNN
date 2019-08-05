@@ -27,6 +27,7 @@ namespace parser {
 
 bool last_parsed_is_problem = false;
 
+// vector types
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name /* = "dir"*/) {
     return parse_vector_option(dir, str2dir, str, option_name);
@@ -92,6 +93,13 @@ bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
     return parse_vector_option(skip, str2bool, str, option_name);
 }
 
+bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
+        const std::string &option_name /*= "scaling"*/) {
+    return parse_vector_option(
+            policy, attr_t::scale_t::str2policy, str, option_name);
+}
+
+// plain types
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name /* = "skip-impl"*/) {
     const std::string pattern = get_pattern(option_name);
@@ -146,7 +154,16 @@ bool parse_batch(const bench_f bench, const char *str,
     return false;
 }
 
-/* benchdnn common settings */
+// dim_t type
+void parse_dims(dims_t &dims, const char *str) {
+    parse_vector_str(dims, atoi, str, 'x');
+}
+
+void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
+    parse_multivector_str(dims, atoi, str, ':', 'x');
+}
+
+// service functions
 static bool parse_bench_mode(
         const char *str, const std::string &option_name = "mode") {
     return parse_single_value_option(
@@ -219,15 +236,6 @@ bool parse_bench_settings(const char *str) {
     return true;
 }
 
-void parse_dims(dims_t &dims, const char *str) {
-    parse_vector_str(dims, atoi, str, 'x');
-}
-
-void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
-    parse_multivector_str(dims, atoi, str, ':', 'x');
-}
-
-/* utilities */
 void catch_unknown_options(const char *str) {
     last_parsed_is_problem = true; // if reached, means problem parsing
 

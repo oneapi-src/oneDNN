@@ -33,25 +33,6 @@ alg_t str2alg(const char *str) {
     return VANILLA_RNN;
 }
 
-policy_t str2policy(const char *str) {
-#define CASE(_plc) \
-    if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
-    CASE(NONE);
-    CASE(COMMON);
-    CASE(PER_OC);
-#undef CASE
-    assert(!"unknown policy");
-    return NONE;
-}
-
-const char *policy2str(policy_t policy) {
-    if (policy == NONE) return "none";
-    if (policy == COMMON) return "common";
-    if (policy == PER_OC) return "per_oc";
-    assert(!"unknown policy");
-    return "unknown policy";
-}
-
 const char *alg2str(alg_t alg) {
     if (alg == VANILLA_RNN) return "VANILLA_RNN";
     if (alg == VANILLA_LSTM) return "VANILLA_LSTM";
@@ -125,11 +106,18 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
 }
 
 void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
-    if (cfg != conf_f32 && cfg != conf_f16 && policy == NONE) {
+    if (cfg != conf_f32 && cfg != conf_f16 && policy == policy_t::NONE) {
         fprintf(stderr,
                 "%s driver: configuration `%s` requires scale policy "
-                "to be COMMON or PER_OC, exiting...\n",
+                "to be policy_t::COMMON or policy_t::PER_OC, exiting...\n",
                 driver_name, cfg2str(cfg));
+        exit(2);
+    }
+    if (!(policy == policy_t::NONE || policy == policy_t::COMMON
+                || policy == policy_t::PER_OC)) {
+        fprintf(stderr,
+                "rnn driver: scale_policy `%s` is not supported, exiting...\n",
+                attr_t::scale_t::policy2str(policy));
         exit(2);
     }
 }
@@ -208,7 +196,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     s << " --direction=" << direction2str(p.direction)
       << " --cfg=" << cfg2str(p.cfg)
-      << " --scaling=" << policy2str(p.scale_policy);
+      << " --scaling=" << attr_t::scale_t::policy2str(p.scale_policy);
 
     s << " "
       << "l" << p.n_layer << "t" << p.n_iter << "mb" << p.mb << "sic" << p.sic
@@ -658,9 +646,9 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     data_shift = cfg[input].f_mean;
     data_scale = int8_src_range / fp_range;
 
-    if (scale_policy == COMMON) {
+    if (scale_policy == policy_t::COMMON) {
         wei_scale = int8_wei_range / fp_range;
-    } else if (scale_policy == PER_OC) {
+    } else if (scale_policy == policy_t::PER_OC) {
         float K = int8_wei_range / fp_range;
         const auto nelems = dic * n_gates();
         for (int64_t i = 0; i < nelems; i++) {

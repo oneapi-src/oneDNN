@@ -94,6 +94,7 @@ static bool parse_cfg(T &vec, F process_func, const char *str,
     return parse_vector_option(vec, process_func, str, option_name);
 }
 
+// vector types
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name = "dir");
 
@@ -127,6 +128,10 @@ bool parse_inplace(std::vector<bool> &inplace, const char *str,
 bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
         const std::string &option_name = "skip-nonlinear");
 
+bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
+        const std::string &option_name = "scaling");
+
+// plain types
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name = "skip-impl");
 
@@ -143,11 +148,13 @@ bool parse_reset(void (*reset_func)(), const char *str,
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name = "batch");
 
-bool parse_bench_settings(const char *str);
-
+// dim_t type
 void parse_dims(dims_t &dims, const char *str);
 
 void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
+
+// service functions
+bool parse_bench_settings(const char *str);
 
 void catch_unknown_options(const char *str);
 

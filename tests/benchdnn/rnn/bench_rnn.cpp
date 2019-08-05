@@ -37,7 +37,7 @@ std::vector<dnnl_rnn_direction_t> direction {dnnl_unidirectional_left2right};
 std::vector<activation_t> activation {RELU};
 std::vector<bool> skip_nonlinear {false};
 std::vector<int64_t> mb {0};
-std::vector<policy_t> scale_policy {NONE};
+std::vector<policy_t> scale_policy {policy_t::NONE};
 
 attr_t attr;
 bool allow_unimpl = false;
@@ -58,7 +58,7 @@ void reset_parameters() {
     activation = {RELU};
     mb = {0};
     attr = attr_t();
-    scale_policy = {NONE};
+    scale_policy = {policy_t::NONE};
     allow_unimpl = false;
 }
 
@@ -111,8 +111,7 @@ int bench(int argc, char **argv) {
                         direction, str2direction, argv[0], "direction")
                 || parse_vector_option(
                         activation, str2activation, argv[0], "activation")
-                || parse_vector_option(
-                        scale_policy, str2policy, argv[0], "scaling")
+                || parse_scale_policy(scale_policy, argv[0])
                 || parse_mb(mb, argv[0])
                 || parse_skip_nonlinear(skip_nonlinear, argv[0])
                 || parse_attr(attr, argv[0])

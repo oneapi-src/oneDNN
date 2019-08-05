@@ -141,6 +141,7 @@ struct attr_t {
 
     bool is_def() const;
 };
+using policy_t = attr_t::scale_t::policy_t;
 
 int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
