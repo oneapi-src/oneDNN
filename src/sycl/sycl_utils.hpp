@@ -45,26 +45,6 @@ inline std::vector<cl::sycl::device> get_sycl_devices(
     return devices;
 }
 
-inline void copy_from_buffer(buffer_u8_t &src_buf, void *dst_ptr, size_t size) {
-    constexpr auto read_mode = cl::sycl::access::mode::read;
-
-    uint8_t *dst_u8_ptr = static_cast<uint8_t *>(dst_ptr);
-    auto sycl_host_acc = src_buf.get_access<read_mode>();
-    for (size_t i = 0; i < size; i++) {
-        dst_u8_ptr[i] = sycl_host_acc[i];
-    }
-}
-
-inline void copy_to_buffer(void *src_ptr, buffer_u8_t &dst_buf, size_t size) {
-    constexpr auto write_mode = cl::sycl::access::mode::write;
-
-    uint8_t *src_u8_ptr = static_cast<uint8_t *>(src_ptr);
-    auto sycl_host_acc = dst_buf.get_access<write_mode>();
-    for (size_t i = 0; i < size; i++) {
-        sycl_host_acc[i] = src_u8_ptr[i];
-    }
-}
-
 inline cl::sycl::nd_range<3> to_sycl_nd_range(
         const compute::nd_range_t &range) {
     auto *global_range = range.global_range();

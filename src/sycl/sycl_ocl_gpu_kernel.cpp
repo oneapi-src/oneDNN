@@ -54,9 +54,6 @@ sycl_ocl_gpu_kernel_t::~sycl_ocl_gpu_kernel_t() {
 status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list) const {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-    assert(!"not implemented");
-#endif
     if (range.is_zero())
         return status::success;
 
@@ -81,7 +78,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                             sycl_buf.get_access<
                                     cl::sycl::access::mode::read_write>(cgh));
 #elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-                    assert(false);
+                    cgh.set_arg((int)i, sycl_mem_storage->usm_ptr());
 #elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
                     auto buf
                             = mkldnn::get_sycl_buffer(sycl_mem_storage->vptr());

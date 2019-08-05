@@ -66,7 +66,7 @@ if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
     register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
 endif()
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL" AND MKLDNN_SYCL_MEMORY_API STREQUAL "BUFFER")
     register_exe(gpu-sycl-interop-cpp gpu_sycl_interop.cpp "test")
     if(MKLDNN_SYCL_COMPUTECPP)
         add_sycl_to_target(

@@ -119,120 +119,23 @@ struct sycl_stream_t : public compute::compute_stream_t {
 
     virtual status_t copy(const memory_storage_t &src,
             const memory_storage_t &dst, size_t size) const override {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-        assert(!"not implemented");
-#endif
         if (size == 0)
             return status::success;
 
-        assert(utils::one_of(src.engine()->backend_kind(), backend_kind::sycl,
-                backend_kind::native));
-        assert(utils::one_of(dst.engine()->backend_kind(), backend_kind::sycl,
-                backend_kind::native));
+        // TODO: add src and dst sizes check
 
-        if (src.engine()->backend_kind() == backend_kind::sycl
-                && dst.engine()->backend_kind() == backend_kind::sycl) {
-            auto *src_sycl_storage
-                    = utils::downcast<const sycl::sycl_memory_storage_t *>(
-                            src.impl());
-            auto *dst_sycl_storage
-                    = utils::downcast<const sycl::sycl_memory_storage_t *>(
-                            dst.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-            auto &sycl_buf_src = src_sycl_storage->buffer();
-            auto &sycl_buf_dst = dst_sycl_storage->buffer();
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-            assert(false);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-            auto sycl_buf_src
-                    = mkldnn::get_sycl_buffer(src_sycl_storage->vptr());
-            auto sycl_buf_dst
-                    = mkldnn::get_sycl_buffer(dst_sycl_storage->vptr());
-#endif
+        void *src_mapped_ptr;
+        void *dst_mapped_ptr;
 
-#if (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER) \
-        || (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR)
-            size_t src_size = sycl_buf_src.get_size();
-            size_t dst_size = sycl_buf_dst.get_size();
+        CHECK(src.map_data(&src_mapped_ptr));
+        CHECK(dst.map_data(&dst_mapped_ptr));
 
-            assert(src_size == dst_size);
-            MAYBE_UNUSED(src_size);
-            MAYBE_UNUSED(dst_size);
-#endif
+        utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
+                static_cast<const uint8_t *>(src_mapped_ptr), size);
 
-            // FIXME: Intel SYCL fails to compile the SYCL kernel for GPU due to
-            // unresolved references to mkldnn_impl_sycl_cpu_thunk so switch to
-            // blocking map/unmap.
-#if 0
-        auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(stream());
-        auto &sycl_queue = sycl_stream->queue();
+        CHECK(src.unmap_data(src_mapped_ptr));
+        CHECK(dst.unmap_data(dst_mapped_ptr));
 
-        sycl_queue.submit([&](cl::sycl::handler &cgh) {
-            auto dst_acc
-                    = sycl_buf_dst.get_access<cl::sycl::access::mode::write>(
-                            cgh);
-            auto src_acc
-                    = sycl_buf_src.get_access<cl::sycl::access::mode::read>(
-                            cgh);
-            cgh.parallel_for<mkldnn_copy_tag>(cl::sycl::range<1>(src_size),
-                    [=](cl::sycl::id<1> i) { dst_acc[i] = src_acc[i]; });
-        });
-#else
-            void *src_mapped_ptr;
-            void *dst_mapped_ptr;
-
-            src.map_data(&src_mapped_ptr);
-            dst.map_data(&dst_mapped_ptr);
-
-            utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
-                    static_cast<const uint8_t *>(src_mapped_ptr), size);
-
-            src.unmap_data(src_mapped_ptr);
-            dst.unmap_data(dst_mapped_ptr);
-#endif
-        } else if (src.engine()->kind() == engine_kind::cpu
-                && src.engine()->backend_kind() == backend_kind::native) {
-            assert(dst.engine()->backend_kind() == backend_kind::sycl);
-
-            void *src_ptr;
-            src.get_data_handle(&src_ptr);
-            auto *src_ptr_u8 = static_cast<uint8_t *>(src_ptr);
-
-            auto &sycl_dst
-                    = *utils::downcast<const sycl::sycl_memory_storage_t *>(
-                            dst.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-            auto &sycl_buf = sycl_dst.buffer();
-            copy_to_buffer(src_ptr_u8, sycl_buf, size);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-            assert(false);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_dst.vptr());
-            copy_to_buffer(src_ptr_u8, sycl_buf, size);
-#endif
-        } else if (dst.engine()->kind() == engine_kind::cpu
-                && dst.engine()->backend_kind() == backend_kind::native) {
-            assert(src.engine()->backend_kind() == backend_kind::sycl);
-
-            void *dst_ptr;
-            dst.get_data_handle(&dst_ptr);
-
-            auto &sycl_src
-                    = *utils::downcast<const sycl::sycl_memory_storage_t *>(
-                            src.impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-            auto &sycl_buf = sycl_src.buffer();
-            copy_from_buffer(sycl_buf, dst_ptr, size);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-            assert(false);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-            auto sycl_buf = mkldnn::get_sycl_buffer(sycl_src.vptr());
-            copy_from_buffer(sycl_buf, dst_ptr, size);
-#endif
-        } else {
-            assert(!"Not expected");
-            return status::runtime_error;
-        }
         return status::success;
     }
 
