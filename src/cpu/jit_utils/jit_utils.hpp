@@ -17,6 +17,8 @@
 #ifndef JIT_SUPPORT_HPP
 #define JIT_SUPPORT_HPP
 
+#include <cstdlib>
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

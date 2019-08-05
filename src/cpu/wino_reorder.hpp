@@ -18,7 +18,10 @@
 #define CPU_WINO_REORDER_HPP
 
 #include "mkldnn_thread.hpp"
+#include "primitive_desc.hpp"
 
+#include "cpu_primitive.hpp"
+#include "cpu_reorder_pd.hpp"
 #include "simple_q10n.hpp"
 
 namespace mkldnn {

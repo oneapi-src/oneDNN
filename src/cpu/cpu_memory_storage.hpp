@@ -17,6 +17,7 @@
 #ifndef CPU_MEMORY_STORAGE_HPP
 #define CPU_MEMORY_STORAGE_HPP
 
+#include "common/memory.hpp"
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"

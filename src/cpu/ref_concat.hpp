@@ -17,6 +17,7 @@
 #ifndef REF_CONCAT_HPP
 #define REF_CONCAT_HPP
 
+#include "engine.hpp"
 #include "reorder_pd.hpp"
 
 #include "cpu_concat_pd.hpp"

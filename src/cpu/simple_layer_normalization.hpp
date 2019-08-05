@@ -17,6 +17,7 @@
 #ifndef CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 #define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
+#include "mkldnn_thread.hpp"
 #include "reorder_pd.hpp"
 #include "memory_tracking.hpp"
 #include "utils.hpp"

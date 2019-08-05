@@ -20,10 +20,12 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "mkldnn_thread.hpp"
 #include "memory_tracking.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu_isa_traits.hpp"
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_primitive.hpp"
 

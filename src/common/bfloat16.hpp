@@ -16,10 +16,14 @@
 
 #ifndef BFLOAT16_HPP
 #define BFLOAT16_HPP
+
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
+
 #include "mkldnn_config.h"
+
 namespace mkldnn {
 namespace impl {
 

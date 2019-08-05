@@ -19,6 +19,7 @@
 
 #include "memory_tracking.hpp"
 #include "reorder_pd.hpp"
+#include "engine.hpp"
 
 #include "cpu_sum_pd.hpp"
 #include "cpu_primitive.hpp"
