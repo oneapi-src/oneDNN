@@ -21,14 +21,14 @@
 
 namespace mkldnn {
 
-class attr_test: public ::testing::Test {
+class attr_test : public ::testing::Test {
 protected:
     virtual void SetUp() {}
 };
 
 TEST_F(attr_test, TestScratchpadMode) {
     mkldnn::primitive_attr attr;
-    for (auto m: {scratchpad_mode::library, scratchpad_mode::user}) {
+    for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
         ASSERT_EQ(m, attr.get_scratchpad_mode());
     }
@@ -40,16 +40,17 @@ TEST_F(attr_test, TestScratchpadModeEx) {
     const memory::dim N = 2, C = 2, W = 2;
 
     memory::desc data_md(
-            { N, C, W }, memory::data_type::f32, memory::format_tag::ncw);
+            {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
     mkldnn::primitive_attr attr;
-    auto softmax_d = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
-    for (auto m: {scratchpad_mode::library, scratchpad_mode::user}) {
+    auto softmax_d
+            = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
+    for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
-        auto softmax_pd = softmax_forward::primitive_desc(
-                softmax_d, attr, eng);
+        auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
         auto scratchpad_size = (long)softmax_pd.scratchpad_desc().get_size();
-        auto mem_consumption = (long)softmax_pd.query_s64(query::memory_consumption_s64);
+        auto mem_consumption
+                = (long)softmax_pd.query_s64(query::memory_consumption_s64);
 
         // printf("scratchpad_size: %ld\n", scratchpad_size);
         // printf("mem consumption: %ld\n", mem_consumption);
@@ -122,4 +123,4 @@ TEST_F(attr_test, TestPostOps) {
     ASSERT_FLOAT_EQ(beta, 4.4f);
 }
 
-}
+} // namespace mkldnn

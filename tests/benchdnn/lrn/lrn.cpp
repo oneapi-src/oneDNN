@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 
@@ -47,10 +47,8 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     r->total = nelems;
     const int summands = get_summands(p);
     float trh = 1e-6 * summands;
-    if (p->dt == mkldnn_f16)
-        trh = 1e-3 * summands;
-    if (p->dt == mkldnn_bf16)
-        trh = 1e-2 * summands;
+    if (p->dt == mkldnn_f16) trh = 1e-3 * summands;
+    if (p->dt == mkldnn_bf16) trh = 1e-2 * summands;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -63,25 +61,23 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
         r->errors += !ok;
 
-        const bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30)
-            || (verbose >= 99);
+        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
             inv_data_off(p, i, mb, ic, d, h, w);
 
-            print(0, "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] "
+            print(0,
+                    "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
+                    "] "
                     "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                     (long)i, mb, ic, d, h, w, fp, fp0, dt, diff, rel_diff);
         }
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
@@ -118,9 +114,9 @@ int init_pd(const prb_t *p, dir_t dir, mkldnn_lrn_desc_t &ld,
 
     const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
 
-    mkldnn_dims_t data_dims_1d = { p->mb, p->ic, p->iw };
-    mkldnn_dims_t data_dims_2d = { p->mb, p->ic, p->ih, p->iw };
-    mkldnn_dims_t data_dims_3d = { p->mb, p->ic, p->id, p->ih, p->iw };
+    mkldnn_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
+    mkldnn_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
+    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
     mkldnn_dim_t *data_dims
             = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
@@ -131,8 +127,8 @@ int init_pd(const prb_t *p, dir_t dir, mkldnn_lrn_desc_t &ld,
 
     mkldnn_alg_kind_t alg = alg2alg_kind(p->alg);
     if (dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF
-            ? mkldnn_forward_inference : mkldnn_forward_training;
+        auto prop = p->dir & FLAG_INF ? mkldnn_forward_inference
+                                      : mkldnn_forward_training;
         DNN_SAFE(mkldnn_lrn_forward_desc_init(&ld, prop, alg, &data_d, p->ls,
                          p->alpha, p->beta, p->k),
                 WARN);
@@ -179,8 +175,7 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t lf, lb;
 
     SAFE(init_pd_fwd(p, lfd, lfpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnn_mem_t ws_dt, ws_fp;
     if (!(p->dir & FLAG_INF)) {
@@ -212,8 +207,7 @@ int doit(const prb_t *p, res_t *r) {
     args_t args_fwd, args_bwd;
     args_fwd.set(MKLDNN_ARG_SRC, src_dt.m_);
     args_fwd.set(MKLDNN_ARG_DST, dst_dt.m_);
-    if (!(p->dir & FLAG_INF))
-        args_fwd.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
+    if (!(p->dir & FLAG_INF)) args_fwd.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
 
     args_t &args = args_fwd;
     mkldnn_primitive_t l = lf;
@@ -230,8 +224,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (p->dir & FLAG_BWD) {
         SAFE(init_pd_bwd(p, lbd, lbpd, lfpd, r), WARN);
-        if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-            return OK;
+        if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
         DNN_SAFE(mkldnn_primitive_create(&lb, lbpd), WARN);
         DNN_SAFE(mkldnn_primitive_desc_destroy(lbpd), CRIT);
@@ -265,10 +258,9 @@ int doit(const prb_t *p, res_t *r) {
 
     DNN_SAFE(mkldnn_primitive_desc_destroy(lfpd), CRIT);
     DNN_SAFE(mkldnn_primitive_destroy(lf), CRIT);
-    if (p->dir & FLAG_BWD)
-        DNN_SAFE(mkldnn_primitive_destroy(lb), CRIT);
+    if (p->dir & FLAG_BWD) DNN_SAFE(mkldnn_primitive_destroy(lb), CRIT);
 
     return OK;
 }
 
-}
+} // namespace lrn

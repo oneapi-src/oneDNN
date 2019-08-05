@@ -21,8 +21,7 @@
 namespace lrn {
 
 float fast_powf(float omega, float beta) {
-    if (beta == 0.75f)
-        return 1.0f / sqrtf(sqrtf(omega) * omega);
+    if (beta == 0.75f) return 1.0f / sqrtf(sqrtf(omega) * omega);
     return 1.0f / powf(omega, beta);
 }
 
@@ -90,8 +89,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                         const float omega = get_omega(p, src, mb, cs, d, h, w);
                         const float omega_in_beta = fast_powf(omega, p->beta);
                         const float tmp = omega_in_beta * d_dst.get_elem(off);
-                        if (cs == c)
-                            A = tmp;
+                        if (cs == c) A = tmp;
                         B += (tmp / omega * src.get_elem(off));
                     }
                 } else if (p->alg == WITHIN) {
@@ -107,11 +105,10 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                     for (int64_t ws = w_st; ws < w_en; ++ws) {
                         const auto off = data_off(p, mb, c, ds, hs, ws);
                         const float omega
-                            = get_omega(p, src, mb, c, ds, hs, ws);
+                                = get_omega(p, src, mb, c, ds, hs, ws);
                         const float omega_in_beta = fast_powf(omega, p->beta);
                         const float tmp = omega_in_beta * d_dst.get_elem(off);
-                        if (ds == d && hs == h && ws == w)
-                            A = tmp;
+                        if (ds == d && hs == h && ws == w) A = tmp;
                         B += (tmp / omega * src.get_elem(off));
                     }
                 }
@@ -121,4 +118,4 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             });
 }
 
-}
+} // namespace lrn

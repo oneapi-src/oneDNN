@@ -17,28 +17,31 @@
 #ifndef DNN_TYPES_HPP
 #define DNN_TYPES_HPP
 
-#include <stdlib.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include <vector>
 #include <iostream>
+#include <vector>
 
 #include "common.hpp"
 #include "mkldnn_types.h"
 
-struct dims_t: public std::vector<int64_t> {};
+struct dims_t : public std::vector<int64_t> {};
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
-std::ostream &operator<<(std::ostream &s,
-        const std::vector<mkldnn_data_type_t> &v_dt);
-std::ostream &operator<<(std::ostream &s,
-        const std::vector<mkldnn_format_tag_t> &v_tag);
+std::ostream &operator<<(
+        std::ostream &s, const std::vector<mkldnn_data_type_t> &v_dt);
+std::ostream &operator<<(
+        std::ostream &s, const std::vector<mkldnn_format_tag_t> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,
-    FLAG_DAT = 1, FLAG_WEI = 2, FLAG_BIA = 4,
-    FLAG_FWD = 32, FLAG_BWD = 64,
+    FLAG_DAT = 1,
+    FLAG_WEI = 2,
+    FLAG_BIA = 4,
+    FLAG_FWD = 32,
+    FLAG_BWD = 64,
     FLAG_INF = 128,
     FWD_D = FLAG_FWD + FLAG_DAT,
     FWD_I = FLAG_FWD + FLAG_DAT + FLAG_INF,
@@ -56,23 +59,24 @@ const char *prop2str(mkldnn_prop_kind_t prop);
 mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
 
 typedef int data_kind_t;
-enum {
-    SRC = 0, WEI, BIA, DST, ACC,
-    DATA, MEAN, VAR, SS,
-    GWEI,
-    DAT_TOTAL };
+enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
 const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {
     struct scale_t {
-        enum policy_t { NONE = 0, COMMON, PER_OC,
+        enum policy_t {
+            NONE = 0,
+            COMMON,
+            PER_OC,
             // reorder section
             // XXX: order is important, from longer name to a shorter one
             // TODO: generalize, use numbers instead of predefined enum
             PER_DIM_01,
-            PER_DIM_0, PER_DIM_1,
+            PER_DIM_0,
+            PER_DIM_1,
             // reorder section ends
-            POLICY_TOTAL };
+            POLICY_TOTAL
+        };
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
@@ -110,7 +114,9 @@ struct attr_t {
         struct entry_t {
             kind_t kind;
             union {
-                struct { float scale; } sum;
+                struct {
+                    float scale;
+                } sum;
                 struct {
                     mkldnn_alg_kind_t alg;
                     float scale, alpha, beta;
@@ -118,7 +124,7 @@ struct attr_t {
             };
         };
 
-        post_ops_t(): len(0) {}
+        post_ops_t() : len(0) {}
 
         int from_str(const char *str, const char **end_s);
         void to_str(char *buffer, char **end_b) const;
@@ -146,9 +152,10 @@ std::ostream &dump_global_params(std::ostream &s);
 mkldnn_format_tag_t get_default_tag(int ndims);
 mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
         int64_t scale_cnt, int scale_mask, const float *scales);
-inline mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
-        int64_t scale_cnt, const float *scales)
-{ return create_mkldnn_attr(attr, scale_cnt, -1, scales); }
+inline mkldnn_primitive_attr_t create_mkldnn_attr(
+        const attr_t &attr, int64_t scale_cnt, const float *scales) {
+    return create_mkldnn_attr(attr, scale_cnt, -1, scales);
+}
 
 mkldnn_engine_kind_t str2engine_kind(const char *str);
 const char *engine_kind2str(mkldnn_engine_kind_t engine);

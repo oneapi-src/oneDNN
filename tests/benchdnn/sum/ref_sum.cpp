@@ -20,8 +20,8 @@
 
 namespace sum {
 
-void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
-        dnn_mem_t &dst) {
+void compute_ref(
+        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const auto nelems = dst.nelems();
 
@@ -34,4 +34,4 @@ void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
     });
 }
 
-}
+} // namespace sum

@@ -36,11 +36,11 @@ dims_t dims;
 alg_t alg = ALG_REF;
 attr_t attr;
 bool allow_unimpl = false;
-const char *perf_template_csv =
-    "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%DESC%,"
-    "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
-const char *perf_template_def =
-    "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+const char *perf_template_csv
+        = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%DESC%,"
+          "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+const char *perf_template_def
+        = "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
@@ -56,28 +56,28 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for_(const auto &i_sdt: sdt)
-    for_(const auto &i_ddt: ddt)
-    for_(const auto &i_stag: stag)
-    for_(const auto &i_dtag: dtag)
-    for (const auto &i_oflag: oflag) {
-        reorder_conf_t reorder_conf{dims, i_stag, i_dtag};
+    for_(const auto &i_sdt : sdt)
+    for_(const auto &i_ddt : ddt)
+    for_(const auto &i_stag : stag)
+    for_(const auto &i_dtag : dtag)
+    for (const auto &i_oflag : oflag) {
+        reorder_conf_t reorder_conf {dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);
 
         std::vector<float> attr_scale = {attr.oscale.scale};
         auto &scale = attr.oscale.scale == 0 ? def_scale : attr_scale;
 
-        for (const auto &i_scale: scale) {
-            const prb_t p(reorder_conf, iconf, oconf, attr, alg, i_oflag,
-                    i_scale);
+        for (const auto &i_scale : scale) {
+            const prb_t p(
+                    reorder_conf, iconf, oconf, attr, alg, i_oflag, i_scale);
             std::stringstream ss;
             ss << p;
             const std::string cpp_pstr = ss.str();
             const char *pstr = cpp_pstr.c_str();
             print(1, "run: %s\n", pstr);
 
-            res_t res{};
+            res_t res {};
             int status = doit(&p, &res);
 
             bool want_perf_report = false;
@@ -96,21 +96,19 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false
-            || parse_bench_settings(argv[0])
-            || parse_batch(bench, argv[0])
-            || parse_dt(sdt, argv[0], "sdt")
-            || parse_dt(ddt, argv[0], "ddt")
-            || parse_tag(stag, argv[0], "stag")
-            || parse_tag(dtag, argv[0], "dtag")
-            || parse_vector_option(oflag, str2flag, argv[0], "oflag")
-            || parse_single_value_option(alg, str2alg, argv[0], "alg")
-            || parse_vector_option(def_scale, atof, argv[0], "def-scales")
-            || parse_attr(attr, argv[0])
-            || parse_allow_unimpl(allow_unimpl, argv[0])
-            || parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0])
-            || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = false || parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_dt(sdt, argv[0], "sdt")
+                || parse_dt(ddt, argv[0], "ddt")
+                || parse_tag(stag, argv[0], "stag")
+                || parse_tag(dtag, argv[0], "dtag")
+                || parse_vector_option(oflag, str2flag, argv[0], "oflag")
+                || parse_single_value_option(alg, str2alg, argv[0], "alg")
+                || parse_vector_option(def_scale, atof, argv[0], "def-scales")
+                || parse_attr(attr, argv[0])
+                || parse_allow_unimpl(allow_unimpl, argv[0])
+                || parse_perf_template(perf_template, perf_template_def,
+                        perf_template_csv, argv[0])
+                || parse_reset(reset_parameters, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0], "reorder");
 
@@ -122,4 +120,4 @@ int bench(int argc, char **argv) {
     return parse_last_argument();
 }
 
-}
+} // namespace reorder

@@ -14,24 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
 #include "lnorm/lnorm.hpp"
 
 namespace lnorm {
 check_alg_t str2check_alg(const char *str) {
-    if (!strcasecmp("alg_0", str))
-        return ALG_0;
-    if (!strcasecmp("alg_1", str))
-        return ALG_1;
+    if (!strcasecmp("alg_0", str)) return ALG_0;
+    if (!strcasecmp("alg_1", str)) return ALG_1;
     return ALG_AUTO;
 }
 
 const char *check_alg2str(check_alg_t alg) {
     switch (alg) {
-    case ALG_0: return "alg_0";
-    case ALG_1: return "alg_1";
-    case ALG_AUTO: return "alg_auto";
+        case ALG_0: return "alg_0";
+        case ALG_1: return "alg_1";
+        case ALG_AUTO: return "alg_auto";
     }
     return "alg_auto";
 }
@@ -39,10 +37,8 @@ const char *check_alg2str(check_alg_t alg) {
 flags_t str2flags(const char *str) {
     flags_t flags = (flags_t)0;
     while (str && *str) {
-        if (*str == 'G')
-            flags |= GLOB_STATS;
-        if (*str == 'S')
-            flags |= USE_SCALESHIFT;
+        if (*str == 'G') flags |= GLOB_STATS;
+        if (*str == 'S') flags |= USE_SCALESHIFT;
         str++;
     }
     return flags;
@@ -50,13 +46,11 @@ flags_t str2flags(const char *str) {
 
 const char *flags2str(flags_t flags) {
     if (flags & GLOB_STATS) {
-        if (flags & USE_SCALESHIFT)
-            return "GS";
+        if (flags & USE_SCALESHIFT) return "GS";
         return "G";
     }
 
-    if (flags & USE_SCALESHIFT)
-        return "S";
+    if (flags & USE_SCALESHIFT) return "S";
 
     return "";
 }
@@ -64,20 +58,15 @@ const char *flags2str(flags_t flags) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D)
-        s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (p.data_tag != mkldnn_tnc)
         s << "--data-tag=" << fmt_tag2str(p.data_tag) << " ";
     if (p.stat_tag != mkldnn_tn)
         s << "--stat-tag=" << fmt_tag2str(p.stat_tag) << " ";
-    if (p.dt != mkldnn_f32)
-        s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.flags != (flags_t)0)
-        s << "--flags=" << flags2str(p.flags) << " ";
-    if (!p.attr.is_def())
-        s << "--attr=\"" << p.attr << "\" ";
-    if (p.inplace != true)
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.flags != (flags_t)0) s << "--flags=" << flags2str(p.flags) << " ";
+    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << p.dims;
 

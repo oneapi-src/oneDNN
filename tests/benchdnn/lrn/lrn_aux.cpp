@@ -14,15 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #include "lrn/lrn.hpp"
 
 namespace lrn {
 
 alg_t str2alg(const char *str) {
-#define CASE(_alg) if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
+#define CASE(_alg) \
+    if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(ACROSS);
     CASE(WITHIN);
 #undef CASE
@@ -65,7 +66,7 @@ int str2desc(desc_t *desc, const char *str) {
      *  if id is unset id <-- 1
      */
 
-    desc_t d{0};
+    desc_t d {0};
     d.mb = 2;
     d.ls = 5;
     d.alpha = 1. / 8192;
@@ -76,18 +77,23 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-    auto mstrtol = [](const char *nptr, char **endptr)
-    { return strtol(nptr, endptr, 10); };
+    auto mstrtol = [](const char *nptr, char **endptr) {
+        return strtol(nptr, endptr, 10);
+    };
 
-#   define CASE_NN(p, c, cvfunc) do { \
+#define CASE_NN(p, c, cvfunc) \
+    do { \
         if (!strncmp(p, s, strlen(p))) { \
-            ok = 1; s += strlen(p); \
-            char *end_s; d. c = cvfunc(s, &end_s); s += (end_s - s); \
-            if (d. c < 0) return FAIL; \
+            ok = 1; \
+            s += strlen(p); \
+            char *end_s; \
+            d.c = cvfunc(s, &end_s); \
+            s += (end_s - s); \
+            if (d.c < 0) return FAIL; \
             /* printf("@@@debug: %s: " IFMT "\n", p, d. c); */ \
         } \
     } while (0)
-#   define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
+#define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
     while (*s) {
         int ok = 0;
         CASE_N(mb, mstrtol);
@@ -99,15 +105,17 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(alpha, strtof);
         CASE_N(beta, strtof);
         CASE_N(k, strtof);
-        if (*s == 'n') { d.name = s + 1; break; }
+        if (*s == 'n') {
+            d.name = s + 1;
+            break;
+        }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
-#   undef CASE_NN
-#   undef CASE_N
+#undef CASE_NN
+#undef CASE_N
 
-    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0))
-        return FAIL;
+    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0)) return FAIL;
 
     if (d.id == 0) d.id = 1;
     if (d.ih == 0) d.ih = 1;
@@ -142,18 +150,14 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D)
-        s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32)
-        s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != ACROSS)
-        s << "--alg=" << alg2str(p.alg) << " ";
+    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 
     return s;
 }
 
-}
+} // namespace lrn

@@ -17,14 +17,14 @@
 #ifndef MKLDNN_TEST_COMMON_HPP
 #define MKLDNN_TEST_COMMON_HPP
 
+#include <cmath>
 #include <limits>
 #include <numeric>
-#include <vector>
-#include <unordered_map>
-#include <cmath>
 #include <sstream>
 #include <stdint.h>
+#include <vector>
 #include <type_traits>
+#include <unordered_map>
 
 #include "gtest/gtest.h"
 
@@ -39,20 +39,20 @@
 #include "mkldnn_test_common_ocl.hpp"
 #endif
 
-#include "src/common/mkldnn_thread.hpp"
-#include "src/common/memory_desc_wrapper.hpp"
-#include "src/common/float16.hpp"
 #include "src/common/bfloat16.hpp"
+#include "src/common/float16.hpp"
+#include "src/common/memory_desc_wrapper.hpp"
+#include "src/common/mkldnn_thread.hpp"
 #include "src/common/nstl.hpp"
 
 #define for_ for
 
-using mkldnn::impl::f16_support::float16_t;
 using mkldnn::impl::bfloat16_t;
+using mkldnn::impl::f16_support::float16_t;
 
-#define MKLDNN_CHECK(f)               \
-    do {                              \
-        mkldnn_status_t s = (f);      \
+#define MKLDNN_CHECK(f) \
+    do { \
+        mkldnn_status_t s = (f); \
         ASSERT_EQ(s, mkldnn_success); \
     } while (0)
 
@@ -61,54 +61,71 @@ using memory = mkldnn::memory;
 bool is_current_test_failed();
 mkldnn::engine::kind get_test_engine_kind();
 
-template <typename data_t> struct data_traits { };
-template <> struct data_traits<float16_t> {
+template <typename data_t>
+struct data_traits {};
+template <>
+struct data_traits<float16_t> {
     static const auto data_type = memory::data_type::f16;
 
     using uint_type = uint16_t;
 };
-template <> struct data_traits<bfloat16_t> {
+template <>
+struct data_traits<bfloat16_t> {
     static const auto data_type = memory::data_type::bf16;
 
     using uint_type = uint16_t;
 };
-template <> struct data_traits<float> {
+template <>
+struct data_traits<float> {
     static const auto data_type = memory::data_type::f32;
 
     using uint_type = uint32_t;
 };
-template <> struct data_traits<uint8_t> {
+template <>
+struct data_traits<uint8_t> {
     static const auto data_type = memory::data_type::u8;
 
     using uint_type = uint8_t;
 };
-template <> struct data_traits<int8_t> {
+template <>
+struct data_traits<int8_t> {
     static const auto data_type = memory::data_type::s8;
 
     using uint_type = uint8_t;
 };
-template <> struct data_traits<int32_t> {
+template <>
+struct data_traits<int32_t> {
     static const auto data_type = memory::data_type::s32;
 
     using uint_type = uint32_t;
 };
 
-template <typename T> inline void assert_eq(T a, T b);
-template <> inline void assert_eq<float>(float a, float b) {
+template <typename T>
+inline void assert_eq(T a, T b);
+template <>
+inline void assert_eq<float>(float a, float b) {
     ASSERT_FLOAT_EQ(a, b);
 }
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
-inline int mxcsr_round(float f) { return _mm_cvtss_si32(_mm_load_ss(&f)); }
+inline int mxcsr_round(float f) {
+    return _mm_cvtss_si32(_mm_load_ss(&f));
+}
 #else
-inline int mxcsr_round(float f) { return (int)nearbyintf(f); }
+inline int mxcsr_round(float f) {
+    return (int)nearbyintf(f);
+}
 #endif
 
 template <typename data_t>
-data_t out_round(float x) { return (data_t)mxcsr_round(x); }
+data_t out_round(float x) {
+    return (data_t)mxcsr_round(x);
+}
 template <>
-inline float out_round<float>(float x) { return x; }
+inline float out_round<float>(float x) {
+    return x;
+}
 
 template <typename data_t, typename out_t>
 out_t saturate(const out_t &x) {
@@ -125,9 +142,18 @@ inline memory::dim right_padding(memory::dim i, memory::dim o, memory::dim k,
     return (o - 1) * s + (k - 1) * (d + 1) - (p + i - 1);
 }
 
-template <typename data_t> struct acc_t { typedef data_t type; };
-template<> struct acc_t<int8_t> { typedef int type; };
-template<> struct acc_t<uint8_t> { typedef int type; };
+template <typename data_t>
+struct acc_t {
+    typedef data_t type;
+};
+template <>
+struct acc_t<int8_t> {
+    typedef int type;
+};
+template <>
+struct acc_t<uint8_t> {
+    typedef int type;
+};
 
 // Smart pointer for map/unmap operations with unique_ptr semantics
 template <typename T>
@@ -147,8 +173,7 @@ struct mapped_ptr_t {
     mapped_ptr_t &operator=(const mapped_ptr_t &) = delete;
 
     ~mapped_ptr_t() {
-        if (mem_ && ptr_)
-            mem_->unmap_data(ptr_);
+        if (mem_ && ptr_) mem_->unmap_data(ptr_);
     };
 
     operator T *() { return ptr_; }
@@ -180,10 +205,10 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
     memory::dim nelems = 1;
     int tail_flag = 0;
     for (int i = 0; i < ndims; ++i) {
-        if (dims[ndims-i-1] != pdims[ndims-i-1]) tail_flag = 1;
-        nelems *= pdims[ndims-i-1];
+        if (dims[ndims - i - 1] != pdims[ndims - i - 1]) tail_flag = 1;
+        nelems *= pdims[ndims - i - 1];
         idx[i] = 0;
-        str[i] = (i==0) ? 1 : str[i-1] * pdims[ndims-i];
+        str[i] = (i == 0) ? 1 : str[i - 1] * pdims[ndims - i];
     }
     if (tail_flag == 0) return;
 
@@ -192,35 +217,34 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
         bool flag = 0;
         for (int j = 0; j < ndims; ++j) {
             off += idx[j] * str[j];
-            if (idx[j] >= dims[ndims-j-1]) flag = 1;
+            if (idx[j] >= dims[ndims - j - 1]) flag = 1;
         }
         if (flag == 1) {
             memory::dim blk_off = mdw.off_l(off, true);
             if (set_zero_flag) {
                 src_data[blk_off] = 0.0;
             } else {
-                ASSERT_EQ(src_data[blk_off], 0.0) << " blk_off = " << blk_off
-                << "off = " << off;
+                ASSERT_EQ(src_data[blk_off], 0.0)
+                        << " blk_off = " << blk_off << "off = " << off;
             }
         }
         /*Update idx*/
         for (int j = 0; j < ndims; ++j) {
-            idx[j] ++;
-            if (idx[j] < pdims[ndims-j-1]) break;
+            idx[j]++;
+            if (idx[j] < pdims[ndims - j - 1]) break;
             idx[j] = 0;
         }
     }
 }
 
-inline memory::desc create_md(memory::dims dims,
-        memory::data_type data_type, memory::format_tag fmt_tag) {
+inline memory::desc create_md(memory::dims dims, memory::data_type data_type,
+        memory::format_tag fmt_tag) {
     return memory::desc(dims, data_type, fmt_tag);
 }
 
 template <typename data_t>
-static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
-        double sparsity)
-{
+static inline data_t set_value(
+        memory::dim index, data_t mean, data_t deviation, double sparsity) {
     if (data_traits<data_t>::data_type == memory::data_type::f16
             || data_traits<data_t>::data_type == memory::data_type::bf16) {
         return data_t(set_value<float>(index, mean, deviation, sparsity));
@@ -229,10 +253,11 @@ static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
         const memory::dim group = index / group_size;
         const memory::dim in_group = index % group_size;
         const bool fill = in_group == ((group % 1637) % group_size);
-        return fill ? static_cast<data_t>(mean + deviation * sinf(float(index % 37)))
-            : data_t{0};
+        return fill ? static_cast<data_t>(
+                       mean + deviation * sinf(float(index % 37)))
+                    : data_t {0};
     } else if (data_traits<data_t>::data_type == memory::data_type::s32
-        || data_traits<data_t>::data_type == memory::data_type::s8) {
+            || data_traits<data_t>::data_type == memory::data_type::s8) {
         return data_t(index * 13 % 21 - 10);
     } else if (data_traits<data_t>::data_type == memory::data_type::u8) {
         return data_t(index * 13 % 17);
@@ -243,37 +268,34 @@ static inline data_t set_value(memory::dim index, data_t mean, data_t deviation,
 
 template <typename data_t>
 static void fill_data(const memory::dim size, data_t *data, data_t mean,
-        data_t deviation, double sparsity = 1.)
-{
+        data_t deviation, double sparsity = 1.) {
     mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
-            data[n] = set_value<data_t>(n, mean, deviation, sparsity);
+        data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     });
 }
 
 template <typename data_t>
 static void fill_data(const memory::dim size, const memory &mem, data_t mean,
-        data_t deviation, double sparsity = 1.)
-{
+        data_t deviation, double sparsity = 1.) {
     auto data_ptr = map_memory<data_t>(mem);
     fill_data<data_t>(size, data_ptr, mean, deviation, sparsity);
 }
 
 template <typename data_t>
 static void fill_data(const memory::dim size, data_t *data,
-        double sparsity = 1., bool init_negs = false)
-{
+        double sparsity = 1., bool init_negs = false) {
     mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
 
-        if (init_negs && n%4 == 0)
-            data[n] = static_cast<data_t>(-data[n]); // weird for unsigned types!
+        if (init_negs && n % 4 == 0)
+            data[n] = static_cast<data_t>(
+                    -data[n]); // weird for unsigned types!
     });
 }
 
 template <typename data_t>
 static void fill_data(const memory::dim size, const memory &mem,
-        double sparsity = 1., bool init_negs = false)
-{
+        double sparsity = 1., bool init_negs = false) {
     auto data_ptr = map_memory<data_t>(mem);
     fill_data<data_t>(size, data_ptr, sparsity, init_negs);
 }
@@ -313,8 +335,7 @@ static void compare_data(
     auto dst_data = map_memory<data_t>(dst);
 
     mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
-        if (is_current_test_failed())
-            return;
+        if (is_current_test_failed()) return;
 
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
         data_t got = dst_data[mdw_dst.off_l(i, true)];
@@ -325,12 +346,13 @@ static void compare_data(
             const float threshold_f32 = static_cast<float>(threshold);
             const float ref_f32 = static_cast<float>(ref);
             const float got_f32 = static_cast<float>(got);
-            const float diff_f32 = (got_f32 == ref_f32) ? 0.0f
-                : got_f32 - ref_f32;
+            const float diff_f32
+                    = (got_f32 == ref_f32) ? 0.0f : got_f32 - ref_f32;
             const float e = (std::abs(ref_f32) > threshold_f32)
-                ? diff_f32 / ref_f32 : diff_f32;
+                    ? diff_f32 / ref_f32
+                    : diff_f32;
             ASSERT_NEAR(e, 0.0, threshold_f32)
-                << "Index: " << i << " Total: " << num;
+                    << "Index: " << i << " Total: " << num;
         } else {
             ASSERT_EQ(ref, got) << "Index: " << i << " Total: " << num;
         }
@@ -345,32 +367,35 @@ inline const char *query_impl_info(const_mkldnn_primitive_desc_t pd) {
 
 inline mkldnn_status_t get_conv_impl_status(
         const_mkldnn_primitive_desc_t pd, const char *match_str) {
-    const char* conv_str = query_impl_info(pd);
+    const char *conv_str = query_impl_info(pd);
 
-    if( strstr(conv_str, match_str) != NULL)
+    if (strstr(conv_str, match_str) != NULL)
         return mkldnn_status_t::mkldnn_success;
     return mkldnn_status_t::mkldnn_unimplemented;
 };
 
 struct test_convolution_sizes_t {
-    test_convolution_sizes_t(
-        memory::dim mb,
-        memory::dim ng,
-        memory::dim ic, memory::dim ih, memory::dim iw,
-        memory::dim oc, memory::dim oh, memory::dim ow,
-        memory::dim kh, memory::dim kw,
-        memory::dim padh, memory::dim padw,
-        memory::dim strh, memory::dim strw,
-        memory::dim dilh=0, memory::dim dilw=0
-    ) :
-        mb(mb),
-        ng(ng),
-        ic(ic), ih(ih), iw(iw),
-        oc(oc), oh(oh), ow(ow),
-        kh(kh), kw(kw),
-        padh(padh), padw(padw),
-        strh(strh), strw(strw),
-        dilh(dilh), dilw(dilw) {}
+    test_convolution_sizes_t(memory::dim mb, memory::dim ng, memory::dim ic,
+            memory::dim ih, memory::dim iw, memory::dim oc, memory::dim oh,
+            memory::dim ow, memory::dim kh, memory::dim kw, memory::dim padh,
+            memory::dim padw, memory::dim strh, memory::dim strw,
+            memory::dim dilh = 0, memory::dim dilw = 0)
+        : mb(mb)
+        , ng(ng)
+        , ic(ic)
+        , ih(ih)
+        , iw(iw)
+        , oc(oc)
+        , oh(oh)
+        , ow(ow)
+        , kh(kh)
+        , kw(kw)
+        , padh(padh)
+        , padw(padw)
+        , strh(strh)
+        , strw(strw)
+        , dilh(dilh)
+        , dilw(dilw) {}
     memory::dim mb;
     memory::dim ng;
     memory::dim ic, ih, iw;
@@ -387,8 +412,7 @@ struct test_convolution_attr_t {
 
         bool is_def() const { return policy != NONE; }
 
-        scale_t (float s, policy_t p = NONE) :
-            scale(s) { policy = p; }
+        scale_t(float s, policy_t p = NONE) : scale(s) { policy = p; }
 
         policy_t policy;
         float scale;
@@ -404,11 +428,11 @@ struct test_convolution_attr_t {
         }
     }
 
-    test_convolution_attr_t(float s,
-            scale_t::policy_t p = scale_t::policy_t::NONE)
+    test_convolution_attr_t(
+            float s, scale_t::policy_t p = scale_t::policy_t::NONE)
         : oscale(s, p), mkl_attr() {}
 
-    test_convolution_attr_t(): test_convolution_attr_t(1.f) {}
+    test_convolution_attr_t() : test_convolution_attr_t(1.f) {}
 
     scale_t oscale;
     mkldnn::primitive_attr mkl_attr;
@@ -442,9 +466,9 @@ struct test_convolution_eltwise_params_t {
     mkldnn_status_t expected_status;
 };
 
-template<typename F> bool catch_expected_failures(const F &f,
-        bool expect_to_fail, mkldnn_status_t expected_status, bool ignore_unimplemented = true)
-{
+template <typename F>
+bool catch_expected_failures(const F &f, bool expect_to_fail,
+        mkldnn_status_t expected_status, bool ignore_unimplemented = true) {
     try {
         f();
     } catch (const mkldnn::error &e) {
@@ -462,13 +486,11 @@ template<typename F> bool catch_expected_failures(const F &f,
             }
         }
         // Return normally if the failure is expected
-        if (expect_to_fail)
-            return true;
+        if (expect_to_fail) return true;
     }
 
     // Throw an exception if the failure is expected but did not happen
-    if (expect_to_fail)
-        throw std::exception();
+    if (expect_to_fail) throw std::exception();
 
     return false;
 }
@@ -484,7 +506,7 @@ static char *test_malloc(size_t size) {
 #else
     int rc = ::posix_memalign(&ptr, align, padded_size);
 #endif /* _WIN32 */
-    return rc == 0 ? (char*)ptr + TEST_MALLOC_OFFSET: 0;
+    return rc == 0 ? (char *)ptr + TEST_MALLOC_OFFSET : 0;
 }
 
 static void test_free(char *ptr) {

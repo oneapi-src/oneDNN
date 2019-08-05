@@ -98,7 +98,7 @@ struct prb_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -119,13 +119,16 @@ struct perf_report_t: public base_perf_report_t {
 
     virtual double ops() const override { return p_->ops; }
     virtual const attr_t *attr() const override { return &p_->attr; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const override
-    { return &sdt_; }
+    virtual const std::vector<mkldnn_data_type_t> *sdt() const override {
+        return &sdt_;
+    }
     virtual const mkldnn_data_type_t *ddt() const override { return &ddt_; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const override
-    { return &stag_; }
-    virtual const mkldnn_format_tag_t *dtag() const override
-    { return &p_->reorder.tag_out; }
+    virtual const std::vector<mkldnn_format_tag_t> *stag() const override {
+        return &stag_;
+    }
+    virtual const mkldnn_format_tag_t *dtag() const override {
+        return &p_->reorder.tag_out;
+    }
 
 private:
     const prb_t *p_ = NULL;
@@ -137,6 +140,6 @@ private:
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace reorder
 
 #endif

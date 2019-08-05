@@ -22,9 +22,9 @@
 
 #include <CL/cl.h>
 
-#define OCL_CHECK(x)                                       \
-    do {                                                   \
-        int s = int(x);                                    \
+#define OCL_CHECK(x) \
+    do { \
+        int s = int(x); \
         EXPECT_EQ(s, CL_SUCCESS) << "OpenCL error: " << s; \
     } while (0)
 
@@ -51,9 +51,7 @@ static inline cl_device_id find_ocl_device(cl_device_type dev_type) {
         cl_uint ndevices;
         cl_device_id ocl_dev;
         err = clGetDeviceIDs(ocl_platform, dev_type, 1, &ocl_dev, &ndevices);
-        if (err == CL_SUCCESS) {
-            return ocl_dev;
-        }
+        if (err == CL_SUCCESS) { return ocl_dev; }
     }
     return nullptr;
 }

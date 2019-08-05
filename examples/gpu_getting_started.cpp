@@ -130,13 +130,13 @@ void gpu_getting_started_tutorial() {
     /// memory by reorder.
     /// @snippet gpu_getting_started.cpp reorder cpu2gpu
     //  [reorder cpu2gpu]
-    const auto tz = memory::dims{ 2, 16, 1, 1 };
-    auto m_cpu = memory(
-            { { tz }, memory::data_type::f32, memory::format_tag::nchw },
-            cpu_engine);
-    auto m_gpu = memory(
-            { { tz }, memory::data_type::f32, memory::format_tag::nchw },
-            gpu_engine);
+    const auto tz = memory::dims {2, 16, 1, 1};
+    auto m_cpu
+            = memory({{tz}, memory::data_type::f32, memory::format_tag::nchw},
+                    cpu_engine);
+    auto m_gpu
+            = memory({{tz}, memory::data_type::f32, memory::format_tag::nchw},
+                    gpu_engine);
     fill(m_cpu, tz);
     auto r1 = reorder(m_cpu, m_gpu);
     //  [reorder cpu2gpu]
@@ -223,8 +223,8 @@ void gpu_getting_started_tutorial() {
     // wrap source data from CPU to GPU
     r1.execute(stream_gpu, m_cpu, m_gpu);
     // Execute ReLU on a GPU stream
-    relu.execute(stream_gpu,
-            { { MKLDNN_ARG_SRC, m_gpu }, { MKLDNN_ARG_DST, m_gpu } });
+    relu.execute(
+            stream_gpu, {{MKLDNN_ARG_SRC, m_gpu}, {MKLDNN_ARG_DST, m_gpu}});
     // Get result data from GPU to CPU
     r2.execute(stream_gpu, m_gpu, m_cpu);
 
@@ -241,7 +241,8 @@ void gpu_getting_started_tutorial() {
     // [Check the results]
     if (find_negative(m_cpu, tz) != 0) {
         std::stringstream ss;
-        ss << "Unexpected output, find a negative value after the ReLU execution";
+        ss << "Unexpected output, find a negative value after the ReLU "
+              "execution";
         throw ss.str();
     }
     // [Check the results]
@@ -265,7 +266,8 @@ int main(int argc, char **argv) {
         gpu_getting_started_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-            << "Error status: " << mkldnn_status2str(e.status) << std::endl;
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

@@ -33,9 +33,10 @@ namespace rnn {
 std::vector<dir_t> prop {FWD_D};
 std::vector<const dt_conf_t *> cfg {conf_f32};
 std::vector<alg_t> alg {VANILLA_RNN};
-std::vector<mkldnn_rnn_direction_t> direction {mkldnn_unidirectional_left2right};
+std::vector<mkldnn_rnn_direction_t> direction {
+        mkldnn_unidirectional_left2right};
 std::vector<activation_t> activation {RELU};
-std::vector<bool> skip_nonlinear{ false };
+std::vector<bool> skip_nonlinear {false};
 std::vector<int64_t> mb {0};
 std::vector<policy_t> scale_policy {NONE};
 
@@ -44,9 +45,9 @@ bool allow_unimpl = false;
 unsigned int flags = 0x0;
 float alpha = 0.0f;
 float beta = 0.0f;
-const char *perf_template_csv =
-    "perf,%engine%,%name%,%prop%,%DESC%,"
-    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_csv
+        = "perf,%engine%,%name%,%prop%,%DESC%,"
+          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 const char *perf_template_def = perf_template_csv;
 const char *perf_template = perf_template_def;
 
@@ -63,27 +64,27 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    for_(const auto &i_prop: prop)
-    for_(const auto &i_cfg: cfg)
-    for_(const auto &i_alg: alg)
-    for_(const auto &i_scale_policy: scale_policy)
-    for_(const auto &i_direction: direction)
-    for_(const auto &i_activation: activation)
+    for_(const auto &i_prop : prop)
+    for_(const auto &i_cfg : cfg)
+    for_(const auto &i_alg : alg)
+    for_(const auto &i_scale_policy : scale_policy)
+    for_(const auto &i_direction : direction)
+    for_(const auto &i_activation : activation)
     for_(const auto &i_skip_nonlinear : skip_nonlinear)
     for (const auto &i_mb : mb) {
         check_case_validity(i_cfg, i_scale_policy);
         mkldnn_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
         const prb_t p(*c, i_cfg, prop_kind, i_alg, i_direction, attr,
-                      i_scale_policy, flags, i_activation, alpha, beta,
-                      i_skip_nonlinear, i_mb);
+                i_scale_policy, flags, i_activation, alpha, beta,
+                i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
         const char *pstr = cpp_pstr.c_str();
         print(1, "run: %s\n", pstr);
 
-        res_t res{};
+        res_t res {};
         const int status = doit(p, &res);
 
         bool want_perf_report = false;

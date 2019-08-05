@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu_isa_traits.hpp"
 #include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
-#include "cpu_isa_traits.hpp"
 
 #include "mkldnn.hpp"
 namespace mkldnn {
@@ -35,13 +35,13 @@ struct conv_any_fmt_test_params {
 
 template <typename data_t>
 class convolution_any_fmt_test
-        : public ::testing::TestWithParam<conv_any_fmt_test_params> {
+    : public ::testing::TestWithParam<conv_any_fmt_test_params> {
 protected:
     virtual void SetUp() {
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.
         bool implementation_supports_blocking
-            = impl::cpu::mayiuse(impl::cpu::sse41);
+                = impl::cpu::mayiuse(impl::cpu::sse41);
         if (!implementation_supports_blocking) return;
 
         auto p = ::testing::TestWithParam<conv_any_fmt_test_params>::GetParam();
@@ -54,42 +54,42 @@ protected:
 
         test_convolution_sizes_t cd = p.test_cd;
 
-        auto c_src_desc = create_md(
-                {cd.mb, cd.ic, cd.ih, cd.iw}, data_type, tag::any);
+        auto c_src_desc
+                = create_md({cd.mb, cd.ic, cd.ih, cd.iw}, data_type, tag::any);
         auto c_weights_desc = cd.ng > 1
-            ? create_md({cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw},
-                    data_type, tag::any)
-            : create_md({cd.oc, cd.ic, cd.kh, cd.kw}, data_type, tag::any);
-        auto c_dst_desc = create_md(
-                {cd.mb, cd.oc, cd.oh, cd.ow}, data_type, tag::any);
+                ? create_md({cd.ng, cd.oc / cd.ng, cd.ic / cd.ng, cd.kh, cd.kw},
+                        data_type, tag::any)
+                : create_md({cd.oc, cd.ic, cd.kh, cd.kw}, data_type, tag::any);
+        auto c_dst_desc
+                = create_md({cd.mb, cd.oc, cd.oh, cd.ow}, data_type, tag::any);
 
-        auto conv_desc = convolution_forward::desc(
-                p.aprop_kind, p.aalgorithm,
-                c_src_desc, c_weights_desc, c_dst_desc,
-                {cd.strh, cd.strw}, {cd.padh, cd.padw}, {cd.padh, cd.padw});
+        auto conv_desc = convolution_forward::desc(p.aprop_kind, p.aalgorithm,
+                c_src_desc, c_weights_desc, c_dst_desc, {cd.strh, cd.strw},
+                {cd.padh, cd.padw}, {cd.padh, cd.padw});
 
-        auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
+        auto conv_prim_desc
+                = convolution_forward::primitive_desc(conv_desc, eng);
 
-        auto check_fmt = [&](const mkldnn_memory_desc_t &md, data_fmt_t expected) {
+        auto check_fmt = [&](const mkldnn_memory_desc_t &md,
+                                 data_fmt_t expected) {
             bool ok = false;
             if (expected == data_fmt_t::flat) {
-                ok = true
-                    && md.format_kind == mkldnn_blocked
-                    && md.format_desc.blocking.inner_nblks == 0;
+                ok = true && md.format_kind == mkldnn_blocked
+                        && md.format_desc.blocking.inner_nblks == 0;
             } else if (expected == data_fmt_t::blocked_cX) {
-                ok = true
-                    && md.format_kind == mkldnn_blocked
-                    && md.format_desc.blocking.inner_nblks == 1
-                    && md.format_desc.blocking.inner_idxs[0] == 1
-                    && (false
-                            || md.format_desc.blocking.inner_blks[0] == 8
-                            || md.format_desc.blocking.inner_blks[0] == 16);
+                ok = true && md.format_kind == mkldnn_blocked
+                        && md.format_desc.blocking.inner_nblks == 1
+                        && md.format_desc.blocking.inner_idxs[0] == 1
+                        && (false || md.format_desc.blocking.inner_blks[0] == 8
+                                || md.format_desc.blocking.inner_blks[0] == 16);
             }
             return ok;
         };
 
-        ASSERT_TRUE(check_fmt(conv_prim_desc.src_desc().data, p.expected_src_fmt));
-        ASSERT_TRUE(check_fmt(conv_prim_desc.dst_desc().data, p.expected_dst_fmt));
+        ASSERT_TRUE(
+                check_fmt(conv_prim_desc.src_desc().data, p.expected_src_fmt));
+        ASSERT_TRUE(
+                check_fmt(conv_prim_desc.dst_desc().data, p.expected_dst_fmt));
     }
 };
 
@@ -103,13 +103,17 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 #define BLK data_fmt_t::blocked_cX
 
 using tf32 = conv_any_fmt_test_params;
-CPU_INSTANTIATE_TEST_SUITE_P(
-    TestConvolutionAlexnetAnyFmtForwardxlocked, conv_any_fmt_test_float,
-    ::testing::Values(
-        tf32{CPARAMS, FLT, BLK, {2, 1,   3, 227, 227,  96, 55, 55, 11, 11, 0, 0, 4, 4 } },
-        tf32{CPARAMS, BLK, BLK, {2, 2,  96,  27,  27, 256, 27, 27,  5,  5, 2, 2, 1, 1 } },
-        tf32{CPARAMS, BLK, BLK, {2, 1, 256,  13,  13, 384, 13, 13,  3,  3, 1, 1, 1, 1 } },
-        tf32{CPARAMS, BLK, BLK, {2, 2, 384,  13,  13, 384, 13, 13,  3,  3, 1, 1, 1, 1 } },
-        tf32{CPARAMS, BLK, BLK, {2, 2, 384,  13,  13, 256, 13, 13,  3,  3, 1, 1, 1, 1 } }
-    ));
-}
+CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForwardxlocked,
+        conv_any_fmt_test_float,
+        ::testing::Values(
+                tf32 {CPARAMS, FLT, BLK,
+                        {2, 1, 3, 227, 227, 96, 55, 55, 11, 11, 0, 0, 4, 4}},
+                tf32 {CPARAMS, BLK, BLK,
+                        {2, 2, 96, 27, 27, 256, 27, 27, 5, 5, 2, 2, 1, 1}},
+                tf32 {CPARAMS, BLK, BLK,
+                        {2, 1, 256, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1}},
+                tf32 {CPARAMS, BLK, BLK,
+                        {2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1}},
+                tf32 {CPARAMS, BLK, BLK,
+                        {2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1}}));
+} // namespace mkldnn

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 
@@ -37,8 +37,8 @@ std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
 
 dims_t dims;
 bool allow_unimpl = false;
-const char *perf_template_csv =
-    "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
+const char *perf_template_csv
+        = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
 const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
@@ -52,14 +52,14 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for_(const auto &i_sdt: sdt)
-    for_(const auto &i_ddt: ddt)
-    for_(const auto &i_stag: stag)
-    for (const auto &i_dtag: dtag) {
+    for_(const auto &i_sdt : sdt)
+    for_(const auto &i_ddt : ddt)
+    for_(const auto &i_stag : stag)
+    for (const auto &i_dtag : dtag) {
         if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
             SAFE_V(FAIL);
 
-        for (const auto &i_scales: scales) {
+        for (const auto &i_scales : scales) {
             // expect either single scale value, or 1:1 match of dt and scale
             if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
                 SAFE_V(FAIL);
@@ -71,7 +71,7 @@ void check_correctness() {
             const char *pstr = cpp_pstr.c_str();
             print(1, "run: %s\n", pstr);
 
-            res_t res{};
+            res_t res {};
             int status = doit(&p, &res);
 
             bool want_perf_report = false;
@@ -90,18 +90,16 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false
-            || parse_bench_settings(argv[0])
-            || parse_batch(bench, argv[0])
-            || parse_multi_dt(sdt, argv[0])
-            || parse_dt(ddt, argv[0], "ddt")
-            || parse_multi_tag(stag, argv[0])
-            || parse_tag(dtag, argv[0], "dtag")
-            || parse_multivector_option(scales, atof, argv[0], "scales")
-            || parse_allow_unimpl(allow_unimpl, argv[0])
-            || parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0])
-            || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = false || parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_multi_dt(sdt, argv[0])
+                || parse_dt(ddt, argv[0], "ddt")
+                || parse_multi_tag(stag, argv[0])
+                || parse_tag(dtag, argv[0], "dtag")
+                || parse_multivector_option(scales, atof, argv[0], "scales")
+                || parse_allow_unimpl(allow_unimpl, argv[0])
+                || parse_perf_template(perf_template, perf_template_def,
+                        perf_template_csv, argv[0])
+                || parse_reset(reset_parameters, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0], "sum");
 
@@ -113,4 +111,4 @@ int bench(int argc, char **argv) {
     return parse_last_argument();
 }
 
-}
+} // namespace sum

@@ -53,7 +53,7 @@ struct array_offset_calculator {
     template <typename... Targs>
     array_offset_calculator(Telem *base, Targs... Fargs)
         : _size(sizeof...(Fargs)) {
-        const int64_t init_list[] = { Fargs... };
+        const int64_t init_list[] = {Fargs...};
         _dims = new int64_t[_size];
         for (int64_t i = 0; i < _size; ++i)
             _dims[i] = init_list[i];
@@ -73,13 +73,14 @@ private:
     }
 
     template <typename... Targs>
-    inline int64_t _offset(int64_t const dimension, int64_t theta, int64_t element) {
+    inline int64_t _offset(
+            int64_t const dimension, int64_t theta, int64_t element) {
         return element + (_dims[dimension] * theta);
     }
 
     template <typename... Targs>
-    inline int64_t _offset(
-            int64_t const dimension, int64_t theta, int64_t element, Targs... Fargs) {
+    inline int64_t _offset(int64_t const dimension, int64_t theta,
+            int64_t element, Targs... Fargs) {
         int64_t t_prime = element + (_dims[dimension] * theta);
         return _offset(dimension + 1, t_prime, Fargs...);
     }
@@ -128,17 +129,17 @@ enum rnn_data_kind_t {
 
 inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
     switch (kind) {
-    case input: return "INPUT";
-    case states: return "STATES";
-    case weights_input: return "WEIGHTS_INPUT";
-    case weights_states: return "WEIGHTS_STATES";
-    case bias: return "BIAS";
-    case dst_last_layer: return "DST_LAST_LAYER";
-    case dst_last_iteration: return "DST_LAST_ITERATION";
-    case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
-    default:
-        assert(!"incorrect rnn data kind");
-        return "incorrect rnn data kind";
+        case input: return "INPUT";
+        case states: return "STATES";
+        case weights_input: return "WEIGHTS_INPUT";
+        case weights_states: return "WEIGHTS_STATES";
+        case bias: return "BIAS";
+        case dst_last_layer: return "DST_LAST_LAYER";
+        case dst_last_iteration: return "DST_LAST_ITERATION";
+        case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
+        default:
+            assert(!"incorrect rnn data kind");
+            return "incorrect rnn data kind";
     }
 }
 
@@ -160,7 +161,8 @@ typedef struct dt_conf_t {
     mkldnn_data_type_t dt;
     int min, max; /* representative */
     float f_min, f_max; /* fill range */
-    float f_mean, f_stddev; /* mean and std deviation of normally distributed data */
+    float f_mean,
+            f_stddev; /* mean and std deviation of normally distributed data */
     double eps; /* acceptable error */
 } _dt_conf_t[data_kind_total];
 
@@ -216,33 +218,31 @@ struct prb_t : public desc_t {
         set_qparams(-1., 1.);
     }
     ~prb_t() {
-        if (wei_oc_scales)
-            zfree(wei_oc_scales);
-        if (linear_scales)
-            zfree(linear_scales);
+        if (wei_oc_scales) zfree(wei_oc_scales);
+        if (linear_scales) zfree(linear_scales);
     }
 
     void count_ops() {
         // Here, we count only the ops in GEMM portion as there is no
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t)n_dir() * n_layer * n_iter;
-        int64_t cell_ops = (int64_t) 2 * (n_gates() * dic) * mb * (sic + slc);
+        int64_t cell_ops = (int64_t)2 * (n_gates() * dic) * mb * (sic + slc);
         int64_t prop_multiplier = prop == mkldnn_backward ? 2 : 1;
         ops = prop_multiplier * num_cells * cell_ops;
     }
 
     int64_t n_dir() const {
         return (direction == mkldnn_bidirectional_concat
-                       || direction == mkldnn_bidirectional_sum) ?
-                2 :
-                1;
+                       || direction == mkldnn_bidirectional_sum)
+                ? 2
+                : 1;
     }
     int64_t n_weights() const { return 1; }
     int64_t n_states() const { return alg == VANILLA_LSTM ? 2 : 1; }
     int64_t n_gates() const {
-        return alg == VANILLA_LSTM ?
-                4 :
-                (alg == VANILLA_GRU || alg == LBR_GRU ? 3 : 1);
+        return alg == VANILLA_LSTM
+                ? 4
+                : (alg == VANILLA_GRU || alg == LBR_GRU ? 3 : 1);
     }
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
@@ -278,7 +278,7 @@ private:
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -292,7 +292,7 @@ struct perf_report_t: public base_perf_report_t {
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << alg2str(p_->alg) << "_" << activation2str(p_->activation) << "_"
-            << direction2str(p_->direction);
+          << direction2str(p_->direction);
         s << "l" << p_->n_layer << "d" << p_->n_dir() << "t" << p_->n_iter
           << "mb" << p_->mb << "_"
           << "slc" << p_->slc << "sic" << p_->sic << "dic" << p_->dic;
@@ -300,7 +300,9 @@ struct perf_report_t: public base_perf_report_t {
 
     virtual double ops() const override { return p_->ops; }
     virtual const char *name() const override { return p_->name; }
-    virtual const mkldnn_prop_kind_t *prop() const override { return &p_->prop; }
+    virtual const mkldnn_prop_kind_t *prop() const override {
+        return &p_->prop;
+    }
 
 private:
     const prb_t *p_ = nullptr;

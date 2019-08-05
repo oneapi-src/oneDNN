@@ -26,8 +26,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
     const auto nelems = src.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
-            dst_ptr[i] = compute_eltwise_fwd(p->alg, src_ptr[i], 1.0, p->alpha,
-                p->beta);
+        dst_ptr[i] = compute_eltwise_fwd(
+                p->alg, src_ptr[i], 1.0, p->alpha, p->beta);
     });
 }
 
@@ -44,4 +44,4 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     });
 }
 
-}
+} // namespace eltwise

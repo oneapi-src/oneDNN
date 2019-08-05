@@ -20,10 +20,10 @@
 ///
 /// > Annotated version: @ref cpu_performance_profiling_cpp
 
-#include <iostream>
-#include <string>
 #include <chrono>
+#include <iostream>
 #include <stdio.h>
+#include <string>
 
 /// @page cpu_performance_profiling_cpp Performance Profiling Example
 /// > Example code: @ref cpu_performance_profiling.cpp
@@ -114,16 +114,13 @@ void create_and_execute_relu(memory data) {
     // relu operates on whatever data format is given to it
 
     // create a primitive
-    auto relu_d = eltwise_forward::desc(
-            prop_kind::forward_inference, algorithm::eltwise_relu,
-            data.get_desc(), 0.f, 0.f);
+    auto relu_d = eltwise_forward::desc(prop_kind::forward_inference,
+            algorithm::eltwise_relu, data.get_desc(), 0.f, 0.f);
     auto relu_pd = eltwise_forward::primitive_desc(relu_d, cpu);
     auto relu = eltwise_forward(relu_pd);
 
     // execute it (in-place)
-    relu.execute(s, {
-            {MKLDNN_ARG_SRC, data},
-            {MKLDNN_ARG_DST, data}});
+    relu.execute(s, {{MKLDNN_ARG_SRC, data}, {MKLDNN_ARG_DST, data}});
 }
 
 // [Create post_op attr with relu]
@@ -169,10 +166,9 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
     /// @snippet cpu_performance_profiling.cpp Create conv_desc
     // [Create conv_desc]
     // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(
-            prop_kind::forward_inference, algorithm::convolution_direct,
-            conv_src_md, conv_wei_md, conv_dst_md,
-            strides, padding, padding);
+    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_direct, conv_src_md, conv_wei_md,
+            conv_dst_md, strides, padding, padding);
     // [Create conv_desc]
     /// Next the program creates a convolution primitive descriptor `conv_pd`
     /// and convolution primitive `conv`. These structs will inherit
@@ -195,14 +191,13 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst) {
     /// @snippet cpu_performance_profiling.cpp Add to stream
     // [Add to stream]
     // execute convolution by adding it to the stream s
-    conv.execute(s, {
-            {MKLDNN_ARG_SRC, user_src},
-            {MKLDNN_ARG_WEIGHTS, user_wei},
-            {MKLDNN_ARG_DST, user_dst}});
+    conv.execute(s,
+            {{MKLDNN_ARG_SRC, user_src}, {MKLDNN_ARG_WEIGHTS, user_wei},
+                    {MKLDNN_ARG_DST, user_dst}});
     // [Add to stream]
     /// @page cpu_performance_profiling_cpp
     /// @snippet cpu_performance_profiling.cpp Create and execute relu
-     // [Create and execute relu]
+    // [Create and execute relu]
     // execute relu (on convolution's destination format, whatever it is)
     create_and_execute_relu(user_dst);
     // [Create and execute relu]
@@ -265,10 +260,9 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     /// @snippet cpu_performance_profiling.cpp Create conv_desc implementation2
     // [Create conv_desc implementation2]
     // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(
-            prop_kind::forward_inference, algorithm::convolution_direct,
-            conv_src_md, conv_wei_md, conv_dst_md,
-            strides, padding, padding);
+    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_direct, conv_src_md, conv_wei_md,
+            conv_dst_md, strides, padding, padding);
     // [Create conv_desc implementation2]
     /// Next the program creates a convolution primitive descriptor conv_pd and
     /// convolution primitive conv as in naive implementation.
@@ -324,10 +318,9 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst) {
     /// @snippet cpu_performance_profiling.cpp Add to stream implementation2
     // [Add to stream implementation2]
     // execute convolution by adding it to the stream s
-    conv.execute(s, {
-            {MKLDNN_ARG_SRC, conv_src},
-            {MKLDNN_ARG_WEIGHTS, conv_wei},
-            {MKLDNN_ARG_DST, conv_dst}});
+    conv.execute(s,
+            {{MKLDNN_ARG_SRC, conv_src}, {MKLDNN_ARG_WEIGHTS, conv_wei},
+                    {MKLDNN_ARG_DST, conv_dst}});
     // [Add to stream implementation2]
     /// @page cpu_performance_profiling_cpp
     /// @snippet cpu_performance_profiling.cpp Create and execute relu implementation2
@@ -400,10 +393,9 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     conv_dst_md.data.format_kind = mkldnn_format_kind_any;
 
     // create a convolution descriptor
-    auto conv_d = convolution_forward::desc(
-            prop_kind::forward_inference, algorithm::convolution_direct,
-            conv_src_md, conv_wei_md, conv_dst_md,
-            strides, padding, padding);
+    auto conv_d = convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_direct, conv_src_md, conv_wei_md,
+            conv_dst_md, strides, padding, padding);
     /// Then in preparation for the convolution prim desctiptor, a ReLU post-op
     /// is built and added to the primitive attribute `attr`:
     /// @page cpu_performance_profiling_cpp
@@ -457,10 +449,9 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
     /// @snippet cpu_performance_profiling.cpp Add to stream implementation3
     // [Add to stream implementation3]
     // execute convolution by adding it to the stream s
-    conv.execute(s, {
-            {MKLDNN_ARG_SRC, conv_src},
-            {MKLDNN_ARG_WEIGHTS, conv_wei},
-            {MKLDNN_ARG_DST, conv_dst}});
+    conv.execute(s,
+            {{MKLDNN_ARG_SRC, conv_src}, {MKLDNN_ARG_WEIGHTS, conv_wei},
+                    {MKLDNN_ARG_DST, conv_dst}});
     // [Add to stream implementation3]
     // reorder data to user's format if needed
     if (conv_pd.dst_desc() != user_dst.get_desc()) {
@@ -512,7 +503,6 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst) {
 /// * NUMA node(s):          2
 /// * RAM (DDR4): 1.45 TB
 
-
 int main(int argc, char *argv[]) {
     // [Set dimensions]
     // set dimensions for synthetic data and weights
@@ -526,11 +516,14 @@ int main(int argc, char *argv[]) {
     // create MKL-DNN memory objects for user's tensors (in nchw and oihw formats)
     // @note here the library allocates memory
     auto user_src = memory({{BATCH, IC, IH, IW}, memory::data_type::f32,
-                    memory::format_tag::nchw}, cpu);
+                                   memory::format_tag::nchw},
+            cpu);
     auto user_wei = memory({{OC, IC, KH, KW}, memory::data_type::f32,
-                    memory::format_tag::oihw}, cpu);
+                                   memory::format_tag::oihw},
+            cpu);
     auto user_dst = memory({{BATCH, OC, OH, OW}, memory::data_type::f32,
-                    memory::format_tag::nchw}, cpu);
+                                   memory::format_tag::nchw},
+            cpu);
     // [Create memory objects]
 
     // fill source, destination, and weights with synthetic data
@@ -546,18 +539,16 @@ int main(int argc, char *argv[]) {
     else if (argc == 2)
         implementation = argv[1];
 
-    if (!(implementation == "validation"
-                || implementation == "naive"
-                || implementation == "blocked"
-                || implementation == "fused")) {
-        std::cout << "\nUsage: " << argv[0]
-            << " [implementation]\n\n";
+    if (!(implementation == "validation" || implementation == "naive"
+                || implementation == "blocked" || implementation == "fused")) {
+        std::cout << "\nUsage: " << argv[0] << " [implementation]\n\n";
         std::cout << "The implementation can be one of:\n";
         std::cout << " - naive: NCHW format without fusion\n";
         std::cout << " - blocked: format propagation without fusion\n";
         std::cout << " - fused: format propagation with fusion\n";
         std::cout << " - validation: runs all implementations\n\n";
-        std::cout << "Validation will be run if no parameters are specified\n\n";
+        std::cout
+                << "Validation will be run if no parameters are specified\n\n";
 
         return -1;
     }

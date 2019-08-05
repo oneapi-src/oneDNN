@@ -28,7 +28,8 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         float svar = ((float *)var)[c];
         float sqrt_var = sqrtf(svar + p->eps);
 
-        float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f) / sqrt_var;
+        float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f)
+                / sqrt_var;
         float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
 
         for_(int64_t mb = 0; mb < p->mb; ++mb)
@@ -100,4 +101,4 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     });
 }
 
-}
+} // namespace bnorm

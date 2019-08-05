@@ -17,9 +17,9 @@
 #ifndef BENCHDNN_RNN_AUX_HPP
 #define BENCHDNN_RNN_AUX_HPP
 
-#include "rnn/rnn.hpp"
 #include <assert.h>
 #include <stdlib.h>
+#include "rnn/rnn.hpp"
 
 namespace rnn {
 
@@ -102,6 +102,6 @@ int compare_dst_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
 int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare);
-};
+}; // namespace rnn
 
 #endif

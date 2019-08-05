@@ -24,21 +24,17 @@ namespace eltwise {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D)
-        s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32)
-        s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     s << "--alg=" << attr_t::post_ops_t::kind2str(p.alg) << " ";
     s << "--alpha=" << p.alpha << " ";
     s << "--beta=" << p.beta << " ";
-    if (p.inplace != true)
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << p.dims;
 
     return s;
 }
 
-}
+} // namespace eltwise

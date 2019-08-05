@@ -29,10 +29,10 @@ std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (!(p.n_inputs() == 2 && p.sdt[0] == mkldnn_f32 && p.sdt[1] == mkldnn_f32))
+    if (!(p.n_inputs() == 2 && p.sdt[0] == mkldnn_f32
+                && p.sdt[1] == mkldnn_f32))
         s << "--sdt=" << p.sdt << " ";
-    if (p.ddt != mkldnn_f32)
-        s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (p.ddt != mkldnn_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
     if (!(p.n_inputs() == 2 && p.stag[0] == mkldnn_nchw
                 && p.stag[1] == mkldnn_nchw))
         s << "--stag=" << p.stag << " ";
@@ -45,4 +45,4 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
-}
+} // namespace sum

@@ -946,8 +946,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.ver = mayiuse(avx512_core_vnni) ? ver_vnni : ver_avx512_core;
     jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.ver == ver_vnni
             && jcp.ngroups % jcp.ch_block == 0; // for groups not multiple of 16
-            // would require byte masking
-            // for load from src
+    // would require byte masking
+    // for load from src
     jcp.is_resrc_depthwise = jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;
     if (jcp.is_depthwise) {

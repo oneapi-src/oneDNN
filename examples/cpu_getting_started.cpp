@@ -20,10 +20,10 @@
 ///
 /// > Annotated version: @ref cpu_getting_started_cpp
 
-#include <iostream>
-#include <sstream>
 #include <cmath>
+#include <iostream>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -107,7 +107,6 @@ void cpu_getting_started_tutorial() {
     stream cpu_stream(cpu_engine);
     // [Initialize stream]
 
-
     /// In the simple cases, when a program works with one device only (e.g.
     /// only on CPU), an engine and a stream can be created once and used
     /// throughout the program. Some frameworks create singleton objects that
@@ -141,8 +140,9 @@ void cpu_getting_started_tutorial() {
     const int stride_C = 1;
 
     // An auxiliary function that maps logical index to the physical offset
-    auto offset = [=](int n, int h, int w, int c)
-    { return n * stride_N + h * stride_H + w * stride_W + c * stride_C; };
+    auto offset = [=](int n, int h, int w, int c) {
+        return n * stride_N + h * stride_H + w * stride_W + c * stride_C;
+    };
 
     // The image size
     const int image_size = N * H * W * C;
@@ -152,14 +152,14 @@ void cpu_getting_started_tutorial() {
 
     // Initialize the image with some values
     for (int n = 0; n < N; ++n)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w)
-    for (int c = 0; c < C; ++c) {
-        int off = offset(n, h, w, c); // Get the physical offset of a pixel
-        image[off] = -std::cos(off / 10.f);
-    }
+        for (int h = 0; h < H; ++h)
+            for (int w = 0; w < W; ++w)
+                for (int c = 0; c < C; ++c) {
+                    int off = offset(
+                            n, h, w, c); // Get the physical offset of a pixel
+                    image[off] = -std::cos(off / 10.f);
+                }
     // [Create user's data]
-
 
     /// @subsection cpu_getting_started_cpp_sub3 Wrapping data into Intel MKL-DNN memory object
     ///
@@ -206,9 +206,9 @@ void cpu_getting_started_tutorial() {
     // [Init src_md]
     auto src_md = memory::desc(
             {N, C, H, W}, // logical dims, the order is defined by a primitive
-            memory::data_type::f32,     // tensor's data type
-            memory::format_tag::nhwc    // memory format, NHWC in this case
-            );
+            memory::data_type::f32, // tensor's data type
+            memory::format_tag::nhwc // memory format, NHWC in this case
+    );
     // [Init src_md]
 
     /// The first thing to notice here is that we pass dimensions as `{N, C,
@@ -251,9 +251,9 @@ void cpu_getting_started_tutorial() {
     // [Init alt_src_md]
     auto alt_src_md = memory::desc(
             {N, C, H, W}, // logical dims, the order is defined by a primitive
-            memory::data_type::f32,                     // tensor's data type
-            {stride_N, stride_C, stride_H, stride_W}    // the strides
-            );
+            memory::data_type::f32, // tensor's data type
+            {stride_N, stride_C, stride_H, stride_W} // the strides
+    );
 
     // Sanity check: the memory descriptors should be the same
     if (src_md != alt_src_md)
@@ -267,7 +267,6 @@ void cpu_getting_started_tutorial() {
     /// @warning
     ///     Using the wrong order might lead to incorrect results or even a
     ///     crash.
-
 
     /// @subsubsection cpu_getting_started_cpp_sub32 Creating a memory object
     ///
@@ -302,7 +301,6 @@ void cpu_getting_started_tutorial() {
     ///
     /// In subsequent section we will show how to get the buffer (pointer)
     /// from the `dst_mem` memory object.
-
 
     /// @subsection cpu_getting_started_cpp_sub4 Creating a ReLU primitive
     ///
@@ -342,18 +340,17 @@ void cpu_getting_started_tutorial() {
     // [Create a ReLU primitive]
     //  ReLU op descriptor (no engine- or implementation-specific information)
     auto relu_d = eltwise_forward::desc(
-            prop_kind::forward_inference,
-            algorithm::eltwise_relu,
+            prop_kind::forward_inference, algorithm::eltwise_relu,
             src_md, // the memory descriptor for an operation to work on
-            0.f,    // alpha parameter means negative slope in case of ReLU
-            0.f     // beta parameter is ignored in case of ReLU
-            );
+            0.f, // alpha parameter means negative slope in case of ReLU
+            0.f // beta parameter is ignored in case of ReLU
+    );
 
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library
-    auto relu_pd = eltwise_forward::primitive_desc(
-            relu_d,     // an operation descriptor
-            cpu_engine  // an engine the primitive will be created for
+    auto relu_pd
+            = eltwise_forward::primitive_desc(relu_d, // an operation descriptor
+                    cpu_engine // an engine the primitive will be created for
             );
 
     // ReLU primitive
@@ -395,11 +392,11 @@ void cpu_getting_started_tutorial() {
     /// @snippet cpu_getting_started.cpp Execute ReLU primitive
     // [Execute ReLU primitive]
     // Execute ReLU (out-of-place)
-    relu.execute(
-            cpu_stream, // The execution stream
-            {           // A map with all inputs and outputs
-                {MKLDNN_ARG_SRC, src_mem}, // Source tag and memory obj
-                {MKLDNN_ARG_DST, dst_mem}, // Destination tag and memory obj
+    relu.execute(cpu_stream, // The execution stream
+            {
+                    // A map with all inputs and outputs
+                    {MKLDNN_ARG_SRC, src_mem}, // Source tag and memory obj
+                    {MKLDNN_ARG_DST, dst_mem}, // Destination tag and memory obj
             });
 
     // Wait the stream to complete the execution
@@ -445,20 +442,23 @@ void cpu_getting_started_tutorial() {
 
     // Check the results
     for (int n = 0; n < N; ++n)
-    for (int h = 0; h < H; ++h)
-    for (int w = 0; w < W; ++w)
-    for (int c = 0; c < C; ++c) {
-        int off = offset(n, h, w, c); // get the physical offset of a pixel
-        float expected = image[off] < 0 ? 0.f : image[off]; // expected value
-        if (relu_image[off] != expected) {
-            std::stringstream ss;
-            ss << "Unexpected output at index("
-                << n << ", " << c << ", " << h << ", " << w << "): "
-                << "Expect " << expected << " "
-                << "Got " << relu_image[off];
-            throw ss.str();
-        }
-    }
+        for (int h = 0; h < H; ++h)
+            for (int w = 0; w < W; ++w)
+                for (int c = 0; c < C; ++c) {
+                    int off = offset(
+                            n, h, w, c); // get the physical offset of a pixel
+                    float expected = image[off] < 0
+                            ? 0.f
+                            : image[off]; // expected value
+                    if (relu_image[off] != expected) {
+                        std::stringstream ss;
+                        ss << "Unexpected output at index(" << n << ", " << c
+                           << ", " << h << ", " << w << "): "
+                           << "Expect " << expected << " "
+                           << "Got " << relu_image[off];
+                        throw ss.str();
+                    }
+                }
     // [Check the results]
 }
 
@@ -481,7 +481,8 @@ int main(int argc, char **argv) {
         cpu_getting_started_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-            << "Error status: " << mkldnn_status2str(e.status) << std::endl;
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "mkldnn.h"
 
@@ -29,7 +29,8 @@
 namespace pool {
 
 alg_t str2alg(const char *str) {
-#define CASE(_alg) if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
+#define CASE(_alg) \
+    if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(MAX);
     CASE(AVG_NP);
     CASE(AVG_P);
@@ -55,7 +56,7 @@ mkldnn_alg_kind_t alg2alg_kind(alg_t alg) {
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    desc_t d{0};
+    desc_t d {0};
 
     /* canonical form:
      * dYmbXicXihXiwXohXowXkhXkwXshXswXphXpwXnS
@@ -80,29 +81,47 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-#   define CASE_NN(p, c) do { \
+#define CASE_NN(p, c) \
+    do { \
         if (!strncmp(p, s, strlen(p))) { \
-            ok = 1; s += strlen(p); \
-            char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
-            if (d. c < 0) return FAIL; \
+            ok = 1; \
+            s += strlen(p); \
+            char *end_s; \
+            d.c = strtol(s, &end_s, 10); \
+            s += (end_s - s); \
+            if (d.c < 0) return FAIL; \
             /* printf("@@@debug: %s: %ld\n", p, d. c); */ \
         } \
     } while (0)
-#   define CASE_N(c) CASE_NN(#c, c)
+#define CASE_N(c) CASE_NN(#c, c)
     while (*s) {
         int ok = 0;
-        CASE_N(mb); CASE_N(ic);
-        CASE_N(id); CASE_N(ih); CASE_N(iw);
-        CASE_N(od); CASE_N(oh); CASE_N(ow);
-        CASE_N(kd); CASE_N(kh); CASE_N(kw);
-        CASE_N(sd); CASE_N(sh); CASE_N(sw);
-        CASE_N(pd); CASE_N(ph); CASE_N(pw);
-        if (*s == 'n') { d.name = s + 1; break; }
+        CASE_N(mb);
+        CASE_N(ic);
+        CASE_N(id);
+        CASE_N(ih);
+        CASE_N(iw);
+        CASE_N(od);
+        CASE_N(oh);
+        CASE_N(ow);
+        CASE_N(kd);
+        CASE_N(kh);
+        CASE_N(kw);
+        CASE_N(sd);
+        CASE_N(sh);
+        CASE_N(sw);
+        CASE_N(pd);
+        CASE_N(ph);
+        CASE_N(pw);
+        if (*s == 'n') {
+            d.name = s + 1;
+            break;
+        }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
-#   undef CASE_NN
-#   undef CASE_N
+#undef CASE_NN
+#undef CASE_N
 
     if (d.ic == 0) return FAIL;
     if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
@@ -183,15 +202,14 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     const bool half_form = (d.ih == d.iw && d.kh == d.kw && d.oh == d.ow
-        && d.sh == d.sw && d.ph == d.pw) && d.id == 1;
+                                   && d.sh == d.sw && d.ph == d.pw)
+            && d.id == 1;
 
     const bool print_d = d.id > 1;
     const bool print_w = canonical || print_d || !half_form;
 
-    auto print_spatial = [&](
-            const char *sd, int64_t vd,
-            const char *sh, int64_t vh,
-            const char *sw, int64_t vw) {
+    auto print_spatial = [&](const char *sd, int64_t vd, const char *sh,
+                                 int64_t vh, const char *sw, int64_t vw) {
         if (print_d) s << sd << vd;
         s << sh << vh;
         if (print_w) s << sw << vw;
@@ -216,18 +234,14 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D)
-        s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.cfg != conf_f32)
-        s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.tag != mkldnn_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != MAX)
-        s << "--alg=" << alg2str(p.alg) << " ";
+    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 
     return s;
 }
 
-}
+} // namespace pool

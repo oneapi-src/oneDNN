@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 
@@ -40,12 +40,12 @@ std::vector<int64_t> mb {0};
 
 attr_t attr;
 bool allow_unimpl = false;
-const char *perf_template_csv =
-    "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
-    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-const char *perf_template_def =
-    "perf,%engine%,%name%,%desc%,"
-    "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_csv
+        = "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
+          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_def
+        = "perf,%engine%,%name%,%desc%,"
+          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
@@ -60,12 +60,12 @@ void reset_parameters() {
 }
 
 void check_correctness(const desc_t *c) {
-    for_(const auto &i_dir: dir)
-    for_(const auto &i_cfg: cfg)
-    for_(const auto &i_stag: stag)
-    for_(const auto &i_wtag: wtag)
-    for_(const auto &i_dtag: dtag)
-    for (const auto &i_mb: mb) {
+    for_(const auto &i_dir : dir)
+    for_(const auto &i_cfg : cfg)
+    for_(const auto &i_stag : stag)
+    for_(const auto &i_wtag : wtag)
+    for_(const auto &i_dtag : dtag)
+    for (const auto &i_mb : mb) {
         const prb_t p(*c, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, attr);
         std::stringstream ss;
         ss << p;
@@ -73,7 +73,7 @@ void check_correctness(const desc_t *c) {
         const char *pstr = cpp_pstr.c_str();
         print(1, "run: %s\n", pstr);
 
-        res_t res{};
+        res_t res {};
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
@@ -91,20 +91,17 @@ void check_correctness(const desc_t *c) {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false
-            || parse_bench_settings(argv[0])
-            || parse_batch(bench, argv[0])
-            || parse_dir(dir, argv[0])
-            || parse_cfg(cfg, str2cfg, argv[0])
-            || parse_tag(stag, argv[0], "stag")
-            || parse_tag(wtag, argv[0], "wtag")
-            || parse_tag(dtag, argv[0], "dtag")
-            || parse_mb(mb, argv[0])
-            || parse_attr(attr, argv[0])
-            || parse_allow_unimpl(allow_unimpl, argv[0])
-            || parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0])
-            || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = false || parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
+                || parse_cfg(cfg, str2cfg, argv[0])
+                || parse_tag(stag, argv[0], "stag")
+                || parse_tag(wtag, argv[0], "wtag")
+                || parse_tag(dtag, argv[0], "dtag") || parse_mb(mb, argv[0])
+                || parse_attr(attr, argv[0])
+                || parse_allow_unimpl(allow_unimpl, argv[0])
+                || parse_perf_template(perf_template, perf_template_def,
+                        perf_template_csv, argv[0])
+                || parse_reset(reset_parameters, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0], "ip");
 
@@ -117,4 +114,4 @@ int bench(int argc, char **argv) {
     return parse_last_argument();
 }
 
-}
+} // namespace ip

@@ -31,12 +31,12 @@ int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
     int scale_mask = 0;
 
     switch (policy) {
-    case P::PER_DIM_0: scale_mask = (1 << 0); break;
-    case P::PER_DIM_1: scale_mask = (1 << 1); break;
-    case P::PER_DIM_01: scale_mask = (1 << 0) + (1 << 1); break;
-    case P::COMMON:
-    case P::NONE: scale_mask = 0; break;
-    default: SAFE_V(FAIL);
+        case P::PER_DIM_0: scale_mask = (1 << 0); break;
+        case P::PER_DIM_1: scale_mask = (1 << 1); break;
+        case P::PER_DIM_01: scale_mask = (1 << 0) + (1 << 1); break;
+        case P::COMMON:
+        case P::NONE: scale_mask = 0; break;
+        default: SAFE_V(FAIL);
     }
 
     return scale_mask;
@@ -49,9 +49,8 @@ int scales_count(int64_t *count, int *mask, const dnn_mem_t &memory,
     if (mask) *mask = scale_mask;
 
     int64_t uniq_scales = 1;
-    for(int d = 0; d < md.ndims; ++d) {
-        if (scale_mask & (1 << d))
-            uniq_scales *= md.dims[d];
+    for (int d = 0; d < md.ndims; ++d) {
+        if (scale_mask & (1 << d)) uniq_scales *= md.dims[d];
     }
     *count = uniq_scales;
     return OK;
@@ -83,13 +82,13 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
         const float scale = scales[mask_idx];
 
         const float gen[7] = {
-            (float)max, /* saturate to max of output data type */
-            (float)c_src->min, /* saturate to min of output data type */
-            (float)1.6 / scale, /* rounding check */
-            (float)0.2 / scale, /* saturate to 0 */
-            (float)1.0,
-            (float)2.0,
-            (float)scale,
+                (float)max, /* saturate to max of output data type */
+                (float)c_src->min, /* saturate to min of output data type */
+                (float)1.6 / scale, /* rounding check */
+                (float)0.2 / scale, /* saturate to 0 */
+                (float)1.0,
+                (float)2.0,
+                (float)scale,
         };
 
         mem.set_elem(idx, maybe_saturate(dt, gen[idx % 7]));
@@ -106,11 +105,11 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
     const auto nelems = src.nelems();
 
     /* TODO: add dst range support */
-//    const auto c_dst = p->conf_out;
-//    const float dst_conf_min = c_dst.min;
-//    const float dst_conf_max = dst_conf_min + c_dst.range - 1;
-//    const float dst_max = MIN2(dst_conf_max, dst_dt_max);
-//    const float dst_min = MAX2(dst_conf_min, dst_dt_min);
+    //    const auto c_dst = p->conf_out;
+    //    const float dst_conf_min = c_dst.min;
+    //    const float dst_conf_max = dst_conf_min + c_dst.range - 1;
+    //    const float dst_max = MIN2(dst_conf_max, dst_dt_max);
+    //    const float dst_min = MAX2(dst_conf_min, dst_dt_min);
 
     const int scale_mask = get_scale_mask(src.md_, p->attr);
 
@@ -150,7 +149,7 @@ int compare_bootstrap(
 }
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
-        const float *scales, int64_t count, res_t *r){
+        const float *scales, int64_t count, res_t *r) {
     const auto nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
@@ -161,25 +160,27 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     const auto dt = mem_expected.dt();
     const size_t width = mem_expected.sizeof_dt() * 8;
 
-    const float dt_min = dt == mkldnn_u8
-        ? 0.f : -(float)(1l << (width - 1));
-    const float dt_max = dt == mkldnn_u8
-        ? 255.f : (float)((1l << (width - 1)) - 1);
+    const float dt_min = dt == mkldnn_u8 ? 0.f : -(float)(1l << (width - 1));
+    const float dt_max
+            = dt == mkldnn_u8 ? 255.f : (float)((1l << (width - 1)) - 1);
 
     int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
     const float tolerance = mem_computed.dt() == mkldnn_bf16
-        ? 8.e-3f // due to bf16 truncation (7th mantissa bit -> 1/129)
-        : 0.0f;
+            ? 8.e-3f // due to bf16 truncation (7th mantissa bit -> 1/129)
+            : 0.0f;
     for (int64_t i = 0; i < nelems; ++i) {
         const float expected = mem_expected.get_elem(i);
         const float computed = mem_computed.get_elem(i);
-        const float diff = fabsf(computed - expected)
-            / MAX2(FLT_MIN, fabsf(expected));
+        const float diff
+                = fabsf(computed - expected) / MAX2(FLT_MIN, fabsf(expected));
 
-        if (expected == dt_max) inf_p++;
-        else if (expected == dt_min) inf_n++;
-        else if (expected == 0.0) zeros++;
+        if (expected == dt_max)
+            inf_p++;
+        else if (expected == dt_min)
+            inf_n++;
+        else if (expected == 0.0)
+            zeros++;
         else
             reg++;
 
@@ -189,11 +190,9 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
         }
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     float max_scale = scales[0];
     for (int64_t i = 1; i < count; ++i) {
@@ -213,17 +212,15 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
             && (c_src->min * max_scale < c_dst->min);
     bool check_zeros = (check_int_overflow) && (dt_min != 0 && dt_max != 0);
 
-    bool mistrusted = reg == 0
-        || (check_inf_p && inf_p == 0)
-        || (check_inf_n && inf_n == 0)
-        || (check_zeros && zeros == 0);
+    bool mistrusted = reg == 0 || (check_inf_p && inf_p == 0)
+            || (check_inf_n && inf_n == 0) || (check_zeros && zeros == 0);
     if (mistrusted) r->state = MISTRUSTED;
 
     return r->state == FAILED ? FAIL : OK;
 }
 
 int check_reorder(const prb_t *p, res_t *res) {
-/*                                       ___________________
+    /*                                       ___________________
  *                                      |                   |
  *                                      | performance timer |
  *                                      |___________________|
@@ -279,15 +276,13 @@ int check_reorder(const prb_t *p, res_t *res) {
             ndims, dims, p->conf_in->dt, nullptr, engine_ref);
     dnn_mem_t mem_dt_in_fmt_in(
             ndims, dims, p->conf_in->dt, r.tag_in, engine_tgt);
-    dnn_mem_t mem_dt_out_fmt_out(
-            ndims, dims, p->conf_out->dt, r.tag_out,
+    dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_dt_out_fmt_out, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_ref(
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
     dnn_mem_t mem_test_dt_out_fmt_ref(
             ndims, dims, p->conf_out->dt, nullptr, engine_ref);
-    dnn_mem_t mem_test_dt_out_fmt_out(
-            ndims, dims, p->conf_out->dt, r.tag_out,
+    dnn_mem_t mem_test_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_test_dt_out_fmt_out, engine_tgt);
 
     /* Step 2: fill scales */
@@ -314,8 +309,8 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 3: check creation of reorder primitive */
     mkldnn_primitive_desc_t rpd;
-    mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(
-            &rpd, &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
+    mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(&rpd,
+            &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
             engine_tgt, mkldnn_attr);
     if (init_status == mkldnn_unimplemented) {
         res->state = UNIMPLEMENTED;
@@ -402,4 +397,4 @@ int doit(const prb_t *p, res_t *r) {
     return check_reorder(p, r);
 }
 
-}
+} // namespace reorder

@@ -45,8 +45,7 @@ struct lrn_test_params {
 
 template <typename acc_data_t>
 acc_data_t fast_inv_powf(acc_data_t omega, float beta) {
-    if (beta == 0.75f)
-        return (acc_data_t)(1.0f / sqrtf(sqrtf(omega) * omega));
+    if (beta == 0.75f) return (acc_data_t)(1.0f / sqrtf(sqrtf(omega) * omega));
     return (acc_data_t)(1.0f / std::pow(omega, beta));
 }
 
@@ -130,8 +129,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
                                                off(n, c, oh, ow), true)]
                         * omega_in_beta;
 
-                if (c == oc)
-                    A = tmp;
+                if (c == oc) A = tmp;
 
                 B += (src_ptr[src_mdw.off_l(off(n, c, oh, ow), true)] * tmp
                         / omega);
@@ -151,8 +149,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
                                                    off(n, oc, h, w), true)]
                             * omega_in_beta;
 
-                    if (h == oh && w == ow)
-                        A = tmp;
+                    if (h == oh && w == ow) A = tmp;
 
                     B += (src_ptr[src_mdw.off_l(off(n, oc, h, w), true)] * tmp
                             / omega);
@@ -166,8 +163,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
 
     mkldnn::impl::parallel_nd(N, C, H, W,
             [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
-                if (is_current_test_failed())
-                    return;
+                if (is_current_test_failed()) return;
 
                 ker(&ref_diff_src_ptr[diff_src_mdw.off_l(
                             off(n, c, h, w), true)],
@@ -191,8 +187,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
 }
 
 template <typename data_t>
-class lrn_test : public ::testing::TestWithParam<lrn_test_params>
-{
+class lrn_test : public ::testing::TestWithParam<lrn_test_params> {
 private:
     std::shared_ptr<test_memory> src;
     std::shared_ptr<test_memory> dst;
@@ -215,10 +210,10 @@ protected:
         data_type = data_traits<data_t>::data_type;
 
         SKIP_IF(data_type == memory::data_type::bf16
-                && get_test_engine_kind() == engine::kind::gpu,
+                        && get_test_engine_kind() == engine::kind::gpu,
                 "GPU does not support bf16 data type.");
         SKIP_IF(data_type == memory::data_type::bf16
-                && !impl::cpu::mayiuse(impl::cpu::avx512_core),
+                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
 
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
@@ -243,13 +238,13 @@ protected:
         test_lrn_desc_t ld = p.test_ld;
 
         src_desc.reset(new memory::desc(
-                { ld.mb, ld.c, ld.h, ld.w }, data_type, p.data_format));
+                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.data_format));
         dst_desc.reset(new memory::desc(
-                { ld.mb, ld.c, ld.h, ld.w }, data_type, p.data_format));
+                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.data_format));
         diff_src_desc.reset(new memory::desc(
-                { ld.mb, ld.c, ld.h, ld.w }, data_type, p.diff_data_format));
+                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.diff_data_format));
         diff_dst_desc.reset(new memory::desc(
-                { ld.mb, ld.c, ld.h, ld.w }, data_type, p.diff_data_format));
+                {ld.mb, ld.c, ld.h, ld.w}, data_type, p.diff_data_format));
 
         Forward();
         Backward();
@@ -271,11 +266,11 @@ protected:
 
         // Execute
         auto l = lrn_forward(lrn_fwd_prim_desc);
-        std::unordered_map<int, memory> args = { { MKLDNN_ARG_SRC, src->get() },
-            { MKLDNN_ARG_DST, dst->get() } };
+        std::unordered_map<int, memory> args
+                = {{MKLDNN_ARG_SRC, src->get()}, {MKLDNN_ARG_DST, dst->get()}};
         auto workspace_md = lrn_fwd_prim_desc.workspace_desc();
         workspace = memory(workspace_md, eng);
-        args.insert({ MKLDNN_ARG_WORKSPACE, workspace });
+        args.insert({MKLDNN_ARG_WORKSPACE, workspace});
         l.execute(strm, args);
         strm.wait();
     }
@@ -306,10 +301,10 @@ protected:
         // Execute
         lrn_backward(lrn_prim_desc)
                 .execute(strm,
-                        { { MKLDNN_ARG_SRC, src->get() },
-                                { MKLDNN_ARG_DIFF_DST, diff_dst->get() },
-                                { MKLDNN_ARG_WORKSPACE, workspace },
-                                { MKLDNN_ARG_DIFF_SRC, diff_src->get() } });
+                        {{MKLDNN_ARG_SRC, src->get()},
+                                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
+                                {MKLDNN_ARG_WORKSPACE, workspace},
+                                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src->get());
@@ -321,189 +316,182 @@ protected:
 
 static auto padded_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 0, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 0, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nChw16c, { 2, 16, 0, 4, 5, 1.0e-4f, 0.75f, 3.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {0, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 0, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nChw16c, {2, 16, 0, 4, 5, 1.0e-4f, 0.75f, 3.0f}});
 };
 
 static auto EF_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { -1, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f }, true,
-                    mkldnn_invalid_arguments },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, -4, 4, 5, 1.0e-4f, 0.75f, 3.0f }, true,
-                    mkldnn_invalid_arguments });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {-1, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}, true,
+                    mkldnn_invalid_arguments},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 10, -4, 4, 5, 1.0e-4f, 0.75f, 3.0f}, true,
+                    mkldnn_invalid_arguments});
 };
 
 static auto nChw16c_padded_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 17, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 17, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f}});
 };
 
 static auto nChw8c_padded_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 7, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 7, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 26, 4, 4, 5, 1.0e-4f, 0.75f, 5.7f}});
 };
 
 static auto cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 4.0f}});
 };
 
 static auto NHWC_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 3.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nhwc,
+                    fmt::nhwc, {2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nhwc,
+                    fmt::nhwc, {2, 10, 4, 4, 5, 1.0e-4f, 0.75f, 3.0f}});
 };
 
 static auto nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f}});
 };
 
 static auto nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 16, 4, 4, 5, 1.0e-4f, 0.75f, 5.0f}});
 };
 
 static auto CaffeNCHW_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } });
+    return ::testing::Values(lrn_test_params {prop_kind::forward_training, lk,
+            fmt::nchw, fmt::nchw, {2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f}});
 };
 
 static auto CaffeNHWC_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f } });
+    return ::testing::Values(lrn_test_params {prop_kind::forward_training, lk,
+            fmt::nhwc, fmt::nhwc, {2, 4, 5, 5, 5, 1.0f, 0.75f, 1.0f}});
 };
 
 static auto Caffe_nChw8c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } });
+    return ::testing::Values(lrn_test_params {prop_kind::forward_training, lk,
+            fmt::nChw8c, fmt::nChw8c, {2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f}});
 };
 
 static auto Caffe_nChw16c_cases = [](algorithm lk) {
-    return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f } });
+    return ::testing::Values(lrn_test_params {prop_kind::forward_training, lk,
+            fmt::nChw16c, fmt::nChw16c, {2, 96, 55, 55, 3, 1.0f, 0.75f, 1.0f}});
 };
 
 static auto AlexnetNCHW_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto AlexnetNHWC_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nhwc,
-                    fmt::nhwc, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nhwc,
+                    fmt::nhwc, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nhwc,
+                    fmt::nhwc, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto Alexnet_nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto Alexnet_nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c,
-                    { 2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 96, 55, 55, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto GoogleNetV1NCHW_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nchw,
-                    fmt::nchw, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
+                    fmt::nchw, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto GoogleNetV1_nChw8c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw8c,
-                    fmt::nChw8c, { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw8c,
+                    fmt::nChw8c, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto GoogleNetV1_nChw16c_cases = [](algorithm lk) {
     return ::testing::Values(
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c, { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } },
-            lrn_test_params{ prop_kind::forward_training, lk, fmt::nChw16c,
-                    fmt::nChw16c,
-                    { 2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}},
+            lrn_test_params {prop_kind::forward_training, lk, fmt::nChw16c,
+                    fmt::nChw16c, {2, 192, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
 static auto RegressionWeightFormat_cases = [](algorithm lk) {
-    return ::testing::Values(lrn_test_params{ prop_kind::forward_training,
-            lk, fmt::oihw, fmt::oihw,
-            { 2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f } });
+    return ::testing::Values(lrn_test_params {prop_kind::forward_training, lk,
+            fmt::oihw, fmt::oihw, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
-#define INST_TEST_CASE(test, lk)                                              \
-    TEST_P(test, TestsLRN) {}                                                 \
-    INSTANTIATE_TEST_SUITE_P(Backward_padded, test, padded_cases(lk));        \
-    INSTANTIATE_TEST_SUITE_P(BackwardEF, test, EF_cases(lk));             \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            Backward_nChw16c_padded, test, nChw16c_padded_cases(lk));         \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            Backward_nChw8c_padded, test, nChw8c_padded_cases(lk));           \
-    INSTANTIATE_TEST_SUITE_P(LRN, test, cases(lk));                           \
-    INSTANTIATE_TEST_SUITE_P(NHWC, test, NHWC_cases(lk));                     \
-    INSTANTIATE_TEST_SUITE_P(nChw8c, test, nChw8c_cases(lk));                 \
-    INSTANTIATE_TEST_SUITE_P(nChw16c, test, nChw16c_cases(lk));               \
-    INSTANTIATE_TEST_SUITE_P(CaffeNCHW, test, CaffeNCHW_cases(lk));           \
-    INSTANTIATE_TEST_SUITE_P(CaffeNHWC, test, CaffeNHWC_cases(lk));           \
-    INSTANTIATE_TEST_SUITE_P(Caffe_nChw8c, test, Caffe_nChw8c_cases(lk));     \
-    INSTANTIATE_TEST_SUITE_P(Caffe_nChw16c, test, Caffe_nChw16c_cases(lk));   \
-    INSTANTIATE_TEST_SUITE_P(AlexnetNCHW, test, AlexnetNCHW_cases(lk));       \
-    INSTANTIATE_TEST_SUITE_P(AlexnetNHWC, test, AlexnetNHWC_cases(lk));       \
+#define INST_TEST_CASE(test, lk) \
+    TEST_P(test, TestsLRN) {} \
+    INSTANTIATE_TEST_SUITE_P(Backward_padded, test, padded_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(BackwardEF, test, EF_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P( \
+            Backward_nChw16c_padded, test, nChw16c_padded_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P( \
+            Backward_nChw8c_padded, test, nChw8c_padded_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(LRN, test, cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(NHWC, test, NHWC_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(nChw8c, test, nChw8c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(nChw16c, test, nChw16c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(CaffeNCHW, test, CaffeNCHW_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(CaffeNHWC, test, CaffeNHWC_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(Caffe_nChw8c, test, Caffe_nChw8c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(Caffe_nChw16c, test, Caffe_nChw16c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(AlexnetNCHW, test, AlexnetNCHW_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(AlexnetNHWC, test, AlexnetNHWC_cases(lk)); \
     INSTANTIATE_TEST_SUITE_P(Alexnet_nChw8c, test, Alexnet_nChw8c_cases(lk)); \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            Alexnet_nChw16c, test, Alexnet_nChw16c_cases(lk));                \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            GoogleNetV1NCHW, test, GoogleNetV1NCHW_cases(lk));                \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            GoogleNetV1_nChw8c, test, GoogleNetV1_nChw8c_cases(lk));          \
-    INSTANTIATE_TEST_SUITE_P(                                                 \
-            GoogleNetV1_nChw16c, test, GoogleNetV1_nChw16c_cases(lk));        \
-    INSTANTIATE_TEST_SUITE_P(RegressionWeightFormat, test,                    \
-            RegressionWeightFormat_cases(                                     \
+    INSTANTIATE_TEST_SUITE_P( \
+            Alexnet_nChw16c, test, Alexnet_nChw16c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P( \
+            GoogleNetV1NCHW, test, GoogleNetV1NCHW_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P( \
+            GoogleNetV1_nChw8c, test, GoogleNetV1_nChw8c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P( \
+            GoogleNetV1_nChw16c, test, GoogleNetV1_nChw16c_cases(lk)); \
+    INSTANTIATE_TEST_SUITE_P(RegressionWeightFormat, test, \
+            RegressionWeightFormat_cases( \
                     lk)); // This tests compatibility with MKL-DNN 0.14
 
 using float_across = lrn_test<float>;

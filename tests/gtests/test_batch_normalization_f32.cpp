@@ -26,9 +26,7 @@ namespace mkldnn {
 
 using bnorm_test = bnorm_test_common<float>;
 
-TEST_P(bnorm_test, TestsBnormF32)
-{
-}
+TEST_P(bnorm_test, TestsBnormF32) {}
 
 #include "batch_normalization.h"
-}
+} // namespace mkldnn

@@ -32,111 +32,135 @@
 
 #define for_ for
 
-#define DNN_SAFE(f, s) do { \
-    mkldnn_status_t status = f; \
-    if (status != mkldnn_success) { \
-        if (s == CRIT || s == WARN) { \
-            print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                    __PRETTY_FUNCTION__, __LINE__, \
-                    #f, status2str(status), (int)status); \
-            fflush(0); \
-            if (s == CRIT) exit(2); \
-        } \
-        return FAIL; \
-    } \
-} while(0)
-
-#define DNN_SAFE_V(f) do { \
-    mkldnn_status_t status = f; \
-    if (status != mkldnn_success) { \
-        print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
-                __PRETTY_FUNCTION__, __LINE__, \
-                STRINGIFY(f), status2str(status), (int)status); \
-        fflush(0); \
-        exit(2); \
-    } \
-} while(0)
-
-#define DNN_SAFE_CLEAN(f, s, clean)                                            \
-    do {                                                                       \
-        mkldnn_status_t status = f;                                            \
-        if (status != mkldnn_success) {                                        \
-            if (s == CRIT || s == WARN) {                                      \
-                print(0, "error [%s:%d]: '%s' -> %s(%d)\n",                    \
+#define DNN_SAFE(f, s) \
+    do { \
+        mkldnn_status_t status = f; \
+        if (status != mkldnn_success) { \
+            if (s == CRIT || s == WARN) { \
+                print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
                         __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
-                        (int)status);                                          \
-                fflush(0);                                                     \
-                if (s == CRIT)                                                 \
-                    exit(2);                                                   \
-            }                                                                  \
-            clean();                                                           \
-            return FAIL;                                                       \
-        }                                                                      \
+                        (int)status); \
+                fflush(0); \
+                if (s == CRIT) exit(2); \
+            } \
+            return FAIL; \
+        } \
+    } while (0)
+
+#define DNN_SAFE_V(f) \
+    do { \
+        mkldnn_status_t status = f; \
+        if (status != mkldnn_success) { \
+            print(0, "error [%s:%d]: '%s' -> %s(%d)\n", __PRETTY_FUNCTION__, \
+                    __LINE__, STRINGIFY(f), status2str(status), (int)status); \
+            fflush(0); \
+            exit(2); \
+        } \
+    } while (0)
+
+#define DNN_SAFE_CLEAN(f, s, clean) \
+    do { \
+        mkldnn_status_t status = f; \
+        if (status != mkldnn_success) { \
+            if (s == CRIT || s == WARN) { \
+                print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
+                        __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
+                        (int)status); \
+                fflush(0); \
+                if (s == CRIT) exit(2); \
+            } \
+            clean(); \
+            return FAIL; \
+        } \
     } while (0)
 
 /* aux */
 using bfloat16_t = mkldnn::impl::bfloat16_t;
 using float16_t = mkldnn::impl::float16_t;
-template <mkldnn_data_type_t> struct prec_traits;
-template <> struct prec_traits<mkldnn_bf16> { typedef bfloat16_t type; };
-template <> struct prec_traits<mkldnn_f16> { typedef float16_t type; };
-template <> struct prec_traits<mkldnn_f32> { typedef float type; };
-template <> struct prec_traits<mkldnn_s32> { typedef int32_t type; };
-template <> struct prec_traits<mkldnn_s8> { typedef int8_t type; };
-template <> struct prec_traits<mkldnn_u8> { typedef uint8_t type; };
+template <mkldnn_data_type_t>
+struct prec_traits;
+template <>
+struct prec_traits<mkldnn_bf16> {
+    typedef bfloat16_t type;
+};
+template <>
+struct prec_traits<mkldnn_f16> {
+    typedef float16_t type;
+};
+template <>
+struct prec_traits<mkldnn_f32> {
+    typedef float type;
+};
+template <>
+struct prec_traits<mkldnn_s32> {
+    typedef int32_t type;
+};
+template <>
+struct prec_traits<mkldnn_s8> {
+    typedef int8_t type;
+};
+template <>
+struct prec_traits<mkldnn_u8> {
+    typedef uint8_t type;
+};
 
-#define CASE_ALL(dt)                   \
-    switch (dt) {                      \
-        CASE(mkldnn_bf16);             \
-        CASE(mkldnn_f16);              \
-        CASE(mkldnn_f32);              \
-        CASE(mkldnn_s32);              \
-        CASE(mkldnn_s8);               \
-        CASE(mkldnn_u8);               \
-    default: assert(!"bad data_type"); \
+#define CASE_ALL(dt) \
+    switch (dt) { \
+        CASE(mkldnn_bf16); \
+        CASE(mkldnn_f16); \
+        CASE(mkldnn_f32); \
+        CASE(mkldnn_s32); \
+        CASE(mkldnn_s8); \
+        CASE(mkldnn_u8); \
+        default: assert(!"bad data_type"); \
     }
 
 inline size_t sizeof_dt(mkldnn_data_type_t dt) {
-#   define CASE(dt) \
+#define CASE(dt) \
     case dt: return sizeof(typename prec_traits<dt>::type);
 
     CASE_ALL(dt);
 
-#   undef CASE
+#undef CASE
     return 0;
 }
 
 /* std::numeric_limits::digits functionality */
 inline int digits_dt(mkldnn_data_type_t dt) {
-#   define CASE(dt)                                \
-    case dt:                                       \
+#define CASE(dt) \
+    case dt: \
         return mkldnn::impl::nstl::numeric_limits< \
                 typename prec_traits<dt>::type>::digits;
 
     CASE_ALL(dt);
 
-#   undef CASE
+#undef CASE
     return 0;
 }
 
 #undef CASE_ALL
 
-template <mkldnn_data_type_t dt> inline float saturate(float val) {
+template <mkldnn_data_type_t dt>
+inline float saturate(float val) {
     return MAX2(mkldnn::impl::nstl::numeric_limits<
-            typename prec_traits<dt>::type>::lowest(),
+                        typename prec_traits<dt>::type>::lowest(),
             MIN2(mkldnn::impl::nstl::numeric_limits<
-                typename prec_traits<dt>::type>::max(), mxcsr_round(val)));
+                         typename prec_traits<dt>::type>::max(),
+                    mxcsr_round(val)));
 }
 
 inline float maybe_saturate(mkldnn_data_type_t dt, float value) {
     if (dt == mkldnn_s32 || dt == mkldnn_s8 || dt == mkldnn_u8) {
         switch (dt) {
-#       define CASE(dt) case dt: { return saturate<dt>(value); }
-        CASE(mkldnn_s32);
-        CASE(mkldnn_s8);
-        CASE(mkldnn_u8);
-#       undef CASE
-        default: assert(!"bad data_type");
+#define CASE(dt) \
+    case dt: { \
+        return saturate<dt>(value); \
+    }
+            CASE(mkldnn_s32);
+            CASE(mkldnn_s8);
+            CASE(mkldnn_u8);
+#undef CASE
+            default: assert(!"bad data_type");
         }
         return 0;
     }
@@ -222,6 +246,7 @@ struct args_t {
     int size() const { return (int)args_.size(); }
     const mkldnn_exec_arg_t *args() const { return args_.data(); }
     operator const mkldnn_exec_arg_t *() const { return args(); }
+
 private:
     std::vector<mkldnn_exec_arg_t> args_;
 };
@@ -230,13 +255,12 @@ inline mkldnn_status_t execute_and_wait(mkldnn_primitive_t prim,
         mkldnn_stream_t stream, int nargs, const mkldnn_exec_arg_t *args) {
     mkldnn_status_t status
             = mkldnn_primitive_execute(prim, stream, nargs, args);
-    if (status != mkldnn_success)
-        return status;
+    if (status != mkldnn_success) return status;
     return mkldnn_stream_wait(stream);
 }
 
-inline int measure_perf(benchdnn_timer_t &t, mkldnn_primitive_t prim,
-        args_t &args) {
+inline int measure_perf(
+        benchdnn_timer_t &t, mkldnn_primitive_t prim, args_t &args) {
     if (bench_mode & PERF) {
         t.reset();
         while (true) {
@@ -244,10 +268,9 @@ inline int measure_perf(benchdnn_timer_t &t, mkldnn_primitive_t prim,
                     WARN);
             t.stamp();
             const bool stop = false
-                || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                || (!fix_times_per_prb
-                        && t.total_ms() >= max_ms_per_prb
-                        && t.times() >= min_times_per_prb);
+                    || (fix_times_per_prb && t.times() >= fix_times_per_prb)
+                    || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
+                            && t.times() >= min_times_per_prb);
             if (stop) break;
         }
     }

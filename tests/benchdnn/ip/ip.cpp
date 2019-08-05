@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
 #include <random>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "mkldnn.h"
 
@@ -54,35 +54,48 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     mkldnn_dims_t dst_dims = {p->mb, p->oc};
 
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
-        is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims,
-        p->cfg[SRC].dt, p->stag), WARN);
+                     is_3d(p) ? src_3d_dims
+                              : is_1d(p) ? src_1d_dims : src_2d_dims,
+                     p->cfg[SRC].dt, p->stag),
+            WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims,
-        is_3d(p) ? wei_3d_dims : is_1d(p) ? wei_1d_dims : wei_2d_dims,
-        p->cfg[WEI].dt, p->wtag), WARN);
+                     is_3d(p) ? wei_3d_dims
+                              : is_1d(p) ? wei_1d_dims : wei_2d_dims,
+                     p->cfg[WEI].dt, p->wtag),
+            WARN);
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
-                mkldnn_format_tag_any), WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
-                p->dtag), WARN);
+                     mkldnn_format_tag_any),
+            WARN);
+    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+                     &dst_d, 2, dst_dims, p->cfg[DST].dt, p->dtag),
+            WARN);
 
     switch (p->dir) {
-    case FWD_D: case FWD_B:
-        DNN_SAFE(mkldnn_inner_product_forward_desc_init(&ipd, mkldnn_forward,
-                    &src_d, &wei_d, p->dir == FWD_D ? NULL : &bia_d, &dst_d),
-                WARN);
-        break;
-    case BWD_D:
-        DNN_SAFE(mkldnn_inner_product_backward_data_desc_init(&ipd, &src_d,
-                    &wei_d, &dst_d), WARN);
-        break;
-    case BWD_W: case BWD_WB:
-        DNN_SAFE(mkldnn_inner_product_backward_weights_desc_init(&ipd, &src_d,
-                    &wei_d, p->dir == BWD_W ? NULL : &bia_d, &dst_d), WARN);
-        break;
-    default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
+        case FWD_D:
+        case FWD_B:
+            DNN_SAFE(mkldnn_inner_product_forward_desc_init(&ipd,
+                             mkldnn_forward, &src_d, &wei_d,
+                             p->dir == FWD_D ? NULL : &bia_d, &dst_d),
+                    WARN);
+            break;
+        case BWD_D:
+            DNN_SAFE(mkldnn_inner_product_backward_data_desc_init(
+                             &ipd, &src_d, &wei_d, &dst_d),
+                    WARN);
+            break;
+        case BWD_W:
+        case BWD_WB:
+            DNN_SAFE(mkldnn_inner_product_backward_weights_desc_init(&ipd,
+                             &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d,
+                             &dst_d),
+                    WARN);
+            break;
+        default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
     }
 
-    DNN_SAFE(ipd.accum_data_type == p->cfg[ACC].dt
-            ? mkldnn_success : mkldnn_unimplemented, CRIT);
+    DNN_SAFE(ipd.accum_data_type == p->cfg[ACC].dt ? mkldnn_success
+                                                   : mkldnn_unimplemented,
+            CRIT);
 
     auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
 
@@ -100,8 +113,9 @@ inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
     const char *impl_str = query_impl_info(ippd);
     print(5, "mkldnn implementation: %s\n", impl_str);
 
-    auto q = [=](mkldnn_query_t query, int index = 0)
-    { return *mkldnn_primitive_desc_query_md(ippd, query, index); };
+    auto q = [=](mkldnn_query_t query, int index = 0) {
+        return *mkldnn_primitive_desc_query_md(ippd, query, index);
+    };
 
     if (p->dir == BWD_D)
         ipd.diff_src_desc = q(mkldnn_query_diff_src_md);
@@ -148,12 +162,11 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         r->errors += !ok;
 
-        const bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30)
-            || (verbose >= 99);
+        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
-            print(0, "[%4ld][%s]"
+            print(0,
+                    "[%4ld][%s]"
                     "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                     (long)i, skind, fp, fp0, dt, diff, rel_diff);
         }
@@ -165,16 +178,15 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     if (no_trust) {
         r->state = MISTRUSTED;
         const char *skind = data_kind2str(kind);
-        print(0, "@@@ [%s] test-bug: trust is too low."
-                 " Nonzeros in output: %.2f\n",
+        print(0,
+                "@@@ [%s] test-bug: trust is too low."
+                " Nonzeros in output: %.2f\n",
                 skind, trust_nz);
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
@@ -194,8 +206,7 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
         int64_t idx_start = ithr * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
-        std::uniform_int_distribution<> gen(
-                c.f_min, c.f_max);
+        std::uniform_int_distribution<> gen(c.f_min, c.f_max);
         msr.discard(kind + idx_start);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (float)gen(msr) * c.f_scale;
@@ -214,16 +225,16 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t ip;
 
     SAFE(init_pd(p, ipd, ippd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&ip, ippd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(ippd), CRIT);
 
     auto &src_dt_d = p->dir == BWD_D ? ipd.diff_src_desc : ipd.src_desc;
-    auto &wei_dt_d = p->dir & FLAG_WEI ? ipd.diff_weights_desc : ipd.weights_desc;
+    auto &wei_dt_d
+            = p->dir & FLAG_WEI ? ipd.diff_weights_desc : ipd.weights_desc;
     auto &bia_dt_d = p->dir & FLAG_BWD ? ipd.diff_bias_desc : ipd.bias_desc;
-    auto &dst_dt_d = p->dir & FLAG_BWD ? ipd.diff_dst_desc: ipd.dst_desc;
+    auto &dst_dt_d = p->dir & FLAG_BWD ? ipd.diff_dst_desc : ipd.dst_desc;
 
     const auto fp = mkldnn_f32;
     dnn_mem_t src_dt(
@@ -248,16 +259,14 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
     SAFE(fill_data(WEI, p, wei_dt, wei_fp, r), WARN);
     SAFE(fill_data(DST, p, dst_dt, dst_fp, r), WARN);
-    if (p->dir & FLAG_BIA)
-        SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
+    if (p->dir & FLAG_BIA) SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
 
     args_t args;
 
     if (p->dir & FLAG_FWD) {
         args.set(MKLDNN_ARG_SRC, src_dt.m_);
         args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA)
-            args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
+        if (p->dir & FLAG_BIA) args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
         args.set(MKLDNN_ARG_DST, dst_dt.m_);
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
         if (bench_mode & CORR) {
@@ -281,8 +290,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(MKLDNN_ARG_SRC, src_dt.m_);
         args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
         args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA)
-            args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
+        if (p->dir & FLAG_BIA) args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
 
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
 
@@ -304,4 +312,4 @@ int doit(const prb_t *p, res_t *r) {
     return OK;
 }
 
-}
+} // namespace ip

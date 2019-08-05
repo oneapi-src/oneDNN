@@ -24,12 +24,12 @@
 #define TEST_CONCAT_(a, b) a##b
 #define TEST_CONCAT(a, b) TEST_CONCAT_(a, b)
 
-#define SKIP_IF(cond, msg)                                      \
-    do {                                                        \
-        if (cond) {                                             \
+#define SKIP_IF(cond, msg) \
+    do { \
+        if (cond) { \
             std::cout << "[  SKIPPED ] " << (msg) << std::endl; \
-            return;                                             \
-        }                                                       \
+            return; \
+        } \
     } while (0)
 
 #define TEST_F_(test_fixture, test_name) TEST_F(test_fixture, test_name)
@@ -52,11 +52,11 @@
     INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator)
 
 #define CPU_INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator) \
-    INSTANTIATE_TEST_SUITE_P_(                                          \
+    INSTANTIATE_TEST_SUITE_P_( \
             TEST_CONCAT(prefix, _CPU), test_case_name, generator)
 
 #define GPU_INSTANTIATE_TEST_SUITE_P(prefix, test_case_name, generator) \
-    INSTANTIATE_TEST_SUITE_P_(                                          \
+    INSTANTIATE_TEST_SUITE_P_( \
             TEST_CONCAT(prefix, _GPU), test_case_name, generator)
 
 #define GPU_INSTANTIATE_TEST_SUITE_P_(prefix, test_case_name, generator) \

@@ -16,8 +16,8 @@
 
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "mkldnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 namespace mkldnn {
 
@@ -36,12 +36,13 @@ struct nd_params_t {
 };
 using np_t = nd_params_t;
 
-class test_nd: public ::testing::TestWithParam<nd_params_t> {
+class test_nd : public ::testing::TestWithParam<nd_params_t> {
 protected:
     virtual void SetUp() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         size = 1;
-        for (auto &d: p.dims) size *= d;
+        for (auto &d : p.dims)
+            size *= d;
         data.resize((size_t)size);
     }
 
@@ -55,68 +56,93 @@ protected:
     std::vector<data_t> data;
 };
 
-class test_for_nd: public test_nd {
+class test_for_nd : public test_nd {
 protected:
     void emit_for_nd(int ithr, int nthr) {
         switch ((int)p.dims.size()) {
-        case 1:
-            impl::for_nd(ithr, nthr, p.dims[0], [&](ptrdiff_t d0) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                data[d0] = d0;
-            });
-            break;
-        case 2:
-            impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], [&](ptrdiff_t d0, ptrdiff_t d1) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                const ptrdiff_t idx = d0 * p.dims[1] + d1;
-                data[idx] = idx;
-            });
-            break;
-        case 3:
-            impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                const ptrdiff_t idx = (d0 * p.dims[1] + d1) * p.dims[2] + d2;
-                data[idx] = idx;
-            });
-            break;
-        case 4:
-            impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2], p.dims[3], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                const ptrdiff_t idx = ((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3;
-                data[idx] = idx;
-            });
-            break;
-        case 5:
-            impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2], p.dims[3], p.dims[4], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3, ptrdiff_t d4) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
-                const ptrdiff_t idx = (((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3) * p.dims[4] + d4;
-                data[idx] = idx;
-            });
-            break;
-        case 6:
-            impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2], p.dims[3], p.dims[4], p.dims[5], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3, ptrdiff_t d4, ptrdiff_t d5) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
-                ASSERT_TRUE(0 <= d5 && d5 < p.dims[5]);
-                const ptrdiff_t idx = ((((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3) * p.dims[4] + d4) * p.dims[5] + d5;
-                data[idx] = idx;
-            });
-            break;
-        default:
-            ASSERT_TRUE(false);
+            case 1:
+                impl::for_nd(ithr, nthr, p.dims[0], [&](ptrdiff_t d0) {
+                    ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                    data[d0] = d0;
+                });
+                break;
+            case 2:
+                impl::for_nd(ithr, nthr, p.dims[0], p.dims[1],
+                        [&](ptrdiff_t d0, ptrdiff_t d1) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            const ptrdiff_t idx = d0 * p.dims[1] + d1;
+                            data[idx] = idx;
+                        });
+                break;
+            case 3:
+                impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            const ptrdiff_t idx
+                                    = (d0 * p.dims[1] + d1) * p.dims[2] + d2;
+                            data[idx] = idx;
+                        });
+                break;
+            case 4:
+                impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2],
+                        p.dims[3],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            const ptrdiff_t idx
+                                    = ((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                            * p.dims[3]
+                                    + d3;
+                            data[idx] = idx;
+                        });
+                break;
+            case 5:
+                impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2],
+                        p.dims[3], p.dims[4],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3, ptrdiff_t d4) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
+                            const ptrdiff_t idx
+                                    = (((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                                      * p.dims[3]
+                                              + d3)
+                                            * p.dims[4]
+                                    + d4;
+                            data[idx] = idx;
+                        });
+                break;
+            case 6:
+                impl::for_nd(ithr, nthr, p.dims[0], p.dims[1], p.dims[2],
+                        p.dims[3], p.dims[4], p.dims[5],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3, ptrdiff_t d4, ptrdiff_t d5) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
+                            ASSERT_TRUE(0 <= d5 && d5 < p.dims[5]);
+                            const ptrdiff_t idx
+                                    = ((((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                                       * p.dims[3]
+                                               + d3) * p.dims[4]
+                                              + d4)
+                                            * p.dims[5]
+                                    + d5;
+                            data[idx] = idx;
+                        });
+                break;
+            default: ASSERT_TRUE(false);
         }
     }
 };
@@ -131,16 +157,16 @@ TEST_P(test_for_nd, Parallel) {
     CheckID();
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd, ::testing::Values(
-    np_t{{0}}, np_t{{1}}, np_t{{100}},
-    np_t{{0, 0}}, np_t{{1, 2}}, np_t{{10, 10}},
-    np_t{{0, 1, 0}}, np_t{{1, 2, 1}}, np_t{{4, 4, 10}},
-    np_t{{0, 3, 0, 1}}, np_t{{1, 1, 2, 1}}, np_t{{4, 4, 5, 2}},
-    np_t{{3, 0, 3, 0, 1}}, np_t{{2, 1, 1, 2, 1}}, np_t{{4, 1, 4, 5, 2}},
-    np_t{{4, 3, 0, 3, 0, 1}}, np_t{{2, 1, 3, 1, 2, 1}}, np_t{{4, 1, 4, 3, 2, 2}}
-));
+CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd,
+        ::testing::Values(np_t {{0}}, np_t {{1}}, np_t {{100}}, np_t {{0, 0}},
+                np_t {{1, 2}}, np_t {{10, 10}}, np_t {{0, 1, 0}},
+                np_t {{1, 2, 1}}, np_t {{4, 4, 10}}, np_t {{0, 3, 0, 1}},
+                np_t {{1, 1, 2, 1}}, np_t {{4, 4, 5, 2}},
+                np_t {{3, 0, 3, 0, 1}}, np_t {{2, 1, 1, 2, 1}},
+                np_t {{4, 1, 4, 5, 2}}, np_t {{4, 3, 0, 3, 0, 1}},
+                np_t {{2, 1, 3, 1, 2, 1}}, np_t {{4, 1, 4, 3, 2, 2}}));
 
-class test_for_nd_with_diff_types: public test_nd {};
+class test_for_nd_with_diff_types : public test_nd {};
 TEST_P(test_for_nd_with_diff_types, Test) {
     ASSERT_EQ(p.dims.size(), 2u);
 
@@ -158,70 +184,95 @@ TEST_P(test_for_nd_with_diff_types, Test) {
 
     CheckID();
 }
-CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd_with_diff_types, ::testing::Values(np_t{{4, 9}}));
+CPU_INSTANTIATE_TEST_SUITE_P(
+        Case0, test_for_nd_with_diff_types, ::testing::Values(np_t {{4, 9}}));
 
-class test_parallel_nd: public test_nd {
+class test_parallel_nd : public test_nd {
 protected:
     void emit_parallel_nd() {
         switch ((int)p.dims.size()) {
-        case 1:
-            impl::parallel_nd(p.dims[0], [&](ptrdiff_t d0) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                data[d0] = d0;
-            });
-            break;
-        case 2:
-            impl::parallel_nd(p.dims[0], p.dims[1], [&](ptrdiff_t d0, ptrdiff_t d1) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                const ptrdiff_t idx = d0 * p.dims[1] + d1;
-                data[idx] = idx;
-            });
-            break;
-        case 3:
-            impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                const ptrdiff_t idx = (d0 * p.dims[1] + d1) * p.dims[2] + d2;
-                data[idx] = idx;
-            });
-            break;
-        case 4:
-            impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                const ptrdiff_t idx = ((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3;
-                data[idx] = idx;
-            });
-            break;
-        case 5:
-            impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3], p.dims[4], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3, ptrdiff_t d4) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
-                const ptrdiff_t idx = (((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3) * p.dims[4] + d4;
-                data[idx] = idx;
-            });
-            break;
-        case 6:
-            impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3], p.dims[4], p.dims[5], [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2, ptrdiff_t d3, ptrdiff_t d4, ptrdiff_t d5) {
-                ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
-                ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
-                ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
-                ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
-                ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
-                ASSERT_TRUE(0 <= d5 && d5 < p.dims[5]);
-                const ptrdiff_t idx = ((((d0 * p.dims[1] + d1) * p.dims[2] + d2) * p.dims[3] + d3) * p.dims[4] + d4) * p.dims[5] + d5;
-                data[idx] = idx;
-            });
-            break;
-        default:
-            ASSERT_TRUE(false);
+            case 1:
+                impl::parallel_nd(p.dims[0], [&](ptrdiff_t d0) {
+                    ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                    data[d0] = d0;
+                });
+                break;
+            case 2:
+                impl::parallel_nd(
+                        p.dims[0], p.dims[1], [&](ptrdiff_t d0, ptrdiff_t d1) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            const ptrdiff_t idx = d0 * p.dims[1] + d1;
+                            data[idx] = idx;
+                        });
+                break;
+            case 3:
+                impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            const ptrdiff_t idx
+                                    = (d0 * p.dims[1] + d1) * p.dims[2] + d2;
+                            data[idx] = idx;
+                        });
+                break;
+            case 4:
+                impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            const ptrdiff_t idx
+                                    = ((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                            * p.dims[3]
+                                    + d3;
+                            data[idx] = idx;
+                        });
+                break;
+            case 5:
+                impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3],
+                        p.dims[4],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3, ptrdiff_t d4) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
+                            const ptrdiff_t idx
+                                    = (((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                                      * p.dims[3]
+                                              + d3)
+                                            * p.dims[4]
+                                    + d4;
+                            data[idx] = idx;
+                        });
+                break;
+            case 6:
+                impl::parallel_nd(p.dims[0], p.dims[1], p.dims[2], p.dims[3],
+                        p.dims[4], p.dims[5],
+                        [&](ptrdiff_t d0, ptrdiff_t d1, ptrdiff_t d2,
+                                ptrdiff_t d3, ptrdiff_t d4, ptrdiff_t d5) {
+                            ASSERT_TRUE(0 <= d0 && d0 < p.dims[0]);
+                            ASSERT_TRUE(0 <= d1 && d1 < p.dims[1]);
+                            ASSERT_TRUE(0 <= d2 && d2 < p.dims[2]);
+                            ASSERT_TRUE(0 <= d3 && d3 < p.dims[3]);
+                            ASSERT_TRUE(0 <= d4 && d4 < p.dims[4]);
+                            ASSERT_TRUE(0 <= d5 && d5 < p.dims[5]);
+                            const ptrdiff_t idx
+                                    = ((((d0 * p.dims[1] + d1) * p.dims[2] + d2)
+                                                       * p.dims[3]
+                                               + d3) * p.dims[4]
+                                              + d4)
+                                            * p.dims[5]
+                                    + d5;
+                            data[idx] = idx;
+                        });
+                break;
+            default: ASSERT_TRUE(false);
         }
     }
 };
@@ -231,13 +282,13 @@ TEST_P(test_parallel_nd, Test) {
     CheckID();
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(Case, test_parallel_nd, ::testing::Values(
-    np_t{{0}}, np_t{{1}}, np_t{{100}},
-    np_t{{0, 0}}, np_t{{1, 2}}, np_t{{10, 10}},
-    np_t{{0, 1, 0}}, np_t{{1, 2, 1}}, np_t{{4, 4, 10}},
-    np_t{{0, 3, 0, 1}}, np_t{{1, 1, 2, 1}}, np_t{{4, 4, 5, 2}},
-    np_t{{3, 0, 3, 0, 1}}, np_t{{2, 1, 1, 2, 1}}, np_t{{4, 1, 4, 5, 2}},
-    np_t{{4, 3, 0, 3, 0, 1}}, np_t{{2, 1, 3, 1, 2, 1}}, np_t{{4, 1, 4, 3, 2, 2}}
-));
+CPU_INSTANTIATE_TEST_SUITE_P(Case, test_parallel_nd,
+        ::testing::Values(np_t {{0}}, np_t {{1}}, np_t {{100}}, np_t {{0, 0}},
+                np_t {{1, 2}}, np_t {{10, 10}}, np_t {{0, 1, 0}},
+                np_t {{1, 2, 1}}, np_t {{4, 4, 10}}, np_t {{0, 3, 0, 1}},
+                np_t {{1, 1, 2, 1}}, np_t {{4, 4, 5, 2}},
+                np_t {{3, 0, 3, 0, 1}}, np_t {{2, 1, 1, 2, 1}},
+                np_t {{4, 1, 4, 5, 2}}, np_t {{4, 3, 0, 3, 0, 1}},
+                np_t {{2, 1, 3, 1, 2, 1}}, np_t {{4, 1, 4, 3, 2, 2}}));
 
-}
+} // namespace mkldnn

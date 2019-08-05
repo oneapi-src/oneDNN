@@ -134,23 +134,23 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter_h, float *dst_iter_c,
         const float *bias, const float *src_layer, const float *src_iter_h,
         const float *src_iter_c, float *ws_local_) {
     switch (p.alg) {
-    case VANILLA_GRU:
-        gru_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
-                src_layer, src_iter_h);
-        break;
-    case LBR_GRU:
-        lbr_gru_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
-                src_layer, src_iter_h, ws_local_);
-        break;
-    case VANILLA_LSTM:
-        lstm_fwd(p, dst_iter_h, dst_iter_c, gates, weights_layer, weights_iter,
-                bias, src_layer, src_iter_h, src_iter_c);
-        break;
-    case VANILLA_RNN:
-        rnn_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
-                src_layer, src_iter_h);
-        break;
-    default: break;
+        case VANILLA_GRU:
+            gru_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
+                    src_layer, src_iter_h);
+            break;
+        case LBR_GRU:
+            lbr_gru_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
+                    src_layer, src_iter_h, ws_local_);
+            break;
+        case VANILLA_LSTM:
+            lstm_fwd(p, dst_iter_h, dst_iter_c, gates, weights_layer,
+                    weights_iter, bias, src_layer, src_iter_h, src_iter_c);
+            break;
+        case VANILLA_RNN:
+            rnn_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
+                    src_layer, src_iter_h);
+            break;
+        default: break;
     }
 }
 
@@ -216,21 +216,21 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
     };
 
     switch (p.direction) {
-    case mkldnn_unidirectional_left2right:
-        process_direction(left2right, bottom2top, 0, action_copy);
-        break;
-    case mkldnn_unidirectional_right2left:
-        process_direction(right2left, bottom2top, 0, action_copy);
-        break;
-    case mkldnn_bidirectional_sum:
-        process_direction(left2right, bottom2top, 0, action_copy);
-        process_direction(right2left, bottom2top, 1, action_sum);
-        break;
-    case mkldnn_bidirectional_concat:
-        process_direction(left2right, bottom2top, 0, action_copy);
-        process_direction(right2left, bottom2top, 1, action_concat);
-        break;
-    default: assert("unknown direction"); break;
+        case mkldnn_unidirectional_left2right:
+            process_direction(left2right, bottom2top, 0, action_copy);
+            break;
+        case mkldnn_unidirectional_right2left:
+            process_direction(right2left, bottom2top, 0, action_copy);
+            break;
+        case mkldnn_bidirectional_sum:
+            process_direction(left2right, bottom2top, 0, action_copy);
+            process_direction(right2left, bottom2top, 1, action_sum);
+            break;
+        case mkldnn_bidirectional_concat:
+            process_direction(left2right, bottom2top, 0, action_copy);
+            process_direction(right2left, bottom2top, 1, action_concat);
+            break;
+        default: assert("unknown direction"); break;
     }
 
     delete[] ws_local_;

@@ -26,9 +26,7 @@ namespace mkldnn {
 
 using bnorm_test = bnorm_test_common<int8_t>;
 
-TEST_P(bnorm_test, TestsBnormS8)
-{
-}
+TEST_P(bnorm_test, TestsBnormS8) {}
 
 #include "batch_normalization.h"
-}
+} // namespace mkldnn

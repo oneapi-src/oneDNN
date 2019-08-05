@@ -45,18 +45,17 @@ TEST_P(reorder_simple_test_f32_f32, GPU_CPU) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
-        ::testing::Values(cfg_f32{ tag::nchw, tag::nhwc, { 32, 48, 5, 4 } },
-                cfg_f32{ tag::oihw, tag::IOhw16i16o, { 32, 48, 2, 3 } },
-                cfg_f32{ tag::oihw, tag::OIhw16o16i, { 32, 32, 1, 1 } },
-                cfg_f32{ tag::hwigo, tag::gIOhw16i16o, { 2, 64, 32, 1, 3 } },
-                cfg_f32{ tag::goihw, tag::gOIhw16o16i, { 2, 32, 64, 2, 3 } },
-                cfg_f32{ tag::OIhw16o16i, tag::IOhw16i16o, { 32, 48, 2, 3 } },
-                cfg_f32{ tag::gOIhw16o16i, tag::gIOhw16i16o, { 2, 64, 32, 3, 2 } },
-                cfg_f32{ tag::oidhw, tag::OIdhw16i16o, { 64, 32, 3, 9, 5 } },
-                cfg_f32{ tag::goidhw, tag::gOIdhw16i16o, { 2, 32, 64, 4, 1, 7 } },
-                cfg_f32{ tag::nchw, tag::nhwc, { 32, 48, 5, 4 } },
-                cfg_f32{ tag::nchw, tag::NChw16n16c, { 64, 32, 5, 6 } },
-                cfg_f32{ tag::nChw16c, tag::NChw16n16c, { 32, 48, 6, 9 } }
-                ));
+        ::testing::Values(cfg_f32 {tag::nchw, tag::nhwc, {32, 48, 5, 4}},
+                cfg_f32 {tag::oihw, tag::IOhw16i16o, {32, 48, 2, 3}},
+                cfg_f32 {tag::oihw, tag::OIhw16o16i, {32, 32, 1, 1}},
+                cfg_f32 {tag::hwigo, tag::gIOhw16i16o, {2, 64, 32, 1, 3}},
+                cfg_f32 {tag::goihw, tag::gOIhw16o16i, {2, 32, 64, 2, 3}},
+                cfg_f32 {tag::OIhw16o16i, tag::IOhw16i16o, {32, 48, 2, 3}},
+                cfg_f32 {tag::gOIhw16o16i, tag::gIOhw16i16o, {2, 64, 32, 3, 2}},
+                cfg_f32 {tag::oidhw, tag::OIdhw16i16o, {64, 32, 3, 9, 5}},
+                cfg_f32 {tag::goidhw, tag::gOIdhw16i16o, {2, 32, 64, 4, 1, 7}},
+                cfg_f32 {tag::nchw, tag::nhwc, {32, 48, 5, 4}},
+                cfg_f32 {tag::nchw, tag::NChw16n16c, {64, 32, 5, 6}},
+                cfg_f32 {tag::nChw16c, tag::NChw16n16c, {32, 48, 6, 9}}));
 
 } // namespace mkldnn

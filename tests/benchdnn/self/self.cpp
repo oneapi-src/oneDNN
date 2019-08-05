@@ -35,4 +35,4 @@ int bench(int argc, char **argv) {
     return bs.tests == bs.passed ? OK : FAIL;
 }
 
-}
+} // namespace self

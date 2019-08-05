@@ -48,8 +48,8 @@
 /// @page gpu_opencl_interop_cpp
 /// @snippet  gpu_opencl_interop.cpp Prologue
 // [Prologue]
-#include <CL/cl.h>
 #include <mkldnn.hpp>
+#include <CL/cl.h>
 // Optional header to access debug functions like `mkldnn_status2str()`
 #include "mkldnn_debug.h"
 
@@ -61,19 +61,19 @@ using namespace mkldnn;
 using namespace std;
 // [Prologue]
 
-#define OCL_CHECK(x)                                                      \
-    do {                                                                  \
-        cl_int s = (x);                                                   \
-        if (s != CL_SUCCESS) {                                            \
+#define OCL_CHECK(x) \
+    do { \
+        cl_int s = (x); \
+        if (s != CL_SUCCESS) { \
             printf("OpenCL error: %d at %s:%d\n", s, __FILE__, __LINE__); \
-            exit(1);                                                      \
-        }                                                                 \
+            exit(1); \
+        } \
     } while (0)
 
 cl_kernel create_init_opencl_kernel(
         cl_context ocl_ctx, const char *kernel_name, const char *ocl_code) {
     cl_int err;
-    const char *sources[] = { ocl_code };
+    const char *sources[] = {ocl_code};
     cl_program ocl_program
             = clCreateProgramWithSource(ocl_ctx, 1, sources, nullptr, &err);
     OCL_CHECK(err);
@@ -139,12 +139,12 @@ void gpu_opencl_interop_tutorial() {
     /// The library allocates memory internally.
     /// @snippet  gpu_opencl_interop.cpp memory alloc
     //  [memory alloc]
-    memory::dims tz_dims = { 2, 3, 4, 5 };
+    memory::dims tz_dims = {2, 3, 4, 5};
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
             std::multiplies<size_t>());
 
-    memory::desc mem_d(tz_dims, memory::data_type::f32,
-            memory::format_tag::nchw);
+    memory::desc mem_d(
+            tz_dims, memory::data_type::f32, memory::format_tag::nchw);
 
     memory mem(mem_d, eng);
     //  [memory alloc]
@@ -204,8 +204,8 @@ void gpu_opencl_interop_tutorial() {
     /// "heavier".
     /// @snippet gpu_opencl_interop.cpp relu creation
     //  [relu creation]
-    auto relu_d = eltwise_forward::desc(prop_kind::forward,
-            algorithm::eltwise_relu, mem_d, 0.0f);
+    auto relu_d = eltwise_forward::desc(
+            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
     auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
     auto relu = eltwise_forward(relu_pd);
     //  [relu creation]
@@ -213,7 +213,7 @@ void gpu_opencl_interop_tutorial() {
     /// Next, execute the primitive.
     /// @snippet gpu_opencl_interop.cpp relu exec
     // [relu exec]
-    relu.execute(strm, { { MKLDNN_ARG_SRC, mem }, { MKLDNN_ARG_DST, mem } });
+    relu.execute(strm, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
     strm.wait();
     // [relu exec]
     ///
@@ -245,13 +245,14 @@ void gpu_opencl_interop_tutorial() {
     for (size_t i = 0; i < N; i++) {
         float expected = (i % 2) ? 0.0f : (float)i;
         if (mapped_data[i] != expected)
-	    throw std::string("Unexpected output, find a negative value after the ReLU execution");
+            throw std::string(
+                    "Unexpected output, find a negative value after the ReLU "
+                    "execution");
     }
     mem.unmap_data(mapped_data);
     // [Check the results]
 
     OCL_CHECK(clReleaseKernel(ocl_init_kernel));
-
 }
 /// @section gpu_opencl_interop_cpp_main main() function
 ///
@@ -270,7 +271,8 @@ int main(int argc, char **argv) {
         gpu_opencl_interop_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-            << "Error status: " << mkldnn_status2str(e.status) << std::endl;
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

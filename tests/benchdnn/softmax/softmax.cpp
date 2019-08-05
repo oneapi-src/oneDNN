@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "mkldnn.h"
 
@@ -42,18 +42,19 @@ static int init_pd(const prb_t *p, mkldnn_softmax_desc_t &sd,
             WARN);
 
     if (p->dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF
-            ? mkldnn_forward_inference : mkldnn_forward_training;
+        auto prop = p->dir & FLAG_INF ? mkldnn_forward_inference
+                                      : mkldnn_forward_training;
 
         DNN_SAFE(mkldnn_softmax_forward_desc_init(&sd, prop, &data_d, p->axis),
                 WARN);
     } else {
-        DNN_SAFE(mkldnn_softmax_backward_desc_init(&sd, &data_d, &data_d,
-                    p->axis), WARN);
+        DNN_SAFE(mkldnn_softmax_backward_desc_init(
+                         &sd, &data_d, &data_d, p->axis),
+                WARN);
     }
 
-    mkldnn_status_t init_status = mkldnn_primitive_desc_create(&spd, &sd,
-            NULL, engine_tgt, NULL);
+    mkldnn_status_t init_status
+            = mkldnn_primitive_desc_create(&spd, &sd, NULL, engine_tgt, NULL);
 
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -88,13 +89,14 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     // BWD
     // We have sum over axis dim, the worst case for error is amount of elements
     // times machine eps and additional subtract.
-    const float num_significant_values =
-        MAX2(div_up(p->dims[p->axis], global_fill_range),
-                MAX2(log2f(p->dims[p->axis]), 10));
+    const float num_significant_values
+            = MAX2(div_up(p->dims[p->axis], global_fill_range),
+                    MAX2(log2f(p->dims[p->axis]), 10));
     const int f32_mant_digits = 24;
     const float trh_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
-    const float trh = trh_coeff * 1e-7 * (p->dir & FLAG_FWD
-        ? num_significant_values : (p->dims[p->axis] + 1));
+    const float trh = trh_coeff * 1e-7
+            * (p->dir & FLAG_FWD ? num_significant_values
+                                 : (p->dims[p->axis] + 1));
 
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
@@ -110,26 +112,22 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 
         r->errors += !ok;
 
-        const bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30)
-            || (verbose >= 99);
+        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             dims_t dims_idx = off2dims_idx(p->dims, i);
             ss << dims_idx;
             std::string ind_str = ss.str();
 
-            print(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
+            print(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n", (long)i,
+                    ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
@@ -138,17 +136,16 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
-            int64_t mb{0}, c{0};
-            map_off_to_mb_ic(p, i, mb, c);
+        int64_t mb {0}, c {0};
+        map_off_to_mb_ic(p, i, mb, c);
 
-            const float f_min = ((p->axis > 0) ? mb : c) % 2 == 0
+        const float f_min = ((p->axis > 0) ? mb : c) % 2 == 0
                 ? -global_fill_range
                 : -global_fill_range / 2;
-            const float gen = ((11 * i) + 37) % global_fill_range;
-            const float value = f_min + gen;
-            mem_fp.set_elem(i, value);
-        }
-    );
+        const float gen = ((11 * i) + 37) % global_fill_range;
+        const float value = f_min + gen;
+        mem_fp.set_elem(i, value);
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -161,11 +158,10 @@ int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // keep all values negative to have sum and sub of same sign, avoiding
     // cancellation error.
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
-            const float gen = ((11 * i) + 37) % global_fill_range;
-            const float value = -gen / global_fill_range;
-            mem_fp.set_elem(i, value);
-        }
-    );
+        const float gen = ((11 * i) + 37) % global_fill_range;
+        const float value = -gen / global_fill_range;
+        mem_fp.set_elem(i, value);
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -178,8 +174,7 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t s;
 
     SAFE(init_pd(p, sd, spd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&s, spd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
@@ -188,7 +183,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = sd.data_desc;
     dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
-              src_dt(data_desc, engine_tgt);
+            src_dt(data_desc, engine_tgt);
 
     dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
     dnn_mem_t dst_dt;
@@ -198,7 +193,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref),
-              d_dst_dt(data_desc, engine_tgt);
+            d_dst_dt(data_desc, engine_tgt);
 
     dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
     dnn_mem_t d_src_dt;
@@ -234,8 +229,8 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(p->inplace ? d_dst_dt : d_src_dt, fp, tag,
-                    engine_ref);
+            dnn_mem_t d_src(
+                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_ref);
             SAFE(compare(p, d_src_fp, d_src, r), WARN);
         }
     }
@@ -247,4 +242,4 @@ int doit(const prb_t *p, res_t *r) {
     return OK;
 }
 
-}
+} // namespace softmax

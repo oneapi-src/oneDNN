@@ -16,9 +16,9 @@
 
 #include <float.h>
 #include <math.h>
+#include <random>
 #include <stdio.h>
 #include <stdlib.h>
-#include <random>
 
 #include "mkldnn.h"
 
@@ -97,8 +97,7 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         dnn_mem_t &mem2) {
 
     dt_conf_t c = p.cfg[kind];
-    if (c.dt == mkldnn_u8)
-        return fill_memory(p, kind, mem1, mem2);
+    if (c.dt == mkldnn_u8) return fill_memory(p, kind, mem1, mem2);
 
     auto dims = mem2.md_.dims;
     auto L = dims[0];
@@ -132,31 +131,32 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
     int the_stride = 1;
     /// @todo we need to add stride support for diff_* tensors too
     mkldnn_memory_desc_t input_d, states_d, c_states_d, weights_input_d,
-        weights_states_d, bias_d, dst_last_layer_d, dst_last_iteration_d,
-        dst_c_last_iteration_d, diff_input_d, diff_states_d, diff_c_states_d,
-        diff_weights_input_d, diff_weights_states_d, diff_bias_d,
-        diff_last_layer_d, diff_last_iteration_d, diff_c_last_iteration_d;
+            weights_states_d, bias_d, dst_last_layer_d, dst_last_iteration_d,
+            dst_c_last_iteration_d, diff_input_d, diff_states_d,
+            diff_c_states_d, diff_weights_input_d, diff_weights_states_d,
+            diff_bias_d, diff_last_layer_d, diff_last_iteration_d,
+            diff_c_last_iteration_d;
 
     // dimensions with ref
-    mkldnn_dims_t input_dims = { p.n_iter, p.mb, p.slc };
+    mkldnn_dims_t input_dims = {p.n_iter, p.mb, p.slc};
     // bidirectional = 2, s for lstm = 2, for all other = 1
     mkldnn_dims_t weights_input_dims
-            = { p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dic };
+            = {p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dic};
     mkldnn_dims_t weights_states_dims
-            = { p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dic };
+            = {p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dic};
     mkldnn_dims_t bias_dims
-            = { p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dic };
+            = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dic};
     // mkldnn_tnc
     int64_t lastlay_dlc
             = (p.direction == mkldnn_bidirectional_concat) ? 2 * p.dlc : p.dlc;
-    mkldnn_dims_t dst_last_layer_dims = { p.n_iter, p.mb, lastlay_dlc };
+    mkldnn_dims_t dst_last_layer_dims = {p.n_iter, p.mb, lastlay_dlc};
 
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(
                      &input_d, 3, input_dims, p.cfg[input].dt, mkldnn_tnc),
             WARN);
     input_d.format_desc.blocking.strides[0] += the_stride;
 
-    mkldnn_dims_t states_dims = { p.n_layer, p.n_dir(), p.mb, p.sic };
+    mkldnn_dims_t states_dims = {p.n_layer, p.n_dir(), p.mb, p.sic};
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(
                      &states_d, 4, states_dims, p.cfg[states].dt, mkldnn_ldnc),
             WARN);
@@ -166,7 +166,7 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
                 = states_d.format_desc.blocking.strides[d + 1]
                 * states_d.dims[d + 1];
 
-    mkldnn_dims_t c_states_dims = { p.n_layer, p.n_dir(), p.mb, p.dic };
+    mkldnn_dims_t c_states_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&c_states_d, 4, c_states_dims,
                      p.cfg[c_states].dt, mkldnn_ldnc),
             WARN);
@@ -195,8 +195,7 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
             WARN);
     dst_last_layer_d.format_desc.blocking.strides[0] += the_stride;
 
-    mkldnn_dims_t dst_last_iteration_dims
-            = { p.n_layer, p.n_dir(), p.mb, p.dic };
+    mkldnn_dims_t dst_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_last_iteration_d, 4,
                      dst_last_iteration_dims, p.cfg[dst_last_iteration].dt,
                      mkldnn_ldnc),
@@ -209,7 +208,7 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
                 * dst_last_iteration_d.dims[d + 1];
 
     mkldnn_dims_t dst_c_last_iteration_dims
-            = { p.n_layer, p.n_dir(), p.mb, p.dic };
+            = {p.n_layer, p.n_dir(), p.mb, p.dic};
     DNN_SAFE(mkldnn_memory_desc_init_by_tag(&dst_c_last_iteration_d, 4,
                      dst_c_last_iteration_dims, p.cfg[dst_c_last_iteration].dt,
                      mkldnn_ldnc),
@@ -225,9 +224,10 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
     // When inference, we use forward_inference
     // When training, we use forward_training
     {
-        mkldnn_status_t init_status = init_rnn_fwd_desc(rd, p, fwd_prop, &input_d,
-                &states_d, &c_states_d, &weights_input_d, &weights_states_d, &bias_d,
-                &dst_last_layer_d, &dst_last_iteration_d, &dst_c_last_iteration_d);
+        mkldnn_status_t init_status = init_rnn_fwd_desc(rd, p, fwd_prop,
+                &input_d, &states_d, &c_states_d, &weights_input_d,
+                &weights_states_d, &bias_d, &dst_last_layer_d,
+                &dst_last_iteration_d, &dst_c_last_iteration_d);
         if (init_status == mkldnn_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         else
@@ -295,8 +295,9 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
     }
     mkldnn_primitive_attr_destroy(mkldnn_attr);
 
-    auto q = [=](mkldnn_query_t query, int rpd_idx, int index = 0)
-    { return *mkldnn_primitive_desc_query_md(rpd[rpd_idx], query, index); };
+    auto q = [=](mkldnn_query_t query, int rpd_idx, int index = 0) {
+        return *mkldnn_primitive_desc_query_md(rpd[rpd_idx], query, index);
+    };
 
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
         rd[i].src_layer_desc = q(mkldnn_query_src_md, i);
@@ -329,7 +330,7 @@ inline int init_pd(const prb_t &p, mkldnn_rnn_desc_t rd[2],
 }
 
 int doit(const prb_t &p, res_t *r) {
-    res_t res_zero{};
+    res_t res_zero {};
     *r = res_zero;
 
     const auto fp = mkldnn_f32;
@@ -399,8 +400,7 @@ int doit(const prb_t &p, res_t *r) {
     };
 
     SAFE(init_pd(p, rd, rpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     auto &input_dt_d = rd[0].src_layer_desc;
     auto &states_dt_d = rd[0].src_iter_desc;

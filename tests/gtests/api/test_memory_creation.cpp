@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <memory>
 #include <cstring>
+#include <memory>
 #include <tuple>
 
-#include "gtest/gtest.h"
 #include "mkldnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkldnn.hpp"
 
@@ -35,15 +35,15 @@ struct params_t {
 
 using params_w_engine_t = std::tuple<mkldnn::engine::kind, params_t>;
 
-class memory_creation_test: public ::testing::TestWithParam<params_w_engine_t> {
+class memory_creation_test
+    : public ::testing::TestWithParam<params_w_engine_t> {
 protected:
     virtual void SetUp() override {
         params_w_engine_t pwe
-            = ::testing::TestWithParam<decltype(pwe)>::GetParam();
+                = ::testing::TestWithParam<decltype(pwe)>::GetParam();
 
         auto engine_kind = std::get<0>(pwe);
-        if (mkldnn::engine::get_count(engine_kind) == 0)
-            return;
+        if (mkldnn::engine::get_count(engine_kind) == 0) return;
 
         eng = mkldnn::engine(engine_kind, 0);
         p = std::get<1>(pwe);
@@ -98,7 +98,7 @@ protected:
 
 TEST_P(memory_creation_test, TestsMemoryCreation) {
     SKIP_IF(eng.get(true) == nullptr, "Engine is not supported");
-    catch_expected_failures([=](){ Test(); },
+    catch_expected_failures([=]() { Test(); },
             p.expected_status != mkldnn_success, p.expected_status);
 }
 
@@ -109,34 +109,28 @@ auto all_engine_kinds = ::testing::Values(
 using fmt = mkldnn::memory::format_tag;
 
 auto cases_expect_to_fail = ::testing::Values(
-        params_t{{2, 2, -1, 1}, fmt::nchw, mkldnn_invalid_arguments},
-        params_t{{1, 2, 3, 4}, fmt::any, mkldnn_invalid_arguments}
-        );
+        params_t {{2, 2, -1, 1}, fmt::nchw, mkldnn_invalid_arguments},
+        params_t {{1, 2, 3, 4}, fmt::any, mkldnn_invalid_arguments});
 
-auto cases_zero_dim = ::testing::Values(
-        params_t{{2, 0, 1, 1}, fmt::nChw16c},
-        params_t{{0, 1, 0, 1}, fmt::nhwc},
-        params_t{{2, 1, 0, 1}, fmt::nchw}
-        );
+auto cases_zero_dim = ::testing::Values(params_t {{2, 0, 1, 1}, fmt::nChw16c},
+        params_t {{0, 1, 0, 1}, fmt::nhwc}, params_t {{2, 1, 0, 1}, fmt::nchw});
 
-auto cases_generic = ::testing::Values(
-        params_t{{2, 15, 3, 2}, fmt::nChw16c},
-        params_t{{2, 15, 3, 2, 4}, fmt::nCdhw8c},
-        params_t{{2, 9, 3, 2}, fmt::OIhw8o8i},
-        params_t{{2, 9, 3, 2}, fmt::OIhw8i16o2i},
-        params_t{{2, 9, 3, 2}, fmt::OIhw8o16i2o},
-        params_t{{2, 9, 3, 2}, fmt::OIhw16o16i},
-        params_t{{2, 9, 3, 2}, fmt::OIhw16i16o},
-        params_t{{2, 9, 3, 2}, fmt::OIhw4i16o4i},
-        params_t{{2, 9, 4, 3, 2}, fmt::gOihw16o},
-        params_t{{1, 2, 9, 3, 2}, fmt::gOIhw8o8i},
-        params_t{{1, 2, 9, 3, 2}, fmt::gOIhw4o4i},
-        params_t{{1, 2, 9, 3, 2}, fmt::gOIhw8i8o},
-        params_t{{2, 17, 9, 3, 2}, fmt::gOIhw4i16o4i},
-        params_t{{2, 17, 9, 3, 2}, fmt::gOIhw2i8o4i},
-        params_t{{15, 16, 16, 3, 3}, fmt::Goihw8g}
-        );
-}
+auto cases_generic = ::testing::Values(params_t {{2, 15, 3, 2}, fmt::nChw16c},
+        params_t {{2, 15, 3, 2, 4}, fmt::nCdhw8c},
+        params_t {{2, 9, 3, 2}, fmt::OIhw8o8i},
+        params_t {{2, 9, 3, 2}, fmt::OIhw8i16o2i},
+        params_t {{2, 9, 3, 2}, fmt::OIhw8o16i2o},
+        params_t {{2, 9, 3, 2}, fmt::OIhw16o16i},
+        params_t {{2, 9, 3, 2}, fmt::OIhw16i16o},
+        params_t {{2, 9, 3, 2}, fmt::OIhw4i16o4i},
+        params_t {{2, 9, 4, 3, 2}, fmt::gOihw16o},
+        params_t {{1, 2, 9, 3, 2}, fmt::gOIhw8o8i},
+        params_t {{1, 2, 9, 3, 2}, fmt::gOIhw4o4i},
+        params_t {{1, 2, 9, 3, 2}, fmt::gOIhw8i8o},
+        params_t {{2, 17, 9, 3, 2}, fmt::gOIhw4i16o4i},
+        params_t {{2, 17, 9, 3, 2}, fmt::gOIhw2i8o4i},
+        params_t {{15, 16, 16, 3, 3}, fmt::Goihw8g});
+} // namespace
 
 INSTANTIATE_TEST_SUITE_P(TestMemoryCreationEF, memory_creation_test,
         ::testing::Combine(all_engine_kinds, cases_expect_to_fail));
@@ -146,4 +140,4 @@ INSTANTIATE_TEST_SUITE_P(TestMemoryCreationZeroDim, memory_creation_test,
 
 INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test,
         ::testing::Combine(all_engine_kinds, cases_generic));
-}
+} // namespace mkldnn

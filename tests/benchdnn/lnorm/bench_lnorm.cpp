@@ -14,19 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <sstream>
 
 #include "mkldnn.h"
 
 #include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "mkldnn_memory.hpp"
 #include "parser.hpp"
 
 #include "lnorm/lnorm.hpp"
@@ -34,12 +34,12 @@
 namespace lnorm {
 
 dims_t dims;
-std::vector<dir_t> dir{ FWD_D };
-std::vector<mkldnn_data_type_t> dt{ mkldnn_f32 };
-std::vector<mkldnn_format_tag_t> data_tag{ mkldnn_tnc };
-std::vector<mkldnn_format_tag_t> stat_tag{ mkldnn_tn };
-std::vector<flags_t> flags{ 0 };
-std::vector<bool> inplace{ true };
+std::vector<dir_t> dir {FWD_D};
+std::vector<mkldnn_data_type_t> dt {mkldnn_f32};
+std::vector<mkldnn_format_tag_t> data_tag {mkldnn_tnc};
+std::vector<mkldnn_format_tag_t> stat_tag {mkldnn_tn};
+std::vector<flags_t> flags {0};
+std::vector<bool> inplace {true};
 
 check_alg_t check_alg = ALG_AUTO;
 attr_t attr;
@@ -54,12 +54,12 @@ const char *perf_template_def
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
-    dir = { FWD_D };
-    dt = { mkldnn_f32 };
-    data_tag = { mkldnn_tnc };
-    stat_tag = { mkldnn_tn };
-    flags = { 0 };
-    inplace = { true };
+    dir = {FWD_D};
+    dt = {mkldnn_f32};
+    data_tag = {mkldnn_tnc};
+    stat_tag = {mkldnn_tn};
+    flags = {0};
+    inplace = {true};
     attr = attr_t();
     pattern = NULL;
     skip_impl = "";
@@ -67,12 +67,12 @@ void reset_parameters() {
 }
 
 void check_correctness() {
-    for_(const auto &i_dir: dir)
-    for_(const auto &i_dt: dt)
-    for_(const auto &i_data_tag: data_tag)
-    for_(const auto &i_stat_tag: stat_tag)
-    for_(const auto &i_flags: flags)
-    for (const auto &i_inplace: inplace) {
+    for_(const auto &i_dir : dir)
+    for_(const auto &i_dt : dt)
+    for_(const auto &i_data_tag : data_tag)
+    for_(const auto &i_stat_tag : stat_tag)
+    for_(const auto &i_flags : flags)
+    for (const auto &i_inplace : inplace) {
         const prb_t p(dims, i_data_tag, i_stat_tag, i_dir, i_dt, i_flags,
                 i_inplace, attr, check_alg);
         std::stringstream ss;
@@ -80,11 +80,10 @@ void check_correctness() {
         const std::string cpp_pstr = ss.str();
         const char *pstr = cpp_pstr.c_str();
 
-        if (pattern && !match_regex(pstr, pattern))
-            return;
+        if (pattern && !match_regex(pstr, pattern)) return;
         print(1, "run: %s\n", pstr);
 
-        res_t res{};
+        res_t res {};
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;

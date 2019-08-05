@@ -17,18 +17,15 @@
 #include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include <memory>
 #include "mkldnn.h"
 #include <CL/cl.h>
-#include <memory>
 
 namespace mkldnn {
-class ocl_stream_test_c : public ::testing::Test
-{
+class ocl_stream_test_c : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) {
-            return;
-        }
+        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         MKLDNN_CHECK(mkldnn_engine_create(&eng, mkldnn_gpu, 0));
 
@@ -37,9 +34,7 @@ protected:
     }
 
     virtual void TearDown() {
-        if (eng) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(eng));
-        }
+        if (eng) { MKLDNN_CHECK(mkldnn_engine_destroy(eng)); }
     }
 
     mkldnn_engine_t eng = nullptr;
@@ -47,13 +42,10 @@ protected:
     cl_device_id ocl_dev = nullptr;
 };
 
-class ocl_stream_test_cpp : public ::testing::Test
-{
+class ocl_stream_test_cpp : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) {
-            return;
-        }
+        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         eng = engine(engine::kind::gpu, 0);
 

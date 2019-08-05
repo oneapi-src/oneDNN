@@ -58,7 +58,7 @@ struct prb_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -66,26 +66,30 @@ struct perf_report_t: public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc_csv(std::ostream &s) const override
-    { s << p_->dims; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const override
-    { return &p_->sdt; }
+    virtual void dump_desc_csv(std::ostream &s) const override {
+        s << p_->dims;
+    }
+    virtual const std::vector<mkldnn_data_type_t> *sdt() const override {
+        return &p_->sdt;
+    }
     virtual const mkldnn_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const override
-    { return &p_->stag; }
-    virtual const mkldnn_format_tag_t *dtag() const override
-    { return &p_->dtag; }
+    virtual const std::vector<mkldnn_format_tag_t> *stag() const override {
+        return &p_->stag;
+    }
+    virtual const mkldnn_format_tag_t *dtag() const override {
+        return &p_->dtag;
+    }
 
 private:
     const prb_t *p_ = NULL;
 };
 
-void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
-        dnn_mem_t &dst);
+void compute_ref(
+        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace sum
 
 #endif

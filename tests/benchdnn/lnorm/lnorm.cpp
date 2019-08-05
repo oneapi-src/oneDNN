@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <sstream>
 
@@ -69,8 +69,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
             : MIN2(p->dt == mkldnn_bf16 ? 7 : exact_bits,
                     (exact_bits - logL) / 2 - 1);
 
-    if (flex_bits < min_flex_bits)
-        return FAIL;
+    if (flex_bits < min_flex_bits) return FAIL;
 
     const int64_t flex_mask = (1 << flex_bits) - 1;
 
@@ -102,9 +101,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
             const float f = 1.f * sgn * gen / (1 << flex_bits);
 
             src.set_elem(n * p->c + c, alg == ALG_0 ? f : m * (1.f + f));
-            if (L % 2 && (c == L - 1)) {
-                s[c] = m;
-            }
+            if (L % 2 && (c == L - 1)) { s[c] = m; }
             v += (s[c] - m) * (s[c] - m);
         }
         ((float *)var)[n] = v / p->c;
@@ -131,8 +128,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
     const int64_t exact_bits = 24;
 
-    if (p->n < 2)
-        return FAIL;
+    if (p->n < 2) return FAIL;
 
     const int64_t L = p->c;
     /** Stabilization idea...
@@ -152,8 +148,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     decompose2(L, k, P);
 
     int64_t log2P = (int64_t)ceilf(log2f(P));
-    if (log2P >= exact_bits)
-        return FAIL; /* [r1] */
+    if (log2P >= exact_bits) return FAIL; /* [r1] */
 
     const int64_t max_k = 4;
     if (k > max_k && exact_bits - log2P > max_k + 4) {
@@ -354,11 +349,9 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                 diff_norm.rel_diff(norm_t::L8));
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
@@ -446,8 +439,7 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t b;
 
     SAFE(init_pd(p, ld, lpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const auto fp = mkldnn_f32;
     const auto tag = get_default_tag(ld.data_desc.ndims);
@@ -458,9 +450,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t &dst_fp = src_fp; // in-place in ref code
     dnn_mem_t placeholder_dst_dt;
-    if (!p->inplace) {
-        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
-    }
+    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
@@ -480,8 +470,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t var_fp(stat_desc, fp, stat_tag, engine_ref),
             var_dt(stat_desc, engine_tgt);
 
-    const mkldnn_dims_t dims2d
-            = { 2, ld.data_desc.dims[ld.data_desc.ndims - 1] };
+    const mkldnn_dims_t dims2d = {2, ld.data_desc.dims[ld.data_desc.ndims - 1]};
     dnn_mem_t ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
             ss_dt(ss_fp.md_, engine_tgt);
     dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
