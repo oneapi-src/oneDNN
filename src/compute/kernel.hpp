@@ -30,8 +30,7 @@ namespace compute {
 
 class kernel_impl_t;
 
-class kernel_t
-{
+class kernel_t {
 public:
     kernel_t(kernel_impl_t *impl) : impl_(impl) {}
 
@@ -50,8 +49,7 @@ private:
     std::shared_ptr<kernel_impl_t> impl_;
 };
 
-class kernel_impl_t
-{
+class kernel_impl_t {
 public:
     kernel_impl_t() = default;
 

@@ -32,8 +32,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_gpu_engine_impl_list_t
-{
+class ocl_gpu_engine_impl_list_t {
 public:
     static const engine_t::concat_primitive_desc_create_f *
     get_concat_implementation_list();
@@ -44,27 +43,24 @@ public:
     static const engine_t::primitive_desc_create_f *get_implementation_list();
 };
 
-class ocl_gpu_engine_t : public compute::compute_engine_t
-{
+class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
     static status_t get_ocl_devices(std::vector<cl_device_id> *devices);
 
     ocl_gpu_engine_t(cl_device_id adevice)
         : compute::compute_engine_t(engine_kind::gpu, backend_kind::ocl,
-                  new ocl_device_info_t(adevice))
+                new ocl_device_info_t(adevice))
         , device_(adevice)
         , context_(nullptr)
         , is_user_context_(false) {}
     ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext)
         : compute::compute_engine_t(engine_kind::gpu, backend_kind::ocl,
-                  new ocl_device_info_t(adevice))
+                new ocl_device_info_t(adevice))
         , device_(adevice)
         , context_(acontext)
         , is_user_context_(true) {}
     virtual ~ocl_gpu_engine_t() override {
-        if (context_) {
-            clReleaseContext(context_);
-        }
+        if (context_) { clReleaseContext(context_); }
     }
 
     status_t init();

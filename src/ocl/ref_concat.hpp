@@ -46,8 +46,7 @@ struct ref_concat_t : public primitive_t {
 
         status_t init() {
             bool ok = ocl_concat_pd_t::init() == status::success;
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine_->get_reorder_implementation_list();
@@ -74,7 +73,10 @@ struct ref_concat_t : public primitive_t {
                         (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
         }
 
-        void clear() { for (auto &rpd: reorder_pds_) delete rpd; }
+        void clear() {
+            for (auto &rpd : reorder_pds_)
+                delete rpd;
+        }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };

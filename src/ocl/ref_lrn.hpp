@@ -48,19 +48,18 @@ struct ref_lrn_fwd_t : public primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
-                               prop_kind::forward_inference,
-                               prop_kind::forward_training)
+                            prop_kind::forward_inference,
+                            prop_kind::forward_training)
                     && utils::one_of(desc()->alg_kind,
-                               alg_kind::lrn_across_channels,
-                               alg_kind::lrn_within_channel)
-                    && utils::one_of(desc()->data_desc.data_type,
-                        f32, f16, bf16)
+                            alg_kind::lrn_across_channels,
+                            alg_kind::lrn_within_channel)
+                    && utils::one_of(
+                            desc()->data_desc.data_type, f32, f16, bf16)
                     && attr()->has_default_values()
                     && IMPLICATION(desc()->data_desc.data_type == f16,
-                               compute_engine->mayiuse(
-                                       compute::device_ext_t::khr_fp16));
-            if (!ok)
-                return status::unimplemented;
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16));
+            if (!ok) return status::unimplemented;
 
             if (desc_.prop_kind == prop_kind::forward_training) {
                 ws_md_ = *src_md();
@@ -100,16 +99,15 @@ struct ref_lrn_fwd_t : public primitive_t {
             kernel_ctx.define_int("IS_TRAINING", 1);
 
         switch (desc->alg_kind) {
-        case lrn_across_channels:
-            kernel_ctx.define_int("ACROSS_CHANNEL", 1);
-            break;
-        case lrn_within_channel:
-            kernel_ctx.define_int("WITHIN_CHANNEL", 1);
-            break;
-        default: status = status::unimplemented;
+            case lrn_across_channels:
+                kernel_ctx.define_int("ACROSS_CHANNEL", 1);
+                break;
+            case lrn_within_channel:
+                kernel_ctx.define_int("WITHIN_CHANNEL", 1);
+                break;
+            default: status = status::unimplemented;
         }
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -147,8 +145,7 @@ struct ref_lrn_fwd_t : public primitive_t {
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_fwd", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -165,7 +162,7 @@ private:
 struct ref_lrn_bwd_t : public primitive_t {
     struct pd_t : public ocl_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
-            const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
+                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
             : ocl_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
@@ -176,23 +173,23 @@ struct ref_lrn_bwd_t : public primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
-                && utils::one_of(desc()->prop_kind,
-                    prop_kind::backward_data)
-                && utils::one_of(desc()->alg_kind,
-                    alg_kind::lrn_across_channels,
-                    alg_kind::lrn_within_channel)
-                && utils::everyone_is(
-                    data_type::f32, desc()->data_desc.data_type)
-                && desc()->data_desc == desc()->diff_data_desc
-                && attr()->has_default_values()
-                && IMPLICATION(desc()->data_desc.data_type == data_type::f16,
-                    compute_engine->mayiuse(compute::device_ext_t::khr_fp16));
-            if (!ok)
-                return status::unimplemented;
+                    && utils::one_of(
+                            desc()->prop_kind, prop_kind::backward_data)
+                    && utils::one_of(desc()->alg_kind,
+                            alg_kind::lrn_across_channels,
+                            alg_kind::lrn_within_channel)
+                    && utils::everyone_is(
+                            data_type::f32, desc()->data_desc.data_type)
+                    && desc()->data_desc == desc()->diff_data_desc
+                    && attr()->has_default_values()
+                    && IMPLICATION(
+                            desc()->data_desc.data_type == data_type::f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16));
+            if (!ok) return status::unimplemented;
 
             ws_md_ = *src_md();
-            if (!compare_ws(hint_fwd_pd_))
-                return status::unimplemented;
+            if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 
             gws[0] = H() * W();
             gws[1] = C();
@@ -225,16 +222,15 @@ struct ref_lrn_bwd_t : public primitive_t {
         kernel_ctx.define_int("LRN_BWD", 1);
 
         switch (desc->alg_kind) {
-        case lrn_across_channels:
-            kernel_ctx.define_int("ACROSS_CHANNEL", 1);
-            break;
-        case lrn_within_channel:
-            kernel_ctx.define_int("WITHIN_CHANNEL", 1);
-            break;
-        default: status = status::unimplemented;
+            case lrn_across_channels:
+                kernel_ctx.define_int("ACROSS_CHANNEL", 1);
+                break;
+            case lrn_within_channel:
+                kernel_ctx.define_int("WITHIN_CHANNEL", 1);
+                break;
+            default: status = status::unimplemented;
         }
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -272,8 +268,7 @@ struct ref_lrn_bwd_t : public primitive_t {
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_bwd", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }

@@ -22,15 +22,12 @@
 namespace mkldnn {
 namespace impl {
 
-enum transpose_t {
-    mkldnn_notrans,
-    mkldnn_trans
-};
+enum transpose_t { mkldnn_notrans, mkldnn_trans };
 
 namespace transpose {
-    const transpose_t notrans = mkldnn_notrans;
-    const transpose_t trans = mkldnn_trans;
-}
+const transpose_t notrans = mkldnn_notrans;
+const transpose_t trans = mkldnn_trans;
+} // namespace transpose
 
 /** A descriptor for a matrix multiplication (gemm) operation */
 typedef struct {

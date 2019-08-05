@@ -23,17 +23,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_batch_normalization_fwd_pd_t: public batch_normalization_fwd_pd_t {
+struct cpu_batch_normalization_fwd_pd_t : public batch_normalization_fwd_pd_t {
     using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 };
 
-struct cpu_batch_normalization_bwd_pd_t: public batch_normalization_bwd_pd_t {
+struct cpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
     using batch_normalization_bwd_pd_t::batch_normalization_bwd_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

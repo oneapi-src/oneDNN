@@ -25,9 +25,9 @@
 
 typedef float acc_data_t;
 
-#define IRB_LOOP(statement)                     \
+#define IRB_LOOP(statement) \
     for (int irb = 0; irb < loop_size; irb++) { \
-        statement;                              \
+        statement; \
     }
 
 namespace mkldnn {
@@ -130,7 +130,7 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
 
         auto store_data = [=](const Address addr, Zmm zr, Ymm yr) {
             if (d_type == bf16) {
-                if(mayiuse(avx512_core_bf16))
+                if (mayiuse(avx512_core_bf16))
                     vcvtneps2bf16(yr, zr);
                 else
                     bf16_emu_->vcvtneps2bf16(yr, zr);
@@ -169,8 +169,7 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         }
 
         loop_size = loop_size_param;
-        if (loop_size == 0)
-            return;
+        if (loop_size == 0) return;
 
         // --- loading source data to special buffer to form convenient data layout
         // for ACROSS lrn ---
@@ -361,28 +360,21 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init() {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    bool ok = true
-            && mayiuse(avx512_common)
-            && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
-            && is_fwd()
-            && !has_zero_dim_memory()
-            && everyone_is(d_type, data_d.data_type())
-            && data_d.ndims() == 4
-            && data_d.dims()[1] % vsize == 0
+    bool ok = true && mayiuse(avx512_common)
+            && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && is_fwd()
+            && !has_zero_dim_memory() && everyone_is(d_type, data_d.data_type())
+            && data_d.ndims() == 4 && data_d.dims()[1] % vsize == 0
             && attr()->has_default_values();
-    if (!ok)
-        return unimplemented;
+    if (!ok) return unimplemented;
 
     if (desc()->prop_kind == forward_training) {
-        dims_t ws_dims = { MB(), C(), H(), 2 * W() };
+        dims_t ws_dims = {MB(), C(), H(), 2 * W()};
         mkldnn_memory_desc_init_by_tag(
                 &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
     }
 
-    bool args_ok_across = true
-            && desc()->alg_kind == lrn_across_channels
-            && desc()->local_size == 5
-            && desc()->lrn_beta == 0.75
+    bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+            && desc()->local_size == 5 && desc()->lrn_beta == 0.75
             && data_d.matches_tag(format_tag::nChw16c);
 
     return args_ok_across ? success : unimplemented;
@@ -441,13 +433,13 @@ void jit_avx512_common_lrn_fwd_t<d_type>::execute_forward(
     const int W = pd()->W();
 
     parallel(0, [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
+        size_t start {0}, end {0};
         const int C16 = C / vsize;
         const size_t work_amount = use_h_parallelism ? N * C16 * H : N * C16;
 
         balance211(work_amount, nthr, ithr, start, end);
         if (use_h_parallelism) {
-            int n{ 0 }, c16{ 0 }, h{ 0 };
+            int n {0}, c16 {0}, h {0};
             nd_iterator_init(start, n, N, c16, C16, h, H);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset
@@ -473,7 +465,7 @@ void jit_avx512_common_lrn_fwd_t<d_type>::execute_forward(
                 nd_iterator_step(n, N, c16, C16, h, H);
             }
         } else {
-            int n{ 0 }, c16{ 0 };
+            int n {0}, c16 {0};
             nd_iterator_init(start, n, N, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n * C * H * W + c16 * H * W * vsize;
@@ -642,8 +634,7 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
                     mic_prefetcht2(ptr[workspace0 + (irb + prf2_offt) * vlen]));
         // -----------------------------------------------------------
 
-        if (loop_size_param == 0)
-            return;
+        if (loop_size_param == 0) return;
 
         if (!is_first && !is_single) {
             IRB_LOOP(load_data(xreg(irb, xws1_prev),
@@ -696,7 +687,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         IRB_LOOP(vaddps(
                 zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, za)));
         assert(zsrc == za);
-        IRB_LOOP(load_data(zreg(irb, zsrc), EVEX_compress_addr(src, irb * vlen)));
+        IRB_LOOP(load_data(
+                zreg(irb, zsrc), EVEX_compress_addr(src, irb * vlen)));
         IRB_LOOP(vaddps(
                 zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, zb)));
         IRB_LOOP(vaddps(
@@ -726,8 +718,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         L(end_store);
     }
 
-    jit_avx512_common_lrn_kernel_f(const struct nChw16c_across &J,
-            float A, float B, int use_h_parallel, void *code_ptr = nullptr,
+    jit_avx512_common_lrn_kernel_f(const struct nChw16c_across &J, float A,
+            float B, int use_h_parallel, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , nalphabeta(-2 * A * B)
@@ -827,29 +819,21 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    bool ok = true
-            && mayiuse(avx512_common)
-            && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
-            && !is_fwd()
+    bool ok = true && mayiuse(avx512_common)
+            && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && !is_fwd()
             && utils::everyone_is(d_type, data_d.data_type())
-            && !has_zero_dim_memory()
-            && data_d.ndims() == 4
-            && data_d.dims()[1] % vsize == 0
-            && attr()->has_default_values();
-    if (!ok)
-        return unimplemented;
+            && !has_zero_dim_memory() && data_d.ndims() == 4
+            && data_d.dims()[1] % vsize == 0 && attr()->has_default_values();
+    if (!ok) return unimplemented;
 
-    dims_t ws_dims = { MB(), C(), H(), 2 * W() };
+    dims_t ws_dims = {MB(), C(), H(), 2 * W()};
     mkldnn_memory_desc_init_by_tag(
             &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
 
-    if (!compare_ws(hint_fwd_pd_))
-        return unimplemented;
+    if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
-    bool args_ok_across = true
-            && desc()->alg_kind == lrn_across_channels
-            && desc()->local_size == 5
-            && desc()->lrn_beta == 0.75
+    bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+            && desc()->local_size == 5 && desc()->lrn_beta == 0.75
             && data_d.matches_tag(format_tag::nChw16c);
 
     return args_ok_across ? success : unimplemented;
@@ -906,13 +890,13 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
     const int W = pd()->W();
 
     parallel(0, [&](const int ithr, const int nthr) {
-        size_t start{ 0 }, end{ 0 };
+        size_t start {0}, end {0};
         const int C16 = C / vsize;
         const size_t work_amount = use_h_parallelism ? N * C16 * H : N * C16;
 
         balance211(work_amount, nthr, ithr, start, end);
         if (use_h_parallelism) {
-            int n{ 0 }, c16{ 0 }, h{ 0 };
+            int n {0}, c16 {0}, h {0};
             nd_iterator_init(start, n, N, h, H, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset
@@ -939,7 +923,7 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
                 nd_iterator_step(n, N, h, H, c16, C16);
             }
         } else {
-            int n{ 0 }, c16{ 0 };
+            int n {0}, c16 {0};
             nd_iterator_init(start, n, N, c16, C16);
             for (size_t iwork = start; iwork < end; ++iwork) {
                 auto offset = n * C * H * W + c16 * H * W * vsize;
@@ -971,6 +955,6 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
 template struct jit_avx512_common_lrn_bwd_t<f32>;
 template struct jit_avx512_common_lrn_bwd_t<bf16>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

@@ -25,10 +25,10 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_sum_t: public primitive_t {
-    struct pd_t: public ocl_sum_pd_t {
+struct ref_sum_t : public primitive_t {
+    struct pd_t : public ocl_sum_pd_t {
         using ocl_sum_pd_t::ocl_sum_pd_t;
-        pd_t(const pd_t &rhs): ocl_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
+        pd_t(const pd_t &rhs) : ocl_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
         ~pd_t() { clear(); }
 
@@ -54,8 +54,9 @@ struct ref_sum_t: public primitive_t {
                     if (i != 0) attr.post_ops_.append_sum(1.0);
 
                     reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i),
-                                engine_, dst_md()) == status::success) {
+                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
+                                dst_md())
+                            == status::success) {
                         r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
@@ -69,10 +70,13 @@ struct ref_sum_t: public primitive_t {
         void clone_reorder_pds(const pd_t &rhs) {
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
                 reorder_pds_.push_back(
-                       (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
+                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
         }
 
-        void clear() { for (auto &rpd: reorder_pds_) delete rpd; }
+        void clear() {
+            for (auto &rpd : reorder_pds_)
+                delete rpd;
+        }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };
@@ -84,7 +88,10 @@ struct ref_sum_t: public primitive_t {
             pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
     }
 
-    ~ref_sum_t() { for (auto &r: reorders_) delete r; }
+    ~ref_sum_t() {
+        for (auto &r : reorders_)
+            delete r;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto n = pd()->n_inputs();
@@ -98,13 +105,14 @@ struct ref_sum_t: public primitive_t {
         }
         return status::success;
     }
+
 private:
-   const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     nstl::vector<primitive_t *> reorders_;
 };
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 
 #endif

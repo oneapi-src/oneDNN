@@ -28,8 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_memory_storage_t : public memory_storage_t
-{
+class ocl_memory_storage_t : public memory_storage_t {
 public:
     ocl_memory_storage_t(
             engine_t *engine, unsigned flags, size_t size, void *handle);
@@ -39,9 +38,7 @@ public:
     }
 
     virtual ~ocl_memory_storage_t() override {
-        if (mem_object_) {
-            OCL_CHECK_V(clReleaseMemObject(mem_object_));
-        }
+        if (mem_object_) { OCL_CHECK_V(clReleaseMemObject(mem_object_)); }
     }
 
     virtual status_t get_data_handle(void **handle) const override {

@@ -24,18 +24,17 @@ namespace cpu {
 
 namespace simple_barrier {
 
-void generate(jit_generator &code, Xbyak::Reg64 reg_ctx,
-            Xbyak::Reg64 reg_nthr) {
-#   define BAR_CTR_OFF offsetof(ctx_t, ctr)
-#   define BAR_SENSE_OFF offsetof(ctx_t, sense)
+void generate(
+        jit_generator &code, Xbyak::Reg64 reg_ctx, Xbyak::Reg64 reg_nthr) {
+#define BAR_CTR_OFF offsetof(ctx_t, ctr)
+#define BAR_SENSE_OFF offsetof(ctx_t, sense)
     using namespace Xbyak;
 
     Xbyak::Reg64 reg_tmp = [&]() {
         /* returns register which is neither reg_ctx nor reg_nthr */
-        Xbyak::Reg64 regs[] = { util::rax, util::rbx, util::rcx };
+        Xbyak::Reg64 regs[] = {util::rax, util::rbx, util::rcx};
         for (size_t i = 0; i < sizeof(regs) / sizeof(regs[0]); ++i)
-            if (!utils::one_of(regs[i], reg_ctx, reg_nthr))
-                return regs[i];
+            if (!utils::one_of(regs[i], reg_ctx, reg_nthr)) return regs[i];
         return regs[0]; /* should not happen */
     }();
 
@@ -56,7 +55,8 @@ void generate(jit_generator &code, Xbyak::Reg64 reg_ctx,
         code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
     }
 
-    code.lock(); code.xadd(code.ptr[reg_ctx + BAR_CTR_OFF], reg_tmp);
+    code.lock();
+    code.xadd(code.ptr[reg_ctx + BAR_CTR_OFF], reg_tmp);
     code.add(reg_tmp, 1);
     code.cmp(reg_tmp, reg_nthr);
     code.pop(reg_tmp); /* restore previous sense */
@@ -80,19 +80,19 @@ void generate(jit_generator &code, Xbyak::Reg64 reg_ctx,
     code.pop(reg_tmp);
 
     code.CodeGenerator::L(barrier_exit_label);
-#    undef BAR_CTR_OFF
-#    undef BAR_SENSE_OFF
+#undef BAR_CTR_OFF
+#undef BAR_SENSE_OFF
 }
 
 /** jit barrier generator */
-struct jit_t: public jit_generator {
+struct jit_t : public jit_generator {
     void (*barrier)(ctx_t *ctx, size_t nthr);
 
     jit_t() {
         generate(*this, abi_param1, abi_param2);
         ret();
-        barrier = reinterpret_cast<decltype(barrier)>(const_cast<uint8_t*>(
-                    this->getCode()));
+        barrier = reinterpret_cast<decltype(barrier)>(
+                const_cast<uint8_t *>(this->getCode()));
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
@@ -103,10 +103,10 @@ void barrier(ctx_t *ctx, int nthr) {
     j.barrier(ctx, nthr);
 }
 
-}
+} // namespace simple_barrier
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -27,10 +27,10 @@
 #include "../cpu_isa_traits.hpp"
 #include "../gemm/os_blas.hpp"
 
-#include "cpu_rnn_pd.hpp"
 #include "../cpu_primitive.hpp"
-#include "rnn_utils.hpp"
+#include "cpu_rnn_pd.hpp"
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "rnn_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -78,20 +78,19 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
             bool ok = true
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
-                               alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                               alg_kind::lbr_gru)
+                            alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
+                            alg_kind::lbr_gru)
                     && IMPLICATION(aprop == prop_kind::forward,
-                               one_of(this->desc()->prop_kind, forward_training,
-                                           forward_inference))
+                            one_of(this->desc()->prop_kind, forward_training,
+                                    forward_inference))
                     && IMPLICATION(aprop == backward,
-                               one_of(this->desc()->prop_kind, backward))
+                            one_of(this->desc()->prop_kind, backward))
                     && src_layer_dt == src_type
                     && everyone_is(
-                               weights_type, weights_iter_dt, weights_layer_dt)
+                            weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && this->with_bias();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
                     this->weights_md(0), this->weights_md(1), this->dst_md(0));
@@ -126,12 +125,12 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
                     this->weights_md(1), this->diff_weights_md(0),
                     this->diff_weights_md(1));
 
-            size_t scratchpad_sz{0}, ws_sz{0};
+            size_t scratchpad_sz {0}, ws_sz {0};
             get_scratchpad_and_workspace_sizes(rnn_, scratchpad_sz, ws_sz);
 
             // initialize the workspace if needed
             if (rnn_.is_training) {
-                dims_t ws_dims = { (dim_t)ws_sz };
+                dims_t ws_dims = {(dim_t)ws_sz};
                 mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
                         data_type::u8, format_tag::x);
             }
@@ -151,12 +150,11 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
 
             int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
             int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
-            scratchpad.book(key_rnn_ptrs_wei_layer,
-                    sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(key_rnn_ptrs_wei_iter,
-                    sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(key_rnn_ptrs_bia,
-                    sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(
+                    key_rnn_ptrs_wei_layer, sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(
+                    key_rnn_ptrs_wei_iter, sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(key_rnn_ptrs_bia, sizeof(float *) * ptr_wei_sz);
         }
     };
 
@@ -185,20 +183,21 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         set_gemm_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
                 weights_layer_assign_func);
 
-        rnn_postgemm_ = new rnn_postgemm_dispatcher<aprop, src_type>(pd()->rnn_, pd());
+        rnn_postgemm_ = new rnn_postgemm_dispatcher<aprop, src_type>(
+                pd()->rnn_, pd());
         assert(rnn_postgemm_ != nullptr);
         switch (pd()->cell_kind()) {
-        case alg_kind::vanilla_rnn:
-        case alg_kind::vanilla_lstm:
-            cell_func = &class_name::cell_execution;
-            break;
-        case alg_kind::vanilla_gru:
-            cell_func = &class_name::cell_execution_gru;
-            break;
-        case alg_kind::lbr_gru:
-            cell_func = &class_name::cell_execution_gru_lbr;
-            break;
-        default: break;
+            case alg_kind::vanilla_rnn:
+            case alg_kind::vanilla_lstm:
+                cell_func = &class_name::cell_execution;
+                break;
+            case alg_kind::vanilla_gru:
+                cell_func = &class_name::cell_execution_gru;
+                break;
+            case alg_kind::lbr_gru:
+                cell_func = &class_name::cell_execution_gru_lbr;
+                break;
+            default: break;
         }
 
         grid_computation = &class_name::linear_execution;
@@ -206,13 +205,11 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_cell_comp_offset_,
-                ws_bias_offset_, scratchpad_size, workspace_size);
+                ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
+                scratchpad_size, workspace_size);
     }
 
-    ~_ref_rnn_common_t() {
-        delete rnn_postgemm_;
-    }
+    ~_ref_rnn_common_t() { delete rnn_postgemm_; }
 
     // typedef typename prec_traits::type data_t;
 
@@ -269,7 +266,7 @@ private:
     size_t ws_diff_states_offset_;
     size_t ws_grid_comp_offset_;
     size_t ws_cell_comp_offset_;
-    rnn_postgemm_dispatcher<aprop,src_type> *rnn_postgemm_;
+    rnn_postgemm_dispatcher<aprop, src_type> *rnn_postgemm_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
@@ -283,12 +280,15 @@ private:
     gemm_t gemm_iter_func;
 };
 
-using ref_rnn_fwd_f32_t = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
-using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32, data_type::f32>;
-using ref_rnn_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
-}
-}
-}
+using ref_rnn_fwd_f32_t
+        = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
+using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
+        data_type::f32>;
+using ref_rnn_fwd_u8s8_t
+        = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

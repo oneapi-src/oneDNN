@@ -25,17 +25,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_lrn_fwd_pd_t: public lrn_fwd_pd_t {
+struct cpu_lrn_fwd_pd_t : public lrn_fwd_pd_t {
     using lrn_fwd_pd_t::lrn_fwd_pd_t;
 };
 
-struct cpu_lrn_bwd_pd_t: public lrn_bwd_pd_t {
+struct cpu_lrn_bwd_pd_t : public lrn_bwd_pd_t {
     using lrn_bwd_pd_t::lrn_bwd_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

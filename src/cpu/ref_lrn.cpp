@@ -27,15 +27,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-
 namespace {
 
 typedef float acc_data_t;
 
-static inline acc_data_t fast_negative_powf(
-            acc_data_t omega, acc_data_t beta) {
-        acc_data_t Y;
-        /*
+static inline acc_data_t fast_negative_powf(acc_data_t omega, acc_data_t beta) {
+    acc_data_t Y;
+    /*
          * Y = omega^(-3/4) =
          * = 1.0f / sqrtf(omega) * sqrtf(1.0f / sqrtf(omega))
          * = sqrtf(1.0f / sqrtf(omega)) * 1.0f / sqrtf(omega)
@@ -43,14 +41,14 @@ static inline acc_data_t fast_negative_powf(
          * = sqrtf(1.0f / sqrtf(omega) / omega)
          * = sqrtf(1.0f / (sqrtf(omega) * omega))
          */
-        if (beta == 0.75f) {
-            Y = sqrtf(1.0f / (sqrtf(omega) * omega));
-        } else {
-            Y = 1.0f / powf(omega, beta);
-        }
-        return Y;
-    };
-}
+    if (beta == 0.75f) {
+        Y = sqrtf(1.0f / (sqrtf(omega) * omega));
+    } else {
+        Y = 1.0f / powf(omega, beta);
+    }
+    return Y;
+};
+} // namespace
 
 // Forward LRN formula:
 // y_i = x_i * (k + a / n * Sum:j [x_j^2])^-b, where
@@ -77,12 +75,13 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
 
     auto data_off = [&](int mb, int c, int h, int w) -> size_t {
         switch (tag) {
-        case nChw16c:
-        case nChw8c: return mb * stride_mb + c / blksize * H * W * blksize
-                     + h * W * blksize + w * blksize + c % blksize;
-        case nchw: return mb * stride_mb + c * H * W + h * W + w;
-        case nhwc: return mb * stride_mb + h * W * C + w * C + c;
-        default: return data_d.off(mb, c, h, w);
+            case nChw16c:
+            case nChw8c:
+                return mb * stride_mb + c / blksize * H * W * blksize
+                        + h * W * blksize + w * blksize + c % blksize;
+            case nchw: return mb * stride_mb + c * H * W + h * W + w;
+            case nhwc: return mb * stride_mb + h * W * C + w * C + c;
+            default: return data_d.off(mb, c, h, w);
         }
     };
 
@@ -120,29 +119,28 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         const int summands = across_channels ? size : size * size;
         sum = k + alpha * sum / summands;
         size_t off = data_off(mb, oc, oh, ow);
-        d[0] = static_cast<data_t>((acc_data_t)src[off] * fast_negative_powf(sum, beta));
+        d[0] = static_cast<data_t>(
+                (acc_data_t)src[off] * fast_negative_powf(sum, beta));
     };
 
     const int MB = pd()->MB();
     if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
-            [&](int mb, int c_blk, int h, int w) {
-            int c = c_blk * blksize;
-            const size_t off = mb * stride_mb + c * H * W
-                + (h * W + w) * blksize;
-            PRAGMA_OMP_SIMD()
-            for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
-                ker(&dst[off + cc], mb, c + cc, h, w);
-        });
+                [&](int mb, int c_blk, int h, int w) {
+                    int c = c_blk * blksize;
+                    const size_t off = mb * stride_mb + c * H * W
+                            + (h * W + w) * blksize;
+                    PRAGMA_OMP_SIMD()
+                    for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
+                        ker(&dst[off + cc], mb, c + cc, h, w);
+                });
     } else if (tag == nhwc) {
-        parallel_nd(MB, H, W, C,
-            [&](int mb, int h, int w, int c) {
+        parallel_nd(MB, H, W, C, [&](int mb, int h, int w, int c) {
             const size_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&dst[off], mb, c, h, w);
         });
     } else {
-        parallel_nd(MB, C, H, W,
-            [&](int mb, int c, int h, int w) {
+        parallel_nd(MB, C, H, W, [&](int mb, int c, int h, int w) {
             const size_t off = data_off(mb, c, h, w);
             ker(&dst[off], mb, c, h, w);
         });
@@ -190,12 +188,13 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
 
     auto data_off = [&](int mb, int c, int h, int w) -> size_t {
         switch (tag) {
-        case nChw16c:
-        case nChw8c: return mb * stride_mb + c/blksize * H * W * blksize
-                     + h * W * blksize + w * blksize + c%blksize;
-        case nchw: return mb * stride_mb + c * H * W + h * W + w;
-        case nhwc: return mb * stride_mb + h * W * C + w * C + c;
-        default: return data_d.off(mb, c, h, w);
+            case nChw16c:
+            case nChw8c:
+                return mb * stride_mb + c / blksize * H * W * blksize
+                        + h * W * blksize + w * blksize + c % blksize;
+            case nchw: return mb * stride_mb + c * H * W + h * W + w;
+            case nhwc: return mb * stride_mb + h * W * C + w * C + c;
+            default: return data_d.off(mb, c, h, w);
         }
     };
 
@@ -239,8 +238,7 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                         = fast_negative_powf(omega, beta);
                 const acc_data_t tmp
                         = omega_in_beta * (acc_data_t)diff_dst[off];
-                if (c == oc)
-                    A = tmp;
+                if (c == oc) A = tmp;
                 B += (src[off] * tmp / omega);
             }
         } else {
@@ -257,8 +255,7 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                             = fast_negative_powf(omega, beta);
                     const acc_data_t tmp
                             = omega_in_beta * (acc_data_t)diff_dst[off];
-                    if (h == oh && w == ow)
-                        A = tmp;
+                    if (h == oh && w == ow) A = tmp;
                     B += (src[off] * tmp / omega);
                 }
             }
@@ -270,72 +267,81 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
 
     if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
-            [&](int mb, int c_blk, int h, int w) {
-            int c = c_blk * blksize;
-            const auto off = mb * stride_mb + c * H * W + (h * W + w) * blksize;
-            PRAGMA_OMP_SIMD()
-            for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
-                ker(&diff_src[off + cc], mb, c + cc, h, w);
-        });
+                [&](int mb, int c_blk, int h, int w) {
+                    int c = c_blk * blksize;
+                    const auto off = mb * stride_mb + c * H * W
+                            + (h * W + w) * blksize;
+                    PRAGMA_OMP_SIMD()
+                    for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
+                        ker(&diff_src[off + cc], mb, c + cc, h, w);
+                });
     } else if (tag == nhwc) {
-        parallel_nd(MB, H, W, C,
-            [&](int mb, int h, int w, int c) {
+        parallel_nd(MB, H, W, C, [&](int mb, int h, int w, int c) {
             const size_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&diff_src[off], mb, c, h, w);
         });
     } else {
-        parallel_nd(MB, C, H, W,
-            [&](int mb, int c, int h, int w) {
+        parallel_nd(MB, C, H, W, [&](int mb, int c, int h, int w) {
             const size_t off = data_off(mb, c, h, w);
             ker(&diff_src[off], mb, c, h, w);
         });
     }
 }
 
-template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<format_tag::nchw>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::f32>::
-execute_forward<format_tag::any>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<format_tag::nchw>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::f32>::
-execute_backward<format_tag::any>(const exec_ctx_t &ctx) const;
+template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::f32>::execute_forward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::f32>::execute_backward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
 
-template void ref_lrn_fwd_t<data_type::bf16>::
-execute_forward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::
-execute_forward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::
-execute_forward<format_tag::nchw>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::
-execute_forward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
-template void ref_lrn_fwd_t<data_type::bf16>::
-execute_forward<format_tag::any>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::
-execute_backward<format_tag::nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::
-execute_backward<format_tag::nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::
-execute_backward<format_tag::nchw>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::
-execute_backward<format_tag::nhwc>(const exec_ctx_t &ctx) const;
-template void ref_lrn_bwd_t<data_type::bf16>::
-execute_backward<format_tag::any>(const exec_ctx_t &ctx) const;
+template void
+ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_fwd_t<data_type::bf16>::execute_forward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nChw16c>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nChw8c>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nchw>(
+        const exec_ctx_t &ctx) const;
+template void
+ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::nhwc>(
+        const exec_ctx_t &ctx) const;
+template void ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::any>(
+        const exec_ctx_t &ctx) const;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

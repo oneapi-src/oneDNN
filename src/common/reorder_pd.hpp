@@ -28,7 +28,7 @@
 namespace mkldnn {
 namespace impl {
 
-struct reorder_pd_t: public primitive_desc_t {
+struct reorder_pd_t : public primitive_desc_t {
     reorder_pd_t(engine_t *engine, const primitive_attr_t *attr,
             engine_t *src_engine, const memory_desc_t *src_md,
             engine_t *dst_engine, const memory_desc_t *dst_md)
@@ -37,26 +37,25 @@ struct reorder_pd_t: public primitive_desc_t {
         , dst_engine_(dst_engine)
         , scratchpad_engine_(nullptr)
         , src_md_(*src_md)
-        , dst_md_(*dst_md)
-    {}
+        , dst_md_(*dst_md) {}
 
     virtual const op_desc_t *op_desc() const override { return nullptr; }
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg == MKLDNN_ARG_FROM)
-            return arg_usage_t::input;
+        if (arg == MKLDNN_ARG_FROM) return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_TO)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_TO) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 ? &src_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *dst_md(int index = 0) const override {
+        return index == 0 ? &dst_md_ : &glob_zero_md;
+    }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
@@ -70,8 +69,9 @@ struct reorder_pd_t: public primitive_desc_t {
     engine_t *src_engine() const { return src_engine_; }
     engine_t *dst_engine() const { return dst_engine_; }
 
-    virtual mkldnn::impl::engine_t *scratchpad_engine() const override
-    { return scratchpad_engine_; }
+    virtual mkldnn::impl::engine_t *scratchpad_engine() const override {
+        return scratchpad_engine_;
+    }
 
 protected:
     engine_t *src_engine_;
@@ -82,8 +82,8 @@ protected:
     memory_desc_t dst_md_;
 };
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

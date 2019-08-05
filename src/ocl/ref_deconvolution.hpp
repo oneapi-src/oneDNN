@@ -38,8 +38,7 @@ static status_t compute_blocked_format(
     // Computes blocking for *i*o* format from *o*i* format
     bool sanity_check_ok = true && oi_md->ndims == io_md->ndims
             && oi_md->format_kind == format_kind::blocked;
-    if (!sanity_check_ok)
-        return status::invalid_arguments;
+    if (!sanity_check_ok) return status::invalid_arguments;
 
     const blocking_desc_t &oi_blk = oi_md->format_desc.blocking;
     blocking_desc_t io_blk = io_md->format_desc.blocking;
@@ -71,28 +70,26 @@ static status_t conv_descr_create(
     memory_desc_t c_weights_d;
 
     switch (dd->prop_kind) {
-    case forward:
-    case forward_inference:
-        prop_kind = backward_data;
-        src_md = &dd->dst_desc;
-        dst_md = &dd->src_desc;
-        d_weights_d = &dd->weights_desc;
-        break;
-    case backward_data:
-        prop_kind = forward_training;
-        src_md = &dd->diff_dst_desc;
-        dst_md = &dd->diff_src_desc;
-        d_weights_d = &dd->weights_desc;
-        break;
-    case backward_weights:
-        prop_kind = dd->prop_kind;
-        src_md = &dd->diff_dst_desc;
-        dst_md = &dd->src_desc;
-        d_weights_d = &dd->diff_weights_desc;
-        break;
-    default:
-        assert(!"unknown prop kind");
-        return status::invalid_arguments;
+        case forward:
+        case forward_inference:
+            prop_kind = backward_data;
+            src_md = &dd->dst_desc;
+            dst_md = &dd->src_desc;
+            d_weights_d = &dd->weights_desc;
+            break;
+        case backward_data:
+            prop_kind = forward_training;
+            src_md = &dd->diff_dst_desc;
+            dst_md = &dd->diff_src_desc;
+            d_weights_d = &dd->weights_desc;
+            break;
+        case backward_weights:
+            prop_kind = dd->prop_kind;
+            src_md = &dd->diff_dst_desc;
+            dst_md = &dd->src_desc;
+            d_weights_d = &dd->diff_weights_desc;
+            break;
+        default: assert(!"unknown prop kind"); return status::invalid_arguments;
     }
 
     const bool with_groups = d_weights_d->ndims == src_md->ndims + 1;
@@ -153,14 +150,14 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->post_ops_.has_default_values()
                     && (utils::everyone_is(data_type::f32,
-                            desc()->src_desc.data_type,
-                            desc()->weights_desc.data_type,
-                            desc()->dst_desc.data_type)
-                        || utils::everyone_is(data_type::f16,
-                            desc()->src_desc.data_type,
-                            desc()->weights_desc.data_type,
-                            desc()->dst_desc.data_type)
-                        ||  desc()->dst_desc.data_type == data_type::u8);
+                                desc()->src_desc.data_type,
+                                desc()->weights_desc.data_type,
+                                desc()->dst_desc.data_type)
+                            || utils::everyone_is(data_type::f16,
+                                    desc()->src_desc.data_type,
+                                    desc()->weights_desc.data_type,
+                                    desc()->dst_desc.data_type)
+                            || desc()->dst_desc.data_type == data_type::u8);
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any) {
@@ -404,8 +401,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         status_t status = conv_p_->execute(conv_ctx);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         if (pd()->with_bias()) {
             // Calling the bias kernel if bias=1
@@ -417,7 +413,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             arg_list.set(1, diff_bias);
 
             // Setting up global work-space to {OC*G, 1, 1}
-            auto nd_range = compute::nd_range_t({ gws[0], gws[1], gws[2] });
+            auto nd_range = compute::nd_range_t({gws[0], gws[1], gws[2]});
             status = compute_stream->parallel_for(
                     nd_range, bias_kernel, arg_list);
         }
@@ -428,8 +424,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         // Creating convolution primitve
         status_t conv_status
                 = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
-        if (conv_status != status::success)
-            return conv_status;
+        if (conv_status != status::success) return conv_status;
 
         // Initializing values for the deconv bias kernel
         auto *compute_engine
@@ -452,8 +447,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &bias_kernel, "ref_deconv_backward_bias", kernel_ctx);
-        if (!bias_kernel)
-            return status::runtime_error;
+        if (!bias_kernel) return status::runtime_error;
 
         gws[0] = pd()->OC() * pd()->G();
         gws[1] = 1;

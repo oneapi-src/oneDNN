@@ -30,12 +30,11 @@ using namespace mkldnn::impl::types;
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, int axis, dim_t group_size) {
-    bool args_ok = true
-        && !any_null(shuffle_desc, data_desc)
-        && one_of(prop_kind, forward_training, forward_inference,
-                  backward, backward_data)
-        && axis >= 0 && axis < data_desc->ndims
-        && group_size > 0 && group_size <= data_desc->dims[axis];
+    bool args_ok = true && !any_null(shuffle_desc, data_desc)
+            && one_of(prop_kind, forward_training, forward_inference, backward,
+                    backward_data)
+            && axis >= 0 && axis < data_desc->ndims && group_size > 0
+            && group_size <= data_desc->dims[axis];
     if (!args_ok) return invalid_arguments;
 
     auto sd = shuffle_desc_t();
@@ -45,28 +44,27 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
     sd.axis = axis;
     sd.group_size = group_size;
 
-    bool consistency = true
-        && sd.data_desc.dims[axis] % sd.group_size == 0;
+    bool consistency = true && sd.data_desc.dims[axis] % sd.group_size == 0;
     if (!consistency) return invalid_arguments;
 
     *shuffle_desc = sd;
     return success;
 }
-}
+} // namespace
 
 status_t mkldnn_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc, int axis,
         dim_t group_size) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return shuffle_desc_init(shuffle_desc, prop_kind, data_desc, axis,
-        group_size);
+    return shuffle_desc_init(
+            shuffle_desc, prop_kind, data_desc, axis, group_size);
 }
 
 status_t mkldnn_shuffle_backward_desc_init(shuffle_desc_t *shuffle_desc,
         const memory_desc_t *diff_data_desc, int axis, dim_t group_size) {
-    return shuffle_desc_init(shuffle_desc, backward_data, diff_data_desc, axis,
-        group_size);
+    return shuffle_desc_init(
+            shuffle_desc, backward_data, diff_data_desc, axis, group_size);
 }
 
 // vim: et ts=5 sw=4 cindent cino+=l0,\:4,N-s

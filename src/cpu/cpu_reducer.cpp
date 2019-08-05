@@ -38,13 +38,13 @@ void reduce_balancer_t::balance() {
     const int job_complexity = 1;
 
     const int min_njobs_per_group = max(1, njobs_ / nthr_);
-    const int max_njobs_per_group = max(1,
-            static_cast<int>(max_buffer_size_ / (nthr_ * job_size_)));
+    const int max_njobs_per_group
+            = max(1, static_cast<int>(max_buffer_size_ / (nthr_ * job_size_)));
 
     /* initial guess */
     int ngroups = min(njobs_ / min_njobs_per_group, nthr_);
-    int nthr_per_group = allow_nthr_in_group_
-        ? min(nthr_ / ngroups, reduction_size_) : 1;
+    int nthr_per_group
+            = allow_nthr_in_group_ ? min(nthr_ / ngroups, reduction_size_) : 1;
     int njobs_per_group_ub = div_up(njobs_, ngroups);
 
     /* rough upper-bound estimation, will be fixed during brute force */
@@ -56,7 +56,8 @@ void reduce_balancer_t::balance() {
         /* current assumption */
         int c_ngroups = min(njobs_ / c_njobs_per_group, nthr_);
         int c_nthr_per_group = allow_nthr_in_group_
-            ? min(nthr_ / c_ngroups, reduction_size_) : 1;
+                ? min(nthr_ / c_ngroups, reduction_size_)
+                : 1;
         int c_njobs_per_group_ub = div_up(njobs_, c_ngroups);
 
         if (c_nthr_per_group > 1 && c_njobs_per_group_ub > max_njobs_per_group)
@@ -64,9 +65,9 @@ void reduce_balancer_t::balance() {
 
         int c_thread_reduction_ub = div_up(reduction_size_, c_nthr_per_group);
         size_t c_group_size_ub = job_size_ * c_njobs_per_group_ub;
-        size_t c_thread_complexity_ub = c_group_size_ub * (
-                job_complexity * c_thread_reduction_ub
-                + (c_nthr_per_group != 1));
+        size_t c_thread_complexity_ub = c_group_size_ub
+                * (job_complexity * c_thread_reduction_ub
+                        + (c_nthr_per_group != 1));
 
         if (c_thread_complexity_ub < thread_complexity_ub) {
             ngroups = c_ngroups;
@@ -92,16 +93,22 @@ void reduce_balancer_t::balance() {
 using namespace Xbyak;
 
 template <impl::data_type_t data_type>
-struct reducer_2d_driver_t: public c_compatible {
+struct reducer_2d_driver_t : public c_compatible {
     typedef typename prec_traits<data_type>::type data_t;
 
-    reducer_2d_driver_t(int n_src, size_t src_ld,
-            size_t src_step, size_t dst_step, bool nullify_dst)
-        : n_src_(n_src), src_ld_(src_ld), src_step_(src_step)
-        , dst_step_(dst_step), nullify_dst_(nullify_dst), ker_(nullptr) {}
+    reducer_2d_driver_t(int n_src, size_t src_ld, size_t src_step,
+            size_t dst_step, bool nullify_dst)
+        : n_src_(n_src)
+        , src_ld_(src_ld)
+        , src_step_(src_step)
+        , dst_step_(dst_step)
+        , nullify_dst_(nullify_dst)
+        , ker_(nullptr) {}
     virtual ~reducer_2d_driver_t() {}
-    void operator()(data_t *dst, const data_t *srcs, size_t ny, size_t nx)
-    { assert(ker_); ker_(dst, srcs, ny, nx); }
+    void operator()(data_t *dst, const data_t *srcs, size_t ny, size_t nx) {
+        assert(ker_);
+        ker_(dst, srcs, ny, nx);
+    }
 
 protected:
     int n_src_;
@@ -111,23 +118,29 @@ protected:
 };
 
 template <impl::data_type_t data_type, cpu_isa_t isa>
-struct reducer_2d_driver_f_s_32_t: public reducer_2d_driver_t<data_type>,
-    public jit_generator
-{
+struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
+                                    public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
 
     /* cpu specific part */
     using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
-    void uni_vadd(const Xmm& x1, const Xmm& x2, const Operand& op)
-    { if (data_type == data_type::f32) vaddps(x1, x2, op);
-      else vpaddd(x1, x2, op); }
-    void uni_add(const Xmm& x1, const Operand& op)
-    { if (data_type == data_type::f32) addss(x1, op); else paddd(x1, op); }
+    void uni_vadd(const Xmm &x1, const Xmm &x2, const Operand &op) {
+        if (data_type == data_type::f32)
+            vaddps(x1, x2, op);
+        else
+            vpaddd(x1, x2, op);
+    }
+    void uni_add(const Xmm &x1, const Operand &op) {
+        if (data_type == data_type::f32)
+            addss(x1, op);
+        else
+            paddd(x1, op);
+    }
 
     const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize
-        = sizeof(typename mkldnn::impl::prec_traits<data_type>::type);
+            = sizeof(typename mkldnn::impl::prec_traits<data_type>::type);
     Xbyak::Reg64 reg_dst = abi_param1;
     Xbyak::Reg64 reg_src = abi_param2;
     Xbyak::Reg64 reg_ny = abi_param3;
@@ -138,9 +151,10 @@ struct reducer_2d_driver_f_s_32_t: public reducer_2d_driver_t<data_type>,
 
     reducer_2d_driver_f_s_32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
-        : reducer_2d_driver_t<data_type>(n_src, src_ld, src_step,
-                dst_step, nullify_dst)
-    { generate(); }
+        : reducer_2d_driver_t<data_type>(
+                n_src, src_ld, src_step, dst_step, nullify_dst) {
+        generate();
+    }
 
     void nullify_dst(int nloads, int load_len) {
         UNUSED(load_len);
@@ -260,7 +274,7 @@ struct reducer_2d_driver_f_s_32_t: public reducer_2d_driver_t<data_type>,
 
         postamble();
         this->ker_ = reinterpret_cast<decltype(this->ker_)>(
-            const_cast<uint8_t*>(this->getCode()));
+                const_cast<uint8_t *>(this->getCode()));
     }
 };
 
@@ -268,11 +282,11 @@ template <impl::data_type_t data_type>
 inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
     if (mayiuse(avx512_common))
-        return new reducer_2d_driver_f_s_32_t<data_type, avx512_common>(n_src,
-            src_ld, src_step, dst_step, nullify_dst);
+        return new reducer_2d_driver_f_s_32_t<data_type, avx512_common>(
+                n_src, src_ld, src_step, dst_step, nullify_dst);
     else if (mayiuse(avx2))
-        return new reducer_2d_driver_f_s_32_t<data_type, avx2>(n_src, src_ld,
-            src_step, dst_step, nullify_dst);
+        return new reducer_2d_driver_f_s_32_t<data_type, avx2>(
+                n_src, src_ld, src_step, dst_step, nullify_dst);
     assert(!"unimplemented");
     return nullptr;
 }
@@ -285,8 +299,8 @@ void cpu_reducer_t<data_type>::conf_t::init_scratchpad(
     if (balancer_.nthr_per_group_ == 1) return;
 
     const size_t space_size = balancer_.ngroups_
-        * (balancer_.nthr_per_group_ - 1)
-        * cpu_reducer_t<data_type>::space_per_thread(balancer_);
+            * (balancer_.nthr_per_group_ - 1)
+            * cpu_reducer_t<data_type>::space_per_thread(balancer_);
     scratchpad.book(key_reducer_space, sizeof(data_t) * space_size, PAGE_4K);
     scratchpad.book(key_reducer_space_bctx,
             sizeof(simple_barrier::ctx_t) * balancer_.ngroups_);
@@ -294,8 +308,7 @@ void cpu_reducer_t<data_type>::conf_t::init_scratchpad(
 
 template <impl::data_type_t data_type>
 cpu_reducer_t<data_type>::cpu_reducer_t(const conf_t &conf)
-    : conf_(conf), drv_(nullptr)
-{
+    : conf_(conf), drv_(nullptr) {
     if (balancer().nthr_per_group_ == 1) return;
 
     drv_ = create_reduce_2d_drv<data_type>(balancer().nthr_per_group_ - 1,
@@ -303,7 +316,9 @@ cpu_reducer_t<data_type>::cpu_reducer_t(const conf_t &conf)
 }
 
 template <impl::data_type_t data_type>
-cpu_reducer_t<data_type>::~cpu_reducer_t() { delete drv_; }
+cpu_reducer_t<data_type>::~cpu_reducer_t() {
+    delete drv_;
+}
 
 template <impl::data_type_t data_type>
 typename cpu_reducer_t<data_type>::data_t *
@@ -316,8 +331,8 @@ cpu_reducer_t<data_type>::get_local_ptr(int ithr, data_t *dst,
         return dst + balancer().ithr_job_off(ithr) * balancer().job_size_;
 
     const int grp_id = balancer().group_id(ithr);
-    const int offset_factor = grp_id * (balancer().nthr_per_group_ - 1)
-        + (id_in_grp - 1);
+    const int offset_factor
+            = grp_id * (balancer().nthr_per_group_ - 1) + (id_in_grp - 1);
 
     auto space = scratchpad.template get<data_t>(key_reducer_space);
     return space + offset_factor * space_per_thread(balancer());
@@ -326,8 +341,8 @@ cpu_reducer_t<data_type>::get_local_ptr(int ithr, data_t *dst,
 template <impl::data_type_t data_type>
 void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
-    bool redundant_reduction = balancer().nthr_per_group_ == 1
-        || balancer().idle(ithr);
+    bool redundant_reduction
+            = balancer().nthr_per_group_ == 1 || balancer().idle(ithr);
     if (redundant_reduction) return;
 
 #ifdef SIMPLE_IMPL
@@ -336,8 +351,8 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
 
     const int njobs_in_grp = balancer().ithr_njobs(ithr);
     data_t *d = get_local_ptr(ithr, dst, scratchpad);
-    for (int id_in_grp = 1; id_in_grp < balancer_.nthr_per_group_; ++id_in_grp)
-    {
+    for (int id_in_grp = 1; id_in_grp < balancer_.nthr_per_group_;
+            ++id_in_grp) {
         const data_t *space = get_local_ptr(ithr + id_in_grp, dst, scratchpad);
         for (size_t i = 0; i < (size_t)njobs_in_grp * balancer().job_size_; ++i)
             d[i] += space[i];
@@ -350,15 +365,15 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
     const size_t cl = 64 / sizeof(data_t);
 
     const size_t reduction_size = njobs_in_grp * balancer().job_size_;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(div_up(reduction_size, cl), balancer().nthr_per_group_,
             id_in_grp, start, end);
 
     if (start == end) return;
 
     data_t *d = get_local_ptr(ithr - id_in_grp, dst, scratchpad) + start * cl;
-    const data_t *space = get_local_ptr(ithr - id_in_grp + 1, dst, scratchpad)
-        + start * cl;
+    const data_t *space
+            = get_local_ptr(ithr - id_in_grp + 1, dst, scratchpad) + start * cl;
     const size_t len = nstl::min(end * cl, reduction_size) - start * cl;
 
     (*drv_)(d, space, 1, len);
@@ -376,7 +391,7 @@ void cpu_reducer_2d_t<data_type>::conf_t::init_scratchpad(
     if (balancer_.nthr_per_group_ == 1) return;
 
     const size_t space_size = balancer_.ngroups_ * balancer_.nthr_per_group_
-        * cpu_reducer_2d_t<data_type>::space_per_thread(balancer_);
+            * cpu_reducer_2d_t<data_type>::space_per_thread(balancer_);
     scratchpad.book(key_reducer_space, sizeof(data_t) * space_size);
     scratchpad.book(key_reducer_space_bctx,
             sizeof(simple_barrier::ctx_t) * balancer_.ngroups_);
@@ -384,8 +399,7 @@ void cpu_reducer_2d_t<data_type>::conf_t::init_scratchpad(
 
 template <impl::data_type_t data_type>
 cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(const conf_t &conf)
-    : conf_(conf), drv_(nullptr)
-{
+    : conf_(conf), drv_(nullptr) {
     if (balancer().nthr_per_group_ == 1) return;
 
     drv_ = create_reduce_2d_drv<data_type>(balancer().nthr_per_group_,
@@ -394,11 +408,14 @@ cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(const conf_t &conf)
 }
 
 template <impl::data_type_t data_type>
-cpu_reducer_2d_t<data_type>::~cpu_reducer_2d_t() { delete drv_; }
+cpu_reducer_2d_t<data_type>::~cpu_reducer_2d_t() {
+    delete drv_;
+}
 
 template <impl::data_type_t data_type>
-typename cpu_reducer_2d_t<data_type>::data_t *cpu_reducer_2d_t<data_type>::
-get_local_ptr(int ithr, const memory_tracking::grantor_t &scratchpad) const {
+typename cpu_reducer_2d_t<data_type>::data_t *
+cpu_reducer_2d_t<data_type>::get_local_ptr(
+        int ithr, const memory_tracking::grantor_t &scratchpad) const {
     const int id_in_grp = balancer().id_in_group(ithr);
     const int grp_id = balancer().group_id(ithr);
     const int offset_factor = grp_id * balancer().nthr_per_group_ + id_in_grp;
@@ -407,14 +424,14 @@ get_local_ptr(int ithr, const memory_tracking::grantor_t &scratchpad) const {
 }
 
 template <impl::data_type_t data_type>
-int cpu_reducer_2d_t<data_type>::choose_x_blocking(int nx, int ny,
-        int nthr_per_grp) const {
+int cpu_reducer_2d_t<data_type>::choose_x_blocking(
+        int nx, int ny, int nthr_per_grp) const {
     // find x_blocking for better balance reducing work between threads
     assert(conf_.x_block_ > 0 && nx > conf_.x_block_
             && nx % conf_.x_block_ == 0);
     int x_blocking = nx / conf_.x_block_;
-    int min_x_blocking =
-            utils::div_up(x_blocking, nstl::max(1, nthr_per_grp / ny));
+    int min_x_blocking
+            = utils::div_up(x_blocking, nstl::max(1, nthr_per_grp / ny));
     while (true) {
         if (x_blocking % 2 == 0 && x_blocking >= min_x_blocking * 2)
             x_blocking /= 2;
@@ -429,21 +446,20 @@ int cpu_reducer_2d_t<data_type>::choose_x_blocking(int nx, int ny,
 }
 
 template <impl::data_type_t data_type>
-void cpu_reducer_2d_t<data_type>::reduce_block(const data_t* space_base,
-        data_t *dst, int job, int start_y, int start_x,
-        int ny_start, int nx_start, int ny_step, int nx_step) const {
-    data_t *d = dst + (start_y + ny_start) * conf_.dst_x_
-                    + start_x + nx_start;
+void cpu_reducer_2d_t<data_type>::reduce_block(const data_t *space_base,
+        data_t *dst, int job, int start_y, int start_x, int ny_start,
+        int nx_start, int ny_step, int nx_step) const {
+    data_t *d = dst + (start_y + ny_start) * conf_.dst_x_ + start_x + nx_start;
     const data_t *space = space_base + job * balancer().job_size_
-                            + ny_start * conf_.job_size_x_ + nx_start;
+            + ny_start * conf_.job_size_x_ + nx_start;
 #ifdef SIMPLE_IMPL
     for (int idg = 0; idg < balancer().nthr_per_group_; ++idg) {
         const data_t *w = &space[idg * space_per_thread(balancer())];
         for (int y = 0; y < ny_step; ++y)
             for (int x = 0; x < nx_step; ++x) {
                 d[y * conf_.dst_x_ + x]
-                    = (idg == 0 ? 0 : d[y * conf_.dst_x_ + x])
-                    + w[y * conf_.job_size_x_ + x];
+                        = (idg == 0 ? 0 : d[y * conf_.dst_x_ + x])
+                        + w[y * conf_.job_size_x_ + x];
             }
     }
 #else
@@ -454,8 +470,8 @@ void cpu_reducer_2d_t<data_type>::reduce_block(const data_t* space_base,
 template <impl::data_type_t data_type>
 void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
-    bool redundant_reduction = balancer().nthr_per_group_ == 1
-        || balancer().idle(ithr);
+    bool redundant_reduction
+            = balancer().nthr_per_group_ == 1 || balancer().idle(ithr);
     if (redundant_reduction) return;
 
     const int id_in_grp = balancer().id_in_group(ithr);
@@ -468,13 +484,12 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
     const int pr_grps = nstl::min(njobs_in_grp, balancer().nthr_per_group_);
     const int pr_nthr_per_grp = balancer().nthr_per_group_ / pr_grps;
 
-    if (id_in_grp >= pr_grps * pr_nthr_per_grp)
-        return; /* idle */
+    if (id_in_grp >= pr_grps * pr_nthr_per_grp) return; /* idle */
 
     const int pr_my_grp = id_in_grp / pr_nthr_per_grp;
     const int pr_my_id = id_in_grp % pr_nthr_per_grp;
 
-    int pr_job_start{0}, pr_job_end{0};
+    int pr_job_start {0}, pr_job_end {0};
     balance211(njobs_in_grp, pr_grps, pr_my_grp, pr_job_start, pr_job_end);
 
     for (int j = pr_job_start; j < pr_job_end; ++j) {
@@ -487,9 +502,9 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
         const int nx = nstl::min(conf_.dst_x_ - start_x, conf_.job_size_x_);
         int x_blocking = choose_x_blocking(nx, ny, pr_nthr_per_grp);
 
-        int nxy_start{0}, nxy_end{0};
-        balance211(ny * nx / x_blocking, pr_nthr_per_grp, pr_my_id,
-                    nxy_start, nxy_end);
+        int nxy_start {0}, nxy_end {0};
+        balance211(ny * nx / x_blocking, pr_nthr_per_grp, pr_my_id, nxy_start,
+                nxy_end);
         if (nxy_start == nxy_end) continue;
         nxy_start *= x_blocking;
         nxy_end *= x_blocking;
@@ -497,19 +512,19 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
         int nxy = nxy_start;
         if (nxy % nx != 0) {
             int nx_step = nstl::min(nx - nxy % nx, nxy_end - nxy);
-            reduce_block(space_base, dst, j, start_y, start_x,
-                        nxy / nx, nxy % nx, 1, nx_step);
+            reduce_block(space_base, dst, j, start_y, start_x, nxy / nx,
+                    nxy % nx, 1, nx_step);
             nxy += nx_step;
         }
         if ((nxy_end - nxy) > nx) {
             int ny_step = (nxy_end - nxy) / nx;
-            reduce_block(space_base, dst, j, start_y, start_x,
-                        nxy / nx, nxy % nx, ny_step, nx);
+            reduce_block(space_base, dst, j, start_y, start_x, nxy / nx,
+                    nxy % nx, ny_step, nx);
             nxy += nx * ny_step;
         }
         if ((nxy_end - nxy) > 0) {
-            reduce_block(space_base, dst, j, start_y, start_x,
-                        nxy / nx, nxy % nx, 1, nxy_end - nxy);
+            reduce_block(space_base, dst, j, start_y, start_x, nxy / nx,
+                    nxy % nx, 1, nxy_end - nxy);
         }
     }
 }
@@ -520,7 +535,7 @@ template struct cpu_reducer_2d_t<data_type::s32>;
 /* accumulator section */
 
 template <impl::data_type_t data_type>
-cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t(): drv_(nullptr) {
+cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t() : drv_(nullptr) {
     drv_ = create_reduce_2d_drv<data_type>(1, 0, 0, 0, false);
 }
 
@@ -530,16 +545,16 @@ cpu_accumulator_1d_t<data_type>::~cpu_accumulator_1d_t() {
 }
 
 template <impl::data_type_t data_type>
-void cpu_accumulator_1d_t<data_type>::accumulate(data_t *dst,
-        const data_t *src, size_t size) {
+void cpu_accumulator_1d_t<data_type>::accumulate(
+        data_t *dst, const data_t *src, size_t size) {
     (*drv_)(dst, src, 1, size);
 }
 
 template struct cpu_accumulator_1d_t<data_type::f32>;
 template struct cpu_accumulator_1d_t<data_type::s32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

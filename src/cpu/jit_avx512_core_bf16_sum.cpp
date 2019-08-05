@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 #include <float.h>
-#include "utils.hpp" // common
 #include "jit_avx512_core_bf16_sum.hpp" // cpu
+#include "utils.hpp" // common
 
 #define GET_OFF(field) offsetof(jit_sum_call_s, field)
 
@@ -120,10 +120,8 @@ void jit_avx512_core_bf16_sum_kernel::generate() {
         vpbroadcastd(vscale, ptr[reg_scales + 2 * acc_iter * jsp.typesize_in]);
     }
 
-    if (!isa_has_bf16(jsp.isa))
-        bf16_emu_->init_vcvtneps2bf16();
-    if (jsp.loop_unroll > 1)
-        loop_iteration(jsp.loop_unroll);
+    if (!isa_has_bf16(jsp.isa)) bf16_emu_->init_vcvtneps2bf16();
+    if (jsp.loop_unroll > 1) loop_iteration(jsp.loop_unroll);
 
     loop_iteration(1);
 
@@ -199,8 +197,8 @@ void jit_avx512_core_bf16_sum_kernel::generate() {
 
     align(64);
     L(idx_table);
-    const uint16_t _idx[] = { 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22,
-        7, 23, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31 };
+    const uint16_t _idx[] = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7,
+            23, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
     const dim_t _idx_size = sizeof(_idx) / sizeof(_idx[0]);
     for (dim_t i = 0; i < _idx_size; ++i)
         dw(_idx[i]);
@@ -215,11 +213,9 @@ status_t jit_avx512_core_bf16_sum_kernel::init_conf(
     const int max_unroll = 6; // maximum possible value of unroll is 6
     for (/*continue*/; jsp.loop_unroll < max_unroll; jsp.loop_unroll++) {
         int num_regs = num_vregs_required(jsp.loop_unroll + 1, jsp.num_srcs);
-        if (num_regs > max_vregs_available(isa_has_bf16(jsp.isa)))
-            break;
+        if (num_regs > max_vregs_available(isa_has_bf16(jsp.isa))) break;
     }
-    if (jsp.loop_unroll == 0)
-        return status::unimplemented;
+    if (jsp.loop_unroll == 0) return status::unimplemented;
     jsp.size_blocking = bf16_simd_w * jsp.loop_unroll;
 
     const memory_desc_wrapper o_d(&dst_d);
@@ -251,8 +247,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
                 + i_d.blk_off(0);
     }
     cvt_float_to_bfloat16(scales, &pd()->scales()[0], num_arrs);
-    if (num_arrs % 2 != 0)
-        scales[num_arrs] = 0.0f;
+    if (num_arrs % 2 != 0) scales[num_arrs] = 0.0f;
 
     const dim_t half_L1 = 16 * 1024; // bytes
     const dim_t num_elems_in_block = utils::rnd_up(
@@ -263,7 +258,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
     const dim_t tail = nelems % num_elems_in_block;
 
     parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start{ 0 }, end{ 0 };
+        dim_t start {0}, end {0};
         balance211(num_blocks, nthr, ithr, start, end);
         auto arg = jit_sum_call_s();
         const src_data_t *

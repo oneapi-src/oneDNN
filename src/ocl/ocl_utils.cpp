@@ -30,8 +30,7 @@ status_t get_ocl_devices(
 
     cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
     // No platforms - a valid scenario
-    if (err == CL_PLATFORM_NOT_FOUND_KHR)
-        return status::success;
+    if (err == CL_PLATFORM_NOT_FOUND_KHR) return status::success;
 
     OCL_CHECK(err);
 

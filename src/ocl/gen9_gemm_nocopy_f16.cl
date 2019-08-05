@@ -41,76 +41,75 @@
 #endif
 #endif
 
-#define DO_FMA_NN(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16)        \
-    do {                                                             \
+#define DO_FMA_NN(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16) \
+    do { \
         c[i][0] = mad(sub_group_broadcast(a[h].s##i_mod_2, i_div_2), \
-                b[0].s##h, c[i][0]);                                 \
+                b[0].s##h, c[i][0]); \
         c[i][1] = mad(sub_group_broadcast(a[h].s##i_mod_2, i_div_2), \
-                b[1].s##h, c[i][1]);                                 \
+                b[1].s##h, c[i][1]); \
     } while (0)
 
-#define DO_FMA_NT(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16)                 \
-    do {                                                                      \
+#define DO_FMA_NT(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16) \
+    do { \
         c[i][0] = mad(sub_group_broadcast(a[h].s##i_mod_2, i_div_2), b[h].s0, \
-                c[i][0]);                                                     \
+                c[i][0]); \
         c[i][1] = mad(sub_group_broadcast(a[h].s##i_mod_2, i_div_2), b[h].s1, \
-                c[i][1]);                                                     \
+                c[i][1]); \
     } while (0)
 
-#define DO_FMA_TN(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16)                            \
-    do {                                                               \
+#define DO_FMA_TN(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16) \
+    do { \
         c[i][0] = mad(sub_group_broadcast(a[i_div_16].s##h, i_mod_16), \
-                b[0].s##h, c[i][0]);                                   \
+                b[0].s##h, c[i][0]); \
         c[i][1] = mad(sub_group_broadcast(a[i_div_16].s##h, i_mod_16), \
-                b[1].s##h, c[i][1]);                                   \
+                b[1].s##h, c[i][1]); \
     } while (0)
 
-#define DO_FMA_TT(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16)                            \
-    do {                                                               \
+#define DO_FMA_TT(h, i, i_mod_2, i_div_2, i_mod_16, i_div_16) \
+    do { \
         c[i][0] = mad(sub_group_broadcast(a[i_div_16].s##h, i_mod_16), \
-                b[h].s0, c[i][0]);                                     \
+                b[h].s0, c[i][0]); \
         c[i][1] = mad(sub_group_broadcast(a[i_div_16].s##h, i_mod_16), \
-                b[h].s1, c[i][1]);                                     \
+                b[h].s1, c[i][1]); \
     } while (0)
 
 #if WITH_ELTWISE == 1
-#define POST_OP(val)                                             \
-    do {                                                         \
-        if (last_k_block)                                        \
-            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+#define POST_OP(val) \
+    do { \
+        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
     } while (0)
 #else
 #define POST_OP(val)
 #endif
 
-#define FMA_I_LOOP(h)                \
-    do {                             \
-        DO_FMA(h, 0, 0, 0, 0, 0);    \
-        DO_FMA(h, 1, 1, 0, 1, 0);    \
-        DO_FMA(h, 2, 0, 1, 2, 0);    \
-        DO_FMA(h, 3, 1, 1, 3, 0);    \
-        DO_FMA(h, 4, 0, 2, 4, 0);    \
-        DO_FMA(h, 5, 1, 2, 5, 0);    \
-        DO_FMA(h, 6, 0, 3, 6, 0);    \
-        DO_FMA(h, 7, 1, 3, 7, 0);    \
-        DO_FMA(h, 8, 0, 4, 8, 0);    \
-        DO_FMA(h, 9, 1, 4, 9, 0);    \
-        DO_FMA(h, 10, 0, 5, 10, 0);  \
-        DO_FMA(h, 11, 1, 5, 11, 0);  \
-        DO_FMA(h, 12, 0, 6, 12, 0);  \
-        DO_FMA(h, 13, 1, 6, 13, 0);  \
-        DO_FMA(h, 14, 0, 7, 14, 0);  \
-        DO_FMA(h, 15, 1, 7, 15, 0);  \
-        DO_FMA(h, 16, 0, 8, 0, 1);   \
-        DO_FMA(h, 17, 1, 8, 1, 1);   \
-        DO_FMA(h, 18, 0, 9, 2, 1);   \
-        DO_FMA(h, 19, 1, 9, 3, 1);   \
-        DO_FMA(h, 20, 0, 10, 4, 1);  \
-        DO_FMA(h, 21, 1, 10, 5, 1);  \
-        DO_FMA(h, 22, 0, 11, 6, 1);  \
-        DO_FMA(h, 23, 1, 11, 7, 1);  \
-        DO_FMA(h, 24, 0, 12, 8, 1);  \
-        DO_FMA(h, 25, 1, 12, 9, 1);  \
+#define FMA_I_LOOP(h) \
+    do { \
+        DO_FMA(h, 0, 0, 0, 0, 0); \
+        DO_FMA(h, 1, 1, 0, 1, 0); \
+        DO_FMA(h, 2, 0, 1, 2, 0); \
+        DO_FMA(h, 3, 1, 1, 3, 0); \
+        DO_FMA(h, 4, 0, 2, 4, 0); \
+        DO_FMA(h, 5, 1, 2, 5, 0); \
+        DO_FMA(h, 6, 0, 3, 6, 0); \
+        DO_FMA(h, 7, 1, 3, 7, 0); \
+        DO_FMA(h, 8, 0, 4, 8, 0); \
+        DO_FMA(h, 9, 1, 4, 9, 0); \
+        DO_FMA(h, 10, 0, 5, 10, 0); \
+        DO_FMA(h, 11, 1, 5, 11, 0); \
+        DO_FMA(h, 12, 0, 6, 12, 0); \
+        DO_FMA(h, 13, 1, 6, 13, 0); \
+        DO_FMA(h, 14, 0, 7, 14, 0); \
+        DO_FMA(h, 15, 1, 7, 15, 0); \
+        DO_FMA(h, 16, 0, 8, 0, 1); \
+        DO_FMA(h, 17, 1, 8, 1, 1); \
+        DO_FMA(h, 18, 0, 9, 2, 1); \
+        DO_FMA(h, 19, 1, 9, 3, 1); \
+        DO_FMA(h, 20, 0, 10, 4, 1); \
+        DO_FMA(h, 21, 1, 10, 5, 1); \
+        DO_FMA(h, 22, 0, 11, 6, 1); \
+        DO_FMA(h, 23, 1, 11, 7, 1); \
+        DO_FMA(h, 24, 0, 12, 8, 1); \
+        DO_FMA(h, 25, 1, 12, 9, 1); \
         DO_FMA(h, 26, 0, 13, 10, 1); \
         DO_FMA(h, 27, 1, 13, 11, 1); \
         DO_FMA(h, 28, 0, 14, 12, 1); \
@@ -119,36 +118,36 @@
         DO_FMA(h, 31, 1, 15, 15, 1); \
     } while (0)
 
-#define UPDATE_C_ROW(i, betaZero)                                           \
-    do {                                                                    \
-        if (irem > i) {                                                     \
-            if (jrem > 0) {                                                 \
-                half val = alpha * c[i][0] + ((betaZero) ? 0 : beta * *C);  \
-                POST_OP(val);                                               \
-                *C = val;                                                   \
-            }                                                               \
-            if (jrem > 16) {                                                \
+#define UPDATE_C_ROW(i, betaZero) \
+    do { \
+        if (irem > i) { \
+            if (jrem > 0) { \
+                half val = alpha * c[i][0] + ((betaZero) ? 0 : beta * *C); \
+                POST_OP(val); \
+                *C = val; \
+            } \
+            if (jrem > 16) { \
                 half val = alpha * c[i][1] + ((betaZero) ? 0 : beta * *C2); \
-                POST_OP(val);                                               \
-                *C2 = val;                                                  \
-            }                                                               \
-        }                                                                   \
-        C++;                                                                \
-        C2++;                                                               \
+                POST_OP(val); \
+                *C2 = val; \
+            } \
+        } \
+        C++; \
+        C2++; \
     } while (0)
 
-#define UPDATE_C(betaZero)          \
-    do {                            \
-        UPDATE_C_ROW(0, betaZero);  \
-        UPDATE_C_ROW(1, betaZero);  \
-        UPDATE_C_ROW(2, betaZero);  \
-        UPDATE_C_ROW(3, betaZero);  \
-        UPDATE_C_ROW(4, betaZero);  \
-        UPDATE_C_ROW(5, betaZero);  \
-        UPDATE_C_ROW(6, betaZero);  \
-        UPDATE_C_ROW(7, betaZero);  \
-        UPDATE_C_ROW(8, betaZero);  \
-        UPDATE_C_ROW(9, betaZero);  \
+#define UPDATE_C(betaZero) \
+    do { \
+        UPDATE_C_ROW(0, betaZero); \
+        UPDATE_C_ROW(1, betaZero); \
+        UPDATE_C_ROW(2, betaZero); \
+        UPDATE_C_ROW(3, betaZero); \
+        UPDATE_C_ROW(4, betaZero); \
+        UPDATE_C_ROW(5, betaZero); \
+        UPDATE_C_ROW(6, betaZero); \
+        UPDATE_C_ROW(7, betaZero); \
+        UPDATE_C_ROW(8, betaZero); \
+        UPDATE_C_ROW(9, betaZero); \
         UPDATE_C_ROW(10, betaZero); \
         UPDATE_C_ROW(11, betaZero); \
         UPDATE_C_ROW(12, betaZero); \
@@ -181,8 +180,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half2 a[4];    // 32 x 4  block of A,      4x 32x1 block accesses
-    half4 b[2];    // 4  x 32 block of B,      2x 4x16 scattered access
+    half2 a[4]; // 32 x 4  block of A,      4x 32x1 block accesses
+    half4 b[2]; // 4  x 32 block of B,      2x 4x16 scattered access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
 
     int idM = get_global_id(1);
@@ -193,17 +192,15 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int irem = m - i0;
     int jrem = n - j0;
-    if (irem < 0)
-        irem = 0;
-    if (jrem < 0)
-        jrem = 0;
+    if (irem < 0) irem = 0;
+    if (jrem < 0) jrem = 0;
 
     A += offset_a + i0;
     B += offset_b + j0 * ldb;
     C += offset_c + i0 + j0 * ldc;
 
-    global half *A_ptrs[4] = { A, A + lda, A + 2 * lda, A + 3 * lda };
-    global half *B_ptrs[2] = { B, B + 16 * ldb };
+    global half *A_ptrs[4] = {A, A + lda, A + 2 * lda, A + 3 * lda};
+    global half *B_ptrs[2] = {B, B + 16 * ldb};
 
     for (int y = 0; y < 32; y++)
         for (int z = 0; z < 2; z++)
@@ -238,10 +235,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
             b[j] = VLOAD4_ALIGNED(0, (B_ptrs[j] + k_align));
 
         FMA_I_LOOP(0);
-        if (krem > 1)
-            FMA_I_LOOP(1);
-        if (krem > 2)
-            FMA_I_LOOP(2);
+        if (krem > 1) FMA_I_LOOP(1);
+        if (krem > 2) FMA_I_LOOP(2);
     }
 
     global half *C2 = C + 16 * ldc;
@@ -262,8 +257,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half2 a[4];    // 32 x 4  block of A,      4x 32x1 block access
-    half2 b[4];    // 4  x 32 block of B,      4x 1x32 block access
+    half2 a[4]; // 32 x 4  block of A,      4x 32x1 block access
+    half2 b[4]; // 4  x 32 block of B,      4x 1x32 block access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
 
     int idM = get_global_id(1);
@@ -275,17 +270,15 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int irem = m - i0;
     int jrem = n - j0;
-    if (irem < 0)
-        irem = 0;
-    if (jrem < 0)
-        jrem = 0;
+    if (irem < 0) irem = 0;
+    if (jrem < 0) jrem = 0;
 
     A += offset_a + i0;
     B += offset_b + j00;
     C += offset_c + i0 + j0 * ldc;
 
-    global half *A_ptrs[4] = { A, A + lda, A + 2 * lda, A + 3 * lda };
-    global half *B_ptrs[4] = { B, B + ldb, B + 2 * ldb, B + 3 * ldb };
+    global half *A_ptrs[4] = {A, A + lda, A + 2 * lda, A + 3 * lda};
+    global half *B_ptrs[4] = {B, B + ldb, B + 2 * ldb, B + 3 * ldb};
 
     for (int y = 0; y < 32; y++)
         for (int z = 0; z < 2; z++)
@@ -317,10 +310,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         }
 
         FMA_I_LOOP(0);
-        if (krem > 1)
-            FMA_I_LOOP(1);
-        if (krem > 2)
-            FMA_I_LOOP(2);
+        if (krem > 1) FMA_I_LOOP(1);
+        if (krem > 2) FMA_I_LOOP(2);
     }
 
     global half *C2 = C + 16 * ldc;
@@ -341,8 +332,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
-    half4 b[2];    // 4  x 32 block of B,      2x 4x16 scattered access
+    half4 a[2]; // 32 x 4  block of A,      2x 16x4 scattered access
+    half4 b[2]; // 4  x 32 block of B,      2x 4x16 scattered access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
 
     int idM = get_global_id(1);
@@ -353,10 +344,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int irem = m - i0;
     int jrem = n - j0;
-    if (irem < 0)
-        irem = 0;
-    if (jrem < 0)
-        jrem = 0;
+    if (irem < 0) irem = 0;
+    if (jrem < 0) jrem = 0;
 
     A += offset_a + i0 * lda;
     B += offset_b + j0 * ldb;
@@ -364,8 +353,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     A += get_sub_group_local_id() * lda;
 
-    global half *A_ptrs[2] = { A, A + 16 * lda };
-    global half *B_ptrs[2] = { B, B + 16 * ldb };
+    global half *A_ptrs[2] = {A, A + 16 * lda};
+    global half *B_ptrs[2] = {B, B + 16 * ldb};
 
     for (int y = 0; y < 32; y++)
         for (int z = 0; z < 2; z++)
@@ -393,10 +382,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         }
 
         FMA_I_LOOP(0);
-        if (krem > 1)
-            FMA_I_LOOP(1);
-        if (krem > 2)
-            FMA_I_LOOP(2);
+        if (krem > 1) FMA_I_LOOP(1);
+        if (krem > 2) FMA_I_LOOP(2);
     }
 
     global half *C2 = C + 16 * ldc;
@@ -417,8 +404,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
-    half2 b[4];    // 4  x 32 block of B,      4x 1x32 block access
+    half4 a[2]; // 32 x 4  block of A,      2x 16x4 scattered access
+    half2 b[4]; // 4  x 32 block of B,      4x 1x32 block access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
 
     int idM = get_global_id(1);
@@ -430,10 +417,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int irem = m - i0;
     int jrem = n - j0;
-    if (irem < 0)
-        irem = 0;
-    if (jrem < 0)
-        jrem = 0;
+    if (irem < 0) irem = 0;
+    if (jrem < 0) jrem = 0;
 
     A += offset_a + i0 * lda;
     B += offset_b + j00;
@@ -441,8 +426,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     A += get_sub_group_local_id() * lda;
 
-    global half *A_ptrs[2] = { A, A + 16 * lda };
-    global half *B_ptrs[4] = { B, B + ldb, B + 2 * ldb, B + 3 * ldb };
+    global half *A_ptrs[2] = {A, A + 16 * lda};
+    global half *B_ptrs[4] = {B, B + ldb, B + 2 * ldb, B + 3 * ldb};
 
     for (int y = 0; y < 32; y++)
         for (int z = 0; z < 2; z++)
@@ -474,10 +459,8 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
                     (global ushort *)(B_ptrs[hh] + k_align * ldb)));
 
         FMA_I_LOOP(0);
-        if (krem > 1)
-            FMA_I_LOOP(1);
-        if (krem > 2)
-            FMA_I_LOOP(2);
+        if (krem > 1) FMA_I_LOOP(1);
+        if (krem > 2) FMA_I_LOOP(2);
     }
 
     global half *C2 = C + 16 * ldc;

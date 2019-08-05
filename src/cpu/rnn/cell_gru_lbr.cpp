@@ -32,22 +32,20 @@ using namespace mkldnn::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
-
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
-                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
-                states_t_lm1_, rnn.states_ws_ld, 0.0, ws_gates_,
-                rnn.gates_ws_ld);
+                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
+                rnn.states_ws_ld, 0.0, ws_gates_, rnn.gates_ws_ld);
     }
     (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb, rnn.sic,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
             rnn.states_ws_ld, 0.0, ws_cell_, rnn.gates_ws_ld);
-    rnn_postgemm_->execute(rnn, ws_gates_,
-                states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_[0], ws_grid_, ws_cell_);
+    rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+            states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
+            ws_cell_);
 }
 
 template <>
@@ -55,22 +53,21 @@ rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
     assert(!"GRU LBR int8 is not supported");
 }
 
-
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
     ws_gates_aoc_t ws_gates_r(rnn, ws_cell_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
 
-    rnn_postgemm_->execute(rnn, ws_gates_,
-                states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_[0], ws_grid_, ws_cell_);
+    rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
+            states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
+            diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
+            ws_cell_);
 
     if (!rnn.merge_gemm_layer) {
         //  dx = dG * Wx^t
         (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, w_layer_[0],
-                rnn.weights_layer_ld, ws_gates_, rnn.gates_ws_ld, 0.0,
+                rnn.n_gates * rnn.dic, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                ws_gates_, rnn.gates_ws_ld, 0.0,
                 &diff_states_t_l(rnn.n_states, 0, 0), rnn.states_ws_ld);
         // dWx +=  dG^t * x
         gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, ws_gates_,
@@ -100,6 +97,6 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
 
 #undef AOC
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

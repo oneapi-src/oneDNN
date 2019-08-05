@@ -37,8 +37,7 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
     if (!args_ok) return invalid_arguments;
 
     const primitive_attr_t dummy_attr;
-    if (attr == NULL)
-        attr = &dummy_attr;
+    if (attr == NULL) attr = &dummy_attr;
 
     const int ndims = src_mds[0].ndims;
     const dims_t &dims = src_mds[0].dims;
@@ -46,8 +45,7 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
     for (int i = 1; i < n; ++i) {
         if (src_mds[i].ndims != ndims) return invalid_arguments;
         for (int d = 0; d < ndims; ++d) {
-            if (src_mds[i].dims[d] != dims[d])
-                return invalid_arguments;
+            if (src_mds[i].dims[d] != dims[d]) return invalid_arguments;
         }
     }
 
@@ -55,8 +53,7 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
     if (dst_md) {
         if (dst_md->ndims != ndims) return invalid_arguments;
         for (int d = 0; d < ndims; ++d) {
-            if (dst_md->dims[d] != dims[d])
-                return invalid_arguments;
+            if (dst_md->dims[d] != dims[d]) return invalid_arguments;
         }
     } else {
         dummy_dst_md = src_mds[0];

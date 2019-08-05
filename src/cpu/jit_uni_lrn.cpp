@@ -18,8 +18,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_uni_lrn_kernel_f32.hpp"
 #include "jit_uni_lrn.hpp"
+#include "jit_uni_lrn_kernel_f32.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -31,9 +31,10 @@ using namespace mkldnn::impl::utils;
 
 template <cpu_isa_t isa>
 jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd), ker_(nullptr)
-    , ker_first_(nullptr), ker_last_(nullptr)
-{
+    : cpu_primitive_t(apd)
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {
     using namespace alg_kind;
 
     const int C = pd()->C();
@@ -61,11 +62,11 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
                 nchw8c_within(H, W, ls), A, K, pk);
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
-                nchw_across(C, H*W, 0), A, K, pk);
-        int remind = (H*W) % VECTOR_LENGTH;
+                nchw_across(C, H * W, 0), A, K, pk);
+        int remind = (H * W) % VECTOR_LENGTH;
         if (remind != 0) {
             ker_last_ = new jit_uni_lrn_fwd_kernel_f32<isa>(
-                        nchw_across(C, H*W, remind), A, K, pk);
+                    nchw_across(C, H * W, remind), A, K, pk);
         }
     } else {
         ker_ = new jit_uni_lrn_fwd_kernel_f32<isa>(nhwc_across(C), A, K, pk);
@@ -73,8 +74,11 @@ jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
 }
 
 template <cpu_isa_t isa>
-jit_uni_lrn_fwd_t<isa>::~jit_uni_lrn_fwd_t()
-{ delete ker_; delete ker_first_; delete ker_last_; }
+jit_uni_lrn_fwd_t<isa>::~jit_uni_lrn_fwd_t() {
+    delete ker_;
+    delete ker_first_;
+    delete ker_last_;
+}
 
 template <cpu_isa_t isa>
 void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
@@ -95,9 +99,9 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
             jit_args_fwd_t args;
-            args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
-            args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-            args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.src = &src[n * HW * C + c8 * HW * VECTOR_LENGTH];
+            args.dst = &dst[n * HW * C + c8 * HW * VECTOR_LENGTH];
+            args.scratch = &ws[n * HW * C + c8 * HW * VECTOR_LENGTH];
             if (c8 == 0)
                 (*ker_first_)(&args);
             else if (c8 == C / VECTOR_LENGTH - 1)
@@ -105,35 +109,32 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
             else
                 (*ker_)(&args);
         });
-    }
-    else if (dat_tag == nChw8c && ak == lrn_within_channel) {
+    } else if (dat_tag == nChw8c && ak == lrn_within_channel) {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
             jit_args_fwd_t args;
-            args.src = &src[n*HW*C + c8 * HW * VECTOR_LENGTH];
-            args.dst = &dst[n*HW*C + c8 * HW * VECTOR_LENGTH];
-            args.scratch = &ws[n*HW*C + c8 * HW * VECTOR_LENGTH];
+            args.src = &src[n * HW * C + c8 * HW * VECTOR_LENGTH];
+            args.dst = &dst[n * HW * C + c8 * HW * VECTOR_LENGTH];
+            args.scratch = &ws[n * HW * C + c8 * HW * VECTOR_LENGTH];
             (*ker_)(&args);
         });
-    }
-    else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
+    } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         parallel_nd(N, (HW + VECTOR_LENGTH - 1) / VECTOR_LENGTH,
-            [&](int n, int hw8) {
-            jit_args_fwd_t args;
-            args.src = &src[n*HW*C + hw8 * VECTOR_LENGTH];
-            args.dst = &dst[n*HW*C + hw8 * VECTOR_LENGTH];
-            args.scratch = &ws[n*HW*C + hw8 * VECTOR_LENGTH];
-            if ((hw8 + 1)*VECTOR_LENGTH > HW)
-                (*ker_last_)(&args);
-            else
-                (*ker_)(&args);
-        });
-    }
-    else { // nhwc
+                [&](int n, int hw8) {
+                    jit_args_fwd_t args;
+                    args.src = &src[n * HW * C + hw8 * VECTOR_LENGTH];
+                    args.dst = &dst[n * HW * C + hw8 * VECTOR_LENGTH];
+                    args.scratch = &ws[n * HW * C + hw8 * VECTOR_LENGTH];
+                    if ((hw8 + 1) * VECTOR_LENGTH > HW)
+                        (*ker_last_)(&args);
+                    else
+                        (*ker_)(&args);
+                });
+    } else { // nhwc
         parallel_nd(N, HW, [&](int n, int hw) {
             jit_args_fwd_t args;
-            args.src = &src[n*HW*C + hw * C];
-            args.dst = &dst[n*HW*C + hw * C];
-            args.scratch = &ws[n*HW*C + hw * C];
+            args.src = &src[n * HW * C + hw * C];
+            args.dst = &dst[n * HW * C + hw * C];
+            args.scratch = &ws[n * HW * C + hw * C];
             (*ker_)(&args);
         });
     }
@@ -145,16 +146,12 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    bool ok = true
-        && mayiuse(isa)
-        && is_fwd()
-        && everyone_is(data_type::f32, data_d.data_type())
-        && !has_zero_dim_memory()
-        && data_d.ndims() == 4
-        && data_d.dims()[1] % VECTOR_LENGTH == 0
-        && data_d.dims()[1] >= 2 * VECTOR_LENGTH
-        && desc()->lrn_beta == 0.75
-        && attr()->has_default_values();
+    bool ok = true && mayiuse(isa) && is_fwd()
+            && everyone_is(data_type::f32, data_d.data_type())
+            && !has_zero_dim_memory() && data_d.ndims() == 4
+            && data_d.dims()[1] % VECTOR_LENGTH == 0
+            && data_d.dims()[1] >= 2 * VECTOR_LENGTH && desc()->lrn_beta == 0.75
+            && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     if (desc_.prop_kind == forward_training) ws_md_ = *src_md();
@@ -163,23 +160,22 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 
     const int HW = data_d.dims()[2] * data_d.dims()[3];
 
-    bool args_ok_across = true
-        && desc()->alg_kind == lrn_across_channels
-        && desc()->local_size == 5
-        && one_of(dat_tag_, nChw8c, nchw, nhwc)
-        /* SSE41: prevent loads smaller than the size of xmm registers,
+    bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+            && desc()->local_size == 5
+            && one_of(dat_tag_, nChw8c, nchw, nhwc)
+            /* SSE41: prevent loads smaller than the size of xmm registers,
          * otherwise it will result in an illegal memory read (seg-fault)
          * due to protected memory. */
-        && IMPLICATION(isa == sse41 && dat_tag_ == nchw, HW >= 4);
+            && IMPLICATION(isa == sse41 && dat_tag_ == nchw, HW >= 4);
 
     const int jit_max_local_size = 5; // bigger size triggers too big code size
-    bool args_ok_within = true
-        && desc()->alg_kind == lrn_within_channel
-        && desc()->local_size <= ( jit_max_local_size <= MAX_LOCAL_SIZE
-                                 ? jit_max_local_size : MAX_LOCAL_SIZE)
-        && data_d.dims()[2] >= desc()->local_size
-        && data_d.dims()[3] >= desc()->local_size
-        && one_of(dat_tag_, nChw8c);
+    bool args_ok_within = true && desc()->alg_kind == lrn_within_channel
+            && desc()->local_size <= (jit_max_local_size <= MAX_LOCAL_SIZE
+                               ? jit_max_local_size
+                               : MAX_LOCAL_SIZE)
+            && data_d.dims()[2] >= desc()->local_size
+            && data_d.dims()[3] >= desc()->local_size
+            && one_of(dat_tag_, nChw8c);
 
     return args_ok_across || args_ok_within ? success : unimplemented;
 }
@@ -187,8 +183,9 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_lrn_bwd_t<isa>::jit_uni_lrn_bwd_t(const pd_t *apd)
     : cpu_primitive_t(apd)
-    , ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr)
-{
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {
     using namespace alg_kind;
     const int C = pd()->C();
     const int H = pd()->H();
@@ -197,25 +194,25 @@ jit_uni_lrn_bwd_t<isa>::jit_uni_lrn_bwd_t(const pd_t *apd)
     float A = pd()->desc()->lrn_alpha / ls;
     float B = pd()->desc()->lrn_beta;
 
-    int use_h_parallelizm = 0;// XXX
+    int use_h_parallelizm = 0; // XXX
     if (C / VECTOR_LENGTH == 1) {
         ker_ = new jit_uni_lrn_bwd_kernel_f32<isa>(
-            nchw8c_across(H, W, 3), A, B, use_h_parallelizm);
-    }
-    else {
+                nchw8c_across(H, W, 3), A, B, use_h_parallelizm);
+    } else {
         ker_ = new jit_uni_lrn_bwd_kernel_f32<isa>(
-            nchw8c_across(H, W, 0), A, B, use_h_parallelizm);
+                nchw8c_across(H, W, 0), A, B, use_h_parallelizm);
         ker_first_ = new jit_uni_lrn_bwd_kernel_f32<isa>(
-            nchw8c_across(H, W, -1), A, B, use_h_parallelizm);
+                nchw8c_across(H, W, -1), A, B, use_h_parallelizm);
         ker_last_ = new jit_uni_lrn_bwd_kernel_f32<isa>(
-            nchw8c_across(H, W, +1), A, B, use_h_parallelizm);
+                nchw8c_across(H, W, +1), A, B, use_h_parallelizm);
     }
 }
 
 template <cpu_isa_t isa>
-jit_uni_lrn_bwd_t<isa>::~jit_uni_lrn_bwd_t()
-{
-    delete ker_; delete ker_first_; delete ker_last_;
+jit_uni_lrn_bwd_t<isa>::~jit_uni_lrn_bwd_t() {
+    delete ker_;
+    delete ker_first_;
+    delete ker_last_;
 }
 
 template <cpu_isa_t isa>
@@ -233,8 +230,8 @@ void jit_uni_lrn_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
     int use_h_parallelizm = 0; // XXX
     if (use_h_parallelizm) {
         parallel_nd(N, C / VECTOR_LENGTH, H, [&](int n, int c8, int h) {
-            auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH
-                + h*W*VECTOR_LENGTH;
+            auto offset = n * C * H * W + c8 * H * W * VECTOR_LENGTH
+                    + h * W * VECTOR_LENGTH;
             jit_args_bwd_t args;
             args.src = &src[offset];
             args.diff_dst = &diff_dst[offset];
@@ -249,10 +246,9 @@ void jit_uni_lrn_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
             else
                 (*ker_)(&args);
         });
-    }
-    else {
+    } else {
         parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
-            auto offset = n*C*H*W + c8*H*W*VECTOR_LENGTH;
+            auto offset = n * C * H * W + c8 * H * W * VECTOR_LENGTH;
             jit_args_bwd_t args;
             args.src = &src[offset];
             args.diff_dst = &diff_dst[offset];
@@ -276,15 +272,11 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    bool ok = true
-        && mayiuse(isa)
-        && !is_fwd()
-        && utils::everyone_is(data_type::f32, data_d.data_type())
-        && !has_zero_dim_memory()
-        && data_d.ndims() == 4
-        && data_d.dims()[1] % VECTOR_LENGTH == 0
-        && desc()->lrn_beta == 0.75
-        && attr()->has_default_values();
+    bool ok = true && mayiuse(isa) && !is_fwd()
+            && utils::everyone_is(data_type::f32, data_d.data_type())
+            && !has_zero_dim_memory() && data_d.ndims() == 4
+            && data_d.dims()[1] % VECTOR_LENGTH == 0 && desc()->lrn_beta == 0.75
+            && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     ws_md_ = *src_md();
@@ -292,10 +284,8 @@ status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
 
     dat_tag_ = memory_desc_matches_one_of_tag(*src_md(), nChw8c);
 
-    bool args_ok_across = true
-        && desc()->alg_kind == lrn_across_channels
-        && desc()->local_size == 5
-        && utils::one_of(dat_tag_, nChw8c);
+    bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+            && desc()->local_size == 5 && utils::one_of(dat_tag_, nChw8c);
 
     return args_ok_across ? success : unimplemented;
 }
@@ -304,8 +294,8 @@ template struct jit_uni_lrn_fwd_t<sse41>;
 template struct jit_uni_lrn_fwd_t<avx2>;
 template struct jit_uni_lrn_bwd_t<avx2>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

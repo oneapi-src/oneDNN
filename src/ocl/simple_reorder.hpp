@@ -41,8 +41,7 @@ struct simple_reorder_t : public primitive_t {
         status_t init() {
             const auto &post_ops = attr()->post_ops_;
 
-            bool ok = true
-                    && (src_engine() == dst_engine())
+            bool ok = true && (src_engine() == dst_engine())
                     && (src_engine()->kind() == engine_kind::gpu)
                     && utils::one_of(src_md()->data_type, data_type::u8,
                             data_type::s8, data_type::f16, data_type::s32,
@@ -62,8 +61,7 @@ struct simple_reorder_t : public primitive_t {
                                             && post_ops.entry_[0].kind
                                                     == primitive_kind::sum));
 
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine()->kind() == engine_kind::gpu ? dst_engine()
@@ -82,8 +80,7 @@ struct simple_reorder_t : public primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             return jit_simple_reorder_kernel::init_conf(
                     this, jrp_, src_md(), dst_md());
@@ -99,20 +96,17 @@ struct simple_reorder_t : public primitive_t {
 
         auto status = jit_simple_reorder_kernel::init_const_def(
                 kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         if (pd()->jrp_.scale_quant) {
             size_t size = pd()->attr()->output_scales_.count_ * sizeof(float);
             memory_storage_t *scales_ptr;
             engine()->create_memory_storage(&scales_ptr, size);
             scales.reset(scales_ptr);
-            if (!scales)
-                return status::runtime_error;
+            if (!scales) return status::runtime_error;
         }
 
         return status::success;

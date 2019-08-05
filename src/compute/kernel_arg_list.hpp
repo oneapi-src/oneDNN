@@ -29,8 +29,7 @@ namespace mkldnn {
 namespace impl {
 namespace compute {
 
-class kernel_arg_t
-{
+class kernel_arg_t {
 public:
     enum class kind_t {
         undef,
@@ -82,8 +81,7 @@ private:
     typename std::aligned_storage<max_size, max_size>::type scalar_storage_;
 };
 
-class kernel_arg_list_t
-{
+class kernel_arg_list_t {
 public:
     void set(int index, const memory_storage_t &storage) {
         assert(index < max_args);

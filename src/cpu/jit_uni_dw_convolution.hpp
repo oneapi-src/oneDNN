@@ -44,21 +44,20 @@ struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
                 jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(src_type, src_type,
-                        data_type::undef, dst_type, data_type::f32)
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                        this->desc()->bias_desc.data_type, data_type::f32,
-                        data_type::bf16))
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(src_type, src_type, data_type::undef,
+                            dst_type, data_type::f32)
+                    && IMPLICATION(this->with_bias(),
+                            utils::one_of(this->desc()->bias_desc.data_type,
+                                    data_type::f32, data_type::bf16))
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status
                     = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(jcp_,
-                        *desc(), src_md(), *weights_md(), *dst_md(), *attr());
+                            *desc(), src_md(), *weights_md(), *dst_md(),
+                            *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -85,8 +84,9 @@ struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_uni_dw_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
-    { kernel_ = new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_); }
+    jit_uni_dw_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+        kernel_ = new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_);
+    }
 
     ~jit_uni_dw_convolution_fwd_t() { delete kernel_; }
 
@@ -107,19 +107,18 @@ private:
     jit_uni_dw_conv_fwd_kernel<isa, src_type> *kernel_;
 };
 
-using jit_avx512_common_dw_convolution_fwd_t =
-        jit_uni_dw_convolution_fwd_t<avx512_common, data_type::f32>;
-using jit_avx2_dw_convolution_fwd_t =
-        jit_uni_dw_convolution_fwd_t<avx2, data_type::f32>;
-using jit_sse41_dw_convolution_fwd_t =
-        jit_uni_dw_convolution_fwd_t<sse41, data_type::f32>;
+using jit_avx512_common_dw_convolution_fwd_t
+        = jit_uni_dw_convolution_fwd_t<avx512_common, data_type::f32>;
+using jit_avx2_dw_convolution_fwd_t
+        = jit_uni_dw_convolution_fwd_t<avx2, data_type::f32>;
+using jit_sse41_dw_convolution_fwd_t
+        = jit_uni_dw_convolution_fwd_t<sse41, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type,
         data_type_t diff_src_type = diff_dst_type>
-struct jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+struct jit_uni_dw_convolution_bwd_data_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_data_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
@@ -127,22 +126,20 @@ struct jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
                 jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
-                                    diff_src_type>);
+                        diff_src_type>);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_data
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(diff_src_type, diff_dst_type,
-                        data_type::undef, diff_dst_type, data_type::f32)
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(diff_src_type, diff_dst_type,
+                            data_type::undef, diff_dst_type, data_type::f32)
+                    && !has_zero_dim_memory() && set_default_formats();
 
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
                     diff_dst_type>::init_conf(jcp_, *desc(), *diff_src_md(),
-                            *weights_md(), *diff_dst_md());
+                    *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -169,7 +166,7 @@ struct jit_uni_dw_convolution_bwd_data_t: public cpu_primitive_t {
         }
     };
 
-    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd) {
+    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {
         kernel_ = new jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>(
                 pd()->jcp_);
     }
@@ -191,19 +188,18 @@ private:
     jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type> *kernel_;
 };
 
-using jit_avx512_common_dw_convolution_bwd_data_t =
-    jit_uni_dw_convolution_bwd_data_t<avx512_common, data_type::f32>;
-using jit_avx2_dw_convolution_bwd_data_t =
-    jit_uni_dw_convolution_bwd_data_t<avx2, data_type::f32>;
-using jit_sse41_dw_convolution_bwd_data_t =
-    jit_uni_dw_convolution_bwd_data_t<sse41, data_type::f32>;
+using jit_avx512_common_dw_convolution_bwd_data_t
+        = jit_uni_dw_convolution_bwd_data_t<avx512_common, data_type::f32>;
+using jit_avx2_dw_convolution_bwd_data_t
+        = jit_uni_dw_convolution_bwd_data_t<avx2, data_type::f32>;
+using jit_sse41_dw_convolution_bwd_data_t
+        = jit_uni_dw_convolution_bwd_data_t<sse41, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t src_type,
         data_type_t diff_weights_type = src_type>
-struct jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+struct jit_uni_dw_convolution_bwd_weights_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_weights_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
@@ -211,28 +207,26 @@ struct jit_uni_dw_convolution_bwd_weights_t: public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
                 jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
-                                    diff_weights_type>);
+                        diff_weights_type>);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_weights
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(src_type, diff_weights_type,
-                        data_type::undef, src_type, data_type::f32)
-                && IMPLICATION(this->with_bias(), utils::one_of(
-                        this->desc()->diff_bias_desc.data_type, data_type::f32,
-                        data_type::bf16))
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(src_type, diff_weights_type,
+                            data_type::undef, src_type, data_type::f32)
+                    && IMPLICATION(this->with_bias(),
+                            utils::one_of(
+                                    this->desc()->diff_bias_desc.data_type,
+                                    data_type::f32, data_type::bf16))
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            const int max_threads = mkldnn_in_parallel()
-                ? 1 : mkldnn_get_max_threads();
+            const int max_threads
+                    = mkldnn_in_parallel() ? 1 : mkldnn_get_max_threads();
 
             status_t status = jit_uni_dw_conv_bwd_weights_kernel<isa,
-                    src_type>::init_conf(jcp_, *desc(),
-                        *src_md(), *diff_weights_md(),
-                        *diff_dst_md(), max_threads);
+                    src_type>::init_conf(jcp_, *desc(), *src_md(),
+                    *diff_weights_md(), *diff_dst_md(), max_threads);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -286,15 +280,15 @@ private:
     jit_uni_dw_conv_bwd_weights_kernel<isa, src_type> *kernel_;
 };
 
-using jit_avx512_common_dw_convolution_bwd_weights_t =
-    jit_uni_dw_convolution_bwd_weights_t<avx512_common, data_type::f32>;
-using jit_avx2_dw_convolution_bwd_weights_t =
-    jit_uni_dw_convolution_bwd_weights_t<avx2, data_type::f32>;
-using jit_sse41_dw_convolution_bwd_weights_t =
-    jit_uni_dw_convolution_bwd_weights_t<sse41, data_type::f32>;
+using jit_avx512_common_dw_convolution_bwd_weights_t
+        = jit_uni_dw_convolution_bwd_weights_t<avx512_common, data_type::f32>;
+using jit_avx2_dw_convolution_bwd_weights_t
+        = jit_uni_dw_convolution_bwd_weights_t<avx2, data_type::f32>;
+using jit_sse41_dw_convolution_bwd_weights_t
+        = jit_uni_dw_convolution_bwd_weights_t<sse41, data_type::f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

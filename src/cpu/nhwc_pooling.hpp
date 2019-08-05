@@ -24,9 +24,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu_isa_traits.hpp"
 #include "cpu_pooling_pd.hpp"
 #include "cpu_primitive.hpp"
-#include "cpu_isa_traits.hpp"
 
 #include "bfloat16.hpp"
 
@@ -41,32 +41,30 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
 }
 
 template <data_type_t d_type>
-struct nhwc_pooling_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_pooling_fwd_pd_t {
+struct nhwc_pooling_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("simple_nhwc:any", nhwc_pooling_fwd_t);
 
         status_t init() {
-            const format_tag_t desired_fmt_tag =
-                ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
+            const format_tag_t desired_fmt_tag
+                    = ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
 
             using namespace prop_kind;
             using namespace alg_kind;
             bool ok = true
-                && IMPLICATION(d_type == data_type::bf16,
-                        mayiuse(avx512_core))
-                && set_default_params() == status::success
-                && is_fwd()
-                && utils::one_of(desc()->alg_kind, pooling_max,
-                        pooling_avg_include_padding,
-                        pooling_avg_exclude_padding)
-                && utils::everyone_is(d_type,
-                        src_md()->data_type,
-                        dst_md()->data_type)
-                && attr()->has_default_values()
-                && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
+                    && IMPLICATION(
+                            d_type == data_type::bf16, mayiuse(avx512_core))
+                    && set_default_params() == status::success && is_fwd()
+                    && utils::one_of(desc()->alg_kind, pooling_max,
+                            pooling_avg_include_padding,
+                            pooling_avg_exclude_padding)
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
+                    && attr()->has_default_values()
+                    && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -79,21 +77,21 @@ struct nhwc_pooling_fwd_t: public cpu_primitive_t {
             return status::success;
         }
 
-        private:
-            void init_scratchpad() {
-                using namespace memory_tracking::names;
-                if (src_md()->data_type == data_type::bf16) {
-                    size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
-                    auto scratchpad = scratchpad_registry().registrar();
-                    scratchpad.book(key_pool_src_bf16cvt,
-                            sizeof(float) * bf16cvt_sz_);
-                    scratchpad.book(key_pool_dst_bf16cvt,
-                            sizeof(float) * bf16cvt_sz_);
-                }
+    private:
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            if (src_md()->data_type == data_type::bf16) {
+                size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(
+                        key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
+                scratchpad.book(
+                        key_pool_dst_bf16cvt, sizeof(float) * bf16cvt_sz_);
             }
+        }
     };
 
-    nhwc_pooling_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    nhwc_pooling_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
     typedef typename prec_traits<data_type::f32>::type ker_data_t;
@@ -176,43 +174,39 @@ private:
         }
     }
 
-        const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <impl::data_type_t d_type>
-struct nhwc_pooling_bwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_pooling_bwd_pd_t {
+struct nhwc_pooling_bwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("simple_nhwc:any", nhwc_pooling_bwd_t);
 
         status_t init() {
-            const format_tag_t desired_fmt_tag =
-                ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
+            const format_tag_t desired_fmt_tag
+                    = ndims() == 4 ? format_tag::nhwc : format_tag::ndhwc;
 
             using namespace prop_kind;
             using namespace alg_kind;
             bool ok = true
-                && IMPLICATION(d_type == data_type::bf16,
-                        mayiuse(avx512_core))
-                && set_default_params() == status::success
-                && !is_fwd()
-                && utils::one_of(desc()->alg_kind, pooling_max,
-                        pooling_avg_include_padding,
-                        pooling_avg_exclude_padding)
-                && utils::everyone_is(d_type,
-                        diff_dst_md()->data_type,
-                        diff_src_md()->data_type)
-                && attr()->has_default_values()
-                && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
-                && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
-            if (!ok)
-                return status::unimplemented;
+                    && IMPLICATION(
+                            d_type == data_type::bf16, mayiuse(avx512_core))
+                    && set_default_params() == status::success && !is_fwd()
+                    && utils::one_of(desc()->alg_kind, pooling_max,
+                            pooling_avg_include_padding,
+                            pooling_avg_exclude_padding)
+                    && utils::everyone_is(d_type, diff_dst_md()->data_type,
+                            diff_src_md()->data_type)
+                    && attr()->has_default_values()
+                    && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
+                    && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
+            if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws();
-                if (!compare_ws(hint_fwd_pd_))
-                    return status::unimplemented;
+                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
             init_scratchpad();
@@ -220,21 +214,21 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
             return status::success;
         }
 
-        private:
-            void init_scratchpad() {
-                using namespace memory_tracking::names;
-                if (diff_src_md()->data_type == data_type::bf16) {
-                    size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
-                    auto scratchpad = scratchpad_registry().registrar();
-                    scratchpad.book(key_pool_src_bf16cvt,
-                            sizeof(float) * bf16cvt_sz_);
-                    scratchpad.book(key_pool_dst_bf16cvt,
-                            sizeof(float) * bf16cvt_sz_);
-                }
+    private:
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            if (diff_src_md()->data_type == data_type::bf16) {
+                size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(
+                        key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
+                scratchpad.book(
+                        key_pool_dst_bf16cvt, sizeof(float) * bf16cvt_sz_);
             }
+        }
     };
 
-    nhwc_pooling_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    nhwc_pooling_bwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -245,12 +239,11 @@ struct nhwc_pooling_bwd_t: public cpu_primitive_t {
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-
 };
 
-}// namespace cpu
-}// namespace impl
-}// namespace mkldnn
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

@@ -57,8 +57,9 @@ template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto logistic_f
-            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, scales, rnn, ws_gates_,
@@ -68,7 +69,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
                 states_t_l_, states_tm1_l_, bias_);
 }
 
-  template <typename T1, typename acc_data_t, typename src_data_t>
+template <typename T1, typename acc_data_t, typename src_data_t>
 void gru_fwd_part2_postgemm_template(T1 func1, const float *scales,
         const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
         src_data_t *states_t_l_, src_data_t *states_tm1_l_, float *bias_) {
@@ -92,7 +93,8 @@ template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part2_postgemm_template(tanh_f, scales, rnn, ws_gates_,

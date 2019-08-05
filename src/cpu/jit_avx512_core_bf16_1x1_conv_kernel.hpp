@@ -18,10 +18,10 @@
 #define JIT_AVX512_CORE_BF16_1x1_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
 
 //#define BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
@@ -30,25 +30,24 @@ namespace impl {
 namespace cpu {
 
 struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
-    jit_avx512_core_bf16_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
-            const primitive_attr_t &attr) :
-    jit_generator(nullptr, ker_code_size),
-    jcp(ajcp), attr_(attr)
-    , eltwise_injector_(nullptr)
-    , bf16_emu_(nullptr)
-    {
+    jit_avx512_core_bf16_1x1_conv_kernel(
+            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
+        : jit_generator(nullptr, ker_code_size)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr)
+        , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
 
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this,
-                    bf16_emu_reserv_1, bf16_emu_reserv_2,
-                    bf16_emu_reserv_3, bf16_emu_reserv_4,
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
 
         this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_core_bf16_1x1_conv_kernel() {
@@ -58,15 +57,13 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_1x1_conv_kernel)
 
-    static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
-                                const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_d,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr,
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             int nthreads, bool reduce_src);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -76,7 +73,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_1x1_conv_call_s *);
 
-  private:
+private:
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
     using mask_t = const Xbyak::Opmask;
@@ -137,8 +134,8 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
 
     bf16_emulation_t *bf16_emu_;
 };
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

@@ -18,10 +18,10 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "primitive_desc.hpp"
 #include "primitive.hpp"
-#include "type_helpers.hpp"
+#include "primitive_desc.hpp"
 #include "stream.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -34,7 +34,7 @@ namespace {
 //
 // A proper approach would be an implementation-specific unpoisoning.
 void unpoison_outputs(const exec_args_t &args) {
-    for(const auto &arg: args) {
+    for (const auto &arg : args) {
         if (arg.second.is_const) continue;
         auto *mem = arg.second.mem;
         void *p;
@@ -43,26 +43,24 @@ void unpoison_outputs(const exec_args_t &args) {
         msan_unpoison(p, s);
     }
 }
-}
+} // namespace
 
 status_t mkldnn_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
     if (primitive_desc) delete primitive_desc;
     return success;
 }
 
-status_t mkldnn_primitive_create(primitive_t **primitive,
-        const primitive_desc_t *primitive_desc) {
-    if (utils::any_null(primitive, primitive_desc))
-        return invalid_arguments;
+status_t mkldnn_primitive_create(
+        primitive_t **primitive, const primitive_desc_t *primitive_desc) {
+    if (utils::any_null(primitive, primitive_desc)) return invalid_arguments;
     return primitive_desc->create_primitive(primitive);
 }
 
 status_t mkldnn_primitive_execute(const primitive_t *primitive,
         stream_t *stream, int nargs, const mkldnn_exec_arg_t *c_args) {
-    bool ok = true
-        && !utils::any_null(primitive, stream)
-        && primitive->engine() == stream->engine()
-        && IMPLICATION(nargs > 0, c_args != nullptr);
+    bool ok = true && !utils::any_null(primitive, stream)
+            && primitive->engine() == stream->engine()
+            && IMPLICATION(nargs > 0, c_args != nullptr);
     if (!ok) return invalid_arguments;
 
     exec_args_t args;
@@ -90,7 +88,7 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
         engine_kind_t engine_kind = stream->engine()->kind();
         if (engine_kind == engine_kind::cpu
                 || (engine_kind == engine_kind::gpu
-                           && mkldnn_verbose()->level >= gpu_exec_time_level)) {
+                        && mkldnn_verbose()->level >= gpu_exec_time_level)) {
             printf("mkldnn_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
             fflush(0);
         }
@@ -103,17 +101,15 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
     return status;
 }
 
-status_t mkldnn_primitive_get_primitive_desc(const primitive_t *primitive,
-        const primitive_desc_t **primitive_desc) {
-    if (utils::any_null(primitive, primitive_desc))
-        return invalid_arguments;
-    return safe_ptr_assign<const primitive_desc_t>(*primitive_desc,
-            primitive->pd());
+status_t mkldnn_primitive_get_primitive_desc(
+        const primitive_t *primitive, const primitive_desc_t **primitive_desc) {
+    if (utils::any_null(primitive, primitive_desc)) return invalid_arguments;
+    return safe_ptr_assign<const primitive_desc_t>(
+            *primitive_desc, primitive->pd());
 }
 
 status_t mkldnn_primitive_destroy(primitive_t *primitive) {
-    if (primitive != nullptr)
-        delete primitive;
+    if (primitive != nullptr) delete primitive;
     return success;
 }
 

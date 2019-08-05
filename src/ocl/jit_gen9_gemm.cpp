@@ -79,8 +79,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_beta(
     arg_list.set(4, offset_a);
     arg_list.set(5, lda);
 
-    size_t gws[3] = { 1, size_t(n), 1 };
-    size_t lws[3] = { 1, 1, 1 };
+    size_t gws[3] = {1, size_t(n), 1};
+    size_t lws[3] = {1, 1, 1};
     auto nd_range = compute::nd_range_t(gws, lws);
 
     return compute_stream->parallel_for(nd_range, beta_kernel_, arg_list);
@@ -110,8 +110,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_copy(
 
     auto unroll = outer ? unroll_n : unroll_m;
 
-    size_t gws[3] = { size_t(x), size_t((y + unroll - 1) / unroll), 1 };
-    size_t lws[3] = { 1, 1, 1 };
+    size_t gws[3] = {size_t(x), size_t((y + unroll - 1) / unroll), 1};
+    size_t lws[3] = {1, 1, 1};
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
@@ -148,11 +148,10 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(
     while (nthreads_y % lws_y)
         lws_y--;
 
-    size_t gws[3] = { size_t(nthreads_x) * 8, size_t(nthreads_y), 1 };
-    size_t lws[3] = { 8, size_t(lws_y), 1 };
+    size_t gws[3] = {size_t(nthreads_x) * 8, size_t(nthreads_y), 1};
+    size_t lws[3] = {8, size_t(lws_y), 1};
 
-    if (c_type == data_type::f16)
-        lws[1] = 1;
+    if (c_type == data_type::f16) lws[1] = 1;
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
@@ -211,8 +210,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
 #endif
 
     static constexpr size_t subgroup_size = 16;
-    size_t gws[3] = { nthreads_x * subgroup_size, nthreads_y, 1 };
-    size_t lws[3] = { lthreads_x * subgroup_size, lthreads_y, 1 };
+    size_t gws[3] = {nthreads_x * subgroup_size, nthreads_y, 1};
+    size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, 1};
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
@@ -254,8 +253,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy_superkernel(
     size_t lthreads = nstl::min(hw_threads_, threads);
 
     static constexpr size_t subgroup_size = 16;
-    size_t lws[3] = { subgroup_size, 1, 1 };
-    size_t gws[3] = { lthreads * subgroup_size, 1, 1 };
+    size_t lws[3] = {subgroup_size, 1, 1};
+    size_t gws[3] = {lthreads * subgroup_size, 1, 1};
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
@@ -331,7 +330,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
 
     bool nocopy = (gemm_type_ == type::no_copy)
             || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
-                       && !(off_b0 & 1));
+                    && !(off_b0 & 1));
 
     status_t status;
     constexpr int64_t align = 0x1000;
@@ -348,8 +347,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
 
     if (!nocopy && beta != 0. && beta != 1.) {
         status = launch_beta(compute_stream, m, n, beta_native, c, off_c0, ldc);
-        if (status)
-            return status;
+        if (status) return status;
     }
 
     int64_t off_b_packed = 0;
@@ -359,13 +357,11 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
         bool last_k_block = (size_k <= block_k);
-        if (!last_k_block)
-            size_k = block_k;
+        if (!last_k_block) size_k = block_k;
 
         for (int64_t Bm = 0; Bm < m; Bm += block_m) {
             int64_t size_m = m - Bm;
-            if (size_m > block_m)
-                size_m = block_m;
+            if (size_m > block_m) size_m = block_m;
 
             auto off_a_src
                     = off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
@@ -374,14 +370,12 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                 status = launch_copy(compute_stream, size_k, size_m, a,
                         off_a_src, lda, alpha_native, *temp_buf_, off_a_packed,
                         false, !transa);
-                if (status)
-                    return status;
+                if (status) return status;
             }
 
             for (int64_t Bn = 0; Bn < n; Bn += block_n) {
                 int64_t size_n = n - Bn;
-                if (size_n > block_n)
-                    size_n = block_n;
+                if (size_n > block_n) size_n = block_n;
 
                 auto off_b_src = off_b0
                         + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
@@ -390,8 +384,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                     status = launch_copy(compute_stream, size_k, size_n, b,
                             off_b_src, ldb, one_native, *temp_buf_,
                             off_b_packed, true, transb);
-                    if (status)
-                        return status;
+                    if (status) return status;
                 }
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
@@ -408,8 +401,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
                             size_k, *temp_buf_, off_a_packed, off_b_packed, c,
                             off_c, ldc, beta0);
                 }
-                if (status)
-                    return status;
+                if (status) return status;
             }
         }
     }
@@ -470,8 +462,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     while (km_large >= 0) {
         auto km_small
                 = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
-        if (km_small < 0)
-            km_small = 0;
+        if (km_small < 0) km_small = 0;
 
         auto threads = (km_large + km_small) * kn;
         auto ldispatch = threads % hw_threads_;
@@ -496,8 +487,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     auto n_block_target = nstl::max<int>(1, 128 / unroll_n);
     auto columns = utils::div_up(kn, n_block_target);
     auto kn_left = (n_block_target - kn) % n_block_target;
-    if (kn_left < 0)
-        kn_left += n_block_target;
+    if (kn_left < 0) kn_left += n_block_target;
     auto spread = nstl::min(kn_left, columns);
 
     int bn0, bn1, columns_small;
@@ -514,8 +504,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     void *plan_void;
     temp_buf_->map_data(&plan_void);
 
-    if (!plan_void)
-        return status::runtime_error;
+    if (!plan_void) return status::runtime_error;
 
     auto plan = (plan_element_t *)plan_void;
 

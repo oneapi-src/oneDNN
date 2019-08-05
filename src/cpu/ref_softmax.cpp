@@ -45,7 +45,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
         _sub(channels_, scalar, src_data, dst_data);
         _exp(channels_, dst_data, dst_data);
         _sum(channels_, dst_data, &scalar);
-        _scal(channels_, data_t(1)/scalar, dst_data);
+        _scal(channels_, data_t(1) / scalar, dst_data);
     });
 }
 
@@ -64,7 +64,8 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
         if (inner_size_ > 1) {
             using namespace memory_tracking::names;
             space_max = scratchpad(ctx).template get<data_t>(
-                key_softmax_reduction) + ou * 2 * inner_size_;
+                                key_softmax_reduction)
+                    + ou * 2 * inner_size_;
             space_denom = space_max + inner_size_;
         }
 
@@ -72,14 +73,14 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
         utils::array_set(space_denom, 0, inner_size_);
 
         for (int c = 0; c < channels_; c++) {
-            for(int in = 0; in < inner_size_; in++) {
+            for (int in = 0; in < inner_size_; in++) {
                 size_t off = data_d.off_l(ou * dim + c * inner_size_ + in);
                 space_max[in] = nstl::max(space_max[in], src[off]);
             }
         }
 
         for (int c = 0; c < channels_; c++) {
-            for(int in = 0; in < inner_size_; in++) {
+            for (int in = 0; in < inner_size_; in++) {
                 size_t off = data_d.off_l(ou * dim + c * inner_size_ + in);
                 space_denom[in] += dst[off] = exp(src[off] - space_max[in]);
             }
@@ -95,8 +96,8 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
-        data_t *max_data) const {
+void ref_softmax_fwd_t<data_type>::_max(
+        int n, const data_t *x, data_t *max_data) const {
 // Intel(R) C++ Compiler generates the maxps + shuffle pattern
 // for the max search which works faster
 #if !defined(__INTEL_COMPILER)
@@ -138,8 +139,8 @@ void ref_softmax_fwd_t<data_type>::_max(int n, const data_t *x,
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
-        data_t *y) const {
+void ref_softmax_fwd_t<data_type>::_sub(
+        int n, data_t alpha, const data_t *x, data_t *y) const {
     constexpr int unroll_factor = 32;
     int tail = n % unroll_factor;
     for (int i = 0; i < n - tail; i += unroll_factor) {
@@ -155,14 +156,14 @@ void ref_softmax_fwd_t<data_type>::_sub(int n, data_t alpha, const data_t *x,
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_exp(int n, const data_t *a,
-        data_t *r) const {
+void ref_softmax_fwd_t<data_type>::_exp(
+        int n, const data_t *a, data_t *r) const {
     parallel_nd(n, [&](int c) { r[c] = expf(a[c]); });
 }
 
 template <impl::data_type_t data_type>
-void ref_softmax_fwd_t<data_type>::_sum(int n, const data_t *x,
-        data_t *sum_data) const {
+void ref_softmax_fwd_t<data_type>::_sum(
+        int n, const data_t *x, data_t *sum_data) const {
     data_t tsum = static_cast<data_t>(0);
     PRAGMA_OMP_SIMD(reduction(+ : tsum))
     for (int c = 0; c < n; ++c)
@@ -176,7 +177,6 @@ void ref_softmax_fwd_t<data_type>::_scal(int n, data_t alpha, data_t *x) const {
 }
 
 template struct ref_softmax_fwd_t<data_type::f32>;
-
 
 // softmax along last physical dimension
 template <impl::data_type_t data_type>
@@ -225,7 +225,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
             sbr += diff_dst[off_diff] * dst[off_data];
         }
 
-        for (int c = 0; c < channels_ ; ++c) {
+        for (int c = 0; c < channels_; ++c) {
             size_t off_diff = diff_d.off_l(ou * dim + c * inner_size_ + in);
             size_t off_data = data_d.off_l(ou * dim + c * inner_size_ + in);
             diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
@@ -235,8 +235,8 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
 
 template struct ref_softmax_bwd_t<data_type::f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

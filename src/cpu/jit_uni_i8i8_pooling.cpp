@@ -35,7 +35,7 @@ using namespace mkldnn::impl::types;
 using namespace alg_kind;
 
 template <cpu_isa_t isa>
-struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
+struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_i8i8_pooling_fwd_ker_t)
 
     struct call_params_t {
@@ -57,7 +57,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     // maskmovdqu and maskmovq instructions which has its destination hardcoded in rdi.
     // Windows ABI: abi_param1 is rcx - nothing to do else
     // Unix ABI: abi_param1 is rdi - copy it to rcx and use it as abi_param1
-    Reg64 reg_param      = rcx; // Our "unified abi_param1"
+    Reg64 reg_param = rcx; // Our "unified abi_param1"
     Reg64 reg_ptr_src_i8 = r8;
     Reg64 reg_ptr_dst_i8 = r9;
     Reg64 reg_ptr_maskmovdqu_dst = rdi; // store destination - must be rdi
@@ -79,20 +79,20 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
 
     Opmask k_cmp_mask = Opmask(7);
 
-    Opmask mask(int idx) {
-        return Opmask(6 - idx);
-    }
+    Opmask mask(int idx) { return Opmask(6 - idx); }
 
     // ref to any of XYZ-regs via xreg/yreg/vreg functions
-    Xmm xmm_tmp = xreg(0);     // temp to init vreg_tmp
-    Vmm vreg_tmp = vreg(0);    // max pooling : holds minimum values for data_type
+    Xmm xmm_tmp = xreg(0); // temp to init vreg_tmp
+    Vmm vreg_tmp = vreg(0); // max pooling : holds minimum values for data_type
     Vmm vreg_zeros = vreg(1);
     Vmm vreg_tail = vreg(4);
 
     // only in case of <isa> == avx2
-    Vmm vreg_mask     = vreg(2); // full byte-mask
-    Xmm xreg_mask_lo  = xreg(2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
-    Xmm xreg_mask_hi  = xreg(3); // "max" - high 128-bits part of byte-mask (stored separately)
+    Vmm vreg_mask = vreg(2); // full byte-mask
+    Xmm xreg_mask_lo = xreg(
+            2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
+    Xmm xreg_mask_hi = xreg(
+            3); // "max" - high 128-bits part of byte-mask (stored separately)
 
     // vreg_mask shifted left (aligned left) to be used in tail processing.
     // Example:       idx [31..0]
@@ -102,9 +102,11 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     Xmm xreg_mask_2_lo = xreg(5); // similar to xreg_mask_lo
     Xmm xreg_mask_2_hi = xreg(6); // similar to xreg_mask_hi
 
-    Vmm vreg_mask_q   = vreg(3); // "avg" - 1/4 part for non-zero tails
-    Mmx mmx_dst_i8    = Mmx(0);  // "avg" - Mmx reg for masked store results of s8/u8 operations
-    Mmx mmx_full_msk  = Mmx(1);  // "avg" - Mmx reg for full mask (all 8 bytes) - used until not in tail
+    Vmm vreg_mask_q = vreg(3); // "avg" - 1/4 part for non-zero tails
+    Mmx mmx_dst_i8 = Mmx(
+            0); // "avg" - Mmx reg for masked store results of s8/u8 operations
+    Mmx mmx_full_msk = Mmx(
+            1); // "avg" - Mmx reg for full mask (all 8 bytes) - used until not in tail
     Mmx mmx_tmp = Mmx(2);
 
     enum : int { max_vidx_base = isa == avx2 ? 7 : 2 };
@@ -127,10 +129,10 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
     // s32 used for processing of s8/u8 data
     // thus we need to take into account ratio of sizes s32/i8 = 4
     static constexpr data_type_t avg_proc_dt = data_type::s32;
-    enum:int {
+    enum : int {
         s32_to_i8_ratio = sizeof(typename prec_traits<avg_proc_dt>::type)
                 / sizeof(typename prec_traits<data_type::u8>::type),
-        max_num_ll =  s32_to_i8_ratio,
+        max_num_ll = s32_to_i8_ratio,
         mmx_msk_base_reg = 3
     };
 
@@ -158,12 +160,16 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
 
     void load_vreg_mask_q(int ll) {};
 
-    void load_src_max_op(int jj, int ll, size_t offset, bool masked, uint64_t msk);
-    void load_src_avg_op(int jj, int ll, size_t offset, bool masked, uint64_t msk);
+    void load_src_max_op(
+            int jj, int ll, size_t offset, bool masked, uint64_t msk);
+    void load_src_avg_op(
+            int jj, int ll, size_t offset, bool masked, uint64_t msk);
     void load_src(int jj, int ll, int c_tail);
 
-    void store_dst_max_op(int jj, int ll, size_t offset, bool masked, uint64_t msk);
-    void store_dst_avg_op(int jj, int ll, size_t offset, bool masked, uint64_t msk);
+    void store_dst_max_op(
+            int jj, int ll, size_t offset, bool masked, uint64_t msk);
+    void store_dst_avg_op(
+            int jj, int ll, size_t offset, bool masked, uint64_t msk);
     void store_dst(int jj, int ll, int c_tail);
 
     void compute_avg_step(int ur_c, int c_tail);
@@ -176,11 +182,10 @@ struct jit_uni_i8i8_pooling_fwd_ker_t: public jit_generator {
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *ppd);
 
-    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_)
-           : jpp(jpp_) {
+    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_) : jpp(jpp_) {
         generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(
-                       getCode()));
+        ker_ = reinterpret_cast<decltype(ker_)>(
+                const_cast<uint8_t *>(getCode()));
     }
 };
 
@@ -188,11 +193,11 @@ template <>
 void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_vreg_mask_q(int ll) {
 
     // extract ll-th part of mask (ll-th QWORD)
-    vpblendd(vreg_mask_q, vreg_zeros, vreg_mask, 0x3 << 2*ll); // 0x3 - mask for 2 x DWORD
+    vpblendd(vreg_mask_q, vreg_zeros, vreg_mask,
+            0x3 << 2 * ll); // 0x3 - mask for 2 x DWORD
 
     // Move mask from ll-th pos to 0-th pos
-    if (ll>0)
-        vpermq(vreg_mask_q, vreg_mask_q, ll);
+    if (ll > 0) vpermq(vreg_mask_q, vreg_mask_q, ll);
 };
 
 template <>
@@ -252,8 +257,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_max_op(
 };
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::load_src_max_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::load_src_max_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     if (masked) {
@@ -266,15 +271,14 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::load_src_max_op(int jj, int ll
 };
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_avg_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_avg_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     // Don't generate useless code
-    if (masked && !msk)
-        return;
+    if (masked && !msk) return;
 
-    auto load_i8 = [&](bool is_signed, const Vmm& vr_src) {
+    auto load_i8 = [&](bool is_signed, const Vmm &vr_src) {
         // Need to use mask of tail?
         if (masked) {
 
@@ -292,8 +296,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_avg_op(int jj, int ll,
                     = cpu_isa_traits<avx2>::vlen / data_type_size(avg_proc_dt);
 
             const uint8_t shift = cpu_isa_traits<avx2>::vlen
-                    - (jpp.c_tail > (ll + 1) * msk_gran ? msk_gran : jpp.c_tail
-                                                          - (ll * msk_gran));
+                    - (jpp.c_tail > (ll + 1) * msk_gran
+                                    ? msk_gran
+                                    : jpp.c_tail - (ll * msk_gran));
             if (jpp.safe_c_tail) {
                 /* load src_tail at 'src_address - shift' so that it does not
                  * spill over the memory boundary */
@@ -352,39 +357,27 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_avg_op(int jj, int ll,
             else
                 vmovups(vreg_src_s32(jj, ll), ptr[aux_reg_src_w + offset]);
             break;
-        case s8:
-                load_i8(true, vreg_src_s32(jj, ll));
-            break;
-        case u8:
-                load_i8(false, vreg_src_s32(jj, ll));
-            break;
+        case s8: load_i8(true, vreg_src_s32(jj, ll)); break;
+        case u8: load_i8(false, vreg_src_s32(jj, ll)); break;
         default: assert(!"unsupported src data type");
     }
 };
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::load_src_avg_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::load_src_avg_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     // Don't generate useless code
-    if (masked && !msk)
-        return;
+    if (masked && !msk) return;
 
-    const Vmm& vr_src = masked ?
-            vreg_src_s32(jj, ll) | mask(ll) :
-            vreg_src_s32(jj, ll);
+    const Vmm &vr_src
+            = masked ? vreg_src_s32(jj, ll) | mask(ll) : vreg_src_s32(jj, ll);
 
     switch (jpp.src_dt) {
-        case s32:
-            vmovups(vr_src, ptr[aux_reg_src_w + offset]);
-            break;
-        case s8:
-            vpmovsxbd(vr_src, ptr[aux_reg_src_w + offset]);
-            break;
-        case u8:
-            vpmovzxbd(vr_src, ptr[aux_reg_src_w + offset]);
-            break;
+        case s32: vmovups(vr_src, ptr[aux_reg_src_w + offset]); break;
+        case s8: vpmovsxbd(vr_src, ptr[aux_reg_src_w + offset]); break;
+        case u8: vpmovzxbd(vr_src, ptr[aux_reg_src_w + offset]); break;
         default: assert(!"unsupported src data type");
     }
 };
@@ -398,14 +391,15 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::load_src(int jj, int ll, int c_tail) {
 
     switch (jpp.alg) {
         case pooling_max: {
-            auto offset = jj*c_block*sizeof_src_dt();
+            auto offset = jj * c_block * sizeof_src_dt();
             bool masked = jj == ur_c - 1 && c_tail;
             load_src_max_op(jj, ll, offset, masked, jpp.tail[0]);
             break;
         }
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding: {
-            auto offset = (ll*(c_block/max_num_ll) + jj*c_block)*sizeof_src_dt();
+            auto offset = (ll * (c_block / max_num_ll) + jj * c_block)
+                    * sizeof_src_dt();
             bool masked = jj == ur_c - 1 && c_tail;
             load_src_avg_op(jj, ll, offset, masked, jpp.tail[ll]);
             break;
@@ -415,8 +409,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::load_src(int jj, int ll, int c_tail) {
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     Label store_data_safely, done;
@@ -429,7 +423,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(int jj, int ll,
     if (masked) {
         switch (jpp.src_dt) {
             case s32:
-                vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst(jj));
+                vpmaskmovd(
+                        ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst(jj));
                 break;
             case s8:
             case u8: {
@@ -484,8 +479,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(int jj, int ll,
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_max_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_max_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     if (masked) {
@@ -504,16 +499,14 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_max_op(int jj, int l
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk){
+void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     // Don't generate useless code
-    if (masked && !msk)
-        return;
+    if (masked && !msk) return;
 
-    auto s32_to_i8 = [&](bool is_signed, const Vmm& vr_dst) {
-
+    auto s32_to_i8 = [&](bool is_signed, const Vmm &vr_dst) {
         // conversion: s32 -> s16/u16 : {8 x s32}{8 x 0} -> {16 x s16/u16}
         // Result QWORDs (qw0, qw1) permuted: {qw0, 0, qw1, 0}
         if (is_signed)
@@ -531,11 +524,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
             vpacksswb(vr_dst, vr_dst, vreg_zeros);
         else
             vpackuswb(vr_dst, vr_dst, vreg_zeros);
-
     };
 
     auto store_i8 = [&](bool is_signed, bool is_masked, const Vmm &vr_dst) {
-
         // Conversion s32 -> s8/u8
         s32_to_i8(is_signed, vr_dst);
 
@@ -588,66 +579,55 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
     switch (jpp.dst_dt) {
         case s32:
             if (masked) {
-                vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst_s32(jj, ll));
+                vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask,
+                        vreg_dst_s32(jj, ll));
             } else
                 vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst_s32(jj, ll));
             break;
-        case s8:
-            store_i8(true, masked, vreg_dst_s32(jj, ll));
-            break;
-        case u8:
-            store_i8(false, masked, vreg_dst_s32(jj, ll));
-            break;
+        case s8: store_i8(true, masked, vreg_dst_s32(jj, ll)); break;
+        case u8: store_i8(false, masked, vreg_dst_s32(jj, ll)); break;
         default: assert(!"unsuppotred dst data_type");
     }
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_avg_op(int jj, int ll,
-        size_t offset, bool masked, uint64_t msk) {
+void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_avg_op(
+        int jj, int ll, size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
     // Don't generate useless code
-    if (masked && !msk)
-        return;
+    if (masked && !msk) return;
 
-    const Vmm& vr_dst = masked ?
-            vreg_dst_s32(jj, ll) | mask(ll) :
-            vreg_dst_s32(jj, ll);
+    const Vmm &vr_dst
+            = masked ? vreg_dst_s32(jj, ll) | mask(ll) : vreg_dst_s32(jj, ll);
 
     switch (jpp.dst_dt) {
-        case s32:
-            vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst);
-            break;
-        case s8:
-            vpmovdb(ptr[reg_ptr_dst_i8 + offset], vr_dst);
-            break;
-        case u8:
-            vpmovusdb(ptr[reg_ptr_dst_i8 + offset], vr_dst);
-            break;
+        case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
+        case s8: vpmovdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
+        case u8: vpmovusdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         default: assert(!"unsupported dst data_type");
     }
 }
 
-
 template <cpu_isa_t isa>
-void jit_uni_i8i8_pooling_fwd_ker_t<isa>::store_dst(int jj, int ll,
-        int c_tail) {
+void jit_uni_i8i8_pooling_fwd_ker_t<isa>::store_dst(
+        int jj, int ll, int c_tail) {
     using namespace data_type;
 
     int c_block = jpp.c_block;
     int ur_c = jpp.ur_c;
 
-    switch(jpp.alg) {
+    switch (jpp.alg) {
         case pooling_max: {
-            auto offset = jj*c_block*sizeof_dst_dt();
+            auto offset = jj * c_block * sizeof_dst_dt();
             bool masked = jj == ur_c - 1 && c_tail;
             store_dst_max_op(jj, ll, offset, masked, jpp.tail[ll]);
             break;
         }
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding: {
-            auto offset = (ll*(c_block/max_num_ll) + jj*c_block)*sizeof_dst_dt();
+            auto offset = (ll * (c_block / max_num_ll) + jj * c_block)
+                    * sizeof_dst_dt();
             bool masked = jj == ur_c - 1 && c_tail;
             store_dst_avg_op(jj, ll, offset, masked, jpp.tail[ll]);
             break;
@@ -657,26 +637,18 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::store_dst(int jj, int ll,
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::compute_max_op(const int jj)
-{
+void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::compute_max_op(const int jj) {
     using namespace data_type;
     switch (jpp.src_dt) {
-        case s32:
-            vpmaxsd(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
-            break;
-        case s8:
-            vpmaxsb(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
-            break;
-        case u8:
-            vpmaxub(vreg_dst(jj), vreg_dst(jj), vreg_src(jj));
-            break;
+        case s32: vpmaxsd(vreg_dst(jj), vreg_dst(jj), vreg_src(jj)); break;
+        case s8: vpmaxsb(vreg_dst(jj), vreg_dst(jj), vreg_src(jj)); break;
+        case u8: vpmaxub(vreg_dst(jj), vreg_dst(jj), vreg_src(jj)); break;
         default: assert(!"unsupported src data type");
     }
 }
 
 template <>
-void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj)
-{
+void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj) {
     using namespace data_type;
 
     // Compare
@@ -700,10 +672,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj)
         vpblendmb(vreg_dst(jj) | k_cmp_mask, vreg_dst(jj), vreg_src(jj));
 }
 
-
 template <cpu_isa_t isa>
-void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_tail)
-{
+void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_max_step(
+        int ur_c, int c_tail) {
     Label l_kw, l_kh;
 
     int iw = jpp.iw;
@@ -741,8 +712,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_max_step(int ur_c, int c_tail)
 }
 
 template <cpu_isa_t isa>
-void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
-{
+void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
+        int ur_c, int c_tail) {
     using namespace data_type;
 
     Label l_kw, l_kh;
@@ -750,7 +721,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
     int iw = jpp.iw;
     int c = jpp.c;
 
-    const int num_ll = data_type_size(avg_proc_dt)/data_type_size(jpp.src_dt);
+    const int num_ll = data_type_size(avg_proc_dt) / data_type_size(jpp.src_dt);
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
@@ -758,7 +729,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
             size_t msk = jpp.tail[ll];
             if (!(masked && !msk)) {
                 // Clearing of src reg is not needed as they are written before read
-                uni_vpxor(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll));
+                uni_vpxor(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll),
+                        vreg_dst_s32(jj, ll));
             }
         }
     }
@@ -811,17 +783,15 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(int ur_c, int c_tail)
 template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_step(int ur_c, int c_tail) {
     switch (jpp.alg) {
-        case pooling_max:
-            compute_max_step(ur_c, c_tail); break;
+        case pooling_max: compute_max_step(ur_c, c_tail); break;
         case pooling_avg_include_padding:
-        case pooling_avg_exclude_padding:
-            compute_avg_step(ur_c, c_tail); break;
+        case pooling_avg_exclude_padding: compute_avg_step(ur_c, c_tail); break;
         default: assert(!"unsupported pooling algorithm");
     }
 }
 
 template <cpu_isa_t isa>
-void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block(){
+void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block() {
     Label l_main_loop;
 
     int nb_c = jpp.nb_c;
@@ -833,39 +803,38 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block(){
 
     xor_(c_iter, c_iter);
     if (c_steps > 0) {
-        L(l_main_loop); {
+        L(l_main_loop);
+        {
             compute_step(ur_c, 0);
-            add(reg_ptr_src_i8, ur_c*c_block*sizeof_src_dt());
-            add(reg_ptr_dst_i8, ur_c*c_block*sizeof_dst_dt());
+            add(reg_ptr_src_i8, ur_c * c_block * sizeof_src_dt());
+            add(reg_ptr_dst_i8, ur_c * c_block * sizeof_dst_dt());
             inc(c_iter);
             cmp(c_iter, c_steps);
             jl(l_main_loop, T_NEAR);
         }
     }
 
-    if (ur_c_tail != 0) {
-        compute_step(ur_c_tail, c_tail);
-    }
+    if (ur_c_tail != 0) { compute_step(ur_c_tail, c_tail); }
 }
 
-template<>
+template <>
 void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
     using namespace data_type;
     using cpu_isa = cpu_isa_traits<avx2>;
 
     // AVX2 mask initialization: mask stored in Ymm-regs
-    auto init = [&](uint64_t bit_mask, bool need_ymm_mask = true, bool need_mmx_mask = false) {
+    auto init = [&](uint64_t bit_mask, bool need_ymm_mask = true,
+                        bool need_mmx_mask = false) {
         const size_t QW_PER_VREG = cpu_isa::vlen / sizeof(uint64_t);
 
-        const size_t DBITS = 8*sizeof_src_dt();
-        const uint64_t VMSK = 1ULL << (DBITS-1);
-        const size_t D_PER_QW = (8*sizeof(uint64_t))/DBITS;
+        const size_t DBITS = 8 * sizeof_src_dt();
+        const uint64_t VMSK = 1ULL << (DBITS - 1);
+        const size_t D_PER_QW = (8 * sizeof(uint64_t)) / DBITS;
         uint64_t vmask[QW_PER_VREG];
-        for (size_t i = 0; i < QW_PER_VREG; i++){
-            uint64_t qw_vmask=0ULL;
+        for (size_t i = 0; i < QW_PER_VREG; i++) {
+            uint64_t qw_vmask = 0ULL;
             for (size_t j = 0; j < D_PER_QW; j++) {
-                if (bit_mask & 1)
-                    qw_vmask |= VMSK << DBITS * j;
+                if (bit_mask & 1) qw_vmask |= VMSK << DBITS * j;
                 bit_mask >>= 1;
             }
             vmask[i] = qw_vmask;
@@ -875,23 +844,22 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
         if (need_ymm_mask) {
 
             // Put QWORDS with target mask into xmm regs
-            const int xdst_i[QW_PER_VREG] = {
-                    xreg_mask_lo.getIdx(),
-                    xreg_mask_lo.getIdx(),
-                    xreg_mask_hi.getIdx(),
-                    xreg_mask_hi.getIdx()
-            };
+            const int xdst_i[QW_PER_VREG]
+                    = {xreg_mask_lo.getIdx(), xreg_mask_lo.getIdx(),
+                            xreg_mask_hi.getIdx(), xreg_mask_hi.getIdx()};
             const int xsrc_i[QW_PER_VREG] = {
-                    vreg_zeros.getIdx(),   // 0-th qword insert in zeros -> {qw0,  0}
-                    xreg_mask_lo.getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
-                    vreg_zeros.getIdx(),
-                    xreg_mask_hi.getIdx()
-            };
-            const uint8 qw_dst_idx[QW_PER_VREG] = {0, 1, 0, 1}; // qword index in 128-bit xreg
+                    vreg_zeros
+                            .getIdx(), // 0-th qword insert in zeros -> {qw0,  0}
+                    xreg_mask_lo
+                            .getIdx(), // 1-st and 0-th merge        -> {qw0,qw1}
+                    vreg_zeros.getIdx(), xreg_mask_hi.getIdx()};
+            const uint8 qw_dst_idx[QW_PER_VREG]
+                    = {0, 1, 0, 1}; // qword index in 128-bit xreg
 
             for (size_t i = 0; i < QW_PER_VREG; i++) {
                 mov(reg_mask, vmask[i]);
-                vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask, qw_dst_idx[i]);
+                vpinsrq(Xmm(xdst_i[i]), Xmm(xsrc_i[i]), reg_mask,
+                        qw_dst_idx[i]);
 
                 // Need mask in MMX regs also?
                 if (need_mmx_mask)
@@ -925,7 +893,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
                 }
 
             // Form full mask for one QWORD
-            uint64_t qw_full_vmask=0ULL;
+            uint64_t qw_full_vmask = 0ULL;
             for (size_t i = 0; i < D_PER_QW; i++)
                 qw_full_vmask |= VMSK << DBITS * i;
 
@@ -938,8 +906,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
     switch (jpp.alg) {
         case pooling_max:
             // For "max" we need mask only in case of non-zero tail
-            if (tail_mask)
-                init(tail_mask);
+            if (tail_mask) init(tail_mask);
             break;
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
@@ -949,12 +916,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
             //         - for non-zero tail in Ymm regs (for load)
             switch (jpp.src_dt) {
                 case s32:
-                    if (tail_mask)
-                        init(tail_mask);
+                    if (tail_mask) init(tail_mask);
                     break;
                 case s8:
                 case u8:
-                    init(tail_mask ? tail_mask : ~0ULL, tail_mask!=0, true);
+                    init(tail_mask ? tail_mask : ~0ULL, tail_mask != 0, true);
                     break;
                 default: assert(!"unsupported src data type");
             }
@@ -963,7 +929,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
     }
 }
 
-template<>
+template <>
 void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::init_mask() {
 
     for (int ll = 0; ll < max_num_ll; ll++) {
@@ -1005,7 +971,6 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
             break;
         default: assert(!"unsupported pooling algorithm");
     }
-
 }
 
 template <cpu_isa_t isa>
@@ -1018,8 +983,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     mov(rcx, rdi);
 #endif
 
-#   define READ_PARAM(reg, field) \
-        mov(reg, ptr[reg_param + offsetof(call_params_t, field)])
+#define READ_PARAM(reg, field) \
+    mov(reg, ptr[reg_param + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src_i8, src_i8);
     READ_PARAM(reg_ptr_dst_i8, dst_i8);
     READ_PARAM(reg_kw, kw_range);
@@ -1027,7 +992,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     READ_PARAM(reg_src_safe_access, src_safe_access);
     READ_PARAM(reg_dst_safe_access, dst_safe_access);
 
-#   undef READ_PARAM
+#undef READ_PARAM
 
     uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
 
@@ -1042,10 +1007,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
-        const pooling_pd_t *ppd) {
-    if (!mayiuse(isa))
-        return status::unimplemented;
+status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
+        jit_pool_conf_t &jpp, const pooling_pd_t *ppd) {
+    if (!mayiuse(isa)) return status::unimplemented;
 
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(ppd->src_md());
@@ -1066,13 +1030,13 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.t_pad = pd.padding[0][0];
     jpp.l_pad = pd.padding[0][1];
 
-    int right_pad = (jpp.ow - 1) * jpp.stride_w
-        + jpp.kw - 1 - (jpp.iw + jpp.l_pad - 1);
-    int bottom_pad = (jpp.oh - 1) * jpp.stride_h
-        + jpp.kh - 1 - (jpp.ih + jpp.t_pad - 1);
+    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
+            - (jpp.iw + jpp.l_pad - 1);
+    int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1
+            - (jpp.ih + jpp.t_pad - 1);
 
-    if (jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
-         || bottom_pad >= jpp.kh || right_pad >= jpp.kw)
+    if (jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw || bottom_pad >= jpp.kh
+            || right_pad >= jpp.kw)
         return status::unimplemented;
 
     jpp.alg = pd.alg_kind;
@@ -1088,12 +1052,11 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
     /* Verify that vlen-sized memory access happens within the tensor's
      * size, otherwise load/store will always spill outside the memory
      * boundary.*/
-    bool safe_load_n_store = IMPLICATION(isa == avx2, jpp.mb * jpp.c
-                            * nstl::min(jpp.ih, jpp.oh)
+    bool safe_load_n_store = IMPLICATION(isa == avx2,
+            jpp.mb * jpp.c * nstl::min(jpp.ih, jpp.oh)
                             * nstl::min(jpp.iw, jpp.ow)
                     >= simd_w);
-    if (!safe_load_n_store)
-        return status::unimplemented;
+    if (!safe_load_n_store) return status::unimplemented;
 
     jpp.c_block = simd_w;
     jpp.c_tail = jpp.c % jpp.c_block;
@@ -1119,7 +1082,8 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
         case pooling_avg_exclude_padding: {
             // avg_proc_dt (s32) defines granularity (because u8/s8 processed as s32)
             // avx2 : 8, avx512 : 16
-            const size_t msk_gran = cpu_isa_traits<isa>::vlen / data_type_size(avg_proc_dt);
+            const size_t msk_gran
+                    = cpu_isa_traits<isa>::vlen / data_type_size(avg_proc_dt);
             const size_t msk_msk = (1ULL << msk_gran) - 1;
             size_t m = tail_mask;
             for (size_t ll = 0; ll < max_num_ll; ll++) {
@@ -1140,14 +1104,15 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
 }
 
 template <cpu_isa_t isa>
-jit_uni_i8i8_pooling_fwd_t<isa>::
-jit_uni_i8i8_pooling_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd), ker_(nullptr)
-{ ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_); }
+jit_uni_i8i8_pooling_fwd_t<isa>::jit_uni_i8i8_pooling_fwd_t(const pd_t *apd)
+    : cpu_primitive_t(apd), ker_(nullptr) {
+    ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_);
+}
 
 template <cpu_isa_t isa>
-jit_uni_i8i8_pooling_fwd_t<isa>::
-~jit_uni_i8i8_pooling_fwd_t() { delete ker_; }
+jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() {
+    delete ker_;
+}
 
 template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
@@ -1163,34 +1128,35 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
     /* Calculate when the memory-access will happen outisde of the memory
      * boundary, if so, compute a safe memory access. */
     const auto src_safe_access = reinterpret_cast<char *>(
-            reinterpret_cast<ptrdiff_t >(src_i8 + src_d.size() - 1)
+            reinterpret_cast<ptrdiff_t>(src_i8 + src_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
     const auto dst_safe_access = reinterpret_cast<char *>(
             reinterpret_cast<ptrdiff_t>(dst_i8 + dst_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
-    parallel_nd(jpp.mb, jpp.oh, jpp.ow,
-            [&](int n, int oh, int ow) {
-        const int ih = nstl::max(oh*jpp.stride_h - jpp.t_pad, 0);
-        const int iw = nstl::max(ow*jpp.stride_w - jpp.l_pad, 0);
+    parallel_nd(jpp.mb, jpp.oh, jpp.ow, [&](int n, int oh, int ow) {
+        const int ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, 0);
+        const int iw = nstl::max(ow * jpp.stride_w - jpp.l_pad, 0);
 
         const int kh_start = nstl::max(0, jpp.t_pad - oh * jpp.stride_h);
-        const int kh_end = nstl::min(jpp.kh,
-                jpp.ih + jpp.t_pad - oh * jpp.stride_h);
+        const int kh_end
+                = nstl::min(jpp.kh, jpp.ih + jpp.t_pad - oh * jpp.stride_h);
         const int kw_start = nstl::max(0, jpp.l_pad - ow * jpp.stride_w);
-        const int kw_end = nstl::min(jpp.kw,
-                jpp.iw + jpp.l_pad - ow * jpp.stride_w);
+        const int kw_end
+                = nstl::min(jpp.kw, jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
         auto p = typename jit_uni_i8i8_pooling_fwd_ker_t<isa>::call_params_t();
-        p.src_i8 = &src_i8[
-            src_d.blk_off(n, 0, ih, iw) * src_d.data_type_size()];
-        p.dst_i8 = &dst_i8[
-            dst_d.blk_off(n, 0, oh, ow) * dst_d.data_type_size()];
+        p.src_i8
+                = &src_i8[src_d.blk_off(n, 0, ih, iw) * src_d.data_type_size()];
+        p.dst_i8
+                = &dst_i8[dst_d.blk_off(n, 0, oh, ow) * dst_d.data_type_size()];
         p.kw_range = (size_t)(kw_end - kw_start);
         p.kh_range = (size_t)(kh_end - kh_start);
-        p.idivider = 1.0f / ((jpp.alg == pooling_avg_exclude_padding) ?
-            p.kh_range*p.kw_range : jpp.kw*jpp.kh);
+        p.idivider = 1.0f
+                / ((jpp.alg == pooling_avg_exclude_padding)
+                                ? p.kh_range * p.kw_range
+                                : jpp.kw * jpp.kh);
         p.src_safe_access = src_safe_access;
         p.dst_safe_access = dst_safe_access;
 
@@ -1206,6 +1172,6 @@ template struct jit_uni_i8i8_pooling_fwd_t<avx512_core>;
 template struct jit_uni_i8i8_pooling_fwd_ker_t<avx2>;
 template struct jit_uni_i8i8_pooling_fwd_t<avx2>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

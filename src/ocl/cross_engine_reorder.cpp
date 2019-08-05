@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/utils.hpp"
 #include "ocl/cross_engine_reorder.hpp"
+#include "common/utils.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
@@ -39,8 +39,7 @@ status_t cross_engine_reorder_t::pd_t::init() {
                     dst_engine()->kind())
             && (dst_engine()->kind() != src_engine()->kind());
 
-    if (!args_ok)
-        return status::unimplemented;
+    if (!args_ok) return status::unimplemented;
 
     reorder_engine_kind_ = cross_engine_reorder_engine_kind;
 
@@ -74,8 +73,7 @@ status_t cross_engine_reorder_t::pd_t::init() {
         }
     }
 
-    if (!reorder_)
-        return status::unimplemented;
+    if (!reorder_) return status::unimplemented;
 
     return status::success;
 }
@@ -90,9 +88,9 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
         exec_args_t r_args;
         r_args[MKLDNN_ARG_SRC]
-                = memory_arg_t{ const_cast<memory_t *>(src_mem), true };
+                = memory_arg_t {const_cast<memory_t *>(src_mem), true};
         r_args[MKLDNN_ARG_DST]
-                = memory_arg_t{ const_cast<memory_t *>(dst_mem), false };
+                = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
 
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
         return reorder_->execute(r_ctx);

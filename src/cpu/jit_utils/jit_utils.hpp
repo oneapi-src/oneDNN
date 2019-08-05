@@ -28,7 +28,7 @@ void register_jit_code(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name);
 
 }
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 #endif

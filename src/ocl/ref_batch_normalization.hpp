@@ -52,21 +52,19 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
             bool ok = true && is_fwd()
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
-                        || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                        || utils::everyone_is(f32, src_data_t, dst_data_t))
+                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
+                            || utils::everyone_is(f32, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, bf16),
-                               !is_training() && stats_is_src())
+                            !is_training() && stats_is_src())
                     && (attr()->has_default_values() || with_relu_post_op())
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups);
-            if (!ok)
-                return status::unimplemented;
+                            compute::device_ext_t::intel_subgroups);
+            if (!ok) return status::unimplemented;
 
             if (src_data_t == s8 && !stats_is_src())
                 return status::unimplemented;
 
-            if (is_training() && fuse_norm_relu())
-                init_default_ws(8);
+            if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
             return jit_ref_bnorm_common_kernel::init_conf(
                     jbn_, desc_, src_md(), this, jit_off_);
@@ -84,8 +82,8 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
         jit_ref_bnorm_common_kernel::init_const_def(
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
-        std::vector<const char *> kernel_names = { "ref_bnorm_fwd_kernel",
-            nullptr, nullptr, nullptr, nullptr };
+        std::vector<const char *> kernel_names
+                = {"ref_bnorm_fwd_kernel", nullptr, nullptr, nullptr, nullptr};
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
                     * pd()->jbn_.ic
@@ -93,8 +91,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);
             temp_reduce.reset(temp_reduce_ptr);
-            if (!temp_reduce)
-                return status::runtime_error;
+            if (!temp_reduce) return status::runtime_error;
 
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
@@ -150,22 +147,18 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = true
-                    && is_bwd()
-                    && utils::everyone_is(f32, src_md()->data_type,
-                            diff_src_md()->data_type)
+            bool ok = true && is_bwd()
+                    && utils::everyone_is(
+                            f32, src_md()->data_type, diff_src_md()->data_type)
                     && IMPLICATION(use_scaleshift(),
-                               utils::everyone_is(f32,
-                                       weights_md()->data_type,
-                                       diff_weights_md()->data_type))
+                            utils::everyone_is(f32, weights_md()->data_type,
+                                    diff_weights_md()->data_type))
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             if (fuse_norm_relu()) {
                 init_default_ws(8);
-                if (!compare_ws(hint_fwd_pd_))
-                    return status::unimplemented;
+                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
             return jit_ref_bnorm_common_kernel::init_conf(
@@ -184,22 +177,19 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         jit_ref_bnorm_common_kernel::init_const_def(
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
-        std::vector<const char*> kernel_names = {
-            "ref_bnorm_bwd_kernel",
-            nullptr,
-            nullptr
-        };
+        std::vector<const char *> kernel_names
+                = {"ref_bnorm_bwd_kernel", nullptr, nullptr};
 
         if (pd()->jbn_.use_16mb_unroll) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
                     * pd()->jbn_.ic
-                    * types::data_type_size(pd()->src_md()->data_type);;
+                    * types::data_type_size(pd()->src_md()->data_type);
+            ;
 
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);
             temp_reduce.reset(temp_reduce_ptr);
-            if (!temp_reduce)
-                return status::runtime_error;
+            if (!temp_reduce) return status::runtime_error;
 
             kernel_names[1] = "calculate_stats";
             kernel_names[2] = "reduce_stats";

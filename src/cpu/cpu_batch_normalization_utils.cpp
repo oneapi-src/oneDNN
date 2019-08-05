@@ -33,10 +33,8 @@ void cache_balance(size_t working_set_size, dim_t C_blks,
 
     C_blks_per_iter = l3_size / working_set_size;
 
-    if (C_blks_per_iter == 0)
-        C_blks_per_iter = 1;
-    if (C_blks_per_iter > C_blks)
-        C_blks_per_iter = C_blks;
+    if (C_blks_per_iter == 0) C_blks_per_iter = 1;
+    if (C_blks_per_iter > C_blks) C_blks_per_iter = C_blks;
 
     iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
 }
@@ -46,10 +44,16 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
         dim_t &C_blk_s, dim_t &C_blk_e, int &N_ithr, int &N_nthr, dim_t &N_s,
         dim_t &N_e, int &S_ithr, int &S_nthr, dim_t &S_s, dim_t &S_e) {
     if (nthr <= C_blks || !mkldnn_thr_syncable()) {
-        C_ithr = ithr; C_nthr = nthr;
-        N_ithr = 0; N_nthr = 1;
-        S_ithr = 0; S_nthr = 1;
-        N_s = 0; N_e = N; S_s = 0; S_e = SP;
+        C_ithr = ithr;
+        C_nthr = nthr;
+        N_ithr = 0;
+        N_nthr = 1;
+        S_ithr = 0;
+        S_nthr = 1;
+        N_s = 0;
+        N_e = N;
+        S_s = 0;
+        S_e = SP;
         balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
     } else {
         if (do_blocking) {
@@ -62,12 +66,11 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
             S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
         }
 
-        if (!spatial_thr_allowed)
-            S_nthr = 1;
+        if (!spatial_thr_allowed) S_nthr = 1;
 
         if (S_nthr < 1) S_nthr = 1;
         if (ithr < C_nthr * N_nthr * S_nthr) {
-            N_ithr = (ithr / S_nthr) % N_nthr ;
+            N_ithr = (ithr / S_nthr) % N_nthr;
             C_ithr = ithr / (N_nthr * S_nthr);
             S_ithr = ithr % S_nthr;
             balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
@@ -85,32 +88,30 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
     // It is caller's responsibility to check the
     // return value and pass it as a flag to the
     // next call if needed.
-    if (S_nthr == 1)
-        spatial_thr_allowed = false;
+    if (S_nthr == 1) spatial_thr_allowed = false;
 
     return spatial_thr_allowed;
 }
 
-bool is_spatial_thr(const batch_normalization_pd_t *bdesc, int simd_w,
-        int data_size) {
+bool is_spatial_thr(
+        const batch_normalization_pd_t *bdesc, int simd_w, int data_size) {
     if (!mkldnn_thr_syncable()) return false;
 
     dim_t nthr = mkldnn_get_max_threads();
     dim_t SP = bdesc->W() * bdesc->D() * bdesc->H();
-    dim_t C_PADDED = memory_desc_wrapper(bdesc->src_md())
-        .padded_dims()[1];
+    dim_t C_PADDED = memory_desc_wrapper(bdesc->src_md()).padded_dims()[1];
     assert(C_PADDED % simd_w == 0);
 
     size_t data = bdesc->MB() * C_PADDED * SP * data_size;
     size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
     bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
-    dim_t C_blks_per_iter{ 1 }, iters{ 1 };
+    dim_t C_blks_per_iter {1}, iters {1};
     dim_t C_blks = C_PADDED / simd_w;
 
     if (do_blocking) {
         int num_tensors = bdesc->is_fwd() ? 1 : 2;
         size_t working_set_size
-            = (bdesc->MB() * SP * simd_w * data_size) * num_tensors;
+                = (bdesc->MB() * SP * simd_w * data_size) * num_tensors;
         cache_balance(working_set_size, C_blks, C_blks_per_iter, iters);
     }
 
@@ -134,7 +135,7 @@ bool is_spatial_thr(const batch_normalization_pd_t *bdesc, int simd_w,
     return S_nthr > 1;
 }
 
-}
-}
-}
-}
+} // namespace bnorm_utils
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

@@ -17,8 +17,8 @@
 #ifndef OCL_DEVICE_INFO_HPP
 #define OCL_DEVICE_INFO_HPP
 
-#include <CL/cl.h>
 #include <vector>
+#include <CL/cl.h>
 
 #include "common/z_magic.hpp"
 #include "compute/device_info.hpp"
@@ -35,24 +35,23 @@ static const char *ext2cl_str(compute::device_ext_t ext) {
         CASE(khr_fp16);
         CASE(intel_subgroups);
         CASE(intel_subgroups_short);
-    default: return nullptr;
+        default: return nullptr;
     }
 #undef CASE
 }
 
-class ocl_device_info_t : public compute::device_info_t
-{
+class ocl_device_info_t : public compute::device_info_t {
 public:
     ocl_device_info_t(cl_device_id device)
         : device_(device)
         , ext_(0)
         , eu_count_(0)
         , hw_threads_(0)
-        , runtime_version_{ 0, 0, 0 } {}
+        , runtime_version_ {0, 0, 0} {}
 
     virtual status_t init() override {
         // Extensions
-        size_t size_ext{ 0 };
+        size_t size_ext {0};
         cl_int err = clGetDeviceInfo(
                 device_, CL_DEVICE_EXTENSIONS, 0, nullptr, &size_ext);
         OCL_CHECK(err);
@@ -71,7 +70,7 @@ public:
         }
 
         // Device name
-        size_t size_name{ 0 };
+        size_t size_name {0};
         err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &size_name);
         OCL_CHECK(err);
 
@@ -91,7 +90,7 @@ public:
         hw_threads_ = eu_count_ * threads_per_eu;
 
         // OpenCL runtime version
-        size_t size_driver_version{ 0 };
+        size_t size_driver_version {0};
         err = clGetDeviceInfo(
                 device_, CL_DRIVER_VERSION, 0, nullptr, &size_driver_version);
         OCL_CHECK(err);

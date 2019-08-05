@@ -29,9 +29,8 @@ rnn_cell_execution_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution)) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
-                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
-                states_t_lm1_, rnn.states_ws_ld, 0.0, ws_gates_,
-                rnn.gates_ws_ld);
+                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
+                rnn.states_ws_ld, 0.0, ws_gates_, rnn.gates_ws_ld);
     }
     (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb, rnn.sic,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
@@ -60,8 +59,8 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
 
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, w_layer_[0],
-                rnn.weights_layer_ld, ws_gates_, rnn.gates_ws_ld, 0.0,
+                rnn.n_gates * rnn.dic, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                ws_gates_, rnn.gates_ws_ld, 0.0,
                 &diff_states_t_l(rnn.n_states, 0, 0), rnn.states_ws_ld);
 
         /// bwd by weights on the cell
@@ -79,6 +78,6 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
     gates_reduction(rnn, ws_gates_, diff_bias_);
 }
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

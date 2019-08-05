@@ -33,9 +33,8 @@ using namespace mkldnn::impl::utils;
 
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
-void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>::
-execute_forward(const exec_ctx_t &ctx) const
-{
+void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
+        dst_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
@@ -44,8 +43,8 @@ execute_forward(const exec_ctx_t &ctx) const
     auto scratchpad = this->scratchpad(ctx);
 
     if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
-        auto local_scales = scratchpad.template get<float>(
-                key_conv_adjusted_scales);
+        auto local_scales
+                = scratchpad.template get<float>(key_conv_adjusted_scales);
         auto scales = pd()->attr()->output_scales_.scales_;
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
@@ -63,16 +62,17 @@ execute_forward(const exec_ctx_t &ctx) const
 }
 
 template <data_type_t src_type, data_type_t dst_type>
-void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
-::execute_forward_thr(const int ithr, const int nthr, const src_data_t *src,
-        const wei_data_t *weights, const char *bias, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
+        dst_type>::execute_forward_thr(const int ithr, const int nthr,
+        const src_data_t *src, const wei_data_t *weights, const char *bias,
+        dst_data_t *dst, const memory_tracking::grantor_t &scratchpad) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const size_t bia_dt_size = pd()->with_bias()
-        ? types::data_type_size(pd()->desc()->bias_desc.data_type) : 0;
+            ? types::data_type_size(pd()->desc()->bias_desc.data_type)
+            : 0;
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
@@ -91,10 +91,10 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
     const auto &oscales = pd()->attr()->output_scales_;
 
     int offset = jcp.ngroups * (jcp.oc / jcp.oc_block) * (jcp.ic / jcp.ic_block)
-        * jcp.oc_block * jcp.ic_block;
+            * jcp.oc_block * jcp.ic_block;
     wei_data_t *w = const_cast<wei_data_t *>(weights);
-    int32_t* compensation = (jcp.signed_input)
-        ? reinterpret_cast<int32_t *>(w + offset) : 0;
+    int32_t *compensation
+            = (jcp.signed_input) ? reinterpret_cast<int32_t *>(w + offset) : 0;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -107,21 +107,19 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
     const int nb_oc = jcp.nb_load;
     const int os_block = jcp.bcast_block;
 
-    int bcast_start{0}, bcast_end{0}, ocb_start{0}, ocb_end{0};
+    int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
     balance2D(nthr, ithr, work_amount, bcast_start, bcast_end,
-        jcp.nb_load / jcp.nb_load_chunk, ocb_start, ocb_end,
-        jcp.load_grp_count);
+            jcp.nb_load / jcp.nb_load_chunk, ocb_start, ocb_end,
+            jcp.load_grp_count);
     if (jcp.nb_load_chunk > 1) {
         ocb_start *= jcp.nb_load_chunk;
         ocb_end *= jcp.nb_load_chunk;
     }
 
-    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step,
-            int &oh, int &ow, int &ih, int &iw)
-    {
-        int osb{0};
-        nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb,
-            jcp.nb_bcast);
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &oh,
+                              int &ow, int &ih, int &iw) {
+        int osb {0};
+        nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
         bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
                 jcp.nb_bcast_blocking_max);
         bcast_step = nstl::min(bcast_step, bcast_end - iwork);
@@ -134,34 +132,29 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         iw = nstl::max(ow * stride_w - pad_l, 0);
         rp.iw_start = iw;
 
-        p.bcast_dim = this_block_size(os, jcp.os,
-            bcast_step * os_block);
+        p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
         rp.os = p.bcast_dim;
     };
 
-    auto init_load = [&](int ocb, int &load_step)
-    {
-        load_step = step(jcp.nb_load_blocking, ocb_end - ocb,
-            jcp.nb_load_blocking_max);
-        p.load_dim = this_block_size(ocb * jcp.oc_block,
-            ocb_end * jcp.oc_block, load_step * jcp.oc_block);
+    auto init_load = [&](int ocb, int &load_step) {
+        load_step = step(
+                jcp.nb_load_blocking, ocb_end - ocb, jcp.nb_load_blocking_max);
+        p.load_dim = this_block_size(ocb * jcp.oc_block, ocb_end * jcp.oc_block,
+                load_step * jcp.oc_block);
 
         if (ocb + load_step >= nb_oc)
             p.first_last_flag |= FLAG_OC_LAST;
         else
             p.first_last_flag &= ~FLAG_OC_LAST;
-
     };
 
-    auto init_reduce = [&]()
-    {
+    auto init_reduce = [&]() {
         p.reduce_dim = this_block_size(0, jcp.ic, jcp.ic);
         rp.icb = p.reduce_dim / jcp.reduce_block;
     };
 
-    auto inner_ker = [&](int ocb, int n, int g, int oh, int ow,
-            int ih, int iw)
-    {
+    auto inner_ker = [&](int ocb, int n, int g, int oh, int ow, int ih,
+                             int iw) {
         const int icb = 0; // Start from the first IC block
         const int _ocb = g * nb_oc + ocb;
         const int _icb = g;
@@ -169,18 +162,18 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type, dst_type>
         const size_t dst_off = dst_d.blk_off(n, _ocb * jcp.oc_block, oh, ow);
 
         p.output_data = &dst[dst_off];
-        p.load_data = &weights[pd()->with_groups()
-            ? weights_d.blk_off(g, ocb, icb)
-            : weights_d.blk_off(ocb, icb)];
+        p.load_data
+                = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
+                                               : weights_d.blk_off(ocb, icb)];
         p.bias_data = &bias[_ocb * jcp.oc_block * bia_dt_size];
-        p.compensation = (jcp.signed_input)
-            ? &compensation[_ocb * jcp.oc_block] : 0;
+        p.compensation
+                = (jcp.signed_input) ? &compensation[_ocb * jcp.oc_block] : 0;
         p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
-            ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
-            : &oscales.scales_[jcp.is_oc_scale * _ocb * jcp.oc_block];
+                ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
+                : &oscales.scales_[jcp.is_oc_scale * _ocb * jcp.oc_block];
         if (pd()->rtus_.reduce_src_) {
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
-                + _icb * jcp.is * jcp.ic_block;
+                    + _icb * jcp.is * jcp.ic_block;
             if (ocb == ocb_start) {
                 rp.src = src + src_d.blk_off(n, _icb * jcp.ic_block, ih, iw);
                 rtus_driver_->ker_(&rp);
@@ -267,6 +260,6 @@ template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, s32>;
 template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<u8, f32>;
 template struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<s8, f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

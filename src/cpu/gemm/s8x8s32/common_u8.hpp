@@ -19,12 +19,11 @@
 
 #include "jit_generator.hpp"
 
-#define U8_COPY_KERNEL_CODE_SIZE          (4096L * 4)
+#define U8_COPY_KERNEL_CODE_SIZE (4096L * 4)
 
 #define PADD_BYTESIZE_ONPAGE(x, size) \
     (((x) * (size) + PAGE_4K - 1) / PAGE_4K) * PAGE_4K
 #define NEXT_THR_STRIDE(x, size) (PADD_BYTESIZE_ONPAGE(x, size)) / size
-
 
 namespace mkldnn {
 namespace impl {
@@ -33,60 +32,60 @@ namespace cpu {
 class jit_avx512_core_u8_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_an_kern);
 
-    public:
-        jit_avx512_core_u8_copy_an_kern();
+public:
+    jit_avx512_core_u8_copy_an_kern();
 };
 
 class jit_avx512_core_u8_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_at_kern);
 
-    public:
-        jit_avx512_core_u8_copy_at_kern();
+public:
+    jit_avx512_core_u8_copy_at_kern();
 };
 
 class jit_avx512_core_u8_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bn_kern);
 
-    public:
-        jit_avx512_core_u8_copy_bn_kern(bool s8 = false);
+public:
+    jit_avx512_core_u8_copy_bn_kern(bool s8 = false);
 };
 
 class jit_avx512_core_u8_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_bt_kern);
 
-    public:
-        jit_avx512_core_u8_copy_bt_kern(bool s8 = false);
+public:
+    jit_avx512_core_u8_copy_bt_kern(bool s8 = false);
 };
 
 class jit_avx512_core_u8_copy_sum_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_sum_an_kern);
 
-    public:
-        jit_avx512_core_u8_copy_sum_an_kern();
+public:
+    jit_avx512_core_u8_copy_sum_an_kern();
 };
 
 class jit_avx512_core_u8_copy_sum_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_sum_at_kern);
 
-    public:
-        jit_avx512_core_u8_copy_sum_at_kern();
+public:
+    jit_avx512_core_u8_copy_sum_at_kern();
 };
 
 class jit_avx512_core_u8_copy_sum_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_sum_bn_kern);
 
-    public:
-        jit_avx512_core_u8_copy_sum_bn_kern(bool s8 = false);
+public:
+    jit_avx512_core_u8_copy_sum_bn_kern(bool s8 = false);
 };
 
 class jit_avx512_core_u8_copy_sum_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8_copy_sum_bt_kern);
 
-    public:
-        jit_avx512_core_u8_copy_sum_bt_kern(bool s8 = false);
+public:
+    jit_avx512_core_u8_copy_sum_bt_kern(bool s8 = false);
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 #endif // COMMON_U8_HPP

@@ -20,41 +20,36 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
+#include "memory.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_conv_fwd_kernel_f32: public jit_generator {
-    jit_avx2_conv_fwd_kernel_f32(jit_conv_conf_t ajcp,
-            const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
-    {
+struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
+    jit_avx2_conv_fwd_kernel_f32(
+            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx2>(this,
-                    jcp.eltwise);
+            eltwise_injector_
+                    = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
 
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
-    ~jit_avx2_conv_fwd_kernel_f32() {
-        delete eltwise_injector_;
-    }
+    ~jit_avx2_conv_fwd_kernel_f32() { delete eltwise_injector_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_fwd_kernel_f32)
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
+    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr);
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
@@ -88,22 +83,21 @@ private:
 
     jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
 
-    inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
-            int oc_blocks);
-    inline void oh_step_nopad(int ur_w, int pad_l, int pad_r,
-            char pad_label, int oc_blocks, char oc_blocks_label);
-    inline void width_blk_step(int ur_w, int pad_l, int pad_r,
-            char pad_label, int oc_blocks, char oc_blocks_label);
+    inline void oh_step_unroll_kw(
+            int ur_w, int pad_l, int pad_r, int oc_blocks);
+    inline void oh_step_nopad(int ur_w, int pad_l, int pad_r, char pad_label,
+            int oc_blocks, char oc_blocks_label);
+    inline void width_blk_step(int ur_w, int pad_l, int pad_r, char pad_label,
+            int oc_blocks, char oc_blocks_label);
     inline void solve_common(int oc_blocks, char oc_blocks_label);
 
     void generate();
 };
 
-struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
+struct jit_avx2_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_data_kernel_f32)
 
-    jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
-    {
+    jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
@@ -121,32 +115,31 @@ struct jit_avx2_conv_bwd_data_kernel_f32: public jit_generator {
 private:
     using reg64_t = const Xbyak::Reg64;
 
-    reg64_t reg_ddst       = rax;
-    reg64_t aux_reg_ddst   = r8;
-    reg64_t reg_kernel     = rdx;
+    reg64_t reg_ddst = rax;
+    reg64_t aux_reg_ddst = r8;
+    reg64_t reg_kernel = rdx;
     reg64_t aux_reg_kernel = r10;
-    reg64_t reg_dsrc       = rsi;
-    reg64_t aux_reg_ddst_oc_loop  = rbx; // used in ndims < 5 case only
+    reg64_t reg_dsrc = rsi;
+    reg64_t aux_reg_ddst_oc_loop = rbx; // used in ndims < 5 case only
     reg64_t aux_reg_kernel_oc_loop = abi_not_param1; /* used in ndims < 5
                                                         case only */
 
     reg64_t aux_reg_dst_d = r12; // used in ndims == 5 case only
     reg64_t aux_reg_ker_d = r14; // used in ndims == 5 case only
 
-    reg64_t reg_ki  = abi_not_param1; // used in ndims == 5 case only
-    reg64_t kj      = r11;
+    reg64_t reg_ki = abi_not_param1; // used in ndims == 5 case only
+    reg64_t kj = r11;
     reg64_t oi_iter = r12;
-    reg64_t reg_kh  = r14;
-    reg64_t reg_channel = r13;  // used in ndims < 5 case only
-    reg64_t reg_channel_work = r9;  // used in ndims < 5 case only
+    reg64_t reg_kh = r14;
+    reg64_t reg_channel = r13; // used in ndims < 5 case only
+    reg64_t reg_channel_work = r9; // used in ndims < 5 case only
     reg64_t reg_long_offt = r15;
 
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
 
     void generate();
 
-    inline int get_iw_start(int ki, int l_overflow)
-    {
+    inline int get_iw_start(int ki, int l_overflow) {
         int res = (jcp.iw - 1 + jcp.r_pad) % jcp.stride_w
                 + l_overflow * jcp.stride_w
                 - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1);
@@ -156,8 +149,7 @@ private:
         return res;
     }
 
-    inline int get_iw_end(int ur_w, int ki, int r_overflow)
-    {
+    inline int get_iw_end(int ur_w, int ki, int r_overflow) {
         if (utils::one_of(ur_w, jcp.iw, jcp.ur_w_tail))
             ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
         int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
@@ -169,11 +161,10 @@ private:
     }
 };
 
-struct jit_avx2_conv_bwd_weights_kernel_f32: public jit_generator {
+struct jit_avx2_conv_bwd_weights_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_weights_kernel_f32)
 
-    jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp)
-    {
+    jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
@@ -218,8 +209,8 @@ private:
     void generate();
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

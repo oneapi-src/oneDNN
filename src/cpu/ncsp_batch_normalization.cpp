@@ -20,10 +20,9 @@
 #include "c_types_map.hpp" // common
 #include "type_helpers.hpp" // common
 
-#include "jit_generator.hpp" //cpu
 #include "cpu_batch_normalization_utils.hpp" // cpu
+#include "jit_generator.hpp" //cpu
 #include "ncsp_batch_normalization.hpp" // cpu
-
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)
@@ -175,8 +174,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             = sum;
                 }
 
-                if (SP_N_nthr > 1)
-                    mkldnn_thr_barrier();
+                if (SP_N_nthr > 1) mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     mean_blk[c] = 0.;
@@ -186,8 +184,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     mean_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1)
-                    mkldnn_thr_barrier();
+                if (SP_N_nthr > 1) mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = c + C_off;
@@ -221,8 +218,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             = sum;
                 }
 
-                if (SP_N_nthr > 1)
-                    mkldnn_thr_barrier();
+                if (SP_N_nthr > 1) mkldnn_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     variance_blk[c] = 0.;
@@ -232,8 +228,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     variance_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1)
-                    mkldnn_thr_barrier();
+                if (SP_N_nthr > 1) mkldnn_thr_barrier();
             }
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
@@ -277,11 +272,9 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                         if (fuse_norm_relu) {
                             if (bn_res <= 0) {
                                 bn_res = 0;
-                                if (is_training)
-                                    ws[d_off] = 0;
+                                if (is_training) ws[d_off] = 0;
                             } else {
-                                if (is_training)
-                                    ws[d_off] = 1;
+                                if (is_training) ws[d_off] = 1;
                             }
                         }
                         _dst[sp] = maybe_post_op(bn_res);
@@ -435,7 +428,8 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                 ws_reduce[ws_iter_off + SP_N_ithr * C_blks_per_iter + c]
                         = diff_gamma;
                 ws_reduce[ws_iter_off + SP_N_nthr * C_blks_per_iter
-                        + SP_N_ithr * C_blks_per_iter + c] = diff_beta;
+                        + SP_N_ithr * C_blks_per_iter + c]
+                        = diff_beta;
             }
 
             if (SP_N_nthr > 1) mkldnn_thr_barrier();
@@ -446,8 +440,8 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                 diff_gamma_blk[c] = 0.;
                 diff_beta_blk[c] = 0.;
                 for (dim_t n = 0; n < SP_N_nthr; n++) {
-                    diff_gamma_blk[c] += ws_reduce[ws_iter_off
-                            + n * C_blks_per_iter + c];
+                    diff_gamma_blk[c]
+                            += ws_reduce[ws_iter_off + n * C_blks_per_iter + c];
                     diff_beta_blk[c] += ws_reduce[ws_iter_off
                             + SP_N_nthr * C_blks_per_iter + n * C_blks_per_iter
                             + c];
@@ -488,7 +482,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                             _src = tmp_src;
                         } else
                             _src = nullptr; // to avoid compiler warning w/
-                                            // gcc483
+                                    // gcc483
                     } else {
                         _diff_src = reinterpret_cast<acc_data_t *>(
                                 diff_src + s_off);
@@ -528,8 +522,8 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
 
 template struct ncsp_batch_normalization_bwd_t<f32>;
 template struct ncsp_batch_normalization_bwd_t<bf16>;
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

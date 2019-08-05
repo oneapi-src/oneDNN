@@ -22,21 +22,25 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
-#include "type_helpers.hpp"
 #include "primitive_attr.hpp"
+#include "type_helpers.hpp"
 #include "verbose.hpp"
 
-struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
+struct mkldnn_primitive_desc : public mkldnn::impl::c_compatible {
     using md_t = mkldnn::impl::memory_desc_t;
 
     mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
             const mkldnn::impl::primitive_attr_t *attr,
             mkldnn::impl::primitive_kind_t kind)
-        : engine_(engine), attr_(*attr), kind_(kind) { info_[0] = '\0'; }
+        : engine_(engine), attr_(*attr), kind_(kind) {
+        info_[0] = '\0';
+    }
 
-    mkldnn_primitive_desc(mkldnn::impl::engine_t *engine,
-            mkldnn::impl::primitive_kind_t kind)
-        : engine_(engine), kind_(kind) { info_[0] = '\0'; }
+    mkldnn_primitive_desc(
+            mkldnn::impl::engine_t *engine, mkldnn::impl::primitive_kind_t kind)
+        : engine_(engine), kind_(kind) {
+        info_[0] = '\0';
+    }
 
     virtual mkldnn_primitive_desc *clone() const = 0;
     virtual ~mkldnn_primitive_desc() {}
@@ -48,12 +52,16 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     virtual void init_info() {}
     const char *info() const { return info_; }
 
-    mkldnn::impl::memory_tracking::registry_t &scratchpad_registry()
-    { return scratchpad_registry_; }
-    const mkldnn::impl::memory_tracking::registry_t &scratchpad_registry() const
-    { return scratchpad_registry_; }
-    virtual mkldnn::impl::engine_t *scratchpad_engine() const
-    { return engine_; }
+    mkldnn::impl::memory_tracking::registry_t &scratchpad_registry() {
+        return scratchpad_registry_;
+    }
+    const mkldnn::impl::memory_tracking::registry_t &
+    scratchpad_registry() const {
+        return scratchpad_registry_;
+    }
+    virtual mkldnn::impl::engine_t *scratchpad_engine() const {
+        return engine_;
+    }
 
     virtual const mkldnn::impl::op_desc_t *op_desc() const { return nullptr; }
 
@@ -65,16 +73,21 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         return arg_usage_t::unused;
     }
 
-#   define DECLARE_MD_STUB(stub) \
-    virtual const mkldnn::impl::memory_desc_t *stub(int idx = 0) const \
-    { return &mkldnn::impl::glob_zero_md; }
+#define DECLARE_MD_STUB(stub) \
+    virtual const mkldnn::impl::memory_desc_t *stub(int idx = 0) const { \
+        return &mkldnn::impl::glob_zero_md; \
+    }
 
-    DECLARE_MD_STUB(input_md); DECLARE_MD_STUB(output_md);
-    DECLARE_MD_STUB(src_md); DECLARE_MD_STUB(diff_src_md);
-    DECLARE_MD_STUB(dst_md); DECLARE_MD_STUB(diff_dst_md);
-    DECLARE_MD_STUB(weights_md); DECLARE_MD_STUB(diff_weights_md);
+    DECLARE_MD_STUB(input_md);
+    DECLARE_MD_STUB(output_md);
+    DECLARE_MD_STUB(src_md);
+    DECLARE_MD_STUB(diff_src_md);
+    DECLARE_MD_STUB(dst_md);
+    DECLARE_MD_STUB(diff_dst_md);
+    DECLARE_MD_STUB(weights_md);
+    DECLARE_MD_STUB(diff_weights_md);
     DECLARE_MD_STUB(workspace_md);
-#   undef DECLARE_MD_STUB
+#undef DECLARE_MD_STUB
 
     const mkldnn::impl::memory_desc_t *scratchpad_md(int idx = 0) const {
         return idx == 0 ? &scratchpad_md_ : &mkldnn::impl::glob_zero_md;
@@ -82,7 +95,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
     virtual void init_scratchpad_md() {
         auto size = scratchpad_size(mkldnn::impl::scratchpad_mode::user);
-        mkldnn::impl::dims_t dims = { size };
+        mkldnn::impl::dims_t dims = {size};
         mkldnn_memory_desc_init_by_tag(&scratchpad_md_, size ? 1 : 0, dims,
                 mkldnn::impl::data_type::u8, mkldnn_x);
     }
@@ -97,8 +110,8 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
 
-    virtual mkldnn::impl::status_t query(mkldnn::impl::query_t what, int idx,
-            void *result) const;
+    virtual mkldnn::impl::status_t query(
+            mkldnn::impl::query_t what, int idx, void *result) const;
 
     virtual mkldnn::impl::status_t create_primitive(
             mkldnn::impl::primitive_t **primitive) const = 0;
@@ -107,7 +120,7 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
 
     /* static magic */
 
-    template<typename pd_t>
+    template <typename pd_t>
     static mkldnn::impl::status_t create(mkldnn::impl::primitive_desc_t **pd,
             const mkldnn::impl::op_desc_t *adesc,
             const mkldnn::impl::primitive_attr_t *attr,
@@ -118,11 +131,14 @@ struct mkldnn_primitive_desc: public mkldnn::impl::c_compatible {
         using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
         if (adesc->kind != pd_t::base_pkind) return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
-        auto hint =
-            reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
+        auto hint
+                = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
         auto _pd = new pd_t(engine, (const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
-        if (_pd->init() != success) { delete _pd; return unimplemented; }
+        if (_pd->init() != success) {
+            delete _pd;
+            return unimplemented;
+        }
         _pd->init_info();
         _pd->init_scratchpad_md();
         *pd = _pd;
@@ -148,7 +164,7 @@ protected:
         using namespace mkldnn::impl;
         if (!workspace_md()) return true; // the impl lives fine w/o workspace
         return fwd_pd && fwd_pd->workspace_md()
-            && *fwd_pd->workspace_md() == *workspace_md();
+                && *fwd_pd->workspace_md() == *workspace_md();
     }
 };
 

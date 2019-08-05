@@ -19,16 +19,16 @@
 
 #include "c_types_map.hpp"
 #include "mkldnn_thread.hpp"
-#include "utils.hpp"
-#include "type_helpers.hpp"
 #include "primitive_iterator.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
 #include "cpu_primitive.hpp"
 
-#include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
+#include "jit_uni_1x1_conv_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -36,7 +36,7 @@ namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
-        : public cpu_primitive_t {
+    : public cpu_primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -46,8 +46,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
-            , conv_pd_(other.conv_pd_->clone())
-        {}
+            , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
@@ -59,7 +58,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         ~pd_t() { delete conv_pd_; }
 
         DECLARE_COMMON_PD_T(conv_pd_->name(),
-                jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<src_type, dst_type>);
+                jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<src_type,
+                        dst_type>);
 
         status_t init_convolution() {
             convolution_desc_t cd;
@@ -76,24 +76,23 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
                         &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             }
 
-            if (status == status::success)
-                status = set_default_params();
+            if (status == status::success) status = set_default_params();
 
             return status;
         };
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && desc()->alg_kind == alg_kind::deconvolution_direct
-                && !has_zero_dim_memory()
-                && desc()->src_desc.data_type == src_type
-                && desc()->dst_desc.data_type == dst_type
-                && desc()->weights_desc.data_type == data_type::s8
-                && IMPLICATION(with_bias(), utils::one_of(
-                            desc()->bias_desc.data_type, data_type::f32,
-                            data_type::s32, data_type::s8, data_type::u8))
-                && desc()->accum_data_type == data_type::s32;
+            bool ok = true && is_fwd()
+                    && desc()->alg_kind == alg_kind::deconvolution_direct
+                    && !has_zero_dim_memory()
+                    && desc()->src_desc.data_type == src_type
+                    && desc()->dst_desc.data_type == dst_type
+                    && desc()->weights_desc.data_type == data_type::s8
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(desc()->bias_desc.data_type,
+                                    data_type::f32, data_type::s32,
+                                    data_type::s8, data_type::u8))
+                    && desc()->accum_data_type == data_type::s32;
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution());
@@ -112,23 +111,23 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             src_md_ = *conv_1x1_pd_->src_md();
             dst_md_ = *conv_1x1_pd_->dst_md();
             weights_md_ = *conv_1x1_pd_->weights_md();
-            if (with_bias())
-                bias_md_ = *conv_1x1_pd_->weights_md(1);
+            if (with_bias()) bias_md_ = *conv_1x1_pd_->weights_md(1);
             return status::success;
         }
 
-        using conv_pd_t = typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
-            <src_type, dst_type>::pd_t;
+        using conv_pd_t =
+                typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
+                        src_type, dst_type>::pd_t;
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
         primitive_desc_t *conv_pd_;
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
-    { pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_); }
+        : cpu_primitive_t(apd) {
+        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+    }
 
-    ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t()
-    { delete conv_p_; }
+    ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t() { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return conv_p_->execute(ctx);
@@ -139,8 +138,8 @@ private:
     primitive_t *conv_p_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif /* CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP */

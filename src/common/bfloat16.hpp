@@ -30,7 +30,7 @@ namespace impl {
 struct bfloat16_t {
     uint16_t raw_bits_;
     bfloat16_t() = default;
-    constexpr bfloat16_t(uint16_t r, bool): raw_bits_(r) {}
+    constexpr bfloat16_t(uint16_t r, bool) : raw_bits_(r) {}
     bfloat16_t(float f) { (*this) = f; }
 
     bfloat16_t MKLDNN_API &operator=(float f);
@@ -50,11 +50,10 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t size);
 
 // performs element-by-element sum of inp and add float arrays and stores
 // result to bfloat16 out array with downconversion
-void add_floats_and_cvt_to_bfloat16(bfloat16_t *out, const float *inp0,
-        const float *inp1, size_t size);
+void add_floats_and_cvt_to_bfloat16(
+        bfloat16_t *out, const float *inp0, const float *inp1, size_t size);
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
-

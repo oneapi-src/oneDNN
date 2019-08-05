@@ -15,11 +15,11 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
 
-#include "gemm_bf16_inner_product.hpp"
 #include "bfloat16.hpp"
+#include "gemm_bf16_inner_product.hpp"
 #include "type_helpers.hpp"
 
 namespace mkldnn {
@@ -50,12 +50,13 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
     acc_data_t *acc = pd()->dst_is_acc_
-        ? (acc_data_t *)dst
-        : scratchpad(ctx).template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
+            ? (acc_data_t *)dst
+            : scratchpad(ctx).template get<acc_data_t>(
+                    key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0;
-    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K,
-            &alpha, weights, wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
+    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha, weights,
+            wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
 
     const float *scales = pd()->attr()->output_scales_.scales_;
     if (postops_in_ip_)
@@ -70,7 +71,7 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
 template <data_type_t diff_src_data_type>
 void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
         execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t  *, MKLDNN_ARG_DIFF_DST);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
@@ -82,12 +83,13 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
     acc_data_t *acc = pd()->diff_src_is_acc_
-        ? (acc_data_t *)diff_src
-        : scratchpad(ctx).template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
+            ? (acc_data_t *)diff_src
+            : scratchpad(ctx).template get<acc_data_t>(
+                    key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
-            weights, wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
+    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha, weights,
+            wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
 
     if (!pd()->diff_src_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
@@ -96,8 +98,7 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
             balance211(work_size, nthr, ithr, start, end);
             if (end > start)
                 cvt_float_to_bfloat16((bfloat16_t *)&diff_src[start],
-                    (const float *)&acc[start],
-                    end - start);
+                        (const float *)&acc[start], end - start);
         });
     }
 }
@@ -127,13 +128,13 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     const int64_t K = MB;
 
     acc_data_t *acc = pd()->diff_wei_is_acc_
-        ? (acc_data_t *)diff_weights
-        : scratchpad(ctx).template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
+            ? (acc_data_t *)diff_weights
+            : scratchpad(ctx).template get<acc_data_t>(
+                    key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    gemm_bf16bf16f32("N", "T", &M, &N, &K, &alpha,
-            wei_tr ? diff_dst : src, &M, wei_tr ? src : diff_dst, &N, &beta,
-            acc, &M);
+    gemm_bf16bf16f32("N", "T", &M, &N, &K, &alpha, wei_tr ? diff_dst : src, &M,
+            wei_tr ? src : diff_dst, &N, &beta, acc, &M);
 
     if (!pd()->diff_wei_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
@@ -142,14 +143,13 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
             balance211(work_size, nthr, ithr, start, end);
             if (end > start)
                 cvt_float_to_bfloat16((bfloat16_t *)&diff_weights[start],
-                    (const float *)&acc[start],
-                    end - start);
+                        (const float *)&acc[start], end - start);
         });
     }
 
     if (pd()->with_bias()) {
-        const size_t bias_dt_size = types::data_type_size(
-            pd()->diff_weights_md(1)->data_type);
+        const size_t bias_dt_size
+                = types::data_type_size(pd()->diff_weights_md(1)->data_type);
         diff_bias += bias_dt_size * diff_bias_d.offset0();
         constexpr int blksize = 16;
         const int OC_blocks = OC / blksize;
@@ -157,9 +157,9 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         float *diff_bias_acc = pd()->diff_bias_is_acc_
                 ? (float *)diff_bias
                 : (float *)scratchpad(ctx).template get<acc_data_t>(
-                          key_iprod_bias_bf16_convert_wsp);
+                        key_iprod_bias_bf16_convert_wsp);
         parallel(0, [&](const int ithr, const int nthr) {
-            int oc_s{0}, oc_e{0};
+            int oc_s {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
             oc_s = oc_s * blksize;
             oc_e = oc_e * blksize;
@@ -175,10 +175,9 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
             }
             if (!pd()->diff_bias_is_acc_ && oc_s < oc_e)
                 cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                    &((const float *)diff_bias_acc)[oc_s],
-                    oc_e - oc_s);
+                        &((const float *)diff_bias_acc)[oc_s], oc_e - oc_s);
 
-            if (rem_OC != 0 && ithr == nthr-1) {
+            if (rem_OC != 0 && ithr == nthr - 1) {
                 oc_s = OC_blocks * blksize;
                 oc_e = OC;
                 for (int oc = oc_s; oc < oc_e; ++oc)
@@ -190,8 +189,7 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
                 if (!pd()->diff_bias_is_acc_ && oc_s < oc_e)
                     cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                        &((const float *)diff_bias_acc)[oc_s],
-                        oc_e - oc_s);
+                            &((const float *)diff_bias_acc)[oc_s], oc_e - oc_s);
             }
         });
     }
@@ -204,8 +202,8 @@ template struct gemm_bf16_inner_product_bwd_data_t<data_type::bf16>;
 template struct gemm_bf16_inner_product_bwd_weights_t<data_type::f32>;
 template struct gemm_bf16_inner_product_bwd_weights_t<data_type::bf16>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -15,10 +15,10 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "mkldnn_traits.hpp"
-#include "math_utils.hpp"
+#include "type_helpers.hpp"
 
 #include "ref_inner_product.hpp"
 
@@ -26,13 +26,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using math::saturate;
 using math::get_bias;
+using math::saturate;
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
-         data_type_t acc_type>
-void ref_inner_product_fwd_t<src_type, wei_type, dst_type, acc_type>::
-execute_forward(const exec_ctx_t &ctx) const {
+        data_type_t acc_type>
+void ref_inner_product_fwd_t<src_type, wei_type, dst_type,
+        acc_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
@@ -64,20 +64,22 @@ execute_forward(const exec_ctx_t &ctx) const {
                 for (int kh = 0; kh < KH; ++kh) {
                     for (int kw = 0; kw < KW; ++kw) {
                         switch (ndims) {
-                        case 3:
-                            d += (acc_data_t)src[src_d.off(mb, ic, kd, kh, kw)]
-                                    * weights[weights_d.off(
-                                              oc, ic, kd, kh, kw)];
-                            break;
-                        case 2:
-                            d += (acc_data_t)src[src_d.off(mb, ic, kh, kw)]
-                                    * weights[weights_d.off(oc, ic, kh, kw)];
-                            break;
-                        case 1:
-                            d += (acc_data_t)src[src_d.off(mb, ic, kw)]
-                                    * weights[weights_d.off(oc, ic, kw)];
-                            break;
-                        default: assert(!"unsupported ndims size");
+                            case 3:
+                                d += (acc_data_t)src[src_d.off(
+                                             mb, ic, kd, kh, kw)]
+                                        * weights[weights_d.off(
+                                                oc, ic, kd, kh, kw)];
+                                break;
+                            case 2:
+                                d += (acc_data_t)src[src_d.off(mb, ic, kh, kw)]
+                                        * weights[weights_d.off(
+                                                oc, ic, kh, kw)];
+                                break;
+                            case 1:
+                                d += (acc_data_t)src[src_d.off(mb, ic, kw)]
+                                        * weights[weights_d.off(oc, ic, kw)];
+                                break;
+                            default: assert(!"unsupported ndims size");
                         }
                     }
                 }
@@ -90,21 +92,20 @@ execute_forward(const exec_ctx_t &ctx) const {
         acc_data_t d = 0;
         for (int ic = 0; ic < IC; ++ic) {
             d += (acc_data_t)src[src_d.off(mb, ic)]
-                * weights[weights_d.off(oc, ic)];
+                    * weights[weights_d.off(oc, ic)];
         }
         return d;
     };
 
     parallel_nd(MB, OC, [&](int mb, int oc) {
-        float a = bias
-            ? get_bias(bias, bias_d.off(oc), pd()->desc()->bias_desc.data_type)
-            : 0;
+        float a = bias ? get_bias(bias, bias_d.off(oc),
+                          pd()->desc()->bias_desc.data_type)
+                       : 0;
         if (src_has_spatial)
             a += ker_has_spatial(mb, oc);
         else
             a += ker_no_spatial(mb, oc);
-        if (do_relu && a < (acc_data_t)0)
-            a *= nslope;
+        if (do_relu && a < (acc_data_t)0) a *= nslope;
         dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
     });
 }
@@ -117,9 +118,9 @@ template struct ref_inner_product_fwd_t<u8, s8, s8, s32>;
 template struct ref_inner_product_fwd_t<u8, s8, u8, s32>;
 
 template <data_type_t diff_src_type, data_type_t wei_type,
-         data_type_t diff_dst_type, data_type_t acc_type>
+        data_type_t diff_dst_type, data_type_t acc_type>
 void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-     acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+        acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
@@ -147,41 +148,43 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                 acc_data_t ds = acc_data_t(0);
                 for (int oc = 0; oc < OC; ++oc) {
                     switch (ndims) {
-                    case 3:
-                        ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
-                                * weights[weights_d.off(oc, ic, kd, kh, kw)]);
-                        break;
-                    case 2:
-                        ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
-                                * weights[weights_d.off(oc, ic, kh, kw)]);
-                        break;
-                    case 1:
-                        ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
-                                * weights[weights_d.off(oc, ic, kw)]);
-                        break;
-                    default: assert(!"unsupported ndims size");
+                        case 3:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(
+                                            oc, ic, kd, kh, kw)]);
+                            break;
+                        case 2:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(oc, ic, kh, kw)]);
+                            break;
+                        case 1:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(oc, ic, kw)]);
+                            break;
+                        default: assert(!"unsupported ndims size");
                     }
                 }
                 switch (ndims) {
-                case 3:
-                    diff_src[diff_src_d.off(mb, ic, kd, kh, kw)]
-                            = (diff_src_data_t)ds;
-                    break;
-                case 2:
-                    diff_src[diff_src_d.off(mb, ic, kh, kw)]
-                            = (diff_src_data_t)ds;
-                    break;
-                case 1:
-                    diff_src[diff_src_d.off(mb, ic, kw)] = (diff_src_data_t)ds;
-                    break;
-                default: assert(!"unsupported ndims size");
+                    case 3:
+                        diff_src[diff_src_d.off(mb, ic, kd, kh, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    case 2:
+                        diff_src[diff_src_d.off(mb, ic, kh, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    case 1:
+                        diff_src[diff_src_d.off(mb, ic, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    default: assert(!"unsupported ndims size");
                 }
             }
         } else {
             acc_data_t ds = acc_data_t(0);
             for (int oc = 0; oc < OC; ++oc) {
-                ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)] *
-                    weights[weights_d.off(oc, ic)]);
+                ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                        * weights[weights_d.off(oc, ic)]);
             }
             diff_src[diff_src_d.off(mb, ic)] = (diff_src_data_t)ds;
         }
@@ -207,7 +210,7 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     const int OC = pd()->OC();
     const int IC = pd()->IC();
 
-    const bool src_has_spatial = utils::one_of(src_d.ndims(), 3, 4 ,5);
+    const bool src_has_spatial = utils::one_of(src_d.ndims(), 3, 4, 5);
     const int ndims = src_d.ndims() - 2;
 
     parallel_nd(OC, IC, [&](int oc, int ic) {
@@ -220,35 +223,37 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
                     for (int kw = 0; kw < KW; ++kw) {
                         data_t *dw(nullptr);
                         switch (ndims) {
-                        case 3:
-                            dw = &diff_weights[diff_weights_d.off(
-                                    oc, ic, kd, kh, kw)];
-                            break;
-                        case 2:
-                            dw = &diff_weights[diff_weights_d.off(
-                                    oc, ic, kh, kw)];
-                            break;
-                        case 1:
-                            dw = &diff_weights[diff_weights_d.off(oc, ic, kw)];
-                            break;
-                        default: assert(!"unsupported ndims size");
+                            case 3:
+                                dw = &diff_weights[diff_weights_d.off(
+                                        oc, ic, kd, kh, kw)];
+                                break;
+                            case 2:
+                                dw = &diff_weights[diff_weights_d.off(
+                                        oc, ic, kh, kw)];
+                                break;
+                            case 1:
+                                dw = &diff_weights[diff_weights_d.off(
+                                        oc, ic, kw)];
+                                break;
+                            default: assert(!"unsupported ndims size");
                         }
                         *dw = data_t(0);
                         for (int mb = 0; mb < MB; ++mb) {
                             switch (ndims) {
-                            case 3:
-                                *dw += diff_dst[diff_dst_d.off(mb, oc)]
-                                        * src[src_d.off(mb, ic, kd, kh, kw)];
-                                break;
-                            case 2:
-                                *dw += diff_dst[diff_dst_d.off(mb, oc)]
-                                        * src[src_d.off(mb, ic, kh, kw)];
-                                break;
-                            case 1:
-                                *dw += diff_dst[diff_dst_d.off(mb, oc)]
-                                        * src[src_d.off(mb, ic, kw)];
-                                break;
-                            default: assert(!"unsupported ndims size");
+                                case 3:
+                                    *dw += diff_dst[diff_dst_d.off(mb, oc)]
+                                            * src[src_d.off(
+                                                    mb, ic, kd, kh, kw)];
+                                    break;
+                                case 2:
+                                    *dw += diff_dst[diff_dst_d.off(mb, oc)]
+                                            * src[src_d.off(mb, ic, kh, kw)];
+                                    break;
+                                case 1:
+                                    *dw += diff_dst[diff_dst_d.off(mb, oc)]
+                                            * src[src_d.off(mb, ic, kw)];
+                                    break;
+                                default: assert(!"unsupported ndims size");
                             }
                         }
                     }
@@ -258,8 +263,8 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
             data_t *dw = &diff_weights[diff_weights_d.off(oc, ic)];
             *dw = data_t(0);
             for (int mb = 0; mb < MB; ++mb) {
-                *dw += diff_dst[diff_dst_d.off(mb, oc)] *
-                    src[src_d.off(mb, ic)];
+                *dw += diff_dst[diff_dst_d.off(mb, oc)]
+                        * src[src_d.off(mb, ic)];
             }
         }
     });
@@ -278,8 +283,8 @@ void ref_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 
 template struct ref_inner_product_bwd_weights_t<data_type::f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

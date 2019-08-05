@@ -24,12 +24,10 @@ using namespace format_tag;
 
 template <mkldnn_format_tag_t tag>
 status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
-    auto &src = pd()->is_fwd()
-                    ? CTX_IN_STORAGE(MKLDNN_ARG_SRC)
-                    : CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &dst = pd()->is_fwd()
-                    ? CTX_OUT_STORAGE(MKLDNN_ARG_DST)
-                    : CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+    auto &src = pd()->is_fwd() ? CTX_IN_STORAGE(MKLDNN_ARG_SRC)
+                               : CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
+    auto &dst = pd()->is_fwd() ? CTX_OUT_STORAGE(MKLDNN_ARG_DST)
+                               : CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
 
     const auto &jshfl = pd()->jshfl_;
 

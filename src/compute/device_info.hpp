@@ -49,14 +49,10 @@ struct runtime_version_t {
     }
 
     bool operator<(const runtime_version_t &other) const {
-        if (major < other.major)
-            return true;
-        if (major > other.major)
-            return false;
-        if (minor < other.minor)
-            return true;
-        if (minor > other.minor)
-            return false;
+        if (major < other.major) return true;
+        if (major > other.major) return false;
+        if (minor < other.minor) return true;
+        if (minor > other.minor) return false;
         return (build < other.build);
     }
 
@@ -76,14 +72,12 @@ struct runtime_version_t {
         int i_major = 0, i = 0;
 
         for (; s[i] != '.'; i++)
-            if (!s[i])
-                return status::invalid_arguments;
+            if (!s[i]) return status::invalid_arguments;
 
         auto i_minor = ++i;
 
         for (; s[i] != '.'; i++)
-            if (!s[i])
-                return status::invalid_arguments;
+            if (!s[i]) return status::invalid_arguments;
 
         auto i_build = ++i;
 

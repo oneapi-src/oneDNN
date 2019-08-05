@@ -28,13 +28,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_concat_pd_t: public concat_pd_t {
+struct cpu_concat_pd_t : public concat_pd_t {
     using concat_pd_t::concat_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

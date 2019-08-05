@@ -28,17 +28,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_eltwise_fwd_pd_t: public eltwise_fwd_pd_t {
+struct cpu_eltwise_fwd_pd_t : public eltwise_fwd_pd_t {
     using eltwise_fwd_pd_t::eltwise_fwd_pd_t;
 };
 
-struct cpu_eltwise_bwd_pd_t: public eltwise_bwd_pd_t {
+struct cpu_eltwise_bwd_pd_t : public eltwise_bwd_pd_t {
     using eltwise_bwd_pd_t::eltwise_bwd_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

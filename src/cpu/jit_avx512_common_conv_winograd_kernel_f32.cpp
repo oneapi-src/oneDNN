@@ -15,11 +15,11 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "memory.hpp"
 #include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "memory.hpp"
 
 #include <math.h>
 
@@ -46,14 +46,11 @@ unsigned int LLC_data_size = get_cache_size(3, false);
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better
 int get_divisor_satisfying_cond(jit_conv_winograd_conf_t &jcp, int number,
-        int default_best, bool (*test)(jit_conv_winograd_conf_t &, int, int))
-{
+        int default_best, bool (*test)(jit_conv_winograd_conf_t &, int, int)) {
     int best_divisor = default_best;
     auto test_num
             = [&best_divisor, test](jit_conv_winograd_conf_t &jcp, int num) {
-                  if (test(jcp, num, best_divisor)) {
-                      best_divisor = num;
-                  }
+                  if (test(jcp, num, best_divisor)) { best_divisor = num; }
               };
 
     for (int divisor = 1; divisor <= ::sqrt(number); divisor++) {
@@ -73,7 +70,7 @@ bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
     else
         return jcp.mb >= 16;
 }
-}
+} // namespace
 
 /* assumes 512 bits registers */
 /* TODO: add support for strides */
@@ -88,8 +85,7 @@ struct prefetcher_t {
         : cg_(generator)
         , reg_base_addr_(reg_base_addr)
         , cache_type_(cache_type)
-        , cache_block_size_(block_size)
-    {
+        , cache_block_size_(block_size) {
         nb_cache_lines_to_prefetch_ = cache_block_size_ / (64 / sizeof(data_t));
         prefetch_spread_
                 = div_up(nb_instructions_in_block, nb_cache_lines_to_prefetch_);
@@ -99,23 +95,22 @@ struct prefetcher_t {
         /* assumption: when fetch in Li, data is already in L(i+1) */
         int cache_latency;
         switch (cache_type_) {
-        case L1: cache_latency = 14; break;
-        case L2:
-        case L3:
-        default: cache_latency = 250; break;
+            case L1: cache_latency = 14; break;
+            case L2:
+            case L3:
+            default: cache_latency = 250; break;
         }
 
         prefetch_distance_ = div_up(cache_latency, nb_cache_lines_to_prefetch_);
     }
 
-    void prefetch(int instruction_number)
-    {
+    void prefetch(int instruction_number) {
         if (instruction_number % prefetch_spread_ == 0) {
             for (int i = 0; (i < prefetch_blk_)
                     && (prefetches_issued_ < nb_cache_lines_to_prefetch_);
                     i++, prefetches_issued_++) {
-                prefetch_inst_(cg_->EVEX_compress_addr(
-                        reg_base_addr_, (cache_block_size_ * prefetch_distance_)
+                prefetch_inst_(cg_->EVEX_compress_addr(reg_base_addr_,
+                        (cache_block_size_ * prefetch_distance_)
                                         * sizeof(data_t)
                                 + (prefetches_issued_ * 64)));
             }
@@ -123,14 +118,12 @@ struct prefetcher_t {
     }
 
 private:
-    void prefetch_inst_(const Xbyak::Address &addr)
-    {
+    void prefetch_inst_(const Xbyak::Address &addr) {
         switch (cache_type_) {
-        case L1: cg_->prefetcht0(addr); break;
-        case L2: cg_->prefetcht1(addr); break;
-        case L3: cg_->prefetcht2(addr); break;
-        default:
-            break; // TODO: raise an exception or put an assert
+            case L1: cg_->prefetcht0(addr); break;
+            case L2: cg_->prefetcht1(addr); break;
+            case L3: cg_->prefetcht2(addr); break;
+            default: break; // TODO: raise an exception or put an assert
         }
     }
 
@@ -147,8 +140,7 @@ private:
 
 // utilities to support kernel parameter selection
 bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
-        int dimM_block, int dimM_simd_block, float C)
-{
+        int dimM_block, int dimM_simd_block, float C) {
     float lhs = (dimM_block * dimN_reg_block * dimM_simd_block
                         + dimM_block * dimK_block * dimK_reg_block
                                 * dimM_simd_block
@@ -159,8 +151,7 @@ bool check_cond1(int dimN_reg_block, int dimK_block, int dimK_reg_block,
 }
 
 bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
-        int dimM_block, int dimM_simd_block, float C)
-{
+        int dimM_block, int dimM_simd_block, float C) {
     float lhs = (dimM_block * dimK_block * dimK_reg_block * dimM_simd_block
                         + dimK_block * dimN_reg_block * dimK_reg_block)
             * (float)sizeof(float);
@@ -170,9 +161,9 @@ bool check_cond1_bis(int dimN_reg_block, int dimK_block, int dimK_reg_block,
 
 bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
         int dimK_block, int dimK_reg_block, int dimM_block, int dimM_simd_block,
-        float C)
-{
-    float lhs = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
+        float C) {
+    float lhs
+            = (nb_dimN_reg_block * dimM_block * dimN_reg_block * dimM_simd_block
                       + dimK_nb_block * dimM_block * dimK_block * dimK_reg_block
                               * dimM_simd_block
                       + nb_dimN_reg_block * dimK_nb_block * dimK_block
@@ -181,15 +172,14 @@ bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
     float rhs = C * L2_cache_size;
     return (lhs < rhs);
 }
-}
+} // namespace
 
 using namespace mkldnn::impl::format_tag;
 using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
 void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
-        bool is_beta_zero)
-{
+        bool is_beta_zero) {
     // const int dimK_simd_block = jcp.dimK_reg_block;
 
     // for (int dimM_block =0; dimM_block < jcp.dimM_block; dimM_block++)
@@ -247,9 +237,7 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
 
                 // Used when doing double buffering
                 int next = 0;
-                if (jcp.double_buffering) {
-                    load_A(next, 0);
-                }
+                if (jcp.double_buffering) { load_A(next, 0); }
                 for (int dimK_reg_block = 0;
                         dimK_reg_block < jcp.dimK_reg_block;
                         dimK_reg_block += inc_dimK_reg_block) {
@@ -273,12 +261,12 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                         if (jcp.ver == ver_4fma)
                             v4fmaddps(zmm, Zmm(current),
                                     EVEX_compress_addr(reg_srcB,
-                                              64 * tile + dimK_reg_block * 4));
+                                            64 * tile + dimK_reg_block * 4));
                         else
                             vfmadd231ps(zmm, Zmm(current),
                                     EVEX_compress_addr(reg_srcB,
-                                                64 * tile + dimK_reg_block * 4,
-                                                true));
+                                            64 * tile + dimK_reg_block * 4,
+                                            true));
                         if (jcp.ver != ver_avx512_core)
                             L2_pf.prefetch(
                                     dimK_reg_block * jcp.dimN_reg_block + tile);
@@ -293,14 +281,13 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                 }
             }
 
-
             auto store_output = [=](bool output_is_aligned) {
                 for (int tile = 0; tile < jcp.dimN_reg_block; tile++) {
                     Zmm zmm(jcp.zmm_start + tile);
-                    if (output_is_aligned
-                        && jcp.dimK_nb_block == 1
-                        && (jcp.dimN * jcp.dimM * alpha * alpha
-                            * sizeof(float) > 2 * LLC_data_size))
+                    if (output_is_aligned && jcp.dimK_nb_block == 1
+                            && (jcp.dimN * jcp.dimM * alpha * alpha
+                                            * sizeof(float)
+                                    > 2 * LLC_data_size))
                         vmovntps(zword[reg_dstC + 64 * tile], zmm);
                     else
                         vmovups(zword[reg_dstC + 64 * tile], zmm);
@@ -312,9 +299,8 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
             jnz(unaligned_store, T_NEAR);
             store_output(true);
             jmp(end_store, T_NEAR);
-            L(unaligned_store); {
-                store_output(false);
-            }
+            L(unaligned_store);
+            { store_output(false); }
             L(end_store);
 
             if (jcp.dimM_block > 1) {
@@ -340,8 +326,7 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
 status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d)
-{
+        const memory_desc_wrapper &dst_d) {
 
     if (mayiuse(avx512_core))
         return status::unimplemented;
@@ -393,10 +378,8 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         return status::unimplemented;
 
     // Checking conditions not supported by these kernels
-    if (jcp.ngroups != 1)
-        return status::unimplemented;
-    if ((jcp.kh != 3) || (jcp.kw != 3))
-        return status::unimplemented;
+    if (jcp.ngroups != 1) return status::unimplemented;
+    if ((jcp.kh != 3) || (jcp.kw != 3)) return status::unimplemented;
     if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
         return status::unimplemented;
     if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
@@ -414,49 +397,49 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     if (jcp.wei_tag != wei_tag) return status::unimplemented;
     if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
-    bool layout_consistency = true
-        && jcp.ic <= src_d.padded_dims()[1]
-        && jcp.oc <= dst_d.padded_dims()[1]
-        && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
-        && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
+    bool layout_consistency = true && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= dst_d.padded_dims()[1]
+            && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
+            && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!layout_consistency) return status::unimplemented;
 
     return status::success;
 }
 
-
 status_t set_wsched_DATA_W_S_G_D_avx512_common(jit_conv_winograd_conf_t &jcp) {
 
-    auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
-            int dimN_reg_block, int current_best) {
-        return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
-                && (dimN_reg_block < jcp.nb_reg)
-                && (dimN_reg_block < current_best);
-    };
+    auto test_cond_dimN_reg_block
+            = [](jit_conv_winograd_conf_t &jcp, int dimN_reg_block,
+                      int current_best) {
+                  return (dimN_reg_block >= MIN_REQUIRED_DIMN_REG_BLOCK)
+                          && (dimN_reg_block < jcp.nb_reg)
+                          && (dimN_reg_block < current_best);
+              };
     jcp.dimN_reg_block = get_divisor_satisfying_cond(
             jcp, jcp.dimN, jcp.dimN, test_cond_dimN_reg_block);
 
     if (jcp.dimN_reg_block >= jcp.nb_reg) {
-        auto test_cond_dimN_reg_block = [](jit_conv_winograd_conf_t &jcp,
-                int dimN_reg_block, int current_best) {
-            return (dimN_reg_block < jcp.nb_reg)
-                    && (dimN_reg_block > current_best);
-        };
+        auto test_cond_dimN_reg_block
+                = [](jit_conv_winograd_conf_t &jcp, int dimN_reg_block,
+                          int current_best) {
+                      return (dimN_reg_block < jcp.nb_reg)
+                              && (dimN_reg_block > current_best);
+                  };
 
         jcp.dimN_reg_block = get_divisor_satisfying_cond(
                 jcp, jcp.dimN, 1, test_cond_dimN_reg_block);
     }
 
     //********************* Choosing dimK_block **********************//
-    auto test_cond1_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond1_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimK_block, int current_best) {
         return check_cond1(jcp.dimN_reg_block, dimK_block, jcp.dimK_reg_block,
                        1, jcp.dimM_simd_block, .75f)
                 && (dimK_block > current_best);
     };
 
-    auto test_cond1_bis_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond1_bis_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                             int dimK_block, int current_best) {
         return check_cond1_bis(jcp.dimN_reg_block, dimK_block,
                        jcp.dimK_reg_block, 1, jcp.dimM_simd_block, .9f)
                 && (dimK_block > current_best);
@@ -473,15 +456,15 @@ status_t set_wsched_DATA_W_S_G_D_avx512_common(jit_conv_winograd_conf_t &jcp) {
     //********************* Choosing dimM_block **********************//
     jcp.dimM_simd_block = 16;
     /*XXX: Why C=0.5 here but C=0.75 for dimK_block?*/
-    auto test_cond1_dimM_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
+    auto test_cond1_dimM_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimM_block, int current_best) {
         return check_cond1(jcp.dimN_reg_block, jcp.dimK_block,
                        jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .5f)
                 && (dimM_block > current_best);
     };
 
-    auto test_cond1_bis_dimM_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
+    auto test_cond1_bis_dimM_block = [](jit_conv_winograd_conf_t &jcp,
+                                             int dimM_block, int current_best) {
         return check_cond1_bis(jcp.dimN_reg_block, jcp.dimK_block,
                        jcp.dimK_reg_block, dimM_block, jcp.dimM_simd_block, .3f)
                 && (dimM_block > current_best);
@@ -496,8 +479,8 @@ status_t set_wsched_DATA_W_S_G_D_avx512_common(jit_conv_winograd_conf_t &jcp) {
     jcp.dimM_nb_block = (jcp.dimM / jcp.dimM_simd_block) / jcp.dimM_block;
 
     //******************* Choosing dimN_block *******************//
-    auto test_cond2_dimN_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimN_block, int current_best) {
+    auto test_cond2_dimN_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimN_block, int current_best) {
         return check_cond2(dimN_block, jcp.dimN_reg_block, jcp.dimK_nb_block,
                        jcp.dimK_block, jcp.dimK_reg_block, jcp.dimM_block,
                        jcp.dimM_simd_block, .5f)
@@ -512,8 +495,7 @@ status_t set_wsched_DATA_W_S_G_D_avx512_common(jit_conv_winograd_conf_t &jcp) {
 }
 
 status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_kernel(
-        jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK)
-{
+        jit_conv_winograd_conf_t &jcp, int dimM, int dimN, int dimK) {
     jcp.dimK_reg_block = 16;
     jcp.dimM_simd_block = 16;
 
@@ -547,12 +529,13 @@ bool jit_avx512_common_conv_winograd_fwd_kernel_f32::post_ops_ok(
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
     switch (p.len_) {
-    case 0: return true; // no post_ops
-    case 1: return is_relu(0) || is_sum(0); // relu or sum
-    case 2: return (is_sum(0) && is_relu(1)) ||
-                       (is_relu(0) && is_sum(1)); // sum->relu or relu->sum
-    case 3: return is_relu(0) && is_sum(1) && is_relu(2); // relu->sum->relu
-    default: return false;
+        case 0: return true; // no post_ops
+        case 1: return is_relu(0) || is_sum(0); // relu or sum
+        case 2:
+            return (is_sum(0) && is_relu(1))
+                    || (is_relu(0) && is_sum(1)); // sum->relu or relu->sum
+        case 3: return is_relu(0) && is_sum(1) && is_relu(2); // relu->sum->relu
+        default: return false;
     }
 
     return false;
@@ -564,8 +547,7 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
         const memory_desc_wrapper &dst_d, const primitive_attr_t &attr) {
     status_t st = init_conf_common(jcp, cd, src_d, weights_d, dst_d);
 
-    if (st != status::success)
-        return st;
+    if (st != status::success) return st;
 
     // Winograd specific initialization
     jcp.itiles = (jcp.ow + tile_size - 1) / tile_size;
@@ -574,8 +556,7 @@ status_t jit_avx512_common_conv_winograd_fwd_kernel_f32::init_conf(
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (!post_ops_ok(jcp, attr))
-        return status::unimplemented;
+    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise, 0, 1);
@@ -602,12 +583,10 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &diff_dst_d)
-{
+        const memory_desc_wrapper &diff_dst_d) {
     status_t st = init_conf_common(jcp, cd, diff_src_d, weights_d, diff_dst_d);
 
-    if (st != status::success)
-        return st;
+    if (st != status::success) return st;
 
     jcp.itiles = (jcp.iw + tile_size - 1) / tile_size;
     jcp.jtiles = (jcp.ih + tile_size - 1) / tile_size;
@@ -628,11 +607,14 @@ status_t jit_avx512_common_conv_winograd_bwd_data_kernel_f32::init_conf(
     return res;
 }
 
-void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_generate()
-{
+void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::
+        transpose_ker_generate() {
     auto load_B = [=](int reg_idx, int offset) {
         for (int i = 0; i < 4; i++) {
-            vmovups(Zmm(reg_idx + i), zword[reg_origB + (offset + i) * jcp.dimN_reg_block * sizeof(float)]);
+            vmovups(Zmm(reg_idx + i),
+                    zword[reg_origB
+                            + (offset + i) * jcp.dimN_reg_block
+                                    * sizeof(float)]);
         }
     };
 
@@ -641,17 +623,15 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
     for (int j = 0; j < alpha; j++) {
         for (int i = 0; i < alpha; i++) {
             int origB_offset = (j * alpha + i) * jcp.dimK_4fma;
-            size_t transB_offset = (size_t)(j * alpha + i) * jcp.dimK_nb_block *
-                jcp.dimN_block * jcp.dimK_block * jcp.dimK_reg_block *
-                jcp.dimK_4fma * jcp.dimN_reg_block * sizeof(float);
+            size_t transB_offset = (size_t)(j * alpha + i) * jcp.dimK_nb_block
+                    * jcp.dimN_block * jcp.dimK_block * jcp.dimK_reg_block
+                    * jcp.dimK_4fma * jcp.dimN_reg_block * sizeof(float);
             mov(reg_transB_idx, transB_offset);
-            for (int tb = 0; tb < jcp.dimK_4fma; tb+=4) {
+            for (int tb = 0; tb < jcp.dimK_4fma; tb += 4) {
                 /*double buffering to hide load latencies*/
                 int next = (curr + 4) % 8;
-                if (i == 0 && tb == 0) {
-                    load_B(0, origB_offset);
-                }
-                if (tb + 4 < (jcp.dimK_4fma -1)) {
+                if (i == 0 && tb == 0) { load_B(0, origB_offset); }
+                if (tb + 4 < (jcp.dimK_4fma - 1)) {
                     load_B(next, origB_offset + 4);
                 } else if (i < alpha - 1) {
                     load_B(next, origB_offset + jcp.dimK_4fma);
@@ -669,19 +649,21 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
                 vunpckhpd(Zmm(9), Zmm(curr), Zmm(curr + 1));
 
                 vmovntps(zword[reg_transB + reg_transB_idx
-                        + sizeof(float) * tb * jcp.dimN_reg_block],
-                        Zmm(curr+2));
+                                 + sizeof(float) * tb * jcp.dimN_reg_block],
+                        Zmm(curr + 2));
                 vmovntps(zword[reg_transB + reg_transB_idx
-                        + sizeof(float) * (tb + 1) * jcp.dimN_reg_block],
-                        Zmm(curr+3));
+                                 + sizeof(float) * (tb + 1)
+                                         * jcp.dimN_reg_block],
+                        Zmm(curr + 3));
                 vmovntps(zword[reg_transB + reg_transB_idx
-                        + sizeof(float) * (tb + 2) * jcp.dimN_reg_block],
+                                 + sizeof(float) * (tb + 2)
+                                         * jcp.dimN_reg_block],
                         Zmm(8));
                 vmovntps(zword[reg_transB + reg_transB_idx
-                        + sizeof(float) * (tb + 3) * jcp.dimN_reg_block],
+                                 + sizeof(float) * (tb + 3)
+                                         * jcp.dimN_reg_block],
                         Zmm(9));
                 curr = next;
-
             }
         }
     }
@@ -689,8 +671,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::transpose_ker_gener
     ret();
 }
 void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
-        bool is_first_tile)
-{
+        bool is_first_tile) {
     // for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++)
     //     for (int ifm2 = 0; ifm2 < jcp.ic_block; ifm2++)
     //             for (int nb_tile_block_ur = 0; nb_tile_block_ur <
@@ -719,8 +700,9 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
         auto load_A = [=](int reg_idx, int offset) {
             for (int i = 0; i < inc_fma; i++) {
                 vmovups(Zmm(reg_idx + i),
-                        zword[reg_srcA +
-                        sizeof(float) * jcp.dimM_simd_block * (offset + i)]);
+                        zword[reg_srcA
+                                + sizeof(float) * jcp.dimM_simd_block
+                                        * (offset + i)]);
             }
         };
 
@@ -741,9 +723,10 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                     if (is_first_tile)
                         vpxord(zmm, zmm, zmm);
                     else
-                        vmovups(zmm, zword[reg_dstC +
-                                dimN_reg_block * jcp.dimM_simd_block *
-                                sizeof(float)]);
+                        vmovups(zmm,
+                                zword[reg_dstC
+                                        + dimN_reg_block * jcp.dimM_simd_block
+                                                * sizeof(float)]);
                 }
 
                 if (jcp.dimK_block > 1) {
@@ -752,9 +735,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                 }
                 { /************* nb_tile_ur(K) loop ********/
                     int next = 0;
-                    if (jcp.double_buffering) {
-                        load_A(next, 0);
-                    }
+                    if (jcp.double_buffering) { load_A(next, 0); }
                     for (int dimK_reg_block = 0;
                             dimK_reg_block < jcp.dimK_reg_block;
                             dimK_reg_block++) {
@@ -767,11 +748,13 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                                 next = (dimK_reg_block * jcp.dimK_4fma
                                                + dimK_4fma + inc_fma)
                                         % (2 * inc_fma);
-                                load_A(next, dimK_reg_block * jcp.dimK_4fma
+                                load_A(next,
+                                        dimK_reg_block * jcp.dimK_4fma
                                                 + dimK_4fma + inc_fma);
                             } else {
                                 next = 0;
-                                load_A(next, dimK_reg_block * jcp.dimK_4fma
+                                load_A(next,
+                                        dimK_reg_block * jcp.dimK_4fma
                                                 + dimK_4fma);
                             }
                             for (int dimN_reg_block = 0;
@@ -792,17 +775,23 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                                             Zmm(jcp.zmm_start + dimN_reg_block),
                                             Zmm(current),
                                             EVEX_compress_addr(reg_srcB,
-                                                    sizeof(float) * (
-                                                        srcB_offset +
-                                                        srcB_trans_offset +
-                                                        (dimN_reg_block % 4) * 16 +
-                                                        (dimN_reg_block / 4) * 4)));
+                                                    sizeof(float)
+                                                            * (srcB_offset
+                                                                    + srcB_trans_offset
+                                                                    + (dimN_reg_block
+                                                                              % 4)
+                                                                            * 16
+                                                                    + (dimN_reg_block
+                                                                              / 4)
+                                                                            * 4)));
                                 } else {
                                     vfmadd231ps(
                                             Zmm(jcp.zmm_start + dimN_reg_block),
                                             Zmm(current),
                                             EVEX_compress_addr(reg_srcB,
-                                                sizeof(float) * (srcB_offset + dimN_reg_block),
+                                                    sizeof(float)
+                                                            * (srcB_offset
+                                                                    + dimN_reg_block),
                                                     true));
                                 }
                             }
@@ -810,10 +799,12 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                     }
                 }
 
-                add(reg_srcA, jcp.dimK_reg_block * jcp.dimK_4fma
-                                * jcp.dimM_simd_block * sizeof(float));
-                add(reg_srcB, jcp.dimK_reg_block * jcp.dimN_reg_block
-                                * jcp.dimK_4fma * sizeof(float));
+                add(reg_srcA,
+                        jcp.dimK_reg_block * jcp.dimK_4fma * jcp.dimM_simd_block
+                                * sizeof(float));
+                add(reg_srcB,
+                        jcp.dimK_reg_block * jcp.dimN_reg_block * jcp.dimK_4fma
+                                * sizeof(float));
                 if (jcp.dimK_block > 1) {
                     sub(reg_dimK_block_loop_cnt, 1);
                     jnz(dimK_block_loop);
@@ -823,15 +814,18 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                 for (int dimN_reg_block = 0;
                         dimN_reg_block < jcp.dimN_reg_block; ++dimN_reg_block) {
                     Zmm zmm(jcp.zmm_start + dimN_reg_block);
-                    vmovups(zword[reg_dstC +
-                            dimN_reg_block * jcp.dimM_simd_block * sizeof(float)],
+                    vmovups(zword[reg_dstC
+                                    + dimN_reg_block * jcp.dimM_simd_block
+                                            * sizeof(float)],
                             zmm);
                 }
 
-                sub(reg_srcA, jcp.dimK_block * jcp.dimK_reg_block *
-                        jcp.dimK_4fma * jcp.dimM_simd_block * sizeof(float));
-                add(reg_dstC, jcp.dimN_reg_block * jcp.dimM_simd_block
-                        * sizeof(float));
+                sub(reg_srcA,
+                        jcp.dimK_block * jcp.dimK_reg_block * jcp.dimK_4fma
+                                * jcp.dimM_simd_block * sizeof(float));
+                add(reg_dstC,
+                        jcp.dimN_reg_block * jcp.dimM_simd_block
+                                * sizeof(float));
                 if (jcp.dimN_block > 1) {
                     sub(reg_dimN_block_loop_cnt, 1);
                     jnz(dimN_block_loop);
@@ -839,11 +833,13 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
             }
 
             if (jcp.dimM_block > 1) {
-                sub(reg_srcB, jcp.dimN_block * jcp.dimK_block
-                                * jcp.dimK_reg_block * jcp.dimN_reg_block
-                                * jcp.dimK_4fma * sizeof(float));
-                add(reg_srcA, jcp.dimK_block * jcp.dimK_reg_block
-                                * jcp.dimK_4fma * jcp.dimM_simd_block * sizeof(float));
+                sub(reg_srcB,
+                        jcp.dimN_block * jcp.dimK_block * jcp.dimK_reg_block
+                                * jcp.dimN_reg_block * jcp.dimK_4fma
+                                * sizeof(float));
+                add(reg_srcA,
+                        jcp.dimK_block * jcp.dimK_reg_block * jcp.dimK_4fma
+                                * jcp.dimM_simd_block * sizeof(float));
                 sub(reg_dimM_block_loop_cnt, 1);
                 jnz(dimM_block_loop);
             }
@@ -863,8 +859,7 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
 
 namespace {
 bool check_cond1_wu(int dimM_block, int dimM_simdw, int dimK_block,
-        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
-{
+        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C) {
     float lhs = 1.0f * dimM_block * dimN_reg_block * dimM_simdw;
     lhs += dimM_block * dimK_block * dimK_reg_block * dimK_4fma * dimM_simdw;
     lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
@@ -874,8 +869,7 @@ bool check_cond1_wu(int dimM_block, int dimM_simdw, int dimK_block,
 }
 
 bool check_cond1bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
-        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C)
-{
+        int dimK_reg_block, int dimK_4fma, int dimN_reg_block, float C) {
     float lhs = 1.0f * dimM_block * dimK_block * dimK_reg_block * dimK_4fma
             * dimM_simdw;
     lhs += dimK_block * dimN_reg_block * dimK_reg_block * dimK_4fma;
@@ -886,8 +880,7 @@ bool check_cond1bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
 
 bool check_cond2bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
         int dimK_reg_block, int dimK_4fma, int dimN_block, int dimN_reg_block,
-        float C)
-{
+        float C) {
     float lhs = 1.0f * dimM_block * dimM_simdw * dimK_block * dimK_reg_block
             * dimK_4fma;
     lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
@@ -899,8 +892,7 @@ bool check_cond2bis_wu(int dimM_block, int dimM_simdw, int dimK_block,
 
 bool check_cond2_wu(int dimM_block, int dimM_simdw, int dimK_block,
         int dimK_reg_block, int dimK_4fma, int dimN_block, int dimN_reg_block,
-        float C)
-{
+        float C) {
     float lhs = 1.0f * dimM_block * dimM_simdw * dimN_block * dimN_reg_block;
     lhs += dimM_block * dimM_simdw * dimK_block * dimK_reg_block * dimK_4fma;
     lhs += dimK_block * dimK_reg_block * dimK_4fma * dimN_block
@@ -911,8 +903,7 @@ bool check_cond2_wu(int dimM_block, int dimM_simdw, int dimK_block,
 }
 } // namespace
 
-status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp)
-{
+status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp) {
     /*************** Choose dimN_reg_block (ic_simd_block)
      * *******************************/
     jcp.dimN = jcp.ic;
@@ -929,29 +920,29 @@ status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp)
     // is determined by input data format
     jcp.dimM_simd_block = jcp.oc_simd_block;
 
-    auto test_cond1bis_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond1bis_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                            int dimK_block, int current_best) {
         return check_cond1bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
                 && (dimK_block > current_best);
     };
 
-    auto test_cond1_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond1_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimK_block, int current_best) {
         return check_cond1_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, jcp.dimN_reg_block, 0.4f)
                 && (dimK_block > current_best);
     };
 
-    auto test_cond2bis_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond2bis_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                            int dimK_block, int current_best) {
         return check_cond2bis_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.5f)
                 && (dimK_block > current_best);
     };
 
-    auto test_cond2_dimK_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimK_block, int current_best) {
+    auto test_cond2_dimK_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimK_block, int current_best) {
         return check_cond2_wu(1, jcp.dimM_simd_block, dimK_block, 1,
                        jcp.dimK_4fma, 1, jcp.dimN_reg_block, 0.1f)
                 && (dimK_block > current_best);
@@ -978,8 +969,8 @@ status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp)
 
     /***************************** Chose dimN block
      * ****************************/
-    auto test_cond2_dimN_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimN_block, int current_best) {
+    auto test_cond2_dimN_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimN_block, int current_best) {
         return check_cond2_wu(1, jcp.dimM_simd_block, jcp.dimK_block,
                        jcp.dimK_reg_block, jcp.dimK_4fma, dimN_block,
                        jcp.dimN_reg_block, 0.5f)
@@ -996,8 +987,8 @@ status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp)
      * ************************/
     jcp.dimM = jcp.oc;
 
-    auto test_cond1_dimM_block = [](
-            jit_conv_winograd_conf_t &jcp, int dimM_block, int current_best) {
+    auto test_cond1_dimM_block = [](jit_conv_winograd_conf_t &jcp,
+                                         int dimM_block, int current_best) {
         return check_cond1_wu(dimM_block, jcp.dimM_simd_block, 1,
                        jcp.dimK_reg_block, jcp.dimK_4fma, jcp.dimN_reg_block,
                        1.0f)
@@ -1016,8 +1007,7 @@ status_t set_wsched_WEI_S_D_G_W_avx512_common(jit_conv_winograd_conf_t &jcp)
 status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
-        const memory_desc_wrapper &diff_weights_d)
-{
+        const memory_desc_wrapper &diff_weights_d) {
     jcp.nthr = mkldnn_get_max_threads();
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
@@ -1055,8 +1045,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    if (mayiuse(avx512_core))
-        return status::unimplemented;
+    if (mayiuse(avx512_core)) return status::unimplemented;
     if (!mayiuse(avx512_common))
         return status::unimplemented;
     else if (mayiuse(avx512_mic_4ops))
@@ -1073,10 +1062,8 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.ntiles = jcp.mb * jcp.itiles * jcp.jtiles;
 
     // Winograd kernel works only for 3x3 convolution with stride 1
-    if (jcp.ngroups != 1)
-        return status::unimplemented;
-    if ((jcp.kh != 3) || (jcp.kw != 3))
-        return status::unimplemented;
+    if (jcp.ngroups != 1) return status::unimplemented;
+    if ((jcp.kh != 3) || (jcp.kw != 3)) return status::unimplemented;
     if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
         return status::unimplemented;
     if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
@@ -1094,11 +1081,10 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     if (jcp.wei_tag != wei_tag) return status::unimplemented;
     if (jcp.dst_tag != dat_tag) return status::unimplemented;
 
-    bool layout_consistency = true
-        && jcp.ic <= src_d.padded_dims()[1]
-        && jcp.oc <= diff_dst_d.padded_dims()[1]
-        && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
-        && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
+    bool layout_consistency = true && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= diff_dst_d.padded_dims()[1]
+            && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
+            && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!layout_consistency) return status::unimplemented;
 
     /*************************** New Kernel Parameters
@@ -1117,8 +1103,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         };
         jcp.dimK_4fma = get_divisor_satisfying_cond(
                 jcp, jcp.itiles * jcp.jtiles, 4, test_cond_4fma);
-        if (jcp.dimK_4fma == 1)
-            jcp.dimK_4fma = 4;
+        if (jcp.dimK_4fma == 1) jcp.dimK_4fma = 4;
         if ((jcp.itiles * jcp.jtiles) % jcp.dimK_4fma != 0)
             jcp.tile_4fma_padding = jcp.dimK_4fma
                     - ((jcp.itiles * jcp.jtiles) % jcp.dimK_4fma);
@@ -1154,10 +1139,9 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
     jcp.nb_oc = jcp.dimM_nb_block;
 
     return res;
-
 }
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

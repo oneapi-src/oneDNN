@@ -32,17 +32,13 @@ const size_t page_size = 2097152;
 struct concurrent_scratchpad_t : public scratchpad_t {
     concurrent_scratchpad_t(size_t size) {
         size_ = size;
-        scratchpad_ = (char *) malloc(size, page_size);
+        scratchpad_ = (char *)malloc(size, page_size);
         assert(scratchpad_ != nullptr);
     }
 
-    ~concurrent_scratchpad_t() {
-        free(scratchpad_);
-    }
+    ~concurrent_scratchpad_t() { free(scratchpad_); }
 
-    virtual char *get() const {
-        return scratchpad_;
-    }
+    virtual char *get() const { return scratchpad_; }
 
 private:
     char *scratchpad_;
@@ -61,7 +57,7 @@ struct global_scratchpad_t : public scratchpad_t {
         if (size > size_) {
             if (scratchpad_ != nullptr) free(scratchpad_);
             size_ = size;
-            scratchpad_ = (char *) malloc(size, page_size);
+            scratchpad_ = (char *)malloc(size, page_size);
             assert(scratchpad_ != nullptr);
         }
         reference_count_++;
@@ -76,9 +72,7 @@ struct global_scratchpad_t : public scratchpad_t {
         }
     }
 
-    virtual char *get() const {
-        return scratchpad_;
-    }
+    virtual char *get() const { return scratchpad_; }
 
 private:
     thread_local static char *scratchpad_;
@@ -89,7 +83,6 @@ private:
 thread_local char *global_scratchpad_t::scratchpad_ = nullptr;
 thread_local size_t global_scratchpad_t::size_ = 0;
 thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
-
 
 /*
    Scratchpad creation routine
@@ -102,5 +95,5 @@ scratchpad_t *create_scratchpad(size_t size) {
 #endif
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn

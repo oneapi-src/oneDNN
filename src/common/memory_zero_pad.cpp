@@ -30,8 +30,7 @@ using namespace mkldnn::impl::status;
 enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 
 template <data_type_t dt, blk_kind_t blk_kind, int blksize>
-void typed_zero_pad_blk(
-        const memory_desc_wrapper &m_d, void *data_handle) {
+void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     /* Note: for bf16 memory,
      * use uint16_t for initialization of padding to zero,
      * in order to avoid using assign operators defined in bfloat16_t.
@@ -45,8 +44,7 @@ void typed_zero_pad_blk(
     const auto &blk = m_d.blocking_desc();
     auto dim_is_blocked = [&](int dim) {
         for (int i = 0; i < blk.inner_nblks; i++)
-            if (blk.inner_idxs[i] == dim)
-                return true;
+            if (blk.inner_idxs[i] == dim) return true;
         return false;
     };
     bool A_blocked = dim_is_blocked(0), B_blocked = dim_is_blocked(1),
@@ -158,14 +156,12 @@ void typed_zero_pad_generic_blocked(
     ptrdiff_t step = 1;
     int step_dim = ndims - 1;
     for (; step_dim >= 0; --step_dim) {
-        if (dims[step_dim] != pdims[step_dim])
-            break;
+        if (dims[step_dim] != pdims[step_dim]) break;
         step *= dims[step_dim];
     }
 
     assert(step_dim >= 0 && "no zero padding is required");
-    if (step_dim < 0)
-        return;
+    if (step_dim < 0) return;
 
     parallel_nd(nelems / step, [&](ptrdiff_t e1) {
         bool need_zero = false;
@@ -190,11 +186,9 @@ template <data_type_t dt>
 status_t memory_t::typed_zero_pad() const {
     const memory_desc_wrapper mdw(md());
 
-    if (mdw.format_kind() != format_kind::blocked)
-        return unimplemented;
+    if (mdw.format_kind() != format_kind::blocked) return unimplemented;
 
-    if (mdw.nelems(false) == mdw.nelems(true))
-        return success;
+    if (mdw.nelems(false) == mdw.nelems(true)) return success;
 
     void *mapped_ptr;
     status_t status = memory_storage()->map_data(&mapped_ptr);
@@ -206,14 +200,13 @@ status_t memory_t::typed_zero_pad() const {
     auto get_blksize = [&](int ind) {
         int blksize = 1;
         for (int i = 0; i < blk.inner_nblks; i++) {
-            if (blk.inner_idxs[i] == ind)
-                blksize *= blk.inner_blks[i];
+            if (blk.inner_idxs[i] == ind) blksize *= blk.inner_blks[i];
         }
         return blksize;
     };
     const int blksize = get_blksize(blk.inner_idxs[0]);
 
-#   define CASE(blksize_, blk_kind) \
+#define CASE(blksize_, blk_kind) \
     do { \
         if (blksize == blksize_) { \
             typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
@@ -221,49 +214,49 @@ status_t memory_t::typed_zero_pad() const {
             assert(status == status::success); \
             return success; \
         } \
-    } while(0)
+    } while (0)
 
     switch (blk.inner_nblks) {
-    case 1:
-        if (blk.inner_idxs[0] == 0) {
-            CASE(4, a);
-            CASE(8, a);
-            CASE(16, a);
-        } else if (blk.inner_idxs[0] == 1) {
-            CASE(4, b);
-            CASE(8, b);
-            CASE(16, b);
-        }
-        break;
-    case 2:
-    case 3:
-        if (!IMPLICATION(blk.inner_nblks == 3,
-                    blk.inner_idxs[0] == blk.inner_idxs[2]))
+        case 1:
+            if (blk.inner_idxs[0] == 0) {
+                CASE(4, a);
+                CASE(8, a);
+                CASE(16, a);
+            } else if (blk.inner_idxs[0] == 1) {
+                CASE(4, b);
+                CASE(8, b);
+                CASE(16, b);
+            }
             break;
+        case 2:
+        case 3:
+            if (!IMPLICATION(blk.inner_nblks == 3,
+                        blk.inner_idxs[0] == blk.inner_idxs[2]))
+                break;
 
-        if (blk.inner_idxs[0] == 0 && blk.inner_idxs[1] == 1) {
-            CASE(4, ab);
-            CASE(8, ab);
-            CASE(16, ab);
-        } else if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 0) {
-            CASE(4, ba);
-            CASE(8, ba);
-            CASE(16, ba);
-        }
-        if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 2) {
-            CASE(4, bc);
-            CASE(8, bc);
-            CASE(16, bc);
-        } else if (blk.inner_idxs[0] == 2 && blk.inner_idxs[1] == 1) {
-            CASE(4, cb);
-            CASE(8, cb);
-            CASE(16, cb);
-        }
-        break;
-    default: break;
+            if (blk.inner_idxs[0] == 0 && blk.inner_idxs[1] == 1) {
+                CASE(4, ab);
+                CASE(8, ab);
+                CASE(16, ab);
+            } else if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 0) {
+                CASE(4, ba);
+                CASE(8, ba);
+                CASE(16, ba);
+            }
+            if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 2) {
+                CASE(4, bc);
+                CASE(8, bc);
+                CASE(16, bc);
+            } else if (blk.inner_idxs[0] == 2 && blk.inner_idxs[1] == 1) {
+                CASE(4, cb);
+                CASE(8, cb);
+                CASE(16, cb);
+            }
+            break;
+        default: break;
     }
 
-#   undef CASE
+#undef CASE
 
     // the last line of defence
     typed_zero_pad_generic_blocked<dt>(mdw, data);
@@ -277,10 +270,8 @@ status_t memory_t::typed_zero_pad() const {
 
 status_t memory_t::zero_pad() const {
     memory_desc_wrapper mdw(md());
-    const bool skip_zeroing = false
-        || memory_storage()->is_null()
-        || mdw.is_zero()
-        || !mdw.is_blocking_desc();
+    const bool skip_zeroing = false || memory_storage()->is_null()
+            || mdw.is_zero() || !mdw.is_blocking_desc();
     if (skip_zeroing) return success;
 
     switch (mdw.data_type()) {

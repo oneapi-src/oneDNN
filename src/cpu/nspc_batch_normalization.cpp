@@ -18,8 +18,8 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
 
@@ -37,7 +37,6 @@
 #else
 #define SIMD_LEN_16 simdlen(16)
 #endif
-
 
 namespace mkldnn {
 namespace impl {
@@ -219,11 +218,9 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                     if (fuse_norm_relu) {
                         if (bn_res <= 0) {
                             bn_res = 0;
-                            if (is_training)
-                                ws[c_off] = 0;
+                            if (is_training) ws[c_off] = 0;
                         } else {
-                            if (is_training)
-                                ws[c_off] = 1;
+                            if (is_training) ws[c_off] = 1;
                         }
                     }
                     _dst[c] = maybe_post_op(bn_res);
@@ -258,8 +255,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     auto tmp_diff_ss
             = scratchpad.template get<acc_data_t>(key_bnorm_tmp_diff_ss);
 
-    if (diff_scaleshift == nullptr)
-        diff_scaleshift = tmp_diff_ss;
+    if (diff_scaleshift == nullptr) diff_scaleshift = tmp_diff_ss;
 
     const dim_t N = pd()->MB();
     const dim_t C = pd()->C();
@@ -410,8 +406,9 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                 }
                 for (dim_t c = 0; c < tail; c++) {
                     const size_t c_off = s_off + nb_c_blk * c_blk + c;
-                    acc_data_t gamma
-                            = use_scaleshift ? scaleshift[nb_c_blk * c_blk + c] : 1;
+                    acc_data_t gamma = use_scaleshift
+                            ? scaleshift[nb_c_blk * c_blk + c]
+                            : 1;
                     acc_data_t sqrt_variance = static_cast<acc_data_t>(
                             1.0f / sqrtf(variance[nb_c_blk * c_blk + c] + eps));
                     acc_data_t v_diff_src;
@@ -420,7 +417,8 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                     else
                         v_diff_src = _diff_dst[nb_c_blk * c_blk + c];
                     if (calculate_diff_stats) {
-                        v_diff_src -= diff_beta_loc[nb_c_blk * c_blk + c] / (SP * N)
+                        v_diff_src -= diff_beta_loc[nb_c_blk * c_blk + c]
+                                        / (SP * N)
                                 + (_src[nb_c_blk * c_blk + c]
                                           - mean[nb_c_blk * c_blk + c])
                                         * diff_gamma_loc[nb_c_blk * c_blk + c]
@@ -441,8 +439,8 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
 
 template struct nspc_batch_normalization_bwd_t<f32>;
 template struct nspc_batch_normalization_bwd_t<bf16>;
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

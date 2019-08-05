@@ -38,53 +38,57 @@ struct ref_convolution_kernel_t {
         set_offsets(dst_md, off_.dst_off);
 
         int sp_dims = 1;
-        switch(cd.prop_kind) {
-        case prop_kind::forward_training:
-        case prop_kind::forward_inference:
-            conf_.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-            conf_.src_data_type = cd.src_desc.data_type;
-            conf_.weights_data_type = cd.weights_desc.data_type;
-            conf_.dst_data_type = cd.dst_desc.data_type;
-            conf_.acc_data_type = cd.accum_data_type;
-            conf_.bias_data_type = conf_.with_bias
-                ? cd.bias_desc.data_type : data_type::f32;
-            conf_.gws_d[0] = dst_md.dims[0];
-            conf_.gws_d[1] = dst_md.dims[1];
-            for (int i = 2; i < dst_md.ndims; ++i)
-                sp_dims *= dst_md.dims[i];
-            conf_.gws_d[2] = sp_dims;
-        break;
-        case prop_kind::backward_data:
-            conf_.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-            conf_.src_data_type = cd.diff_src_desc.data_type;
-            conf_.weights_data_type = cd.weights_desc.data_type;
-            conf_.dst_data_type = cd.diff_dst_desc.data_type;
-            conf_.acc_data_type = cd.accum_data_type;
-            conf_.bias_data_type = conf_.with_bias
-                ? cd.bias_desc.data_type : data_type::f32;
-            conf_.gws_d[0] = src_md.dims[0];
-            conf_.gws_d[1] = src_md.dims[1];
-            for (int i = 2; i < src_md.ndims; ++i)
-                sp_dims *= src_md.dims[i];
-            conf_.gws_d[2] = sp_dims;
-        break;
-        case prop_kind::backward_weights:
-            conf_.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
-            conf_.src_data_type = cd.src_desc.data_type;
-            conf_.weights_data_type = cd.diff_weights_desc.data_type;
-            conf_.dst_data_type = cd.diff_dst_desc.data_type;
-            conf_.acc_data_type = cd.accum_data_type;
-            conf_.bias_data_type = conf_.with_bias
-                ? cd.diff_bias_desc.data_type : data_type::f32;
-            conf_.gws_d[0] = conf_.with_groups ? weights_md.dims[0] : 1;
-            conf_.gws_d[1] = conf_.with_groups
-                ? weights_md.dims[1] * weights_md.dims[2]
-                : weights_md.dims[0] * weights_md.dims[1];
-            for (int i = 2 + conf_.with_groups; i < weights_md.ndims; ++i)
-                sp_dims *= weights_md.dims[i];
-            conf_.gws_d[2] = sp_dims;
-        break;
-        default: break;
+        switch (cd.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+                conf_.with_bias
+                        = cd.bias_desc.format_kind != format_kind::undef;
+                conf_.src_data_type = cd.src_desc.data_type;
+                conf_.weights_data_type = cd.weights_desc.data_type;
+                conf_.dst_data_type = cd.dst_desc.data_type;
+                conf_.acc_data_type = cd.accum_data_type;
+                conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
+                                                       : data_type::f32;
+                conf_.gws_d[0] = dst_md.dims[0];
+                conf_.gws_d[1] = dst_md.dims[1];
+                for (int i = 2; i < dst_md.ndims; ++i)
+                    sp_dims *= dst_md.dims[i];
+                conf_.gws_d[2] = sp_dims;
+                break;
+            case prop_kind::backward_data:
+                conf_.with_bias
+                        = cd.bias_desc.format_kind != format_kind::undef;
+                conf_.src_data_type = cd.diff_src_desc.data_type;
+                conf_.weights_data_type = cd.weights_desc.data_type;
+                conf_.dst_data_type = cd.diff_dst_desc.data_type;
+                conf_.acc_data_type = cd.accum_data_type;
+                conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
+                                                       : data_type::f32;
+                conf_.gws_d[0] = src_md.dims[0];
+                conf_.gws_d[1] = src_md.dims[1];
+                for (int i = 2; i < src_md.ndims; ++i)
+                    sp_dims *= src_md.dims[i];
+                conf_.gws_d[2] = sp_dims;
+                break;
+            case prop_kind::backward_weights:
+                conf_.with_bias
+                        = cd.diff_bias_desc.format_kind != format_kind::undef;
+                conf_.src_data_type = cd.src_desc.data_type;
+                conf_.weights_data_type = cd.diff_weights_desc.data_type;
+                conf_.dst_data_type = cd.diff_dst_desc.data_type;
+                conf_.acc_data_type = cd.accum_data_type;
+                conf_.bias_data_type = conf_.with_bias
+                        ? cd.diff_bias_desc.data_type
+                        : data_type::f32;
+                conf_.gws_d[0] = conf_.with_groups ? weights_md.dims[0] : 1;
+                conf_.gws_d[1] = conf_.with_groups
+                        ? weights_md.dims[1] * weights_md.dims[2]
+                        : weights_md.dims[0] * weights_md.dims[1];
+                for (int i = 2 + conf_.with_groups; i < weights_md.ndims; ++i)
+                    sp_dims *= weights_md.dims[i];
+                conf_.gws_d[2] = sp_dims;
+                break;
+            default: break;
         }
 
         conf_.lws_d[0] = 0;
@@ -131,19 +135,18 @@ struct ref_convolution_kernel_t {
         def_offsets(off_.bias_off, kernel_ctx, "BIA", 1);
         def_offsets(off_.dst_off, kernel_ctx, "DST", conf_.ndims);
 
-        switch(conf_.prop_kind) {
-        case prop_kind::forward_training:
-        case prop_kind::forward_inference:
-            kernel_ctx.set_data_type(conf_.dst_data_type);
-            break;
-        case prop_kind::backward_data:
-            kernel_ctx.set_data_type(conf_.src_data_type);
-            break;
-        case prop_kind::backward_weights:
-            kernel_ctx.set_data_type(conf_.weights_data_type);
-            break;
-        default:
-            break;
+        switch (conf_.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+                kernel_ctx.set_data_type(conf_.dst_data_type);
+                break;
+            case prop_kind::backward_data:
+                kernel_ctx.set_data_type(conf_.src_data_type);
+                break;
+            case prop_kind::backward_weights:
+                kernel_ctx.set_data_type(conf_.weights_data_type);
+                break;
+            default: break;
         }
 
         def_data_type(kernel_ctx, conf_.src_data_type, "SRC");
@@ -171,8 +174,8 @@ private:
     jit_offsets off_;
 };
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 
 #endif

@@ -28,35 +28,29 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
+struct jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_1x1_conv_fwd_ker_t)
-    jit_avx512_core_x8s8s32x_1x1_conv_kernel(jit_1x1_conv_conf_t ajcp,
-            const primitive_attr_t &attr) : jcp(ajcp), attr_(attr),
-            eltwise_injector_(nullptr)
-    {
+    jit_avx512_core_x8s8s32x_1x1_conv_kernel(
+            jit_1x1_conv_conf_t ajcp, const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
 
         this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
-    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() {
-        delete eltwise_injector_;
-    }
+    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
 
-    static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
-                                const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_d,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
-            const memory_desc_wrapper &bias_d,
-            const primitive_attr_t &attr,
-            int nthreads, bool reduce_src);
+            const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
+            const primitive_attr_t &attr, int nthreads, bool reduce_src);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -67,7 +61,7 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_1x1_conv_call_s *);
 
-  private:
+private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
     using reg64_t = const Xbyak::Reg64;
@@ -121,11 +115,11 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel: public jit_generator {
 
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
-        bool mask_flag);
+            bool mask_flag);
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

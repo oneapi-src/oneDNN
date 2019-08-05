@@ -30,8 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace compute {
 
-class kernel_ctx_t
-{
+class kernel_ctx_t {
 public:
     kernel_ctx_t() { set_default_options(); }
 
@@ -47,7 +46,7 @@ public:
             union {
                 float f;
                 uint32_t u;
-            } f2u = { float_var.second };
+            } f2u = {float_var.second};
 
             oss << " -D" << float_var.first << "=as_float(0x" << std::hex
                 << f2u.u << ")";
@@ -56,26 +55,26 @@ public:
     }
 
     void define_int(const char *variable, int64_t value) {
-        int_var_map_.insert({ variable, value });
+        int_var_map_.insert({variable, value});
     }
 
     // TODO: should be removed, any float values should be passed in
     // kernel parameters
     void define_float(const char *variable, float value) {
-        float_var_map_.insert({ variable, value });
+        float_var_map_.insert({variable, value});
     }
 
     void add_option(const char *option) { option_set_.insert(option); }
 
     void set_data_type(data_type_t dt) {
         switch (dt) {
-        case data_type::bf16: define_int("DT_BF16", 1); break;
-        case data_type::f16: define_int("DT_F16", 1); break;
-        case data_type::f32: define_int("DT_F32", 1); break;
-        case data_type::s8: define_int("DT_S8", 1); break;
-        case data_type::u8: define_int("DT_U8", 1); break;
-        case data_type::s32: define_int("DT_S32", 1); break;
-        default: assert(!"unknown data type"); break;
+            case data_type::bf16: define_int("DT_BF16", 1); break;
+            case data_type::f16: define_int("DT_F16", 1); break;
+            case data_type::f32: define_int("DT_F32", 1); break;
+            case data_type::s8: define_int("DT_S8", 1); break;
+            case data_type::u8: define_int("DT_U8", 1); break;
+            case data_type::s32: define_int("DT_S32", 1); break;
+            default: assert(!"unknown data type"); break;
         }
     }
 
@@ -88,7 +87,7 @@ public:
 
     void print_options() const {
 #ifdef DEBUG_PRINT
-       std::cout << "OPT:\n" << get_options() << std::endl;
+        std::cout << "OPT:\n" << get_options() << std::endl;
 #endif
     }
 
@@ -100,14 +99,11 @@ public:
     }
 
     std::string data_type() const {
-        if (int_var_map_.count("DT_F16") != 0)
-            return "f16";
+        if (int_var_map_.count("DT_F16") != 0) return "f16";
 
-        if (int_var_map_.count("DT_F32") != 0)
-            return "f32";
+        if (int_var_map_.count("DT_F32") != 0) return "f32";
 
-        if (int_var_map_.count("DT_S8") != 0)
-            return "s8";
+        if (int_var_map_.count("DT_S8") != 0) return "s8";
 
         return "";
     }

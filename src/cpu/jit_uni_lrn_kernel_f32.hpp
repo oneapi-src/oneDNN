@@ -85,60 +85,38 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_f32)
 
     /* cpu specific part */
-    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
+            Xbyak::Zmm>::type;
 
-    jit_uni_lrn_fwd_kernel_f32(
-        const struct nchw8c_within &J,
-        float A,
-        float K,
-        prop_kind_t pk,
-        void *code_ptr = nullptr,
-        size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_f32(
-        const struct nchw8c_across &J,
-        float A,
-        float K,
-        prop_kind_t pk,
-        void *code_ptr = nullptr,
-        size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_f32(
-        const struct nhwc_across &J,
-        float A,
-        float K,
-        prop_kind_t pk,
-        void *code_ptr = nullptr,
-        size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_f32(
-        struct nchw_across J,
-        float A,
-        float K,
-        prop_kind_t pk,
-        void* code_ptr = nullptr,
-        size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_fwd_kernel_f32(const struct nchw8c_within &J, float A, float K,
+            prop_kind_t pk, void *code_ptr = nullptr,
+            size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_fwd_kernel_f32(const struct nchw8c_across &J, float A, float K,
+            prop_kind_t pk, void *code_ptr = nullptr,
+            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_fwd_kernel_f32(const struct nhwc_across &J, float A, float K,
+            prop_kind_t pk, void *code_ptr = nullptr,
+            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_fwd_kernel_f32(struct nchw_across J, float A, float K,
+            prop_kind_t pk, void *code_ptr = nullptr,
+            size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
-    void within_body(
-        int hoff, int Hoff, int woff, int Woff, int stride,
-        Xbyak::Ymm ysum, Xbyak::Ymm ydst, Xbyak::Ymm ytmp, Xbyak::Ymm ysum2,
-        prop_kind_t pk);
+    void within_body(int hoff, int Hoff, int woff, int Woff, int stride,
+            Xbyak::Ymm ysum, Xbyak::Ymm ydst, Xbyak::Ymm ytmp, Xbyak::Ymm ysum2,
+            prop_kind_t pk);
     void within_body_sse41(
-        int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
+            int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
 
-
-    void nchw_body(int tail, int HW, prop_kind_t pk,
-        Xbyak::Ymm ymask,
-        Xbyak::Ymm ya,
-        Xbyak::Ymm yb,
-        Xbyak::Ymm yc,
-        Xbyak::Ymm yd,
-        Xbyak::Ymm ye,
-        Xbyak::Ymm ysum);
+    void nchw_body(int tail, int HW, prop_kind_t pk, Xbyak::Ymm ymask,
+            Xbyak::Ymm ya, Xbyak::Ymm yb, Xbyak::Ymm yc, Xbyak::Ymm yd,
+            Xbyak::Ymm ye, Xbyak::Ymm ysum);
     void nchw_body_sse41(int tail, int HW, prop_kind_t pk, Xbyak::Xmm xe_lo,
             Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi);
     void nchw_tail_sse41(int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo,
             Xbyak::Xmm xtail_hi);
 
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
-    void(*ker)(jit_args_fwd_t *);
+    void (*ker)(jit_args_fwd_t *);
 };
 
 template <cpu_isa_t isa>
@@ -158,21 +136,17 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_f32)
 
-    jit_uni_lrn_bwd_kernel_f32(
-        const struct nchw8c_across &J,
-        float A,
-        float B,
-        int use_h_parallel,
-        void *code_ptr = nullptr,
-        size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_bwd_kernel_f32(const struct nchw8c_across &J, float A, float B,
+            int use_h_parallel, void *code_ptr = nullptr,
+            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
-    void(*ker)(jit_args_bwd_t *);
+    void (*ker)(jit_args_bwd_t *);
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

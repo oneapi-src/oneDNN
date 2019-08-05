@@ -19,12 +19,13 @@
 #include "ocl/ocl_post_ops.h"
 #endif
 
-__kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
-        const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale
+__kernel void ref_convolution_fwd_kernel(
+        const __global SRC_DATA_T *src, const __global WEI_DATA_T *wei,
+        const __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
+        float eltwise_alpha, float eltwise_beta, float sum_scale
 #if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
-        , float scales
+        ,
+        float scales
 #endif
 ) {
     const int n = get_global_id(0);
@@ -46,19 +47,18 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
                     const int ih = oh * SH - PH + kh * (1 + DH);
                     const int iw = ow * SW - PW + kw * (1 + DW);
 
-                        if (id < 0 || id >= ID
-                           || ih < 0 || ih >= IH
-                           || iw < 0 || iw >= IW)
-                            continue;
+                    if (id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0
+                            || iw >= IW)
+                        continue;
 
-                    const uint src_off = SRC_OFF(n, g*IC + ic, id, ih, iw);
+                    const uint src_off = SRC_OFF(n, g * IC + ic, id, ih, iw);
                     const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wht_off]);
                 }
     POST_OP_DATA_T tmp = d;
 
 #if WITH_BIAS
-    tmp += (POST_OP_DATA_T)BIA_TO_REF(bias[g*OC+oc]);
+    tmp += (POST_OP_DATA_T)BIA_TO_REF(bias[g * OC + oc]);
 #endif
 
 #if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
@@ -70,11 +70,11 @@ __kernel void ref_convolution_fwd_kernel(const __global SRC_DATA_T *src,
 #endif
 
 #if WITH_SUM == 1
-    #if SUM_SCALE == 1
-    tmp += (POST_OP_DATA_T)dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
-    #else
-    tmp += sum_scale * (POST_OP_DATA_T)dst[DST_OFF(n, g*OC + oc, od, oh, ow)];
-    #endif
+#if SUM_SCALE == 1
+    tmp += (POST_OP_DATA_T)dst[DST_OFF(n, g * OC + oc, od, oh, ow)];
+#else
+    tmp += sum_scale * (POST_OP_DATA_T)dst[DST_OFF(n, g * OC + oc, od, oh, ow)];
+#endif
 #endif
 
 #if WITH_POST_SUM_ELTWISE == 1
@@ -104,22 +104,20 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
     for_(int kh = 0; kh < KH; ++kh)
     for (int kw = 0; kw < KW; ++kw) {
         if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
-            || id + PD < kd * (1 + DD))
+                || id + PD < kd * (1 + DD))
             continue;
         int ow = iw - kw * (1 + DW) + PW;
         int oh = ih - kh * (1 + DH) + PH;
         int od = id - kd * (1 + DD) + PD;
-        if (ow % SW != 0 || oh % SH != 0 || od % SD != 0)
-            continue;
+        if (ow % SW != 0 || oh % SH != 0 || od % SD != 0) continue;
 
         ow /= SW;
         oh /= SH;
         od /= SD;
         if (oh < OH && ow < OW && od < OD) {
-            const uint dst_off = DST_OFF(n, g*OC + oc, od, oh, ow);
+            const uint dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
             const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-            d += DST_TO_REF(diff_dst[dst_off])
-                    * WEI_TO_REF(wei[wht_off]);
+            d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wht_off]);
         }
     }
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);

@@ -17,12 +17,12 @@
 #ifndef CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 #define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
-#include "mkldnn_thread.hpp"
-#include "reorder_pd.hpp"
-#include "memory_tracking.hpp"
-#include "utils.hpp"
 #include "cpu_layer_normalization_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
+#include "reorder_pd.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -87,8 +87,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
                     && src_d.blocking_desc().strides[ndims() - 1]
                             == 1 //plain format, last logical dim is last physical
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
@@ -124,16 +123,14 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
 
         void copy_from(const pd_t &other) {
             reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_ = other.reorder_pd_
-                    ? other.reorder_pd_->clone()
-                    : nullptr;
+            reorder_pd_
+                    = other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr;
         }
     };
 
     simple_layer_normalization_fwd_t(const pd_t *apd)
         : cpu_primitive_t(apd), reorder_(nullptr) {
-        if (pd()->reorder_pd_)
-            pd()->reorder_pd_->create_primitive(&reorder_);
+        if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
     ~simple_layer_normalization_fwd_t() { delete reorder_; }
@@ -157,22 +154,22 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
         auto mean_handle = scratchpad.template get<void>(key_lnorm_tmp_mean);
         auto variance_handle = scratchpad.template get<void>(key_lnorm_tmp_var);
         memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
-                        memory_flags_t::use_backend_ptr, mean_handle);
+                memory_flags_t::use_backend_ptr, mean_handle);
         memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
-                        memory_flags_t::use_backend_ptr, variance_handle);
+                memory_flags_t::use_backend_ptr, variance_handle);
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), { &mean, false });
+            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
             reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    { &variance, false });
+                    {&variance, false});
         }
         execute_forward(ctx);
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, { &mean, true }, ctx.args().at(MKLDNN_ARG_MEAN));
-            reorder_stat(ctx, { &variance, true },
-                    ctx.args().at(MKLDNN_ARG_VARIANCE));
+            reorder_stat(ctx, {&mean, true}, ctx.args().at(MKLDNN_ARG_MEAN));
+            reorder_stat(
+                    ctx, {&variance, true}, ctx.args().at(MKLDNN_ARG_VARIANCE));
         }
 
         return status::success;
@@ -214,16 +211,15 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
 
             bool ok = true && is_bwd() && !has_zero_dim_memory()
                     && utils::everyone_is(f32, src_md()->data_type,
-                               diff_src_md()->data_type, stat_md()->data_type)
+                            diff_src_md()->data_type, stat_md()->data_type)
                     && IMPLICATION(use_scaleshift(),
-                               utils::everyone_is(f32, weights_md()->data_type,
-                                           diff_weights_md()->data_type))
+                            utils::everyone_is(f32, weights_md()->data_type,
+                                    diff_weights_md()->data_type))
                     && src_d.is_blocking_desc()
                     && src_d.blocking_desc().strides[ndims() - 1]
                             == 1 //plain format, last logical dim is last physical
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
@@ -261,16 +257,14 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
 
         void copy_from(const pd_t &other) {
             reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_ = other.reorder_pd_
-                    ? other.reorder_pd_->clone()
-                    : nullptr;
+            reorder_pd_
+                    = other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr;
         }
     };
 
     simple_layer_normalization_bwd_t(const pd_t *apd)
         : cpu_primitive_t(apd), reorder_(nullptr) {
-        if (pd()->reorder_pd_)
-            pd()->reorder_pd_->create_primitive(&reorder_);
+        if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
     ~simple_layer_normalization_bwd_t() { delete reorder_; }
@@ -301,9 +295,9 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
                     memory_flags_t::use_backend_ptr, mean_handle);
             memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
                     memory_flags_t::use_backend_ptr, variance_handle);
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), { &mean, false });
+            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
             reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    { &variance, false });
+                    {&variance, false});
         }
 
         execute_backward(ctx);

@@ -128,8 +128,8 @@ protected:
         return status::success;
     }
 };
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 
 #endif

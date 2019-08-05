@@ -30,8 +30,7 @@ struct jit_gen9_gemm_kernel {
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx) {
         using namespace data_type;
 
-        if (type != f32 && type != f16)
-            return status::unimplemented;
+        if (type != f32 && type != f16) return status::unimplemented;
 
         kernel_ctx.define_int("DT_F32", type == f32);
         kernel_ctx.define_int("DT_F16", type == f16);
@@ -56,8 +55,7 @@ template <impl::data_type_t type>
 struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx) {
         auto status = init_cl_options<type>(kernel_ctx);
-        if (status)
-            return status;
+        if (status) return status;
 
         kernel_ctx.print_options();
         return status::success;
@@ -69,8 +67,7 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, bool outer, bool trans) {
         auto status = init_cl_options<type>(kernel_ctx);
-        if (status)
-            return status;
+        if (status) return status;
 
         kernel_ctx.define_int("COPY_UNROLL",
                 !outer ? copy_params::unroll_m : copy_params::unroll_n);
@@ -92,11 +89,9 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, bool beta0) {
         auto status = init_cl_options<type>(kernel_ctx);
-        if (status)
-            return status;
+        if (status) return status;
 
-        if (beta0)
-            kernel_ctx.add_option("-DBETA_ZERO");
+        if (beta0) kernel_ctx.add_option("-DBETA_ZERO");
 
         kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
@@ -117,24 +112,20 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
             bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg) {
 
         auto status = init_cl_options<type>(kernel_ctx);
-        if (status)
-            return status;
+        if (status) return status;
 
-        if (trans_a)
-            kernel_ctx.add_option("-DTRANS_A");
-        if (trans_b)
-            kernel_ctx.add_option("-DTRANS_B");
+        if (trans_a) kernel_ctx.add_option("-DTRANS_A");
+        if (trans_b) kernel_ctx.add_option("-DTRANS_B");
 
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        if (with_eltwise)
-            def_postops(kernel_ctx, alg);
+        if (with_eltwise) def_postops(kernel_ctx, alg);
 
         kernel_ctx.print_options();
         return status::success;
     }
 
-    static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
-            int &unroll_n) {
+    static void get_unrolls(
+            bool trans_a, bool trans_b, int &unroll_m, int &unroll_n) {
 
         unroll_m = unroll_n = 0;
 
@@ -154,22 +145,20 @@ struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg) {
 
-        if (trans_a)
-            return status::unimplemented;
+        if (trans_a) return status::unimplemented;
 
         return jit_gen9_gemm_nocopy_kernel<type>::init_const_def(
                 kernel_ctx, trans_a, trans_b, with_eltwise, alg);
     }
 
-    static void get_unrolls(bool trans_a, bool trans_b, int (&unroll_m)[2],
-            int &unroll_n) {
+    static void get_unrolls(
+            bool trans_a, bool trans_b, int (&unroll_m)[2], int &unroll_n) {
 
         unroll_m[0] = 32;
         unroll_m[1] = 16;
         unroll_n = 16;
     }
 };
-
 
 } // namespace ocl
 } // namespace impl

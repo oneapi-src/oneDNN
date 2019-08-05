@@ -17,17 +17,17 @@
 #ifndef OCL_UTILS_HPP
 #define OCL_UTILS_HPP
 
-#include <CL/cl.h>
 #include <cinttypes>
-#include <initializer_list>
 #include <memory>
 #include <string.h>
 #include <string>
+#include <utility>
+#include <vector>
+#include <CL/cl.h>
+#include <initializer_list>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
-#include <vector>
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -40,69 +40,69 @@ namespace ocl_utils {
 
 inline status_t convert_to_mkldnn(cl_int cl_status) {
     switch (cl_status) {
-    case CL_SUCCESS: return status::success;
-    case CL_DEVICE_NOT_FOUND:
-    case CL_DEVICE_NOT_AVAILABLE:
-    case CL_COMPILER_NOT_AVAILABLE:
-    case CL_MEM_OBJECT_ALLOCATION_FAILURE:
-    case CL_OUT_OF_RESOURCES:
-    case CL_OUT_OF_HOST_MEMORY:
-    case CL_PROFILING_INFO_NOT_AVAILABLE:
-    case CL_MEM_COPY_OVERLAP:
-    case CL_IMAGE_FORMAT_MISMATCH:
-    case CL_IMAGE_FORMAT_NOT_SUPPORTED:
-    case CL_BUILD_PROGRAM_FAILURE:
-    case CL_MAP_FAILURE:
-    case CL_MISALIGNED_SUB_BUFFER_OFFSET:
-    case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST:
-    case CL_COMPILE_PROGRAM_FAILURE:
-    case CL_LINKER_NOT_AVAILABLE:
-    case CL_LINK_PROGRAM_FAILURE:
-    case CL_DEVICE_PARTITION_FAILED:
-    case CL_KERNEL_ARG_INFO_NOT_AVAILABLE: return status::runtime_error;
-    case CL_INVALID_VALUE:
-    case CL_INVALID_DEVICE_TYPE:
-    case CL_INVALID_CONTEXT:
-    case CL_INVALID_QUEUE_PROPERTIES:
-    case CL_INVALID_COMMAND_QUEUE:
-    case CL_INVALID_HOST_PTR:
-    case CL_INVALID_MEM_OBJECT:
-    case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-    case CL_INVALID_IMAGE_SIZE:
-    case CL_INVALID_SAMPLER:
-    case CL_INVALID_BINARY:
-    case CL_INVALID_BUILD_OPTIONS:
-    case CL_INVALID_PROGRAM:
-    case CL_INVALID_PROGRAM_EXECUTABLE:
-    case CL_INVALID_KERNEL_NAME:
-    case CL_INVALID_KERNEL_DEFINITION: // FI
-    case CL_INVALID_KERNEL:
-    case CL_INVALID_ARG_INDEX:
-    case CL_INVALID_ARG_VALUE: return status::invalid_arguments;
+        case CL_SUCCESS: return status::success;
+        case CL_DEVICE_NOT_FOUND:
+        case CL_DEVICE_NOT_AVAILABLE:
+        case CL_COMPILER_NOT_AVAILABLE:
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
+        case CL_OUT_OF_RESOURCES:
+        case CL_OUT_OF_HOST_MEMORY:
+        case CL_PROFILING_INFO_NOT_AVAILABLE:
+        case CL_MEM_COPY_OVERLAP:
+        case CL_IMAGE_FORMAT_MISMATCH:
+        case CL_IMAGE_FORMAT_NOT_SUPPORTED:
+        case CL_BUILD_PROGRAM_FAILURE:
+        case CL_MAP_FAILURE:
+        case CL_MISALIGNED_SUB_BUFFER_OFFSET:
+        case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST:
+        case CL_COMPILE_PROGRAM_FAILURE:
+        case CL_LINKER_NOT_AVAILABLE:
+        case CL_LINK_PROGRAM_FAILURE:
+        case CL_DEVICE_PARTITION_FAILED:
+        case CL_KERNEL_ARG_INFO_NOT_AVAILABLE: return status::runtime_error;
+        case CL_INVALID_VALUE:
+        case CL_INVALID_DEVICE_TYPE:
+        case CL_INVALID_CONTEXT:
+        case CL_INVALID_QUEUE_PROPERTIES:
+        case CL_INVALID_COMMAND_QUEUE:
+        case CL_INVALID_HOST_PTR:
+        case CL_INVALID_MEM_OBJECT:
+        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+        case CL_INVALID_IMAGE_SIZE:
+        case CL_INVALID_SAMPLER:
+        case CL_INVALID_BINARY:
+        case CL_INVALID_BUILD_OPTIONS:
+        case CL_INVALID_PROGRAM:
+        case CL_INVALID_PROGRAM_EXECUTABLE:
+        case CL_INVALID_KERNEL_NAME:
+        case CL_INVALID_KERNEL_DEFINITION: // FI
+        case CL_INVALID_KERNEL:
+        case CL_INVALID_ARG_INDEX:
+        case CL_INVALID_ARG_VALUE: return status::invalid_arguments;
 
-    default: return status::runtime_error;
+        default: return status::runtime_error;
     }
 }
 
-#define OCL_CHECK(x)                                                   \
-    do {                                                               \
-        cl_int s = x;                                                  \
-        if (s != CL_SUCCESS) {                                         \
-            if (mkldnn_verbose()->level >= 5) {                        \
-                printf("Error from OpenCL: %d\n", s);                  \
-            }                                                          \
+#define OCL_CHECK(x) \
+    do { \
+        cl_int s = x; \
+        if (s != CL_SUCCESS) { \
+            if (mkldnn_verbose()->level >= 5) { \
+                printf("Error from OpenCL: %d\n", s); \
+            } \
             return mkldnn::impl::ocl::ocl_utils::convert_to_mkldnn(s); \
-        }                                                              \
+        } \
     } while (0)
 
-#define OCL_CHECK_V(x)                            \
-    do {                                          \
-        cl_int s = x;                             \
-        if (s != CL_SUCCESS) {                    \
+#define OCL_CHECK_V(x) \
+    do { \
+        cl_int s = x; \
+        if (s != CL_SUCCESS) { \
             printf("Error from OpenCL: %d\n", s); \
-            exit(1);                              \
-            return;                               \
-        }                                         \
+            exit(1); \
+            return; \
+        } \
     } while (0)
 
 // Check for two conditions:
@@ -138,8 +138,8 @@ inline status_t check_device(
 
 inline void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
     const size_t lws_max = 256;
-    const size_t optimal_lws_values[] = { 256, 224, 192, 160, 128, 96, 64, 32,
-        16, 8, 7, 6, 5, 4, 3, 2, 1 };
+    const size_t optimal_lws_values[]
+            = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
     size_t total_lws = 1;
     for (size_t i = 0; i < n; ++i) {
         auto rest_lws = lws_max / total_lws;
@@ -222,9 +222,7 @@ struct ocl_ref_traits<cl_device_id> {
 template <typename T>
 struct ocl_wrapper_t {
     ocl_wrapper_t(T t = nullptr, bool retain = false) : t_(t) {
-        if (retain) {
-            do_retain();
-        }
+        if (retain) { do_retain(); }
     }
 
     ocl_wrapper_t(const ocl_wrapper_t &other) : t_(other.t_) { do_retain(); }
@@ -246,15 +244,11 @@ private:
     T t_;
 
     void do_retain() {
-        if (t_) {
-            details::ocl_ref_traits<T>::retain(t_);
-        }
+        if (t_) { details::ocl_ref_traits<T>::retain(t_); }
     }
 
     void do_release() {
-        if (t_) {
-            details::ocl_ref_traits<T>::release(t_);
-        }
+        if (t_) { details::ocl_ref_traits<T>::release(t_); }
     }
 };
 

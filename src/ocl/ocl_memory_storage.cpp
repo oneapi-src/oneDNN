@@ -83,8 +83,7 @@ status_t ocl_memory_storage_t::map_data(void **mapped_ptr) const {
 }
 
 status_t ocl_memory_storage_t::unmap_data(void *mapped_ptr) const {
-    if (!mapped_ptr)
-        return status::success;
+    if (!mapped_ptr) return status::success;
 
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     auto *service_stream

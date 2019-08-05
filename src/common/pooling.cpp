@@ -29,16 +29,15 @@ using namespace mkldnn::impl::alg_kind;
 using namespace mkldnn::impl::types;
 
 namespace {
-status_t pooling_desc_init(pooling_desc_t *pool_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t kernel, const dims_t padding_l,
-        const dims_t padding_r) {
+status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *dst_desc, const dims_t strides,
+        const dims_t kernel, const dims_t padding_l, const dims_t padding_r) {
     bool args_ok = true
-        && !any_null(pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
-        && one_of(alg_kind, pooling_max,
-                pooling_avg_include_padding,
-                pooling_avg_exclude_padding);
+            && !any_null(
+                    pool_desc, src_desc, dst_desc, strides, kernel, padding_l)
+            && one_of(alg_kind, pooling_max, pooling_avg_include_padding,
+                    pooling_avg_exclude_padding);
     if (!args_ok) return invalid_arguments;
 
     if (padding_r == nullptr) padding_r = padding_l;
@@ -71,26 +70,25 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
         pd.accum_data_type = dst_desc->data_type;
     }
 
-    bool consistency = true
-        && utils::one_of(src_desc->ndims, 3, 4, 5)
-        && utils::one_of(dst_desc->ndims, 3, 4, 5)
-        && src_desc->dims[0] == dst_desc->dims[0]
-        && src_desc->dims[1] == dst_desc->dims[1];
+    bool consistency = true && utils::one_of(src_desc->ndims, 3, 4, 5)
+            && utils::one_of(dst_desc->ndims, 3, 4, 5)
+            && src_desc->dims[0] == dst_desc->dims[0]
+            && src_desc->dims[1] == dst_desc->dims[1];
 
     for (int i = 2; i < src_desc->ndims; ++i) {
-        consistency = consistency && (
-                (src_desc->dims[i] - kernel[i - 2] + padding_l[i - 2]
-                 + padding_r[i - 2]) / strides[i - 2] + 1
-                == dst_desc->dims[i]);
+        consistency = consistency
+                && ((src_desc->dims[i] - kernel[i - 2] + padding_l[i - 2]
+                            + padding_r[i - 2])
+                                        / strides[i - 2]
+                                + 1
+                        == dst_desc->dims[i]);
 
         if (alg_kind == pooling_avg_exclude_padding)
             // It's not allowed for pooling window to be totally placed outside
             // of real source domain for pooling_avg_exclude_padding algorithm
             // due to 0 / 0 ambiguity
-            consistency = consistency
-                && padding_l[i - 2] < kernel[i - 2]
-                && padding_r[i - 2] < kernel[i - 2];
-
+            consistency = consistency && padding_l[i - 2] < kernel[i - 2]
+                    && padding_r[i - 2] < kernel[i - 2];
     }
 
     if (!consistency) return invalid_arguments;
@@ -98,7 +96,7 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc,
     *pool_desc = pd;
     return success;
 }
-}
+} // namespace
 
 status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
@@ -107,8 +105,8 @@ status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
         const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc,
-            dst_desc, strides, kernel, padding_l, padding_r);
+    return pooling_desc_init(pool_desc, prop_kind, alg_kind, src_desc, dst_desc,
+            strides, kernel, padding_l, padding_r);
 }
 
 status_t mkldnn_pooling_backward_desc_init(pooling_desc_t *pool_desc,

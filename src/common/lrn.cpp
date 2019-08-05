@@ -29,15 +29,16 @@ using namespace mkldnn::impl::alg_kind;
 using namespace mkldnn::impl::types;
 
 namespace {
-status_t lrn_desc_init(lrn_desc_t *lrn_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
-        dim_t local_size, float alpha, float beta, float k) {
-    bool args_ok = true
-        && !any_null(lrn_desc, data_desc)
-        && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
-        && one_of(prop_kind, forward_training, forward_inference, backward_data)
-        && IMPLICATION(prop_kind == backward_data, diff_data_desc != nullptr);
+status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *data_desc,
+        const memory_desc_t *diff_data_desc, dim_t local_size, float alpha,
+        float beta, float k) {
+    bool args_ok = true && !any_null(lrn_desc, data_desc)
+            && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
+            && one_of(prop_kind, forward_training, forward_inference,
+                    backward_data)
+            && IMPLICATION(
+                    prop_kind == backward_data, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
     auto ld = lrn_desc_t();
@@ -57,18 +58,16 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc,
     ld.lrn_beta = beta;
     ld.lrn_k = k;
 
-    bool consistency = true
-        && ld.data_desc.ndims == 4;
+    bool consistency = true && ld.data_desc.ndims == 4;
     if (ld.prop_kind == backward_data)
-        consistency = consistency
-            && ld.diff_data_desc.ndims == 4
-            && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims, 4);
+        consistency = consistency && ld.diff_data_desc.ndims == 4
+                && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims, 4);
     if (!consistency) return invalid_arguments;
 
     *lrn_desc = ld;
     return success;
 }
-}
+} // namespace
 
 status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,

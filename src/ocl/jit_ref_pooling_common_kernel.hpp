@@ -27,9 +27,9 @@ namespace ocl {
 
 struct jit_ref_pooling_fwd_kernel {
 
-    jit_ref_pooling_fwd_kernel(jit_pool_conf_t ajpp) : jpp(ajpp){};
+    jit_ref_pooling_fwd_kernel(jit_pool_conf_t ajpp) : jpp(ajpp) {};
 
-    ~jit_ref_pooling_fwd_kernel(){};
+    ~jit_ref_pooling_fwd_kernel() {};
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_desc_t &pd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
@@ -147,17 +147,16 @@ struct jit_ref_pooling_fwd_kernel {
         else
             kernel_ctx.define_int("POOLING_FWD", 1);
         switch (jpp.alg) {
-        case pooling_max: kernel_ctx.define_int("POOLING_MAX", 1); break;
-        case pooling_avg_exclude_padding:
-            kernel_ctx.define_int("POOLING_AVG_EXCLUDE_PADDING", 1);
-            break;
-        case pooling_avg_include_padding:
-            kernel_ctx.define_int("POOLING_AVG_INCLUDE_PADDING", 1);
-            break;
-        default: status = status::unimplemented;
+            case pooling_max: kernel_ctx.define_int("POOLING_MAX", 1); break;
+            case pooling_avg_exclude_padding:
+                kernel_ctx.define_int("POOLING_AVG_EXCLUDE_PADDING", 1);
+                break;
+            case pooling_avg_include_padding:
+                kernel_ctx.define_int("POOLING_AVG_INCLUDE_PADDING", 1);
+                break;
+            default: status = status::unimplemented;
         }
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", jpp.ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", jpp.ndims);

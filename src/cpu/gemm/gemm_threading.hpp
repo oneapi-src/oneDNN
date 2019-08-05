@@ -26,12 +26,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-enum class partition_type {
-    row_1d,
-    col_1d,
-    col_major_2d,
-    mnk_3d
-};
+enum class partition_type { row_1d, col_1d, col_major_2d, mnk_3d };
 
 enum class copy_type {
     nonshared,
@@ -54,15 +49,15 @@ struct gemm_threading_t {
 
     int nthrs() const { return nthrs_m * nthrs_n * nthrs_k; }
 
-    friend bool operator==(const gemm_threading_t &t1,
-            const gemm_threading_t &t2) {
+    friend bool operator==(
+            const gemm_threading_t &t1, const gemm_threading_t &t2) {
         return (t1.nthrs_m == t2.nthrs_m && t1.nthrs_n == t2.nthrs_n
                 && t1.nthrs_k == t2.nthrs_k && t1.partition == t2.partition
                 && t1.copy == t2.copy);
     }
 
-    friend bool operator!=(const gemm_threading_t &t1,
-            const gemm_threading_t &t2) {
+    friend bool operator!=(
+            const gemm_threading_t &t1, const gemm_threading_t &t2) {
         return !(t1 == t2);
     }
 
@@ -73,53 +68,52 @@ struct gemm_threading_t {
         int ithr_m = 0, ithr_n = 0, ithr_k = 0;
 
         switch (partition) {
-        case partition_type::row_1d:
-            ithr_m = ithr;
-            partition_1d(ithr, nthrs(), m, &off_m, &size_m);
-            break;
+            case partition_type::row_1d:
+                ithr_m = ithr;
+                partition_1d(ithr, nthrs(), m, &off_m, &size_m);
+                break;
 
-        case partition_type::col_1d:
-            ithr_n = ithr;
-            partition_1d(ithr, nthrs(), n, &off_n, &size_n);
-            break;
+            case partition_type::col_1d:
+                ithr_n = ithr;
+                partition_1d(ithr, nthrs(), n, &off_n, &size_n);
+                break;
 
-        case partition_type::col_major_2d: {
-            int nthr_eff = nthrs();
-            ithr_m = ithr % nthrs_m;
-            ithr_n = ithr / nthrs_m;
+            case partition_type::col_major_2d: {
+                int nthr_eff = nthrs();
+                ithr_m = ithr % nthrs_m;
+                ithr_n = ithr / nthrs_m;
 
-            partition_2d(ithr, &nthr_eff, ithr_m, ithr_n, nthrs_m, nthrs_n, m,
-                    n, &off_m, &size_m, &off_n, &size_n);
-            break;
+                partition_2d(ithr, &nthr_eff, ithr_m, ithr_n, nthrs_m, nthrs_n,
+                        m, n, &off_m, &size_m, &off_n, &size_n);
+                break;
+            }
+
+            case partition_type::mnk_3d: {
+                assert(thread_m > 0 && thread_n > 0 && thread_k > 0);
+                ithr_m = ithr % nthrs_m;
+                ithr_n = (ithr / nthrs_m) % nthrs_n;
+                ithr_k = (ithr / nthrs_m) / nthrs_n;
+
+                off_m = ithr_m * thread_m;
+                off_n = ithr_n * thread_n;
+                off_k = ithr_k * thread_k;
+
+                size_m = nstl::min(thread_m, m - off_m);
+                size_n = nstl::min(thread_n, n - off_n);
+                size_k = nstl::min(thread_k, k - off_k);
+                break;
+            }
         }
 
-        case partition_type::mnk_3d: {
-            assert(thread_m > 0 && thread_n > 0 && thread_k > 0);
-            ithr_m = ithr % nthrs_m;
-            ithr_n = (ithr / nthrs_m) % nthrs_n;
-            ithr_k = (ithr / nthrs_m) / nthrs_n;
-
-            off_m = ithr_m * thread_m;
-            off_n = ithr_n * thread_n;
-            off_k = ithr_k * thread_k;
-
-            size_m = nstl::min(thread_m, m - off_m);
-            size_n = nstl::min(thread_n, n - off_n);
-            size_k = nstl::min(thread_k, k - off_k);
-            break;
-        }
-        }
-
-        return { off_m, off_n, off_k, size_m, size_n, size_k, ithr_m, ithr_n,
-            ithr_k };
+        return {off_m, off_n, off_k, size_m, size_n, size_k, ithr_m, ithr_n,
+                ithr_k};
     }
 
     int thr_k_stride() const { return nthrs_m * nthrs_n; }
 };
 
-
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

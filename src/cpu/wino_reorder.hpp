@@ -35,26 +35,26 @@ struct wino_reorder_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T("wino_reorder", wino_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd,
-                engine_t *engine, const primitive_attr_t *attr,
-                engine_t *src_engine, const memory_desc_t *src_md,
-                engine_t *dst_engine, const memory_desc_t *dst_md) {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true
-                && id.data_type() == type_i
-                && od.data_type() == type_o
-                && (id.matches_tag(utils::pick(id.ndims() - 4,
-                           format_tag::oihw, format_tag::goihw)) ||
-                    id.matches_tag(utils::pick(id.ndims() - 4,
-                           format_tag::hwio, format_tag::hwigo)))
-                && od.format_kind() == format_kind::wino
-                && utils::one_of(od.wino_desc().wino_format,
-                        mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
-                        mkldnn_wino_wei_aaOBiOo, mkldnn_wino_wei_OBaaIBOIio);
+            bool args_ok = true && id.data_type() == type_i
+                    && od.data_type() == type_o
+                    && (id.matches_tag(utils::pick(id.ndims() - 4,
+                                format_tag::oihw, format_tag::goihw))
+                            || id.matches_tag(utils::pick(id.ndims() - 4,
+                                    format_tag::hwio, format_tag::hwigo)))
+                    && od.format_kind() == format_kind::wino
+                    && utils::one_of(od.wino_desc().wino_format,
+                            mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
+                            mkldnn_wino_wei_aaOBiOo,
+                            mkldnn_wino_wei_OBaaIBOIio);
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
-                    dst_md);
+            auto _pd = new pd_t(
+                    engine, attr, src_engine, src_md, dst_engine, dst_md);
             if (_pd == nullptr) return status::out_of_memory;
             if (_pd->init() != status::success) {
                 delete _pd;
@@ -82,8 +82,8 @@ struct wino_reorder_t : public cpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_reorder_wino_transform_space,
                     sizeof(in_data_t) * transform_space_size);
-            scratchpad.book(key_reorder_wino_plain,
-                    sizeof(out_data_t) * plain_size);
+            scratchpad.book(
+                    key_reorder_wino_plain, sizeof(out_data_t) * plain_size);
         }
     };
 
@@ -92,7 +92,7 @@ private:
     typedef typename prec_traits<type_o>::type out_data_t;
     const int unsign_val_in_wino_domain_ = 5;
 
-    wino_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {
+    wino_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -149,15 +149,15 @@ private:
         assert(D_mask == 1 || D_mask == (size_t)oc_);
 
         /* transform weights to winograd domain */
-        const float G_2x2_3x3[4][3] = { { 1.0, 0.0, 0.0 }, { 0.5, 0.5, 0.5 },
-            { 0.5, -0.5, 0.5 }, { 0.0, 0.0, 1.0 } };
+        const float G_2x2_3x3[4][3] = {{1.0, 0.0, 0.0}, {0.5, 0.5, 0.5},
+                {0.5, -0.5, 0.5}, {0.0, 0.0, 1.0}};
 
-        const float G_4x4_3x3[6][3] = { { 1.13777777777778f, 0.f, 0.f },
-            { -0.688403361344538f, -0.430252100840336f, -0.26890756302521f },
-            { -0.688403361344538f, 0.430252100840336f, -0.26890756302521f },
-            { 0.119514472455649f, 0.179271708683473f, 0.26890756302521f },
-            { 0.119514472455649f, -0.179271708683473f, 0.26890756302521f },
-            { 0.f, 0.f, 1.f } };
+        const float G_4x4_3x3[6][3] = {{1.13777777777778f, 0.f, 0.f},
+                {-0.688403361344538f, -0.430252100840336f, -0.26890756302521f},
+                {-0.688403361344538f, 0.430252100840336f, -0.26890756302521f},
+                {0.119514472455649f, 0.179271708683473f, 0.26890756302521f},
+                {0.119514472455649f, -0.179271708683473f, 0.26890756302521f},
+                {0.f, 0.f, 1.f}};
 
         float *__restrict g;
         if (utils::one_of(wino_format_, mkldnn_wino_wei_aaOIoi,
@@ -171,8 +171,8 @@ private:
         }
 
         const bool has_oihw_format = false
-            || src_d.matches_tag(format_tag::oihw)
-            || src_d.matches_tag(format_tag::goihw);
+                || src_d.matches_tag(format_tag::oihw)
+                || src_d.matches_tag(format_tag::goihw);
 
         const int Z = oc_ * ic_;
         const int or_ioc_ = or_ic_ * or_oc_;
@@ -190,33 +190,36 @@ private:
             parallel_nd(size_wspace_, [&](int i) { wspace[i] = 0.f; });
 
             if (has_oihw_format) {
-                parallel_nd(r_, w_alpha_, oc_block_,
-                    [&](int ih, int j, int ioc) {
-                    for (int iw = 0; iw < r_; ++iw) {
-                        int inp_oc = ob * oc_block_ + ioc;
-                        int inp_ic = iic;
-                        in_data_t inp_v = (inp_ic < or_ic_ && inp_oc < or_oc_)
-                            ? _inp[ioc * or_ic_ * kh_ * kw_ + ih * kw_ + iw]
-                            : 0.f;
-                        wspace[(ih * w_alpha_ + j) * oc_block_ + ioc]
-                                += inp_v * g[j * r_ + iw];
-                    }
-                });
+                parallel_nd(
+                        r_, w_alpha_, oc_block_, [&](int ih, int j, int ioc) {
+                            for (int iw = 0; iw < r_; ++iw) {
+                                int inp_oc = ob * oc_block_ + ioc;
+                                int inp_ic = iic;
+                                in_data_t inp_v
+                                        = (inp_ic < or_ic_ && inp_oc < or_oc_)
+                                        ? _inp[ioc * or_ic_ * kh_ * kw_
+                                                + ih * kw_ + iw]
+                                        : 0.f;
+                                wspace[(ih * w_alpha_ + j) * oc_block_ + ioc]
+                                        += inp_v * g[j * r_ + iw];
+                            }
+                        });
             } else { // hwio format case
-                parallel_nd(r_, w_alpha_,
-                    [&](int ih, int j) {
+                parallel_nd(r_, w_alpha_, [&](int ih, int j) {
                     for (int iw = 0; iw < kw_; ++iw) {
                         const float g_multiplier = g[j * r_ + iw];
-                        const in_data_t *__restrict inp_base = _inp
-                            + or_ioc_ * (iw + ih * kw_);
-                        in_data_t *__restrict wspace_base = wspace
-                            + (ih * w_alpha_ + j) * oc_block_;
+                        const in_data_t *__restrict inp_base
+                                = _inp + or_ioc_ * (iw + ih * kw_);
+                        in_data_t *__restrict wspace_base
+                                = wspace + (ih * w_alpha_ + j) * oc_block_;
 
                         for (int ioc = 0; ioc < oc_block_; ++ioc) {
                             int inp_oc = ob * oc_block_ + ioc;
                             int inp_ic = iic;
-                            in_data_t inp_v = (inp_ic < or_ic_
-                                && inp_oc < or_oc_) ? inp_base[ioc] : 0.f;
+                            in_data_t inp_v
+                                    = (inp_ic < or_ic_ && inp_oc < or_oc_)
+                                    ? inp_base[ioc]
+                                    : 0.f;
 
                             wspace_base[ioc] += inp_v * g_multiplier;
                         }
@@ -224,23 +227,24 @@ private:
                 });
             }
 
-            parallel_nd(w_alpha_, w_alpha_, oc_block_,
-                [&](int i, int j, int ioc) {
-                float t = 0;
-                for (int k = 0; k < r_; ++k)
-                    t += g[i * r_ + k]
-                            * wspace[(k * w_alpha_ + j) * oc_block_ + ioc];
-                if (type_o == data_type::s8) {
-                    const float scale = (D_mask == 1)
-                        ? scales[0]
-                        : scales[ob * oc_block_ + ioc];
-                    _out[(i * w_alpha_ + j) * Z + ioc]
-                            = qz_b0<in_data_t, out_data_t>()(
-                                    (in_data_t)t, scale * adj_scale_);
-                } else {
-                    _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
-                }
-            });
+            parallel_nd(
+                    w_alpha_, w_alpha_, oc_block_, [&](int i, int j, int ioc) {
+                        float t = 0;
+                        for (int k = 0; k < r_; ++k)
+                            t += g[i * r_ + k]
+                                    * wspace[(k * w_alpha_ + j) * oc_block_
+                                            + ioc];
+                        if (type_o == data_type::s8) {
+                            const float scale = (D_mask == 1)
+                                    ? scales[0]
+                                    : scales[ob * oc_block_ + ioc];
+                            _out[(i * w_alpha_ + j) * Z + ioc]
+                                    = qz_b0<in_data_t, out_data_t>()(
+                                            (in_data_t)t, scale * adj_scale_);
+                        } else {
+                            _out[(i * w_alpha_ + j) * Z + ioc] = (out_data_t)t;
+                        }
+                    });
         }
     }
 
@@ -270,8 +274,8 @@ private:
                     int ic_shift = (_i + i) * oc_;
                     int oc_shift = (_o + o);
                     int ic_block_shift = ib * oc_block_ * ic_block_ + i;
-                    int src_offset =
-                            u_h_shift + u_w_shift + ic_shift + oc_shift;
+                    int src_offset
+                            = u_h_shift + u_w_shift + ic_shift + oc_shift;
                     int dst_offset = u_h_shift + u_w_shift + oc_block_shift
                             + ic_block_shift;
 
@@ -292,19 +296,18 @@ private:
 
     void reorder_to_aaOio(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
-        parallel_nd(w_alpha_, w_alpha_, nb_oc_,
-            [&](int u_h, int u_w, int ob) {
+        parallel_nd(w_alpha_, w_alpha_, nb_oc_, [&](int u_h, int u_w, int ob) {
             for_(int ib = 0; ib < nb_ic_; ib++)
             for_(int i = 0; i < ic_block_; i++)
             for (int o = 0; o < oc_block_; o++) {
                 int src_offset = u_h * w_alpha_ * ic_ * oc_ + u_w * ic_ * oc_
-                    + (ib * ic_block_ + i) * oc_ + (ob * oc_block_ + o);
+                        + (ib * ic_block_ + i) * oc_ + (ob * oc_block_ + o);
 
-                int dst_offset
-                    = u_h * w_alpha_ * nb_oc_ * nb_ic_ * ic_block_ * oc_block_
-                    + u_w * nb_oc_ * nb_ic_ * ic_block_ * oc_block_
-                    + ob * nb_ic_ * ic_block_ * oc_block_
-                    + ib * ic_block_ * oc_block_ + i * oc_block_ + o;
+                int dst_offset = u_h * w_alpha_ * nb_oc_ * nb_ic_ * ic_block_
+                                * oc_block_
+                        + u_w * nb_oc_ * nb_ic_ * ic_block_ * oc_block_
+                        + ob * nb_ic_ * ic_block_ * oc_block_
+                        + ib * ic_block_ * oc_block_ + i * oc_block_ + o;
                 output[dst_offset] = tmp_wei[src_offset];
             }
         });
@@ -314,28 +317,30 @@ private:
             const out_data_t *__restrict tmp_wei) const {
         int oc_chunks = nb_oc_ / oc2_block_;
 
-        parallel_nd(w_alpha_, w_alpha_, oc_chunks,
-            [&](int u_h, int u_w, int occ) {
-            for (int ib = 0; ib < nb_ic_; ib++) {
-                out_data_t *__restrict wei_ptr = output
-                    + (((u_h * w_alpha_ + u_w) * oc_chunks + occ) * nb_ic_ + ib)
-                    * oc2_block_ * ic_block_ * oc_block_;
-                int wei_offset = 0;
-                for_(int i = 0; i < ic_block_; i++)
-                for (int ob2 = 0; ob2 < oc2_block_; ob2++) {
-                    for (int o = 0; o < oc_block_; o++) {
-                        int icp = ib * ic_block_ + i;
-                        int ocp =
-                            occ * oc2_block_ * oc_block_ + ob2 * oc_block_ + o;
+        parallel_nd(
+                w_alpha_, w_alpha_, oc_chunks, [&](int u_h, int u_w, int occ) {
+                    for (int ib = 0; ib < nb_ic_; ib++) {
+                        out_data_t *__restrict wei_ptr = output
+                                + (((u_h * w_alpha_ + u_w) * oc_chunks + occ)
+                                                  * nb_ic_
+                                          + ib)
+                                        * oc2_block_ * ic_block_ * oc_block_;
+                        int wei_offset = 0;
+                        for_(int i = 0; i < ic_block_; i++)
+                        for (int ob2 = 0; ob2 < oc2_block_; ob2++) {
+                            for (int o = 0; o < oc_block_; o++) {
+                                int icp = ib * ic_block_ + i;
+                                int ocp = occ * oc2_block_ * oc_block_
+                                        + ob2 * oc_block_ + o;
 
-                        int src_offset = u_h * w_alpha_ * ic_ * oc_
-                            + u_w * ic_ * oc_ + icp * oc_ + ocp;
-                        wei_ptr[wei_offset + o] = tmp_wei[src_offset];
+                                int src_offset = u_h * w_alpha_ * ic_ * oc_
+                                        + u_w * ic_ * oc_ + icp * oc_ + ocp;
+                                wei_ptr[wei_offset + o] = tmp_wei[src_offset];
+                            }
+                            wei_offset += oc_block_;
+                        }
                     }
-                    wei_offset += oc_block_;
-                }
-            }
-        });
+                });
     }
 
     void reorder_to_OBaaIBOIio(out_data_t *__restrict output,
@@ -343,50 +348,62 @@ private:
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
 
-        parallel_nd(oc_chunks, w_alpha_, w_alpha_,
-            [&](int occ, int u_h, int u_w) {
-            for_(int icc = 0; icc < ic_chunks; icc++)
-            for (int ob = 0; ob < oc2_block_; ob++) {
-                int ocp = (occ * oc2_block_ + ob) * oc_block_;
-                for_(int ib = 0; ib < ic2_block_; ib++)
-                for (int i = 0; i < ic_block_; i++) {
-                    int icp = (icc * ic2_block_ + ib) * ic_block_ + i;
+        parallel_nd(
+                oc_chunks, w_alpha_, w_alpha_, [&](int occ, int u_h, int u_w) {
+                    for_(int icc = 0; icc < ic_chunks; icc++)
+                    for (int ob = 0; ob < oc2_block_; ob++) {
+                        int ocp = (occ * oc2_block_ + ob) * oc_block_;
+                        for_(int ib = 0; ib < ic2_block_; ib++)
+                        for (int i = 0; i < ic_block_; i++) {
+                            int icp = (icc * ic2_block_ + ib) * ic_block_ + i;
 
-                    int src_offset = u_h * w_alpha_ * ic_ * oc_
-                        + u_w * ic_ * oc_ + icp * oc_ + ocp;
-                    int wei_offset
-                        = ((((((occ * w_alpha_ + u_h) * w_alpha_ + u_w)
-                            * ic_chunks + icc) * oc2_block_ + ob) * ic2_block_
-                            + ib) * ic_block_ + i) * oc_block_;
-                    for (int o = 0; o < oc_block_; o++)
-                        output[wei_offset + o] = tmp_wei[src_offset + o];
-                }
-            }
-        });
+                            int src_offset = u_h * w_alpha_ * ic_ * oc_
+                                    + u_w * ic_ * oc_ + icp * oc_ + ocp;
+                            int wei_offset
+                                    = ((((((occ * w_alpha_ + u_h) * w_alpha_
+                                                  + u_w) * ic_chunks
+                                                 + icc) * oc2_block_
+                                                + ob) * ic2_block_
+                                               + ib) * ic_block_
+                                              + i)
+                                    * oc_block_;
+                            for (int o = 0; o < oc_block_; o++)
+                                output[wei_offset + o]
+                                        = tmp_wei[src_offset + o];
+                        }
+                    }
+                });
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
 
-        auto wspace = (in_data_t *__restrict)scratchpad(ctx).template get<void>(
-                memory_tracking::names::key_reorder_wino_transform_space);
-        auto tmp_wei = (out_data_t *__restrict)scratchpad(ctx).template get<void>(
-                memory_tracking::names::key_reorder_wino_plain);
+        auto wspace
+                = (in_data_t * __restrict) scratchpad(ctx).template get<void>(
+                        memory_tracking::names::
+                                key_reorder_wino_transform_space);
+        auto tmp_wei
+                = (out_data_t * __restrict) scratchpad(ctx).template get<void>(
+                        memory_tracking::names::key_reorder_wino_plain);
 
         transform(tmp_wei, input, wspace);
 
         /* reorder to winograd domain */
         switch (wino_format_) {
-        case mkldnn_wino_wei_aaOIoi:
-            reorder_to_aaOIoi(output, tmp_wei); break;
-        case mkldnn_wino_wei_aaOio:
-            reorder_to_aaOio(output, tmp_wei); break;
-        case mkldnn_wino_wei_aaOBiOo:
-            reorder_to_aaOBiOo(output, tmp_wei); break;
-        case mkldnn_wino_wei_OBaaIBOIio:
-            reorder_to_OBaaIBOIio(output, tmp_wei); break;
-        default: assert(!"Unknown wino format"); break;
+            case mkldnn_wino_wei_aaOIoi:
+                reorder_to_aaOIoi(output, tmp_wei);
+                break;
+            case mkldnn_wino_wei_aaOio:
+                reorder_to_aaOio(output, tmp_wei);
+                break;
+            case mkldnn_wino_wei_aaOBiOo:
+                reorder_to_aaOBiOo(output, tmp_wei);
+                break;
+            case mkldnn_wino_wei_OBaaIBOIio:
+                reorder_to_OBaaIBOIio(output, tmp_wei);
+                break;
+            default: assert(!"Unknown wino format"); break;
         }
 
         return status::success;

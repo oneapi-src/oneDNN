@@ -17,8 +17,8 @@
 #ifndef CPU_MEMORY_STORAGE_HPP
 #define CPU_MEMORY_STORAGE_HPP
 
-#include "common/memory.hpp"
 #include "common/c_types_map.hpp"
+#include "common/memory.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 
@@ -26,8 +26,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class cpu_memory_storage_t : public memory_storage_t
-{
+class cpu_memory_storage_t : public memory_storage_t {
 public:
     cpu_memory_storage_t(
             engine_t *engine, unsigned flags, size_t size, void *handle)
@@ -47,9 +46,7 @@ public:
     }
 
     virtual ~cpu_memory_storage_t() override {
-        if (is_owned_) {
-            free(data_);
-        }
+        if (is_owned_) { free(data_); }
     }
 
     virtual status_t get_data_handle(void **handle) const override {
@@ -58,9 +55,7 @@ public:
     }
 
     virtual status_t set_data_handle(void *handle) override {
-        if (is_owned_) {
-            free(data_);
-        }
+        if (is_owned_) { free(data_); }
         data_ = handle;
         is_owned_ = false;
         return status::success;

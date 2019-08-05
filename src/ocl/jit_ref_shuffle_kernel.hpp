@@ -29,15 +29,15 @@ namespace ocl {
 
 struct jit_ref_shuffle_kernel {
 
-    jit_ref_shuffle_kernel(jit_shuffle_conf_t ajshfl) : jshfl(ajshfl){}
+    jit_ref_shuffle_kernel(jit_shuffle_conf_t ajshfl) : jshfl(ajshfl) {}
 
-    ~jit_ref_shuffle_kernel(){}
+    ~jit_ref_shuffle_kernel() {}
 
     static status_t init_conf(const shuffle_pd_t *pd, jit_shuffle_conf_t &jshfl,
-        jit_offsets &jit_off, const memory_desc_wrapper &src_md,
-        const memory_desc_wrapper &dst_md,
-        const memory_desc_wrapper &diff_src_md,
-        const memory_desc_wrapper &diff_dst_md) {
+            jit_offsets &jit_off, const memory_desc_wrapper &src_md,
+            const memory_desc_wrapper &dst_md,
+            const memory_desc_wrapper &diff_src_md,
+            const memory_desc_wrapper &diff_dst_md) {
 
         const bool is_fwd = pd->is_fwd();
 
@@ -57,8 +57,8 @@ struct jit_ref_shuffle_kernel {
         auto dims = pd->desc()->data_desc.dims;
         auto ndims = pd->desc()->data_desc.ndims;
         const size_t outer_size = utils::array_product(dims, axis);
-        const size_t inner_size = utils::array_product(dims + axis + 1,
-            ndims - axis - 1);
+        const size_t inner_size
+                = utils::array_product(dims + axis + 1, ndims - axis - 1);
         const size_t dim = axis_size * inner_size;
         jshfl.outer_size = outer_size;
         jshfl.inner_size = inner_size;

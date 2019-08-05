@@ -40,15 +40,19 @@ struct jit_uni_eltwise_injector_f32 {
             float alpha, float beta, bool save_state = true,
             Xbyak::Reg64 p_table = Xbyak::util::rax,
             Xbyak::Opmask k_mask = Xbyak::Opmask(1))
-        : alg_(alg), alpha_(alpha), beta_(beta), h(host)
-        , save_state_(save_state), p_table(p_table), k_mask(k_mask)
-    {
+        : alg_(alg)
+        , alpha_(alpha)
+        , beta_(beta)
+        , h(host)
+        , save_state_(save_state)
+        , p_table(p_table)
+        , k_mask(k_mask) {
         using namespace alg_kind;
         assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
-                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu, eltwise_swish));
+                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                eltwise_exp, eltwise_gelu, eltwise_swish));
     }
 
     // note that eltwise.scale is ignored
@@ -61,14 +65,14 @@ struct jit_uni_eltwise_injector_f32 {
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
     void compute_vector(size_t idx) { compute_vector_range(idx, idx + 1); }
-    void prepare_table(bool gen_table=true);
+    void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table, l_table); }
 
     const alg_kind_t alg_;
     const float alpha_;
     const float beta_;
 
-    jit_generator * const h;
+    jit_generator *const h;
 
     const bool save_state_;
     const Xbyak::Reg64 p_table;
@@ -89,15 +93,17 @@ private:
     const static size_t preserved_vecs_max = 5;
 
     size_t vecs_to_preserve = 0;
-    size_t vecs_count = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
+    size_t vecs_count
+            = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
     size_t preserved_vecs_count = 0;
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
     size_t start_idx_tail = 0;
 
     Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
 
-    Xbyak::Address table_val(int index)
-    { return h->ptr[p_table + index * vlen]; }
+    Xbyak::Address table_val(int index) {
+        return h->ptr[p_table + index * vlen];
+    }
 
     int aux_vecs_count(alg_kind_t alg);
 
@@ -138,8 +144,7 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_eltwise_fwd_t<isa, d_type>);
 
         status_t init();
@@ -166,8 +171,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_eltwise_bwd_t<isa, d_type>);
 
         status_t init();
@@ -189,8 +193,8 @@ private:
     jit_uni_eltwise_kernel *kernel_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

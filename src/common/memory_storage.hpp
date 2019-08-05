@@ -81,8 +81,7 @@ private:
 };
 
 struct empty_memory_storage_t : public memory_storage_t {
-    empty_memory_storage_t(): memory_storage_t(nullptr)
-    {}
+    empty_memory_storage_t() : memory_storage_t(nullptr) {}
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = nullptr;
@@ -95,7 +94,7 @@ struct empty_memory_storage_t : public memory_storage_t {
     }
 };
 
-inline memory_storage_t& memory_storage_t::empty_storage() {
+inline memory_storage_t &memory_storage_t::empty_storage() {
     static empty_memory_storage_t instance;
     return instance;
 }

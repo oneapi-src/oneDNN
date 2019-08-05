@@ -18,34 +18,30 @@
 #define JIT_SSE41_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
-#include "memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
+#include "memory.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_sse41_conv_fwd_kernel_f32: public jit_generator {
-    jit_sse41_conv_fwd_kernel_f32(jit_conv_conf_t ajcp,
-            const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
-    {
+struct jit_sse41_conv_fwd_kernel_f32 : public jit_generator {
+    jit_sse41_conv_fwd_kernel_f32(
+            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(this,
-                    jcp.eltwise);
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
+                    this, jcp.eltwise);
 
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
-    ~jit_sse41_conv_fwd_kernel_f32() {
-        delete eltwise_injector_;
-    }
+    ~jit_sse41_conv_fwd_kernel_f32() { delete eltwise_injector_; }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
+    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -77,8 +73,8 @@ private:
 
     jit_uni_eltwise_injector_f32<sse41> *eltwise_injector_;
 
-    inline void oh_step_unroll_kw(int ur_w, int pad_l, int pad_r,
-            int oc_blocks);
+    inline void oh_step_unroll_kw(
+            int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void oh_step_nopad(int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void width_blk_step(int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void solve_common(int oc_blocks);
@@ -86,8 +82,8 @@ private:
     void generate();
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

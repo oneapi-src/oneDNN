@@ -60,7 +60,7 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
                     jcp.oc - jcp.oc_without_padding);
             bias = padded_bias;
         } else
-            bias = const_cast<float*> (bias_in);
+            bias = const_cast<float *>(bias_in);
     }
 
     int dil_h = jcp.dilate_h + 1;
@@ -69,25 +69,28 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
     int str_w = jcp.stride_w;
 
     auto kernel_params = [&](int ur_w_step, int ow, int oh, int ih, int kh,
-            int kh_padding, int ch, int ch_num, int n) {
+                                 int kh_padding, int ch, int ch_num, int n) {
         auto par_conv = jit_conv_call_s();
 
         const int i_l_overflow = nstl::max(0, (jcp.l_pad - ow * str_w));
-        const int i_r_overflow = nstl::max(jcp.iw, (ow * str_w
-            + (jcp.kw - 1)*dil_w - jcp.l_pad + 1)) - jcp.iw;
+        const int i_r_overflow
+                = nstl::max(jcp.iw,
+                          (ow * str_w + (jcp.kw - 1) * dil_w - jcp.l_pad + 1))
+                - jcp.iw;
 
-        const int iw = nstl::max((ow*str_w - jcp.l_pad
-            + div_up(i_l_overflow, dil_w)*dil_w), 0);
+        const int iw = nstl::max(
+                (ow * str_w - jcp.l_pad + div_up(i_l_overflow, dil_w) * dil_w),
+                0);
         const int kw = div_up(i_l_overflow, dil_w);
 
         const int kw_padding = jcp.kw - div_up(i_l_overflow, dil_w)
-            - div_up(i_r_overflow, dil_w);
+                - div_up(i_r_overflow, dil_w);
 
         par_conv.src = &src[src_d.blk_off(n, ch, ih, iw)];
         par_conv.dst = &dst[dst_d.blk_off(n, ch, oh, ow)];
 
         par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, kh, kw)];
-        if (bias) par_conv.bias = &bias[bias_d.blk_off(ch*jcp.ch_block)];
+        if (bias) par_conv.bias = &bias[bias_d.blk_off(ch * jcp.ch_block)];
 
         par_conv.kh_padding = (size_t)nstl::max(0, kh_padding);
         par_conv.kw_padding = (size_t)nstl::max(0, kw_padding);
@@ -100,38 +103,41 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
     };
 
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(jcp.mb, chb_work, jcp.oh,
-            [&](int n, int chb, int oh) {
+    parallel_nd(jcp.mb, chb_work, jcp.oh, [&](int n, int chb, int oh) {
         int ch = chb * jcp.nb_ch_blocking;
         int ch_num = jcp.nb_ch_blocking;
 
-        const int i_t_overflow = nstl::max(0, (int)(jcp.t_pad - oh*str_h));
+        const int i_t_overflow = nstl::max(0, (int)(jcp.t_pad - oh * str_h));
         const int i_b_overflow = nstl::max(jcp.ih,
-            (int)(oh*str_h + (jcp.kh - 1)*dil_h - jcp.t_pad + 1)) - jcp.ih;
+                                         (int)(oh * str_h + (jcp.kh - 1) * dil_h
+                                                 - jcp.t_pad + 1))
+                - jcp.ih;
 
-        const int ih = nstl::max((int)(oh*str_h - jcp.t_pad
-            + div_up(i_t_overflow, dil_h)*dil_h), 0);
+        const int ih = nstl::max((int)(oh * str_h - jcp.t_pad
+                                         + div_up(i_t_overflow, dil_h) * dil_h),
+                0);
         const int kh = div_up(i_t_overflow, dil_h);
         const int kh_padding = jcp.kh - div_up(i_t_overflow, dil_h)
-            - div_up(i_b_overflow, dil_h);
+                - div_up(i_b_overflow, dil_h);
 
         // left border
         int ow = 0;
         int l_border = nstl::min(div_up(jcp.l_pad, str_w), jcp.ow);
         int ur_w_step = 1;
         for (; ow < l_border; ow++) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, ih,
-                                        kh, kh_padding, ch, ch_num, n);
+            jit_conv_call_s par_conv = kernel_params(
+                    ur_w_step, ow, oh, ih, kh, kh_padding, ch, ch_num, n);
 
             kernel_->jit_ker(&par_conv);
         }
 
         // main loop
-        ur_w_step = (jcp.iw - (jcp.kw - 1)*dil_w + jcp.l_pad - 1)
-            / jcp.stride_w - ow + 1;
+        ur_w_step
+                = (jcp.iw - (jcp.kw - 1) * dil_w + jcp.l_pad - 1) / jcp.stride_w
+                - ow + 1;
         if (ur_w_step > 0) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, ih,
-                                        kh, kh_padding, ch, ch_num, n);
+            jit_conv_call_s par_conv = kernel_params(
+                    ur_w_step, ow, oh, ih, kh, kh_padding, ch, ch_num, n);
 
             kernel_->jit_ker(&par_conv);
 
@@ -141,15 +147,14 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
         // right border
         ur_w_step = 1;
         for (; ow < jcp.ow; ow++) {
-            jit_conv_call_s par_conv = kernel_params(ur_w_step, ow, oh, ih,
-                                        kh, kh_padding, ch, ch_num, n);
+            jit_conv_call_s par_conv = kernel_params(
+                    ur_w_step, ow, oh, ih, kh, kh_padding, ch, ch_num, n);
 
             kernel_->jit_ker(&par_conv);
         }
     });
 
-    if (pd()->wants_zero_pad_dst())
-        ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+    if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad();
 }
 
 template struct jit_uni_dw_convolution_fwd_t<avx512_core, data_type::bf16,
@@ -160,8 +165,8 @@ template struct jit_uni_dw_convolution_fwd_t<avx2, data_type::f32>;
 template struct jit_uni_dw_convolution_fwd_t<sse41, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type, data_type_t diff_src_type>
-void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
-        ::execute_backward_data(const exec_ctx_t &ctx) const {
+void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
+        diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
@@ -173,13 +178,13 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
     const auto &jcp = pd()->jcp_;
 
     auto kernel_params = [&](int ur_str_w, int iw, int oh, int ih,
-            int i_t_overflow, int i_b_overflow, int stride_off_h,
-            int ch, int ch_num, int n) {
+                                 int i_t_overflow, int i_b_overflow,
+                                 int stride_off_h, int ch, int ch_num, int n) {
         auto par_conv = jit_conv_call_s();
 
         const int i_l_overflow = nstl::max(0, (jcp.kw - 1 - iw - jcp.l_pad));
-        const int i_r_overflow = nstl::max(0, (jcp.kw - 1 - (jcp.iw - 1 - iw)
-            - jcp.r_pad));
+        const int i_r_overflow
+                = nstl::max(0, (jcp.kw - 1 - (jcp.iw - 1 - iw) - jcp.r_pad));
 
         int ow = iw + jcp.l_pad - i_r_overflow;
         int stride_off_w = ow % jcp.stride_w;
@@ -187,13 +192,13 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
 
         par_conv.src = &diff_src[diff_src_d.blk_off(n, ch, ih, iw)];
         par_conv.dst = &diff_dst[diff_dst_d.blk_off(n, ch, oh, ow)];
-        par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, i_b_overflow
-            + stride_off_h, i_r_overflow + stride_off_w)];
+        par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0,
+                i_b_overflow + stride_off_h, i_r_overflow + stride_off_w)];
 
-        par_conv.kh_padding = nstl::max(0, jcp.kh - i_t_overflow - i_b_overflow
-            - stride_off_h);
-        par_conv.kw_padding = nstl::max(0, jcp.kw - i_l_overflow - i_r_overflow
-            - stride_off_w);
+        par_conv.kh_padding = nstl::max(
+                0, jcp.kh - i_t_overflow - i_b_overflow - stride_off_h);
+        par_conv.kw_padding = nstl::max(
+                0, jcp.kw - i_l_overflow - i_r_overflow - stride_off_w);
 
         par_conv.ur_str_w = ur_str_w;
 
@@ -203,15 +208,14 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
     };
 
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
-    parallel_nd(jcp.mb, chb_work, jcp.ih,
-        [&](int n, int chb, int ih) {
+    parallel_nd(jcp.mb, chb_work, jcp.ih, [&](int n, int chb, int ih) {
         int ch = chb * jcp.nb_ch_blocking;
         int ch_num = jcp.nb_ch_blocking;
 
-        const int i_t_overflow = nstl::max(0, (int)(jcp.kh - 1 - ih
-            - jcp.t_pad));
-        const int i_b_overflow = nstl::max(0, (int)(jcp.kh - 1
-            - (jcp.ih - 1 - ih) - jcp.b_pad));
+        const int i_t_overflow
+                = nstl::max(0, (int)(jcp.kh - 1 - ih - jcp.t_pad));
+        const int i_b_overflow = nstl::max(
+                0, (int)(jcp.kh - 1 - (jcp.ih - 1 - ih) - jcp.b_pad));
 
         int oh = ih + jcp.t_pad - i_b_overflow;
         int stride_off_h = oh % jcp.stride_h;
@@ -223,20 +227,20 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
             int l_border = nstl::min(jcp.kw - 1 - jcp.l_pad, jcp.iw);
             int ur_str_w = 1;
             for (; iw < l_border; iw += jcp.stride_w) {
-                jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
-                                             ih, i_t_overflow, i_b_overflow,
-                                             stride_off_h, ch, ch_num, n);
+                jit_conv_call_s par_conv
+                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
+                                i_b_overflow, stride_off_h, ch, ch_num, n);
 
                 kernel_->jit_ker(&par_conv);
             }
 
             // main loop
-            ur_str_w = nstl::min((jcp.iw - jcp.kw + jcp.r_pad - iw)
-                 / jcp.stride_w, jcp.iw);
+            ur_str_w = nstl::min(
+                    (jcp.iw - jcp.kw + jcp.r_pad - iw) / jcp.stride_w, jcp.iw);
             if (ur_str_w > 0) {
-                jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
-                                             ih, i_t_overflow, i_b_overflow,
-                                             stride_off_h, ch, ch_num, n);
+                jit_conv_call_s par_conv
+                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
+                                i_b_overflow, stride_off_h, ch, ch_num, n);
 
                 kernel_->jit_ker(&par_conv);
 
@@ -246,9 +250,9 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
             // right border
             ur_str_w = 1;
             for (; iw < jcp.iw; iw += jcp.stride_w) {
-                jit_conv_call_s par_conv = kernel_params(ur_str_w, iw, oh,
-                                             ih, i_t_overflow, i_b_overflow,
-                                             stride_off_h, ch, ch_num, n);
+                jit_conv_call_s par_conv
+                        = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
+                                i_b_overflow, stride_off_h, ch, ch_num, n);
 
                 kernel_->jit_ker(&par_conv);
             }
@@ -258,8 +262,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type, diff_src_type>
 
 template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, data_type::bf16,
         data_type::f32>;
-template struct jit_uni_dw_convolution_bwd_data_t<avx512_core,
-        data_type::bf16>;
+template struct jit_uni_dw_convolution_bwd_data_t<avx512_core, data_type::bf16>;
 template struct jit_uni_dw_convolution_bwd_data_t<avx512_common,
         data_type::f32>;
 template struct jit_uni_dw_convolution_bwd_data_t<avx2, data_type::f32>;
@@ -267,28 +270,26 @@ template struct jit_uni_dw_convolution_bwd_data_t<sse41, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
-jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
-    , acc_ker_(nullptr), kernel_(nullptr)
-{
-    kernel_ = new jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>(
-            pd()->jcp_);
+        jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd)
+    : cpu_primitive_t(apd), acc_ker_(nullptr), kernel_(nullptr) {
+    kernel_ = new jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>(pd()->jcp_);
     if (pd()->jcp_.nthr_mb > 1 && isa != sse41)
         acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
 }
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
-void jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>
-        ::execute_backward_weights(const exec_ctx_t &ctx) const {
+void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
+        diff_weights_type>::execute_backward_weights(const exec_ctx_t &ctx)
+        const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(diff_weights_data_t *,
-            MKLDNN_ARG_DIFF_WEIGHTS);
+    auto diff_weights
+            = CTX_OUT_MEM(diff_weights_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
 
-    auto diff_wei_reduction_buf =
-        scratchpad(ctx).template get<f32_data_t>(key_conv_wei_reduction);
-    auto diff_bia_reduction_buf =
-        scratchpad(ctx).template get<f32_data_t>(key_conv_bia_reduction);
+    auto diff_wei_reduction_buf
+            = scratchpad(ctx).template get<f32_data_t>(key_conv_wei_reduction);
+    auto diff_bia_reduction_buf
+            = scratchpad(ctx).template get<f32_data_t>(key_conv_bia_reduction);
 
     const auto &jcp = pd()->jcp_;
 
@@ -305,36 +306,38 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>
 
     const int ch_block = jcp.ch_block;
 
-    auto set_kernel_params = [&](jit_dw_conv_call_s *conv_params,
-            const int batch, const int group, const int oh_start,
-            const int work_size, const unsigned char exec_flag,
-            const size_t kh_padding, const size_t filter_off) {
-        const int tpad_underflow_off = jcp.t_pad - filter_off;
+    auto set_kernel_params
+            = [&](jit_dw_conv_call_s *conv_params, const int batch,
+                      const int group, const int oh_start, const int work_size,
+                      const unsigned char exec_flag, const size_t kh_padding,
+                      const size_t filter_off) {
+                  const int tpad_underflow_off = jcp.t_pad - filter_off;
 
-        conv_params->exec_flags = exec_flag;
-        conv_params->kh_count = jcp.kh - kh_padding;
+                  conv_params->exec_flags = exec_flag;
+                  conv_params->kh_count = jcp.kh - kh_padding;
 
-        const int oh_s = oh_start;
-        const int oh_e = oh_start + work_size;
-        const int ih_s = oh_s * jcp.stride_h;
+                  const int oh_s = oh_start;
+                  const int oh_e = oh_start + work_size;
+                  const int ih_s = oh_s * jcp.stride_h;
 
-        conv_params->filter_pad_off
-                = filter_off * jcp.kw * ch_block * jcp.typesize_out;
-        conv_params->oh_index = oh_s;
-        conv_params->oh_count = oh_e;
+                  conv_params->filter_pad_off
+                          = filter_off * jcp.kw * ch_block * jcp.typesize_out;
+                  conv_params->oh_index = oh_s;
+                  conv_params->oh_count = oh_e;
 
-        size_t diff_dst_off
-                = ((batch * (jcp.ngroups / ch_block) + group) * jcp.oh
-                          + oh_start)
-                * jcp.ow;
+                  size_t diff_dst_off
+                          = ((batch * (jcp.ngroups / ch_block) + group) * jcp.oh
+                                    + oh_start)
+                          * jcp.ow;
 
-        size_t src_off = ((batch * (jcp.ngroups / ch_block) + group) * jcp.ih
-                                 + ih_s - tpad_underflow_off)
-                * jcp.iw;
+                  size_t src_off
+                          = ((batch * (jcp.ngroups / ch_block) + group) * jcp.ih
+                                    + ih_s - tpad_underflow_off)
+                          * jcp.iw;
 
-        conv_params->output = &diff_dst[diff_dst_off * ch_block];
-        conv_params->input = &src[src_off * ch_block];
-    };
+                  conv_params->output = &diff_dst[diff_dst_off * ch_block];
+                  conv_params->input = &src[src_off * ch_block];
+              };
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
@@ -347,10 +350,10 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>
         const int ithr_mb = (ithr / jcp.nthr_g) % jcp.nthr_mb;
 
         /* split dimensions */
-        int g_start{ 0 }, g_end{ 0 };
+        int g_start {0}, g_end {0};
         balance211(jcp.nb_ch, jcp.nthr_g, ithr_g, g_start, g_end);
 
-        int mb_start{ 0 }, mb_end{ 0 };
+        int mb_start {0}, mb_end {0};
         balance211(jcp.mb, jcp.nthr_mb, ithr_mb, mb_start, mb_end);
 
         auto i_mb
@@ -360,8 +363,9 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>
                 ? (f32_data_t *)diff_weights
                 : diff_wei_reduction_buf + i_mb * wei_size;
 
-        auto diff_bia = ithr_mb == 0 ? diff_bias : diff_bia_reduction_buf
-                        + (ithr_mb - 1) * bias_size;
+        auto diff_bia = ithr_mb == 0
+                ? diff_bias
+                : diff_bia_reduction_buf + (ithr_mb - 1) * bias_size;
 
         for (int g = g_start; g < g_end; ++g) {
             unsigned char zero_filter_flag = FLAG_ZERO_FILTER;
@@ -370,8 +374,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>
             size_t diff_wei_off = g * jcp.kh * jcp.kw;
             conv_params.filter = &diff_wei[diff_wei_off * ch_block];
 
-            if (jcp.with_bias)
-                conv_params.bias = &diff_bia[g * ch_block];
+            if (jcp.with_bias) conv_params.bias = &diff_bia[g * ch_block];
 
             for (int mb = mb_start; mb < mb_end; ++mb) {
                 int oh = 0;
@@ -455,13 +458,11 @@ void jit_uni_dw_convolution_bwd_weights_t<avx512_core,
             acc_ker_->accumulate(&diff_wei_reduction_buf[0],
                     &diff_wei_reduction_buf[mb_accum_offset], wei_size);
         }
-        add_floats_and_cvt_to_bfloat16(
-                (bfloat16_t *)&(diff_weights[0]),
+        add_floats_and_cvt_to_bfloat16((bfloat16_t *)&(diff_weights[0]),
                 (float *)&diff_wei_reduction_buf[0],
                 (float *)&diff_wei_reduction_buf[wei_size], wei_size);
     } else {
-        cvt_float_to_bfloat16(
-                (bfloat16_t *)&(diff_weights[0]),
+        cvt_float_to_bfloat16((bfloat16_t *)&(diff_weights[0]),
                 (const float *)&(diff_wei_reduction_buf[0]), wei_size);
     }
 }
@@ -507,8 +508,7 @@ void jit_uni_dw_convolution_bwd_weights_t<sse41,
                 for (int g_block = 0; g_block < ch_block; ++g_block) {
                     const size_t off = wei_offset * ch_block + g_block;
                     diff_weights[off]
-                            += diff_wei_reduction_buf[mb_accum_offset
-                                    + off];
+                            += diff_wei_reduction_buf[mb_accum_offset + off];
                 }
             }
         }
@@ -568,7 +568,6 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         auto diff_bias_in = CTX_OUT_MEM(bf16_data_t *, MKLDNN_ARG_DIFF_BIAS);
         cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
     }
-
 }
 
 template struct jit_uni_dw_convolution_bwd_weights_t<avx512_core,
@@ -579,6 +578,6 @@ template struct jit_uni_dw_convolution_bwd_weights_t<avx512_common,
         data_type::f32>;
 template struct jit_uni_dw_convolution_bwd_weights_t<avx2, data_type::f32>;
 template struct jit_uni_dw_convolution_bwd_weights_t<sse41, data_type::f32>;
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

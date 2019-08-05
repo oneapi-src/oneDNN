@@ -26,13 +26,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using math::saturate;
 using math::get_bias;
+using math::saturate;
 
-template <data_type_t src_type, data_type_t wei_type,
-         data_type_t dst_type, data_type_t acc_type>
-void ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::
-execute_forward(const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        data_type_t acc_type>
+void ref_convolution_fwd_t<src_type, wei_type, dst_type,
+        acc_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
@@ -77,8 +77,7 @@ execute_forward(const exec_ctx_t &ctx) const {
 
     const int ndims = pd()->desc()->src_desc.ndims;
 
-    auto ker = [=](int g, int mb, int oc, int od, int oh,
-            int ow) {
+    auto ker = [=](int g, int mb, int oc, int od, int oh, int ow) {
         acc_data_t d = 0;
         for_(int ic = 0; ic < IC; ++ic)
         for_(int kd = 0; kd < KD; ++kd)
@@ -93,51 +92,52 @@ execute_forward(const exec_ctx_t &ctx) const {
             if (iw < 0 || iw >= IW) continue;
 
             if (ndims == 5)
-                d += (acc_data_t)src[src_d.off(mb, g*IC + ic, id, ih, iw)]
-                    * (with_groups
-                    ? weights[weights_d.off(g, oc, ic, kd, kh, kw)]
-                    : weights[weights_d.off(oc, ic, kd, kh, kw)]);
+                d += (acc_data_t)src[src_d.off(mb, g * IC + ic, id, ih, iw)]
+                        * (with_groups ? weights[weights_d.off(
+                                   g, oc, ic, kd, kh, kw)]
+                                       : weights[weights_d.off(
+                                               oc, ic, kd, kh, kw)]);
             else if (ndims == 4)
-                d += (acc_data_t)src[src_d.off(mb, g*IC + ic, ih, iw)]
-                    * (with_groups
-                    ? weights[weights_d.off(g, oc, ic, kh, kw)]
-                    : weights[weights_d.off(oc, ic, kh, kw)]);
+                d += (acc_data_t)src[src_d.off(mb, g * IC + ic, ih, iw)]
+                        * (with_groups ? weights[weights_d.off(
+                                   g, oc, ic, kh, kw)]
+                                       : weights[weights_d.off(
+                                               oc, ic, kh, kw)]);
             else if (ndims == 3)
-                d += (acc_data_t)src[src_d.off(mb, g*IC + ic, iw)]
-                    * (with_groups
-                    ? weights[weights_d.off(g, oc, ic, kw)]
-                    : weights[weights_d.off(oc, ic, kw)]);
-           else
-               assert(false);
-
+                d += (acc_data_t)src[src_d.off(mb, g * IC + ic, iw)]
+                        * (with_groups ? weights[weights_d.off(g, oc, ic, kw)]
+                                       : weights[weights_d.off(oc, ic, kw)]);
+            else
+                assert(false);
         }
         return d;
     };
 
     parallel_nd(G, MB, OC, OD, OH, OW,
-        [&](int g, int mb, int oc, int od, int oh, int ow) {
-        float a = bias
-            ? get_bias(bias, bias_d.off(g * OC + oc),
-                    pd()->desc()->bias_desc.data_type)
-            : 0;
-        a += ker(g, mb, oc, od, oh, ow);
-        if (with_relu && a < 0)
-            a = a * nslope;
-        if (ndims == 5)
-            dst[dst_d.off(mb, g*OC + oc, od, oh, ow)] = saturate<dst_data_t>(a);
-        else if (ndims == 4)
-            dst[dst_d.off(mb, g*OC + oc, oh, ow)] = saturate<dst_data_t>(a);
-        else if (ndims == 3)
-            dst[dst_d.off(mb, g*OC + oc, ow)] = saturate<dst_data_t>(a);
-        else
-            assert(false);
-   });
+            [&](int g, int mb, int oc, int od, int oh, int ow) {
+                float a = bias ? get_bias(bias, bias_d.off(g * OC + oc),
+                                  pd()->desc()->bias_desc.data_type)
+                               : 0;
+                a += ker(g, mb, oc, od, oh, ow);
+                if (with_relu && a < 0) a = a * nslope;
+                if (ndims == 5)
+                    dst[dst_d.off(mb, g * OC + oc, od, oh, ow)]
+                            = saturate<dst_data_t>(a);
+                else if (ndims == 4)
+                    dst[dst_d.off(mb, g * OC + oc, oh, ow)]
+                            = saturate<dst_data_t>(a);
+                else if (ndims == 3)
+                    dst[dst_d.off(mb, g * OC + oc, ow)]
+                            = saturate<dst_data_t>(a);
+                else
+                    assert(false);
+            });
 }
 
 template <data_type_t diff_src_type, data_type_t wei_type,
-         data_type_t diff_dst_type, data_type_t acc_type>
+        data_type_t diff_dst_type, data_type_t acc_type>
 void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
-     acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+        acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
@@ -179,22 +179,19 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     const int ndims = pd()->desc()->diff_src_desc.ndims;
 
-    auto ker = [=](int g, int mb, int ic, int id, int ih,
-            int iw) {
+    auto ker = [=](int g, int mb, int ic, int id, int ih, int iw) {
         acc_data_t d = 0;
         for_(int oc = 0; oc < OC; ++oc)
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
-            if (iw + padL < kw * (1 + KDW)
-                || ih + padT < kh * (1 + KDH)
-                || id + padFront < kd * (1 + KDD))
+            if (iw + padL < kw * (1 + KDW) || ih + padT < kh * (1 + KDH)
+                    || id + padFront < kd * (1 + KDD))
                 continue;
             int ow = iw - kw * (1 + KDW) + padL;
             int oh = ih - kh * (1 + KDH) + padT;
             int od = id - kd * (1 + KDD) + padFront;
-            if (ow % KSW != 0 || oh % KSH != 0 || od % KSD != 0)
-                continue;
+            if (ow % KSW != 0 || oh % KSH != 0 || od % KSD != 0) continue;
 
             ow /= KSW;
             oh /= KSH;
@@ -202,20 +199,26 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
             if (od < OD && oh < OH && ow < OW) {
                 if (ndims == 5)
-                    d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC
-                        + oc, od, oh, ow)] * (with_groups
-                        ? weights[weights_d.off(g, oc, ic, kd, kh, kw)]
-                        : weights[weights_d.off(oc, ic, kd, kh, kw)]);
+                    d += (acc_data_t)diff_dst[diff_dst_d.off(
+                                 mb, g * OC + oc, od, oh, ow)]
+                            * (with_groups ? weights[weights_d.off(
+                                       g, oc, ic, kd, kh, kw)]
+                                           : weights[weights_d.off(
+                                                   oc, ic, kd, kh, kw)]);
                 else if (ndims == 4)
-                    d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC
-                        + oc, oh, ow)] * (with_groups
-                        ? weights[weights_d.off(g, oc, ic, kh, kw)]
-                        : weights[weights_d.off(oc, ic, kh, kw)]);
+                    d += (acc_data_t)diff_dst[diff_dst_d.off(
+                                 mb, g * OC + oc, oh, ow)]
+                            * (with_groups ? weights[weights_d.off(
+                                       g, oc, ic, kh, kw)]
+                                           : weights[weights_d.off(
+                                                   oc, ic, kh, kw)]);
                 else if (ndims == 3)
-                    d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC
-                        + oc, ow)] * (with_groups
-                        ? weights[weights_d.off(g, oc, ic, kw)]
-                        : weights[weights_d.off(oc, ic, kw)]);
+                    d += (acc_data_t)diff_dst[diff_dst_d.off(
+                                 mb, g * OC + oc, ow)]
+                            * (with_groups ? weights[weights_d.off(
+                                       g, oc, ic, kw)]
+                                           : weights[weights_d.off(
+                                                   oc, ic, kw)]);
                 else
                     assert(false);
             }
@@ -224,25 +227,23 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     };
 
     parallel_nd(G, MB, IC, ID, IH, IW,
-        [&](int g, int mb, int ic, int id, int ih, int iw) {
-        auto ds_idx = (ndims == 5)
-            ? diff_src_d.off(mb, g*IC + ic, id, ih, iw)
-            : (ndims == 4)
-            ? diff_src_d.off(mb, g*IC + ic, ih, iw)
-            : diff_src_d.off(mb, g*IC + ic, iw);
-        float a = bias
-            ? get_bias(bias, bias_d.off(g * IC + ic),
-                    pd()->desc()->bias_desc.data_type)
-            : 0;
-        a += ker(g, mb, ic, id, ih, iw);
-        diff_src[ds_idx] = saturate<diff_src_data_t>(a);
-    });
+            [&](int g, int mb, int ic, int id, int ih, int iw) {
+                auto ds_idx = (ndims == 5)
+                        ? diff_src_d.off(mb, g * IC + ic, id, ih, iw)
+                        : (ndims == 4) ? diff_src_d.off(mb, g * IC + ic, ih, iw)
+                                       : diff_src_d.off(mb, g * IC + ic, iw);
+                float a = bias ? get_bias(bias, bias_d.off(g * IC + ic),
+                                  pd()->desc()->bias_desc.data_type)
+                               : 0;
+                a += ker(g, mb, ic, id, ih, iw);
+                diff_src[ds_idx] = saturate<diff_src_data_t>(a);
+            });
 }
 
 template <data_type_t src_type, data_type_t diff_wei_type,
-         data_type_t diff_dst_type, data_type_t acc_type>
+        data_type_t diff_dst_type, data_type_t acc_type>
 void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
-     acc_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
+        acc_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
@@ -284,31 +285,34 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
 
     const int ndims = pd()->desc()->src_desc.ndims;
 
-auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
+    auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh,
+                       int kw) {
         for_(int mb = 0; mb < MB; ++mb)
         for_(int od = 0; od < OD; ++od)
         for_(int oh = 0; oh < OH; ++oh)
         for (int ow = 0; ow < OW; ++ow) {
-            if (ow*KSW + kw * (1 + KDW) < padL
-                || oh*KSH + kh * (1 + KDH) < padT
-                || od*KSD + kd * (1 + KDD) < padFront
-                || ow*KSW + kw * (1 + KDW) >= IW + padL
-                || oh*KSH + kh * (1 + KDH) >= IH + padT
-                || od*KSD + kd * (1 + KDD) >= ID + padFront)
+            if (ow * KSW + kw * (1 + KDW) < padL
+                    || oh * KSH + kh * (1 + KDH) < padT
+                    || od * KSD + kd * (1 + KDD) < padFront
+                    || ow * KSW + kw * (1 + KDW) >= IW + padL
+                    || oh * KSH + kh * (1 + KDH) >= IH + padT
+                    || od * KSD + kd * (1 + KDD) >= ID + padFront)
                 continue;
 
-            int id = od*KSD - padFront + kd * (1 + KDD);
-            int ih = oh*KSH - padT + kh * (1 + KDH);
-            int iw = ow*KSW - padL + kw * (1 + KDW);
+            int id = od * KSD - padFront + kd * (1 + KDD);
+            int ih = oh * KSH - padT + kh * (1 + KDH);
+            int iw = ow * KSW - padL + kw * (1 + KDW);
             if (ndims == 5)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, od,
-                    oh, ow)] * src[src_d.off(mb, g*IC + ic, id, ih, iw)];
+                d += (acc_data_t)diff_dst[diff_dst_d.off(
+                             mb, g * OC + oc, od, oh, ow)]
+                        * src[src_d.off(mb, g * IC + ic, id, ih, iw)];
             else if (ndims == 4)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, oh, ow)]
-                    * src[src_d.off(mb, g*IC + ic, ih, iw)];
+                d += (acc_data_t)diff_dst[diff_dst_d.off(
+                             mb, g * OC + oc, oh, ow)]
+                        * src[src_d.off(mb, g * IC + ic, ih, iw)];
             else if (ndims == 3)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, ow)]
-                    * src[src_d.off(mb, g*IC + ic, iw)];
+                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g * OC + oc, ow)]
+                        * src[src_d.off(mb, g * IC + ic, iw)];
             else
                 assert(false);
         }
@@ -320,13 +324,13 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
         for_(int oh = 0; oh < OH; ++oh)
         for (int ow = 0; ow < OW; ++ow) {
             if (ndims == 5)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, od, oh,
-                     ow)];
+                d += (acc_data_t)
+                        diff_dst[diff_dst_d.off(mb, g * OC + oc, od, oh, ow)];
             else if (ndims == 4)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, oh,
-                     ow)];
+                d += (acc_data_t)
+                        diff_dst[diff_dst_d.off(mb, g * OC + oc, oh, ow)];
             else if (ndims == 3)
-                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g*OC + oc, ow)];
+                d += (acc_data_t)diff_dst[diff_dst_d.off(mb, g * OC + oc, ow)];
             else
                 assert(false);
         }
@@ -337,8 +341,8 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
             // XXX: loss of precision when bias is a float...
             acc_data_t db = 0;
             ker_bias(db, g, oc);
-            diff_bias[diff_bias_d.off(g*OC+oc)]
-                = saturate<diff_wei_data_t>(db);
+            diff_bias[diff_bias_d.off(g * OC + oc)]
+                    = saturate<diff_wei_data_t>(db);
         }
 
         for_(int ic = 0; ic < IC; ++ic)
@@ -350,21 +354,19 @@ auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh, int kw) {
 
             if (ndims == 5) {
                 auto idx = with_groups
-                    ? diff_weights_d.off(g, oc, ic, kd, kh, kw)
-                    : diff_weights_d.off(oc, ic, kd, kh, kw);
-                    diff_weights[idx] = saturate<diff_wei_data_t>(dw);
+                        ? diff_weights_d.off(g, oc, ic, kd, kh, kw)
+                        : diff_weights_d.off(oc, ic, kd, kh, kw);
+                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
             } else if (ndims == 4) {
-                auto idx = with_groups
-                    ? diff_weights_d.off(g, oc, ic, kh, kw)
-                    : diff_weights_d.off(oc, ic, kh, kw);
-                    diff_weights[idx] = saturate<diff_wei_data_t>(dw);
+                auto idx = with_groups ? diff_weights_d.off(g, oc, ic, kh, kw)
+                                       : diff_weights_d.off(oc, ic, kh, kw);
+                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
             } else if (ndims == 3) {
-                auto idx = with_groups
-                    ? diff_weights_d.off(g, oc, ic, kw)
-                    : diff_weights_d.off(oc, ic, kw);
-                    diff_weights[idx] = saturate<diff_wei_data_t>(dw);
+                auto idx = with_groups ? diff_weights_d.off(g, oc, ic, kw)
+                                       : diff_weights_d.off(oc, ic, kw);
+                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
             } else {
-                 assert(false);
+                assert(false);
             }
         }
     });
@@ -388,8 +390,8 @@ template struct ref_convolution_bwd_data_t<u8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_weights_t<f32, f32, f32, f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -43,23 +43,17 @@ struct simple_sum_t : public primitive_t {
         status_t init() {
             const int n = n_inputs();
 
-            bool ok = true
-                    && ocl_sum_pd_t::init() == status::success
+            bool ok = true && ocl_sum_pd_t::init() == status::success
                     && n <= max_num_arrs;
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             const memory_desc_wrapper o_d(dst_md());
-            ok = ok
-                    && o_d.data_type() == data_type
-                    && o_d.is_dense();
-            if (!ok)
-                return status::unimplemented;
+            ok = ok && o_d.data_type() == data_type && o_d.is_dense();
+            if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                if (i_d != o_d)
-                    return status::unimplemented;
+                if (i_d != o_d) return status::unimplemented;
             }
 
             return jit_simple_sum_kernel::init_conf(jss_, src_md(0));
@@ -80,8 +74,7 @@ struct simple_sum_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &kernel_, "simple_sum_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }

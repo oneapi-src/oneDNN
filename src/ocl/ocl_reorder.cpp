@@ -30,11 +30,9 @@ namespace {
 
 using namespace mkldnn::impl::data_type;
 
-static const rpd_create_f ocl_ce_reorder_impl_list[] = {
-    cross_engine_reorder_t::pd_t::create,
-    simple_reorder_t::pd_t::create,
-    nullptr
-};
+static const rpd_create_f ocl_ce_reorder_impl_list[]
+        = {cross_engine_reorder_t::pd_t::create, simple_reorder_t::pd_t::create,
+                nullptr};
 } // namespace
 
 const rpd_create_f *

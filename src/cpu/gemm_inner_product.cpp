@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
 
 #include "gemm_inner_product.hpp"
 
@@ -114,7 +114,7 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
         const int OC_blocks = OC / blksize;
         const int rem_OC = OC % blksize;
         parallel(0, [&](const int ithr, const int nthr) {
-            int oc_st{0}, oc_e{0};
+            int oc_st {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
             oc_st = oc_st * blksize;
             oc_e = oc_e * blksize;
@@ -131,7 +131,7 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
                 }
             }
 
-            if (rem_OC != 0 && ithr == nthr-1) {
+            if (rem_OC != 0 && ithr == nthr - 1) {
                 for (int oc = OC_blocks * blksize; oc < OC; oc++)
                     diff_bias[oc] = diff_dst[oc];
                 for (int mb = 1; mb < MB; ++mb) {
@@ -148,8 +148,8 @@ template struct gemm_inner_product_fwd_t<data_type::f32>;
 template struct gemm_inner_product_bwd_data_t<data_type::f32>;
 template struct gemm_inner_product_bwd_weights_t<data_type::f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -44,12 +44,14 @@
  *   in natural order: i.e. from bottom to top for forward pass and from top to
  *   bottom for backward pass. Please consider restriction [1] in Level 0.
  */
-struct mkldnn_primitive: public mkldnn::impl::c_compatible {
+struct mkldnn_primitive : public mkldnn::impl::c_compatible {
     mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd)
         : pd_(pd->clone()) {}
     virtual ~mkldnn_primitive() { delete pd_; }
 
-    virtual mkldnn::impl::status_t init() { return mkldnn::impl::status::success; }
+    virtual mkldnn::impl::status_t init() {
+        return mkldnn::impl::status::success;
+    }
 
     /** returns primitive's engine */
     mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
@@ -59,8 +61,8 @@ struct mkldnn_primitive: public mkldnn::impl::c_compatible {
     mkldnn::impl::primitive_kind_t kind() const { return pd_->kind(); }
 
     /** executes primitive with execution context @p ctx */
-    virtual mkldnn::impl::status_t execute(const mkldnn::impl::exec_ctx_t &ctx)
-        const = 0;
+    virtual mkldnn::impl::status_t execute(
+            const mkldnn::impl::exec_ctx_t &ctx) const = 0;
 
 protected:
     const mkldnn::impl::primitive_desc_t *pd_;

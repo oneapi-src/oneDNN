@@ -40,15 +40,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_primitive_t: public primitive_t {
-    cpu_primitive_t(const primitive_desc_t *pd,
-            bool use_global_scratchpad = false)
+struct cpu_primitive_t : public primitive_t {
+    cpu_primitive_t(
+            const primitive_desc_t *pd, bool use_global_scratchpad = false)
         : primitive_t(pd)
         , scratchpad_buffer_(nullptr)
-        , global_scratchpad_(nullptr)
-    {
-        const size_t scratchpad_size =
-            this->pd()->scratchpad_size(scratchpad_mode::library);
+        , global_scratchpad_(nullptr) {
+        const size_t scratchpad_size
+                = this->pd()->scratchpad_size(scratchpad_mode::library);
 
         if (scratchpad_size) {
             if (use_global_scratchpad)
@@ -69,8 +68,8 @@ protected:
         if (pd()->attr()->scratchpad_mode_ == scratchpad_mode::user) {
             ptr = CTX_OUT_MEM(void *, MKLDNN_ARG_SCRATCHPAD);
         } else {
-            ptr = global_scratchpad_
-                ? global_scratchpad_->get() : scratchpad_buffer_;
+            ptr = global_scratchpad_ ? global_scratchpad_->get()
+                                     : scratchpad_buffer_;
         }
 
         return pd()->scratchpad_registry().grantor(ptr);
@@ -81,9 +80,9 @@ private:
     scratchpad_t *global_scratchpad_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

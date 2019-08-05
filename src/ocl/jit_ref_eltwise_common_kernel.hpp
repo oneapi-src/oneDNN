@@ -28,9 +28,9 @@ namespace ocl {
 
 struct jit_ref_eltwise_common_kernel {
 
-    jit_ref_eltwise_common_kernel(jit_eltwise_conf_t ajel) : jel(ajel){}
+    jit_ref_eltwise_common_kernel(jit_eltwise_conf_t ajel) : jel(ajel) {}
 
-    ~jit_ref_eltwise_common_kernel(){}
+    ~jit_ref_eltwise_common_kernel() {}
 
     static status_t init_conf(jit_eltwise_conf_t &jel,
             const memory_desc_wrapper &data_d,
@@ -56,7 +56,7 @@ struct jit_ref_eltwise_common_kernel {
     }
 
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_eltwise_conf_t &jel, const jit_offsets &jit_off) {
+            const jit_eltwise_conf_t &jel, const jit_offsets &jit_off) {
 
         kernel_ctx.set_data_type(jel.data_type);
         kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);

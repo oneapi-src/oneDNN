@@ -45,7 +45,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             : ocl_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T("ocl:gen9:blocked", jit_gen9_common_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(
+                "ocl:gen9:blocked", jit_gen9_common_convolution_fwd_t);
 
         status_t init() {
             using namespace prop_kind;
@@ -57,27 +58,28 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             auto src_data_t = this->desc()->src_desc.data_type;
 
             bool ok = true
-                && utils::one_of(this->desc()->prop_kind, forward_training,
-                           forward_inference)
-                && this->desc()->alg_kind == alg_kind::convolution_direct
-                && utils::one_of(true,
-                    expect_data_types(f32, f32, f32, f32, f32),
-                    expect_data_types(f16, f16, f16, f16, f16))
-                && compute_engine->mayiuse(
-                    compute::device_ext_t::intel_subgroups)
-                && IMPLICATION(src_data_t == f16, true
-                    && compute_engine->mayiuse(compute::device_ext_t:: khr_fp16)
+                    && utils::one_of(this->desc()->prop_kind, forward_training,
+                            forward_inference)
+                    && this->desc()->alg_kind == alg_kind::convolution_direct
+                    && utils::one_of(true,
+                            expect_data_types(f32, f32, f32, f32, f32),
+                            expect_data_types(f16, f16, f16, f16, f16))
                     && compute_engine->mayiuse(
-                        compute::device_ext_t::intel_subgroups_short))
-                && !has_zero_dim_memory();
-            if (!ok)
-                return status::unimplemented;
+                            compute::device_ext_t::intel_subgroups)
+                    && IMPLICATION(src_data_t == f16,
+                            true
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short))
+                    && !has_zero_dim_memory();
+            if (!ok) return status::unimplemented;
 
             status_t status = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_,
                     *this->desc(), *this->src_md(), *this->weights_md(),
                     *this->dst_md(), *this->weights_md(1), *this->attr());
-            if (status != status::success)
-                return status;
+            if (status != status::success) return status;
 
             ok = set_default_formats_common(
                     jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
@@ -103,12 +105,10 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_fwd_kernel::init_const_def(
                 kernel_ctx, pd()->jcp_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -148,28 +148,31 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = true && this->desc()->prop_kind == backward_data
-                && this->desc()->alg_kind == alg_kind::convolution_direct
-                && utils::one_of(true,
-                    expect_data_types(f32, f32, data_type::undef, f32, f32),
-                    expect_data_types(f16, f16, data_type::undef, f16, f16))
-                && (IMPLICATION(this->with_bias() &&
-                                this->desc()->diff_dst_desc.data_type != f16,
+                    && this->desc()->alg_kind == alg_kind::convolution_direct
+                    && utils::one_of(true,
+                            expect_data_types(
+                                    f32, f32, data_type::undef, f32, f32),
+                            expect_data_types(
+                                    f16, f16, data_type::undef, f16, f16))
+                    && (IMPLICATION(this->with_bias()
+                                        && this->desc()->diff_dst_desc.data_type
+                                                != f16,
                                 this->desc()->bias_desc.data_type == f32)
-                               || IMPLICATION(this->with_bias()
-                                && this->desc()->diff_dst_desc.data_type == f16,
-                                this->desc()->bias_desc.data_type == f16))
-                && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
-                && !has_zero_dim_memory();
-            if (!ok)
-                return status::unimplemented;
+                            || IMPLICATION(this->with_bias()
+                                            && this->desc()->diff_dst_desc
+                                                            .data_type
+                                                    == f16,
+                                    this->desc()->bias_desc.data_type == f16))
+                    && compute_engine->mayiuse(
+                            compute::device_ext_t::intel_subgroups)
+                    && !has_zero_dim_memory();
+            if (!ok) return status::unimplemented;
 
             status_t status = jit_gen9_common_conv_bwd_data_kernel::init_conf(
                     jcp_, *this->desc(), *this->diff_src_md(),
                     *this->weights_md(), *this->diff_dst_md(),
                     *this->weights_md(1), *this->attr());
-            if (status != status::success)
-                return status;
+            if (status != status::success) return status;
 
             ok = set_default_formats_common(
                     jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
@@ -185,13 +188,11 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_bwd_data_kernel::init_const_def(
                 kernel_ctx, pd()->jcp_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(
                 &kernel_, "gen9_common_conv_bwd_data_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -219,7 +220,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : ocl_convolution_bwd_weights_pd_t(
-                      engine, adesc, attr, hint_fwd_pd) {}
+                    engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(
                 "ocl:ncsp:any", jit_gen9_common_convolution_bwd_weights_t);
@@ -235,10 +236,9 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && expect_data_types(f32, f32, f32, f32, f32)
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
+                            compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             status_t status
                     = jit_gen9_common_conv_bwd_weights_kernel::init_conf(jcp_,
@@ -246,8 +246,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
                             *this->diff_weights_md(), *this->diff_weights_md(1),
                             *this->diff_dst_md(), *this->attr());
 
-            if (status != status::success)
-                return status;
+            if (status != status::success) return status;
 
             ok = set_default_formats_common(
                     jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
@@ -263,8 +262,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
         auto status = jit_gen9_common_conv_bwd_weights_kernel::init_const_def(
                 kernel_ctx, pd()->jcp_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         std::vector<const char *> kernel_names(3);
 
@@ -295,16 +293,14 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
             memory_storage_t *wht_work_ptr;
             engine()->create_memory_storage(&wht_work_ptr, size);
             wht_work.reset(wht_work_ptr);
-            if (!wht_work)
-                return status::runtime_error;
+            if (!wht_work) return status::runtime_error;
 
             size = pd()->jcp_.ngroups * pd()->jcp_.nchunk * pd()->jcp_.oc
                     * sizeof(float);
             memory_storage_t *bias_work_ptr;
             engine()->create_memory_storage(&bias_work_ptr, size);
             bias_work.reset(bias_work_ptr);
-            if (!bias_work)
-                return status::runtime_error;
+            if (!bias_work) return status::runtime_error;
         }
         if (pd()->jcp_.ver == ver_8ow16c) {
             size_t size = 2 * 16
@@ -313,8 +309,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
             memory_storage_t *tails_ptr;
             engine()->create_memory_storage(&tails_ptr, size);
             tails.reset(tails_ptr);
-            if (!tails)
-                return status::runtime_error;
+            if (!tails) return status::runtime_error;
         }
 
         return status::success;

@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "primitive_exec_types.hpp"
 #include "memory.hpp"
 #include "primitive.hpp"
-#include "primitive_exec_types.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,18 +35,17 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         auto *mem = c_args[i].memory;
 
         switch (pd->arg_usage(arg)) {
-        case primitive_desc_t::arg_usage_t::input:
-            if (args.count(arg) != 0) return invalid_arguments;
-            args[arg] = {mem, true};
-            n_inputs++;
-            break;
-        case primitive_desc_t::arg_usage_t::output:
-            if (args.count(arg) != 0) return invalid_arguments;
-            args[arg] = {mem, false};
-            n_outputs++;
-            break;
-        case primitive_desc_t::arg_usage_t::unused:
-            break;
+            case primitive_desc_t::arg_usage_t::input:
+                if (args.count(arg) != 0) return invalid_arguments;
+                args[arg] = {mem, true};
+                n_inputs++;
+                break;
+            case primitive_desc_t::arg_usage_t::output:
+                if (args.count(arg) != 0) return invalid_arguments;
+                args[arg] = {mem, false};
+                n_outputs++;
+                break;
+            case primitive_desc_t::arg_usage_t::unused: break;
         }
     }
 
@@ -80,5 +79,5 @@ memory_t *exec_ctx_t::memory(int arg) const {
     return ma.mem;
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn

@@ -16,8 +16,8 @@
 
 #include "ocl/ocl_types.h"
 
-__kernel void gemm_inner_product_forward_bias(__global DATA_T *bias,
-        __global DATA_T *dst) {
+__kernel void gemm_inner_product_forward_bias(
+        __global DATA_T *bias, __global DATA_T *dst) {
 
     const int mb = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;

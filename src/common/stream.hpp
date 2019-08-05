@@ -23,7 +23,7 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 
-struct mkldnn_stream: public mkldnn::impl::c_compatible {
+struct mkldnn_stream : public mkldnn::impl::c_compatible {
     mkldnn_stream(mkldnn::impl::engine_t *engine, unsigned flags)
         : engine_(engine), flags_(flags) {}
     virtual ~mkldnn_stream() {}

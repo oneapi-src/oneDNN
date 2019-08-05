@@ -21,8 +21,8 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "primitive_desc.hpp"
-#include "type_helpers.hpp"
 #include "primitive_iterator.hpp"
+#include "type_helpers.hpp"
 
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
@@ -63,14 +63,13 @@ status_t mkldnn_primitive_desc_clone(primitive_desc_t **primitive_desc,
         const primitive_desc_t *existing_primitive_desc) {
     if (utils::any_null(primitive_desc, existing_primitive_desc))
         return invalid_arguments;
-    return safe_ptr_assign<primitive_desc_t>(*primitive_desc,
-            existing_primitive_desc->clone());
+    return safe_ptr_assign<primitive_desc_t>(
+            *primitive_desc, existing_primitive_desc->clone());
 }
 
 status_t mkldnn_primitive_desc_iterator_destroy(
         primitive_desc_iterator_t *iterator) {
-    if (iterator != nullptr)
-        delete iterator;
+    if (iterator != nullptr) delete iterator;
     return success;
 }
 

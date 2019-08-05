@@ -34,8 +34,8 @@ using namespace rnn_utils;
 
 template <typename T1, typename T2, typename acc_data_t, typename src_data_t>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, const float *scales,
-        const float *cscale, const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
-        src_data_t *states_t_l_, float *c_states_t_l_,
+        const float *cscale, const rnn_utils::rnn_conf_t &rnn,
+        acc_data_t *ws_gates_, src_data_t *states_t_l_, float *c_states_t_l_,
         src_data_t *states_tm1_l_, float *c_states_tm1_l_, float *bias_) {
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
@@ -68,9 +68,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
     const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto logistic_f
-            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
-    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_fwd_postgemm_template(logistic_f, tanh_f, scales, cscale, rnn,
                 ws_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
@@ -84,8 +86,9 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
 template <typename T1, typename T2, typename T3, typename T4,
         typename acc_data_t, typename src_data_t>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 q_d, T4 deq_w,
-        const float *scales, const float *cscale, const rnn_utils::rnn_conf_t &rnn,
-        acc_data_t *ws_gates_, src_data_t *states_t_l_, float *c_states_t_l_,
+        const float *scales, const float *cscale,
+        const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
+        src_data_t *states_t_l_, float *c_states_t_l_,
         src_data_t *states_tm1_l_, float *c_states_tm1_l_, float *bias_) {
     ws_gates_aoc_s32_t ws_gates_s32(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
@@ -133,14 +136,16 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
                 ? saturate<float>(s) * (1.f / (weights_scales[0] * data_scale))
                 : saturate<float>(s)
                         * (1.f
-                                  / (weights_scales[gate * rnn.dic + j]
-                                            * data_scale));
+                                / (weights_scales[gate * rnn.dic + j]
+                                        * data_scale));
     };
 
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto logistic_f
-            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
-    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_fwd_postgemm_template(logistic_f, tanh_f, q_d, deq_w, scales,
@@ -152,7 +157,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
                 states_tm1_l_, c_states_tm1_l_, bias_);
 }
 
-  template <typename T1, typename acc_data_t>
+template <typename T1, typename acc_data_t>
 void lstm_bwd_postgemm_template(T1 func1, const float *cscale,
         const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_,
         float *c_states_t_l_, float *c_states_tm1_l_, float *diff_states_t_l_,
@@ -199,7 +204,8 @@ template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
     const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_bwd_postgemm_template(tanh_f, cscale, rnn, ws_gates_,

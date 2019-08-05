@@ -20,43 +20,38 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
-#include "memory.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
+#include "memory.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_1x1_conv_kernel_f32: public jit_generator {
+struct jit_avx2_1x1_conv_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_1x1_conv_kernel_f32)
 
-    jit_avx2_1x1_conv_kernel_f32(jit_1x1_conv_conf_t ajcp,
-           const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr)
-    {
+    jit_avx2_1x1_conv_kernel_f32(
+            jit_1x1_conv_conf_t ajcp, const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx2>(this,
-                    jcp.eltwise);
+            eltwise_injector_
+                    = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
 
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
-    ~jit_avx2_1x1_conv_kernel_f32() {
-        delete eltwise_injector_;
-    }
+    ~jit_avx2_1x1_conv_kernel_f32() { delete eltwise_injector_; }
 
-    static bool post_ops_ok(jit_1x1_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_d,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d,
-            const primitive_attr_t &attr);
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_1x1_conv_conf_t &jcp);
@@ -103,8 +98,8 @@ private:
     void generate();
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

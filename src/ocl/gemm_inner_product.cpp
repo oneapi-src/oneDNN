@@ -35,8 +35,7 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
-    if (gemm_exec_status != status::success)
-        return gemm_exec_status;
+    if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
         auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
@@ -46,11 +45,10 @@ status_t gemm_inner_product_fwd_t::execute_forward(
         arg_list.set(0, bias);
         arg_list.set(1, dst);
 
-        auto nd_range = compute::nd_range_t({ pd()->MB() * pd()->OC() });
+        auto nd_range = compute::nd_range_t({pd()->MB() * pd()->OC()});
         status_t bias_status = compute_stream->parallel_for(
                 nd_range, bias_kernel_, arg_list);
-        if (bias_status != status::success)
-            return bias_status;
+        if (bias_status != status::success) return bias_status;
     }
 
     return status::success;
@@ -65,12 +63,10 @@ status_t gemm_inner_product_bwd_data_t::execute_backward_data(
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
-    if (gemm_exec_status != status::success)
-        return gemm_exec_status;
+    if (gemm_exec_status != status::success) return gemm_exec_status;
 
     return status::success;
 }
-
 
 status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
@@ -89,8 +85,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
-    if (gemm_exec_status != status::success)
-        return gemm_exec_status;
+    if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
         auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
@@ -100,16 +95,15 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         arg_list.set(0, diff_dst);
         arg_list.set(1, diff_bias);
 
-        auto nd_range = compute::nd_range_t({ pd()->OC() });
+        auto nd_range = compute::nd_range_t({pd()->OC()});
         status_t bias_status = compute_stream->parallel_for(
                 nd_range, bias_kernel_, arg_list);
-        if (bias_status != status::success)
-            return bias_status;
+        if (bias_status != status::success) return bias_status;
     }
 
     return status::success;
 }
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn

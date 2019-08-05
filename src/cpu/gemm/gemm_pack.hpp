@@ -37,7 +37,7 @@ static inline bool pack_sgemm_supported() {
 #endif
 
 mkldnn_status_t MKLDNN_API sgemm_pack_get_size(const char *identifier,
-        const char *transa, const char *transb,  const int *M, const int *N,
+        const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
 
@@ -67,8 +67,8 @@ mkldnn_status_t MKLDNN_API gemm_s8u8s32_compute(const char *transa,
         const int *ldb, const float *beta, int32_t *C, const int *ldc,
         const int32_t *co);
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif // GEMM_PACK_HPP

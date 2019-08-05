@@ -96,9 +96,8 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
         arg_list.set(0, src);
         arg_list.set(1, *tails);
         status_t status = compute_stream->parallel_for(
-                compute::nd_range_t({ 1 }), load_tails_, arg_list);
-        if (status != status::success)
-            return status;
+                compute::nd_range_t({1}), load_tails_, arg_list);
+        if (status != status::success) return status;
     }
 
     compute::kernel_arg_list_t arg_list;
@@ -112,14 +111,11 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
         arg_list.set(2, diff_bias);
     }
     arg_list.set(3, diff_dst);
-    if (jcp.ver == ver_8ow16c) {
-        arg_list.set(4, *tails);
-    }
+    if (jcp.ver == ver_8ow16c) { arg_list.set(4, *tails); }
 
     status_t status = compute_stream->parallel_for(
             compute::nd_range_t(jcp.gws_d, jcp.lws_d), kernel_, arg_list);
-    if (status != status::success)
-        return status;
+    if (status != status::success) return status;
 
     if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
             || pd()->jcp_.ver == ver_1stconv) {
@@ -131,8 +127,7 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
         status_t status = compute_stream->parallel_for(
                 compute::nd_range_t(2, jcp.gws_d, jcp.lws_d), reduce_kernel_,
                 arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
     }
 
     return status::success;

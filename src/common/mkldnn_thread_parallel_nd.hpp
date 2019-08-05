@@ -43,12 +43,19 @@ void parallel(int nthr, F f) {
     assert(nthr == 1);
     f(0, 1);
 #elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
-    if (nthr == 1) { f(0, 1); return; }
-#   pragma omp parallel num_threads(nthr)
+    if (nthr == 1) {
+        f(0, 1);
+        return;
+    }
+#pragma omp parallel num_threads(nthr)
     f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
 #elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
-    if (nthr == 1) { f(0, 1); return; }
-    tbb::parallel_for(0, nthr, [&](int ithr) { f(ithr, nthr); },
+    if (nthr == 1) {
+        f(0, 1);
+        return;
+    }
+    tbb::parallel_for(
+            0, nthr, [&](int ithr) { f(ithr, nthr); },
             mkldnn_tbb_partitioner());
 #endif
 }
@@ -57,19 +64,21 @@ void parallel(int nthr, F f) {
 
 template <typename T0, typename F>
 void for_nd(const int ithr, const int nthr, const T0 &D0, F f) {
-    T0 start{0}, end{0};
+    T0 start {0}, end {0};
     balance211(D0, nthr, ithr, start, end);
-    for (T0 d0 = start; d0 < end; ++d0) f(d0);
+    for (T0 d0 = start; d0 < end; ++d0)
+        f(d0);
 }
 
 template <typename T0, typename T1, typename F>
 void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1, F f) {
     const size_t work_amount = (size_t)D0 * D1;
     if (work_amount == 0) return;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(work_amount, nthr, ithr, start, end);
 
-    T0 d0{0}; T1 d1{0};
+    T0 d0 {0};
+    T1 d1 {0};
     utils::nd_iterator_init(start, d0, D0, d1, D1);
     for (size_t iwork = start; iwork < end; ++iwork) {
         f(d0, d1);
@@ -82,10 +91,12 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
         const T2 &D2, F f) {
     const size_t work_amount = (size_t)D0 * D1 * D2;
     if (work_amount == 0) return;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(work_amount, nthr, ithr, start, end);
 
-    T0 d0{0}; T1 d1{0}; T2 d2{0};
+    T0 d0 {0};
+    T1 d1 {0};
+    T2 d2 {0};
     utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2);
     for (size_t iwork = start; iwork < end; ++iwork) {
         f(d0, d1, d2);
@@ -98,10 +109,13 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
         const T2 &D2, const T3 &D3, F f) {
     const size_t work_amount = (size_t)D0 * D1 * D2 * D3;
     if (work_amount == 0) return;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(work_amount, nthr, ithr, start, end);
 
-    T0 d0{0}; T1 d1{0}; T2 d2{0}; T3 d3{0};
+    T0 d0 {0};
+    T1 d1 {0};
+    T2 d2 {0};
+    T3 d3 {0};
     utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3);
     for (size_t iwork = start; iwork < end; ++iwork) {
         f(d0, d1, d2, d3);
@@ -110,15 +124,19 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
-         typename F>
+        typename F>
 void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
         const T2 &D2, const T3 &D3, const T4 &D4, F f) {
     const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4;
     if (work_amount == 0) return;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(work_amount, nthr, ithr, start, end);
 
-    T0 d0{0}; T1 d1{0}; T2 d2{0}; T3 d3{0}; T4 d4{0};
+    T0 d0 {0};
+    T1 d1 {0};
+    T2 d2 {0};
+    T3 d3 {0};
+    T4 d4 {0};
     utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4);
     for (size_t iwork = start; iwork < end; ++iwork) {
         f(d0, d1, d2, d3, d4);
@@ -127,17 +145,22 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
-         typename T5, typename F>
+        typename T5, typename F>
 void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
         const T2 &D2, const T3 &D3, const T4 &D4, const T5 &D5, F f) {
     const size_t work_amount = (size_t)D0 * D1 * D2 * D3 * D4 * D5;
     if (work_amount == 0) return;
-    size_t start{0}, end{0};
+    size_t start {0}, end {0};
     balance211(work_amount, nthr, ithr, start, end);
 
-    T0 d0{0}; T1 d1{0}; T2 d2{0}; T3 d3{0}; T4 d4{0}; T5 d5{0};
-    utils::nd_iterator_init(start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4,
-            d5, D5);
+    T0 d0 {0};
+    T1 d1 {0};
+    T2 d2 {0};
+    T3 d3 {0};
+    T4 d4 {0};
+    T5 d5 {0};
+    utils::nd_iterator_init(
+            start, d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
     for (size_t iwork = start; iwork < end; ++iwork) {
         f(d0, d1, d2, d3, d4, d5);
         utils::nd_iterator_step(d0, D0, d1, D1, d2, D2, d3, D3, d4, D4, d5, D5);
@@ -146,21 +169,24 @@ void for_nd(const int ithr, const int nthr, const T0 &D0, const T1 &D1,
 
 // Skip a lambda function in the parameter pack.
 template <typename T>
-constexpr size_t get_work_amount(const T &v) { return 1; }
-template <typename T, typename ...Args>
-constexpr size_t get_work_amount(const T &v, Args &&...args)
-{ return (size_t)v * get_work_amount(utils::forward<Args>(args)...); }
+constexpr size_t get_work_amount(const T &v) {
+    return 1;
+}
+template <typename T, typename... Args>
+constexpr size_t get_work_amount(const T &v, Args &&... args) {
+    return (size_t)v * get_work_amount(utils::forward<Args>(args)...);
+}
 
 /* parallel_nd and parallel_nd_in_omp section */
 
 #if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_TBB
-template <typename ...Args>
-void parallel_nd(Args &&...args) {
+template <typename... Args>
+void parallel_nd(Args &&... args) {
 #if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
 #elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
     const bool do_parallel = get_work_amount(utils::forward<Args>(args)...) > 1;
-#   pragma omp parallel if (do_parallel)
+#pragma omp parallel if (do_parallel)
     {
         const int nthr = !do_parallel ? 1 : mkldnn_get_num_threads();
         const int ithr = !do_parallel ? 0 : mkldnn_get_thread_num();
@@ -176,58 +202,60 @@ void parallel_nd(Args &&...args) {
 template <typename T0, typename F>
 void parallel_nd(const T0 &D0, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, f); },
+            mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, D1, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, f); },
+            mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, D1, D2, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, f); },
+            mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, D1, D2, D3, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, f); },
+            mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
-         typename F>
+        typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
         const T4 &D4, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, D1, D2, D3, D4, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr,
+            [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, D4, f); },
+            mkldnn_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
-         typename T5, typename F>
+        typename T5, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
         const T4 &D4, const T5 &D5, F f) {
     const int nthr = mkldnn_get_max_threads();
-    tbb::parallel_for(0, nthr, [&](int ithr) {
-        for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f);
-    }, mkldnn_tbb_partitioner());
+    tbb::parallel_for(
+            0, nthr,
+            [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f); },
+            mkldnn_tbb_partitioner());
 }
 #endif
 
-template <typename ...Args>
-void parallel_nd_in_omp(Args &&...args) {
+template <typename... Args>
+void parallel_nd_in_omp(Args &&... args) {
 #if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
 #elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP

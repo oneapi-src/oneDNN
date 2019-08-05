@@ -24,7 +24,7 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::rnn_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    auto nd_range = compute::nd_range_t({ batch, dic });
+    auto nd_range = compute::nd_range_t({batch, dic});
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
             : elemwise_bwd_kernel_;
@@ -40,12 +40,12 @@ template elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
 
-
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::lstm_elemwise)) {
+elemwise_sig(
+        (_ref_rnn_common_t<aprop, src_type, weights_type>::lstm_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    auto nd_range = compute::nd_range_t({ batch, dic });
+    auto nd_range = compute::nd_range_t({batch, dic});
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
             : elemwise_bwd_kernel_;
@@ -62,14 +62,14 @@ template elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gru_lbr_elemwise))
-{
+elemwise_sig(
+        (_ref_rnn_common_t<aprop, src_type, weights_type>::gru_lbr_elemwise)) {
     assert(!"unimplemented");
 }
 template elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn

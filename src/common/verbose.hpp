@@ -17,11 +17,11 @@
 #ifndef VERBOSE_HPP
 #define VERBOSE_HPP
 
-#include <stdio.h>
 #include <cinttypes>
+#include <stdio.h>
 
-#include "mkldnn_debug.h"
 #include "c_types_map.hpp"
+#include "mkldnn_debug.h"
 #include "utils.hpp"
 #include "z_magic.hpp"
 
@@ -58,7 +58,7 @@ void init_info(shuffle_pd_t *s, char *buffer);
 void init_info(softmax_pd_t *s, char *buffer);
 void init_info(sum_pd_t *s, char *buffer);
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif

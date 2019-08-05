@@ -56,32 +56,31 @@ struct ref_pooling_fwd_t : public primitive_t {
 
             bool ok = true && set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
-                               forward_inference)
+                            forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
-                               pooling_avg_include_padding,
-                               pooling_avg_exclude_padding)
-                    && (utils::everyone_is(f32, src_data_t, dst_data_t,
-                            acc_data_t)
-                        || utils::everyone_is(f16, src_data_t, dst_data_t,
-                            acc_data_t)
-                        || utils::everyone_is(u8, src_data_t, dst_data_t)
-                        || utils::everyone_is(s8, src_data_t, dst_data_t))
+                            pooling_avg_include_padding,
+                            pooling_avg_exclude_padding)
+                    && (utils::everyone_is(
+                                f32, src_data_t, dst_data_t, acc_data_t)
+                            || utils::everyone_is(
+                                    f16, src_data_t, dst_data_t, acc_data_t)
+                            || utils::everyone_is(u8, src_data_t, dst_data_t)
+                            || utils::everyone_is(s8, src_data_t, dst_data_t))
                     && IMPLICATION(src_data_t == f16,
-                               desc()->prop_kind == forward_inference)
+                            desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t == u8 || src_data_t == s8,
-                        desc()->accum_data_type == s32)
+                            desc()->accum_data_type == s32)
                     && attr()->has_default_values()
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_data_t == f16, true
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          khr_fp16)
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          intel_subgroups_short));
-            if (!ok)
-                return status::unimplemented;
+                            compute::device_ext_t::intel_subgroups)
+                    && IMPLICATION(src_data_t == f16,
+                            true
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short));
+            if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training)
@@ -104,8 +103,7 @@ struct ref_pooling_fwd_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &kernel_, "ref_pooling_fwd_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -147,20 +145,18 @@ struct ref_pooling_bwd_t : public primitive_t {
             bool ok = true && set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
                     && utils::one_of(desc()->alg_kind, pooling_max,
-                               pooling_avg_include_padding,
-                               pooling_avg_exclude_padding)
+                            pooling_avg_include_padding,
+                            pooling_avg_exclude_padding)
                     && utils::everyone_is(data_type::f32,
-                        diff_dst_md()->data_type, diff_src_md()->data_type)
+                            diff_dst_md()->data_type, diff_src_md()->data_type)
                     && attr()->has_default_values()
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups);
-            if (!ok)
-                return status::unimplemented;
+                            compute::device_ext_t::intel_subgroups);
+            if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws(data_type::s32);
-                if (!compare_ws(hint_fwd_pd_))
-                    return status::unimplemented;
+                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
             return jit_ref_pooling_fwd_kernel::init_conf(
@@ -180,8 +176,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &kernel_, "ref_pooling_bwd_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }

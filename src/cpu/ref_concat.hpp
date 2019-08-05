@@ -27,11 +27,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct ref_concat_t: public cpu_primitive_t {
-    struct pd_t: public cpu_concat_pd_t {
+struct ref_concat_t : public cpu_primitive_t {
+    struct pd_t : public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs): cpu_concat_pd_t(rhs) { clone_reorder_pds(rhs); }
+        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { clone_reorder_pds(rhs); }
 
         ~pd_t() { clear(); }
 
@@ -54,8 +54,9 @@ struct ref_concat_t: public cpu_primitive_t {
                 for (auto r = r_impls; *r; ++r) {
                     const primitive_attr_t attr; /* alpha == 1. */
                     reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i),
-                                engine_, src_image_md(i)) == status::success) {
+                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
+                                src_image_md(i))
+                            == status::success) {
                         r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
@@ -73,19 +74,25 @@ struct ref_concat_t: public cpu_primitive_t {
                         (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
         }
 
-        void clear() { for (auto &rpd: reorder_pds_) delete rpd; }
+        void clear() {
+            for (auto &rpd : reorder_pds_)
+                delete rpd;
+        }
 
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_concat_t(const pd_t *apd): cpu_primitive_t(apd) {
+    ref_concat_t(const pd_t *apd) : cpu_primitive_t(apd) {
         const int n = pd()->n_inputs();
         reorders_.resize(n);
         for (int i = 0; i < n; ++i)
             pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
     }
 
-    ~ref_concat_t() { for (auto &r: reorders_) delete r; }
+    ~ref_concat_t() {
+        for (auto &r : reorders_)
+            delete r;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto n = pd()->n_inputs();
@@ -104,8 +111,8 @@ private:
     nstl::vector<primitive_t *> reorders_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

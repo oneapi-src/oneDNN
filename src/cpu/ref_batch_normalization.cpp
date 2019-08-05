@@ -17,27 +17,27 @@
 #include <assert.h>
 #include <math.h>
 
+#include "bfloat16.hpp"
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
-#include "type_helpers.hpp"
 #include "mkldnn_thread.hpp"
-#include "simple_q10n.hpp"
-#include "bfloat16.hpp"
 #include "ref_batch_normalization.hpp"
+#include "simple_q10n.hpp"
+#include "type_helpers.hpp"
 
-#define DECLARE_DATA_OFFSET                                                 \
+#define DECLARE_DATA_OFFSET \
     auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c, \
-                               int d, int h, int w) {                       \
-        if (has_spatial) {                                                  \
-            if (is_3d)                                                      \
-                return data_d.off(n, c, d, h, w);                           \
-            else if (is_1d)                                                 \
-                return data_d.off(n, c, w);                                 \
-            else                                                            \
-                return data_d.off(n, c, h, w);                              \
-        } else {                                                            \
-            return data_d.off(n, c);                                        \
-        }                                                                   \
+                               int d, int h, int w) { \
+        if (has_spatial) { \
+            if (is_3d) \
+                return data_d.off(n, c, d, h, w); \
+            else if (is_1d) \
+                return data_d.off(n, c, w); \
+            else \
+                return data_d.off(n, c, h, w); \
+        } else { \
+            return data_d.off(n, c); \
+        } \
     }
 
 namespace mkldnn {
@@ -68,18 +68,17 @@ template <impl::data_type_t d_type>
 void ref_batch_normalization_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     /* fast return */
-    if (this->pd()->has_zero_dim_memory())
-        return;
+    if (this->pd()->has_zero_dim_memory()) return;
 
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
 
-    auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(CTX_IN_MEM(
-                                               const float *, MKLDNN_ARG_MEAN))
+    auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
+                        CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN))
                                      : CTX_OUT_MEM(float *, MKLDNN_ARG_MEAN);
     auto variance = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
-                      CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE))
+                    CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE))
             : CTX_OUT_MEM(float *, MKLDNN_ARG_VARIANCE);
 
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
@@ -165,11 +164,9 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
             if (fuse_norm_relu) {
                 if (bn_res <= 0) {
                     bn_res = 0;
-                    if (is_training)
-                        ws[d_off] = 0;
+                    if (is_training) ws[d_off] = 0;
                 } else {
-                    if (is_training)
-                        ws[d_off] = 1;
+                    if (is_training) ws[d_off] = 1;
                 }
             }
             if (d_type == s8)
@@ -301,8 +298,8 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
 template struct ref_batch_normalization_bwd_t<f32>;
 template struct ref_batch_normalization_bwd_t<bf16>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

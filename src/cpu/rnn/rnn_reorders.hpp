@@ -19,13 +19,13 @@
 
 #include <assert.h>
 
-#include "type_helpers.hpp"
-#include "mkldnn_thread.hpp"
-#include "utils.hpp"
-#include "simple_q10n.hpp"
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "gemm/gemm_pack.hpp"
+#include "mkldnn_thread.hpp"
+#include "simple_q10n.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -38,23 +38,25 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T("rnn_data_reorder", rnn_data_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd,
-                engine_t *engine, const primitive_attr_t *attr,
-                engine_t *src_engine, const memory_desc_t *src_md,
-                engine_t *dst_engine, const memory_desc_t *dst_md) {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true
-                    && id.data_type() == type_i
+            bool args_ok = true && id.data_type() == type_i
                     && od.data_type() == type_o
                     && id.matches_one_of_tag(format_tag::tnc, format_tag::ldnc)
                     && od == id;
             if (!args_ok) return invalid_arguments;
 
-            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
-                    dst_md);
+            auto _pd = new pd_t(
+                    engine, attr, src_engine, src_md, dst_engine, dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) { delete _pd; return unimplemented; }
+            if (_pd->init() != success) {
+                delete _pd;
+                return unimplemented;
+            }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };
@@ -63,7 +65,7 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    rnn_data_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    rnn_data_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
@@ -92,19 +94,17 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd,
-                engine_t *engine, const primitive_attr_t *attr,
-                engine_t *src_engine, const memory_desc_t *src_md,
-                engine_t *dst_engine, const memory_desc_t *dst_md) {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true
-                    && id.data_type() == type_i
+            bool args_ok = true && id.data_type() == type_i
                     && od.data_type() == type_o
                     && od.format_kind() == format_kind::rnn_packed
                     && od.rnn_packed_desc().format == mkldnn_ldigo_p
-                    && od.rnn_packed_desc().n_parts == 1
-                    && attr != nullptr;
+                    && od.rnn_packed_desc().n_parts == 1 && attr != nullptr;
             if (!args_ok) return invalid_arguments;
 
             format_tag_t itag = id.matches_one_of_tag(
@@ -114,11 +114,14 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return unimplemented;
 
-            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
-                    dst_md);
+            auto _pd = new pd_t(
+                    engine, attr, src_engine, src_md, dst_engine, dst_md);
             if (_pd == nullptr) return out_of_memory;
             _pd->itag_ = itag;
-            if (_pd->init() != success) { delete _pd; return unimplemented; }
+            if (_pd->init() != success) {
+                delete _pd;
+                return unimplemented;
+            }
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
@@ -156,7 +159,7 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using math::saturate;
@@ -176,10 +179,14 @@ private:
         const bool is_igo = pd()->itag_ == format_tag::ldigo;
 
         /* Quantize input & compute compensation */
-        auto quantized = (int8_t * __restrict)scratchpad(ctx).template get<void>(
-                memory_tracking::names::key_reorder_rnn_weights_quantization);
-        auto reduction = (int32_t * __restrict)scratchpad(ctx).template get<void>(
-                memory_tracking::names::key_reorder_rnn_weights_reduction);
+        auto quantized
+                = (int8_t * __restrict) scratchpad(ctx).template get<void>(
+                        memory_tracking::names::
+                                key_reorder_rnn_weights_quantization);
+        auto reduction
+                = (int32_t * __restrict) scratchpad(ctx).template get<void>(
+                        memory_tracking::names::
+                                key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 output + output_d.rnn_packed_desc().offset_compensation);
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
@@ -273,25 +280,24 @@ private:
 
 template <>
 struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
-        : public cpu_primitive_t {
+    : public cpu_primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd,
-                engine_t *engine, const primitive_attr_t *attr,
-                engine_t *src_engine, const memory_desc_t *src_md,
-                engine_t *dst_engine, const memory_desc_t *dst_md) {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
             using namespace status;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true
-                    && id.data_type() == data_type::f32
+            bool args_ok = true && id.data_type() == data_type::f32
                     && od.data_type() == data_type::f32
                     && od.format_kind() == format_kind::rnn_packed
                     && utils::one_of(od.rnn_packed_desc().format,
-                        mkldnn_ldigo_p, mkldnn_ldgoi_p)
+                            mkldnn_ldigo_p, mkldnn_ldgoi_p)
                     && attr->has_default_values();
             if (!args_ok) return invalid_arguments;
 
@@ -302,10 +308,13 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 3)) return unimplemented;
 
-            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
-                    dst_md);
+            auto _pd = new pd_t(
+                    engine, attr, src_engine, src_md, dst_engine, dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) { delete _pd; return unimplemented; }
+            if (_pd->init() != success) {
+                delete _pd;
+                return unimplemented;
+            }
             _pd->itag_ = itag;
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -333,20 +342,17 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
                     = (itag == format_tag::ldigo
                               && rnn_pdata.format == rnn_packed_format::ldgoi_p)
                     || (itag == format_tag::ldgoi
-                                       && rnn_pdata.format
-                                               == rnn_packed_format::ldigo_p);
-            const size_t sz
-                    = cross_case ? id.nelems() * sizeof(float) : 0;
+                            && rnn_pdata.format == rnn_packed_format::ldigo_p);
+            const size_t sz = cross_case ? id.nelems() * sizeof(float) : 0;
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_reorder_rnn_weights_transposition, sz);
         }
-
     };
 
 private:
-    rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
@@ -380,7 +386,7 @@ private:
             const int N = to_igo ? I : G * O;
             parallel_nd(L * D, N, [&](int ld, int i) {
                 for (int j = 0; j < M; j++) {
-                    input_tr[ld * M * N + i * M  + j]
+                    input_tr[ld * M * N + i * M + j]
                             = input[ld * M * N + j * N + i];
                 }
             });

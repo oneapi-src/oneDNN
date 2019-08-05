@@ -29,8 +29,7 @@ namespace compute {
 class nd_range_t;
 class kernel_arg_list_t;
 
-class compute_stream_t : public stream_t
-{
+class compute_stream_t : public stream_t {
 public:
     using stream_t::stream_t;
 

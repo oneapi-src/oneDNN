@@ -28,8 +28,7 @@ using namespace prop_kind;
 using namespace data_type;
 
 bool rnn_utils::is_ldigo(const memory_desc_wrapper &md) {
-    if (md.format_kind() != format_kind::blocked)
-        return false;
+    if (md.format_kind() != format_kind::blocked) return false;
 
     auto blk = md.blocking_desc();
     auto str = blk.strides;
@@ -40,8 +39,7 @@ bool rnn_utils::is_ldigo(const memory_desc_wrapper &md) {
 };
 
 bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
-    if (md.format_kind() != format_kind::blocked)
-        return false;
+    if (md.format_kind() != format_kind::blocked) return false;
 
     auto blk = md.blocking_desc();
     auto str = blk.strides;
@@ -65,7 +63,8 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &scratchpad_size, size_t &workspace_size) {
     const size_t page_size = 4096; // 2097152;
     size_t current_offset;
-    size_t dt_size = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
+    size_t dt_size
+            = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
 
     // Mandatory workspaces: go to workspace if use_workspace, scratchpad
     // otherwise
@@ -123,18 +122,24 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
     rnn_conf.is_lbr = rd.cell_kind == mkldnn_lbr_gru;
 
     switch (rd.direction) {
-    case mkldnn_unidirectional_left2right: rnn_conf.exec_dir = b2t_l2r; break;
-    case mkldnn_unidirectional_right2left: rnn_conf.exec_dir = b2t_r2l; break;
-    case mkldnn_bidirectional_concat: rnn_conf.exec_dir = b2t_bi_concat; break;
-    case mkldnn_bidirectional_sum: rnn_conf.exec_dir = b2t_bi_sum; break;
-    default: break;
+        case mkldnn_unidirectional_left2right:
+            rnn_conf.exec_dir = b2t_l2r;
+            break;
+        case mkldnn_unidirectional_right2left:
+            rnn_conf.exec_dir = b2t_r2l;
+            break;
+        case mkldnn_bidirectional_concat:
+            rnn_conf.exec_dir = b2t_bi_concat;
+            break;
+        case mkldnn_bidirectional_sum: rnn_conf.exec_dir = b2t_bi_sum; break;
+        default: break;
     }
 
     if (everyone_is(f32, src_layer_d.data_type(), dst_layer_d.data_type(),
                 weights_layer_d.data_type()))
         rnn_conf.dt_conf = all_f32;
     else if (everyone_is(f16, src_layer_d.data_type(), dst_layer_d.data_type(),
-                weights_layer_d.data_type()))
+                     weights_layer_d.data_type()))
         rnn_conf.dt_conf = all_f16;
     else
         assert(!"unsuppoted data type");
@@ -173,9 +178,10 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
     rnn_conf.use_workspace = rnn_conf.is_training;
 
     int sizeof_states_dt
-        = rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
-    rnn_conf.states_ws_ld = get_good_ld(nstl::max(rnn_conf.slc,
-            nstl::max(rnn_conf.sic, rnn_conf.dic)), sizeof_states_dt);
+            = rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
+    rnn_conf.states_ws_ld = get_good_ld(
+            nstl::max(rnn_conf.slc, nstl::max(rnn_conf.sic, rnn_conf.dic)),
+            sizeof_states_dt);
 }
 
 void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
@@ -186,7 +192,8 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
 
     //Set leading dimensions for input weights arrays depending on input format
     auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
-        ld = 0; nld = 0;
+        ld = 0;
+        nld = 0;
         if (md.is_blocking_desc()) {
             if (is_ldigo(md)) {
                 ld = (int)md.blocking_desc().strides[2];
@@ -199,9 +206,9 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
         }
     };
     set_dims(weights_layer_d, rnn_conf.weights_layer_ld,
-        rnn_conf.weights_layer_nld);
+            rnn_conf.weights_layer_nld);
     set_dims(weights_iter_d, rnn_conf.weights_iter_ld,
-        rnn_conf.weights_iter_nld);
+            rnn_conf.weights_iter_nld);
     if (!rnn_conf.is_fwd) {
         set_dims(diff_weights_layer_d, rnn_conf.diff_weights_layer_ld,
                 rnn_conf.diff_weights_layer_nld);
@@ -210,7 +217,7 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
     }
 
     rnn_conf.gates_ws_ld = get_good_ld(rnn_conf.gates_ld,
-        rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half));
+            rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half));
 
     // Set workspace sizes to store:
     // states to copmute a pass
@@ -219,29 +226,30 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
 
     rnn_conf.use_workspace = rnn_conf.is_training;
     rnn_conf.ws_states_size = (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
-        * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld;
+            * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld;
     bool is_lstm = rd.cell_kind == mkldnn_vanilla_lstm;
-    rnn_conf.ws_c_states_size = is_lstm
-        ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
-            * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld
-        : 0;
+    rnn_conf.ws_c_states_size = is_lstm ? (size_t)(rnn_conf.n_layer + 1)
+                    * rnn_conf.n_dir * (rnn_conf.n_iter + 1) * rnn_conf.mb
+                    * rnn_conf.states_ws_ld
+                                        : 0;
     rnn_conf.ws_diff_states_size = rnn_conf.is_training
-        ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir * (rnn_conf.n_iter + 1)
-          * (rnn_conf.n_states + 1) * rnn_conf.mb * rnn_conf.states_ws_ld
-        : (size_t)0;
+            ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
+                    * (rnn_conf.n_iter + 1) * (rnn_conf.n_states + 1)
+                    * rnn_conf.mb * rnn_conf.states_ws_ld
+            : (size_t)0;
     rnn_conf.ws_gates_size = (size_t)rnn_conf.n_layer * rnn_conf.n_dir
-        * rnn_conf.n_iter * rnn_conf.mb * rnn_conf.gates_ws_ld;
+            * rnn_conf.n_iter * rnn_conf.mb * rnn_conf.gates_ws_ld;
 
     // set other sizes
     rnn_conf.ws_per_cell = (size_t)rnn_conf.is_lbr * rnn_conf.mb * rnn_conf.dic;
-    rnn_conf.ws_cell_comp_size
-        = rnn_conf.is_lbr || rnn_conf.dt_conf != all_f32
-            ? (size_t) rnn_conf.gates_nld * rnn_conf.gates_ws_ld : 0;
+    rnn_conf.ws_cell_comp_size = rnn_conf.is_lbr || rnn_conf.dt_conf != all_f32
+            ? (size_t)rnn_conf.gates_nld * rnn_conf.gates_ws_ld
+            : 0;
     rnn_conf.ws_grid_comp_size = (size_t)rnn_conf.is_lbr * rnn_conf.is_training
-        * rnn_conf.n_layer * rnn_conf.n_dir * rnn_conf.n_iter
-        * rnn_conf.ws_per_cell;
+            * rnn_conf.n_layer * rnn_conf.n_dir * rnn_conf.n_iter
+            * rnn_conf.ws_per_cell;
     rnn_conf.ws_bias_size = (size_t)rnn_conf.n_layer * rnn_conf.n_dir
-        * rnn_conf.n_bias * rnn_conf.dic;
+            * rnn_conf.n_bias * rnn_conf.dic;
 }
 
 void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
@@ -277,8 +285,8 @@ status_t rnn_utils::set_good_strides(
     return status::success;
 }
 
-status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
-        memory_desc_t &weights_md, bool is_iter) {
+status_t rnn_utils::set_expected_desc(
+        rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
     using namespace format_tag;
     bool use_packed_gemm = false;
     if (use_packed_gemm) {
@@ -291,6 +299,6 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     return status::success;
 }
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn

@@ -36,18 +36,18 @@ using namespace mkldnn::impl::utils;
 using namespace Xbyak;
 
 namespace {
-    // Below scales are applied to source and weights data accordingly
-    // because this winograd implementation
-    // transforms source which may increase values up to 4x
-    // and transforms weights which may increase values up to 9/4x
-    const float adj_src_scale = 1.f / 4.f;
-    const float adj_wei_scale = 4.f / 9.f;
-    // Winograd transforms need ic and oc to be multiples of 16
-    const int load_block = 16;
-}
+// Below scales are applied to source and weights data accordingly
+// because this winograd implementation
+// transforms source which may increase values up to 4x
+// and transforms weights which may increase values up to 9/4x
+const float adj_src_scale = 1.f / 4.f;
+const float adj_wei_scale = 4.f / 9.f;
+// Winograd transforms need ic and oc to be multiples of 16
+const int load_block = 16;
+} // namespace
 
 /// SRC TRANSFORMS /////////////////////////////////////////////////////////////
-struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
+struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_u8s8s32x_wino_conv_src_trans_t)
 
@@ -63,10 +63,11 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
-        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {
         generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
+        ker_ = reinterpret_cast<decltype(ker_)>(
+                const_cast<uint8_t *>(getCode()));
     }
     void generate();
 
@@ -75,13 +76,9 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t: public jit_generator {
         return (31 - i);
     }
 
-    Xmm vreg_inp(int i) {
-        return Xmm(reg_inp_ind(i));
-    }
+    Xmm vreg_inp(int i) { return Xmm(reg_inp_ind(i)); }
 
-    Zmm zmm_inp(int i) {
-        return Zmm(reg_inp_ind(i));
-    }
+    Zmm zmm_inp(int i) { return Zmm(reg_inp_ind(i)); }
 
     Xmm vreg_tmp(int i) {
         assert(i < jcp.alpha * jcp.alpha);
@@ -160,13 +157,13 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
 
     preamble();
 
-#   define READ_PARAM(reg, field) \
-        mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
+#define READ_PARAM(reg, field) \
+    mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src, src);
     READ_PARAM(reg_ptr_dst, wino_src);
     READ_PARAM(reg_ptr_v_y_masks, v_y_masks);
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
-#   undef READ_PARAM
+#undef READ_PARAM
 
     mov(reg_maskx, ptr[reg_ptr_v_x_masks]);
     mov(reg_masky, ptr[reg_ptr_v_y_masks]);
@@ -204,17 +201,25 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
         load_src(false);
         L(mask_label);
 
-        for(int y = 0; y < 4; y++) {
-            vpsubb(vreg_tmp(y*4+0), vreg_inp(y*4+0), vreg_inp(y*4+2));
-            vpaddb(vreg_tmp(y*4+1), vreg_inp(y*4+1), vreg_inp(y*4+2));
-            vpsubb(vreg_tmp(y*4+2), vreg_inp(y*4+2), vreg_inp(y*4+1));
-            vpsubb(vreg_tmp(y*4+3), vreg_inp(y*4+1), vreg_inp(y*4+3));
+        for (int y = 0; y < 4; y++) {
+            vpsubb(vreg_tmp(y * 4 + 0), vreg_inp(y * 4 + 0),
+                    vreg_inp(y * 4 + 2));
+            vpaddb(vreg_tmp(y * 4 + 1), vreg_inp(y * 4 + 1),
+                    vreg_inp(y * 4 + 2));
+            vpsubb(vreg_tmp(y * 4 + 2), vreg_inp(y * 4 + 2),
+                    vreg_inp(y * 4 + 1));
+            vpsubb(vreg_tmp(y * 4 + 3), vreg_inp(y * 4 + 1),
+                    vreg_inp(y * 4 + 3));
         }
-        for(int x = 0;x < 4; x++) {
-            vpsubb(vreg_out(x+0*4), vreg_tmp(x+4*0), vreg_tmp(x+4*2));
-            vpaddb(vreg_out(x+1*4), vreg_tmp(x+4*1), vreg_tmp(x+4*2));
-            vpsubb(vreg_out(x+2*4), vreg_tmp(x+4*2), vreg_tmp(x+4*1));
-            vpsubb(vreg_out(x+3*4), vreg_tmp(x+4*1), vreg_tmp(x+4*3));
+        for (int x = 0; x < 4; x++) {
+            vpsubb(vreg_out(x + 0 * 4), vreg_tmp(x + 4 * 0),
+                    vreg_tmp(x + 4 * 2));
+            vpaddb(vreg_out(x + 1 * 4), vreg_tmp(x + 4 * 1),
+                    vreg_tmp(x + 4 * 2));
+            vpsubb(vreg_out(x + 2 * 4), vreg_tmp(x + 4 * 2),
+                    vreg_tmp(x + 4 * 1));
+            vpsubb(vreg_out(x + 3 * 4), vreg_tmp(x + 4 * 1),
+                    vreg_tmp(x + 4 * 3));
         }
 
         vmovd(xmm_shift, reg_shift.cvt32());
@@ -225,7 +230,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
             int out_offset = sizeof(uint8_t) * (jcp.inp_stride * i);
             if (i != unsign_val_in_wino_domain)
                 vpsubb(vreg_out(i), vreg_out(i), Xmm(1));
-            vmovups(EVEX_compress_addr(reg_aux_ptr_dst, out_offset), vreg_out(i));
+            vmovups(EVEX_compress_addr(reg_aux_ptr_dst, out_offset),
+                    vreg_out(i));
         }
 
         add(reg_aux_ptr_src, sizeof(uint8_t) * load_block);
@@ -239,7 +245,7 @@ void jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::generate() {
 }
 
 /// DST TRANSFORMS /////////////////////////////////////////////////////////////
-struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
+struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t)
 
@@ -258,10 +264,11 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
-        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr) {
         generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
+        ker_ = reinterpret_cast<decltype(ker_)>(
+                const_cast<uint8_t *>(getCode()));
     }
 
     void generate();
@@ -329,19 +336,16 @@ bool jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::maybe_relu(int position) {
 
     if (position == 0) {
         /* relu before sum */
-        return false
-            || p.contain(eltwise, 0)
-            || (jcp.dst_dt == data_type::u8 && !p.contain(sum, 0));
+        return false || p.contain(eltwise, 0)
+                || (jcp.dst_dt == data_type::u8 && !p.contain(sum, 0));
     } else if (position == 1) {
         /* relu after sum */
-        const int sum_idx = p.contain(sum, 0)
-            ? 0 : (p.contain(sum, 1) ? 1 : -1);
-        if (sum_idx == -1)
-            return false;
+        const int sum_idx
+                = p.contain(sum, 0) ? 0 : (p.contain(sum, 1) ? 1 : -1);
+        if (sum_idx == -1) return false;
 
-        return false
-            || p.contain(eltwise, sum_idx + 1)
-            || jcp.dst_dt == data_type::u8;
+        return false || p.contain(eltwise, sum_idx + 1)
+                || jcp.dst_dt == data_type::u8;
     }
 
     return false;
@@ -353,100 +357,99 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     auto loop_body = [=]() {
         const auto &p = attr_.post_ops_;
         const int sum_idx = p.find(primitive_kind::sum);
-        const float *p_sum_scale = (sum_idx != -1)
-                ? &p.entry_[sum_idx].sum.scale
-                : nullptr;
+        const float *p_sum_scale
+                = (sum_idx != -1) ? &p.entry_[sum_idx].sum.scale : nullptr;
         if (p_sum_scale && *p_sum_scale != 1.f)
             mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
-        for(int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; i++) {
             int internal_offset = sizeof(int32_t) * jcp.out_stride * i;
             vmovups(vreg_inp(i),
-                EVEX_compress_addr(reg_aux_ptr_src, internal_offset));
+                    EVEX_compress_addr(reg_aux_ptr_src, internal_offset));
         }
-        for(int y = 0; y < jcp.alpha; y++) {
-            vpaddd(vreg_tmp(0), vreg_inp(y*4 + 0), vreg_inp(y*4 + 1));
-            vpaddd(vreg_stg(y*2), vreg_tmp(0), vreg_inp(y*4 + 2));
+        for (int y = 0; y < jcp.alpha; y++) {
+            vpaddd(vreg_tmp(0), vreg_inp(y * 4 + 0), vreg_inp(y * 4 + 1));
+            vpaddd(vreg_stg(y * 2), vreg_tmp(0), vreg_inp(y * 4 + 2));
 
-            vpsubd(vreg_tmp(1), vreg_inp(y*4 + 1), vreg_inp(y*4 + 2));
-            vpsubd(vreg_stg(y*2+1), vreg_tmp(1), vreg_inp(y*4 + 3));
+            vpsubd(vreg_tmp(1), vreg_inp(y * 4 + 1), vreg_inp(y * 4 + 2));
+            vpsubd(vreg_stg(y * 2 + 1), vreg_tmp(1), vreg_inp(y * 4 + 3));
         }
-        for(int x = 0; x < jcp.m; x++) {
-            vpaddd(vreg_tmp(0), vreg_stg(x), vreg_stg(x+2*1));
-            vpaddd(vreg_out(x), vreg_tmp(0), vreg_stg(x+2*2));
+        for (int x = 0; x < jcp.m; x++) {
+            vpaddd(vreg_tmp(0), vreg_stg(x), vreg_stg(x + 2 * 1));
+            vpaddd(vreg_out(x), vreg_tmp(0), vreg_stg(x + 2 * 2));
 
-            vpsubd(vreg_tmp(1), vreg_stg(x+2*1), vreg_stg(x+2*2));
-            vpsubd(vreg_out(x+2), vreg_tmp(1), vreg_stg(x+2*3));
+            vpsubd(vreg_tmp(1), vreg_stg(x + 2 * 1), vreg_stg(x + 2 * 2));
+            vpsubd(vreg_out(x + 2), vreg_tmp(1), vreg_stg(x + 2 * 3));
         }
-
 
         if (jcp.with_bias) {
             vmovq(xmm_bias_alpha, reg_scratch_bias_alpha);
             vbroadcastss(zmm_bias_alpha, xmm_bias_alpha);
 
-            auto bias_addr = ptr [ reg_ptr_bias ];
+            auto bias_addr = ptr[reg_ptr_bias];
             switch (jcp.bia_dt) {
-            case data_type::f32:
-            case data_type::s32: vmovups(vreg_bias, bias_addr); break;
-            case data_type::s8: vpmovsxbd(vreg_bias, bias_addr); break;
-            case data_type::u8: vpmovzxbd(vreg_bias, bias_addr); break;
-            default: assert(!"unsupported dst data type");
+                case data_type::f32:
+                case data_type::s32: vmovups(vreg_bias, bias_addr); break;
+                case data_type::s8: vpmovsxbd(vreg_bias, bias_addr); break;
+                case data_type::u8: vpmovzxbd(vreg_bias, bias_addr); break;
+                default: assert(!"unsupported dst data type");
             }
-            if (jcp.bia_dt != data_type::f32)
-                vcvtdq2ps(vreg_bias, vreg_bias);
+            if (jcp.bia_dt != data_type::f32) vcvtdq2ps(vreg_bias, vreg_bias);
             vmulps(vreg_bias, vreg_bias, zmm_bias_alpha); // *alpha
         }
-        for(int y = 0; y < jcp.m; y++) {
-            kmovw(y_mask, ptr[ reg_ptr_v_y_masks + sizeof(uint16_t) * y ]);
-            for(int x = 0; x < jcp.m; x++) {
+        for (int y = 0; y < jcp.m; y++) {
+            kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(uint16_t) * y]);
+            for (int x = 0; x < jcp.m; x++) {
                 kandw(r_mask, y_mask, x_mask(x));
 
                 int i = y * jcp.m + x;
-                int offset = jcp.typesize_out *
-                    (y * jcp.ow * jcp.oc + x * jcp.oc);
+                int offset
+                        = jcp.typesize_out * (y * jcp.ow * jcp.oc + x * jcp.oc);
                 Address addr = EVEX_compress_addr(reg_aux_ptr_dst, offset);
 
                 Zmm zmm = vreg_out(i);
                 Xmm xmm = xmm_out(i);
                 vcvtdq2ps(zmm, zmm);
-                if (jcp.with_bias)
-                    vaddps(zmm, zmm, vreg_bias);
-                vmulps(zmm, zmm, ptr [reg_ptr_scales]);
-                if (maybe_relu(0))
-                    vmaxps(zmm, vreg_zero, zmm);
+                if (jcp.with_bias) vaddps(zmm, zmm, vreg_bias);
+                vmulps(zmm, zmm, ptr[reg_ptr_scales]);
+                if (maybe_relu(0)) vmaxps(zmm, vreg_zero, zmm);
                 if (p_sum_scale) { // post_op: sum
                     vpxord(vreg_prev_dst, vreg_prev_dst, vreg_prev_dst);
                     switch (jcp.dst_dt) {
-                    case data_type::f32:
-                    case data_type::s32:
-                        vmovups(vreg_prev_dst | r_mask, addr); break;
-                    case data_type::s8:
-                        vpmovsxbd(vreg_prev_dst | r_mask, addr); break;
-                    case data_type::u8:
-                        vpmovzxbd(vreg_prev_dst | r_mask, addr); break;
-                    default: assert(!"unknown dst_dt");
+                        case data_type::f32:
+                        case data_type::s32:
+                            vmovups(vreg_prev_dst | r_mask, addr);
+                            break;
+                        case data_type::s8:
+                            vpmovsxbd(vreg_prev_dst | r_mask, addr);
+                            break;
+                        case data_type::u8:
+                            vpmovzxbd(vreg_prev_dst | r_mask, addr);
+                            break;
+                        default: assert(!"unknown dst_dt");
                     }
                     if (jcp.dst_dt != data_type::f32)
                         vcvtdq2ps(vreg_prev_dst, vreg_prev_dst);
                     if (*p_sum_scale == 1.f)
                         vaddps(zmm, vreg_prev_dst);
                     else
-                        vfmadd231ps(zmm, vreg_prev_dst,
-                            zword_b[reg_ptr_sum_scale]);
+                        vfmadd231ps(
+                                zmm, vreg_prev_dst, zword_b[reg_ptr_sum_scale]);
                 }
-                if (maybe_relu(1))
-                    vmaxps(zmm, vreg_zero, zmm);
-                if (jcp.dst_dt != data_type::f32)
-                    vcvtps2dq(zmm, zmm);
+                if (maybe_relu(1)) vmaxps(zmm, vreg_zero, zmm);
+                if (jcp.dst_dt != data_type::f32) vcvtps2dq(zmm, zmm);
                 switch (jcp.dst_dt) {
-                case data_type::f32:
-                case data_type::s32:
-                    vmovups(addr,  zmm | r_mask); break;
-                case data_type::s8:
-                    vpmovsdb(xmm, zmm); vmovups(addr, xmm | r_mask); break;
-                case data_type::u8:
-                    vpmovusdb(xmm, zmm); vmovups(addr, xmm | r_mask); break;
-                default: assert(!"unknown dst_dt");
+                    case data_type::f32:
+                    case data_type::s32: vmovups(addr, zmm | r_mask); break;
+                    case data_type::s8:
+                        vpmovsdb(xmm, zmm);
+                        vmovups(addr, xmm | r_mask);
+                        break;
+                    case data_type::u8:
+                        vpmovusdb(xmm, zmm);
+                        vmovups(addr, xmm | r_mask);
+                        break;
+                    default: assert(!"unknown dst_dt");
                 }
             }
         }
@@ -454,15 +457,15 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
 
     preamble();
 
-#   define READ_PARAM(reg, field) \
-        mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
+#define READ_PARAM(reg, field) \
+    mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src, wino_dst);
     READ_PARAM(reg_ptr_dst, dst);
     READ_PARAM(reg_ptr_v_y_masks, v_y_masks);
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
     READ_PARAM(reg_ptr_bias, bias);
     READ_PARAM(reg_ptr_scales, scales);
-#   undef READ_PARAM
+#undef READ_PARAM
 
     if (jcp.with_bias)
         mov(reg_scratch_bias_alpha, float2int(adj_src_scale * adj_wei_scale));
@@ -477,7 +480,8 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
 
     int oc_blocks = jcp.oc / load_block;
     mov(reg_oc_block, oc_blocks);
-    L(oc_block_label); {
+    L(oc_block_label);
+    {
         loop_body();
         add(reg_aux_ptr_src, sizeof(int32_t) * load_block);
         add(reg_aux_ptr_dst, jcp.typesize_out * load_block);
@@ -489,11 +493,10 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
     jnz(oc_block_label, T_NEAR);
 
     postamble();
-
 }
 
 /// GEMM kernel ////////////////////////////////////////////////////////////////
-struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
+struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t)
     jit_conv_conf_2x3_wino_t jcp;
     const primitive_attr_t &attr_;
@@ -507,22 +510,21 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t: public jit_generator {
     void (*ker_)(const call_params_t *);
 
     void generate();
-    static bool post_ops_ok(jit_conv_conf_2x3_wino_t &jcp,
-                            const primitive_attr_t &attr);
+    static bool post_ops_ok(
+            jit_conv_conf_2x3_wino_t &jcp, const primitive_attr_t &attr);
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
-        jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr)
-    {
+            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+        : jcp(ajcp), attr_(attr) {
         generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(const_cast<uint8_t*>(getCode()));
+        ker_ = reinterpret_cast<decltype(ker_)>(
+                const_cast<uint8_t *>(getCode()));
     }
 
-    static status_t init_conf(
-            jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
-            memory_desc_t &src_md, memory_desc_t &weights_md,
-            memory_desc_t &dst_md, memory_desc_t &bias_md,
-            const primitive_attr_t &attr);
+    static status_t init_conf(jit_conv_conf_2x3_wino_t &jcp,
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &weights_md, memory_desc_t &dst_md,
+            memory_desc_t &bias_md, const primitive_attr_t &attr);
 
     Zmm vreg_out(int n, int m) {
         const int id_reg_out = n * jcp.m_block + m;
@@ -562,12 +564,13 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
     auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
 
     switch (p.len_) {
-    case 0: return true;
-    case 1: return is_relu(0) || p.contain(sum, 0);
-    case 2: return (p.contain(sum, 0) && is_relu(1)) ||
-                       (p.contain(sum, 1) && is_relu(0));
-    case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
-    default: return false;
+        case 0: return true;
+        case 1: return is_relu(0) || p.contain(sum, 0);
+        case 2:
+            return (p.contain(sum, 0) && is_relu(1))
+                    || (p.contain(sum, 1) && is_relu(0));
+        case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
+        default: return false;
     }
 
     return false;
@@ -587,13 +590,13 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
     };
 
     preamble();
-#   define READ_PARAM(reg, field) \
-        mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
+#define READ_PARAM(reg, field) \
+    mov(reg, ptr[abi_param1 + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src, src);
     READ_PARAM(reg_aux_dst, dst);
     READ_PARAM(reg_aux_wei, wei);
     READ_PARAM(reg_aux_dst_b, dst_b);
-#   undef READ_PARAM
+#undef READ_PARAM
 
     if (jcp.ver != ver_vnni) {
         xor_(reg_scratch, reg_scratch);
@@ -672,20 +675,18 @@ namespace {
 bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
     if (jcp.ver == ver_vnni) {
         return (jcp.mb <= mkldnn_get_max_threads()
-            && (jcp.mb > 4
-                && jcp.ic > 64
-                && !(jcp.oc > 128 && jcp.ih < 14)))
-            || jcp.mb > mkldnn_get_max_threads();
+                       && (jcp.mb > 4 && jcp.ic > 64
+                               && !(jcp.oc > 128 && jcp.ih < 14)))
+                || jcp.mb > mkldnn_get_max_threads();
     }
     return true;
 }
-}
+} // namespace
 
-status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
-::init_conf(jit_conv_conf_2x3_wino_t &jcp,
-            const convolution_desc_t &cd, memory_desc_t &src_md,
-            memory_desc_t &wei_md, memory_desc_t &dst_md,
-            memory_desc_t &bias_md, const primitive_attr_t &attr) {
+status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t ::init_conf(
+        jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
+        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const primitive_attr_t &attr) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper wei_d(&wei_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -715,39 +716,33 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.dilate_w = cd.dilates[1];
 
     jcp.ver = ver_avx512_core;
-    if (!(mayiuse(avx512_core) &&
-            src_d.data_type() == data_type::u8
-         && wei_d.data_type() == data_type::s8
-         && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-            data_type::s8, data_type::u8)))
+    if (!(mayiuse(avx512_core) && src_d.data_type() == data_type::u8
+                && wei_d.data_type() == data_type::s8
+                && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
+                        data_type::s8, data_type::u8)))
         return status::unimplemented;
-    if (mayiuse(avx512_core_vnni))
-        jcp.ver = ver_vnni;
+    if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
 
     if (!IMPLICATION(cd.alg_kind == alg_kind::convolution_auto,
-               is_winograd_faster_than_direct(jcp)))
+                is_winograd_faster_than_direct(jcp)))
         return status::unimplemented;
 
     // block sizes needed for GEMM kernel
     jcp.ic_block = 4;
     jcp.oc_block = 16;
 
-    bool ok = true
-        && jcp.ngroups == 1
-        && jcp.oc % load_block == 0 && jcp.ic % load_block == 0
-        && jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0
-        && everyone_is(3, jcp.kh, jcp.kw)
-        && everyone_is(1, jcp.stride_h, jcp.stride_w)
-        && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
-        && jcp.t_pad == jcp.b_pad && jcp.l_pad == jcp.r_pad
-        && one_of(jcp.t_pad, 0, 1)
-        && one_of(jcp.l_pad, 0, 1);
+    bool ok = true && jcp.ngroups == 1 && jcp.oc % load_block == 0
+            && jcp.ic % load_block == 0 && jcp.oc % jcp.oc_block == 0
+            && jcp.ic % jcp.ic_block == 0 && everyone_is(3, jcp.kh, jcp.kw)
+            && everyone_is(1, jcp.stride_h, jcp.stride_w)
+            && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
+            && jcp.t_pad == jcp.b_pad && jcp.l_pad == jcp.r_pad
+            && one_of(jcp.t_pad, 0, 1) && one_of(jcp.l_pad, 0, 1);
     if (!ok) return status::unimplemented;
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (!post_ops_ok(jcp, attr))
-        return status::unimplemented;
+    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
@@ -755,9 +750,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
     jcp.typesize_acc = sizeof(int32_t);
-    jcp.typesize_bia = jcp.with_bias
-        ? types::data_type_size(bias_d.data_type())
-        : 0;
+    jcp.typesize_bia
+            = jcp.with_bias ? types::data_type_size(bias_d.data_type()) : 0;
 
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
@@ -805,14 +799,13 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
             int M_per_thr = div_up(M, jcp.nthr);
             req_mem = (float)aa * M_per_thr
                     * (jcp.ic + jcp.typesize_acc * jcp.oc);
-            if (req_mem > L2_cap)
-                mem_eff = 0.1f;
+            if (req_mem > L2_cap) mem_eff = 0.1f;
         }
         return mem_eff;
     };
 
     auto get_tot_eff = [&](int small_mb, float thr_eff, float work_eff,
-            float mem_eff, float reg_eff) {
+                               float mem_eff, float reg_eff) {
         // these coefficients are chosen empirically
         float mem_fac = 0.1f, reg_fac = 0.2f;
         // normalized overhead relative to memory and register components
@@ -822,31 +815,31 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
         return tot_eff;
     };
 
-    auto find_m_n2_blocks = [&](bool small_mb, int ix, int iy, float work_eff,
-            int &m_block, int &n2_block, float &tot_eff) {
-        int M = (ix * iy) / jcp.alpha;
-        int max_m_block = nstl::min(M, free_regs);
-        int max_n2_block = nstl::min(jcp.nb_oc, free_regs);
-        tot_eff = 0.f;
-        for (int im = max_m_block; im > 0; im--) {
-            if (M % im)
-                continue;
-            for (int in2 = max_n2_block; in2 > 0; in2--) {
-                int used_regs = (im + 1) * in2;
-                float mem_eff = get_mem_eff(small_mb, ix, iy, in2);
-                float reg_eff = (float)(im * in2) / (im + in2);
-                float thr_eff = get_thr_eff(small_mb, ix, iy, in2);
-                float cur_tot_eff = get_tot_eff(
-                        small_mb, thr_eff, work_eff, mem_eff, reg_eff);
-                if (jcp.nb_oc % in2 || used_regs > free_regs
-                        || cur_tot_eff <= tot_eff)
-                    continue;
-                tot_eff = cur_tot_eff;
-                m_block = im;
-                n2_block = in2;
-            }
-        }
-    };
+    auto find_m_n2_blocks
+            = [&](bool small_mb, int ix, int iy, float work_eff, int &m_block,
+                      int &n2_block, float &tot_eff) {
+                  int M = (ix * iy) / jcp.alpha;
+                  int max_m_block = nstl::min(M, free_regs);
+                  int max_n2_block = nstl::min(jcp.nb_oc, free_regs);
+                  tot_eff = 0.f;
+                  for (int im = max_m_block; im > 0; im--) {
+                      if (M % im) continue;
+                      for (int in2 = max_n2_block; in2 > 0; in2--) {
+                          int used_regs = (im + 1) * in2;
+                          float mem_eff = get_mem_eff(small_mb, ix, iy, in2);
+                          float reg_eff = (float)(im * in2) / (im + in2);
+                          float thr_eff = get_thr_eff(small_mb, ix, iy, in2);
+                          float cur_tot_eff = get_tot_eff(small_mb, thr_eff,
+                                  work_eff, mem_eff, reg_eff);
+                          if (jcp.nb_oc % in2 || used_regs > free_regs
+                                  || cur_tot_eff <= tot_eff)
+                              continue;
+                          tot_eff = cur_tot_eff;
+                          m_block = im;
+                          n2_block = in2;
+                      }
+                  }
+              };
 
     /* Selecting xb and yb blocking */
     int min_yb = jcp.m;
@@ -952,24 +945,22 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
     wd.ic2_block = 1;
     wd.adj_scale = adj_wei_scale;
 
-    size_t max_size = types::data_type_size(data_type::s8) *
-                        jcp.alpha * jcp.alpha * jcp.ic * jcp.oc;
-    max_size += types::data_type_size(data_type::s32) *
-                                jcp.alpha * jcp.alpha * jcp.oc;
+    size_t max_size = types::data_type_size(data_type::s8) * jcp.alpha
+            * jcp.alpha * jcp.ic * jcp.oc;
+    max_size += types::data_type_size(data_type::s32) * jcp.alpha * jcp.alpha
+            * jcp.oc;
     wd.size = max_size;
 
-    if (wei_md.format_kind == format_kind::any)
-        wei_md = expect_wei_md;
-    if (wei_md != expect_wei_md)
-        return status::unimplemented;
+    if (wei_md.format_kind == format_kind::any) wei_md = expect_wei_md;
+    if (wei_md != expect_wei_md) return status::unimplemented;
 
     const int tilesize = jcp.alpha * jcp.alpha;
     const int numtiles = jcp.M;
     const int alltiles = numtiles * tilesize;
 
     jcp.size_wino_src
-        = utils::rnd_up(jcp.typesize_in * alltiles * jcp.ic, PAGE_4K)
-        / jcp.typesize_in;
+            = utils::rnd_up(jcp.typesize_in * alltiles * jcp.ic, PAGE_4K)
+            / jcp.typesize_in;
     jcp.size_wino_wei = tilesize * jcp.oc * jcp.ic;
     jcp.size_wino_dst = alltiles * jcp.oc;
 
@@ -978,16 +969,16 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t
 ////////////////////////////////////////////////////////////////////////////////
 
 template <data_type_t dst_data_type>
-status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        pd_t::jit_conf() {
-    return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
-            jcp_, *this->desc(), this->src_md_, this->weights_md_,
-            this->dst_md_,this->bias_md_, *this->attr());
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::pd_t::jit_conf() {
+    return jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(jcp_,
+            *this->desc(), this->src_md_, this->weights_md_, this->dst_md_,
+            this->bias_md_, *this->attr());
 }
 
 template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::pd_t::
-init_scratchpad() {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::pd_t::init_scratchpad() {
     auto scratchpad = this->scratchpad_registry().registrar();
 
     int nthr_multiplier = jcp_.small_mb ? 1 : jcp_.nthr;
@@ -1004,8 +995,7 @@ init_scratchpad() {
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
-{
+    : cpu_primitive_t(apd) {
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
@@ -1015,16 +1005,17 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
 }
 
 template <data_type_t dst_data_type>
-jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-        ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t() {
     delete kernel_;
     delete src_trans_;
     delete dst_trans_;
 }
 
 template <data_type_t dst_data_type>
-const float *jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-adjust_oscales(const memory_tracking::grantor_t &scratchpad) const {
+const float *
+jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::adjust_oscales(
+        const memory_tracking::grantor_t &scratchpad) const {
     const float *oscales = pd()->attr()->output_scales_.scales_;
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
     size_t count = pd()->attr()->output_scales_.count_;
@@ -1032,13 +1023,14 @@ adjust_oscales(const memory_tracking::grantor_t &scratchpad) const {
     if (count == 1)
         utils::array_set(loc_scales, oscales[0] * factor, 16);
     else
-        for (size_t c = 0; c < count; c++) loc_scales[c] = oscales[c] * factor;
+        for (size_t c = 0; c < count; c++)
+            loc_scales[c] = oscales[c] * factor;
     return loc_scales;
 }
 
 template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward(const exec_ctx_t &ctx) const {
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
@@ -1046,15 +1038,16 @@ execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
-        execute_forward_small_mb(src, weights, bias, dst, this->scratchpad(ctx));
+        execute_forward_small_mb(
+                src, weights, bias, dst, this->scratchpad(ctx));
     else
         execute_forward_mbN(src, weights, bias, dst, this->scratchpad(ctx));
 }
 
 template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
-        const char *bia, dst_data_t *dst,
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::execute_forward_mbN(const src_data_t *src,
+        const wei_data_t *wei, const char *bia, dst_data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const float *oscales = adjust_oscales(scratchpad);
@@ -1065,106 +1058,113 @@ execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
 
     parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
             [&](int mb, int tile_y_b, int tile_x_b) {
+                int tile_y = tile_y_b * jcp.yb;
+                int tile_x = tile_x_b * jcp.xb;
 
-        int tile_y = tile_y_b * jcp.yb;
-        int tile_x = tile_x_b * jcp.xb;
+                int ithr = mkldnn_get_thread_num();
+                auto wino_src = wino_src_base + jcp.size_wino_src * ithr;
+                auto wino_dst = wino_dst_base + jcp.size_wino_dst * ithr;
 
-        int ithr = mkldnn_get_thread_num();
-        auto wino_src = wino_src_base + jcp.size_wino_src * ithr;
-        auto wino_dst = wino_dst_base + jcp.size_wino_dst * ithr;
+                auto src_trans_p
+                        = jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
+                                call_params_t();
+                auto dst_trans_p
+                        = jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
+                                call_params_t();
+                auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
+                        call_params_t();
 
-        auto src_trans_p =
-            jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::call_params_t();
-        auto dst_trans_p =
-            jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::call_params_t();
-        auto gemm_p =
-            jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::call_params_t();
+                /* transformation of input tensor to winograd domain */
+                for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
+                    for (int x_in_block = 0; x_in_block < jcp.xb;
+                            x_in_block += 2) {
+                        uint16_t v_y_masks[4], v_x_masks[4];
 
-        /* transformation of input tensor to winograd domain */
-        for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
-            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                uint16_t v_y_masks[4], v_x_masks[4];
+                        int y = y_in_block + tile_y;
+                        int x = x_in_block + tile_x;
+                        int m = (y_in_block / 2) * (jcp.xb / 2)
+                                + (x_in_block / 2);
 
-                int y = y_in_block + tile_y;
-                int x = x_in_block + tile_x;
-                int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+                        int v_ys = nstl::max(0, jcp.t_pad - y);
+                        int v_ye = nstl::min(jcp.alpha,
+                                nstl::max(0, jcp.ih + jcp.t_pad - y));
 
-                int v_ys = nstl::max(0, jcp.t_pad - y);
-                int v_ye = nstl::min(jcp.alpha,
-                        nstl::max(0, jcp.ih + jcp.t_pad - y));
-
-                int v_xs = nstl::max(0, jcp.l_pad - x);
-                int v_xe = nstl::min(jcp.alpha,
-                        nstl::max(0, jcp.iw + jcp.l_pad - x));
+                        int v_xs = nstl::max(0, jcp.l_pad - x);
+                        int v_xe = nstl::min(jcp.alpha,
+                                nstl::max(0, jcp.iw + jcp.l_pad - x));
 
 #pragma unroll(4)
-                for (int i = 0; i < jcp.alpha; i++) {
-                    v_y_masks[i] = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
-                    v_x_masks[i] = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
+                        for (int i = 0; i < jcp.alpha; i++) {
+                            v_y_masks[i] = uint16_t(
+                                    i < v_ys || i >= v_ye ? 0 : 0xffff);
+                            v_x_masks[i] = uint16_t(
+                                    i < v_xs || i >= v_xe ? 0 : 0xffff);
+                        }
+                        auto local_s = src + mb * jcp.ih * jcp.iw * jcp.ic
+                                + y * jcp.iw * jcp.ic + x * jcp.ic;
+                        auto local_w = wino_src + m * jcp.ic;
+
+                        src_trans_p.src = local_s;
+                        src_trans_p.wino_src = local_w;
+                        src_trans_p.v_y_masks = v_y_masks;
+                        src_trans_p.v_x_masks = v_x_masks;
+
+                        src_trans_->ker_(&src_trans_p);
+                    }
                 }
-                auto local_s = src
-                        + mb * jcp.ih * jcp.iw * jcp.ic
-                        + y * jcp.iw * jcp.ic + x * jcp.ic;
-                auto local_w = wino_src + m * jcp.ic;
+                /* gemms */
+                for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
+                    // start threads at different GEMMs to help bring weights into LLC
+                    int offset = (tile_ij + ithr) % 16;
+                    gemm_p.src = wino_src + jcp.inp_stride * offset;
+                    gemm_p.dst = wino_dst + jcp.out_stride * offset;
+                    gemm_p.wei = wei + jcp.wei_stride * offset;
+                    gemm_p.dst_b = dst_bias + jcp.bia_stride * offset;
 
-                src_trans_p.src = local_s;
-                src_trans_p.wino_src = local_w;
-                src_trans_p.v_y_masks = v_y_masks;
-                src_trans_p.v_x_masks = v_x_masks;
+                    kernel_->ker_(&gemm_p);
+                }
 
-                src_trans_->ker_(&src_trans_p);
-            }
-        }
-        /* gemms */
-        for (int tile_ij = 0; tile_ij < 16; tile_ij++) {
-            // start threads at different GEMMs to help bring weights into LLC
-            int offset = (tile_ij + ithr) % 16;
-            gemm_p.src = wino_src + jcp.inp_stride * offset;
-            gemm_p.dst = wino_dst + jcp.out_stride * offset;
-            gemm_p.wei = wei + jcp.wei_stride * offset;
-            gemm_p.dst_b = dst_bias + jcp.bia_stride * offset;
+                /* transformation from winograd domain to output tensor */
+                for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
+                    for (int x_in_block = 0; x_in_block < jcp.xb;
+                            x_in_block += 2) {
+                        uint16_t v_y_masks[2], v_x_masks[2];
 
-            kernel_->ker_(&gemm_p);
-        }
-
-        /* transformation from winograd domain to output tensor */
-        for (int y_in_block = 0; y_in_block < jcp.yb; y_in_block += 2) {
-            for (int x_in_block = 0; x_in_block < jcp.xb; x_in_block += 2) {
-                uint16_t v_y_masks[2], v_x_masks[2];
-
-                int y = y_in_block + tile_y;
-                int x = x_in_block + tile_x;
-                int m = (y_in_block / 2) * (jcp.xb / 2) + (x_in_block / 2);
+                        int y = y_in_block + tile_y;
+                        int x = x_in_block + tile_x;
+                        int m = (y_in_block / 2) * (jcp.xb / 2)
+                                + (x_in_block / 2);
 
 #pragma unroll(2)
-                for (int i = 0; i < jcp.m; i++) {
-                    v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
-                    v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
+                        for (int i = 0; i < jcp.m; i++) {
+                            v_x_masks[i]
+                                    = uint16_t(x + i < jcp.ow ? 0xffff : 0);
+                            v_y_masks[i]
+                                    = uint16_t(y + i < jcp.oh ? 0xffff : 0);
+                        }
+                        auto local_d = dst + mb * jcp.oh * jcp.ow * jcp.oc
+                                + y * jcp.ow * jcp.oc + x * jcp.oc;
+                        auto local_w = wino_dst + m * jcp.oc;
+
+                        auto scales = oscales;
+                        dst_trans_p.dst = local_d;
+                        dst_trans_p.wino_dst = local_w;
+                        dst_trans_p.v_y_masks = v_y_masks;
+                        dst_trans_p.v_x_masks = v_x_masks;
+
+                        dst_trans_p.scales = scales;
+                        dst_trans_p.bias = bia;
+
+                        dst_trans_->ker_(&dst_trans_p);
+                    }
                 }
-                auto local_d = dst
-                        + mb * jcp.oh * jcp.ow * jcp.oc
-                        + y * jcp.ow * jcp.oc + x * jcp.oc;
-                auto local_w = wino_dst + m * jcp.oc;
-
-                auto scales = oscales;
-                dst_trans_p.dst = local_d;
-                dst_trans_p.wino_dst = local_w;
-                dst_trans_p.v_y_masks = v_y_masks;
-                dst_trans_p.v_x_masks = v_x_masks;
-
-                dst_trans_p.scales = scales;
-                dst_trans_p.bias = bia;
-
-                dst_trans_->ker_(&dst_trans_p);
-            }
-        }
-    });
+            });
 }
 
 template <data_type_t dst_data_type>
-void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
-execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
-        const char *bia, dst_data_t *dst,
+void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
+        dst_data_type>::execute_forward_small_mb(const src_data_t *src,
+        const wei_data_t *wei, const char *bia, dst_data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
     const float *oscales = adjust_oscales(scratchpad);
@@ -1178,45 +1178,50 @@ execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
     for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
         /* transformation of input tensor to winograd domain */
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
-            [&](int y_in_block_b, int x_in_block_b, int mb) {
-            int y_in_block = y_in_block_b * 2;
-            int x_in_block = x_in_block_b * 2;
+                [&](int y_in_block_b, int x_in_block_b, int mb) {
+                    int y_in_block = y_in_block_b * 2;
+                    int x_in_block = x_in_block_b * 2;
 
-            auto src_trans_p =
-                jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::call_params_t();
+                    auto src_trans_p
+                            = jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
+                                    call_params_t();
 
-            uint16_t v_y_masks[4], v_x_masks[4];
+                    uint16_t v_y_masks[4], v_x_masks[4];
 
-            int y = y_in_block + tile_y;
-            int x = x_in_block + tile_x;
-            int m = (mb * (jcp.yb / 2) + (y_in_block / 2)) * (jcp.xb / 2)
-                    + (x_in_block / 2);
+                    int y = y_in_block + tile_y;
+                    int x = x_in_block + tile_x;
+                    int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
+                                    * (jcp.xb / 2)
+                            + (x_in_block / 2);
 
-            int v_ys = nstl::max(0, jcp.t_pad - y);
-            int v_ye = nstl::min(
-                    jcp.alpha, nstl::max(0, jcp.ih + jcp.t_pad - y));
+                    int v_ys = nstl::max(0, jcp.t_pad - y);
+                    int v_ye = nstl::min(
+                            jcp.alpha, nstl::max(0, jcp.ih + jcp.t_pad - y));
 
-            int v_xs = nstl::max(0, jcp.l_pad - x);
-            int v_xe = nstl::min(
-                    jcp.alpha, nstl::max(0, jcp.iw + jcp.l_pad - x));
+                    int v_xs = nstl::max(0, jcp.l_pad - x);
+                    int v_xe = nstl::min(
+                            jcp.alpha, nstl::max(0, jcp.iw + jcp.l_pad - x));
 
 #pragma unroll(4)
-            for (int i = 0; i < jcp.alpha; i++) {
-                v_y_masks[i] = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
-                v_x_masks[i] = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
-            }
-            auto local_s = src
-                    + (mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw * jcp.ic
-                    + y * jcp.iw * jcp.ic + x * jcp.ic;
-            auto local_w = wino_src + m * jcp.ic;
+                    for (int i = 0; i < jcp.alpha; i++) {
+                        v_y_masks[i]
+                                = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
+                        v_x_masks[i]
+                                = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
+                    }
+                    auto local_s = src
+                            + (mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw
+                                    * jcp.ic
+                            + y * jcp.iw * jcp.ic + x * jcp.ic;
+                    auto local_w = wino_src + m * jcp.ic;
 
-            src_trans_p.src = local_s;
-            src_trans_p.wino_src = local_w;
-            src_trans_p.v_y_masks = v_y_masks;
-            src_trans_p.v_x_masks = v_x_masks;
+                    src_trans_p.src = local_s;
+                    src_trans_p.wino_src = local_w;
+                    src_trans_p.v_y_masks = v_y_masks;
+                    src_trans_p.v_x_masks = v_x_masks;
 
-            src_trans_->ker_(&src_trans_p);
-        });
+                    src_trans_->ker_(&src_trans_p);
+                });
 
         /* gemms */
         parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
@@ -1236,41 +1241,44 @@ execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
 
         /* transformation from winograd domain to output tensor */
         parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
-            [&](int y_in_block_b, int x_in_block_b, int mb) {
-            int y_in_block = y_in_block_b * 2;
-            int x_in_block = x_in_block_b * 2;
+                [&](int y_in_block_b, int x_in_block_b, int mb) {
+                    int y_in_block = y_in_block_b * 2;
+                    int x_in_block = x_in_block_b * 2;
 
-            auto dst_trans_p =
-                jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::call_params_t();
+                    auto dst_trans_p
+                            = jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
+                                    call_params_t();
 
-            uint16_t v_y_masks[2], v_x_masks[2];
+                    uint16_t v_y_masks[2], v_x_masks[2];
 
-            int y = y_in_block + tile_y;
-            int x = x_in_block + tile_x;
-            int m = (mb * (jcp.yb / 2) + (y_in_block / 2)) * (jcp.xb / 2)
-                    + (x_in_block / 2);
+                    int y = y_in_block + tile_y;
+                    int x = x_in_block + tile_x;
+                    int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
+                                    * (jcp.xb / 2)
+                            + (x_in_block / 2);
 
 #pragma unroll(2)
-            for (int i = 0; i < jcp.m; i++) {
-                v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
-                v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
-            }
-            auto local_d = dst
-                    + (mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow * jcp.oc
-                    + y * jcp.ow * jcp.oc + x * jcp.oc;
-            auto local_w = wino_dst + m * jcp.oc;
+                    for (int i = 0; i < jcp.m; i++) {
+                        v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
+                        v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
+                    }
+                    auto local_d = dst
+                            + (mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow
+                                    * jcp.oc
+                            + y * jcp.ow * jcp.oc + x * jcp.oc;
+                    auto local_w = wino_dst + m * jcp.oc;
 
-            auto scales = oscales;
-            dst_trans_p.dst = local_d;
-            dst_trans_p.wino_dst = local_w;
-            dst_trans_p.v_y_masks = v_y_masks;
-            dst_trans_p.v_x_masks = v_x_masks;
+                    auto scales = oscales;
+                    dst_trans_p.dst = local_d;
+                    dst_trans_p.wino_dst = local_w;
+                    dst_trans_p.v_y_masks = v_y_masks;
+                    dst_trans_p.v_x_masks = v_x_masks;
 
-            dst_trans_p.scales = scales;
-            dst_trans_p.bias = bia;
+                    dst_trans_p.scales = scales;
+                    dst_trans_p.bias = bia;
 
-            dst_trans_->ker_(&dst_trans_p);
-        });
+                    dst_trans_->ker_(&dst_trans_p);
+                });
     }
 }
 

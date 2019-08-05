@@ -26,13 +26,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_sum_pd_t: public sum_pd_t {
+struct cpu_sum_pd_t : public sum_pd_t {
     using sum_pd_t::sum_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

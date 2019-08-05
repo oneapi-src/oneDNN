@@ -17,11 +17,11 @@
 #include "mkldnn_types.h"
 
 #include "c_types_map.hpp"
-#include "gemm_bf16_convolution.hpp"
-#include "utils.hpp"
-#include "type_helpers.hpp"
-#include "mkldnn_thread.hpp"
 #include "common/bfloat16.hpp"
+#include "gemm_bf16_convolution.hpp"
+#include "mkldnn_thread.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -37,31 +37,31 @@ using namespace mkldnn::impl::cpu::bf16_support;
 // "declared with greater visibility than the type of its field"
 // when one lambda  function is delcared whithin the other one
 void store_bfloat16_in_parallel(bfloat16_t *output_data, const float *acc_data,
-                                size_t parallel_work, size_t parallel_work_size,
-                                bool do_in_parallel) {
+        size_t parallel_work, size_t parallel_work_size, bool do_in_parallel) {
     parallel(do_in_parallel ? 0 : 1, [&](const int ithr, const int nthr) {
         size_t start = 0, end = 0;
         balance211(parallel_work, nthr, ithr, start, end);
         if (start < end)
             cvt_float_to_bfloat16(&output_data[start * parallel_work_size],
-                                  &acc_data[start * parallel_work_size],
-                                  (end - start) * parallel_work_size);
+                    &acc_data[start * parallel_work_size],
+                    (end - start) * parallel_work_size);
     });
 }
 
 template <data_type_t dst_data_type>
-gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(
-    const pd_t *pd)
+gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     : ker_(nullptr)
     , jcp_(pd->jcp_)
     , OC_(pd->jcp_.oc)
     , do_bias_(false)
     , do_eltwise_(false)
     , do_sum_(false)
-    , max_data_reg_idx_(31), max_unroll_(12), compute_reg_step_(1)
+    , max_data_reg_idx_(31)
+    , max_unroll_(12)
+    , compute_reg_step_(1)
     , data_reg_base_idx_(0)
-    , bf16_emu_(nullptr), eltwise_injector_(nullptr)
-{
+    , bf16_emu_(nullptr)
+    , eltwise_injector_(nullptr) {
     using namespace types;
     using namespace Xbyak;
 
@@ -78,15 +78,14 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(
                 reserved_eltwise_gpr, reserved_eltwise_maskr);
 
     do_sum_ = dst_data_type != data_type::f32
-        && post_ops.contain(primitive_kind::sum, 0);
+            && post_ops.contain(primitive_kind::sum, 0);
     if (do_sum_) {
         compute_reg_step_ = 2;
         vreg_sum_scale = Zmm(data_reg_base_idx_++);
     }
 
     do_bias_ = pd->with_bias();
-    if (do_bias_)
-        vreg_bias = Zmm(data_reg_base_idx_++);
+    if (do_bias_) vreg_bias = Zmm(data_reg_base_idx_++);
 
     vlen_ = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
 
@@ -94,21 +93,19 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(
 
     if (isa_ != avx512_core_bf16) {
         max_data_reg_idx_ = 26;
-        bf16_emu_ = new bf16_emulation_t(this,
-                            bf16_emu_reserv_1, bf16_emu_reserv_2,
-                            bf16_emu_reserv_3, bf16_emu_reserv_4,
-                            bf16_emu_reserv_5, bf16_emu_reserv_6);
+        bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
+                bf16_emu_reserv_5, bf16_emu_reserv_6);
     }
 
-    max_unroll_ = (max_data_reg_idx_ - data_reg_base_idx_ + 1)
-        / compute_reg_step_;
+    max_unroll_
+            = (max_data_reg_idx_ - data_reg_base_idx_ + 1) / compute_reg_step_;
 
     generate();
 }
 
 template <data_type_t dst_data_type>
-void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
-{
+void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     using namespace Xbyak;
     using namespace utils;
 
@@ -117,8 +114,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
 #define PARAM_OFF(x) offsetof(ker_args, x)
     mov(reg_dst_base, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_acc_base, ptr[reg_param + PARAM_OFF(acc)]);
-    if (do_bias_)
-        mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
+    if (do_bias_) mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     mov(reg_dst_str, ptr[reg_param + PARAM_OFF(dst_stride_in_bytes)]);
     mov(reg_acc_str, ptr[reg_param + PARAM_OFF(acc_stride_in_bytes)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(spatial_length)]);
@@ -137,20 +133,16 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
         if (dst_data_type == data_type::bf16 && isa_ != avx512_core_bf16)
             bf16_emu_->init_vcvtneps2bf16();
 
-        if (apply_mask)
-            vreg_dst_ = vreg_dst_ | kreg_rem_mask;
+        if (apply_mask) vreg_dst_ = vreg_dst_ | kreg_rem_mask;
         vmovups(vreg_dst_, acc_addr);
 
-        if (do_bias_)
-            vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias);
+        if (do_bias_) vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias);
 
         auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
-        if (do_sum_)
-        {
+        if (do_sum_) {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
             if (dst_data_type == data_type::f32) {
-                if (apply_mask)
-                    vreg_prev_dst_ = vreg_prev_dst_ | kreg_rem_mask;
+                if (apply_mask) vreg_prev_dst_ = vreg_prev_dst_ | kreg_rem_mask;
 
                 vmovups(vreg_prev_dst_, dst_addr);
             } else if (dst_data_type == data_type::bf16) {
@@ -167,8 +159,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
             vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
         }
 
-        if (do_eltwise_)
-            eltwise_injector_->compute_vector(vreg_dst_idx(idx));
+        if (do_eltwise_) eltwise_injector_->compute_vector(vreg_dst_idx(idx));
 
         if (dst_data_type == data_type::bf16) {
             // TODO: implement store by zmm registers for bf16
@@ -178,8 +169,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
             else
                 bf16_emu_->vcvtneps2bf16(vreg_dst_ymm_, vreg_dst(idx));
 
-            if (apply_mask)
-                vreg_dst_ymm_ = vreg_dst_ymm_ | kreg_rem_mask;
+            if (apply_mask) vreg_dst_ymm_ = vreg_dst_ymm_ | kreg_rem_mask;
 
             vmovdqu16(dst_addr, vreg_dst_ymm_);
         } else if (dst_data_type == data_type::f32)
@@ -205,22 +195,22 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
     mov(reg_dst, reg_dst_base);
     mov(reg_acc, reg_acc_base);
 
-    if (do_bias_)
-        vbroadcastss(vreg_bias, ptr[reg_bias]);
+    if (do_bias_) vbroadcastss(vreg_bias, ptr[reg_bias]);
 
     constexpr int n_unroll = default_unroll_2_pow_; // unroll by powers of 2
-                                                    // from 2^n to 2^0
+            // from 2^n to 2^0
     assert((1 << n_unroll) <= max_unroll_);
 
     Xbyak::Label l_simd_loop[n_unroll + 2], l_simd_notail;
     for (int i = n_unroll; i >= 0; i--) {
         const int unroll = 1 << i; // 4, 2, 1
-        L(l_simd_loop[i + 1]); {
+        L(l_simd_loop[i + 1]);
+        {
             const int loop_len = unroll * vlen_;
             cmp(reg_len_iter, loop_len);
             jl(l_simd_loop[i], T_NEAR);
             for (int j = 0; j < unroll; j++)
-                 compute(j * vlen_, j, false);
+                compute(j * vlen_, j, false);
 
             advance_ptrs_imm(loop_len);
             sub(reg_len_iter, loop_len);
@@ -241,8 +231,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
 
     add(reg_dst_base, reg_dst_str);
     add(reg_acc_base, reg_acc_str);
-    if (do_bias_)
-        add(reg_bias, sizeof(acc_data_t));
+    if (do_bias_) add(reg_bias, sizeof(acc_data_t));
 
     dec(reg_oc_iter);
     jnz(oc_loop, T_NEAR); // oc_loop end
@@ -251,21 +240,18 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate()
 
     postamble();
 
-    if (do_eltwise_)
-        eltwise_injector_->prepare_table();
+    if (do_eltwise_) eltwise_injector_->prepare_table();
 
     ker_ = getCode<decltype(ker_)>();
 }
 
 template <data_type_t dst_data_type>
-void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator ()
-    (dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
+void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
+        dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
         float sum_scale, size_t dst_stride_in_elements,
-        size_t acc_stride_in_elements, size_t len, bool do_parallel)
-{
+        size_t acc_stride_in_elements, size_t len, bool do_parallel) {
     assert(ker_);
-    if (len == 0)
-        return;
+    if (len == 0) return;
 
     parallel(do_parallel ? 0 : 1, [&](const int ithr, const int nthr) {
         size_t start_oc = 0, end_oc = 0;
@@ -276,10 +262,10 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator ()
             args.dst = dst + start_oc * dst_stride_in_elements;
             args.bias = bias + start_oc;
             args.sum_scale = sum_scale;
-            args.dst_stride_in_bytes =
-                dst_stride_in_elements * sizeof(dst_data_t);
-            args.acc_stride_in_bytes =
-                acc_stride_in_elements * sizeof(acc_data_t);
+            args.dst_stride_in_bytes
+                    = dst_stride_in_elements * sizeof(dst_data_t);
+            args.acc_stride_in_bytes
+                    = acc_stride_in_elements * sizeof(acc_data_t);
             args.spatial_length = len;
             args.oc_work = end_oc - start_oc;
             ker_(&args);
@@ -298,8 +284,9 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 
     auto col = scratchpad(ctx).template get<src_data_t>(key_conv_gemm_col);
     acc_data_t *acc_base = is_bf16_dst
-        ? scratchpad(ctx).template get<acc_data_t>(key_conv_int_dat_in_acc_dt)
-        : nullptr;
+            ? scratchpad(ctx).template get<acc_data_t>(
+                    key_conv_int_dat_in_acc_dt)
+            : nullptr;
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -312,7 +299,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
             cvt_bfloat16_to_float(bias, bias_in, jcp.ngroups * jcp.oc);
         } else {
             auto bias_in = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
-            bias = const_cast<float*>(bias_in);
+            bias = const_cast<float *>(bias_in);
         }
     }
 
@@ -338,12 +325,12 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 
     const int nb_oh = div_up(jcp.oh, jcp.oh_block);
     const int nb_ow = div_up(jcp.ow, jcp.ow_block);
-    const size_t work_amount = (size_t)jcp.ngroups
-        * jcp.mb * jcp.od * nb_oh * nb_ow;
+    const size_t work_amount
+            = (size_t)jcp.ngroups * jcp.mb * jcp.od * nb_oh * nb_ow;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        int g{ 0 }, n{ 0 }, od{ 0 }, ohb{ 0 }, owb{ 0 };
+        int g {0}, n {0}, od {0}, ohb {0}, owb {0};
         size_t start = 0, end = 0;
 
         balance211(work_amount, nthr, ithr, start, end);
@@ -372,10 +359,12 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
             const int64_t LDA = jcp.im2col_sz ? m : M;
             const int64_t LDC = is_bf16_dst ? m : M;
             dst_data_t *dst_local = _dst_im + od * jcp.os + oh * jcp.ow + ow;
-            acc_data_t *_acc = is_bf16_dst
-                ? acc_base
-                      + ithr * rnd_up(jcp.oc * jcp.oh_block * jcp.ow_block, 16)
-                : (acc_data_t *)dst_local;
+            acc_data_t *_acc = is_bf16_dst ? acc_base
+                            + ithr
+                                    * rnd_up(jcp.oc * jcp.oh_block
+                                                    * jcp.ow_block,
+                                            16)
+                                           : (acc_data_t *)dst_local;
 
             gemm_bf16bf16f32("N", "N", &m, &N, &K, &one,
                     jcp.im2col_sz ? _col : _src + od * m, &LDA, _weights, &K,
@@ -384,8 +373,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
             if (this->pd()->is_postprocess_required()) {
                 size_t acc_str = LDC;
                 size_t dst_str = M;
-                (*pp_ker_)(dst_local, _acc, bias + g * jcp.oc,
-                    sum_scale, dst_str, acc_str, m, jcp.nthr == 1);
+                (*pp_ker_)(dst_local, _acc, bias + g * jcp.oc, sum_scale,
+                        dst_str, acc_str, m, jcp.nthr == 1);
             }
 
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od, ohb, nb_oh,
@@ -403,8 +392,9 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
 
     auto col = scratchpad(ctx).template get<acc_data_t>(key_conv_gemm_col);
     acc_data_t *acc_base = diff_src_data_type == data_type::bf16
-        ? scratchpad(ctx).template get<acc_data_t>(key_conv_int_dat_in_acc_dt)
-        : nullptr;
+            ? scratchpad(ctx).template get<acc_data_t>(
+                    key_conv_int_dat_in_acc_dt)
+            : nullptr;
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -423,50 +413,48 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         acc_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
-        int g{0}, n{0};
+        int g {0}, n {0};
         size_t start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
         nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb);
         for (size_t iwork = start; iwork < end; ++iwork) {
 
-            diff_src_data_t *diff_src_local = diff_src
-                + (n * jcp.ngroups + g) * src_step;
+            diff_src_data_t *diff_src_local
+                    = diff_src + (n * jcp.ngroups + g) * src_step;
             acc_data_t *acc = diff_src_data_type == data_type::bf16
-                ? acc_base + ithr * rnd_up(src_step, 16)
-                : (acc_data_t *)diff_src_local;
+                    ? acc_base + ithr * rnd_up(src_step, 16)
+                    : (acc_data_t *)diff_src_local;
 
             if (jcp.id > 1 && jcp.im2col_sz > 0) {
                 // jit_gemm_convolution_utils::col2im_3d() assumes that the
                 // accumulator is initialized by zeroes
                 for (size_t i = 0; i < src_step; i++)
-                     acc[i] = (acc_data_t)0;
+                    acc[i] = (acc_data_t)0;
             }
 
             const wei_data_t *_weights = weights + g * weights_g_size;
             for (int od = 0; od < jcp.od; ++od) {
-                const diff_dst_data_t *_diff_dst = diff_dst
-                     + (n * jcp.ngroups + g) * dst_step + od * m;
+                const diff_dst_data_t *_diff_dst
+                        = diff_dst + (n * jcp.ngroups + g) * dst_step + od * m;
 
                 const acc_data_t zero = 0.0, one = 1.0;
-                gemm_bf16bf16f32("N", "T", &m, &N, &K, &one,
-                    _diff_dst, &M, _weights, &N, &zero,
-                    jcp.im2col_sz ? _col: acc + od * m, &LDC);
+                gemm_bf16bf16f32("N", "T", &m, &N, &K, &one, _diff_dst, &M,
+                        _weights, &N, &zero,
+                        jcp.im2col_sz ? _col : acc + od * m, &LDC);
 
                 if (jcp.im2col_sz) {
                     if (jcp.id == 1)
-                        jit_gemm_convolution_utils::col2im(jcp, _col,
-                            acc);
+                        jit_gemm_convolution_utils::col2im(jcp, _col, acc);
                     else
-                        jit_gemm_convolution_utils::col2im_3d(jcp, _col,
-                            acc, od);
+                        jit_gemm_convolution_utils::col2im_3d(
+                                jcp, _col, acc, od);
                 }
             }
             if (diff_src_data_type == data_type::bf16) {
                 size_t spatial_size = (size_t)jcp.ih * jcp.iw * jcp.id;
                 store_bfloat16_in_parallel((bfloat16_t *)diff_src_local,
-                                            (const float *)acc,
-                                            jcp.ic, spatial_size,
-                                            jcp.nthr == 1);
+                        (const float *)acc, jcp.ic, spatial_size,
+                        jcp.nthr == 1);
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb);
         }
@@ -474,46 +462,43 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
 }
 
 template <data_type_t diff_wei_data_type>
-void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
-    bf16_bwd_weights_reduction_par(int ithr_mb, int nthr_mb,
-        const jit_gemm_conv_conf_t &jcp, const acc_data_t *weights_reduce_base,
-        diff_wei_data_t *weights_base) const
-{
+void gemm_bf16_convolution_bwd_weights_t<
+        diff_wei_data_type>::bf16_bwd_weights_reduction_par(int ithr_mb,
+        int nthr_mb, const jit_gemm_conv_conf_t &jcp,
+        const acc_data_t *weights_reduce_base,
+        diff_wei_data_t *weights_base) const {
     assert(nthr_mb > 1); // no reduction for nthr_mb == 1
 
     const bool is_bf16_out = diff_wei_data_type == data_type::bf16;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
-    size_t weights_start{0}, weights_end{0};
-    balance211(weights_g_size, nthr_mb, ithr_mb, weights_start,
-        weights_end);
+    size_t weights_start {0}, weights_end {0};
+    balance211(weights_g_size, nthr_mb, ithr_mb, weights_start, weights_end);
 
-    if (weights_start >= weights_end)
-        return; // nothing to do
+    if (weights_start >= weights_end) return; // nothing to do
 
     size_t acc_size = weights_end - weights_start;
     float *wei_reduced = is_bf16_out
-                ? (float*)weights_reduce_base + weights_start
-                : (float*)weights_base + weights_start;
+            ? (float *)weights_reduce_base + weights_start
+            : (float *)weights_base + weights_start;
     if (!is_bf16_out) {
         // f32 diff_weights require initialization by weights_reduce
         // for thr_mb = 0
         for (size_t i = 0; i < acc_size; i++)
-             wei_reduced[i] = ((float*)weights_reduce_base + weights_start)[i];
+            wei_reduced[i] = ((float *)weights_reduce_base + weights_start)[i];
     }
 
     for (int thr_mb = 1; thr_mb < nthr_mb; ++thr_mb) {
-        float *wei_to_reduce = (float*)weights_reduce_base
-            + thr_mb * weights_g_size + weights_start;
+        float *wei_to_reduce = (float *)weights_reduce_base
+                + thr_mb * weights_g_size + weights_start;
 
         if (is_bf16_out && thr_mb == nthr_mb - 1)
             // the last iteration for bfloat16 requires conversion
             // and store to diff_weights array
             add_floats_and_cvt_to_bfloat16(
-                (bfloat16_t *)(weights_base + weights_start),
-                wei_reduced, wei_to_reduce, acc_size);
+                    (bfloat16_t *)(weights_base + weights_start), wei_reduced,
+                    wei_to_reduce, acc_size);
         else
-            acc_ker_->accumulate(
-                wei_reduced, wei_to_reduce, acc_size);
+            acc_ker_->accumulate(wei_reduced, wei_to_reduce, acc_size);
     }
 }
 
@@ -525,14 +510,15 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
 
     auto col = scratchpad(ctx).template get<src_data_t>(key_conv_gemm_col);
-    auto wei_reduction = scratchpad(ctx).template get<acc_data_t>(
-        key_conv_wei_reduction);
+    auto wei_reduction
+            = scratchpad(ctx).template get<acc_data_t>(key_conv_wei_reduction);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     acc_data_t *acc_base = diff_wei_data_type == data_type::bf16
-        ? scratchpad(ctx).template get<acc_data_t>(key_conv_int_dat_in_acc_dt)
-        : (acc_data_t *)diff_weights;
+            ? scratchpad(ctx).template get<acc_data_t>(
+                    key_conv_int_dat_in_acc_dt)
+            : (acc_data_t *)diff_weights;
 
     float *diff_bias = nullptr;
     if (jcp.with_bias) {
@@ -558,7 +544,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
-        size_t g_start{0}, g_end{0}, mb_start{0}, mb_end{0};
+        size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
 
         const int mb_for_balance = jcp.need_wei_reduction ? jcp.mb : 1;
         jit_gemm_convolution_utils::bwd_weights_balance(ithr, nthr, jcp.ngroups,
@@ -574,56 +560,56 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
 
             src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
-            acc_data_t *weights_reduce_base = wei_reduction
-                    + ithr_g * nthr_mb * weights_g_size;
-            acc_data_t *weights_reduce = weights_reduce_base
-                    + ithr_mb * weights_g_size;
+            acc_data_t *weights_reduce_base
+                    = wei_reduction + ithr_g * nthr_mb * weights_g_size;
+            acc_data_t *weights_reduce
+                    = weights_reduce_base + ithr_mb * weights_g_size;
 
             for (size_t g = g_start; g < g_end; ++g) {
                 acc_data_t *acc = need_reduction
-                        ? weights_reduce : (acc_base + g * weights_g_size);
+                        ? weights_reduce
+                        : (acc_base + g * weights_g_size);
                 for (size_t mb = mb_start; mb < mb_end; ++mb) {
-                    const src_data_t *_src =
-                        src + (mb * jcp.ngroups + g) * src_step;
+                    const src_data_t *_src
+                            = src + (mb * jcp.ngroups + g) * src_step;
                     for (int od = 0; od < jcp.od; ++od) {
-                    const diff_dst_data_t *_diff_dst = diff_dst
-                            + (mb * jcp.ngroups + g) * dst_step + od * k;
+                        const diff_dst_data_t *_diff_dst = diff_dst
+                                + (mb * jcp.ngroups + g) * dst_step + od * k;
 
-                    if (jcp.im2col_sz) {
-                        if (jcp.id == 1)
-                            jit_gemm_convolution_utils::im2col<src_data_t>(
-                                    jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
-                        else
-                            jit_gemm_convolution_utils::im2col_3d<src_data_t>(
-                                jcp, _src, _col, od);
-                    }
+                        if (jcp.im2col_sz) {
+                            if (jcp.id == 1)
+                                jit_gemm_convolution_utils::im2col<src_data_t>(
+                                        jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
+                            else
+                                jit_gemm_convolution_utils::im2col_3d<
+                                        src_data_t>(jcp, _src, _col, od);
+                        }
 
-                    const acc_data_t zero = 0.0, one = 1.0;
-                    gemm_bf16bf16f32(
-                        "T", "N", &M, &N, &k, &one,
-                        jcp.im2col_sz ? _col : _src + od * k,
-                        &LDA, _diff_dst, &K,
-                        mb == mb_start && od == 0 ? &zero : &one,
-                        acc, &M);
+                        const acc_data_t zero = 0.0, one = 1.0;
+                        gemm_bf16bf16f32("T", "N", &M, &N, &k, &one,
+                                jcp.im2col_sz ? _col : _src + od * k, &LDA,
+                                _diff_dst, &K,
+                                mb == mb_start && od == 0 ? &zero : &one, acc,
+                                &M);
                     }
                 }
             }
             if (need_reduction && mkldnn_thr_syncable()) {
                 mkldnn_thr_barrier();
-                diff_wei_data_t *weights_base = diff_weights
-                    + g_start * weights_g_size;
-                bf16_bwd_weights_reduction_par(
-                    ithr_mb, nthr_mb, jcp, weights_reduce_base, weights_base);
+                diff_wei_data_t *weights_base
+                        = diff_weights + g_start * weights_g_size;
+                bf16_bwd_weights_reduction_par(ithr_mb, nthr_mb, jcp,
+                        weights_reduce_base, weights_base);
             } else if (diff_wei_data_type == data_type::bf16
-                           && g_end > g_start) {
+                    && g_end > g_start) {
                 const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
                 const size_t work_size = (g_end - g_start) * weights_g_size;
-                bfloat16_t *diff_weights_local = (bfloat16_t *)diff_weights
-                        + g_start * weights_g_size;
-                const float *acc_local = (const float *)acc_base
-                        + g_start * weights_g_size;
+                bfloat16_t *diff_weights_local
+                        = (bfloat16_t *)diff_weights + g_start * weights_g_size;
+                const float *acc_local
+                        = (const float *)acc_base + g_start * weights_g_size;
                 store_bfloat16_in_parallel(diff_weights_local, acc_local,
-                                           work_size, 1, jcp.nthr == 1);
+                        work_size, 1, jcp.nthr == 1);
             }
         } else {
             if (need_reduction && mkldnn_thr_syncable()) mkldnn_thr_barrier();
@@ -633,12 +619,12 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     if (jcp.need_wei_reduction && !mkldnn_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
             int ithr_g, nthr_g, ithr_mb, nthr_mb;
-            size_t g_start{0}, g_end{0}, mb_start{0}, mb_end{0};
+            size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
 
             const int mb_for_balance = jcp.need_wei_reduction ? jcp.mb : 1;
             jit_gemm_convolution_utils::bwd_weights_balance(ithr, nthr,
-                    jcp.ngroups, mb_for_balance, ithr_g, nthr_g,
-                    ithr_mb, nthr_mb);
+                    jcp.ngroups, mb_for_balance, ithr_g, nthr_g, ithr_mb,
+                    nthr_mb);
 
             assert(IMPLICATION(!jcp.need_wei_reduction, nthr_mb == 1));
             const int need_reduction = nthr_mb != 1;
@@ -649,11 +635,11 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
 
                 assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
 
-                acc_data_t *weights_reduce_base = wei_reduction
-                        + ithr_g * nthr_mb * weights_g_size;
+                acc_data_t *weights_reduce_base
+                        = wei_reduction + ithr_g * nthr_mb * weights_g_size;
 
-                diff_wei_data_t *weights_base = diff_weights
-                    + g_start * weights_g_size;
+                diff_wei_data_t *weights_base
+                        = diff_weights + g_start * weights_g_size;
                 bf16_bwd_weights_reduction_par(ithr_mb, nthr_mb, jcp,
                         weights_reduce_base, weights_base);
             }
@@ -664,24 +650,23 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
         parallel_nd(jcp.ngroups, jcp.oc, [&](int g, int oc) {
             acc_data_t db = 0;
             size_t offset_ = (size_t)g * dst_step + (size_t)oc * K;
-            for (int mb = 0; mb < jcp.mb; ++mb)
-            {
+            for (int mb = 0; mb < jcp.mb; ++mb) {
                 size_t offset = offset_ + (size_t)mb * jcp.ngroups * dst_step;
                 for_(int od = 0; od < jcp.od; ++od)
                 for (int oh = 0; oh < jcp.oh; ++oh)
-                PRAGMA_OMP_SIMD(reduction(+:db))
+                    PRAGMA_OMP_SIMD(reduction(+ : db))
                 for (int ow = 0; ow < jcp.ow; ++ow) {
                     db += diff_dst[offset];
                     offset++;
                 }
             }
-            diff_bias[g*jcp.oc+oc] = db;
+            diff_bias[g * jcp.oc + oc] = db;
         });
 
         if (pd()->desc()->diff_bias_desc.data_type == data_type::bf16) {
             auto diff_bias_in = CTX_OUT_MEM(bfloat16_t *, MKLDNN_ARG_DIFF_BIAS);
-            cvt_float_to_bfloat16(diff_bias_in, diff_bias,
-                    jcp.ngroups * jcp.oc);
+            cvt_float_to_bfloat16(
+                    diff_bias_in, diff_bias, jcp.ngroups * jcp.oc);
         }
     }
 }
@@ -693,6 +678,6 @@ template struct gemm_bf16_convolution_bwd_data_t<data_type::bf16>;
 template struct gemm_bf16_convolution_bwd_weights_t<data_type::f32>;
 template struct gemm_bf16_convolution_bwd_weights_t<data_type::bf16>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

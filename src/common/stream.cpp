@@ -28,21 +28,18 @@ using namespace mkldnn::impl::utils;
 
 /* API */
 
-status_t mkldnn_stream_create(stream_t **stream, engine_t *engine,
-        unsigned flags) {
-    bool args_ok = true
-        && !utils::any_null(stream, engine)
-        && flags == stream_flags::default_flags;
-    if (!args_ok)
-        return invalid_arguments;
+status_t mkldnn_stream_create(
+        stream_t **stream, engine_t *engine, unsigned flags) {
+    bool args_ok = true && !utils::any_null(stream, engine)
+            && flags == stream_flags::default_flags;
+    if (!args_ok) return invalid_arguments;
 
     return engine->create_stream(stream, flags);
 }
 
 status_t mkldnn_stream_wait(stream_t *stream) {
     bool args_ok = !any_null(stream);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
     return stream->wait();
 }

@@ -27,7 +27,9 @@
 
 #define DEBUGPRINT 0
 #if DEBUGPRINT
-#define DPRINT(fmt, ...) printf(fmt, __VA_ARGS__);fflush(0)
+#define DPRINT(fmt, ...) \
+    printf(fmt, __VA_ARGS__); \
+    fflush(0)
 #define WS_PRINT(s, w) ws_print(s, w)
 #else
 #define DPRINT(fmt, ...)
@@ -45,8 +47,7 @@ struct jit_ref_rnn_kernel {
     ~jit_ref_rnn_kernel() {};
 
     static status_t init_conf(jit_rnn_conf_t &jrnn,
-            const rnn_utils::rnn_conf_t &rnn_conf,
-            const rnn_pd_t *rnn_pd,
+            const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
             const memory_desc_wrapper &src_layer_d,
             const memory_desc_wrapper &src_iter_d,
             const memory_desc_wrapper &src_iter_c_d,
@@ -65,8 +66,7 @@ struct jit_ref_rnn_kernel {
             const memory_desc_wrapper &diff_dst_layer_d,
             const memory_desc_wrapper &diff_dst_iter_d,
             const memory_desc_wrapper &diff_dst_iter_c_d,
-            const memory_desc_wrapper &ws_d,
-            jit_rnn_offsets &jit_off,
+            const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off,
             const primitive_attr_t &attr) {
 
         using namespace rnn_utils;
@@ -105,14 +105,12 @@ struct jit_ref_rnn_kernel {
 
         jrnn.src_layer_ndims = src_layer_d.ndims();
         jrnn.src_iter_ndims = src_iter_d.ndims();
-        if (jrnn.with_src_iter_c)
-            jrnn.src_iter_c_ndims = src_iter_c_d.ndims();
+        if (jrnn.with_src_iter_c) jrnn.src_iter_c_ndims = src_iter_c_d.ndims();
         jrnn.weights_layer_ndims = weights_layer_d.ndims();
         jrnn.weights_iter_ndims = weights_iter_d.ndims();
         jrnn.dst_layer_ndims = dst_layer_d.ndims();
         jrnn.dst_iter_ndims = dst_iter_d.ndims();
-        if (jrnn.with_dst_iter_c)
-            jrnn.dst_iter_c_ndims = dst_iter_c_d.ndims();
+        if (jrnn.with_dst_iter_c) jrnn.dst_iter_c_ndims = dst_iter_c_d.ndims();
         jrnn.bias_ndims = bias_d.ndims();
 
         set_offsets(src_layer_d, jit_off.src_layer_off);
@@ -260,7 +258,7 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("WS_STATES_OFFSET", jrnn.ws_states_offset);
         kernel_ctx.define_int("WS_C_STATE_OFFSET", jrnn.ws_c_state_offset);
         kernel_ctx.define_int(
-            "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
+                "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
         kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
         kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
@@ -275,68 +273,39 @@ struct jit_ref_rnn_kernel {
     jit_rnn_conf_t jrnn;
 };
 
-template<prop_kind_t aprop>
+template <prop_kind_t aprop>
 inline status_t init_jit(jit_rnn_conf_t &jrnn,
-    const rnn_utils::rnn_conf_t &rnn_conf,const rnn_pd_t *rnn_pd,
-    jit_rnn_offsets &jit_off) {
+        const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
+        jit_rnn_offsets &jit_off) {
 
     const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
     return jit_ref_rnn_kernel::init_conf(jrnn, rnn_conf, rnn_pd,
-            rnn_pd->src_md(0),
-            rnn_pd->src_md(1),
-            rnn_pd->src_md(2),
-            rnn_pd->weights_md(0),
-            rnn_pd->weights_md(1),
-            rnn_pd->weights_md(2),
-            rnn_pd->dst_md(0),
-            rnn_pd->dst_md(1),
-            rnn_pd->dst_md(2),
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            fakedesc,
-            rnn_pd->workspace_md(0),
-            jit_off,
-            *rnn_pd->attr()
-        );
+            rnn_pd->src_md(0), rnn_pd->src_md(1), rnn_pd->src_md(2),
+            rnn_pd->weights_md(0), rnn_pd->weights_md(1), rnn_pd->weights_md(2),
+            rnn_pd->dst_md(0), rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc,
+            fakedesc, fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
+            fakedesc, fakedesc, rnn_pd->workspace_md(0), jit_off,
+            *rnn_pd->attr());
 }
 
-template<>
+template <>
 inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
-    const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
-    jit_rnn_offsets &jit_off){
+        const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
+        jit_rnn_offsets &jit_off) {
     return jit_ref_rnn_kernel::init_conf(jrnn, rnn_conf, rnn_pd,
-            rnn_pd->src_md(0),
-            rnn_pd->src_md(1),
-            rnn_pd->src_md(2),
-            rnn_pd->weights_md(0),
-            rnn_pd->weights_md(1),
-            rnn_pd->weights_md(2),
-            rnn_pd->dst_md(0),
-            rnn_pd->dst_md(1),
-            rnn_pd->dst_md(2),
-            rnn_pd->diff_src_md(0),
-            rnn_pd->diff_src_md(1),
-            rnn_pd->diff_src_md(2),
-            rnn_pd->diff_weights_md(0),
-            rnn_pd->diff_weights_md(1),
-            rnn_pd->diff_weights_md(2),
-            rnn_pd->diff_dst_md(0),
-            rnn_pd->diff_dst_md(1),
-            rnn_pd->diff_dst_md(2),
-            rnn_pd->workspace_md(0),
-            jit_off,
-            *rnn_pd->attr()
-        );
+            rnn_pd->src_md(0), rnn_pd->src_md(1), rnn_pd->src_md(2),
+            rnn_pd->weights_md(0), rnn_pd->weights_md(1), rnn_pd->weights_md(2),
+            rnn_pd->dst_md(0), rnn_pd->dst_md(1), rnn_pd->dst_md(2),
+            rnn_pd->diff_src_md(0), rnn_pd->diff_src_md(1),
+            rnn_pd->diff_src_md(2), rnn_pd->diff_weights_md(0),
+            rnn_pd->diff_weights_md(1), rnn_pd->diff_weights_md(2),
+            rnn_pd->diff_dst_md(0), rnn_pd->diff_dst_md(1),
+            rnn_pd->diff_dst_md(2), rnn_pd->workspace_md(0), jit_off,
+            *rnn_pd->attr());
 }
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 
 #endif

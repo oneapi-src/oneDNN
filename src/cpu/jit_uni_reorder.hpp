@@ -89,8 +89,11 @@ struct kernel_t {
         prb_t prb;
     };
 
-    kernel_t(const desc_t &desc): desc_(desc), ker_(nullptr) {}
-    void operator()(const call_param_t *c) const { assert(ker_); ker_(c); }
+    kernel_t(const desc_t &desc) : desc_(desc), ker_(nullptr) {}
+    void operator()(const call_param_t *c) const {
+        assert(ker_);
+        ker_(c);
+    }
     virtual ~kernel_t() {}
 
     /** inits kernel descriptor:
@@ -98,8 +101,8 @@ struct kernel_t {
      *      prb             -- transposition problem (input)
      *      ndims_ker_max   -- limit the maximum number of dimensions kernel
      *                         will process (optional, 0 -- no limitation) */
-    static status_t desc_init(desc_t &desc, const prb_t &prb,
-            int ndims_ker_max = 0);
+    static status_t desc_init(
+            desc_t &desc, const prb_t &prb, int ndims_ker_max = 0);
 
     /** creates kernel for the problem described in desc */
     static kernel_t *create(const desc_t &desc);
@@ -112,16 +115,16 @@ protected:
 
 /* TODO: add trans_t class */
 
-}
+} // namespace tr
 
 /* for cpu reorder list */
-status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd,
-        engine_t *engine, const primitive_attr_t *attr,
-        engine_t *src_engine, const memory_desc_t *src_md,
-        engine_t *dst_engine, const memory_desc_t *dst_md);
+status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
+        const primitive_attr_t *attr, engine_t *src_engine,
+        const memory_desc_t *src_md, engine_t *dst_engine,
+        const memory_desc_t *dst_md);
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

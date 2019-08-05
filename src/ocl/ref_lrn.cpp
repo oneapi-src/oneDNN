@@ -20,8 +20,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-status_t ref_lrn_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
+status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -44,8 +43,7 @@ status_t ref_lrn_fwd_t::execute_forward(
     return status;
 }
 
-status_t ref_lrn_bwd_t::execute_backward(
-    const exec_ctx_t &ctx) const {
+status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);

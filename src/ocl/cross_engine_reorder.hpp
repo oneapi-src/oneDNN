@@ -61,8 +61,7 @@ struct cross_engine_reorder_t : public primitive_t {
 
         primitive_t *reorder_ptr;
         status = pd()->reorder_->create_primitive(&reorder_ptr);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         reorder_.reset(reorder_ptr);
 
@@ -81,8 +80,7 @@ struct cross_engine_reorder_t : public primitive_t {
                             ? pd()->dst_md()
                             : pd()->src_md(),
                     memory_flags_t::alloc, nullptr));
-            if (!temp_buf)
-                return status::out_of_memory;
+            if (!temp_buf) return status::out_of_memory;
         }
 
         return status::success;

@@ -43,18 +43,18 @@ struct ref_shuffle_t : public primitive_t {
 
             bool ok = true
                     && utils::one_of(
-                        (int)types::data_type_size(data_md()->data_type),
-                        1, 2, 4)
+                            (int)types::data_type_size(data_md()->data_type), 1,
+                            2, 4)
                     && IMPLICATION(
-                               desc()->data_desc.data_type == data_type::f16,
-                               compute_engine->mayiuse(
-                                       compute::device_ext_t::khr_fp16))
+                            desc()->data_desc.data_type == data_type::f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && desc()->data_desc.data_type != data_type::bf16;
             if (!ok) return status::unimplemented;
 
             dat_tag_ = any;
             return jit_ref_shuffle_kernel::init_conf(this, jshfl_, jit_off_,
-                src_md(), dst_md(), diff_src_md(), diff_dst_md());
+                    src_md(), dst_md(), diff_src_md(), diff_dst_md());
         }
 
         jit_shuffle_conf_t jshfl_;
@@ -71,12 +71,10 @@ struct ref_shuffle_t : public primitive_t {
 
         status_t status = jit_ref_shuffle_kernel::init_const_def(
                 kernel_ctx, pd()->jshfl_, pd()->jit_off_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_shuffle", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -88,7 +86,7 @@ struct ref_shuffle_t : public primitive_t {
     }
 
 private:
-    template<format_tag_t tag>
+    template <format_tag_t tag>
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;

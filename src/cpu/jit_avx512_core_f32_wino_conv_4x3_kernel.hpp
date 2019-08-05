@@ -28,15 +28,14 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel
-    : public jit_generator {
+struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
             jit_conv_winograd_conf_t ajcp)
         : jcp(ajcp) {
         {
             this->weights_transform_data_ker_generate();
             weights_transform_data_ker
-                    = (decltype(weights_transform_data_ker)) this->getCode();
+                    = (decltype(weights_transform_data_ker))this->getCode();
         }
         {
             align();
@@ -49,7 +48,7 @@ struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel
             const Xbyak::uint8 *addr = getCurr();
             this->output_transform_data_ker_generate();
             output_transform_data_ker
-                = (decltype(output_transform_data_ker))addr;
+                    = (decltype(output_transform_data_ker))addr;
         }
         {
             align();
@@ -59,7 +58,8 @@ struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel
         }
     }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_f32_wino_conv_4x3_data_kernel)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(
+            _jit_avx512_core_f32_wino_conv_4x3_data_kernel)
 
     static status_t init_conf_common(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -151,7 +151,7 @@ protected:
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_fwd_kernel
-        : _jit_avx512_core_f32_wino_conv_4x3_data_kernel {
+    : _jit_avx512_core_f32_wino_conv_4x3_data_kernel {
     using _jit_avx512_core_f32_wino_conv_4x3_data_kernel::
             _jit_avx512_core_f32_wino_conv_4x3_data_kernel;
 
@@ -164,7 +164,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_kernel
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_kernel
-        : public _jit_avx512_core_f32_wino_conv_4x3_data_kernel {
+    : public _jit_avx512_core_f32_wino_conv_4x3_data_kernel {
     using _jit_avx512_core_f32_wino_conv_4x3_data_kernel::
             _jit_avx512_core_f32_wino_conv_4x3_data_kernel;
 
@@ -175,17 +175,17 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_kernel
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
-        : public jit_generator {
+    : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
-        _jit_avx512_core_conv_winograd_bwd_weights_kernel_f32)
+            _jit_avx512_core_conv_winograd_bwd_weights_kernel_f32)
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp)
-    {
+        : jcp(ajcp) {
         //******************* First iter kernel ********************//
         this->gemm_loop_generate(true);
-        gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))this->getCode();
+        gemm_loop_ker_first_iter
+                = (decltype(gemm_loop_ker_first_iter))this->getCode();
 
         align();
         const Xbyak::uint8 *addr = getCurr();
@@ -220,8 +220,8 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
             align();
             addr = getCurr();
             this->diff_weights_transform_generate(false);
-            diff_weights_transform_accum =
-                (decltype(diff_weights_transform_accum))addr;
+            diff_weights_transform_accum
+                    = (decltype(diff_weights_transform_accum))addr;
         };
     }
 
@@ -284,8 +284,8 @@ private:
     reg64_t reg_nb_dimN_bcast_ur = r11;
     reg64_t reg_dimK_block_loop_cnt = r12;
 };
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

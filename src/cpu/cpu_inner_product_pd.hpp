@@ -112,8 +112,7 @@ void transpose_md(memory_desc_t &md) {
     auto is_a_first = [&](memory_desc_t &md) {
         auto &md_blk = md.format_desc.blocking;
         for (int d = 1; d < md.ndims; d++)
-            if (md_blk.strides[0] < md_blk.strides[d])
-                return false;
+            if (md_blk.strides[0] < md_blk.strides[d]) return false;
         return true;
     };
 
@@ -135,10 +134,11 @@ format_tag_t get_tag(memory_desc_t &md) {
     assert(tag != format_tag::undef);
     return tag;
 }
-}
+} // namespace
 
-struct cpu_inner_product_fwd_pd_t: public inner_product_fwd_pd_t {
+struct cpu_inner_product_fwd_pd_t : public inner_product_fwd_pd_t {
     using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
+
 protected:
     status_t set_default_params() {
         using namespace format_tag;
@@ -161,14 +161,12 @@ protected:
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of no-copy kernels*/
             auto batch = src_md_.dims[0];
-            if (batch > 1)
-                transpose_md(weights_md_);
+            if (batch > 1) transpose_md(weights_md_);
 
             return status::success;
         };
 
-        if (src_md_.format_kind == format_kind::any)
-            CHECK(set_default_src());
+        if (src_md_.format_kind == format_kind::any) CHECK(set_default_src());
         if (weights_md_.format_kind == format_kind::any)
             CHECK(set_default_weights());
         if (dst_md_.format_kind == format_kind::any)
@@ -179,8 +177,9 @@ protected:
     }
 };
 
-struct cpu_inner_product_bwd_data_pd_t: public inner_product_bwd_data_pd_t {
+struct cpu_inner_product_bwd_data_pd_t : public inner_product_bwd_data_pd_t {
     using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
+
 protected:
     status_t set_default_params() {
         using namespace format_tag;
@@ -204,8 +203,7 @@ protected:
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of no-copy kernels*/
             auto batch = diff_src_md_.dims[0];
-            if (batch == 1)
-                transpose_md(weights_md_);
+            if (batch == 1) transpose_md(weights_md_);
 
             return status::success;
         };
@@ -220,8 +218,10 @@ protected:
     }
 };
 
-struct cpu_inner_product_bwd_weights_pd_t: public inner_product_bwd_weights_pd_t {
+struct cpu_inner_product_bwd_weights_pd_t
+    : public inner_product_bwd_weights_pd_t {
     using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
+
 protected:
     status_t set_default_params() {
         using namespace format_tag;
@@ -244,14 +244,12 @@ protected:
             CHECK(memory_desc_init_by_tag(diff_weights_md_, get_tag(src_md_)));
             // Here, we want diff_weights layout to match the fwd weights layout
             auto batch = src_md_.dims[0];
-            if (batch > 1)
-                transpose_md(diff_weights_md_);
+            if (batch > 1) transpose_md(diff_weights_md_);
 
             return status::success;
         };
 
-        if (src_md_.format_kind == format_kind::any)
-            CHECK(set_default_src());
+        if (src_md_.format_kind == format_kind::any) CHECK(set_default_src());
         if (diff_weights_md_.format_kind == format_kind::any)
             CHECK(set_default_diff_weights());
         if (diff_dst_md_.format_kind == format_kind::any)
@@ -262,9 +260,9 @@ protected:
     }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

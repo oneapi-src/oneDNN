@@ -32,7 +32,6 @@ struct ocl_softmax_bwd_pd_t : public softmax_bwd_pd_t {
     using softmax_bwd_pd_t::softmax_bwd_pd_t;
 };
 
-
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

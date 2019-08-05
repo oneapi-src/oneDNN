@@ -38,7 +38,7 @@ using namespace Xbyak;
 typedef int8_t data_t;
 
 template <cpu_isa_t isa>
-struct jit_bnorm_t: public jit_generator {
+struct jit_bnorm_t : public jit_generator {
     struct call_params_t {
         // keep int sizes at 8 bytes -- jit code expects this
         size_t coff_max, soff_max;
@@ -99,7 +99,7 @@ struct jit_bnorm_t: public jit_generator {
         c_tail_ = bdesc_->C() % c_in_xmm_;
         unroll_regs_ = isa == avx512_core ? 4 : 2;
         with_relu_ = (bdesc_->with_relu_post_op() || bdesc_->fuse_norm_relu())
-            && bdesc_->is_fwd();
+                && bdesc_->is_fwd();
     }
 
     void load_common_params() {
@@ -107,7 +107,7 @@ struct jit_bnorm_t: public jit_generator {
         movq(xone, reg_tmp);
         uni_vbroadcastss(vone, xone);
 
-#       define PARAM_OFF(x) offsetof(call_params_t, x)
+#define PARAM_OFF(x) offsetof(call_params_t, x)
         uni_vbroadcastss(veps, vmmword[reg_param + PARAM_OFF(eps)]);
         uni_vpxor(vzero, vzero, vzero);
 
@@ -118,7 +118,7 @@ struct jit_bnorm_t: public jit_generator {
         mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
         mov(reg_scale_shift, ptr[reg_param + PARAM_OFF(scale_shift)]);
         mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
-#       undef PARAM_OFF
+#undef PARAM_OFF
     }
 
     void prepare_tail_mask_avx512() {
@@ -132,8 +132,8 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     void prepare_tail_mask_avx2() {
-        static const uint32_t mask_half_ymm[8] = {0xffffffff, 0xffffffff,
-                0xffffffff, 0xffffffff, 0, 0, 0, 0};
+        static const uint32_t mask_half_ymm[8]
+                = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0, 0, 0, 0};
         mov(reg_tmp, reinterpret_cast<size_t>(&mask_half_ymm[0]));
         vmovups(vbody_mask, ptr[reg_tmp]);
 
@@ -143,8 +143,8 @@ struct jit_bnorm_t: public jit_generator {
                 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
                 0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
 
-        mov(reg_tmp, reinterpret_cast<size_t>(
-                    &mask_f32[8 - c_tail_ % simd_w_]));
+        mov(reg_tmp,
+                reinterpret_cast<size_t>(&mask_f32[8 - c_tail_ % simd_w_]));
         vmovups(vtail_mask, ptr[reg_tmp]);
     }
 
@@ -179,12 +179,12 @@ struct jit_bnorm_t: public jit_generator {
 
     Address scale_ptr(size_t offt = 0) {
         return vmmword[reg_scale_shift + reg_coff_f32 + offt
-            + 0 * chan_data_offt_];
+                + 0 * chan_data_offt_];
     }
 
     Address shift_ptr(size_t offt = 0) {
         return vmmword[reg_scale_shift + reg_coff_f32 + offt
-            + 1 * chan_data_offt_];
+                + 1 * chan_data_offt_];
     }
 
     Address src_ptr(size_t offt = 0) {
@@ -207,7 +207,8 @@ struct jit_bnorm_t: public jit_generator {
             add(reg_tmp, c_in_xmm_ * unroll_regs_);
 
             Label c_loop;
-            L(c_loop); {
+            L(c_loop);
+            {
 
                 body(unroll_regs_);
 
@@ -219,8 +220,7 @@ struct jit_bnorm_t: public jit_generator {
             }
         }
 
-        if (loop_tail)
-            body(loop_tail);
+        if (loop_tail) body(loop_tail);
 
         if (c_tail_) {
             add(reg_coff_s8, c_in_xmm_ * loop_tail);
@@ -265,28 +265,29 @@ struct jit_bnorm_t: public jit_generator {
     void forward_avx512() {
         xor_(reg_soff, reg_soff);
         Label mb_sp_loop;
-        L(mb_sp_loop); {
+        L(mb_sp_loop);
+        {
 
-            channel_loop([=](size_t unroll) {
+            channel_loop(
+                    [=](size_t unroll) {
                         // Works with 16c times @unroll blocks simultaneously.
                         // Each block up converts 16c, performs math and down
                         // converts.
                         for (size_t i = 0; i < unroll; i++) {
-                            Vmm v = Vmm(i + 0*unroll);
-                            Vmm vscale = Vmm(i + 1*unroll);
-                            Vmm vshift = Vmm(i + 2*unroll);
-                            Vmm vmean = Vmm(i + 3*unroll);
-                            Vmm vsqrtvar = Vmm(i + 4*unroll);
+                            Vmm v = Vmm(i + 0 * unroll);
+                            Vmm vscale = Vmm(i + 1 * unroll);
+                            Vmm vshift = Vmm(i + 2 * unroll);
+                            Vmm vmean = Vmm(i + 3 * unroll);
+                            Vmm vsqrtvar = Vmm(i + 4 * unroll);
 
                             compute_vscaleshift(vscale, vshift, vmean, vsqrtvar,
-                                i * c_in_xmm_ * sizeof(float));
+                                    i * c_in_xmm_ * sizeof(float));
 
                             vpmovsxbd(v, src_ptr(i * c_in_xmm_));
                             vcvtdq2ps(v, v);
 
                             uni_vfmadd213ps(v, vscale, vshift);
-                            if (with_relu_)
-                                uni_vmaxps(v, v, vzero);
+                            if (with_relu_) uni_vmaxps(v, v, vzero);
 
                             vcvtps2dq(v, v);
                             vpmovsdb(dst_ptr(i * c_in_xmm_), v);
@@ -305,15 +306,14 @@ struct jit_bnorm_t: public jit_generator {
                         for (size_t tl = 0; tl < c_tail_; tl++)
                             vpinsrb(x, x, src_ptr(tl), tl);
 
-                        compute_vscaleshift(vscale, vshift, vmean, vsqrtvar, 0,
-                                true);
+                        compute_vscaleshift(
+                                vscale, vshift, vmean, vsqrtvar, 0, true);
 
                         vpmovsxbd(v, x);
                         vcvtdq2ps(v, v);
 
                         uni_vfmadd213ps(v, vscale, vshift);
-                        if (with_relu_)
-                            uni_vmaxps(v, v, vzero);
+                        if (with_relu_) uni_vmaxps(v, v, vzero);
 
                         vcvtps2dq(v, v);
                         vpmovsdb(x, v);
@@ -331,9 +331,11 @@ struct jit_bnorm_t: public jit_generator {
     void forward_avx2() {
         xor_(reg_soff, reg_soff);
         Label mb_sp_loop;
-        L(mb_sp_loop); {
+        L(mb_sp_loop);
+        {
 
-            channel_loop([=](size_t unroll) {
+            channel_loop(
+                    [=](size_t unroll) {
                         // Load 32 channels (two C16_blocks) in ymm, then
                         // split the work in half, each half splits in two
                         // regs with 8 channels per. When down converting,
@@ -358,11 +360,12 @@ struct jit_bnorm_t: public jit_generator {
                             compute_vscaleshift(vscale0, vshift0, vmean0,
                                     vsqrtvar0, i * c_in_xmm_ * sizeof(float));
                             compute_vscaleshift(vscale1, vshift1, vmean1,
-                                    vsqrtvar1, i * c_in_xmm_ * sizeof(float)
-                                    + simd_w_ * sizeof(float));
+                                    vsqrtvar1,
+                                    i * c_in_xmm_ * sizeof(float)
+                                            + simd_w_ * sizeof(float));
 
-                            vpmovsxbd(v0, src_ptr(i*c_in_xmm_));
-                            vpmovsxbd(v1, src_ptr(i*c_in_xmm_ + simd_w_));
+                            vpmovsxbd(v0, src_ptr(i * c_in_xmm_));
+                            vpmovsxbd(v1, src_ptr(i * c_in_xmm_ + simd_w_));
                             vcvtdq2ps(v0, v0);
                             vcvtdq2ps(v1, v1);
 
@@ -408,31 +411,29 @@ struct jit_bnorm_t: public jit_generator {
                         size_t num_iters = c_tail_ > simd_w_ ? 2 : 1;
 
                         for (size_t i = 0; i < num_iters; i++) {
-                            if (i > 0)
-                                tail = c_tail_ - simd_w_;
+                            if (i > 0) tail = c_tail_ - simd_w_;
 
                             for (size_t tl = 0; tl < tail; tl++)
-                                vpinsrb(x0, x0, src_ptr(8*i + tl), tl);
+                                vpinsrb(x0, x0, src_ptr(8 * i + tl), tl);
 
                             if (tail == simd_w_)
                                 compute_vscaleshift(vscale0, vshift0, vmean0,
-                                        vsqrtvar0, 32*i);
+                                        vsqrtvar0, 32 * i);
                             else
                                 compute_vscaleshift(vscale0, vshift0, vmean0,
-                                        vsqrtvar0, 32*i, true);
+                                        vsqrtvar0, 32 * i, true);
 
                             vpmovsxbd(v0, x0);
                             vcvtdq2ps(v0, v0);
                             uni_vfmadd213ps(v0, vscale0, vshift0);
-                            if (with_relu_)
-                                uni_vmaxps(v0, v0, vzero);
+                            if (with_relu_) uni_vmaxps(v0, v0, vzero);
                             vcvtps2dq(v0, v0);
                             vpackssdw(v0, v0, vzero);
                             vpermq(v0, v0, 0xD8);
                             vpacksswb(v0, v0, vzero);
 
                             for (size_t tl = 0; tl < tail; tl++)
-                                vpextrb(dst_ptr(8*i + tl), x0, tl);
+                                vpextrb(dst_ptr(8 * i + tl), x0, tl);
                         }
                     });
 
@@ -442,7 +443,7 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
-    jit_bnorm_t(const batch_normalization_pd_t *bdesc): bdesc_(bdesc) {
+    jit_bnorm_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
         static_assert(isa == avx2 || isa == avx512_core, "unsupported isa");
 
         simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
@@ -461,17 +462,17 @@ struct jit_bnorm_t: public jit_generator {
 
         postamble();
 
-        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
-                    this->getCode()));
+        ker = reinterpret_cast<decltype(ker)>(
+                const_cast<uint8_t *>(this->getCode()));
     }
 };
 
-}
+} // namespace
 
 namespace bnorm_s8_impl {
 
 template <cpu_isa_t isa>
-struct driver_t: public c_compatible {
+struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_) {}
     ~driver_t() {}
@@ -494,7 +495,7 @@ struct driver_t: public c_compatible {
         p.var = var;
 
         /* Naive balancing: allows unrolling and handle tails nicely */
-        dim_t work_amount{N*SP}, start{0}, end{0};
+        dim_t work_amount {N * SP}, start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
         p.coff_max = C;
@@ -502,8 +503,7 @@ struct driver_t: public c_compatible {
         p.src = src + start * p.coff_max;
         p.dst = dst + start * p.coff_max;
 
-        if (p.soff_max != 0)
-            ker_(&p);
+        if (p.soff_max != 0) ker_(&p);
     }
 
 private:
@@ -512,7 +512,7 @@ private:
     jit_bnorm_t<isa> ker_;
 };
 
-}
+} // namespace bnorm_s8_impl
 
 using namespace data_type;
 using namespace format_tag;
@@ -524,16 +524,12 @@ template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init() {
     auto desired_fmt_tag = (ndims() == 4) ? nhwc : ndhwc;
 
-    bool ok = true
-        && mayiuse(isa)
-        && is_fwd()
-        && !has_zero_dim_memory()
-        && one_of(ndims(), 4, 5)
-        && stats_is_src()
-        && src_md()->data_type == s8
-        && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
-        && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-        && (attr()->has_default_values() || this->with_relu_post_op());
+    bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+            && one_of(ndims(), 4, 5) && stats_is_src()
+            && src_md()->data_type == s8
+            && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+            && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
     return status::success;
@@ -541,7 +537,8 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_s8_fwd_t<isa>::jit_uni_batch_normalization_s8_fwd_t(
-        const pd_t *apd): cpu_primitive_t(apd) {
+        const pd_t *apd)
+    : cpu_primitive_t(apd) {
     bnorm_driver_ = new bnorm_s8_impl::driver_t<isa>(pd());
 }
 
@@ -551,13 +548,14 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
     auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
     auto scale_shift = CTX_IN_MEM(const float *, MKLDNN_ARG_SCALE_SHIFT);
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN));
-    auto var = const_cast<float *>(CTX_IN_MEM(const float *,
-                MKLDNN_ARG_VARIANCE));
+    auto var = const_cast<float *>(
+            CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE));
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
     // do sequential if the problem is less than one 4K memory page
-    const bool force_sequential = pd()->MB() * pd()->C() * pd()->D() * pd()->H()
-        * pd()->W() <= 4096;
+    const bool force_sequential
+            = pd()->MB() * pd()->C() * pd()->D() * pd()->H() * pd()->W()
+            <= 4096;
 
     parallel(force_sequential ? 1 : 0, [&](const int ithr, const int nthr) {
         bnorm_driver_->exec(ithr, nthr, src, dst, scale_shift, mean, var);
@@ -567,8 +565,8 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
 }
 
 template <cpu_isa_t isa>
-jit_uni_batch_normalization_s8_fwd_t<isa>::
-~jit_uni_batch_normalization_s8_fwd_t() {
+jit_uni_batch_normalization_s8_fwd_t<
+        isa>::~jit_uni_batch_normalization_s8_fwd_t() {
     delete bnorm_driver_;
 }
 
@@ -576,6 +574,6 @@ jit_uni_batch_normalization_s8_fwd_t<isa>::
 template struct jit_uni_batch_normalization_s8_fwd_t<avx512_core>;
 template struct jit_uni_batch_normalization_s8_fwd_t<avx2>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

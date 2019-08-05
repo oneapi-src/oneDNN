@@ -18,14 +18,14 @@
 #define CPU_GEMM_INNER_PRODUCT_UTILS_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_inner_product_pd.hpp"
 #include "cpu_engine.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "cpu_inner_product_pd.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_uni_eltwise.hpp"
 #include "ref_eltwise.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -34,8 +34,7 @@ namespace cpu {
 namespace inner_product_utils {
 
 template <impl::data_type_t acc_type, impl::data_type_t dst_type>
-class pp_kernel_t : jit_generator
-{
+class pp_kernel_t : jit_generator {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
@@ -65,9 +64,7 @@ private:
         size_t oc_offset;
     };
 
-    enum {
-        default_OC_loop_unroll_ = 4
-    };
+    enum { default_OC_loop_unroll_ = 4 };
 
     void (*ker_)(const ker_args *args);
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
@@ -136,10 +133,10 @@ private:
     };
 };
 
-}
+} // namespace inner_product_utils
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
