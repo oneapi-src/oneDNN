@@ -20,6 +20,8 @@
 #include "mkldnn_config.h"
 #include "mkldnn_types.h"
 
+#include "cpu_isa_traits.hpp"
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {
