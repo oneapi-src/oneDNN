@@ -35,13 +35,35 @@ using reorder_simple_test_f32_f32 = reorder_simple_test<f32_f32>;
 TEST_P(reorder_simple_test_f32_f32, CPU_GPU) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
             "GPU engines not found.");
-    Test(engine::kind::cpu, engine::kind::gpu);
+
+    engine eng_cpu(engine::kind::cpu, 0);
+    engine eng_gpu(engine::kind::gpu, 0);
+
+    Test(eng_cpu, eng_gpu);
 }
 
 TEST_P(reorder_simple_test_f32_f32, GPU_CPU) {
     SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
             "GPU engines not found.");
-    Test(engine::kind::gpu, engine::kind::cpu);
+
+    engine eng_gpu(engine::kind::gpu, 0);
+    engine eng_cpu(engine::kind::cpu, 0);
+
+    Test(eng_gpu, eng_cpu);
+}
+
+TEST_P(reorder_simple_test_f32_f32, GPU_GPU) {
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0,
+            "GPU engines not found.");
+
+    engine eng_gpu1(engine::kind::gpu, 0);
+    engine eng_gpu2(engine::kind::gpu, 0);
+
+    // Reorder within one engine
+    Test(eng_gpu1, eng_gpu1);
+
+    // Different GPU engines
+    Test(eng_gpu1, eng_gpu2);
 }
 
 INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
