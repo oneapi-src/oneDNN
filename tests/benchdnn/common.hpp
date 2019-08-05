@@ -27,6 +27,8 @@
 
 #include <cinttypes>
 
+#include "src/common/z_magic.hpp"
+
 #define ABS(a) ((a)>0?(a):(-(a)))
 
 #define MIN2(a,b) ((a)<(b)?(a):(b))
@@ -34,15 +36,6 @@
 
 #define MIN3(a,b,c) MIN2(a,MIN2(b,c))
 #define MAX3(a,b,c) MAX2(a,MAX2(b,c))
-
-#define STRINGIFy(s) #s
-#define STRINGIFY(s) STRINGIFy(s)
-
-#define CHAIn2(a,b) a b
-#define CHAIN2(a,b) CHAIn2(a,b)
-
-#define CONCAt2(a,b) a ## b
-#define CONCAT2(a,b) CONCAt2(a,b)
 
 #if defined(_WIN32) && !defined(__GNUC__)
 #define strncasecmp _strnicmp
