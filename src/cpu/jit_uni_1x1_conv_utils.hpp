@@ -29,8 +29,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
-
 struct reduce_to_unit_stride_t {
     convolution_desc_t conv_d_;
     bool reduce_src_;
@@ -46,6 +44,7 @@ struct reduce_to_unit_stride_t {
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
+    using namespace mkldnn::impl::utils;
     const bool is_bwd_data = self->desc()->prop_kind
         == prop_kind::backward_data;
 
@@ -355,6 +354,7 @@ inline void init_rtus_driver(conv_t *self) {
 inline int best_divider(int value, int min_divider, int max_divider,
         bool find_max, int step = 1)
 {
+    using namespace mkldnn::impl::utils;
     max_divider = nstl::max(1, nstl::min(max_divider, value));
     min_divider = nstl::max(1, nstl::min(min_divider, max_divider));
 

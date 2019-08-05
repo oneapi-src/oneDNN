@@ -35,10 +35,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
-
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
 
@@ -93,6 +89,9 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, const primitive_attr_t &attr)
 {
+    using namespace mkldnn::impl::format_tag;
+    using namespace mkldnn::impl::utils;
+
     jcp.dst_dt = cd.dst_desc.data_type;
     jcp.isa = isa;
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
@@ -196,6 +195,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 template <cpu_isa_t isa, data_type_t kernel_dt>
 void jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    using namespace mkldnn::impl::memory_tracking::names;
     if (jcp.bia_dt == data_type::bf16)
         scratchpad.book(key_conv_bias_bf16_convert_wsp, sizeof(float) * jcp.oc);
     else if (jcp.with_bias && jcp.oc_without_padding != jcp.oc)
@@ -243,6 +243,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &diff_dst_d) {
+    using namespace mkldnn::impl::format_tag;
+    using namespace mkldnn::impl::utils;
 
     jcp.dsrc_dt = cd.diff_src_desc.data_type;
     jcp.isa = isa;
@@ -383,6 +385,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
         const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &diff_weights_d,
         const memory_desc_wrapper &diff_dst_d, int nthreads) {
+    using namespace mkldnn::impl::format_tag;
+    using namespace mkldnn::impl::utils;
 
     jcp.dwei_dt = cd.diff_weights_desc.data_type;
     jcp.isa = isa;
@@ -476,6 +480,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
 template <cpu_isa_t isa, data_type_t kernel_dt>
 void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
+    using namespace mkldnn::impl::memory_tracking::names;
     /* Notes: if splitting thread work on 'mb', then a reduction has to take
      * place. Hence, book a per-thread, local weights-buffer for the
      * reduction */

@@ -25,8 +25,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::format_tag;
-
 struct jit_gen9_common_conv_fwd_kernel {
 
     jit_gen9_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp){};
@@ -37,6 +35,7 @@ struct jit_gen9_common_conv_fwd_kernel {
             const convolution_desc_t &cd, const memory_desc_t &src_md,
             const memory_desc_t &weights_md, const memory_desc_t &dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+        using namespace mkldnn::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -509,6 +508,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
             const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
             const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+        using namespace mkldnn::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&diff_src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -722,6 +722,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             const memory_desc_t &diff_weights_md,
             const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
             const primitive_attr_t &attr) {
+        using namespace mkldnn::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&diff_weights_md);

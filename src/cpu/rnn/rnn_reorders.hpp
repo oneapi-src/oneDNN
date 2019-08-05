@@ -23,6 +23,7 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 #include "simple_q10n.hpp"
+#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "gemm/gemm_pack.hpp"
 
@@ -41,13 +42,14 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
+            using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
                     && id.matches_one_of_tag(format_tag::tnc, format_tag::ldnc)
                     && od == id;
-            if (!args_ok) return status::invalid_arguments;
+            if (!args_ok) return invalid_arguments;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);
@@ -94,6 +96,7 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
+            using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == type_i
@@ -102,14 +105,14 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
                     && od.rnn_packed_desc().format == mkldnn_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1
                     && attr != nullptr;
-            if (!args_ok) return status::invalid_arguments;
+            if (!args_ok) return invalid_arguments;
 
             format_tag_t itag = id.matches_one_of_tag(
                     format_tag::ldigo, format_tag::ldgoi);
-            if (itag == format_tag::undef) return status::invalid_arguments;
+            if (itag == format_tag::undef) return invalid_arguments;
 
             const int mask = attr->rnn_weights_qparams_.mask_;
-            if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
+            if (!utils::one_of(mask, 0, 3)) return unimplemented;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);
@@ -139,7 +142,7 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             size_t quantization_size = sizeof(int8_t) * nelems;
-            size_t reduction_size = itag_ == ldigo
+            size_t reduction_size = itag_ == format_tag::ldigo
                     ? sizeof(int32_t) * mkldnn_get_max_threads() * dims[0]
                             * dims[1] * dims[3] * dims[4]
                     : 0;
@@ -156,6 +159,8 @@ private:
     rnn_weights_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using math::saturate;
+
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
@@ -278,6 +283,8 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
                 engine_t *engine, const primitive_attr_t *attr,
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
+            using namespace status;
+
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true
                     && id.data_type() == data_type::f32
@@ -286,14 +293,14 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
                     && utils::one_of(od.rnn_packed_desc().format,
                         mkldnn_ldigo_p, mkldnn_ldgoi_p)
                     && attr->has_default_values();
-            if (!args_ok) return status::invalid_arguments;
+            if (!args_ok) return invalid_arguments;
 
             format_tag_t itag = id.matches_one_of_tag(
                     format_tag::ldigo, format_tag::ldgoi);
-            if (itag == format_tag::undef) return status::invalid_arguments;
+            if (itag == format_tag::undef) return invalid_arguments;
 
             const int mask = attr->rnn_weights_qparams_.mask_;
-            if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
+            if (!utils::one_of(mask, 0, 3)) return unimplemented;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);

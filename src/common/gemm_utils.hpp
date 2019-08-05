@@ -26,10 +26,9 @@
 namespace mkldnn {
 namespace impl {
 
-using namespace status;
-
 static inline status_t check_gemm_input(char transa, char transb, int m, int n,
         int k, int lda, int ldb, int ldc, float alpha, float beta) {
+    using namespace status;
     bool consistency = true
         && utils::one_of(transa, 'T', 't', 'N', 'n')
         && utils::one_of(transb, 'T', 't', 'N', 'n')
@@ -54,6 +53,7 @@ static inline status_t check_gemm_input(char transa, char transb, int m, int n,
 
 static inline status_t create_gemm_memory_desc(memory_desc_t *m_desc,
         const gemm_desc_t *desc, int index, data_type_t data_type) {
+    using namespace status;
     int dims[2] = { 0 };
     switch (index) {
     case 0:

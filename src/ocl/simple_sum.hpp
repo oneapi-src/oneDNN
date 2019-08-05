@@ -33,8 +33,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::status;
-
 template <data_type_t data_type>
 struct simple_sum_t : public primitive_t {
     struct pd_t : public ocl_sum_pd_t {
@@ -49,7 +47,7 @@ struct simple_sum_t : public primitive_t {
                     && ocl_sum_pd_t::init() == status::success
                     && n <= max_num_arrs;
             if (!ok)
-                return unimplemented;
+                return status::unimplemented;
 
             const memory_desc_wrapper o_d(dst_md());
             ok = ok

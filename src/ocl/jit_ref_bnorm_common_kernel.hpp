@@ -26,8 +26,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::format_tag;
-
 struct jit_ref_bnorm_common_kernel {
 
     jit_ref_bnorm_common_kernel(jit_bnorm_conf_t ajbn) : jbn(ajbn){};
@@ -38,6 +36,7 @@ struct jit_ref_bnorm_common_kernel {
             const batch_normalization_desc_t &bd,
             const memory_desc_wrapper &data_mdw,
             const batch_normalization_pd_t *bdesc, jit_offsets &jit_off) {
+        using namespace mkldnn::impl::format_tag;
 
         const int ndims = data_mdw.ndims();
 

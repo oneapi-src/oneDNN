@@ -26,8 +26,6 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::format_tag;
-
 struct jit_simple_reorder_kernel {
 
     jit_simple_reorder_kernel(jit_reorder_conf_t ajrp) : jrp(ajrp) {}
@@ -37,6 +35,7 @@ struct jit_simple_reorder_kernel {
     static status_t init_conf(const reorder_pd_t *pd, jit_reorder_conf_t &jrp,
             const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &dst_md) {
+        using namespace format_tag;
 
         jrp.src_md_info = jit_memory_desc_info_t::create(src_md);
         jrp.dst_md_info = jit_memory_desc_info_t::create(dst_md);
@@ -151,6 +150,7 @@ struct jit_simple_reorder_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_reorder_conf_t &jrp, const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &dst_md) {
+        using namespace format_tag;
 
         kernel_ctx.define_int("NDIMS", jrp.ndims);
         if (jrp.scale_quant) {

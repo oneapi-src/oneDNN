@@ -37,15 +37,8 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::data_type;
-
 using bd = block_dim_t;
 using ib = inner_blk_t;
-
-using namespace mkldnn::impl::utils;
-using math::saturate;
 
 template<impl::data_type_t type>
 using data_t = typename prec_traits<type>::type;
@@ -108,18 +101,19 @@ bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support) {
 /* specific reorders: implementation */
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-typename utils::enable_if<tag_i == any && (false
-    || tag_o == hwio
-    || tag_o == hwigo)
+typename utils::enable_if<tag_i == format_tag::any && (false
+    || tag_o == format_tag::hwio
+    || tag_o == format_tag::hwigo)
     , spec::conv_s8s8>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
     {
+        using namespace data_type;
         const size_t D_mask = utils::array_product(input_d.dims(),
                                 math::ilog2q(attr->output_scales_.mask_ + 1));
-        const int oc = (input_d.dims()[tag_o == hwigo + 0]);
-        const int g = (tag_o == hwigo) ? (input_d.dims()[0]) : 1;
+        const int oc = (input_d.dims()[tag_o == format_tag::hwigo + 0]);
+        const int g = (tag_o == format_tag::hwigo) ? (input_d.dims()[0]) : 1;
 
         return output_d.matches_tag(tag_o)
             && (output_d.extra().flags & memory_extra_flags::compensation_conv_s8s8)
@@ -135,7 +129,7 @@ typename utils::enable_if<tag_i == any && (false
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
 
-        static constexpr bool w_groups = tag_o == hwigo;
+        static constexpr bool w_groups = tag_o == format_tag::hwigo;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();
@@ -174,23 +168,25 @@ typename utils::enable_if<tag_i == any && (false
             }
             cp [g * OC + oc] *= 128;
         });
-        return success;
+        return status::success;
     }
 };
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-          (tag_i == oiw && tag_o == OIw4i16o4i)
-       || (tag_i == goiw && tag_o == gOIw4i16o4i)
-       || (utils::one_of(tag_i, hwio, oihw) && tag_o == OIhw4i16o4i)
-       || (utils::one_of(tag_i, goihw, hwigo)
-               && one_of(tag_o, gOIhw4o4i, gOIhw2i8o4i, gOIhw4i16o4i))
+          (tag_i == format_tag::oiw && tag_o == format_tag::OIw4i16o4i)
+       || (tag_i == format_tag::goiw && tag_o == format_tag::gOIw4i16o4i)
+       || (utils::one_of(tag_i, format_tag::hwio, format_tag::oihw) && tag_o == format_tag::OIhw4i16o4i)
+       || (utils::one_of(tag_i, format_tag::goihw, format_tag::hwigo)
+               && utils::one_of(tag_o, format_tag::gOIhw4o4i, format_tag::gOIhw2i8o4i, format_tag::gOIhw4i16o4i))
     , spec::conv_s8s8>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
     {
+        using namespace format_tag;
+        using namespace data_type;
         const size_t D_mask = utils::array_product(input_d.dims(),
                                 math::ilog2q(attr->output_scales_.mask_ + 1));
         const bool w_groups = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i);
@@ -211,6 +207,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output,
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
 
         static constexpr bool w_groups =
             !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i);
@@ -296,19 +293,21 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #       undef wei_blk_off
 
-        return success;
+        return status::success;
     }
 };
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<false
-    || (tag_i == goiw && tag_o == Goiw16g)
-    || (utils::one_of(tag_i, goihw, hwigo) && tag_o == Goihw16g)
+    || (tag_i == format_tag::goiw && tag_o == format_tag::Goiw16g)
+    || (utils::one_of(tag_i, format_tag::goihw, format_tag::hwigo) && tag_o == format_tag::Goihw16g)
     , spec::conv_s8s8>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace data_type;
+
         const size_t D_mask = utils::array_product(input_d.dims(),
                             math::ilog2q(attr->output_scales_.mask_ + 1));
         const int oc = input_d.dims()[1];
@@ -331,7 +330,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
 
-        constexpr bool is_1d = tag_i == goiw;
+        constexpr bool is_1d = tag_i == format_tag::goiw;
         constexpr int blksize = 16;
 
         const auto &dims = input_d.dims();
@@ -394,7 +393,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #       undef wei_blk_off
 
-        return success;
+        return status::success;
     }
 };
 
@@ -402,16 +401,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<(
-        (tag_i == goihw || tag_i == oihw) &&
-        (tag_o == gOIhw16i16o || tag_o == OIhw16i16o
-         || tag_o == gOIhw8i16o2i || tag_o == OIhw8i16o2i
-         || tag_o == gOIhw8o16i2o || tag_o == OIhw8o16i2o
-         || tag_o == gIOhw8o16i2o || tag_o == IOhw8o16i2o) &&
+        (tag_i == format_tag::goihw || tag_i == format_tag::oihw) &&
+        (tag_o == format_tag::gOIhw16i16o || tag_o == format_tag::OIhw16i16o
+         || tag_o == format_tag::gOIhw8i16o2i || tag_o == format_tag::OIhw8i16o2i
+         || tag_o == format_tag::gOIhw8o16i2o || tag_o == format_tag::OIhw8o16i2o
+         || tag_o == format_tag::gIOhw8o16i2o || tag_o == format_tag::IOhw8o16i2o) &&
         type_i == data_type::f32 && type_o == data_type::bf16)>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr)
     {
+        using namespace data_type;
         return order_keep
             && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
             && input_d.data_type() == f32 && output_d.data_type() == bf16
@@ -428,6 +428,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output,
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
 
         static constexpr bool w_groups = tag_i == goihw;
         const int blksize = 16;
@@ -501,7 +502,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             cvt_float_to_bfloat16(o, _wspace, wsp_size);
         });
 
-        return success;
+        return status::success;
     }
 
 };
@@ -510,11 +511,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<
-          (tag_i == nchw && tag_o == nChw16c) &&
+          (tag_i == format_tag::nchw && tag_o == format_tag::nChw16c) &&
            type_i == data_type::f32 && type_o == data_type::bf16>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
+        using namespace data_type;
         return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
             && input_d.data_type() == f32 && output_d.data_type() == bf16
             && attr->has_default_values();
@@ -575,7 +577,7 @@ typename utils::enable_if<
             cvt_float_to_bfloat16(o, _wspace, wsp_size);
         });
 
-        return success;
+        return status::success;
     }
 
 };
@@ -585,9 +587,9 @@ typename utils::enable_if<
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<false
-    || (utils::one_of(tag_i, nCdhw4c, nCdhw8c) && tag_o == nCdhw16c)
-    || (utils::one_of(tag_i, nChw4c, nChw8c)   && tag_o == nChw16c)
-    || (utils::one_of(tag_i, nCw4c, nCw8c)     && tag_o == nCw16c)
+    || (utils::one_of(tag_i, format_tag::nCdhw4c, format_tag::nCdhw8c) && tag_o == format_tag::nCdhw16c)
+    || (utils::one_of(tag_i, format_tag::nChw4c, format_tag::nChw8c)   && tag_o == format_tag::nChw16c)
+    || (utils::one_of(tag_i, format_tag::nCw4c, format_tag::nCw8c)     && tag_o == format_tag::nCw16c)
     >::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -603,6 +605,7 @@ typename utils::enable_if<false
         const data_t<type_i> *input, data_t<type_o> *output,
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
+        using namespace format_tag;
 
         constexpr int is_1d = utils::one_of(tag_i, nCw4c, nCw8c);
         constexpr int is_3d = utils::one_of(tag_i, nCdhw4c, nCdhw8c);
@@ -672,7 +675,7 @@ typename utils::enable_if<false
 
 #       undef data_blk_off
 
-        return success;
+        return status::success;
     }
 };
 
@@ -686,7 +689,7 @@ typename utils::enable_if<false
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-typename utils::enable_if<tag_i == any
+typename utils::enable_if<tag_i == format_tag::any
     && (tag_traits<tag_o>::block_dims == bd::_A
             || tag_traits<tag_o>::block_dims == bd::_B)
     && tag_traits<tag_o>::ndims >= 3
@@ -790,13 +793,13 @@ typename utils::enable_if<tag_i == any
 
 #       undef off
 
-        return success;
+        return status::success;
     }
 };
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-typename utils::enable_if<tag_i == any
+typename utils::enable_if<tag_i == format_tag::any
     && (tag_traits<tag_o>::block_dims == bd::_AB
             || tag_traits<tag_o>::block_dims == bd::_BC)
     && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_AB,
@@ -923,7 +926,7 @@ typename utils::enable_if<tag_i == any
 
 #       undef off
 
-        return success;
+        return status::success;
     }
 };
 
@@ -932,7 +935,7 @@ typename utils::enable_if<tag_i == any
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        tag_i == any && tag_o == any && order_keep == fmt_order::any,
+        tag_i == format_tag::any && tag_o == format_tag::any && order_keep == fmt_order::any,
     spec::direct_copy>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -1021,14 +1024,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                }
             }
         });
-        return success;
+        return status::success;
     }
 };
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        tag_i == any && tag_o == any && order_keep == fmt_order::any,
+        tag_i == format_tag::any && tag_o == format_tag::any && order_keep == fmt_order::any,
     spec::direct_copy_except_dim_0>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -1048,6 +1051,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const data_t<type_i> *input, data_t<type_o> *output,
         const memory_tracking::grantor_t &scratchpad) {
         DECLARE_COMMON_PARAMS();
+        using namespace utils;
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
@@ -1098,7 +1102,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             });
         }
 
-        return success;
+        return status::success;
     }
 
 private:
@@ -1131,7 +1135,7 @@ private:
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     typename utils::enable_if<
-        tag_i == any && tag_o == any && order_keep == fmt_order::any,
+        tag_i == format_tag::any && tag_o == format_tag::any && order_keep == fmt_order::any,
     spec::reference>::type>
 {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -1183,7 +1187,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             o = _qz<type_i, type_o>()(i, o, scale, beta);
         });
 
-        return success;
+        return status::success;
     }
 };
 
