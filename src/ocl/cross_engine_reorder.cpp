@@ -32,12 +32,9 @@ namespace impl {
 namespace ocl {
 
 status_t cross_engine_reorder_t::pd_t::init() {
-    bool args_ok = true
-            && utils::one_of(engine_kind::cpu, src_engine()->kind(),
-                    dst_engine()->kind())
+    bool args_ok = src_engine() != dst_engine()
             && utils::one_of(engine_kind::gpu, src_engine()->kind(),
-                    dst_engine()->kind())
-            && (dst_engine()->kind() != src_engine()->kind());
+                    dst_engine()->kind());
 
     if (!args_ok) return status::unimplemented;
 
@@ -46,12 +43,15 @@ status_t cross_engine_reorder_t::pd_t::init() {
     memory_desc_wrapper src_mdw(src_md());
     memory_desc_wrapper dst_mdw(dst_md());
 
-    // Do not run 4o8i8o4i-like formats on CPU as they assume GPU-specific
-    // permutation.
+    // Do not use CPU reorders in the following cases:
+    // 1. For 4o8i8o4i-like formats as they assume GPU-specific permutation
+    // 2. For GPU <-> GPU reorders with different engines
     if (src_mdw.matches_one_of_tag(
                 format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)
             || dst_mdw.matches_one_of_tag(
-                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)) {
+                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)
+            || utils::everyone_is(engine_kind::gpu, src_engine()->kind(),
+                    dst_engine()->kind())) {
         reorder_engine_kind_ = engine_kind::gpu;
     }
 
