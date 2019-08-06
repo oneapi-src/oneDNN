@@ -31,7 +31,6 @@ class init_kernel;
 
 namespace mkldnn {
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
 TEST(sycl_memory_test, BasicInteropCtor) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
@@ -253,6 +252,5 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
         EXPECT_EQ(host_acc[i], float(exp_value));
     }
 }
-#endif
 
 } // namespace mkldnn

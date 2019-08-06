@@ -14,25 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_SYCL_VPTR_HPP
-#define MKLDNN_SYCL_VPTR_HPP
+#ifndef SYCL_MEMORY_STORAGE_BASE_HPP
+#define SYCL_MEMORY_STORAGE_BASE_HPP
 
-#include <CL/sycl.hpp>
-
-#include "mkldnn.h"
+#include "common/memory_storage.hpp"
 
 namespace mkldnn {
+namespace impl {
+namespace sycl {
 
-void MKLDNN_API *sycl_malloc(size_t size);
+enum class memory_api_kind_t {
+    buffer,
+    usm,
+};
 
-void MKLDNN_API sycl_free(void *ptr);
+class sycl_memory_storage_base_t : public memory_storage_impl_t
+{
+public:
+    using memory_storage_impl_t::memory_storage_impl_t;
 
-bool MKLDNN_API is_sycl_vptr(void *ptr);
+    virtual memory_api_kind_t memory_api_kind() const = 0;
+};
 
-cl::sycl::buffer<uint8_t, 1> MKLDNN_API get_sycl_buffer(void *ptr);
-
-size_t MKLDNN_API get_sycl_offset(void *ptr);
-
+} // namespace sycl
+} // namespace impl
 } // namespace mkldnn
 
-#endif
+#endif // SYCL_MEMORY_STORAGE_BASE_HPP

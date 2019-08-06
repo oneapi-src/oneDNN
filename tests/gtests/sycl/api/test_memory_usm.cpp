@@ -26,8 +26,10 @@ using namespace cl::sycl;
 
 namespace mkldnn {
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
+#ifdef MKLDNN_SYCL_INTEL
 
+// TODO: enable after a USM bug related to mixed CPU/GPU execution is fixed.
+#if 0
 TEST(sycl_memory_usm_test, Constructor) {
     engine eng(engine::kind::cpu, 0);
     memory::dim n = 100;
@@ -54,6 +56,7 @@ TEST(sycl_memory_usm_test, Constructor) {
 
     cl::sycl::free(ptr, eng.get_sycl_context());
 }
+#endif
 
 #endif
 

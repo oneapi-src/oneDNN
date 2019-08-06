@@ -132,9 +132,8 @@ set(SYCLROOT "" CACHE STRING
     Use this option to specify custom location for SYCL")
 
 set(MKLDNN_SYCL_MEMORY_API "BUFFER" CACHE STRING
-    "specifies API for memory objects when the SYCL runtime is used.
-    Can be BUFFER (default), USM (unified shared memory) or
-    VPTR (software managed virtual pointers).")
+    "specifies default API for memory objects when the SYCL runtime is used.
+    Can be BUFFER (default) or USM (unified shared memory).")
 
 # =============
 # Miscellaneous

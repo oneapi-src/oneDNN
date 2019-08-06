@@ -67,10 +67,8 @@
 
 // Buffer memory API
 #define MKLDNN_SYCL_MEMORY_API_BUFFER 0
-// Software managed virtual pointers memory API
-#define MKLDNN_SYCL_MEMORY_API_VPTR 1
 // Unified shared memory API
-#define MKLDNN_SYCL_MEMORY_API_USM 2
+#define MKLDNN_SYCL_MEMORY_API_USM 1
 
 // MKL-DNN CPU engine runtime
 #cmakedefine MKLDNN_CPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_CPU_RUNTIME}

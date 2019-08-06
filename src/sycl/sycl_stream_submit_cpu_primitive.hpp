@@ -23,10 +23,6 @@
 #include <CL/sycl.hpp>
 #include <vector>
 
-// A global scope tag type to use for enqueueing a single task
-template <typename... types>
-class mkldnn_submit_primitive_tag;
-
 namespace mkldnn {
 namespace impl {
 namespace sycl {

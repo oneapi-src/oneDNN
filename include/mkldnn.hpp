@@ -38,10 +38,6 @@
 
 #if MKLDNN_WITH_SYCL
 #include <CL/sycl.hpp>
-
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-#include "mkldnn_sycl_vptr.hpp"
-#endif
 #endif
 
 #endif
@@ -1447,8 +1443,7 @@ struct memory: public handle<mkldnn_memory_t> {
         reset(result);
     }
 
-#if MKLDNN_WITH_SYCL \
-        && (MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER)
+#if MKLDNN_WITH_SYCL
     /// Constructs a memory from a SYCL buffer.
     ///
     /// @param md Memory descriptor.
@@ -1552,7 +1547,7 @@ struct memory: public handle<mkldnn_memory_t> {
     }
 #endif
 
-#if MKLDNN_WITH_SYCL && (MKLDNN_SYCL_MEMORY_API != MKLDNN_SYCL_MEMORY_API_USM)
+#if MKLDNN_WITH_SYCL
     /// Returns the underlying SYCL buffer object.
     ///
     /// @tparam T Type of the requested buffer.
@@ -1571,23 +1566,13 @@ struct memory: public handle<mkldnn_memory_t> {
         if (!handle_ptr)
             return cl::sycl::buffer<T, ndims>(cl::sycl::range<1>(1));
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        if (offset)
-            *offset = get_sycl_offset(handle_ptr);
-
-        auto buf = mkldnn::get_sycl_buffer(handle_ptr);
-        auto range = cl::sycl::range<1>(buf.get_size() / sizeof(T));
-        return buf.reinterpret<T, 1>(range);
-#else
         auto &buf_u8 = *static_cast<cl::sycl::buffer<uint8_t, 1> *>(handle_ptr);
         if (offset)
             *offset = 0;
         auto range = cl::sycl::range<1>(buf_u8.get_size() / sizeof(T));
         return buf_u8.reinterpret<T, 1>(range);
-#endif
     }
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
     /// Sets the underlying buffer to the given SYCL buffer.
     ///
     /// @tparam T Type of the buffer.
@@ -1601,7 +1586,6 @@ struct memory: public handle<mkldnn_memory_t> {
                                   get(), static_cast<void *>(&buf_u8)),
                 "could not set SYCL buffer object");
     }
-#endif
 #endif
 
     // Must go away or be private:

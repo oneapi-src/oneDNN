@@ -17,76 +17,7 @@
 #ifndef SYCL_MEMORY_STORAGE_HPP
 #define SYCL_MEMORY_STORAGE_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/memory_storage.hpp"
-#include "common/utils.hpp"
-#include "sycl/sycl_utils.hpp"
-
-#include "mkldnn.hpp"
-
-#include <CL/sycl.hpp>
-#include <functional>
-#include <memory>
-
-namespace mkldnn {
-namespace impl {
-namespace sycl {
-
-class sycl_memory_storage_t : public memory_storage_impl_t
-{
-public:
-    sycl_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
-            size_t alignment, void *handle);
-
-    virtual status_t get_data_handle(void **handle) const override {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-        *handle = static_cast<void *>(buffer_.get());
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-        *handle = usm_ptr_.get();
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        *handle = vptr_.get();
-#endif
-        return status::success;
-    }
-
-    virtual status_t set_data_handle(void *handle) override {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-        auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
-        buffer_.reset(new buffer_u8_t(*buf_u8_ptr));
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-        usm_ptr_ = decltype(usm_ptr_)(handle, [](void *){});
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-        assert(mkldnn::is_sycl_vptr(handle));
-        vptr_ = decltype(vptr_)(handle, [](void *) {});
-#endif
-        return status::success;
-    }
-
-    virtual status_t map_data(void **mapped_ptr) const override;
-    virtual status_t unmap_data(void *mapped_ptr) const override;
-
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-    buffer_u8_t &buffer() const { return *buffer_; }
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-    void *usm_ptr() const { return usm_ptr_.get(); }
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    void *vptr() const { return vptr_.get(); }
-#endif
-
-    virtual uintptr_t base_offset() const override { return 0; }
-
-private:
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-    std::shared_ptr<buffer_u8_t> buffer_;
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-    std::unique_ptr<void, std::function<void(void *)>> usm_ptr_;
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    std::unique_ptr<void, std::function<void(void *)>> vptr_;
-#endif
-};
-
-} // namespace sycl
-} // namespace impl
-} // namespace mkldnn
+#include "sycl/sycl_buffer_memory_storage.hpp"
+#include "sycl/sycl_usm_memory_storage.hpp"
 
 #endif

@@ -28,8 +28,6 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_memory_storage_t;
-
 struct submit_ctx_t {
     stream_t *stream;
     const primitive_t *prim;

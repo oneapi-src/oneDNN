@@ -70,22 +70,31 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                         = static_cast<const memory_storage_t *>(arg.value());
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
-                            const sycl::sycl_memory_storage_t *>(
+                            const sycl_memory_storage_base_t *>(
                             mem_storage->impl());
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-                    auto &sycl_buf = sycl_mem_storage->buffer();
-                    cgh.set_arg((int)i,
-                            sycl_buf.get_access<
-                                    cl::sycl::access::mode::read_write>(cgh));
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-                    cgh.set_arg((int)i, sycl_mem_storage->usm_ptr());
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-                    auto buf
-                            = mkldnn::get_sycl_buffer(sycl_mem_storage->vptr());
-                    auto acc = buf.get_access<
-                            cl::sycl::access::mode::read_write>(cgh);
-                    cgh.set_arg(i, acc);
+                    switch (sycl_mem_storage->memory_api_kind()) {
+                    case memory_api_kind_t::buffer: {
+                        auto *m = utils::downcast<
+                                const sycl_buffer_memory_storage_t *>(
+                                mem_storage->impl());
+                        auto &sycl_buf = m->buffer();
+                        cgh.set_arg((int)i,
+                                sycl_buf.get_access<
+                                        cl::sycl::access::mode::read_write>(
+                                        cgh));
+                        break;
+                    }
+#ifdef MKLDNN_SYCL_INTEL
+                    case memory_api_kind_t::usm: {
+                        auto *m = utils::downcast<
+                                const sycl_usm_memory_storage_t *>(
+                                mem_storage->impl());
+                        cgh.set_arg((int)i, m->usm_ptr());
+                        break;
+                    }
 #endif
+                    default: assert(!"not expected");
+                    }
                 } else {
                     cgh.set_arg((int)i, nullptr);
                 }

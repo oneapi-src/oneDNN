@@ -33,54 +33,88 @@
 #include <tuple>
 #include <vector>
 
+// A global scope tag type to use for enqueueing a single task
+template <int memory_api_kind, typename... types>
+class mkldnn_submit_primitive_tag_t;
+
 namespace mkldnn {
 namespace impl {
 namespace sycl {
 
 namespace {
 
-template <size_t N>
-void init_thunk_params(thunk_params_t *p) {
-    p->size = N;
-}
+template <memory_api_kind_t memory_api_kind>
+struct init_thunk_params_t {};
 
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-template <size_t N, typename... ptr_types>
-void init_thunk_params(thunk_params_t *p, void *ptr, ptr_types... ptrs) {
-    p->native_pointers[N - sizeof...(ptr_types) - 1]
-            = reinterpret_cast<uintptr_t>(ptr);
-    init_thunk_params<N>(p, ptrs...);
-}
-template <typename... param_types>
-using make_kernel_tag = mkldnn_submit_primitive_tag<param_types...>;
+template <>
+struct init_thunk_params_t<memory_api_kind_t::buffer> {
+    template <size_t N>
+    static void call(thunk_params_t *p) {
+        p->size = N;
+    }
 
-#else
-template <size_t N, typename accessor_t, typename... accessor_types>
-void init_thunk_params(
-        thunk_params_t *p, accessor_t acc, accessor_types... accessors) {
-    p->native_pointers[N - sizeof...(accessor_types) - 1]
-            = reinterpret_cast<uintptr_t>(&acc[0]);
-    init_thunk_params<N>(p, accessors...);
-}
+    template <size_t N, typename accessor_t, typename... accessor_types>
+    static void call(
+            thunk_params_t *p, accessor_t acc, accessor_types... accessors) {
+        p->native_pointers[N - sizeof...(accessor_types) - 1]
+                = reinterpret_cast<uintptr_t>(&acc[0]);
+        call<N>(p, accessors...);
+    }
+};
 
-template <typename... accessor_types>
-using make_kernel_tag
-        = mkldnn_submit_primitive_tag<typename accessor_types::value_type...>;
-
+#ifdef MKLDNN_SYCL_INTEL
+template <>
+struct init_thunk_params_t<memory_api_kind_t::usm> {
+    template <size_t N>
+    static void call(thunk_params_t *p) {
+        p->size = N;
+    }
+    template <size_t N, typename... ptr_types>
+    static void call(thunk_params_t *p, void *ptr, ptr_types... ptrs) {
+        p->native_pointers[N - sizeof...(ptr_types) - 1]
+                = reinterpret_cast<uintptr_t>(ptr);
+        call<N>(p, ptrs...);
+    }
+};
 #endif
 
-template <typename... param_types>
+template <memory_api_kind_t memory_api_kind>
+struct make_kernel_tag_t {};
+
+template <>
+struct make_kernel_tag_t<memory_api_kind_t::buffer> {
+    template <typename... accessor_types>
+    using type = mkldnn_submit_primitive_tag_t<(int)memory_api_kind_t::buffer,
+            typename accessor_types::value_type...>;
+};
+
+#ifdef MKLDNN_SYCL_INTEL
+template <>
+struct make_kernel_tag_t<memory_api_kind_t::usm> {
+    template <typename... param_types>
+    using type = mkldnn_submit_primitive_tag_t<(int)memory_api_kind_t::usm,
+            param_types...>;
+};
+#endif
+
+template <memory_api_kind_t memory_api_kind, typename... param_types>
 status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
         cl::sycl::handler &cgh, param_types... params) {
     // Trick the compiler by capturing scalar values in the kernel
     // instead of pointers what is not allowed.
     uintptr_t submit_ctx_ptr = reinterpret_cast<uintptr_t>(submit_ctx);
-    cgh.single_task<make_kernel_tag<param_types...>>([=]() {
+    using tag_type = typename make_kernel_tag_t<memory_api_kind>::template type<
+            param_types...>;
+
+    cgh.single_task<tag_type>([=]() {
         thunk_params_t thunk_params;
         thunk_params.submit_ctx_ptr = submit_ctx_ptr;
 
+        constexpr size_t nparams = sizeof...(param_types);
+
         // Extract pointers from params
-        init_thunk_params<sizeof...(param_types)>(&thunk_params, params...);
+        init_thunk_params_t<memory_api_kind>::template call<nparams>(
+                &thunk_params, params...);
 
         // Call C-linkage thunk which executes CPU primitive natively
         mkldnn_impl_sycl_cpu_thunk(&thunk_params);
@@ -88,43 +122,77 @@ status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
     return status::success;
 }
 
-template <typename params_tuple_t, size_t... Is>
-void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
-        params_tuple_t &params_tp, nstl::index_sequence<Is...>) {
-    constexpr size_t nacc = std::tuple_size<params_tuple_t>::value;
-    MAYBE_UNUSED(nacc);
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-    submit_cpu_primitive_with_params_impl(
-            submit_ctx, cgh, std::get<Is>(params_tp)...);
-#else
-    submit_cpu_primitive_with_params_impl(submit_ctx, cgh,
-            std::get<Is>(params_tp)
-                    .template get_access<cl::sycl::access::mode::read_write>(
-                            cgh)...);
+template <memory_api_kind_t memory_api_kind>
+struct submit_t {};
+
+template <>
+struct submit_t<memory_api_kind_t::buffer> {
+    template <typename params_tuple_t, size_t... Is>
+    static void call(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
+            params_tuple_t &params_tp, nstl::index_sequence<Is...>) {
+        submit_cpu_primitive_with_params_impl<memory_api_kind_t::buffer>(
+                submit_ctx, cgh,
+                std::get<Is>(params_tp)
+                        .template get_access<
+                                cl::sycl::access::mode::read_write>(cgh)...);
+    }
+};
+
+#ifdef MKLDNN_SYCL_INTEL
+template <>
+struct submit_t<memory_api_kind_t::usm> {
+    template <typename params_tuple_t, size_t... Is>
+    static void call(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
+            params_tuple_t &params_tp, nstl::index_sequence<Is...>) {
+        submit_cpu_primitive_with_params_impl<memory_api_kind_t::usm>(
+                submit_ctx, cgh, std::get<Is>(params_tp)...);
+    }
+};
 #endif
+
+memory_api_kind_t get_memory_api_kind() {
+    // Shouldn't matter as an empty call happens only if no storages are
+    // converted
+    return memory_api_kind_t::buffer;
+}
+
+template <typename storage_t, typename... storage_types>
+memory_api_kind_t get_memory_api_kind(
+        const storage_t *storage, const storage_types *... storages) {
+    return utils::downcast<const sycl_memory_storage_base_t *>(storage->impl())
+            ->memory_api_kind();
 }
 
 template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
         const storage_types *... storages) {
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-    auto params_tp = std::make_tuple(
-            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
-                    ->buffer()...);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_USM
-    auto params_tp = std::make_tuple(
-            utils::downcast<const sycl_memory_storage_t *>(storages->impl())
-                    ->usm_ptr()...);
-#elif MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_VPTR
-    auto params_tp = std::make_tuple(
-            mkldnn
-            : get_sycl_buffer(utils::downcast<const sycl_memory_storage_t *>(
-                    storages->impl())
-                                      ->vptr())...);
-#endif
+    // XXX: all storages must be of the same memory API kind
+    auto mem_api_kind = get_memory_api_kind(storages...);
     constexpr size_t nparams = sizeof...(storage_types);
-    fast_dispatch_by_size(
-            submit_ctx, cgh, params_tp, nstl::make_index_sequence<nparams>{});
+
+    switch (mem_api_kind) {
+    case memory_api_kind_t::buffer: {
+        auto params_tp = std::make_tuple(
+                utils::downcast<const sycl_buffer_memory_storage_t *>(
+                        storages->impl())
+                        ->buffer()...);
+        submit_t<memory_api_kind_t::buffer>::call(submit_ctx, cgh, params_tp,
+                nstl::make_index_sequence<nparams>{});
+        break;
+    }
+#ifdef MKLDNN_SYCL_INTEL
+    case memory_api_kind_t::usm: {
+        auto params_tp = std::make_tuple(
+                utils::downcast<const sycl_usm_memory_storage_t *>(
+                        storages->impl())
+                        ->usm_ptr()...);
+        submit_t<memory_api_kind_t::usm>::call(submit_ctx, cgh, params_tp,
+                nstl::make_index_sequence<nparams>{});
+        break;
+    }
+#endif
+    default: assert(!"not expected");
+    }
 }
 
 } // namespace
@@ -167,6 +235,23 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
                 return lhs->impl() == rhs->impl();
             });
     sycl_mem_storages.erase(last, sycl_mem_storages.end());
+
+    // XXX: validate that all the storages use the same memory API
+    if (!sycl_mem_storages.empty()) {
+        auto *mem0 = sycl_mem_storages[0];
+        auto mem_api_kind0
+                = utils::downcast<const sycl_memory_storage_base_t *>(mem0->impl())
+                          ->memory_api_kind();
+        for (auto *mem : sycl_mem_storages) {
+            auto mem_api_kind = utils::downcast<const sycl_memory_storage_base_t *>(
+                    mem->impl())
+                                        ->memory_api_kind();
+            if (mem_api_kind != mem_api_kind0) {
+                throw std::runtime_error(
+                        "Memory objects must use the same memory API");
+            }
+        }
+    }
 
     auto *submit_ctx = new submit_ctx_t();
     submit_ctx->stream = stream;
