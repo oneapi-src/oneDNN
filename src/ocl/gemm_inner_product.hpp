@@ -50,10 +50,8 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
 
-    op_desc_t op_desc(gemm_desc);
-
     return mkldnn_primitive_desc_create(
-            gemm_pd, &op_desc, &attr, engine, nullptr);
+            gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
 }
 } // namespace
 

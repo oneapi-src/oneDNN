@@ -244,12 +244,11 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
 
-                op_desc_t op_desc(gemm_desc);
-
                 primitive_attr_t dummy_attr;
 
-                return mkldnn_primitive_desc_create(gemm_pd, &op_desc,
-                        &dummy_attr, this->engine(), nullptr);
+                return mkldnn_primitive_desc_create(gemm_pd,
+                        (op_desc_t *)&gemm_desc, &dummy_attr, this->engine(),
+                        nullptr);
             };
 
             int batch = rnn_conf_.mb;

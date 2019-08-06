@@ -544,10 +544,8 @@ struct op_desc_t {
         gemm_desc_t gemm;
     };
 
-    op_desc_t(const primitive_kind_t &_) : kind(_) {}
-
 #define DECL_CTOR_AND_CONVERTERS(c_type, name) \
-    op_desc_t(const c_type &_) : name(_) {} \
+    op_desc_t(const c_type &) = delete; \
     static op_desc_t *convert_from_c(c_type *_) { \
         return reinterpret_cast<op_desc_t *>(_); \
     } \
@@ -566,6 +564,12 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
     DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
     DECL_CTOR_AND_CONVERTERS(gemm_desc_t, gemm);
+
+    // concat_desc_t and sum_desc_t have data members which have non-trivial
+    // special member functions hence the default destructor is implicitly
+    // deleted by the compiler which causes a warning on Windows so we should
+    // delete the destructor explicitly.
+    ~op_desc_t() = delete;
 
 #undef DECL_CTOR_AND_CONVERTERS
 };
