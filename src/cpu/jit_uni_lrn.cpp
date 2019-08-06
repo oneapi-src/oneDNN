@@ -31,7 +31,7 @@ using namespace mkldnn::impl::utils;
 
 template <cpu_isa_t isa>
 jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , ker_(nullptr)
     , ker_first_(nullptr)
     , ker_last_(nullptr) {
@@ -182,7 +182,7 @@ status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
 
 template <cpu_isa_t isa>
 jit_uni_lrn_bwd_t<isa>::jit_uni_lrn_bwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , ker_(nullptr)
     , ker_first_(nullptr)
     , ker_last_(nullptr) {

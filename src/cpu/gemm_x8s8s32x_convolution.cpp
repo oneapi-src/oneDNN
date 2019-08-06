@@ -41,7 +41,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
     auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -613,7 +613,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
     auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 

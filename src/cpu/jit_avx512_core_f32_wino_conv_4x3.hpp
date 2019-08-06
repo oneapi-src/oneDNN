@@ -21,7 +21,6 @@
 #include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 
@@ -113,7 +112,7 @@ protected:
 
 struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     : _jit_avx512_core_f32_wino_conv_4x3_t<true>,
-      public cpu_primitive_t {
+      public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -123,7 +122,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_f32_wino_conv_4x3_fwd_t);
+                jit_avx512_core_f32_wino_conv_4x3_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && mkldnn_thr_syncable() && is_fwd()
@@ -162,7 +161,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
 
     jit_avx512_core_f32_wino_conv_4x3_fwd_t(const pd_t *apd)
         : _jit_avx512_core_f32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -172,7 +171,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
         auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
 
-        auto scratchpad = this->scratchpad(ctx);
+        auto scratchpad = ctx.get_scratchpad_grantor();
 
         switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
@@ -189,12 +188,12 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     : _jit_avx512_core_f32_wino_conv_4x3_t<false>,
-      public cpu_primitive_t {
+      public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -204,7 +203,8 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_f32_wino_conv_4x3_bwd_data_t);
+                jit_avx512_core_f32_wino_conv_4x3_bwd_data_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && mkldnn_thr_syncable()
@@ -242,7 +242,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_data_t(const pd_t *apd)
         : _jit_avx512_core_f32_wino_conv_4x3_t<false>(apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -251,7 +251,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
         auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
 
-        auto scratchpad = this->scratchpad(ctx);
+        auto scratchpad = ctx.get_scratchpad_grantor();
 
         switch ((pd()->jcp_).sched_policy) {
             case WSCHED_DATA_W_S_G_D:
@@ -271,11 +271,11 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
-    : public cpu_primitive_t {
+    : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -285,7 +285,8 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
-                jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t);
+                jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && mkldnn_thr_syncable()
@@ -322,7 +323,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
     };
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), kernel_(nullptr) {
+        : primitive_impl_t(apd), kernel_(nullptr) {
         kernel_ = new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
                 pd()->jcp_);
     }
@@ -340,11 +341,11 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
         switch (kernel_->jcp.sched_policy) {
             case WSCHED_WEI_SDGtWo:
                 _execute_backward_weights_SDGtWo(src, diff_dst, diff_weights,
-                        diff_bias, scratchpad(ctx));
+                        diff_bias, ctx.get_scratchpad_grantor());
                 break;
             case WSCHED_WEI_S_D_Giot_W:
                 _execute_backward_weights_S_D_Giot_W(src, diff_dst,
-                        diff_weights, diff_bias, scratchpad(ctx));
+                        diff_weights, diff_bias, ctx.get_scratchpad_grantor());
                 break;
             default: assert(kernel_->jcp.sched_policy != WSCHED_INVALID); break;
         }
@@ -359,7 +360,7 @@ private:
             const float *diff_dst, float *diff_weights, float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel *kernel_;
 };
 

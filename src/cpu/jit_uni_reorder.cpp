@@ -22,7 +22,6 @@
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "jit_uni_reorder.hpp"
 
@@ -919,7 +918,7 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
     }
 }
 
-struct jit_uni_reorder_t : public cpu_primitive_t {
+struct jit_uni_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -991,7 +990,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         tr::kernel_t::desc_t ker_desc_;
     };
 
-    jit_uni_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    jit_uni_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
         kernel_ = tr::kernel_t::create(pd()->ker_desc_);
         assert(kernel_);
     }
@@ -1124,7 +1123,7 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
     enum { ndims_driver_max = 4 };
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     tr::kernel_t *kernel_;
 };
 

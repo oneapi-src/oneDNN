@@ -32,7 +32,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_pooling_fwd_t : public primitive_t {
+struct ref_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -109,7 +109,7 @@ struct ref_pooling_fwd_t : public primitive_t {
         return status::success;
     }
 
-    ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_ref_pooling_fwd_kernel(pd()->jpp_);
     }
     ~ref_pooling_fwd_t() { delete ker_; }
@@ -120,12 +120,12 @@ struct ref_pooling_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_ref_pooling_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
-struct ref_pooling_bwd_t : public primitive_t {
+struct ref_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public ocl_pooling_bwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -182,7 +182,7 @@ struct ref_pooling_bwd_t : public primitive_t {
         return status::success;
     }
 
-    ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_ref_pooling_fwd_kernel(pd()->jpp_);
     }
     ~ref_pooling_bwd_t() { delete ker_; }
@@ -193,7 +193,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_ref_pooling_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };

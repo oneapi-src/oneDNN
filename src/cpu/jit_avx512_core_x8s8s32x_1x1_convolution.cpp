@@ -40,7 +40,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
         auto local_scales

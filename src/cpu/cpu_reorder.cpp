@@ -17,7 +17,6 @@
 #include <assert.h>
 
 #include "cpu_engine.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "memory.hpp"
 #include "type_helpers.hpp"

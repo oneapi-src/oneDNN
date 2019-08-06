@@ -24,7 +24,6 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_softmax_pd.hpp"
 
 namespace mkldnn {
@@ -32,7 +31,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct ref_softmax_fwd_t : public cpu_primitive_t {
+struct ref_softmax_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
@@ -61,7 +60,7 @@ struct ref_softmax_fwd_t : public cpu_primitive_t {
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    ref_softmax_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -100,14 +99,14 @@ private:
     void _sum(int n, const data_t *x, data_t *sum_data) const;
     void _scal(int n, data_t alpha, data_t *x) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
 };
 
 template <impl::data_type_t data_type>
-struct ref_softmax_bwd_t : public cpu_primitive_t {
+struct ref_softmax_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
@@ -124,7 +123,7 @@ struct ref_softmax_bwd_t : public cpu_primitive_t {
         }
     };
 
-    ref_softmax_bwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    ref_softmax_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -156,7 +155,7 @@ struct ref_softmax_bwd_t : public cpu_primitive_t {
 private:
     void execute_backward_dense(const exec_ctx_t &ctx) const;
     void execute_backward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;

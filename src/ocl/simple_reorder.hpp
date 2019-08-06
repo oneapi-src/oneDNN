@@ -30,7 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct simple_reorder_t : public primitive_t {
+struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public ocl_reorder_pd_t {
         using ocl_reorder_pd_t::ocl_reorder_pd_t;
 
@@ -112,12 +112,12 @@ struct simple_reorder_t : public primitive_t {
         return status::success;
     }
 
-    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
     std::unique_ptr<memory_storage_t> scales;
 };

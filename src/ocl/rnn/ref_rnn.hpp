@@ -56,7 +56,7 @@ enum gemm_kind_t {
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
-struct _ref_rnn_common_t : public primitive_t {
+struct _ref_rnn_common_t : public primitive_impl_t {
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<weights_type>::type weights_data_t;
 
@@ -437,7 +437,7 @@ struct _ref_rnn_common_t : public primitive_t {
         return status::success;
     } // status_t init() override
 
-    _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
+    _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
 
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
@@ -520,7 +520,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     grid_execution_sig(linear_execution);
     // grid_execution_sig(wavefront_execution);

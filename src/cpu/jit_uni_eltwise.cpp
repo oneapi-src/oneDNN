@@ -1301,7 +1301,7 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_fwd_t<isa, d_type>::jit_uni_eltwise_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd), kernel_(nullptr) {
+    : primitive_impl_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
         case alg_kind::eltwise_relu:
@@ -1364,7 +1364,7 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init() {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_bwd_t<isa, d_type>::jit_uni_eltwise_bwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd), kernel_(nullptr) {
+    : primitive_impl_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
         case alg_kind::eltwise_relu:

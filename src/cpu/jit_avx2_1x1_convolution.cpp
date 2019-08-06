@@ -49,7 +49,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? scratchpad(ctx).get<data_t>(key_conv_rtus_space)
+            ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
             : NULL;
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -155,7 +155,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     };
 
     if (pd()->wants_padded_bias()) {
-        auto padded_bias = scratchpad(ctx).get<data_t>(key_conv_padded_bias);
+        auto padded_bias = ctx.get_scratchpad_grantor().get<data_t>(
+                key_conv_padded_bias);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
                 jcp.oc - jcp.oc_without_padding);
@@ -181,7 +182,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? scratchpad(ctx).get<data_t>(key_conv_rtus_space)
+            ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
             : NULL;
 
     // TODO (Roma): remove this restriction
@@ -281,7 +282,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
 jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+    : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
     reducer_weights_
             = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);
@@ -296,7 +297,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper src_d(pd()->src_md());

@@ -22,6 +22,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu_engine.hpp"
 #include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
 

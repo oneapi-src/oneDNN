@@ -29,7 +29,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_layer_normalization_fwd_t : public primitive_t {
+struct ref_layer_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_layer_normalization_fwd_pd_t {
         using ocl_layer_normalization_fwd_pd_t::
                 ocl_layer_normalization_fwd_pd_t;
@@ -60,7 +60,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
         jit_lnorm_conf_t jln_;
     };
 
-    ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     status_t init() override {
         auto *compute_engine
@@ -83,12 +83,12 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     compute::kernel_t kernel_;
 };
 
-struct ref_layer_normalization_bwd_t : public primitive_t {
+struct ref_layer_normalization_bwd_t : public primitive_impl_t {
     struct pd_t : public ocl_layer_normalization_bwd_pd_t {
         using ocl_layer_normalization_bwd_pd_t::
                 ocl_layer_normalization_bwd_pd_t;
@@ -120,7 +120,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
         jit_lnorm_conf_t jln_;
     };
 
-    ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     status_t init() override {
         auto *compute_engine
@@ -143,7 +143,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     compute::kernel_t kernel_;
 };

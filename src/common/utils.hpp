@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <memory>
+
 #if defined(__x86_64__) || defined(_M_X64)
 #define MKLDNN_X86_64
 #endif
@@ -145,6 +147,11 @@ template <typename T>
 inline typename remove_reference<T>::type zero() {
     auto zero = typename remove_reference<T>::type();
     return zero;
+}
+
+template <typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args &&... args) {
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
 template <typename T, typename P>

@@ -447,7 +447,7 @@ void jit_softmax_t<sse41>::forward() {
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd) {
+    : primitive_impl_t(apd) {
     softmax_driver_ = new softmax_impl::driver_t<isa>(pd());
 }
 

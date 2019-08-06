@@ -29,20 +29,19 @@
 #include "jit_generator.hpp"
 
 #include "cpu_inner_product_pd.hpp"
-#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct gemm_x8s8s32x_inner_product_fwd_t : public cpu_primitive_t {
+struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(src_type == data_type::u8 ? IGEMM_S8U8S32_IMPL_STR
                                                       : IGEMM_S8S8S32_IMPL_STR,
-                gemm_x8s8s32x_inner_product_fwd_t);
+                gemm_x8s8s32x_inner_product_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             using namespace data_type;
@@ -95,8 +94,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public cpu_primitive_t {
         }
     };
 
-    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {
+    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
                 dst_type>(apd, false);
     }
@@ -116,7 +114,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
 };

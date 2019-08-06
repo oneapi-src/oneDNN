@@ -57,7 +57,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias, this->scratchpad(ctx));
+    prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
     const size_t bia_dt_size = pd()->jcp_.typesize_bia;
 
@@ -138,7 +138,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias, this->scratchpad(ctx));
+    prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
     const size_t bia_dt_size = pd()->jcp_.typesize_bia;
 
@@ -240,7 +240,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
 
-    prepare_padded_bias(bias, this->scratchpad(ctx));
+    prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
     const size_t bia_dt_size = pd()->jcp_.typesize_bia;
 
@@ -608,7 +608,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
 jit_avx512_core_bf16_convolution_bwd_weights_t ::
         jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , kernel_(nullptr)
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)
@@ -671,7 +671,7 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
 
     thread_info_t(const jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
-        : scratchpad(self->scratchpad(ctx)), ithr(ithr) {
+        : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
         diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
         src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
         diff_weights = CTX_OUT_MEM(void *, MKLDNN_ARG_DIFF_WEIGHTS);
@@ -1066,7 +1066,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_bias(
     const auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(ti->scratchpad, prefix_reducer_bia);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
     auto diff_dst_cvt_wsp
             = scratchpad.template get<float>(key_conv_dst_bf16_convert_wsp);
 
@@ -1122,7 +1122,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_bias(
 
 void jit_avx512_core_bf16_convolution_bwd_weights_t ::prepare_scratchpad_data(
         const exec_ctx_t &ctx) const {
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
 #ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
     const auto &jcp = pd()->jcp_;
@@ -1229,7 +1229,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
 
     /* TODO: put that into compute_diff_bias() */
     if (pd()->jcp_.bia_dt == data_type::bf16) {
-        auto diff_bias_f32 = scratchpad(ctx).template get<float>(
+        auto diff_bias_f32 = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_bias_bf16_convert_wsp);
         auto diff_bias_in = CTX_OUT_MEM(
                 prec_traits<data_type::bf16>::type *, MKLDNN_ARG_DIFF_BIAS);
@@ -1237,7 +1237,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
                 pd()->jcp_.oc_without_padding * pd()->jcp_.ngroups);
 
     } else if (pd()->wants_padded_bias()) {
-        auto diff_bias = scratchpad(ctx).template get<const float>(
+        auto diff_bias = ctx.get_scratchpad_grantor().template get<const float>(
                 key_conv_padded_bias);
         auto diff_bias_in = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
         utils::array_copy(

@@ -19,7 +19,6 @@
 
 #include <assert.h>
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "gemm/gemm_pack.hpp"
 #include "mkldnn_thread.hpp"
@@ -32,7 +31,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t type_i, data_type_t type_o>
-struct rnn_data_reorder_t : public cpu_primitive_t {
+struct rnn_data_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -61,11 +60,11 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
         }
     };
 
+    rnn_data_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
-
-    rnn_data_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
@@ -84,11 +83,11 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <data_type_t type_i, data_type_t type_o>
-struct rnn_weights_reorder_t : public cpu_primitive_t {
+struct rnn_weights_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -155,11 +154,11 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
         }
     };
 
+    rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
-
-    rnn_weights_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using math::saturate;
@@ -180,13 +179,13 @@ private:
 
         /* Quantize input & compute compensation */
         auto quantized
-                = (int8_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::
-                                key_reorder_rnn_weights_quantization);
+                = (int8_t * __restrict) ctx.get_scratchpad_grantor()
+                          .template get<void>(memory_tracking::names::
+                                          key_reorder_rnn_weights_quantization);
         auto reduction
-                = (int32_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::
-                                key_reorder_rnn_weights_reduction);
+                = (int32_t * __restrict) ctx.get_scratchpad_grantor()
+                          .template get<void>(memory_tracking::names::
+                                          key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 output + output_d.rnn_packed_desc().offset_compensation);
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
@@ -275,12 +274,12 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <>
 struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
-    : public cpu_primitive_t {
+    : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -351,9 +350,9 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
         }
     };
 
-private:
-    rnn_weights_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
+private:
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(float *, MKLDNN_ARG_TO);
@@ -379,7 +378,7 @@ private:
          * algorithm will be dispatched*/
         float *input_tr = (float *)input;
         if (from_igo != to_igo) {
-            input_tr = (float *)scratchpad(ctx).template get<void>(
+            input_tr = (float *)ctx.get_scratchpad_grantor().template get<void>(
                     memory_tracking::names::
                             key_reorder_rnn_weights_transposition);
             const int M = to_igo ? G * O : I;
@@ -420,7 +419,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu

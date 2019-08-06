@@ -995,7 +995,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd) {
+    : primitive_impl_t(apd) {
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
@@ -1039,9 +1039,10 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
         execute_forward_small_mb(
-                src, weights, bias, dst, this->scratchpad(ctx));
+                src, weights, bias, dst, ctx.get_scratchpad_grantor());
     else
-        execute_forward_mbN(src, weights, bias, dst, this->scratchpad(ctx));
+        execute_forward_mbN(
+                src, weights, bias, dst, ctx.get_scratchpad_grantor());
 }
 
 template <data_type_t dst_data_type>

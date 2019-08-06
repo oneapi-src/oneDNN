@@ -24,7 +24,6 @@
 #include "utils.hpp"
 
 #include "cpu_eltwise_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "jit_generator.hpp"
 
 namespace mkldnn {
@@ -140,12 +139,12 @@ private:
 struct jit_uni_eltwise_kernel;
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
+struct jit_uni_eltwise_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_fwd_t<isa, d_type>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_eltwise_fwd_t);
 
         status_t init();
     };
@@ -162,17 +161,17 @@ struct jit_uni_eltwise_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_uni_eltwise_kernel *kernel_;
 };
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
+struct jit_uni_eltwise_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_eltwise_bwd_t<isa, d_type>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_eltwise_bwd_t);
 
         status_t init();
     };
@@ -189,7 +188,7 @@ struct jit_uni_eltwise_bwd_t : public cpu_primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_uni_eltwise_kernel *kernel_;
 };
 

@@ -21,8 +21,6 @@
 
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
-#include "cpu_inner_product_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_inner_product_utils.hpp"
 #include "memory_tracking.hpp"
@@ -34,7 +32,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t dst_data_type>
-struct gemm_bf16_inner_product_fwd_t : public cpu_primitive_t {
+struct gemm_bf16_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
@@ -92,7 +90,7 @@ struct gemm_bf16_inner_product_fwd_t : public cpu_primitive_t {
     };
 
     gemm_bf16_inner_product_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), pp_kernel_(nullptr) {
+        : primitive_impl_t(apd), pp_kernel_(nullptr) {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0,
@@ -128,11 +126,11 @@ private:
     float beta_;
 
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <data_type_t diff_src_data_type>
-struct gemm_bf16_inner_product_bwd_data_t : public cpu_primitive_t {
+struct gemm_bf16_inner_product_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
         using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
 
@@ -174,7 +172,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public cpu_primitive_t {
     };
 
     gemm_bf16_inner_product_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {}
+        : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -188,11 +186,11 @@ struct gemm_bf16_inner_product_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <data_type_t diff_wei_data_type>
-struct gemm_bf16_inner_product_bwd_weights_t : public cpu_primitive_t {
+struct gemm_bf16_inner_product_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
         using cpu_inner_product_bwd_weights_pd_t::
                 cpu_inner_product_bwd_weights_pd_t;
@@ -245,7 +243,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public cpu_primitive_t {
     };
 
     gemm_bf16_inner_product_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {}
+        : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -259,7 +257,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu

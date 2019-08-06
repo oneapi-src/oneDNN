@@ -43,7 +43,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     const auto &jcp = kernel_->jcp;
     if (pd()->wants_padded_bias()) {
@@ -257,7 +257,8 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? scratchpad(ctx).template get<diff_src_data_t>(key_conv_rtus_space)
+            ? ctx.get_scratchpad_grantor().template get<diff_src_data_t>(
+                    key_conv_rtus_space)
             : NULL;
 
     const int ndims = diff_src_d.ndims();
@@ -387,7 +388,7 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
 
 jit_avx512_common_1x1_convolution_bwd_weights_t ::
         jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , kernel_(nullptr)
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)
@@ -423,7 +424,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto &jcp = kernel_->jcp;
 
-    const auto scratchpad = this->scratchpad(ctx);
+    const auto scratchpad = ctx.get_scratchpad_grantor();
 
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)

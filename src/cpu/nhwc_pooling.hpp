@@ -26,7 +26,6 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_pooling_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "bfloat16.hpp"
 
@@ -41,7 +40,7 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
 }
 
 template <data_type_t d_type>
-struct nhwc_pooling_fwd_t : public cpu_primitive_t {
+struct nhwc_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
@@ -91,7 +90,7 @@ struct nhwc_pooling_fwd_t : public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    nhwc_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
     typedef typename prec_traits<data_type::f32>::type ker_data_t;
@@ -174,11 +173,11 @@ private:
         }
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <impl::data_type_t d_type>
-struct nhwc_pooling_bwd_t : public cpu_primitive_t {
+struct nhwc_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
@@ -228,7 +227,7 @@ struct nhwc_pooling_bwd_t : public cpu_primitive_t {
         }
     };
 
-    nhwc_pooling_bwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    nhwc_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -238,7 +237,7 @@ struct nhwc_pooling_bwd_t : public cpu_primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu

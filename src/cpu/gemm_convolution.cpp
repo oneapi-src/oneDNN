@@ -49,7 +49,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
 
-    auto col = scratchpad(ctx).get<data_t>(key_conv_gemm_col);
+    auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -202,7 +202,7 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
     auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    auto col = scratchpad(ctx).get<data_t>(key_conv_gemm_col);
+    auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
@@ -264,8 +264,9 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    auto col = scratchpad(ctx).get<data_t>(key_conv_gemm_col);
-    auto wei_reduction = scratchpad(ctx).get<data_t>(key_conv_wei_reduction);
+    auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
+    auto wei_reduction
+            = ctx.get_scratchpad_grantor().get<data_t>(key_conv_wei_reduction);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 

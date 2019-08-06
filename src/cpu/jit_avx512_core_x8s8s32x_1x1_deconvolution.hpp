@@ -25,7 +25,6 @@
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
@@ -36,7 +35,7 @@ namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
-    : public cpu_primitive_t {
+    : public primitive_impl_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -58,8 +57,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
         ~pd_t() { delete conv_pd_; }
 
         DECLARE_COMMON_PD_T(conv_pd_->name(),
-                jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<src_type,
-                        dst_type>);
+                jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t);
 
         status_t init_convolution() {
             convolution_desc_t cd;
@@ -123,18 +121,18 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {
+        : primitive_impl_t(apd) {
         pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
     }
 
     ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t() { delete conv_p_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        return conv_p_->execute(ctx);
+        return conv_p_->execute(const_cast<exec_ctx_t &>(ctx));
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *conv_p_;
 };
 

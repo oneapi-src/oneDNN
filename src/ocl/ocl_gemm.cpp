@@ -23,7 +23,6 @@
 #include "common/memory_storage.hpp"
 #include "common/mkldnn_traits.hpp"
 #include "common/nstl.hpp"
-#include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
 #include "ocl/ocl_engine.hpp"

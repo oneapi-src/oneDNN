@@ -95,12 +95,12 @@ private:
     }
 
     static status_t init_flags(unsigned *flags, cl_command_queue queue) {
+        *flags = 0;
         // Determine if the passed queue is in-order/out-of-order
         cl_command_queue_properties props;
         OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_PROPERTIES,
                 sizeof(cl_command_queue_properties), &props, nullptr));
 
-        *flags = 0;
         *flags |= (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
                 ? stream_flags::out_of_order
                 : stream_flags::in_order;

@@ -14,33 +14,40 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SOFTMAX_PD_HPP
-#define CPU_SOFTMAX_PD_HPP
+#ifndef PRIMITIVE_IMPL_HPP
+#define PRIMITIVE_IMPL_HPP
 
 #include <assert.h>
 
+#include "mkldnn.h"
+
 #include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "softmax_pd.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "primitive_desc.hpp"
+#include "primitive_exec_types.hpp"
 
 namespace mkldnn {
 namespace impl {
-namespace cpu {
 
-struct cpu_softmax_fwd_pd_t : public softmax_fwd_pd_t {
-    using softmax_fwd_pd_t::softmax_fwd_pd_t;
+struct primitive_impl_t : public c_compatible {
+    primitive_impl_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
+    virtual ~primitive_impl_t() { delete pd_; }
+
+    virtual status_t init() { return status::success; }
+    engine_t *engine() const { return pd_->engine(); }
+    const primitive_desc_t *pd() const { return pd_; }
+    primitive_kind_t kind() const { return pd_->kind(); }
+    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+
+protected:
+    const primitive_desc_t *pd_;
+
+private:
+    primitive_impl_t() = delete;
+    MKLDNN_DISALLOW_COPY_AND_ASSIGN(primitive_impl_t);
 };
 
-struct cpu_softmax_bwd_pd_t : public softmax_bwd_pd_t {
-    using softmax_bwd_pd_t::softmax_bwd_pd_t;
-};
-
-} // namespace cpu
 } // namespace impl
 } // namespace mkldnn
-
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

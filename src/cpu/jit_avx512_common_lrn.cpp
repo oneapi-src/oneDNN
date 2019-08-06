@@ -383,7 +383,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init() {
 template <data_type_t d_type>
 jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_fwd_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , use_h_parallelism(0)
     , ker_(nullptr)
     , ker_first_(nullptr)
@@ -842,7 +842,7 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
 template <data_type_t d_type>
 jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_bwd_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd)
+    : primitive_impl_t(apd)
     , use_h_parallelism(0)
     , ker_(nullptr)
     , ker_first_(nullptr)

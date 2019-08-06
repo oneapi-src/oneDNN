@@ -30,7 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct gemm_convolution_fwd_t : public cpu_primitive_t {
+struct gemm_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -38,7 +38,8 @@ struct gemm_convolution_fwd_t : public cpu_primitive_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(
+                GEMM_IMPL_STR, gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && is_fwd()
@@ -91,7 +92,7 @@ struct gemm_convolution_fwd_t : public cpu_primitive_t {
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), eltwise_(nullptr) {
+        : primitive_impl_t(apd), eltwise_(nullptr) {
         const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
@@ -113,14 +114,14 @@ struct gemm_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     data_t beta_;
 
     ref_eltwise_scalar_fwd_t *eltwise_;
 };
 
-struct gemm_convolution_bwd_data_t : public cpu_primitive_t {
+struct gemm_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -128,7 +129,8 @@ struct gemm_convolution_bwd_data_t : public cpu_primitive_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -164,7 +166,7 @@ struct gemm_convolution_bwd_data_t : public cpu_primitive_t {
         }
     };
 
-    gemm_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd, true) {}
+    gemm_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -175,10 +177,10 @@ struct gemm_convolution_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
-struct gemm_convolution_bwd_weights_t : public cpu_primitive_t {
+struct gemm_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -186,7 +188,8 @@ struct gemm_convolution_bwd_weights_t : public cpu_primitive_t {
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_weights_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -222,8 +225,7 @@ struct gemm_convolution_bwd_weights_t : public cpu_primitive_t {
         }
     };
 
-    gemm_convolution_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {}
+    gemm_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -234,7 +236,7 @@ struct gemm_convolution_bwd_weights_t : public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu

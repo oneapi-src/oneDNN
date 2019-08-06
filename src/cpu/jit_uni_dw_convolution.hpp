@@ -22,7 +22,6 @@
 
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_uni_dw_conv_kernel_utils.hpp"
@@ -32,7 +31,7 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type = src_type>
-struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
+struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -41,7 +40,7 @@ struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
-                jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>);
+                jit_uni_dw_convolution_fwd_t);
 
         status_t init() {
             bool ok = true && is_fwd()
@@ -84,7 +83,7 @@ struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_uni_dw_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    jit_uni_dw_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         kernel_ = new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_);
     }
 
@@ -102,7 +101,7 @@ struct jit_uni_dw_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_uni_dw_conv_fwd_kernel<isa, src_type> *kernel_;
 };
@@ -116,7 +115,7 @@ using jit_sse41_dw_convolution_fwd_t
 
 template <cpu_isa_t isa, data_type_t diff_dst_type,
         data_type_t diff_src_type = diff_dst_type>
-struct jit_uni_dw_convolution_bwd_data_t : public cpu_primitive_t {
+struct jit_uni_dw_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -125,8 +124,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public cpu_primitive_t {
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
-                jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
-                        diff_src_type>);
+                jit_uni_dw_convolution_bwd_data_t);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -166,7 +164,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public cpu_primitive_t {
         }
     };
 
-    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {
         kernel_ = new jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>(
                 pd()->jcp_);
     }
@@ -183,7 +181,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type> *kernel_;
 };
@@ -197,17 +195,18 @@ using jit_sse41_dw_convolution_bwd_data_t
 
 template <cpu_isa_t isa, data_type_t src_type,
         data_type_t diff_weights_type = src_type>
-struct jit_uni_dw_convolution_bwd_weights_t : public cpu_primitive_t {
+struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
-
+        using jit_uni_dw_convolution_bwd_weights
+                = jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
+                        diff_weights_type>;
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
-                jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
-                        diff_weights_type>);
+                jit_uni_dw_convolution_bwd_weights);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -274,7 +273,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public cpu_primitive_t {
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     void execute_reduction(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     jit_uni_dw_conv_bwd_weights_kernel<isa, src_type> *kernel_;

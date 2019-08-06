@@ -20,7 +20,6 @@
 #include "mkldnn_thread.hpp"
 #include "primitive_desc.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "simple_q10n.hpp"
 
@@ -29,7 +28,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t type_i, data_type_t type_o>
-struct wino_reorder_t : public cpu_primitive_t {
+struct wino_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -87,12 +86,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }
     };
 
-private:
-    typedef typename prec_traits<type_i>::type in_data_t;
-    typedef typename prec_traits<type_o>::type out_data_t;
-    const int unsign_val_in_wino_domain_ = 5;
-
-    wino_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    wino_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -136,6 +130,11 @@ private:
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         size_wspace_ = r_ * w_alpha_ * oc_block_;
     }
+
+private:
+    typedef typename prec_traits<type_i>::type in_data_t;
+    typedef typename prec_traits<type_o>::type out_data_t;
+    const int unsign_val_in_wino_domain_ = 5;
 
     void transform(out_data_t *__restrict tmp_wei,
             const in_data_t *__restrict input,
@@ -379,13 +378,12 @@ private:
         auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
 
-        auto wspace
-                = (in_data_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::
-                                key_reorder_wino_transform_space);
-        auto tmp_wei
-                = (out_data_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::key_reorder_wino_plain);
+        auto wspace = (in_data_t * __restrict) ctx.get_scratchpad_grantor()
+                              .template get<void>(memory_tracking::names::
+                                              key_reorder_wino_transform_space);
+        auto tmp_wei = (out_data_t * __restrict) ctx.get_scratchpad_grantor()
+                               .template get<void>(memory_tracking::names::
+                                               key_reorder_wino_plain);
 
         transform(tmp_wei, input, wspace);
 
@@ -409,7 +407,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;

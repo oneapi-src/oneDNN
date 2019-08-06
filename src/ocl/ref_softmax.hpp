@@ -31,7 +31,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_softmax_fwd_t : public primitive_t {
+struct ref_softmax_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -67,7 +67,7 @@ struct ref_softmax_fwd_t : public primitive_t {
         std::vector<size_t> gws;
     };
 
-    ref_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_softmax_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     ~ref_softmax_fwd_t() = default;
 
@@ -98,11 +98,11 @@ struct ref_softmax_fwd_t : public primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_softmax_bwd_t : public primitive_t {
+struct ref_softmax_bwd_t : public primitive_impl_t {
     struct pd_t : public ocl_softmax_bwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -128,7 +128,7 @@ struct ref_softmax_bwd_t : public primitive_t {
         std::vector<size_t> gws;
     };
 
-    ref_softmax_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_softmax_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     ~ref_softmax_bwd_t() = default;
 
@@ -159,7 +159,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 

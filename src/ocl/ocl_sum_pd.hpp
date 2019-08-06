@@ -21,6 +21,7 @@
 #include "common/sum_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
 namespace impl {

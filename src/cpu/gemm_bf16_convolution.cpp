@@ -282,9 +282,10 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 
     bool is_bf16_dst = dst_data_type == data_type::bf16;
 
-    auto col = scratchpad(ctx).template get<src_data_t>(key_conv_gemm_col);
+    auto col = ctx.get_scratchpad_grantor().template get<src_data_t>(
+            key_conv_gemm_col);
     acc_data_t *acc_base = is_bf16_dst
-            ? scratchpad(ctx).template get<acc_data_t>(
+            ? ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_conv_int_dat_in_acc_dt)
             : nullptr;
 
@@ -294,7 +295,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
     if (jcp.with_bias) {
         if (pd()->desc()->bias_desc.data_type == data_type::bf16) {
             auto bias_in = CTX_IN_MEM(const bfloat16_t *, MKLDNN_ARG_BIAS);
-            bias = scratchpad(ctx).template get<float>(
+            bias = ctx.get_scratchpad_grantor().template get<float>(
                     key_conv_bias_bf16_convert_wsp);
             cvt_bfloat16_to_float(bias, bias_in, jcp.ngroups * jcp.oc);
         } else {
@@ -390,9 +391,10 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
 
-    auto col = scratchpad(ctx).template get<acc_data_t>(key_conv_gemm_col);
+    auto col = ctx.get_scratchpad_grantor().template get<acc_data_t>(
+            key_conv_gemm_col);
     acc_data_t *acc_base = diff_src_data_type == data_type::bf16
-            ? scratchpad(ctx).template get<acc_data_t>(
+            ? ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_conv_int_dat_in_acc_dt)
             : nullptr;
 
@@ -509,21 +511,22 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
     auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
 
-    auto col = scratchpad(ctx).template get<src_data_t>(key_conv_gemm_col);
-    auto wei_reduction
-            = scratchpad(ctx).template get<acc_data_t>(key_conv_wei_reduction);
+    auto col = ctx.get_scratchpad_grantor().template get<src_data_t>(
+            key_conv_gemm_col);
+    auto wei_reduction = ctx.get_scratchpad_grantor().template get<acc_data_t>(
+            key_conv_wei_reduction);
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     acc_data_t *acc_base = diff_wei_data_type == data_type::bf16
-            ? scratchpad(ctx).template get<acc_data_t>(
+            ? ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_conv_int_dat_in_acc_dt)
             : (acc_data_t *)diff_weights;
 
     float *diff_bias = nullptr;
     if (jcp.with_bias) {
         if (pd()->desc()->diff_bias_desc.data_type == data_type::bf16)
-            diff_bias = scratchpad(ctx).template get<float>(
+            diff_bias = ctx.get_scratchpad_grantor().template get<float>(
                     key_conv_bias_bf16_convert_wsp);
         else
             diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);

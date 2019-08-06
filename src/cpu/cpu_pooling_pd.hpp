@@ -17,6 +17,7 @@
 #ifndef CPU_POOLING_PD_HPP
 #define CPU_POOLING_PD_HPP
 
+#include "cpu_engine.hpp"
 #include "pooling_pd.hpp"
 
 namespace mkldnn {

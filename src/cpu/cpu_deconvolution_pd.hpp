@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include "cpu_engine.hpp"
 #include "deconvolution_pd.hpp"
 
 namespace mkldnn {

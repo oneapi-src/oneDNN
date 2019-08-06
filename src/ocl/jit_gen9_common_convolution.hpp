@@ -37,7 +37,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct jit_gen9_common_convolution_fwd_t : public primitive_t {
+struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -113,7 +113,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    jit_gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    jit_gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_gen9_common_conv_fwd_kernel(pd()->jcp_);
     }
 
@@ -125,12 +125,12 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_gen9_common_conv_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
-struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
+struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -197,7 +197,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
         return status::success;
     }
 
-    jit_gen9_common_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
+    jit_gen9_common_convolution_bwd_data_t(const pd_t *apd)
+        : primitive_impl_t(apd) {
         ker_ = new jit_gen9_common_conv_bwd_data_kernel(pd()->jcp_);
     }
 
@@ -209,12 +210,12 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_gen9_common_conv_bwd_data_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
-struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
+struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -316,7 +317,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
     }
 
     jit_gen9_common_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd) {
+        : primitive_impl_t(apd) {
         ker_ = new jit_gen9_common_conv_bwd_weights_kernel(pd()->jcp_);
     }
 
@@ -328,7 +329,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_gen9_common_conv_bwd_weights_kernel *ker_;
     compute::kernel_t kernel_;
     compute::kernel_t reduce_kernel_;

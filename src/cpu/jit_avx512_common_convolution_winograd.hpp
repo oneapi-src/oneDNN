@@ -22,7 +22,6 @@
 #include "mkldnn_thread.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
@@ -84,7 +83,7 @@ protected:
 
 struct jit_avx512_common_convolution_winograd_fwd_t
     : _jit_avx512_common_convolution_winograd_t<true>,
-      public cpu_primitive_t {
+      public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -94,7 +93,8 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                jit_avx512_common_convolution_winograd_fwd_t);
+                jit_avx512_common_convolution_winograd_fwd_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && is_fwd()
@@ -133,7 +133,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     jit_avx512_common_convolution_winograd_fwd_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<true>(
                 apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , primitive_impl_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_fwd_t() {};
 
@@ -145,17 +145,17 @@ struct jit_avx512_common_convolution_winograd_fwd_t
         auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
         this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
-                (float *)bias, this->scratchpad(ctx));
+                (float *)bias, ctx.get_scratchpad_grantor());
         return status::success;
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_data_t
     : _jit_avx512_common_convolution_winograd_t<false>,
-      public cpu_primitive_t {
+      public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -165,7 +165,8 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                jit_avx512_common_convolution_winograd_bwd_data_t);
+                jit_avx512_common_convolution_winograd_bwd_data_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -204,7 +205,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<false>(
                 apd->jcp_, apd->attr())
-        , cpu_primitive_t(apd, true) {}
+        , primitive_impl_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t() {};
 
@@ -215,16 +216,16 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
         auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
         this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
-                (float *)weights, nullptr, this->scratchpad(ctx));
+                (float *)weights, nullptr, ctx.get_scratchpad_grantor());
         return status::success;
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_weights_t
-    : public cpu_primitive_t {
+    : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -234,7 +235,8 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
-                jit_avx512_common_convolution_winograd_bwd_weights_t);
+                jit_avx512_common_convolution_winograd_bwd_weights_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -271,7 +273,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     };
 
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), kernel_(nullptr) {
+        : primitive_impl_t(apd), kernel_(nullptr) {
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
                 pd()->jcp_);
     }
@@ -281,7 +283,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        _execute_backward_weights_S_D_G_W(ctx, scratchpad(ctx));
+        _execute_backward_weights_S_D_G_W(ctx, ctx.get_scratchpad_grantor());
         return status::success;
     }
 
@@ -291,7 +293,7 @@ private:
     void _maybe_execute_diff_bias_copy(float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 };
 

@@ -28,11 +28,11 @@
 
 #define CTX_IN_STORAGE(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
-                    : memory_storage_t::empty_storage())
+                    : mkldnn::impl::memory_storage_t::empty_storage())
 
 #define CTX_OUT_STORAGE(arg) \
     (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
-                     : memory_storage_t::empty_storage())
+                     : mkldnn::impl::memory_storage_t::empty_storage())
 
 namespace mkldnn {
 namespace impl {
@@ -60,9 +60,14 @@ struct exec_ctx_t {
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
 
+    void set_scratchpad_grantor(
+            const memory_tracking::grantor_t &scratchpad_grantor);
+    const memory_tracking::grantor_t &get_scratchpad_grantor() const;
+
 private:
     stream_t *stream_;
     exec_args_t args_;
+    std::unique_ptr<memory_tracking::grantor_t> scratchpad_grantor_;
 };
 
 } // namespace impl

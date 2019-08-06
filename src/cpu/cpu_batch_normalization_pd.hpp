@@ -18,6 +18,7 @@
 #define CPU_BATCH_NORMALIZATION_PD_HPP
 
 #include "batch_normalization_pd.hpp"
+#include "cpu_engine.hpp"
 
 namespace mkldnn {
 namespace impl {

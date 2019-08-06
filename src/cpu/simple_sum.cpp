@@ -50,7 +50,7 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
         const bool is_dst_bf16 = dst_data_type == data_type::bf16;
 
         const auto bf16_p = pd()->bf16_p_;
-        const auto scratchpad = this->scratchpad(ctx);
+        const auto scratchpad = ctx.get_scratchpad_grantor();
         acc_data_t *wspace = scratchpad.template get<acc_data_t>(
                 memory_tracking::names::key_sum_srcs_cvt);
         acc_data_t *my_ws = &wspace[ithr * bf16_p.ws_elements_per_thread_];

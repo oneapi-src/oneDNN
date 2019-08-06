@@ -51,7 +51,7 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
 
     acc_data_t *acc = pd()->dst_is_acc_
             ? (acc_data_t *)dst
-            : scratchpad(ctx).template get<acc_data_t>(
+            : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0;
@@ -84,7 +84,7 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
 
     acc_data_t *acc = pd()->diff_src_is_acc_
             ? (acc_data_t *)diff_src
-            : scratchpad(ctx).template get<acc_data_t>(
+            : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
@@ -129,7 +129,7 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
     acc_data_t *acc = pd()->diff_wei_is_acc_
             ? (acc_data_t *)diff_weights
-            : scratchpad(ctx).template get<acc_data_t>(
+            : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
@@ -156,8 +156,9 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         const int rem_OC = OC % blksize;
         float *diff_bias_acc = pd()->diff_bias_is_acc_
                 ? (float *)diff_bias
-                : (float *)scratchpad(ctx).template get<acc_data_t>(
-                        key_iprod_bias_bf16_convert_wsp);
+                : (float *)ctx.get_scratchpad_grantor()
+                          .template get<acc_data_t>(
+                                  key_iprod_bias_bf16_convert_wsp);
         parallel(0, [&](const int ithr, const int nthr) {
             int oc_s {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_s, oc_e);

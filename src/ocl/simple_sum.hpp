@@ -34,7 +34,7 @@ namespace impl {
 namespace ocl {
 
 template <data_type_t data_type>
-struct simple_sum_t : public primitive_t {
+struct simple_sum_t : public primitive_impl_t {
     struct pd_t : public ocl_sum_pd_t {
         using ocl_sum_pd_t::ocl_sum_pd_t;
 
@@ -61,7 +61,7 @@ struct simple_sum_t : public primitive_t {
         jit_simple_sum_conf_t jss_;
     };
 
-    simple_sum_t(const pd_t *apd) : primitive_t(apd) {
+    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_simple_sum_kernel(pd()->jss_);
     }
 
@@ -87,7 +87,7 @@ struct simple_sum_t : public primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_simple_sum_kernel *ker_;
     compute::kernel_t kernel_;
 };

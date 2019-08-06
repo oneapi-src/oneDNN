@@ -20,7 +20,6 @@
 #include "c_types_map.hpp"
 
 #include "cpu_pooling_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "jit_primitive_conf.hpp"
@@ -33,12 +32,12 @@ template <cpu_isa_t isa>
 struct jit_uni_i8i8_pooling_fwd_ker_t;
 
 template <cpu_isa_t isa>
-struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
+struct jit_uni_i8i8_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int:", isa, ""),
-                jit_uni_i8i8_pooling_fwd_t<isa>);
+                jit_uni_i8i8_pooling_fwd_t);
 
         status_t init() {
             bool ok = true && mayiuse(isa) && ndims() == 4
@@ -74,7 +73,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };

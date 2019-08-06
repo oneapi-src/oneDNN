@@ -26,7 +26,6 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "tag_traits.hpp"
 
@@ -1221,7 +1220,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* high level class declaration */
 
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
-struct simple_reorder_t : public cpu_primitive_t {
+struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -1255,18 +1254,18 @@ struct simple_reorder_t : public cpu_primitive_t {
         }
     };
 
-    simple_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const data_t<type_i> *, MKLDNN_ARG_FROM);
         auto output = CTX_OUT_MEM(data_t<type_o> *, MKLDNN_ARG_TO);
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                pd(), input, output, this->scratchpad(ctx));
+                pd(), input, output, ctx.get_scratchpad_grantor());
         return status::success;
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

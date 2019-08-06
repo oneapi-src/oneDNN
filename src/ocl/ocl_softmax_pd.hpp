@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/softmax_pd.hpp"
+#include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
 namespace impl {

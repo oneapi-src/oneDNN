@@ -26,7 +26,7 @@ using namespace memory_tracking::names;
 
 template <data_type_t data_type>
 status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
     auto iptrs = scratchpad.template get<const data_t *>(key_concat_iptrs);
     auto optrs = scratchpad.template get<data_t *>(key_concat_optrs);
     auto nelems_to_copy = scratchpad.template get<dim_t>(key_concat_nelems);

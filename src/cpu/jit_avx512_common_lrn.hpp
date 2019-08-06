@@ -21,14 +21,13 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
-#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct jit_avx512_common_lrn_fwd_t : public cpu_primitive_t {
+struct jit_avx512_common_lrn_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
@@ -51,7 +50,7 @@ struct jit_avx512_common_lrn_fwd_t : public cpu_primitive_t {
 private:
     static const int vsize = 16;
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     int use_h_parallelism;
 
@@ -60,7 +59,7 @@ private:
 };
 
 template <data_type_t d_type>
-struct jit_avx512_common_lrn_bwd_t : public cpu_primitive_t {
+struct jit_avx512_common_lrn_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
@@ -83,7 +82,7 @@ struct jit_avx512_common_lrn_bwd_t : public cpu_primitive_t {
 private:
     static const int vsize = 16;
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f;

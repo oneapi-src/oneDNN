@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cpu_engine.hpp"
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 

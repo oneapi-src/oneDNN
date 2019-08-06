@@ -30,7 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_shuffle_t : public primitive_t {
+struct ref_shuffle_t : public primitive_impl_t {
     struct pd_t : public ocl_shuffle_pd_t {
         using ocl_shuffle_pd_t::ocl_shuffle_pd_t;
 
@@ -62,7 +62,7 @@ struct ref_shuffle_t : public primitive_t {
         format_tag_t dat_tag_;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_shuffle_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t init() override {
         auto *compute_engine
@@ -88,7 +88,7 @@ struct ref_shuffle_t : public primitive_t {
 private:
     template <format_tag_t tag>
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 

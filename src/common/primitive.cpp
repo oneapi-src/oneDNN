@@ -21,7 +21,6 @@
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
 #include "stream.hpp"
-#include "type_helpers.hpp"
 #include "utils.hpp"
 
 using namespace mkldnn::impl;
@@ -45,6 +44,7 @@ void unpoison_outputs(const exec_args_t &args) {
 }
 } // namespace
 
+// API
 status_t mkldnn_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
     if (primitive_desc) delete primitive_desc;
     return success;
@@ -113,4 +113,67 @@ status_t mkldnn_primitive_destroy(primitive_t *primitive) {
     return success;
 }
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// primitive_t implementation
+mkldnn_primitive::mkldnn_primitive(
+        const std::shared_ptr<primitive_impl_t> &primitive_impl,
+        bool use_global_scratchpad = false)
+    : primitive_impl_(primitive_impl)
+    , scratchpad_buffer_(nullptr)
+    , global_scratchpad_(nullptr) {
+
+    // GPU doesn't support scratchpad
+    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
+        const size_t scratchpad_size = primitive_impl_->pd()->scratchpad_size(
+                scratchpad_mode::library);
+
+        if (scratchpad_size) {
+            if (use_global_scratchpad)
+                global_scratchpad_ = create_scratchpad(scratchpad_size);
+            else
+                scratchpad_buffer_ = malloc(scratchpad_size, 64);
+        }
+    }
+}
+
+status_t mkldnn_primitive::init() {
+    return primitive_impl_->init();
+}
+
+engine_t *mkldnn_primitive::engine() const {
+    return primitive_impl_->engine();
+}
+
+const primitive_desc_t *mkldnn_primitive::pd() const {
+    return primitive_impl_->pd();
+}
+
+const std::shared_ptr<primitive_impl_t> &
+mkldnn_primitive::get_primitive_impl() const {
+    return primitive_impl_;
+}
+
+status_t mkldnn_primitive::execute(exec_ctx_t &ctx) const {
+    // GPU doesn't support scratchpad
+    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
+        void *ptr = nullptr;
+        if (primitive_impl_->pd()->attr()->scratchpad_mode_
+                == scratchpad_mode::user) {
+            ptr = CTX_OUT_MEM(void *, MKLDNN_ARG_SCRATCHPAD);
+        } else {
+            ptr = global_scratchpad_ ? global_scratchpad_->get()
+                                     : scratchpad_buffer_;
+        }
+
+        ctx.set_scratchpad_grantor(
+                primitive_impl_->pd()->scratchpad_registry().grantor(ptr));
+    }
+    auto status = primitive_impl_->execute(ctx);
+    return status;
+}
+
+mkldnn_primitive::~mkldnn_primitive() {
+    delete global_scratchpad_;
+    mkldnn::impl::free(scratchpad_buffer_);
+}
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

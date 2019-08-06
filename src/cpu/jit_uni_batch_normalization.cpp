@@ -1358,7 +1358,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd) {
+    : primitive_impl_t(apd) {
     bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd());
 }
 
@@ -1380,7 +1380,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     auto dst = CTX_OUT_MEM(void *, MKLDNN_ARG_DST);
     auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     bnorm_driver_->init_barriers(scratchpad);
 
@@ -1439,7 +1439,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd) {
+    : primitive_impl_t(apd) {
     bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd());
 }
 
@@ -1457,7 +1457,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     auto diff_scale_shift
             = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     bnorm_driver_->init_barriers(scratchpad);
 

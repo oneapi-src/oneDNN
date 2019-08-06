@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "scratchpad.hpp"

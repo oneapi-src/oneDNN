@@ -27,14 +27,13 @@
 #include "gemm_inner_product_utils.hpp"
 
 #include "cpu_inner_product_pd.hpp"
-#include "cpu_primitive.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct gemm_inner_product_fwd_t : public cpu_primitive_t {
+struct gemm_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
@@ -71,7 +70,7 @@ struct gemm_inner_product_fwd_t : public cpu_primitive_t {
     };
 
     gemm_inner_product_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), pp_kernel_(nullptr), postops_in_ip_(false) {
+        : primitive_impl_t(apd), pp_kernel_(nullptr), postops_in_ip_(false) {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
@@ -95,7 +94,7 @@ struct gemm_inner_product_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     inner_product_utils::pp_kernel_t<data_type, data_type> *pp_kernel_;
     bool postops_in_ip_;
@@ -103,7 +102,7 @@ private:
 };
 
 template <impl::data_type_t data_type>
-struct gemm_inner_product_bwd_data_t : public cpu_primitive_t {
+struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
         using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
 
@@ -122,7 +121,7 @@ struct gemm_inner_product_bwd_data_t : public cpu_primitive_t {
         }
     };
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -132,11 +131,11 @@ struct gemm_inner_product_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <impl::data_type_t data_type>
-struct gemm_inner_product_bwd_weights_t : public cpu_primitive_t {
+struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
         using cpu_inner_product_bwd_weights_pd_t::
                 cpu_inner_product_bwd_weights_pd_t;
@@ -160,7 +159,7 @@ struct gemm_inner_product_bwd_weights_t : public cpu_primitive_t {
         }
     };
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -170,7 +169,7 @@ struct gemm_inner_product_bwd_weights_t : public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu

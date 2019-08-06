@@ -40,7 +40,7 @@ void simple_layer_normalization_fwd_t::execute_forward(
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
-        auto scratchpad = this->scratchpad(ctx);
+        auto scratchpad = ctx.get_scratchpad_grantor();
         mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
         variance = scratchpad.template get<float>(key_lnorm_tmp_var);
     } else {
@@ -105,7 +105,7 @@ void simple_layer_normalization_fwd_t::execute_forward(
 
 void simple_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
     auto scaleshift = CTX_IN_MEM(const float *, MKLDNN_ARG_SCALE_SHIFT);

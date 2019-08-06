@@ -25,7 +25,6 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
@@ -38,7 +37,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t;
 struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t;
 struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t;
 
-struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
+struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -114,9 +113,11 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
 
         if (pd()->jcp_.small_mb)
-            execute_forward_small_mb(src, wei, bia, dst, this->scratchpad(ctx));
+            execute_forward_small_mb(
+                    src, wei, bia, dst, ctx.get_scratchpad_grantor());
         else
-            execute_forward_mbN(src, wei, bia, dst, this->scratchpad(ctx));
+            execute_forward_mbN(
+                    src, wei, bia, dst, ctx.get_scratchpad_grantor());
 
         return status::success;
     }
@@ -128,7 +129,7 @@ private:
     void execute_forward_mbN(const float *src, const float *wei,
             const float *bia, float *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t *kernel_;
     jit_avx512_core_f32_wino_conv_2x3_src_trans_t *src_trans_;

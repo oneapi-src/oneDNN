@@ -54,7 +54,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
 
     acc_data_t *acc = pd()->dst_is_acc_
             ? (acc_data_t *)dst
-            : scratchpad(ctx).template get<acc_data_t>(
+            : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;

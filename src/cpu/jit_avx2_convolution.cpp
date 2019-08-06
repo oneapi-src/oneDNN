@@ -153,7 +153,8 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     };
 
     if (pd()->wants_padded_bias()) {
-        auto padded_bias = scratchpad(ctx).get<data_t>(key_conv_padded_bias);
+        auto padded_bias = ctx.get_scratchpad_grantor().get<data_t>(
+                key_conv_padded_bias);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
                 jcp.oc - jcp.oc_without_padding);
@@ -262,7 +263,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
     auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
     auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     data_t *diff_bias = pd()->wants_padded_bias()
             ? scratchpad.get<data_t>(key_conv_padded_bias)

@@ -25,7 +25,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_sum_t : public primitive_t {
+struct ref_sum_t : public primitive_impl_t {
     struct pd_t : public ocl_sum_pd_t {
         using ocl_sum_pd_t::ocl_sum_pd_t;
         pd_t(const pd_t &rhs) : ocl_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
@@ -81,7 +81,7 @@ struct ref_sum_t : public primitive_t {
         nstl::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_sum_t(const pd_t *apd) : primitive_t(apd) {
+    ref_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
         const int n = pd()->n_inputs();
         reorders_.resize(n);
         for (int i = 0; i < n; ++i)
@@ -107,10 +107,9 @@ struct ref_sum_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     nstl::vector<primitive_t *> reorders_;
 };
-
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn

@@ -32,7 +32,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_batch_normalization_fwd_t : public primitive_t {
+struct ref_batch_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -112,7 +112,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
         return status::success;
     }
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_ref_bnorm_common_kernel(pd()->jbn_);
     }
     ~ref_batch_normalization_fwd_t() { delete ker_; }
@@ -123,7 +123,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_ref_bnorm_common_kernel *ker_;
     compute::kernel_t kernel_;
     compute::kernel_t calculate_mean_kernel_;
@@ -133,7 +133,7 @@ private:
     std::unique_ptr<memory_storage_t> temp_reduce;
 };
 
-struct ref_batch_normalization_bwd_t : public primitive_t {
+struct ref_batch_normalization_bwd_t : public primitive_impl_t {
     struct pd_t : public ocl_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -206,7 +206,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         return status::success;
     }
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         ker_ = new jit_ref_bnorm_common_kernel(pd()->jbn_);
     }
     ~ref_batch_normalization_bwd_t() { delete ker_; }
@@ -217,7 +217,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_ref_bnorm_common_kernel *ker_;
     compute::kernel_t kernel_;
     compute::kernel_t calculate_stats_kernel_;

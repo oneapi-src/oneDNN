@@ -18,7 +18,6 @@
 #define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
 #include "cpu_layer_normalization_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "memory_tracking.hpp"
 #include "mkldnn_thread.hpp"
 #include "reorder_pd.hpp"
@@ -50,7 +49,7 @@ static status_t create_reorder_pd(engine_t *engine,
     return status;
 }
 
-struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
+struct simple_layer_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -129,7 +128,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
     };
 
     simple_layer_normalization_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), reorder_(nullptr) {
+        : primitive_impl_t(apd), reorder_(nullptr) {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
@@ -150,7 +149,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
          * as data tensor (i.e. data in abcd, stats in abc) and user's
          * input/output statistics are reordered if necessary */
         using namespace memory_tracking::names;
-        auto scratchpad = this->scratchpad(ctx);
+        auto scratchpad = ctx.get_scratchpad_grantor();
         auto mean_handle = scratchpad.template get<void>(key_lnorm_tmp_mean);
         auto variance_handle = scratchpad.template get<void>(key_lnorm_tmp_var);
         memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
@@ -177,11 +176,11 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *reorder_;
 };
 
-struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
+struct simple_layer_normalization_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -263,7 +262,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
     };
 
     simple_layer_normalization_bwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), reorder_(nullptr) {
+        : primitive_impl_t(apd), reorder_(nullptr) {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
@@ -286,7 +285,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
          * input/output statistics are reordered if necessary */
 
         if (reorder_) {
-            auto scratchpad = this->scratchpad(ctx);
+            auto scratchpad = ctx.get_scratchpad_grantor();
             auto mean_handle
                     = scratchpad.template get<void>(key_lnorm_tmp_mean);
             auto variance_handle
@@ -306,7 +305,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *reorder_;
 };
 

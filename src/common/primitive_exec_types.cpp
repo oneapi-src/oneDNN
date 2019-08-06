@@ -79,5 +79,15 @@ memory_t *exec_ctx_t::memory(int arg) const {
     return ma.mem;
 }
 
+void exec_ctx_t::set_scratchpad_grantor(
+        const memory_tracking::grantor_t &scratchpad_grantor) {
+    scratchpad_grantor_ = utils::make_unique<memory_tracking::grantor_t>(
+            scratchpad_grantor);
+}
+
+const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
+    assert(scratchpad_grantor_.get());
+    return *(scratchpad_grantor_.get());
+}
 } // namespace impl
 } // namespace mkldnn

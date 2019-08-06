@@ -34,7 +34,7 @@ namespace ocl {
 
 template <impl::data_type_t a_type, impl::data_type_t b_type = a_type,
         impl::data_type_t c_type = a_type>
-struct jit_gen9_gemm_t : public primitive_t {
+struct jit_gen9_gemm_t : public primitive_impl_t {
     using c_t = typename prec_traits<c_type>::type;
 
     enum class type {
@@ -238,7 +238,7 @@ struct jit_gen9_gemm_t : public primitive_t {
         return status::success;
     }
 
-    jit_gen9_gemm_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_gen9_gemm_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
@@ -289,7 +289,7 @@ private:
     int hw_threads_ = 0;
     int eu_count_ = 0;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_nocopy() const {
         bool transa = (pd()->desc()->transa == mkldnn_trans);
