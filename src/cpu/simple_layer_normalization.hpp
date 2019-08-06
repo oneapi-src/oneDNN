@@ -133,7 +133,9 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
-    ~simple_layer_normalization_fwd_t() { reorder_->release(); }
+    ~simple_layer_normalization_fwd_t() {
+        if (reorder_) reorder_->release();
+    }
 
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
