@@ -26,13 +26,12 @@
 
 namespace mkldnn {
 
-class memory_map_test_c : public ::testing::TestWithParam<mkldnn_engine_kind_t>
-{
+class memory_map_test_c
+    : public ::testing::TestWithParam<mkldnn_engine_kind_t> {
 protected:
     virtual void SetUp() {
         auto engine_kind = GetParam();
-        if (mkldnn_engine_get_count(engine_kind) == 0)
-            return;
+        if (mkldnn_engine_get_count(engine_kind) == 0) return;
 
         MKLDNN_CHECK(mkldnn_engine_create(&engine, engine_kind, 0));
         MKLDNN_CHECK(mkldnn_stream_create(
@@ -40,12 +39,8 @@ protected:
     }
 
     virtual void TearDown() {
-        if (engine) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(engine));
-        }
-        if (stream) {
-            MKLDNN_CHECK(mkldnn_stream_destroy(stream));
-        }
+        if (engine) { MKLDNN_CHECK(mkldnn_engine_destroy(engine)); }
+        if (stream) { MKLDNN_CHECK(mkldnn_stream_destroy(stream)); }
     }
 
     mkldnn_engine_t engine = nullptr;
@@ -53,15 +48,13 @@ protected:
 };
 
 class memory_map_test_cpp
-    : public ::testing::TestWithParam<mkldnn_engine_kind_t>
-{
-};
+    : public ::testing::TestWithParam<mkldnn_engine_kind_t> {};
 
 TEST_P(memory_map_test_c, MapNullMemory) {
     SKIP_IF(!engine, "Engine kind is not supported.");
 
     int ndims = 4;
-    mkldnn_dims_t dims = { 2, 3, 4, 5 };
+    mkldnn_dims_t dims = {2, 3, 4, 5};
     mkldnn_memory_desc_t mem_d;
     mkldnn_memory_t mem;
 
@@ -82,7 +75,7 @@ TEST_P(memory_map_test_c, Map) {
 
     const int ndims = 1;
     const mkldnn_dim_t N = 15;
-    const mkldnn_dims_t dims = { N };
+    const mkldnn_dims_t dims = {N};
 
     mkldnn_memory_desc_t mem_d;
     MKLDNN_CHECK(mkldnn_memory_desc_init_by_tag(
@@ -104,8 +97,8 @@ TEST_P(memory_map_test_c, Map) {
 
     // Create memory for the tested engine
     mkldnn_memory_t mem;
-    MKLDNN_CHECK(mkldnn_memory_create(
-            &mem, &mem_d, engine, MKLDNN_MEMORY_ALLOCATE));
+    MKLDNN_CHECK(
+            mkldnn_memory_create(&mem, &mem_d, engine, MKLDNN_MEMORY_ALLOCATE));
 
     // Reorder mem_ref to memory
     mkldnn_primitive_desc_t reorder_pd;
@@ -116,7 +109,7 @@ TEST_P(memory_map_test_c, Map) {
     MKLDNN_CHECK(mkldnn_primitive_create(&reorder, reorder_pd));
 
     mkldnn_exec_arg_t reorder_args[2]
-            = { { MKLDNN_ARG_SRC, mem_ref }, { MKLDNN_ARG_DST, mem } };
+            = {{MKLDNN_ARG_SRC, mem_ref}, {MKLDNN_ARG_DST, mem}};
     MKLDNN_CHECK(mkldnn_primitive_execute(reorder, stream, 2, reorder_args));
     MKLDNN_CHECK(mkldnn_stream_wait(stream));
 
@@ -146,7 +139,7 @@ TEST_P(memory_map_test_cpp, Map) {
     engine eng(engine_kind, 0);
 
     const mkldnn::memory::dim N = 7;
-    memory::desc mem_d({ N }, memory::data_type::f32, memory::format_tag::x);
+    memory::desc mem_d({N}, memory::data_type::f32, memory::format_tag::x);
 
     memory mem_ref(mem_d, eng);
 

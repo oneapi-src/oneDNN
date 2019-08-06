@@ -128,4 +128,4 @@ PKIND_TRAITS_INST(gemm);
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

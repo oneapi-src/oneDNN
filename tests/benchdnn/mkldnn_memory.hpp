@@ -57,8 +57,7 @@ struct dnn_mem_t {
             mkldnn_format_tag_t tag = mkldnn_format_tag_undef,
             mkldnn_engine_t engine = engine_ref)
         : dnn_mem_t(rhs.md_, dt, tag, engine) {
-        if (active_)
-            reorder(rhs);
+        if (active_) reorder(rhs);
     }
 
     dnn_mem_t(const dnn_mem_t &rhs) = delete;
@@ -82,10 +81,7 @@ struct dnn_mem_t {
         rhs.active_ = false;
         return *this;
     }
-    dnn_mem_t(dnn_mem_t &&rhs) : dnn_mem_t() {
-        *this = std::move(rhs);
-    }
-
+    dnn_mem_t(dnn_mem_t &&rhs) : dnn_mem_t() { *this = std::move(rhs); }
 
     ~dnn_mem_t() { cleanup(); }
 
@@ -94,8 +90,9 @@ struct dnn_mem_t {
         if (this == &rhs) return OK;
 
         mkldnn_primitive_desc_t rpd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&rpd,
-                    &rhs.md_, rhs.engine_, &md_, engine_, attr), WARN);
+        DNN_SAFE(mkldnn_reorder_primitive_desc_create(
+                         &rpd, &rhs.md_, rhs.engine_, &md_, engine_, attr),
+                WARN);
 
         mkldnn_primitive_t r;
         DNN_SAFE(mkldnn_primitive_create(&r, rpd), WARN);
@@ -106,8 +103,8 @@ struct dnn_mem_t {
         DNN_SAFE(mkldnn_primitive_desc_destroy(rpd), CRIT);
 
         mkldnn_exec_arg_t args[] = {
-            {MKLDNN_ARG_FROM, rhs.m_},
-            {MKLDNN_ARG_TO, m_},
+                {MKLDNN_ARG_FROM, rhs.m_},
+                {MKLDNN_ARG_TO, m_},
         };
 
         mkldnn_stream_t reorder_stream
@@ -122,9 +119,7 @@ struct dnn_mem_t {
     size_t size() const { return mkldnn_memory_desc_get_size(&md_); }
 
     int64_t nelems(bool with_padded_dims = false) const {
-        auto dims = with_padded_dims
-            ? md_.padded_dims
-            : md_.dims;
+        auto dims = with_padded_dims ? md_.padded_dims : md_.dims;
         int64_t n = 1;
         for (int i = 0; i < md_.ndims; ++i)
             n *= dims[i];
@@ -150,13 +145,15 @@ struct dnn_mem_t {
         void *data = (void *)*this;
         float elem = 0.0;
         switch (dt()) {
-        case mkldnn_s8: elem = static_cast<int8_t *>(data)[idx]; break;
-        case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
-        case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
-        case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
-        case mkldnn_f16: elem = static_cast<float16_t *>(data)[idx]; break;
-        case mkldnn_bf16: elem = static_cast<bfloat16_t *>(data)[idx]; break;
-        default: assert(!"bad data type");
+            case mkldnn_s8: elem = static_cast<int8_t *>(data)[idx]; break;
+            case mkldnn_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
+            case mkldnn_s32: elem = static_cast<int32_t *>(data)[idx]; break;
+            case mkldnn_f32: elem = static_cast<float *>(data)[idx]; break;
+            case mkldnn_f16: elem = static_cast<float16_t *>(data)[idx]; break;
+            case mkldnn_bf16:
+                elem = static_cast<bfloat16_t *>(data)[idx];
+                break;
+            default: assert(!"bad data type");
         }
         return elem;
     }
@@ -212,8 +209,8 @@ struct dnn_mem_t {
 
     /* fields */
 
-    mkldnn_memory_desc_t md_{};
-    mkldnn_memory_t m_{};
+    mkldnn_memory_desc_t md_ {};
+    mkldnn_memory_t m_ {};
 
 private:
     void *data_ = NULL;
@@ -235,7 +232,8 @@ private:
             md_.data_type = dt;
         } else {
             DNN_SAFE(mkldnn_memory_desc_init_by_tag(
-                        &md_, md.ndims, md.dims, dt, tag), CRIT);
+                             &md_, md.ndims, md.dims, dt, tag),
+                    CRIT);
         }
         engine_ = engine;
         DNN_SAFE_V(mkldnn_engine_get_kind(engine_, &engine_kind_));
@@ -285,7 +283,8 @@ private:
     int initialize(int ndims, const mkldnn_dims_t dims, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag),
+                CRIT);
         SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }
@@ -294,7 +293,8 @@ private:
             mkldnn_format_tag_t tag, const mkldnn_memory_extra_desc_t &extra,
             mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag), CRIT);
+        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&xmd, ndims, dims, dt, tag),
+                CRIT);
         xmd.extra = extra;
         SAFE(initialize(xmd, engine), CRIT);
         return OK;
@@ -304,7 +304,8 @@ private:
             const mkldnn_dims_t strides, mkldnn_engine_t engine) {
         mkldnn_memory_desc_t xmd;
         DNN_SAFE(mkldnn_memory_desc_init_by_strides(
-                    &xmd, ndims, dims, dt, strides), CRIT);
+                         &xmd, ndims, dims, dt, strides),
+                CRIT);
         SAFE(initialize(xmd, engine), CRIT);
         return OK;
     }

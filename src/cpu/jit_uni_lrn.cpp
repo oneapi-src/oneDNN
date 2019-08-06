@@ -298,4 +298,4 @@ template struct jit_uni_lrn_bwd_t<avx2>;
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

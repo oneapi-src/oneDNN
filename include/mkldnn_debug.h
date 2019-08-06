@@ -16,6 +16,8 @@
 
 // DO NOT EDIT, AUTO-GENERATED
 
+// clang-format off
+
 #ifndef MKLDNN_DEBUG_H
 #define MKLDNN_DEBUG_H
 
@@ -36,8 +38,7 @@ const char MKLDNN_API *mkldnn_fmt_tag2str(mkldnn_format_tag_t v);
 const char MKLDNN_API *mkldnn_prop_kind2str(mkldnn_prop_kind_t v);
 const char MKLDNN_API *mkldnn_prim_kind2str(mkldnn_primitive_kind_t v);
 const char MKLDNN_API *mkldnn_alg_kind2str(mkldnn_alg_kind_t v);
-const char MKLDNN_API *mkldnn_normalization_flags2str(
-        mkldnn_normalization_flags_t v);
+const char MKLDNN_API *mkldnn_normalization_flags2str(mkldnn_normalization_flags_t v);
 const char MKLDNN_API *mkldnn_rnn_flags2str(mkldnn_rnn_flags_t v);
 const char MKLDNN_API *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v);
 const char MKLDNN_API *mkldnn_engine_kind2str(mkldnn_engine_kind_t v);

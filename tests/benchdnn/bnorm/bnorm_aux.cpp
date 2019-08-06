@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
 #include "bnorm/bnorm.hpp"
 
 namespace bnorm {
@@ -26,11 +26,11 @@ check_alg_t str2check_alg(const char *str) {
     return ALG_AUTO;
 }
 
-const char* check_alg2str(check_alg_t alg) {
+const char *check_alg2str(check_alg_t alg) {
     switch (alg) {
-    case ALG_0: return "alg_0";
-    case ALG_1: return "alg_1";
-    case ALG_AUTO: return "alg_auto";
+        case ALG_0: return "alg_0";
+        case ALG_1: return "alg_1";
+        case ALG_AUTO: return "alg_auto";
     }
     return "alg_auto";
 }
@@ -53,8 +53,7 @@ const char *flags2str(flags_t flags) {
         return flags & FUSE_NORM_RELU ? "GR" : "G";
     }
 
-    if (flags & USE_SCALESHIFT)
-        return flags & FUSE_NORM_RELU ? "SR" : "S";
+    if (flags & USE_SCALESHIFT) return flags & FUSE_NORM_RELU ? "SR" : "S";
 
     return flags & FUSE_NORM_RELU ? "R" : "";
 }
@@ -77,7 +76,7 @@ int str2desc(desc_t *desc, const char *str) {
      *  if id is unset id <-- 1
      */
 
-    desc_t d{0};
+    desc_t d {0};
     d.mb = 2;
     d.eps = 1.f / 16;
     d.name = "\"wip\"";
@@ -85,18 +84,23 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-    auto mstrtol = [](const char *nptr, char **endptr)
-    { return strtol(nptr, endptr, 10); };
+    auto mstrtol = [](const char *nptr, char **endptr) {
+        return strtol(nptr, endptr, 10);
+    };
 
-#   define CASE_NN(p, c, cvfunc) do { \
+#define CASE_NN(p, c, cvfunc) \
+    do { \
         if (!strncmp(p, s, strlen(p))) { \
-            ok = 1; s += strlen(p); \
-            char *end_s; d. c = cvfunc(s, &end_s); s += (end_s - s); \
-            if (d. c < 0) return FAIL; \
+            ok = 1; \
+            s += strlen(p); \
+            char *end_s; \
+            d.c = cvfunc(s, &end_s); \
+            s += (end_s - s); \
+            if (d.c < 0) return FAIL; \
             /* printf("@@@debug: %s: " IFMT "\n", p, d. c); */ \
         } \
     } while (0)
-#   define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
+#define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
     while (*s) {
         int ok = 0;
         CASE_N(mb, mstrtol);
@@ -105,15 +109,17 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(ih, mstrtol);
         CASE_N(iw, mstrtol);
         CASE_N(eps, strtof);
-        if (*s == 'n') { d.name = s + 1; break; }
+        if (*s == 'n') {
+            d.name = s + 1;
+            break;
+        }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
-#   undef CASE_NN
-#   undef CASE_N
+#undef CASE_NN
+#undef CASE_N
 
-    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0))
-        return FAIL;
+    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0)) return FAIL;
 
     if (d.id == 0) d.id = 1;
     if (d.ih == 0) d.ih = 1;
@@ -135,7 +141,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     s << "ih" << d.ih;
     if (canonical || d.iw != d.ih || d.id > 1) s << "iw" << d.iw;
 
-    if (canonical || d.eps != 1.f/16) s << "eps" << d.eps;
+    if (canonical || d.eps != 1.f / 16) s << "eps" << d.eps;
 
     s << "n" << d.name;
 
@@ -145,24 +151,18 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D)
-        s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32)
-        s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.flags != (flags_t)0)
-        s << "--flags=" << flags2str(p.flags) << " ";
+    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.flags != (flags_t)0) s << "--flags=" << flags2str(p.flags) << " ";
     if (p.check_alg != ALG_AUTO)
         s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
-    if (!p.attr.is_def())
-        s << "--attr=\"" << p.attr << "\" ";
-    if (p.inplace != true)
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << static_cast<const desc_t &>(p);
 
     return s;
 }
 
-}
+} // namespace bnorm

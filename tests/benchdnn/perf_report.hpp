@@ -17,9 +17,9 @@
 #ifndef PERF_REPORT_HPP
 #define PERF_REPORT_HPP
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <iostream>
 #include <sstream>
@@ -36,7 +36,8 @@ struct base_perf_report_t {
     void handle_option(std::ostream &s, const char *&option, const res_t *r,
             const char *prb_str) const {
         const auto &t = r->timer;
-        benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min; (void)mode;
+        benchdnn_timer_t::mode_t mode = benchdnn_timer_t::min;
+        (void)mode;
         double unit = 1e0;
         char c = *option;
 
@@ -50,12 +51,12 @@ struct base_perf_report_t {
             c = *(++option);
         }
 
-#       define HANDLE(opt, ...) \
-        if (!strncmp(opt "%", option, strlen(opt) + 1)) { \
-            __VA_ARGS__; \
-            option += strlen(opt) + 1; \
-            return; \
-        }
+#define HANDLE(opt, ...) \
+    if (!strncmp(opt "%", option, strlen(opt) + 1)) { \
+        __VA_ARGS__; \
+        option += strlen(opt) + 1; \
+        return; \
+    }
 
         auto get_flops = [&]() -> double {
             if (!t.sec(mode)) return 0;
@@ -97,7 +98,7 @@ struct base_perf_report_t {
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
 
-#       undef HANDLE
+#undef HANDLE
 
         SAFE_V(FAIL);
     }
@@ -110,7 +111,10 @@ struct base_perf_report_t {
         const char *pt = pt_;
         char c;
         while ((c = *pt++) != '\0') {
-            if (c != '%') { ss << c; continue; }
+            if (c != '%') {
+                ss << c;
+                continue;
+            }
             handle_option(ss, pt, r, prb_str);
         }
 
@@ -126,13 +130,15 @@ struct base_perf_report_t {
     virtual const int64_t *group() const { return nullptr; }
     virtual const dir_t *dir() const { return nullptr; }
     virtual const mkldnn_data_type_t *dt() const { return nullptr; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const
-    { return nullptr; }
+    virtual const std::vector<mkldnn_data_type_t> *sdt() const {
+        return nullptr;
+    }
     virtual const mkldnn_data_type_t *ddt() const { return nullptr; }
     virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
     virtual const mkldnn_format_tag_t *stat_tag() const { return nullptr; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const
-    { return nullptr; }
+    virtual const std::vector<mkldnn_format_tag_t> *stag() const {
+        return nullptr;
+    }
     virtual const mkldnn_format_tag_t *dtag() const { return nullptr; }
     virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
 

@@ -19,8 +19,8 @@
 
 #include "mkldnn.hpp"
 
-#include <CL/sycl.hpp>
 #include <cstdint>
+#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 

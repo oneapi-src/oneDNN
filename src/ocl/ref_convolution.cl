@@ -99,29 +99,27 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
 
     ACC_DATA_T d = WITH_BIAS ? bias[g * IC + ic] : 0.0;
 
-    for (int oc = 0; oc < OC; ++oc)
-        for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
-                for (int kw = 0; kw < KW; ++kw) {
-                    if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
-                            || id + PD < kd * (1 + DD))
-                        continue;
-                    int ow = iw - kw * (1 + DW) + PW;
-                    int oh = ih - kh * (1 + DH) + PH;
-                    int od = id - kd * (1 + DD) + PD;
-                    if (ow % SW != 0 || oh % SH != 0 || od % SD != 0) continue;
+    for_(int oc = 0; oc < OC; ++oc)
+    for_(int kd = 0; kd < KD; ++kd)
+    for_(int kh = 0; kh < KH; ++kh)
+    for (int kw = 0; kw < KW; ++kw) {
+        if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
+                || id + PD < kd * (1 + DD))
+            continue;
+        int ow = iw - kw * (1 + DW) + PW;
+        int oh = ih - kh * (1 + DH) + PH;
+        int od = id - kd * (1 + DD) + PD;
+        if (ow % SW != 0 || oh % SH != 0 || od % SD != 0) continue;
 
-                    ow /= SW;
-                    oh /= SH;
-                    od /= SD;
-                    if (oh < OH && ow < OW && od < OD) {
-                        const uint dst_off
-                                = DST_OFF(n, g * OC + oc, od, oh, ow);
-                        const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-                        d += DST_TO_REF(diff_dst[dst_off])
-                                * WEI_TO_REF(wei[wht_off]);
-                    }
-                }
+        ow /= SW;
+        oh /= SH;
+        od /= SD;
+        if (oh < OH && ow < OW && od < OD) {
+            const uint dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
+            const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
+            d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wht_off]);
+        }
+    }
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
 }
 

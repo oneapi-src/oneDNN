@@ -31,8 +31,7 @@ bool is_current_test_failed() {
     return g_is_current_test_failed;
 }
 
-class assert_fail_handler_t : public EmptyTestEventListener
-{
+class assert_fail_handler_t : public EmptyTestEventListener {
 protected:
     virtual void OnTestStart(const TestInfo &test_info) override {
         g_is_current_test_failed = false;
@@ -47,8 +46,7 @@ protected:
 
 static void test_init(int argc, char *argv[]);
 
-int main( int argc, char* argv[ ] )
-{
+int main(int argc, char *argv[]) {
     int result;
     {
         ::testing::InitGoogleTest(&argc, argv);
@@ -94,18 +92,15 @@ static std::string find_cmd_option(
     for (auto arg = argv_beg; arg != argv_end; arg++) {
         std::string s(*arg);
         auto pos = s.find(option);
-        if (pos != std::string::npos)
-            return s.substr(pos + option.length());
+        if (pos != std::string::npos) return s.substr(pos + option.length());
     }
     return {};
 }
 
 static mkldnn::engine::kind to_engine_kind(const std::string &str) {
-    if (str.empty() || str == "cpu")
-        return mkldnn::engine::kind::cpu;
+    if (str.empty() || str == "cpu") return mkldnn::engine::kind::cpu;
 
-    if (str == "gpu")
-        return mkldnn::engine::kind::gpu;
+    if (str == "gpu") return mkldnn::engine::kind::gpu;
 
     assert(!"not expected");
     return mkldnn::engine::kind::cpu;

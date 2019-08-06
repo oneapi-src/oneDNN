@@ -19,10 +19,10 @@
 
 #include "mkldnn.h"
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
@@ -35,11 +35,11 @@ TEST(sycl_memory_test, BasicInteropCtor) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
     engine eng(engine::kind::gpu, 0);
-    memory::dims tz = { 4, 4, 4, 4 };
+    memory::dims tz = {4, 4, 4, 4};
 
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
 
-    buffer<float, 1> buf{ range<1>(sz) };
+    buffer<float, 1> buf {range<1>(sz)};
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
     memory mem(mem_d, eng, buf);
@@ -60,18 +60,17 @@ TEST(sycl_memory_test, BasicInteropCtor) {
 }
 
 TEST(sycl_memory_test, BasicInteropGetSet) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
-            "GPU device not found.");
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
     engine eng(engine::kind::gpu, 0);
-    memory::dims tz = { 4, 4, 4, 4 };
+    memory::dims tz = {4, 4, 4, 4};
 
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
     memory mem(mem_d, eng);
 
-    buffer<float, 1> interop_sycl_buf{ range<1>(sz) };
+    buffer<float, 1> interop_sycl_buf {range<1>(sz)};
     mem.set_sycl_buffer(interop_sycl_buf);
 
     auto sycl_buf = mem.get_sycl_buffer<float>();
@@ -90,8 +89,7 @@ TEST(sycl_memory_test, BasicInteropGetSet) {
 }
 
 TEST(sycl_memory_test, InteropReorder) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
-            "GPU device not found.");
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
     const size_t N = 2;
     const size_t C = 3;
@@ -110,7 +108,7 @@ TEST(sycl_memory_test, InteropReorder) {
 
         engine eng(engine::kind::gpu, 0);
 
-        memory::dims tz = { int(N), int(C), int(H), int(W) };
+        memory::dims tz = {int(N), int(C), int(H), int(W)};
 
         memory::desc src_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
@@ -150,8 +148,7 @@ TEST(sycl_memory_test, InteropReorder) {
 // So the test is enabled for ComputeCpp SYCL only
 #ifdef MKLDNN_SYCL_COMPUTECPP
 TEST(sycl_memory_test, InteropReorderAndUserKernel) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
-            "GPU device not found.");
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
     const size_t N = 2;
     const size_t C = 3;
@@ -172,9 +169,10 @@ TEST(sycl_memory_test, InteropReorderAndUserKernel) {
 
         engine eng(engine::kind::gpu, 0);
 
-        memory::dims tz = { int(N), int(C), int(H), int(W) };
+        memory::dims tz = {int(N), int(C), int(H), int(W)};
 
-        memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
+        memory::desc mem_d(
+                tz, memory::data_type::f32, memory::format_tag::nchw);
         memory mem(mem_d, eng);
 
         memory::desc tmp_mem_d(
@@ -215,16 +213,15 @@ TEST(sycl_memory_test, InteropReorderAndUserKernel) {
 #endif
 
 TEST(sycl_memory_test, EltwiseWithUserKernel) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
-            "GPU device not found.");
+    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
-    memory::dims tz = { 2, 3, 4, 5 };
+    memory::dims tz = {2, 3, 4, 5};
     const size_t N = tz.size();
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
 
     engine eng(engine::kind::gpu, 0);
-    memory mem({ mem_d, eng });
+    memory mem({mem_d, eng});
 
     auto sycl_buf = mem.get_sycl_buffer<float>();
 
@@ -238,10 +235,10 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
 
     auto eltwise_d = eltwise_forward::desc(
             prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
-    auto eltwise = eltwise_forward({ eltwise_d, eng });
+    auto eltwise = eltwise_forward({eltwise_d, eng});
 
     stream s(eng);
-    eltwise.execute(s, {{ MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
+    eltwise.execute(s, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
     s.wait();
 
     auto host_acc = sycl_buf.get_access<access::mode::read>();

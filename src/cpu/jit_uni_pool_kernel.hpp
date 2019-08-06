@@ -32,8 +32,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace Xbyak;
-
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel : public jit_generator {
     jit_uni_pool_kernel(jit_pool_conf_t ajpp) : jpp(ajpp), bf16_emu_(nullptr) {
@@ -56,6 +54,13 @@ struct jit_uni_pool_kernel : public jit_generator {
     static status_t init_conf(jit_pool_conf_t &jbp, const pooling_pd_t *ppd);
 
 private:
+    using Xmm = Xbyak::Xmm;
+    using Ymm = Xbyak::Ymm;
+    using Zmm = Xbyak::Zmm;
+    using Opmask = Xbyak::Opmask;
+    using Reg32 = Xbyak::Reg32;
+    using Reg64 = Xbyak::Reg64;
+
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx, Ymm,
             Zmm>::type;
     Xmm xreg(int idx) {
@@ -66,7 +71,7 @@ private:
     Zmm zreg(int idx) { return Zmm(xreg(idx).getIdx()); }
     Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
 
-    const AddressFrame &vmmword
+    const Xbyak::AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
@@ -110,7 +115,7 @@ private:
     // While this is only required by the backward pass, the quirk above
     // is applied to the forward pass as well to keep things simpler.
 
-    using reg64_t = const Xbyak::Reg64;
+    using reg64_t = const Reg64;
     reg64_t reg_param = rdi; // Always mimic the Unix ABI
     reg64_t reg_input = r8;
     reg64_t aux_reg_input = r9;
@@ -130,7 +135,7 @@ private:
     reg64_t ki = r12;
     reg64_t aux_reg_input_d = r8;
 
-    Xbyak::Reg32 reg_shuf_mask = esi;
+    Reg32 reg_shuf_mask = esi;
 
     int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
@@ -231,4 +236,4 @@ private:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

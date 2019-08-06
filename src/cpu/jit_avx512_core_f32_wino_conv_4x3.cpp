@@ -473,16 +473,15 @@ for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
 
     for (int oj = 0; oj < alpha; oj++) {
         for (int oi = 0; oi < alpha; oi++) {
-            for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++)
-                for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
-                    for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
-                        kernel_->gemm_loop_ker((float *)&(M(ithr, M_blk1, oj,
-                                                       oi, N_blk, 0, 0, 0)),
-                                (const float *)&(
-                                        U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
-                                (const float *)&(V(
-                                        ithr, oj, oi, N_blk, K_blk1, 0, 0, 0)),
-                                K_blk1);
+            for_(int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++)
+            for_(int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
+            for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
+                kernel_->gemm_loop_ker(
+                        (float *)&(M(ithr, M_blk1, oj, oi, N_blk, 0, 0, 0)),
+                        (const float *)&(U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
+                        (const float *)&(
+                                V(ithr, oj, oi, N_blk, K_blk1, 0, 0, 0)),
+                        K_blk1);
         }
     }
 
@@ -982,4 +981,4 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
 } // namespace cpu
 } // namespace impl
 } // namespace mkldnn
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

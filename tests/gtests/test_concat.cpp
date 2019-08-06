@@ -64,35 +64,27 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
             auto DST_H = dst_dims[ndims - 2];
             auto DST_W = dst_dims[ndims - 1];
 
-            for (memory::dim n = 0; n < N; n++)
-                for (memory::dim c = 0; c < C; c++)
-                    for (memory::dim d = 0; d < D; d++)
-                        for (memory::dim h = 0; h < H; h++)
-                            for (memory::dim w = 0; w < W; w++) {
-                                auto src_idx = w + W * h + H * W * d
-                                        + D * H * W * c
-                                        + C_PADDED * D * H * W * n;
+            for_(memory::dim n = 0; n < N; n++)
+            for_(memory::dim c = 0; c < C; c++)
+            for_(memory::dim d = 0; d < D; d++)
+            for_(memory::dim h = 0; h < H; h++)
+            for (memory::dim w = 0; w < W; w++) {
+                auto src_idx = w + W * h + H * W * d + D * H * W * c
+                        + C_PADDED * D * H * W * n;
 
-                                auto adj_dst_dim = [&](int dim,
-                                                           memory::dim dim_sz) {
-                                    if (concat_dim == dim)
-                                        return dim_sz + acc_concat_dim;
-                                    return dim_sz;
-                                };
-                                auto dst_idx = adj_dst_dim(ndims - 1, w)
-                                        + DST_W * adj_dst_dim(ndims - 2, h)
-                                        + DST_D * DST_H * DST_W
-                                                * adj_dst_dim(1, c)
-                                        + DST_C_PADDED * DST_D * DST_H * DST_W
-                                                * adj_dst_dim(0, n);
-                                if (ndims == 5)
-                                    dst_idx += DST_H * DST_W
-                                            * adj_dst_dim(2, d);
-                                ASSERT_NEAR(
-                                        src_data[src_mdw.off_l(src_idx, true)],
-                                        dst_data[dst_mdw.off_l(dst_idx, true)],
-                                        1e-7);
-                            }
+                auto adj_dst_dim = [&](int dim, memory::dim dim_sz) {
+                    if (concat_dim == dim) return dim_sz + acc_concat_dim;
+                    return dim_sz;
+                };
+                auto dst_idx = adj_dst_dim(ndims - 1, w)
+                        + DST_W * adj_dst_dim(ndims - 2, h)
+                        + DST_D * DST_H * DST_W * adj_dst_dim(1, c)
+                        + DST_C_PADDED * DST_D * DST_H * DST_W
+                                * adj_dst_dim(0, n);
+                if (ndims == 5) dst_idx += DST_H * DST_W * adj_dst_dim(2, d);
+                ASSERT_NEAR(src_data[src_mdw.off_l(src_idx, true)],
+                        dst_data[dst_mdw.off_l(dst_idx, true)], 1e-7);
+            }
 
             acc_concat_dim += src_dims[concat_dim];
         }

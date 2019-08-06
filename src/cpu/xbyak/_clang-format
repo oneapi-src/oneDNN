@@ -14,10 +14,5 @@
 # limitations under the License.
 #===============================================================================
 
-build
-external
-.*.sw?
-tags
-*~
-\#*\#
-.projectile
+DisableFormat : true
+SortIncludes:   false

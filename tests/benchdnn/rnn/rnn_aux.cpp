@@ -16,15 +16,14 @@
 
 #include "mkldnn.h"
 
-#include "rnn/rnn_aux.hpp"
 #include "norm.hpp"
+#include "rnn/rnn_aux.hpp"
 
 namespace rnn {
 
 alg_t str2alg(const char *str) {
-#define CASE(_alg)                         \
-    if (!strcasecmp(STRINGIFY(_alg), str)) \
-    return _alg
+#define CASE(_alg) \
+    if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
     CASE(VANILLA_RNN);
     CASE(VANILLA_LSTM);
     CASE(VANILLA_GRU);
@@ -35,7 +34,8 @@ alg_t str2alg(const char *str) {
 }
 
 policy_t str2policy(const char *str) {
-#define CASE(_plc) if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
+#define CASE(_plc) \
+    if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
     CASE(NONE);
     CASE(COMMON);
     CASE(PER_OC);
@@ -44,7 +44,7 @@ policy_t str2policy(const char *str) {
     return NONE;
 }
 
-const char * policy2str(policy_t policy) {
+const char *policy2str(policy_t policy) {
     if (policy == NONE) return "none";
     if (policy == COMMON) return "common";
     if (policy == PER_OC) return "per_oc";
@@ -53,35 +53,26 @@ const char * policy2str(policy_t policy) {
 }
 
 const char *alg2str(alg_t alg) {
-    if (alg == VANILLA_RNN)
-        return "VANILLA_RNN";
-    if (alg == VANILLA_LSTM)
-        return "VANILLA_LSTM";
-    if (alg == VANILLA_GRU)
-        return "VANILLA_GRU";
-    if (alg == LBR_GRU)
-        return "LBR_GRU";
+    if (alg == VANILLA_RNN) return "VANILLA_RNN";
+    if (alg == VANILLA_LSTM) return "VANILLA_LSTM";
+    if (alg == VANILLA_GRU) return "VANILLA_GRU";
+    if (alg == LBR_GRU) return "LBR_GRU";
     assert(!"unknown algorithm");
     return "unknown algorithm";
 }
 
 mkldnn_alg_kind_t alg2kind(alg_t alg) {
-    if (alg == VANILLA_RNN)
-        return mkldnn_vanilla_rnn;
-    if (alg == VANILLA_LSTM)
-        return mkldnn_vanilla_lstm;
-    if (alg == VANILLA_GRU)
-        return mkldnn_vanilla_gru;
-    if (alg == LBR_GRU)
-        return mkldnn_lbr_gru;
+    if (alg == VANILLA_RNN) return mkldnn_vanilla_rnn;
+    if (alg == VANILLA_LSTM) return mkldnn_vanilla_lstm;
+    if (alg == VANILLA_GRU) return mkldnn_vanilla_gru;
+    if (alg == LBR_GRU) return mkldnn_lbr_gru;
     assert(!"unknown algorithm");
     return mkldnn_alg_kind_undef;
 }
 
 activation_t str2activation(const char *str) {
-#define CASE(_act)                         \
-    if (!strcasecmp(STRINGIFY(_act), str)) \
-    return _act
+#define CASE(_act) \
+    if (!strcasecmp(STRINGIFY(_act), str)) return _act
     CASE(RELU);
     CASE(LOGISTIC);
     CASE(TANH);
@@ -94,11 +85,11 @@ activation_t str2activation(const char *str) {
 const char *activation2str(activation_t act) {
     const char *str = "unknown activation";
     switch (act) {
-    case RELU: str = "RELU"; break;
-    case LOGISTIC: str = "LOGISTIC"; break;
-    case TANH: str = "TANH"; break;
-    case UNDEF: str = "UNDEF"; break;
-    default: assert(!"unknown activation");
+        case RELU: str = "RELU"; break;
+        case LOGISTIC: str = "LOGISTIC"; break;
+        case TANH: str = "TANH"; break;
+        case UNDEF: str = "UNDEF"; break;
+        default: assert(!"unknown activation");
     }
     return str;
 }
@@ -106,44 +97,37 @@ const char *activation2str(activation_t act) {
 mkldnn_alg_kind_t activation2kind(activation_t act) {
     mkldnn_alg_kind_t alg_kind = mkldnn_alg_kind_undef;
     switch (act) {
-    case RELU: alg_kind = mkldnn_eltwise_relu; break;
-    case LOGISTIC: alg_kind = mkldnn_eltwise_logistic; break;
-    case TANH: alg_kind = mkldnn_eltwise_tanh; break;
-    case UNDEF: alg_kind = mkldnn_alg_kind_undef; break;
-    default: assert(!"unknown activation");
+        case RELU: alg_kind = mkldnn_eltwise_relu; break;
+        case LOGISTIC: alg_kind = mkldnn_eltwise_logistic; break;
+        case TANH: alg_kind = mkldnn_eltwise_tanh; break;
+        case UNDEF: alg_kind = mkldnn_alg_kind_undef; break;
+        default: assert(!"unknown activation");
     }
     return alg_kind;
 }
 
 mkldnn_rnn_direction_t str2direction(const char *str) {
-    if (!strcasecmp("left2right", str))
-        return mkldnn_unidirectional_left2right;
-    if (!strcasecmp("right2left", str))
-        return mkldnn_unidirectional_right2left;
-    if (!strcasecmp("concat", str))
-        return mkldnn_bidirectional_concat;
-    if (!strcasecmp("sum", str))
-        return mkldnn_bidirectional_sum;
+    if (!strcasecmp("left2right", str)) return mkldnn_unidirectional_left2right;
+    if (!strcasecmp("right2left", str)) return mkldnn_unidirectional_right2left;
+    if (!strcasecmp("concat", str)) return mkldnn_bidirectional_concat;
+    if (!strcasecmp("sum", str)) return mkldnn_bidirectional_sum;
     assert(!"unknown direction");
     return mkldnn_unidirectional_left2right;
 }
 
 const char *direction2str(mkldnn_rnn_direction_t direction) {
-    if (direction == mkldnn_unidirectional_left2right)
-        return "left2right";
-    if (direction == mkldnn_unidirectional_right2left)
-        return "right2left";
-    if (direction == mkldnn_bidirectional_concat)
-        return "concat";
-    if (direction == mkldnn_bidirectional_sum)
-        return "sum";
+    if (direction == mkldnn_unidirectional_left2right) return "left2right";
+    if (direction == mkldnn_unidirectional_right2left) return "right2left";
+    if (direction == mkldnn_bidirectional_concat) return "concat";
+    if (direction == mkldnn_bidirectional_sum) return "sum";
     assert(!"unknown direction");
     return "unknown direction";
 }
 
 void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
     if (cfg != conf_f32 && cfg != conf_f16 && policy == NONE) {
-        fprintf(stderr, "rnn driver: configuration `%s` requires scale policy "
+        fprintf(stderr,
+                "rnn driver: configuration `%s` requires scale policy "
                 "to be COMMON or PER_OC, exiting...\n",
                 cfg2str(cfg));
         exit(2);
@@ -151,7 +135,7 @@ void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    desc_t d{0};
+    desc_t d {0};
 
     /* canonical form:
      * lXtXmXsicXslcXdicXdlc
@@ -173,14 +157,18 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-#   define CASE_NN(p, c) do { \
+#define CASE_NN(p, c) \
+    do { \
         if (!strncmp(p, s, strlen(p))) { \
-            ok = 1; s += strlen(p); \
-            char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
-            if (d. c < 0) return FAIL; \
+            ok = 1; \
+            s += strlen(p); \
+            char *end_s; \
+            d.c = strtol(s, &end_s, 10); \
+            s += (end_s - s); \
+            if (d.c < 0) return FAIL; \
         } \
     } while (0)
-#   define CASE_N(c) CASE_NN(#c, c)
+#define CASE_N(c) CASE_NN(#c, c)
     while (*s) {
         int ok = 0;
         CASE_NN("l", n_layer);
@@ -190,12 +178,15 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(slc);
         CASE_N(dic);
         CASE_N(dlc);
-        if (*s == 'n') { d.name = s + 1; break; }
+        if (*s == 'n') {
+            d.name = s + 1;
+            break;
+        }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
-#   undef CASE_NN
-#   undef CASE_N
+#undef CASE_NN
+#undef CASE_N
 
     if (d.sic == 0) return FAIL;
     if (d.slc == 0) d.slc = d.sic;
@@ -220,14 +211,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
       << " --scaling=" << policy2str(p.scale_policy);
 
     s << " "
-        << "l" << p.n_layer
-        << "t" << p.n_iter
-        << "mb" << p.mb
-        << "sic" << p.sic
-        << "slc" << p.slc
-        << "dic" << p.dic
-        << "dlc" << p.dlc
-        << "n" << p.name;
+      << "l" << p.n_layer << "t" << p.n_iter << "mb" << p.mb << "sic" << p.sic
+      << "slc" << p.slc << "dic" << p.dic << "dlc" << p.dlc << "n" << p.name;
 
     return s;
 }
@@ -244,30 +229,29 @@ mkldnn_status_t init_rnn_fwd_desc(mkldnn_rnn_desc_t *rd, const prb_t &p,
 
     mkldnn_status_t init_status;
     switch (kind) {
-    case mkldnn_vanilla_rnn:
-        init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind, f,
-                p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags,
-                p.alpha, p.beta);
-        break;
-    case mkldnn_vanilla_lstm:
-        init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind, p.direction,
-                src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, dst_iter_c_d,
-                p.flags);
-        break;
-    case mkldnn_vanilla_gru:
-        init_status = mkldnn_gru_forward_desc_init(rd, prop_kind, p.direction,
-                src_layer_d, src_iter_d, weights_layer_d, weights_iter_d,
-                bias_d, dst_layer_d, dst_iter_d, p.flags);
-        break;
-    case mkldnn_lbr_gru:
-        init_status = mkldnn_lbr_gru_forward_desc_init(rd, prop_kind,
-                p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags);
-        break;
-    default:
-        init_status = mkldnn_unimplemented;
+        case mkldnn_vanilla_rnn:
+            init_status = mkldnn_vanilla_rnn_forward_desc_init(rd, prop_kind, f,
+                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags,
+                    p.alpha, p.beta);
+            break;
+        case mkldnn_vanilla_lstm:
+            init_status = mkldnn_lstm_forward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, src_iter_c_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, dst_iter_c_d, p.flags);
+            break;
+        case mkldnn_vanilla_gru:
+            init_status = mkldnn_gru_forward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags);
+            break;
+        case mkldnn_lbr_gru:
+            init_status = mkldnn_lbr_gru_forward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags);
+            break;
+        default: init_status = mkldnn_unimplemented;
     }
     return init_status;
 }
@@ -293,39 +277,40 @@ mkldnn_status_t init_rnn_bwd_desc(mkldnn_rnn_desc_t *rd, const prb_t &p,
 
     mkldnn_status_t init_status;
     switch (kind) {
-    case mkldnn_vanilla_rnn:
-        init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind, f,
-                p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                diff_dst_iter_d, p.flags, p.alpha, p.beta);
-        break;
-    case mkldnn_vanilla_lstm:
-        init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind, p.direction,
-                src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d, dst_iter_c_d,
-                diff_src_layer_d, diff_src_iter_d, diff_src_iter_c_d,
-                diff_weights_layer_d, diff_weights_iter_d, diff_bias_d,
-                diff_dst_layer_d, diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
-        break;
-    case mkldnn_vanilla_gru:
-        init_status = mkldnn_gru_backward_desc_init(rd, prop_kind, p.direction,
-                src_layer_d, src_iter_d, weights_layer_d, weights_iter_d,
-                bias_d, dst_layer_d, dst_iter_d, diff_src_layer_d,
-                diff_src_iter_d, diff_weights_layer_d, diff_weights_iter_d,
-                diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, p.flags);
-        break;
-    case mkldnn_lbr_gru:
-        init_status = mkldnn_lbr_gru_backward_desc_init(rd, prop_kind,
-                p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                diff_dst_iter_d, p.flags);
-        break;
-    default:
-        init_status = mkldnn_unimplemented;
+        case mkldnn_vanilla_rnn:
+            init_status = mkldnn_vanilla_rnn_backward_desc_init(rd, prop_kind,
+                    f, p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                    diff_dst_iter_d, p.flags, p.alpha, p.beta);
+            break;
+        case mkldnn_vanilla_lstm:
+            init_status = mkldnn_lstm_backward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, src_iter_c_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_src_iter_c_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                    diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
+            break;
+        case mkldnn_vanilla_gru:
+            init_status = mkldnn_gru_backward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                    diff_dst_iter_d, p.flags);
+            break;
+        case mkldnn_lbr_gru:
+            init_status = mkldnn_lbr_gru_backward_desc_init(rd, prop_kind,
+                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
+                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
+                    diff_dst_iter_d, p.flags);
+            break;
+        default: init_status = mkldnn_unimplemented;
     }
     return init_status;
 }
@@ -381,13 +366,11 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
     int64_t fwd_acc_dim
             = 2 * p.n_gates() + 1; // factor 2 is because of the sum of 2 GEMMs
-    if (p.alg == VANILLA_GRU)
-        fwd_acc_dim *= p.sic;
+    if (p.alg == VANILLA_GRU) fwd_acc_dim *= p.sic;
     int64_t bwdd_acc_dim = p.n_gates() * p.dic;
     int64_t bwdw_acc_dim = p.mb;
     int64_t acc_dim = fwd_acc_dim;
-    if (p.prop == mkldnn_backward)
-        acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
+    if (p.prop == mkldnn_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
     // Here the factor 4 just gives some wiggle room for fp32 testing
     float rel_eps = 4
             * (1 + (p.prop == mkldnn_backward)) // double wiggle room for bwd
@@ -443,76 +426,78 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                             oc = 0, b = 0;
                     switch (kind) {
-                    case input:
-                        inv_ntc_off_f(p, i, n, t, c);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                n, t, c, fp, dt, diff, rel_diff);
-                        break;
-                    case states:
-                        inv_ldnc_off_f(p, i, l, d, n, c);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                l, d, n, c, fp, dt, diff, rel_diff);
-                        break;
-                    case weights_input:
-                        inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "," IFMT "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                l, d, w, ic, oc, fp, dt, diff, rel_diff);
-                        break;
-                    case weights_states:
-                        inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "," IFMT "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                l, d, w, ic, oc, fp, dt, diff, rel_diff);
-                        break;
-                    case bias:
-                        inv_ldgo_off_f(p, i, l, d, b, c);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                l, d, b, c, fp, dt, diff, rel_diff);
-                        break;
-                    case dst_last_layer:
-                        inv_tnc_off_f(p, i, t, n, c);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                t, n, c, fp, dt, diff, rel_diff);
-                        break;
-                    case dst_last_iteration:
-                    case dst_c_last_iteration:
-                        inv_ldnc_off_f(p, i, l, d, n, c);
-                        print(0,
-                                "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                "," IFMT
-                                "] "
-                                "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                (long)i, final_compare ? "" : "REORDER ", skind,
-                                l, d, n, c, fp, dt, diff, rel_diff);
-                        break;
-                    default: assert("unknown data kind"); return FAIL;
+                        case input:
+                            inv_ntc_off_f(p, i, n, t, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, n, t, c, fp, dt, diff, rel_diff);
+                            break;
+                        case states:
+                            inv_ldnc_off_f(p, i, l, d, n, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, n, c, fp, dt, diff, rel_diff);
+                            break;
+                        case weights_input:
+                            inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, w, ic, oc, fp, dt, diff,
+                                    rel_diff);
+                            break;
+                        case weights_states:
+                            inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, w, ic, oc, fp, dt, diff,
+                                    rel_diff);
+                            break;
+                        case bias:
+                            inv_ldgo_off_f(p, i, l, d, b, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, b, c, fp, dt, diff, rel_diff);
+                            break;
+                        case dst_last_layer:
+                            inv_tnc_off_f(p, i, t, n, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, t, n, c, fp, dt, diff, rel_diff);
+                            break;
+                        case dst_last_iteration:
+                        case dst_c_last_iteration:
+                            inv_ldnc_off_f(p, i, l, d, n, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, n, c, fp, dt, diff, rel_diff);
+                            break;
+                        default: assert("unknown data kind"); return FAIL;
                     }
                 }
             }
@@ -521,49 +506,63 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50) {
             int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
-                b = 0;
+                    b = 0;
 
             switch (kind) {
-            case input:
-                inv_ntc_off_f(p, i, n, t, c);
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, n, t, c, fp, dt);
-                break;
-            case states:
-                inv_ldnc_off_f(p, i, l, d, n, c);
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, l, d, n, c, fp, dt);
-                break;
-            case weights_input:
-                inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, l, d, w, ic, oc, fp, dt);
-                break;
-            case weights_states:
-                inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                break;
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, l, d, w, ic, oc, fp, dt);
-            case bias:
-                inv_ldgo_off_f(p, i, l, d, b, c);
-                break;
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, l, d, b, c, fp, dt);
-            case dst_last_layer:
-                inv_tnc_off_f(p, i, t, n, c);
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, n, t, c, fp, dt);
-                break;
-            case dst_last_iteration:
-            case dst_c_last_iteration:
-                inv_ldnc_off_f(p, i, l, d, n, c);
-                print(0, "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT "] fp:%8g dt:%8g\n",
-                        (long)i, skind, l, d, n, c, fp, dt);
-                break;
-            default:
-                print(0, "[%4ld][unknown] fp:%8g dt:%8g\n",
-                        (long)i, fp, dt);
-                break;
+                case input:
+                    inv_ntc_off_f(p, i, n, t, c);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, n, t, c, fp, dt);
+                    break;
+                case states:
+                    inv_ldnc_off_f(p, i, l, d, n, c);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, n, c, fp, dt);
+                    break;
+                case weights_input:
+                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "," IFMT "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, w, ic, oc, fp, dt);
+                    break;
+                case weights_states:
+                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                    break;
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "," IFMT "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, w, ic, oc, fp, dt);
+                case bias:
+                    inv_ldgo_off_f(p, i, l, d, b, c);
+                    break;
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, b, c, fp, dt);
+                case dst_last_layer:
+                    inv_tnc_off_f(p, i, t, n, c);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, n, t, c, fp, dt);
+                    break;
+                case dst_last_iteration:
+                case dst_c_last_iteration:
+                    inv_ldnc_off_f(p, i, l, d, n, c);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, n, c, fp, dt);
+                    break;
+                default:
+                    print(0, "[%4ld][unknown] fp:%8g dt:%8g\n", (long)i, fp,
+                            dt);
+                    break;
             }
         }
 #endif
@@ -596,11 +595,9 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 diff_norm.rel_diff(norm_t::L8));
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (final_compare && r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (final_compare && r->state == UNTESTED) r->state = PASSED; /* optimism */
 
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
     printf("dt: min(%a) max(%a) mean(%a), var(%a)\n", min_dt, max_dt,
@@ -643,7 +640,8 @@ int compare_dst_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
 
 int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
-    return compare_dat(p, dst_c_last_iteration, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(
+            p, dst_c_last_iteration, mem_dt, mem_fp, r, final_compare);
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {
@@ -704,8 +702,7 @@ void prb_t::set_tparams(float fp_min, float fp_max) {
         float factor = (1.0f / (float)(divisor));
         for (int64_t i = 0; i < n_gates(); i++)
             linear_scales[i] = (i + 1) * factor;
-        if (n_cscale)
-            linear_cscale = (n_gates() + 1) * factor;
+        if (n_cscale) linear_cscale = (n_gates() + 1) * factor;
     }
 }
 

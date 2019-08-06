@@ -85,39 +85,24 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_8b16c2b, ib::_4c16b4c, ib::_8c16b2c, ib::_2a8b8a2b,
                     ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c),
             "unexpected inner_blk format");
+    // clang-format off
     return false ? 0
-                 : (f == ib::_4b4c) ? 4 * x0 + x1
-                                    : (f == ib::_4b4a || f == ib::_4c4b)
-                            ? 4 * x1 + x0
-                            : (f == ib::_8a8b || f == ib::_8b8c)
-                                    ? 8 * x0 + x1
-                                    : (f == ib::_8b8a || f == ib::_8c8b)
-                                            ? 8 * x1 + x0
-                                            : (f == ib::_16a16b
-                                                      || f == ib::_16b16c)
-                                                    ? 16 * x0 + x1
-                                                    : (f == ib::_16b16a
-                                                              || f == ib::_16c16b)
-                                                            ? 16 * x1 + x0
-                                                            : (f == ib::_16a4b
-                                                                      || f == ib::_16b4c)
-                                                                    ? 4 * x0
-                                                                            + x1
-                                                                    : (f == ib::_32a32b)
-                                                                            ? 32 * x0
-                                                                                    + x1
-                                                                            : (f == ib::_8a16b2a
-                                                                                      || f == ib::_8b16c2b)
-                                                                                    ? (x0 / 2) * 32
-                                                                                            + x1 * 2
-                                                                                            + x0 % 2
-                                                                                    : (f == ib::_4b16a4b
-                                                                                              || f == ib::_4c16b4c)
-                                                                                            ? (x1 / 4) * 64
-                                                                                                    + x0 * 4
-                                                                                                    + x1 % 4
-                                                                                            : (f == ib::_8b16a2b || f == ib::_8c16b2c) ? (x1 / 2) * 32 + x0 * 2 + x1 % 2
-                                                                                                                                       : (f == ib::_2c8b4c) ? (x1 / 4) * 32 + x0 * 4 + x1 % 4 : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2 : (f == ib::_4a8b8a4b || f == ib::_4b8c8b4c) ? (x0 / 8) * 256 + (x1 / 4) * 32 + (x0 % 8) * 4 + x1 % 4 : INT_MIN;
+        : (f == ib::_4b4c) ? 4 * x0 + x1
+        : (f == ib::_4b4a || f == ib::_4c4b) ? 4 * x1 + x0
+        : (f == ib::_8a8b || f == ib::_8b8c) ? 8 * x0 + x1
+        : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
+        : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
+        : (f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
+        : (f == ib::_16a4b || f == ib::_16b4c) ? 4 * x0 + x1
+        : (f == ib::_32a32b) ? 32 * x0 + x1
+        : (f == ib::_8a16b2a || f == ib::_8b16c2b) ? (x0 / 2) * 32 + x1 * 2 + x0 % 2
+        : (f == ib::_4b16a4b || f == ib::_4c16b4c) ? (x1 / 4) * 64 + x0 * 4 + x1 % 4
+        : (f == ib::_8b16a2b || f == ib::_8c16b2c) ? (x1 / 2) * 32 + x0 * 2 + x1 % 2
+        : (f == ib::_2c8b4c) ? (x1 / 4) * 32 + x0 * 4 + x1 % 4
+        : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2
+        : (f == ib::_4a8b8a4b || f == ib::_4b8c8b4c) ? (x0 / 8) * 256 + (x1 / 4) * 32 + (x0 % 8) * 4 + x1 % 4
+        : INT_MIN;
+    // clang-format on
 }
 
 template <inner_blk_t b>

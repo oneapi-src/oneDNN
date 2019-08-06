@@ -17,17 +17,17 @@
 #ifndef SHUFFLE_HPP
 #define SHUFFLE_HPP
 
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include <iostream>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "mkldnn_memory.hpp"
 #include "perf_report.hpp"
 
 namespace shuffle {
@@ -47,7 +47,7 @@ struct prb_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -69,8 +69,8 @@ private:
     const prb_t *p_ = NULL;
 };
 
-inline size_t data_off(const prb_t *p,
-        int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
+inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
+        int64_t h, int64_t w) {
     const auto &dims = p->dims;
     return (((mb * dims[1] + c) * dims[2] + d) * dims[3] + h) * dims[4] + w;
 }
@@ -78,6 +78,6 @@ inline size_t data_off(const prb_t *p,
 void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
-}
+} // namespace shuffle
 
 #endif

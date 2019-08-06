@@ -1173,116 +1173,112 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
     auto wino_src = scratchpad.template get<src_data_t>(key_wino_V);
     auto wino_dst = scratchpad.template get<acc_data_t>(key_wino_M);
 
-    for (int mbb = 0; mbb < jcp.nb_mb; mbb++) {
-        for (int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb) {
-            for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
-                /* transformation of input tensor to winograd domain */
-                parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
-                        [&](int y_in_block_b, int x_in_block_b, int mb) {
-                            int y_in_block = y_in_block_b * 2;
-                            int x_in_block = x_in_block_b * 2;
+    for_(int mbb = 0; mbb < jcp.nb_mb; mbb++)
+    for_(int tile_y = 0; tile_y < jcp.oh; tile_y += jcp.yb)
+    for (int tile_x = 0; tile_x < jcp.ow; tile_x += jcp.xb) {
+        /* transformation of input tensor to winograd domain */
+        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
+                [&](int y_in_block_b, int x_in_block_b, int mb) {
+                    int y_in_block = y_in_block_b * 2;
+                    int x_in_block = x_in_block_b * 2;
 
-                            auto src_trans_p
-                                    = jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
-                                            call_params_t();
+                    auto src_trans_p
+                            = jit_avx512_core_u8s8s32x_wino_conv_src_trans_t::
+                                    call_params_t();
 
-                            uint16_t v_y_masks[4], v_x_masks[4];
+                    uint16_t v_y_masks[4], v_x_masks[4];
 
-                            int y = y_in_block + tile_y;
-                            int x = x_in_block + tile_x;
-                            int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
-                                            * (jcp.xb / 2)
-                                    + (x_in_block / 2);
+                    int y = y_in_block + tile_y;
+                    int x = x_in_block + tile_x;
+                    int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
+                                    * (jcp.xb / 2)
+                            + (x_in_block / 2);
 
-                            int v_ys = nstl::max(0, jcp.t_pad - y);
-                            int v_ye = nstl::min(jcp.alpha,
-                                    nstl::max(0, jcp.ih + jcp.t_pad - y));
+                    int v_ys = nstl::max(0, jcp.t_pad - y);
+                    int v_ye = nstl::min(
+                            jcp.alpha, nstl::max(0, jcp.ih + jcp.t_pad - y));
 
-                            int v_xs = nstl::max(0, jcp.l_pad - x);
-                            int v_xe = nstl::min(jcp.alpha,
-                                    nstl::max(0, jcp.iw + jcp.l_pad - x));
+                    int v_xs = nstl::max(0, jcp.l_pad - x);
+                    int v_xe = nstl::min(
+                            jcp.alpha, nstl::max(0, jcp.iw + jcp.l_pad - x));
 
 #pragma unroll(4)
-                            for (int i = 0; i < jcp.alpha; i++) {
-                                v_y_masks[i] = uint16_t(
-                                        i < v_ys || i >= v_ye ? 0 : 0xffff);
-                                v_x_masks[i] = uint16_t(
-                                        i < v_xs || i >= v_xe ? 0 : 0xffff);
-                            }
-                            auto local_s = src
-                                    + (mbb * jcp.mb_block + mb) * jcp.ih
-                                            * jcp.iw * jcp.ic
-                                    + y * jcp.iw * jcp.ic + x * jcp.ic;
-                            auto local_w = wino_src + m * jcp.ic;
+                    for (int i = 0; i < jcp.alpha; i++) {
+                        v_y_masks[i]
+                                = uint16_t(i < v_ys || i >= v_ye ? 0 : 0xffff);
+                        v_x_masks[i]
+                                = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
+                    }
+                    auto local_s = src
+                            + (mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw
+                                    * jcp.ic
+                            + y * jcp.iw * jcp.ic + x * jcp.ic;
+                    auto local_w = wino_src + m * jcp.ic;
 
-                            src_trans_p.src = local_s;
-                            src_trans_p.wino_src = local_w;
-                            src_trans_p.v_y_masks = v_y_masks;
-                            src_trans_p.v_x_masks = v_x_masks;
+                    src_trans_p.src = local_s;
+                    src_trans_p.wino_src = local_w;
+                    src_trans_p.v_y_masks = v_y_masks;
+                    src_trans_p.v_x_masks = v_x_masks;
 
-                            src_trans_->ker_(&src_trans_p);
-                        });
-
-                /* gemms */
-                parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
-                    auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
-                            call_params_t();
-
-                    gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
-                    gemm_p.dst = wino_dst + jcp.out_stride * tile_ij
-                            + nnb * jcp.n2_block * jcp.n_block;
-                    gemm_p.wei = wei + jcp.wei_stride * tile_ij
-                            + nnb * jcp.n2_block * jcp.n_block * jcp.K;
-                    gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij
-                            + nnb * jcp.n2_block * jcp.n_block;
-
-                    kernel_->ker_(&gemm_p);
+                    src_trans_->ker_(&src_trans_p);
                 });
 
-                /* transformation from winograd domain to output tensor */
-                parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
-                        [&](int y_in_block_b, int x_in_block_b, int mb) {
-                            int y_in_block = y_in_block_b * 2;
-                            int x_in_block = x_in_block_b * 2;
+        /* gemms */
+        parallel_nd(16, jcp.n_chunks, [&](int tile_ij, int nnb) {
+            auto gemm_p = jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::
+                    call_params_t();
 
-                            auto dst_trans_p
-                                    = jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
-                                            call_params_t();
+            gemm_p.src = wino_src + jcp.inp_stride * tile_ij;
+            gemm_p.dst = wino_dst + jcp.out_stride * tile_ij
+                    + nnb * jcp.n2_block * jcp.n_block;
+            gemm_p.wei = wei + jcp.wei_stride * tile_ij
+                    + nnb * jcp.n2_block * jcp.n_block * jcp.K;
+            gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij
+                    + nnb * jcp.n2_block * jcp.n_block;
 
-                            uint16_t v_y_masks[2], v_x_masks[2];
+            kernel_->ker_(&gemm_p);
+        });
 
-                            int y = y_in_block + tile_y;
-                            int x = x_in_block + tile_x;
-                            int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
-                                            * (jcp.xb / 2)
-                                    + (x_in_block / 2);
+        /* transformation from winograd domain to output tensor */
+        parallel_nd(div_up(jcp.yb, 2), div_up(jcp.xb, 2), jcp.mb_block,
+                [&](int y_in_block_b, int x_in_block_b, int mb) {
+                    int y_in_block = y_in_block_b * 2;
+                    int x_in_block = x_in_block_b * 2;
+
+                    auto dst_trans_p
+                            = jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::
+                                    call_params_t();
+
+                    uint16_t v_y_masks[2], v_x_masks[2];
+
+                    int y = y_in_block + tile_y;
+                    int x = x_in_block + tile_x;
+                    int m = (mb * (jcp.yb / 2) + (y_in_block / 2))
+                                    * (jcp.xb / 2)
+                            + (x_in_block / 2);
 
 #pragma unroll(2)
-                            for (int i = 0; i < jcp.m; i++) {
-                                v_x_masks[i]
-                                        = uint16_t(x + i < jcp.ow ? 0xffff : 0);
-                                v_y_masks[i]
-                                        = uint16_t(y + i < jcp.oh ? 0xffff : 0);
-                            }
-                            auto local_d = dst
-                                    + (mbb * jcp.mb_block + mb) * jcp.oh
-                                            * jcp.ow * jcp.oc
-                                    + y * jcp.ow * jcp.oc + x * jcp.oc;
-                            auto local_w = wino_dst + m * jcp.oc;
+                    for (int i = 0; i < jcp.m; i++) {
+                        v_x_masks[i] = uint16_t(x + i < jcp.ow ? 0xffff : 0);
+                        v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
+                    }
+                    auto local_d = dst
+                            + (mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow
+                                    * jcp.oc
+                            + y * jcp.ow * jcp.oc + x * jcp.oc;
+                    auto local_w = wino_dst + m * jcp.oc;
 
-                            auto scales = oscales;
-                            dst_trans_p.dst = local_d;
-                            dst_trans_p.wino_dst = local_w;
-                            dst_trans_p.v_y_masks = v_y_masks;
-                            dst_trans_p.v_x_masks = v_x_masks;
+                    auto scales = oscales;
+                    dst_trans_p.dst = local_d;
+                    dst_trans_p.wino_dst = local_w;
+                    dst_trans_p.v_y_masks = v_y_masks;
+                    dst_trans_p.v_x_masks = v_x_masks;
 
-                            dst_trans_p.scales = scales;
-                            dst_trans_p.bias = bia;
+                    dst_trans_p.scales = scales;
+                    dst_trans_p.bias = bia;
 
-                            dst_trans_->ker_(&dst_trans_p);
-                        });
-            }
-        }
+                    dst_trans_->ker_(&dst_trans_p);
+                });
     }
 }
 

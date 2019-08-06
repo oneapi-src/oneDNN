@@ -17,9 +17,9 @@
 #ifndef POOL_HPP
 #define POOL_HPP
 
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include <iostream>
 
@@ -75,9 +75,9 @@ extern const _dt_conf_t conf_f32;
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 
-struct prb_t: public desc_t {
+struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-             mkldnn_format_tag_t tag, alg_t alg, int64_t mb = 0)
+            mkldnn_format_tag_t tag, alg_t alg, int64_t mb = 0)
         : desc_t(desc), dir(dir), cfg(cfg), tag(tag), alg(alg) {
         if (mb) this->mb = mb;
     }
@@ -92,7 +92,7 @@ struct prb_t: public desc_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -111,26 +111,15 @@ struct perf_report_t: public base_perf_report_t {
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->mb << ','
 
-          << p_->ic << ','
-          << p_->id << ','
-          << p_->ih << ','
-          << p_->iw << ','
+          << p_->ic << ',' << p_->id << ',' << p_->ih << ',' << p_->iw << ','
 
-          << p_->od << ','
-          << p_->oh << ','
-          << p_->ow << ','
+          << p_->od << ',' << p_->oh << ',' << p_->ow << ','
 
-          << p_->kd << ','
-          << p_->kh << ','
-          << p_->kw << ','
+          << p_->kd << ',' << p_->kh << ',' << p_->kw << ','
 
-          << p_->sd << ','
-          << p_->sh << ','
-          << p_->sw << ','
+          << p_->sd << ',' << p_->sh << ',' << p_->sw << ','
 
-          << p_->pd << ','
-          << p_->ph << ','
-          << p_->pw;
+          << p_->pd << ',' << p_->ph << ',' << p_->pw;
     }
 
     virtual const char *name() const override { return p_->name; }
@@ -152,11 +141,16 @@ inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
 
 inline void inv_src_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
         int64_t &id, int64_t &ih, int64_t &iw) {
-    iw = off % p->iw; off /= p->iw;
-    ih = off % p->ih; off /= p->ih;
-    id = off % p->id; off /= p->id;
-    ic = off % p->ic; off /= p->ic;
-    mb = off % p->mb; off /= p->mb;
+    iw = off % p->iw;
+    off /= p->iw;
+    ih = off % p->ih;
+    off /= p->ih;
+    id = off % p->id;
+    off /= p->id;
+    ic = off % p->ic;
+    off /= p->ic;
+    mb = off % p->mb;
+    off /= p->mb;
     assert(off == 0);
 }
 
@@ -167,11 +161,16 @@ inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t od,
 
 inline void inv_dst_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
         int64_t &od, int64_t &oh, int64_t &ow) {
-    ow = off % p->ow; off /= p->ow;
-    oh = off % p->oh; off /= p->oh;
-    od = off % p->od; off /= p->od;
-    ic = off % p->ic; off /= p->ic;
-    mb = off % p->mb; off /= p->mb;
+    ow = off % p->ow;
+    off /= p->ow;
+    oh = off % p->oh;
+    off /= p->oh;
+    od = off % p->od;
+    off /= p->od;
+    ic = off % p->ic;
+    off /= p->ic;
+    mb = off % p->mb;
+    off /= p->mb;
     assert(off == 0);
 }
 
@@ -179,8 +178,8 @@ inline int64_t ker_off_f(const prb_t *p, int64_t kd, int64_t kh, int64_t kw) {
     return (kd * p->kh + kh) * p->kw + kw;
 }
 
-inline int64_t get_num_summands(const prb_t *p, int64_t d, int64_t h, int64_t w)
-{
+inline int64_t get_num_summands(
+        const prb_t *p, int64_t d, int64_t h, int64_t w) {
     const int64_t ID = p->id, IH = p->ih, IW = p->iw;
     const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
     const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
@@ -194,12 +193,12 @@ inline int64_t get_num_summands(const prb_t *p, int64_t d, int64_t h, int64_t w)
     auto w_end = MIN2(w * SW - PW + KW, IW);
 
     return p->alg == AVG_P
-        ? KD * KH * KW
-        : (d_end - d_start) * (h_end - h_start) * (w_end - w_start);
+            ? KD * KH * KW
+            : (d_end - d_start) * (h_end - h_start) * (w_end - w_start);
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
-        dnn_mem_t &ws);
+void compute_ref_fwd(
+        const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst, dnn_mem_t &ws);
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
         const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
 
@@ -212,6 +211,6 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace pool
 
 #endif

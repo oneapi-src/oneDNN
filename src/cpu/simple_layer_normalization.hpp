@@ -20,6 +20,7 @@
 #include "cpu_layer_normalization_pd.hpp"
 #include "cpu_primitive.hpp"
 #include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 

@@ -67,15 +67,15 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
             c.ng, c.oc / c.ng, [&](memory::dim g, memory::dim oc) {
                 memory::dim bidx = g * c.oc / c.ng + oc;
                 bias_data[bias_mdw.off_l(bidx, true)] = 0.0;
-                for (memory::dim mb = 0; mb < c.mb; ++mb)
-                    for (memory::dim oh = 0; oh < c.oh; ++oh)
-                        for (memory::dim ow = 0; ow < c.ow; ++ow) {
-                            memory::dim oidx = mb * c.oc * c.oh * c.ow
-                                    + g * c.oc / c.ng * c.oh * c.ow
-                                    + oc * c.oh * c.ow + oh * c.ow + ow;
-                            bias_data[bias_mdw.off_l(bidx, true)]
-                                    += dst_data[dst_mdw.off_l(oidx, true)];
-                        }
+                for_(memory::dim mb = 0; mb < c.mb; ++mb)
+                for_(memory::dim oh = 0; oh < c.oh; ++oh)
+                for (memory::dim ow = 0; ow < c.ow; ++ow) {
+                    memory::dim oidx = mb * c.oc * c.oh * c.ow
+                            + g * c.oc / c.ng * c.oh * c.ow + oc * c.oh * c.ow
+                            + oh * c.ow + ow;
+                    bias_data[bias_mdw.off_l(bidx, true)]
+                            += dst_data[dst_mdw.off_l(oidx, true)];
+                }
             });
 }
 

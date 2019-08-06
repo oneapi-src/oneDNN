@@ -58,13 +58,22 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
             mkldnn_format_tag_t stag, mkldnn_format_tag_t wtag,
             mkldnn_format_tag_t dtag, const attr_t &attr)
-        : desc_t(desc), dir(dir), cfg(cfg), stag(stag), wtag(wtag), dtag(dtag),
-        attr(attr), ops(0), scales(NULL) {
+        : desc_t(desc)
+        , dir(dir)
+        , cfg(cfg)
+        , stag(stag)
+        , wtag(wtag)
+        , dtag(dtag)
+        , attr(attr)
+        , ops(0)
+        , scales(NULL) {
         if (mb) this->mb = mb;
         count_ops();
         generate_oscales();
     }
-    ~prb_t() { if (scales) zfree(scales); }
+    ~prb_t() {
+        if (scales) zfree(scales);
+    }
 
     dir_t dir;
     const dt_conf_t *cfg;
@@ -88,7 +97,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p);
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -101,12 +110,8 @@ struct perf_report_t: public base_perf_report_t {
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
-        s << p_->mb << ','
-          << p_->oc << ','
-          << p_->ic << ','
-          << p_->id << ','
-          << p_->ih << ','
-          << p_->iw;
+        s << p_->mb << ',' << p_->oc << ',' << p_->ic << ',' << p_->id << ','
+          << p_->ih << ',' << p_->iw;
     }
 
     virtual double ops() const override { return p_->ops; }
@@ -118,17 +123,19 @@ private:
     const prb_t *p_ = NULL;
 };
 
-inline size_t src_off_f(const prb_t *p,
-        int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+inline size_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
+        int64_t ih, int64_t iw) {
     return (((mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
-inline size_t wei_off_f(const prb_t *p,
-        int64_t oc, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
+inline size_t wei_off_f(const prb_t *p, int64_t oc, int64_t ic, int64_t id,
+        int64_t ih, int64_t iw) {
     return (((oc * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
 }
 
-inline size_t bia_off_f(const prb_t *p, int64_t oc) { return oc; }
+inline size_t bia_off_f(const prb_t *p, int64_t oc) {
+    return oc;
+}
 
 inline size_t dst_off_f(const prb_t *p, int64_t mb, int64_t oc) {
     return mb * p->oc + oc;
@@ -144,6 +151,6 @@ void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
 int doit(const prb_t *p, res_t *res);
 
 int bench(int argc, char **argv);
-}
+} // namespace ip
 
 #endif

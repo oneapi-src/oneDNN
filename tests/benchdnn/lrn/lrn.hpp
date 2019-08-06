@@ -17,17 +17,17 @@
 #ifndef LRN_HPP
 #define LRN_HPP
 
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include <iostream>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "mkldnn_memory.hpp"
 #include "perf_report.hpp"
 
 namespace lrn {
@@ -46,11 +46,12 @@ struct desc_t {
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
-struct prb_t: public desc_t {
+struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
             mkldnn_format_tag_t tag, alg_t alg)
-        : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg)
-    { if (mb) this->mb = mb; }
+        : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg) {
+        if (mb) this->mb = mb;
+    }
     ~prb_t() {}
 
     dir_t dir;
@@ -62,7 +63,7 @@ struct prb_t: public desc_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -96,18 +97,23 @@ inline int get_summands(const prb_t *p) {
     return p->ls * (p->alg == ACROSS ? 1 : p->ls * (p->id > 1 ? p->ls : 1));
 }
 
-inline size_t data_off(const prb_t *p,
-        int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
+inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
+        int64_t h, int64_t w) {
     return (((mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
 }
 
-inline void inv_data_off(const prb_t *p, size_t off,
-        int64_t &mb, int64_t &c, int64_t &d, int64_t &h, int64_t &w) {
-    w = off % p->iw; off /= p->iw;
-    h = off % p->ih; off /= p->ih;
-    d = off % p->id; off /= p->id;
-    c = off % p->ic; off /= p->ic;
-    mb = off % p->mb; off /= p->mb;
+inline void inv_data_off(const prb_t *p, size_t off, int64_t &mb, int64_t &c,
+        int64_t &d, int64_t &h, int64_t &w) {
+    w = off % p->iw;
+    off /= p->iw;
+    h = off % p->ih;
+    off /= p->ih;
+    d = off % p->id;
+    off /= p->id;
+    c = off % p->ic;
+    off /= p->ic;
+    mb = off % p->mb;
+    off /= p->mb;
     assert(off == 0);
 }
 
@@ -118,6 +124,6 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace lrn
 
 #endif

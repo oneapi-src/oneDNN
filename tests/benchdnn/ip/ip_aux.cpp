@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include "mkldnn.h"
 
@@ -35,22 +35,22 @@ void prb_t::generate_oscales() {
 
     const float K = 32;
     /* scale in [1/K .. K], with starting point at oscale.scale */
-    float s[2] = {attr.oscale.scale, attr.oscale.scale/2};
+    float s[2] = {attr.oscale.scale, attr.oscale.scale / 2};
     for (int64_t i = 0; i < oc; ++i) {
         int64_t si = i % 2; // 0 -> left, 1 -> right
         scales[i] = s[si];
         if (si == 0) {
             s[si] /= 2.;
-            if (s[si] < 1./K) s[si] *= K*K; // turn around to become ~K
+            if (s[si] < 1. / K) s[si] *= K * K; // turn around to become ~K
         } else {
             s[si] *= 2.;
-            if (s[si] > K) s[si] /= K*K; // turn around to become ~K
+            if (s[si] > K) s[si] /= K * K; // turn around to become ~K
         }
     }
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    desc_t d{0};
+    desc_t d {0};
 
     /* canonical form:
      * mbXicXidXihXiwXSocXnS
@@ -70,15 +70,19 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-#   define CASE_NN(p, c) do { \
+#define CASE_NN(p, c) \
+    do { \
         if (!strncmp(p, s, strlen(p))) { \
-            ok = 1; s += strlen(p); \
-            char *end_s; d. c = strtol(s, &end_s, 10); s += (end_s - s); \
-            if (d. c < 0) return FAIL; \
+            ok = 1; \
+            s += strlen(p); \
+            char *end_s; \
+            d.c = strtol(s, &end_s, 10); \
+            s += (end_s - s); \
+            if (d.c < 0) return FAIL; \
             /* printf("@@@debug: %s: %d\n", p, d. c); */ \
         } \
     } while (0)
-#   define CASE_N(c) CASE_NN(#c, c)
+#define CASE_N(c) CASE_NN(#c, c)
     while (*s) {
         int ok = 0;
         CASE_N(mb);
@@ -87,12 +91,15 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(iw);
         CASE_N(id);
         CASE_N(oc);
-        if (*s == 'n') { d.name = s + 1; break; }
+        if (*s == 'n') {
+            d.name = s + 1;
+            break;
+        }
         if (*s == '_') ++s;
         if (!ok) return FAIL;
     }
-#   undef CASE_NN
-#   undef CASE_N
+#undef CASE_NN
+#undef CASE_N
 
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
@@ -128,16 +135,13 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_B)
-        s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.cfg != conf_f32)
-        s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (!p.attr.is_def())
-        s << "--attr=\"" << p.attr << "\" ";
+    if (p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
+    if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 
     return s;
 }
 
-}
+} // namespace ip

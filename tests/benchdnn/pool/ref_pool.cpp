@@ -20,8 +20,8 @@
 
 namespace pool {
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
-        dnn_mem_t &ws) {
+void compute_ref_fwd(
+        const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst, dnn_mem_t &ws) {
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
         const int64_t ID = p->id, IH = p->ih, IW = p->iw;
         const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
@@ -55,16 +55,15 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst,
         const auto dst_off = dst_off_f(p, mb, ic, od, oh, ow);
         if (p->alg == MAX) {
             dst.set_elem(dst_off, max_value);
-            if (!(p->dir & FLAG_INF))
-                ws.set_elem(dst_off, ws_off);
+            if (!(p->dir & FLAG_INF)) ws.set_elem(dst_off, ws_off);
         } else if (p->alg == AVG_NP || p->alg == AVG_P)
             dst.set_elem(dst_off, avg_value / get_num_summands(p, od, oh, ow));
     };
 
     mkldnn::impl::parallel_nd(p->mb, p->ic, p->od, p->oh, p->ow,
-        [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
-            ker(mb, ic, od, oh, ow);
-    });
+            [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
+                ker(mb, ic, od, oh, ow);
+            });
 }
 
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
@@ -96,8 +95,8 @@ void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
                     const int64_t iw = ow * SW - PW + kw;
                     if (iw < 0 || iw >= IW) continue;
 
-                    float &S =
-                        ((float *)diff_src)[src_off_f(p, mb, ic, id, ih, iw)];
+                    float &S = ((
+                            float *)diff_src)[src_off_f(p, mb, ic, id, ih, iw)];
                     if (p->alg == MAX) {
                         if (ws_off == ker_off_f(p, kd, kh, kw))
                             S += diff_dst_val;
@@ -117,4 +116,4 @@ void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
     });
 }
 
-}
+} // namespace pool

@@ -61,7 +61,8 @@ __kernel void ref_shuffle(__global DATA_T *src, __global DATA_T *dst) {
             + inner_dims_idx + axis_idx * INNER_SIZE;
 
     ulong dimprod = 1;
-    __attribute__((opencl_unroll_hint)) for (int i = NDIMS - 1; i >= 0; i--) {
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = NDIMS - 1; i >= 0; i--) {
         s[i] = d[i] = (offdst / dimprod) % D[i];
         dimprod *= D[i];
     }

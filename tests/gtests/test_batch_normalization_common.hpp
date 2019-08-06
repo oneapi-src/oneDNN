@@ -299,15 +299,15 @@ protected:
             float ref_mean = calculate_stats ? float(0) : mean_data[c];
             float ref_variance = calculate_stats ? float(0) : variance_data[c];
             if (calculate_stats) {
-                for (memory::dim n = 0; n < bp.mb; n++)
-                    for (memory::dim d = 0; d < bp.d; d++)
-                        for (memory::dim h = 0; h < bp.h; h++)
-                            for (memory::dim w = 0; w < bp.w; w++) {
-                                size_t sidx = n * padded_c * bp.d * bp.h * bp.w
-                                        + c * bp.d * bp.h * bp.w
-                                        + d * bp.h * bp.w + h * bp.w + w;
-                                ref_mean += src_data[src_mdw.off_l(sidx, true)];
-                            }
+                for_(memory::dim n = 0; n < bp.mb; n++)
+                for_(memory::dim d = 0; d < bp.d; d++)
+                for_(memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
+                    size_t sidx = n * padded_c * bp.d * bp.h * bp.w
+                            + c * bp.d * bp.h * bp.w + d * bp.h * bp.w
+                            + h * bp.w + w;
+                    ref_mean += src_data[src_mdw.off_l(sidx, true)];
+                }
                 ref_mean /= bp.mb * bp.d * bp.h * bp.w;
                 if (is_training) {
                     float mean_norm_max = std::max(
@@ -317,17 +317,16 @@ protected:
                             (mean_data[c] - ref_mean) / mean_norm_max, 0., eps);
                 }
 
-                for (memory::dim n = 0; n < bp.mb; n++)
-                    for (memory::dim d = 0; d < bp.d; d++)
-                        for (memory::dim h = 0; h < bp.h; h++)
-                            for (memory::dim w = 0; w < bp.w; w++) {
-                                size_t sidx = n * padded_c * bp.d * bp.h * bp.w
-                                        + c * bp.d * bp.h * bp.w
-                                        + d * bp.h * bp.w + h * bp.w + w;
-                                float tmp = src_data[src_mdw.off_l(sidx, true)]
-                                        - ref_mean;
-                                ref_variance += tmp * tmp;
-                            }
+                for_(memory::dim n = 0; n < bp.mb; n++)
+                for_(memory::dim d = 0; d < bp.d; d++)
+                for_(memory::dim h = 0; h < bp.h; h++)
+                for (memory::dim w = 0; w < bp.w; w++) {
+                    size_t sidx = n * padded_c * bp.d * bp.h * bp.w
+                            + c * bp.d * bp.h * bp.w + d * bp.h * bp.w
+                            + h * bp.w + w;
+                    float tmp = src_data[src_mdw.off_l(sidx, true)] - ref_mean;
+                    ref_variance += tmp * tmp;
+                }
                 ref_variance /= bp.mb * bp.d * bp.h * bp.w;
                 if (is_training) {
                     float variance_norm_max = std::max(
@@ -342,47 +341,40 @@ protected:
                     = static_cast<float>(sqrt(ref_variance + p.epsilon));
             float ref_rsqrt_variance = float(1) / (ref_sqrt_variance);
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-                for (memory::dim d = 0; d < bp.d; d++)
-                    for (memory::dim h = 0; h < bp.h; h++)
-                        for (memory::dim w = 0; w < bp.w; w++) {
-                            size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
-                                    + c * bp.d * bp.h * bp.w + d * bp.h * bp.w
-                                    + h * bp.w + w;
-                            data_t ref_dst = data_t(0);
-                            float tmp_dst = float(0);
-                            if (use_weights) {
-                                tmp_dst = weights_data[weights_mdw.off_l(
-                                                  c, true)]
-                                                * ((float)src_data
-                                                                [src_mdw.off_l(
-                                                                        sdidx,
-                                                                        true)]
-                                                        - ref_mean)
-                                                * ref_rsqrt_variance
-                                        + weights_data[weights_mdw.off_l(
-                                                bp.c + c, true)];
-                            } else {
-                                tmp_dst = ((float)src_data[src_mdw.off_l(
-                                                   sdidx, true)]
-                                                  - ref_mean)
-                                        * ref_rsqrt_variance;
-                            }
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
+            for (memory::dim w = 0; w < bp.w; w++) {
+                size_t sdidx = n * padded_c * bp.d * bp.h * bp.w
+                        + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w
+                        + w;
+                data_t ref_dst = data_t(0);
+                float tmp_dst = float(0);
+                if (use_weights) {
+                    tmp_dst = weights_data[weights_mdw.off_l(c, true)]
+                                    * ((float)src_data[src_mdw.off_l(
+                                               sdidx, true)]
+                                            - ref_mean)
+                                    * ref_rsqrt_variance
+                            + weights_data[weights_mdw.off_l(bp.c + c, true)];
+                } else {
+                    tmp_dst = ((float)src_data[src_mdw.off_l(sdidx, true)]
+                                      - ref_mean)
+                            * ref_rsqrt_variance;
+                }
 
-                            if (isF32(data_type)) {
-                                ref_dst = tmp_dst;
-                            } else if (isS8(data_type)) {
-                                ref_dst = out_round<data_t>(
-                                        saturate<data_t, float>(tmp_dst));
-                            }
+                if (isF32(data_type)) {
+                    ref_dst = tmp_dst;
+                } else if (isS8(data_type)) {
+                    ref_dst = out_round<data_t>(
+                            saturate<data_t, float>(tmp_dst));
+                }
 
-                            data_t out = dst_data[dst_mdw.off_l(sdidx, true)];
-                            float norm_max = std::max(
-                                    std::abs(out), std::abs(ref_dst));
-                            if (norm_max < 1e-2 || isS8(data_type))
-                                norm_max = 1.;
-                            ASSERT_NEAR((out - ref_dst) / norm_max, 0., eps);
-                        }
+                data_t out = dst_data[dst_mdw.off_l(sdidx, true)];
+                float norm_max = std::max(std::abs(out), std::abs(ref_dst));
+                if (norm_max < 1e-2 || isS8(data_type)) norm_max = 1.;
+                ASSERT_NEAR((out - ref_dst) / norm_max, 0., eps);
+            }
         });
     }
 
@@ -453,21 +445,17 @@ protected:
             auto gamma = use_weights ? weights_data[weights_mdw.off_l(c, true)]
                                      : 1;
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-                for (memory::dim d = 0; d < bp.d; d++)
-                    for (memory::dim h = 0; h < bp.h; h++)
-                        for (memory::dim w = 0; w < bp.w; w++) {
-                            size_t sidx = n * padded_c * bp.d * bp.h * bp.w
-                                    + c * bp.d * bp.h * bp.w + d * bp.h * bp.w
-                                    + h * bp.w + w;
-                            ref_diff_gamma
-                                    += (src_data[src_mdw.off_l(sidx, true)]
-                                               - v_mean)
-                                    * diff_dst_data[diff_dst_mdw.off_l(
-                                            sidx, true)];
-                            ref_diff_beta += diff_dst_data[diff_dst_mdw.off_l(
-                                    sidx, true)];
-                        }
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
+            for (memory::dim w = 0; w < bp.w; w++) {
+                size_t sidx = n * padded_c * bp.d * bp.h * bp.w
+                        + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w
+                        + w;
+                ref_diff_gamma += (src_data[src_mdw.off_l(sidx, true)] - v_mean)
+                        * diff_dst_data[diff_dst_mdw.off_l(sidx, true)];
+                ref_diff_beta += diff_dst_data[diff_dst_mdw.off_l(sidx, true)];
+            }
             ref_diff_gamma *= sqrt_variance;
 
             if (pk == prop_kind::backward) {
@@ -486,35 +474,29 @@ protected:
                 ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
-            for (memory::dim n = 0; n < bp.mb; n++)
-                for (memory::dim d = 0; d < bp.d; d++)
-                    for (memory::dim h = 0; h < bp.h; h++)
-                        for (memory::dim w = 0; w < bp.w; w++) {
-                            size_t sidx = n * padded_c * bp.d * bp.h * bp.w
-                                    + c * bp.d * bp.h * bp.w + d * bp.h * bp.w
-                                    + h * bp.w + w;
-                            float ref_diff_src
-                                    = diff_dst_data[diff_dst_mdw.off_l(
-                                            sidx, true)];
-                            if (calculate_diff_stats) {
-                                ref_diff_src -= ref_diff_beta
-                                                / (bp.mb * bp.d * bp.h * bp.w)
-                                        + (src_data[src_mdw.off_l(sidx, true)]
-                                                  - v_mean)
-                                                * ref_diff_gamma * sqrt_variance
-                                                / (bp.mb * bp.d * bp.h * bp.w);
-                            }
-                            ref_diff_src *= gamma * sqrt_variance;
-                            float out_diff_src
-                                    = diff_src_data[diff_src_mdw.off_l(
-                                            sidx, true)];
-                            float norm_max = std::max(std::abs(out_diff_src),
-                                    std::abs(ref_diff_src));
-                            if (norm_max < eps) norm_max = float(1);
-                            ASSERT_NEAR(
-                                    (out_diff_src - ref_diff_src) / norm_max,
-                                    0., eps);
-                        }
+            for_(memory::dim n = 0; n < bp.mb; n++)
+            for_(memory::dim d = 0; d < bp.d; d++)
+            for_(memory::dim h = 0; h < bp.h; h++)
+            for (memory::dim w = 0; w < bp.w; w++) {
+                size_t sidx = n * padded_c * bp.d * bp.h * bp.w
+                        + c * bp.d * bp.h * bp.w + d * bp.h * bp.w + h * bp.w
+                        + w;
+                float ref_diff_src
+                        = diff_dst_data[diff_dst_mdw.off_l(sidx, true)];
+                if (calculate_diff_stats) {
+                    ref_diff_src -= ref_diff_beta / (bp.mb * bp.d * bp.h * bp.w)
+                            + (src_data[src_mdw.off_l(sidx, true)] - v_mean)
+                                    * ref_diff_gamma * sqrt_variance
+                                    / (bp.mb * bp.d * bp.h * bp.w);
+                }
+                ref_diff_src *= gamma * sqrt_variance;
+                float out_diff_src
+                        = diff_src_data[diff_src_mdw.off_l(sidx, true)];
+                float norm_max = std::max(
+                        std::abs(out_diff_src), std::abs(ref_diff_src));
+                if (norm_max < eps) norm_max = float(1);
+                ASSERT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
+            }
         });
     }
 };

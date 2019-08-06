@@ -114,13 +114,13 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                         * (iw_end - iw_start);
 
         acc_data_t dst = 0;
-        for (int id = id_start; id < id_end; ++id)
-            for (int ih = ih_start; ih < ih_end; ++ih)
-                for (int iw = iw_start; iw < iw_end; ++iw) {
-                    const auto off = is_3d ? src_d.off(mb, oc, id, ih, iw)
-                                           : src_d.off(mb, oc, ih, iw);
-                    dst += src[off];
-                }
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            const auto off = is_3d ? src_d.off(mb, oc, id, ih, iw)
+                                   : src_d.off(mb, oc, ih, iw);
+            dst += src[off];
+        }
 
         d[0] = math::out_round<data_t>((float)dst / num_summands);
     };
@@ -180,13 +180,13 @@ void ref_pooling_bwd_t<data_type>::execute_backward(
     const int padL = pd()->padL();
 
     auto ker_zero = [=](int mb, int oc) {
-        for (int id = 0; id < ID; ++id)
-            for (int ih = 0; ih < IH; ++ih)
-                for (int iw = 0; iw < IW; ++iw) {
-                    const auto off = is_3d ? diff_src_d.off(mb, oc, id, ih, iw)
-                                           : diff_src_d.off(mb, oc, ih, iw);
-                    diff_src[off] = data_type_t(0);
-                }
+        for_(int id = 0; id < ID; ++id)
+        for_(int ih = 0; ih < IH; ++ih)
+        for (int iw = 0; iw < IW; ++iw) {
+            const auto off = is_3d ? diff_src_d.off(mb, oc, id, ih, iw)
+                                   : diff_src_d.off(mb, oc, ih, iw);
+            diff_src[off] = data_type_t(0);
+        }
     };
 
     auto ker_max
@@ -230,13 +230,13 @@ void ref_pooling_bwd_t<data_type>::execute_backward(
                 : (id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
-        for (int id = id_start; id < id_end; ++id)
-            for (int ih = ih_start; ih < ih_end; ++ih)
-                for (int iw = iw_start; iw < iw_end; ++iw) {
-                    const auto off = is_3d ? diff_src_d.off(mb, oc, id, ih, iw)
-                                           : diff_src_d.off(mb, oc, ih, iw);
-                    diff_src[off] += d[0] / num_summands;
-                }
+        for_(int id = id_start; id < id_end; ++id)
+        for_(int ih = ih_start; ih < ih_end; ++ih)
+        for (int iw = iw_start; iw < iw_end; ++iw) {
+            const auto off = is_3d ? diff_src_d.off(mb, oc, id, ih, iw)
+                                   : diff_src_d.off(mb, oc, ih, iw);
+            diff_src[off] += d[0] / num_summands;
+        }
     };
 
     const int MB = pd()->MB();
@@ -257,26 +257,26 @@ void ref_pooling_bwd_t<data_type>::execute_backward(
     if (alg == alg_kind::pooling_max) {
         parallel_nd(MB, OC, [&](int mb, int oc) {
             ker_zero(mb, oc);
-            for (int od = od_start; od < od_end; ++od)
-                for (int oh = oh_start; oh < oh_end; ++oh)
-                    for (int ow = ow_start; ow < ow_end; ++ow) {
-                        const data_t *d = is_3d
-                                ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
-                                : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];
-                        ker_max(d, mb, oc, od, oh, ow);
-                    }
+            for_(int od = od_start; od < od_end; ++od)
+            for_(int oh = oh_start; oh < oh_end; ++oh)
+            for (int ow = ow_start; ow < ow_end; ++ow) {
+                const data_t *d = is_3d
+                        ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
+                        : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];
+                ker_max(d, mb, oc, od, oh, ow);
+            }
         });
     } else {
         parallel_nd(MB, OC, [&](int mb, int oc) {
             ker_zero(mb, oc);
-            for (int od = od_start; od < od_end; ++od)
-                for (int oh = oh_start; oh < oh_end; ++oh)
-                    for (int ow = ow_start; ow < ow_end; ++ow) {
-                        const data_t *d = is_3d
-                                ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
-                                : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];
-                        ker_avg(d, mb, oc, od, oh, ow);
-                    }
+            for_(int od = od_start; od < od_end; ++od)
+            for_(int oh = oh_start; oh < oh_end; ++oh)
+            for (int ow = ow_start; ow < ow_end; ++ow) {
+                const data_t *d = is_3d
+                        ? &diff_dst[diff_dst_d.off(mb, oc, od, oh, ow)]
+                        : &diff_dst[diff_dst_d.off(mb, oc, oh, ow)];
+                ker_avg(d, mb, oc, od, oh, ow);
+            }
         });
     }
 }
@@ -294,4 +294,4 @@ template struct ref_pooling_bwd_t<data_type::bf16>;
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -57,7 +57,7 @@ struct prb_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -90,6 +90,6 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace eltwise
 
 #endif

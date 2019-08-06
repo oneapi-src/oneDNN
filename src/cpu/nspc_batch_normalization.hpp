@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
+#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -190,4 +191,4 @@ private:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

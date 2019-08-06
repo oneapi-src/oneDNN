@@ -17,6 +17,8 @@
 #ifndef GEMM_UTILS_F32_HPP
 #define GEMM_UTILS_F32_HPP
 
+#include <cstddef>
+
 namespace mkldnn {
 namespace impl {
 namespace cpu {

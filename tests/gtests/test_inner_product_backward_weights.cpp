@@ -71,31 +71,27 @@ void compute_ref_inner_product_bwd_weights(int ndims,
     mkldnn::impl::parallel_nd(
             ipd.oc, ipd.ic, [&](memory::dim oc, memory::dim ic) {
                 if (has_spatial) {
-                    for (memory::dim kd = 0; kd < ipd.kd; ++kd)
-                        for (memory::dim kh = 0; kh < ipd.kh; ++kh)
-                            for (memory::dim kw = 0; kw < ipd.kw; ++kw) {
-                                memory::dim dwidx = oc * padded_ic * ipd.kd
-                                                * ipd.kh * ipd.kw
-                                        + ic * ipd.kd * ipd.kh * ipd.kw
-                                        + kd * ipd.kh * ipd.kw + kh * ipd.kw
-                                        + kw;
-                                data_t *dw = &diff_weights_data
-                                                     [diff_weights_mdw.off_l(
-                                                             dwidx, true)];
-                                *dw = data_t(0);
-                                for (memory::dim n = 0; n < ipd.mb; ++n) {
-                                    memory::dim ddidx = n * ipd.oc + oc;
-                                    memory::dim sidx = n * padded_ic * ipd.kd
-                                                    * ipd.kh * ipd.kw
-                                            + ic * ipd.kd * ipd.kh * ipd.kw
-                                            + kd * ipd.kh * ipd.kw + kh * ipd.kw
-                                            + kw;
-                                    *dw += diff_dst_data[diff_dst_mdw.off_l(
-                                                   ddidx, true)]
-                                            * src_data[src_mdw.off_l(
-                                                    sidx, true)];
-                                }
-                            }
+                    for_(memory::dim kd = 0; kd < ipd.kd; ++kd)
+                    for_(memory::dim kh = 0; kh < ipd.kh; ++kh)
+                    for (memory::dim kw = 0; kw < ipd.kw; ++kw) {
+                        memory::dim dwidx
+                                = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                                + ic * ipd.kd * ipd.kh * ipd.kw
+                                + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                        data_t *dw = &diff_weights_data[diff_weights_mdw.off_l(
+                                dwidx, true)];
+                        *dw = data_t(0);
+                        for (memory::dim n = 0; n < ipd.mb; ++n) {
+                            memory::dim ddidx = n * ipd.oc + oc;
+                            memory::dim sidx
+                                    = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                                    + ic * ipd.kd * ipd.kh * ipd.kw
+                                    + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                            *dw += diff_dst_data[diff_dst_mdw.off_l(
+                                           ddidx, true)]
+                                    * src_data[src_mdw.off_l(sidx, true)];
+                        }
+                    }
                 } else {
                     memory::dim dwidx = oc * ipd.ic + ic;
                     data_t *dw = &diff_weights_data[diff_weights_mdw.off_l(

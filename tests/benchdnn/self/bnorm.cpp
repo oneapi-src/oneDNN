@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "self/self.hpp"
 #include "bnorm/bnorm.hpp"
+#include "self/self.hpp"
 
 using namespace bnorm;
 
@@ -32,8 +32,8 @@ static int check_flags() {
     CHECK_CASE_STR_EQ(flags2str(GLOB_STATS | USE_SCALESHIFT), "GS");
     CHECK_CASE_STR_EQ(flags2str(GLOB_STATS | FUSE_NORM_RELU), "GR");
     CHECK_CASE_STR_EQ(flags2str(USE_SCALESHIFT | FUSE_NORM_RELU), "SR");
-    CHECK_CASE_STR_EQ(flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU),
-            "GSR");
+    CHECK_CASE_STR_EQ(
+            flags2str(GLOB_STATS | USE_SCALESHIFT | FUSE_NORM_RELU), "GSR");
 
     CHECK_EQ(str2flags(""), 0);
     CHECK_EQ(str2flags("G"), GLOB_STATS);
@@ -46,8 +46,13 @@ static int check_flags() {
 }
 
 static int check_desc() {
-    desc_t d{0};
-    d.mb = 3; d.ic = 4; d.ih = 5; d.iw = 6; d.eps = 7.; d.name = "test";
+    desc_t d {0};
+    d.mb = 3;
+    d.ic = 4;
+    d.ih = 5;
+    d.iw = 6;
+    d.eps = 7.;
+    d.name = "test";
 
     CHECK_PRINT_EQ(d, "mb3ic4ih5iw6eps7ntest");
 
@@ -56,9 +61,12 @@ static int check_desc() {
     d.eps = 1.f / 16;
     CHECK_PRINT_EQ(d, "ic4ih5ntest");
 
-#   define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
-    CHECK_EQ(d.mb, _mb); CHECK_EQ(d.ic, _ic); CHECK_EQ(d.ih, _ih); \
-    CHECK_EQ(d.iw, _iw); CHECK_EQ(d.eps, _eps); \
+#define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
+    CHECK_EQ(d.mb, _mb); \
+    CHECK_EQ(d.ic, _ic); \
+    CHECK_EQ(d.ih, _ih); \
+    CHECK_EQ(d.iw, _iw); \
+    CHECK_EQ(d.eps, _eps); \
     CHECK_CASE_STR_EQ(d.name, _name)
     CHECK_EQ(str2desc(&d, "mb1ic2ih3iw4eps5ntest2"), OK);
     CHECK_D(1, 2, 3, 4, 5.f, "test2");
@@ -66,7 +74,7 @@ static int check_desc() {
     CHECK_D(2, 8, 9, 9, 1.f / 16, "test3");
     CHECK_EQ(str2desc(&d, "ic8iw9ntest3"), OK);
     CHECK_D(2, 8, 1, 9, 1.f / 16, "test3");
-#   undef CHECK_D
+#undef CHECK_D
     return OK;
 }
 
@@ -75,4 +83,4 @@ void bnorm() {
     RUN(check_desc());
 }
 
-}
+} // namespace self

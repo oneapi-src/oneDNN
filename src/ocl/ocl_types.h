@@ -19,6 +19,8 @@
 
 #include "ocl/ocl_math_utils.h"
 
+#define for_ for
+
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
 

@@ -17,40 +17,41 @@
 #ifndef MKLDNN_CONFIG_H
 #define MKLDNN_CONFIG_H
 
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+/// @cond DO_NOT_DOCUMENT_THIS
 
 // All symbols shall be internal unless marked as MKLDNN_API
 #if defined _WIN32 || defined __CYGWIN__
-#   define MKLDNN_HELPER_DLL_IMPORT __declspec(dllimport)
-#   define MKLDNN_HELPER_DLL_EXPORT __declspec(dllexport)
+#define MKLDNN_HELPER_DLL_IMPORT __declspec(dllimport)
+#define MKLDNN_HELPER_DLL_EXPORT __declspec(dllexport)
 #else
-#   if __GNUC__ >= 4
-#       define MKLDNN_HELPER_DLL_IMPORT __attribute__((visibility("default")))
-#       define MKLDNN_HELPER_DLL_EXPORT __attribute__((visibility("default")))
-#   else
-#       define MKLDNN_HELPER_DLL_IMPORT
-#       define MKLDNN_HELPER_DLL_EXPORT
-#   endif
+#if __GNUC__ >= 4
+#define MKLDNN_HELPER_DLL_IMPORT __attribute__((visibility("default")))
+#define MKLDNN_HELPER_DLL_EXPORT __attribute__((visibility("default")))
+#else
+#define MKLDNN_HELPER_DLL_IMPORT
+#define MKLDNN_HELPER_DLL_EXPORT
+#endif
 #endif
 
 #ifdef MKLDNN_DLL
-#   ifdef MKLDNN_DLL_EXPORTS
-#       define MKLDNN_API MKLDNN_HELPER_DLL_EXPORT
-#   else
-#       define MKLDNN_API MKLDNN_HELPER_DLL_IMPORT
-#   endif
+#ifdef MKLDNN_DLL_EXPORTS
+#define MKLDNN_API MKLDNN_HELPER_DLL_EXPORT
 #else
-#   define MKLDNN_API
+#define MKLDNN_API MKLDNN_HELPER_DLL_IMPORT
+#endif
+#else
+#define MKLDNN_API
 #endif
 
-#if defined (__GNUC__)
-#   define MKLDNN_DEPRECATED __attribute__((deprecated))
+#if defined(__GNUC__)
+#define MKLDNN_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER)
-#   define MKLDNN_DEPRECATED __declspec(deprecated)
+#define MKLDNN_DEPRECATED __declspec(deprecated)
 #else
-#   define MKLDNN_DEPRECATED
+#define MKLDNN_DEPRECATED
 #endif
-#endif // DOXYGEN_SHOULD_SKIP_THIS
+
+/// @endcond
 
 // No runtime (disabled)
 #define MKLDNN_RUNTIME_NONE 0u
@@ -70,6 +71,8 @@
 // Unified shared memory API
 #define MKLDNN_SYCL_MEMORY_API_USM 1
 
+// clang-format off
+
 // MKL-DNN CPU engine runtime
 #cmakedefine MKLDNN_CPU_RUNTIME MKLDNN_RUNTIME_${MKLDNN_CPU_RUNTIME}
 
@@ -82,6 +85,8 @@
 // MKL-DNN SYCL memory API
 #cmakedefine MKLDNN_SYCL_MEMORY_API MKLDNN_SYCL_MEMORY_API_${MKLDNN_SYCL_MEMORY_API}
 
+// clang-format on
+
 #if defined(MKLDNN_CPU_RUNTIME) && defined(MKLDNN_GPU_RUNTIME)
 #    if (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_NONE) \
             || (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OCL)
@@ -93,7 +98,7 @@
 #        error "Unexpected MKLDNN_GPU_RUNTIME"
 #    endif
 #else
-#    error "BOTH MKLDNN_CPU_RUNTIME and MKLDNN_GPU_RUNTIME must be defined"
+#error "BOTH MKLDNN_CPU_RUNTIME and MKLDNN_GPU_RUNTIME must be defined"
 #endif
 
 #if (MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL) \

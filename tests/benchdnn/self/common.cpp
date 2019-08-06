@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "common.hpp"
 #include "mkldnn_common.hpp"
@@ -63,12 +63,12 @@ static int check_attr2str() {
 static int check_str2attr() {
     attr_t attr;
 
-#   define CHECK_ATTR(str, os_policy, os_scale) \
+#define CHECK_ATTR(str, os_policy, os_scale) \
     do { \
         CHECK_EQ(str2attr(&attr, str), OK); \
-        CHECK_EQ(attr.oscale.policy, attr_t::scale_t::policy_t:: os_policy); \
+        CHECK_EQ(attr.oscale.policy, attr_t::scale_t::policy_t::os_policy); \
         CHECK_EQ(attr.oscale.scale, os_scale); \
-    } while(0)
+    } while (0)
 
     CHECK_ATTR("", NONE, 1.);
     CHECK_EQ(attr.is_def(), true);
@@ -81,7 +81,7 @@ static int check_str2attr() {
     CHECK_ATTR("oscale=per_oc:.5;", PER_OC, .5);
     CHECK_ATTR("oscale=none:.5;oscale=common:1.5", COMMON, 1.5);
 
-#   undef CHECK_ATTR
+#undef CHECK_ATTR
 
     return OK;
 }
@@ -94,12 +94,12 @@ static int check_post_ops2str() {
 
     ops.len = 4;
     for (int i = 0; i < 2; ++i) {
-        ops.entry[2*i + 0].kind = attr_t::post_ops_t::SUM;
-        ops.entry[2*i + 0].sum.scale = 2. + i;
-        ops.entry[2*i + 1].kind = attr_t::post_ops_t::RELU;
-        ops.entry[2*i + 1].eltwise.scale = 1.;
-        ops.entry[2*i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
-        ops.entry[2*i + 1].eltwise.beta = 0.;
+        ops.entry[2 * i + 0].kind = attr_t::post_ops_t::SUM;
+        ops.entry[2 * i + 0].sum.scale = 2. + i;
+        ops.entry[2 * i + 1].kind = attr_t::post_ops_t::RELU;
+        ops.entry[2 * i + 1].eltwise.scale = 1.;
+        ops.entry[2 * i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
+        ops.entry[2 * i + 1].eltwise.beta = 0.;
     }
     CHECK_PRINT_EQ(ops, "'sum:2;relu:0;sum:3;relu:5'");
 
@@ -122,14 +122,14 @@ static int check_str2post_ops() {
 
     auto quick = [&](int len) -> int {
         for (int i = 0; i < 2; ++i) {
-            if (2*i + 0 >= len) return OK;
-            CHECK_EQ(ops.entry[2*i + 0].kind, attr_t::post_ops_t::SUM);
-            CHECK_EQ(ops.entry[2*i + 0].sum.scale, 2. + i);
-            if (2*i + 1 >= len) return OK;
-            CHECK_EQ(ops.entry[2*i + 1].kind, attr_t::post_ops_t::RELU);
-            CHECK_EQ(ops.entry[2*i + 1].eltwise.scale, 1.);
-            CHECK_EQ(ops.entry[2*i + 1].eltwise.alpha, 0.);
-            CHECK_EQ(ops.entry[2*i + 1].eltwise.beta, 0.);
+            if (2 * i + 0 >= len) return OK;
+            CHECK_EQ(ops.entry[2 * i + 0].kind, attr_t::post_ops_t::SUM);
+            CHECK_EQ(ops.entry[2 * i + 0].sum.scale, 2. + i);
+            if (2 * i + 1 >= len) return OK;
+            CHECK_EQ(ops.entry[2 * i + 1].kind, attr_t::post_ops_t::RELU);
+            CHECK_EQ(ops.entry[2 * i + 1].eltwise.scale, 1.);
+            CHECK_EQ(ops.entry[2 * i + 1].eltwise.alpha, 0.);
+            CHECK_EQ(ops.entry[2 * i + 1].eltwise.beta, 0.);
         }
         return OK;
     };
@@ -160,4 +160,4 @@ void common() {
     RUN(check_str2post_ops());
 }
 
-}
+} // namespace self

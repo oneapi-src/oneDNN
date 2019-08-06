@@ -50,6 +50,7 @@ struct mkldnn_primitive : public mkldnn::impl::c_compatible {
         : pd_(pd->clone()), counter_(0) {
         retain();
     }
+
     virtual mkldnn::impl::status_t init() {
         return mkldnn::impl::status::success;
     }
@@ -85,4 +86,4 @@ private:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

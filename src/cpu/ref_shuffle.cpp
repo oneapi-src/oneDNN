@@ -67,20 +67,19 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
                     tag, nChw16c, nChw8c, nChw4c, nCdhw16c, nCdhw8c, nCdhw4c)) {
 #if MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_OMP
 #pragma omp parallel for collapse(3) schedule(static)
-        for (int mb = 0; mb < MB; ++mb)
-            for (int cb = 0; cb < C; cb += blksize)
-                for (int sp = 0; sp < SP; ++sp) {
-                    const size_t off = mb * stride_mb + sp * blksize;
-                    const size_t output_off = off + cb * SP;
-                    PRAGMA_OMP_SIMD()
-                    for (int cc = 0; cc < nstl::min(blksize, C - cb); ++cc) {
-                        int input_c = rev_transposed_[cb + cc];
-                        const size_t input_off = off
-                                + input_c / blksize * SP * blksize
-                                + input_c % blksize;
-                        output[output_off + cc] = input[input_off];
-                    }
-                }
+        for_(int mb = 0; mb < MB; ++mb)
+        for_(int cb = 0; cb < C; cb += blksize)
+        for (int sp = 0; sp < SP; ++sp) {
+            const size_t off = mb * stride_mb + sp * blksize;
+            const size_t output_off = off + cb * SP;
+            PRAGMA_OMP_SIMD()
+            for (int cc = 0; cc < nstl::min(blksize, C - cb); ++cc) {
+                int input_c = rev_transposed_[cb + cc];
+                const size_t input_off = off + input_c / blksize * SP * blksize
+                        + input_c % blksize;
+                output[output_off + cc] = input[input_off];
+            }
+        }
 #else
         parallel_nd(
                 MB, utils::div_up(C, blksize), SP, [&](int mb, int c, int sp) {
@@ -170,4 +169,4 @@ template void ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

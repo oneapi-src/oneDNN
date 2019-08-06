@@ -17,6 +17,7 @@
 #ifndef REF_SUM_HPP
 #define REF_SUM_HPP
 
+#include "engine.hpp"
 #include "memory_tracking.hpp"
 #include "reorder_pd.hpp"
 

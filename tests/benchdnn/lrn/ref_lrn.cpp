@@ -21,8 +21,7 @@
 namespace lrn {
 
 float fast_powf(float omega, float beta) {
-    if (beta == 0.75f)
-        return 1.0f / sqrtf(sqrtf(omega) * omega);
+    if (beta == 0.75f) return 1.0f / sqrtf(sqrtf(omega) * omega);
     return 1.0f / powf(omega, beta);
 }
 
@@ -50,8 +49,8 @@ float get_omega(const prb_t *p, const dnn_mem_t &src, int64_t mb, int64_t c,
         const int64_t w_st = MAX2(w - half_size + 0, 0);
         const int64_t w_en = MIN2(w + half_size + 1, p->iw);
 
-        for (int64_t ds = d_st; ds < d_en; ++ds)
-        for (int64_t hs = h_st; hs < h_en; ++hs)
+        for_(int64_t ds = d_st; ds < d_en; ++ds)
+        for_(int64_t hs = h_st; hs < h_en; ++hs)
         for (int64_t ws = w_st; ws < w_en; ++ws) {
             const auto off = data_off(p, mb, c, ds, hs, ws);
             const float s = src.get_elem(off);
@@ -90,8 +89,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                         const float omega = get_omega(p, src, mb, cs, d, h, w);
                         const float omega_in_beta = fast_powf(omega, p->beta);
                         const float tmp = omega_in_beta * d_dst.get_elem(off);
-                        if (cs == c)
-                            A = tmp;
+                        if (cs == c) A = tmp;
                         B += (tmp / omega * src.get_elem(off));
                     }
                 } else if (p->alg == WITHIN) {
@@ -102,16 +100,15 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
                     const int64_t w_st = MAX2(w - half_size + 0, 0);
                     const int64_t w_en = MIN2(w + half_size + 1, p->iw);
 
-                    for (int64_t ds = d_st; ds < d_en; ++ds)
-                    for (int64_t hs = h_st; hs < h_en; ++hs)
+                    for_(int64_t ds = d_st; ds < d_en; ++ds)
+                    for_(int64_t hs = h_st; hs < h_en; ++hs)
                     for (int64_t ws = w_st; ws < w_en; ++ws) {
                         const auto off = data_off(p, mb, c, ds, hs, ws);
                         const float omega
-                            = get_omega(p, src, mb, c, ds, hs, ws);
+                                = get_omega(p, src, mb, c, ds, hs, ws);
                         const float omega_in_beta = fast_powf(omega, p->beta);
                         const float tmp = omega_in_beta * d_dst.get_elem(off);
-                        if (ds == d && hs == h && ws == w)
-                            A = tmp;
+                        if (ds == d && hs == h && ws == w) A = tmp;
                         B += (tmp / omega * src.get_elem(off));
                     }
                 }
@@ -121,4 +118,4 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             });
 }
 
-}
+} // namespace lrn

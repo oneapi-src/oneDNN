@@ -89,31 +89,28 @@ void check_pool_fwd(
                         : (ih_end - ih_start) * (iw_end - iw_start)
                                 * (id_end - id_start);
 
-                for (memory::dim id = id_start; id < id_end; ++id)
-                    for (memory::dim ih = ih_start; ih < ih_end; ++ih)
-                        for (memory::dim iw = iw_start; iw < iw_end; ++iw) {
-                            memory::dim iidx
-                                    = n * padded_c * pd.id * pd.ih * pd.iw
-                                    + c * pd.id * pd.ih * pd.iw
-                                    + id * pd.ih * pd.iw + ih * pd.iw + iw;
+                for_(memory::dim id = id_start; id < id_end; ++id)
+                for_(memory::dim ih = ih_start; ih < ih_end; ++ih)
+                for (memory::dim iw = iw_start; iw < iw_end; ++iw) {
+                    memory::dim iidx = n * padded_c * pd.id * pd.ih * pd.iw
+                            + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
+                            + ih * pd.iw + iw;
 
-                            data_t d = src_data[src_mdw.off_l(iidx, true)];
-                            if (p.aalgorithm == algorithm::pooling_max) {
-                                if (!is_initialized) {
-                                    out_ref = d;
-                                    is_initialized = true;
-                                } else {
-                                    if (out_ref < d) out_ref = d;
-                                }
-                            } else if (p.aalgorithm
-                                            == algorithm::
-                                                    pooling_avg_include_padding
-                                    || p.aalgorithm
-                                            == algorithm::
-                                                    pooling_avg_exclude_padding) {
-                                out_ref += d;
-                            }
+                    data_t d = src_data[src_mdw.off_l(iidx, true)];
+                    if (p.aalgorithm == algorithm::pooling_max) {
+                        if (!is_initialized) {
+                            out_ref = d;
+                            is_initialized = true;
+                        } else {
+                            if (out_ref < d) out_ref = d;
                         }
+                    } else if (p.aalgorithm
+                                    == algorithm::pooling_avg_include_padding
+                            || p.aalgorithm
+                                    == algorithm::pooling_avg_exclude_padding) {
+                        out_ref += d;
+                    }
+                }
 
                 if (p.aalgorithm == algorithm::pooling_avg_include_padding
                         || p.aalgorithm
@@ -163,80 +160,61 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
             [&](memory::dim i) { ref_diff_src[i] = 0.; });
 
     mkldnn::impl::parallel_nd(pd.mb, pd.c, [&](memory::dim n, memory::dim c) {
-        for (memory::dim od = 0; od < pd.od; od++)
-            for (memory::dim oh = 0; oh < pd.oh; oh++)
-                for (memory::dim ow = 0; ow < pd.ow; ow++) {
-                    memory::dim oidx = n * pd.c * pd.od * pd.oh * pd.ow
-                            + c * pd.od * pd.oh * pd.ow + od * pd.oh * pd.ow
-                            + oh * pd.ow + ow;
-                    data_t diff_dst
-                            = diff_dst_data[diff_dst_mdw.off_l(oidx, true)];
-                    if (p.aalgorithm == algorithm::pooling_max) {
-                        memory::dim kw_max
-                                = ws_data(ws_mdw.off_l(oidx, true)) % pd.kw;
-                        memory::dim kh_max
-                                = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw)
-                                % pd.kh;
-                        memory::dim kd_max
-                                = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw)
-                                / pd.kh;
-                        for (memory::dim kd = 0; kd < pd.kd; kd++)
-                            for (memory::dim kh = 0; kh < pd.kh; kh++)
-                                for (memory::dim kw = 0; kw < pd.kw; kw++) {
-                                    memory::dim iw
-                                            = ow * pd.strw - pd.padl + kw;
-                                    memory::dim ih
-                                            = oh * pd.strh - pd.padt + kh;
-                                    memory::dim id
-                                            = od * pd.strd - pd.padf + kd;
-                                    if (iw < 0 || iw >= pd.iw) continue;
-                                    if (ih < 0 || ih >= pd.ih) continue;
-                                    if (id < 0 || id >= pd.id) continue;
-                                    memory::dim iidx
-                                            = n * pd.c * pd.id * pd.ih * pd.iw
-                                            + c * pd.id * pd.ih * pd.iw
-                                            + id * pd.ih * pd.iw + ih * pd.iw
-                                            + iw;
+        for_(memory::dim od = 0; od < pd.od; od++)
+        for_(memory::dim oh = 0; oh < pd.oh; oh++)
+        for (memory::dim ow = 0; ow < pd.ow; ow++) {
+            memory::dim oidx = n * pd.c * pd.od * pd.oh * pd.ow
+                    + c * pd.od * pd.oh * pd.ow + od * pd.oh * pd.ow
+                    + oh * pd.ow + ow;
+            data_t diff_dst = diff_dst_data[diff_dst_mdw.off_l(oidx, true)];
+            if (p.aalgorithm == algorithm::pooling_max) {
+                memory::dim kw_max = ws_data(ws_mdw.off_l(oidx, true)) % pd.kw;
+                memory::dim kh_max
+                        = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw) % pd.kh;
+                memory::dim kd_max
+                        = (ws_data(ws_mdw.off_l(oidx, true)) / pd.kw) / pd.kh;
+                for_(memory::dim kd = 0; kd < pd.kd; kd++)
+                for_(memory::dim kh = 0; kh < pd.kh; kh++)
+                for (memory::dim kw = 0; kw < pd.kw; kw++) {
+                    memory::dim iw = ow * pd.strw - pd.padl + kw;
+                    memory::dim ih = oh * pd.strh - pd.padt + kh;
+                    memory::dim id = od * pd.strd - pd.padf + kd;
+                    if (iw < 0 || iw >= pd.iw) continue;
+                    if (ih < 0 || ih >= pd.ih) continue;
+                    if (id < 0 || id >= pd.id) continue;
+                    memory::dim iidx = n * pd.c * pd.id * pd.ih * pd.iw
+                            + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
+                            + ih * pd.iw + iw;
 
-                                    if (kh == kh_max && kw == kw_max
-                                            && kd == kd_max)
-                                        ref_diff_src[iidx] += diff_dst;
-                                }
-                    } else if (p.aalgorithm
-                                    == algorithm::pooling_avg_include_padding
-                            || p.aalgorithm
-                                    == algorithm::pooling_avg_exclude_padding) {
-                        auto id_start = apply_offset(od * pd.strd, pd.padf);
-                        auto ih_start = apply_offset(oh * pd.strh, pd.padt);
-                        auto iw_start = apply_offset(ow * pd.strw, pd.padl);
-                        auto id_end = std::min(
-                                od * pd.strd - pd.padf + pd.kd, pd.id);
-                        auto ih_end = std::min(
-                                oh * pd.strh - pd.padt + pd.kh, pd.ih);
-                        auto iw_end = std::min(
-                                ow * pd.strw - pd.padl + pd.kw, pd.iw);
-
-                        auto num_summands
-                                = (p.aalgorithm
-                                          != algorithm::
-                                                  pooling_avg_exclude_padding)
-                                ? pd.kw * pd.kh * pd.kd
-                                : (ih_end - ih_start) * (iw_end - iw_start)
-                                        * (id_end - id_start);
-
-                        for (int id = id_start; id < id_end; id++)
-                            for (int ih = ih_start; ih < ih_end; ih++)
-                                for (int iw = iw_start; iw < iw_end; iw++) {
-                                    memory::dim iidx
-                                            = n * pd.c * pd.id * pd.ih * pd.iw
-                                            + c * pd.id * pd.ih * pd.iw
-                                            + id * pd.ih * pd.iw + ih * pd.iw
-                                            + iw;
-                                    ref_diff_src[iidx]
-                                            += diff_dst / num_summands;
-                                }
-                    }
+                    if (kh == kh_max && kw == kw_max && kd == kd_max)
+                        ref_diff_src[iidx] += diff_dst;
                 }
+            } else if (p.aalgorithm == algorithm::pooling_avg_include_padding
+                    || p.aalgorithm == algorithm::pooling_avg_exclude_padding) {
+                auto id_start = apply_offset(od * pd.strd, pd.padf);
+                auto ih_start = apply_offset(oh * pd.strh, pd.padt);
+                auto iw_start = apply_offset(ow * pd.strw, pd.padl);
+                auto id_end = std::min(od * pd.strd - pd.padf + pd.kd, pd.id);
+                auto ih_end = std::min(oh * pd.strh - pd.padt + pd.kh, pd.ih);
+                auto iw_end = std::min(ow * pd.strw - pd.padl + pd.kw, pd.iw);
+
+                auto num_summands
+                        = (p.aalgorithm
+                                  != algorithm::pooling_avg_exclude_padding)
+                        ? pd.kw * pd.kh * pd.kd
+                        : (ih_end - ih_start) * (iw_end - iw_start)
+                                * (id_end - id_start);
+
+                for_(int id = id_start; id < id_end; id++)
+                for_(int ih = ih_start; ih < ih_end; ih++)
+                for (int iw = iw_start; iw < iw_end; iw++) {
+                    memory::dim iidx = n * pd.c * pd.id * pd.ih * pd.iw
+                            + c * pd.id * pd.ih * pd.iw + id * pd.ih * pd.iw
+                            + ih * pd.iw + iw;
+                    ref_diff_src[iidx] += diff_dst / num_summands;
+                }
+            }
+        }
     });
 
     mkldnn::impl::parallel_nd(

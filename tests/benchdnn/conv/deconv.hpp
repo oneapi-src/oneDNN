@@ -17,18 +17,18 @@
 #ifndef DECONV_HPP
 #define DECONV_HPP
 
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include "common.hpp"
+#include "conv/conv_common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
 #include "mkldnn_memory.hpp"
-#include "conv/conv_common.hpp"
 
 namespace deconv {
 int doit(const conv::prb_t *p, res_t *res);
 int bench(int argc, char **argv);
-}
+} // namespace deconv
 #endif

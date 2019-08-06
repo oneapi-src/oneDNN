@@ -19,8 +19,8 @@
 
 #include "mkldnn.hpp"
 
-#include <CL/sycl.hpp>
 #include <memory>
+#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
@@ -32,13 +32,13 @@ enum class ctx_kind { cpu, cpu_only, gpu, gpu_only, host_only };
 
 std::string to_string(dev_kind kind) {
     static const char *strs[]
-            = { "CPU", "CPU-only", "GPU", "GPU-only", "Host-only" };
+            = {"CPU", "CPU-only", "GPU", "GPU-only", "Host-only"};
     return strs[static_cast<int>(kind)];
 }
 
 std::string to_string(ctx_kind kind) {
     static const char *strs[]
-            = { "CPU", "CPU-only", "GPU", "GPU-only", "Host-only" };
+            = {"CPU", "CPU-only", "GPU", "GPU-only", "Host-only"};
     return strs[static_cast<int>(kind)];
 }
 
@@ -52,8 +52,7 @@ struct sycl_engine_test_params {
 } // namespace
 
 class sycl_engine_test
-    : public ::testing::TestWithParam<sycl_engine_test_params>
-{
+    : public ::testing::TestWithParam<sycl_engine_test_params> {
 protected:
     virtual void SetUp() {
         for (auto &plat : platform::get_platforms()) {
@@ -101,19 +100,19 @@ TEST_P(sycl_engine_test, BasicInterop) {
 
     device *dev_ptr = nullptr;
     switch (param.adev_kind) {
-    case dev_kind::cpu: dev_ptr = cpu_dev.get(); break;
-    case dev_kind::cpu_only: dev_ptr = cpu_only_dev.get(); break;
-    case dev_kind::gpu: dev_ptr = gpu_dev.get(); break;
-    case dev_kind::gpu_only: dev_ptr = gpu_only_dev.get(); break;
-    case dev_kind::host_only: dev_ptr = host_only_dev.get(); break;
+        case dev_kind::cpu: dev_ptr = cpu_dev.get(); break;
+        case dev_kind::cpu_only: dev_ptr = cpu_only_dev.get(); break;
+        case dev_kind::gpu: dev_ptr = gpu_dev.get(); break;
+        case dev_kind::gpu_only: dev_ptr = gpu_only_dev.get(); break;
+        case dev_kind::host_only: dev_ptr = host_only_dev.get(); break;
     }
     context *ctx_ptr = nullptr;
     switch (param.actx_kind) {
-    case ctx_kind::cpu: ctx_ptr = cpu_ctx.get(); break;
-    case ctx_kind::cpu_only: ctx_ptr = cpu_only_ctx.get(); break;
-    case ctx_kind::gpu: ctx_ptr = gpu_ctx.get(); break;
-    case ctx_kind::gpu_only: ctx_ptr = gpu_only_ctx.get(); break;
-    case ctx_kind::host_only: ctx_ptr = host_only_ctx.get(); break;
+        case ctx_kind::cpu: ctx_ptr = cpu_ctx.get(); break;
+        case ctx_kind::cpu_only: ctx_ptr = cpu_only_ctx.get(); break;
+        case ctx_kind::gpu: ctx_ptr = gpu_ctx.get(); break;
+        case ctx_kind::gpu_only: ctx_ptr = gpu_only_ctx.get(); break;
+        case ctx_kind::host_only: ctx_ptr = host_only_ctx.get(); break;
     }
 
     SKIP_IF(!dev_ptr, to_string(param.adev_kind) + " device not found");
@@ -136,22 +135,22 @@ TEST_P(sycl_engine_test, BasicInterop) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
-        ::testing::Values(sycl_engine_test_params{ engine::kind::gpu,
-                dev_kind::gpu, ctx_kind::gpu, mkldnn_success }));
+        ::testing::Values(sycl_engine_test_params {engine::kind::gpu,
+                dev_kind::gpu, ctx_kind::gpu, mkldnn_success}));
 
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, sycl_engine_test,
         ::testing::Values(
                 // SYCL CPU device is not yet supported
-                sycl_engine_test_params{ engine::kind::cpu, dev_kind::cpu,
-                        ctx_kind::cpu, mkldnn_invalid_arguments },
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu,
+                        ctx_kind::cpu, mkldnn_invalid_arguments},
                 // SYCL host device is not yet supported
-                sycl_engine_test_params{ engine::kind::cpu, dev_kind::host_only,
-                        ctx_kind::host_only, mkldnn_invalid_arguments },
-                sycl_engine_test_params{ engine::kind::cpu, dev_kind::gpu,
-                        ctx_kind::gpu, mkldnn_invalid_arguments },
-                sycl_engine_test_params{ engine::kind::gpu, dev_kind::gpu_only,
-                        ctx_kind::cpu_only, mkldnn_invalid_arguments },
-                sycl_engine_test_params{ engine::kind::cpu, dev_kind::cpu_only,
-                        ctx_kind::gpu_only, mkldnn_invalid_arguments }));
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::host_only,
+                        ctx_kind::host_only, mkldnn_invalid_arguments},
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::gpu,
+                        ctx_kind::gpu, mkldnn_invalid_arguments},
+                sycl_engine_test_params {engine::kind::gpu, dev_kind::gpu_only,
+                        ctx_kind::cpu_only, mkldnn_invalid_arguments},
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu_only,
+                        ctx_kind::gpu_only, mkldnn_invalid_arguments}));
 
 } // namespace mkldnn

@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "self/self.hpp"
 #include "conv/conv.hpp"
+#include "self/self.hpp"
 
 using namespace conv;
 
@@ -51,4 +51,4 @@ void conv() {
     RUN(check_simple_enums());
 }
 
-}
+} // namespace self

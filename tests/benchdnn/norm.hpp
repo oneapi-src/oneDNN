@@ -18,12 +18,12 @@
 #define NORM_HPP
 
 #include <assert.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "common.hpp"
 
@@ -35,14 +35,14 @@ struct norm_t {
      * absolute element-wise difference and is used in diff_norm_t only */
     enum { L0, L1, L2, LINF, L8 = LINF, L_LAST };
 
-    norm_t(): num_(0) {
+    norm_t() : num_(0) {
         for (int i = 0; i < L_LAST; ++i)
             norm_[i] = 0;
     }
 
     void update(real_t v) {
         norm_[L1] += ABS(v);
-        norm_[L2] += v*v;
+        norm_[L2] += v * v;
         norm_[L8] = MAX2(norm_[L8], ABS(v));
         num_++;
     }
@@ -66,7 +66,11 @@ struct diff_norm_t {
         diff_.norm_[norm_t::L0] = MAX2(diff_.norm_[norm_t::L0],
                 ABS(diff) / (ABS(a) > FLT_MIN ? ABS(a) : 1.));
     }
-    void done() { a_.done(); b_.done(); diff_.done(); }
+    void done() {
+        a_.done();
+        b_.done();
+        diff_.done();
+    }
 
     real_t rel_diff(int type) const {
         if (type == norm_t::L0) return diff_.norm_[type];

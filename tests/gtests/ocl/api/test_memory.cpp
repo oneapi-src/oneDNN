@@ -19,20 +19,17 @@
 
 #include "mkldnn.h"
 
-#include <CL/cl.h>
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <CL/cl.h>
 
 namespace mkldnn {
 
-class ocl_memory_test_c : public ::testing::Test
-{
+class ocl_memory_test_c : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) {
-            return;
-        }
+        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         MKLDNN_CHECK(mkldnn_engine_create(&engine, mkldnn_gpu, 0));
         MKLDNN_CHECK(mkldnn_engine_get_ocl_context(engine, &ocl_ctx));
@@ -44,12 +41,8 @@ protected:
     }
 
     virtual void TearDown() {
-        if (memory) {
-            MKLDNN_CHECK(mkldnn_memory_destroy(memory));
-        }
-        if (engine) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(engine));
-        }
+        if (memory) { MKLDNN_CHECK(mkldnn_memory_destroy(memory)); }
+        if (engine) { MKLDNN_CHECK(mkldnn_engine_destroy(engine)); }
     }
 
     mkldnn_engine_t engine = nullptr;
@@ -60,7 +53,7 @@ protected:
     static const mkldnn_dim_t C = 3;
     static const mkldnn_dim_t H = 4;
     static const mkldnn_dim_t W = 5;
-    mkldnn_dims_t dims = { N, C, H, W };
+    mkldnn_dims_t dims = {N, C, H, W};
 
     mkldnn_memory_desc_t memory_d;
     mkldnn_memory_t memory = nullptr;
@@ -101,7 +94,7 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
             "OpenCL GPU devices not found.");
 
     engine eng(engine::kind::gpu, 0);
-    memory::dims tz = { 4, 4, 4, 4 };
+    memory::dims tz = {4, 4, 4, 4};
 
     cl_context ocl_ctx = eng.get_ocl_context();
 
@@ -111,7 +104,8 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
     OCL_CHECK(err);
 
     {
-        memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
+        memory::desc mem_d(
+                tz, memory::data_type::f32, memory::format_tag::nchw);
         memory mem(mem_d, eng);
 
         cl_mem ocl_mem = mem.get_ocl_mem_object();

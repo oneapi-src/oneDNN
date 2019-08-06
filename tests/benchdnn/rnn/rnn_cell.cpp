@@ -30,10 +30,10 @@ float activation(const prb_t &p, float x, bool is_fwd = true) {
         result = p.linear_scales[0] * x;
     else
         switch (p.activation) {
-        case RELU: result = is_fwd ? relu(x) : drelu(x); break;
-        case LOGISTIC: result = is_fwd ? logistic(x) : x_m_square(x); break;
-        case TANH: result = is_fwd ? tanhf(x) : one_m_square(x); break;
-        default: assert(!"unknown activation");
+            case RELU: result = is_fwd ? relu(x) : drelu(x); break;
+            case LOGISTIC: result = is_fwd ? logistic(x) : x_m_square(x); break;
+            case TANH: result = is_fwd ? tanhf(x) : one_m_square(x); break;
+            default: assert(!"unknown activation");
         }
     return result;
 }

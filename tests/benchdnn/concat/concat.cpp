@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "mkldnn.h"
 
@@ -49,8 +49,8 @@ static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &cpd, res_t *r) {
     }
 
     mkldnn_status_t init_status = mkldnn_concat_primitive_desc_create(&cpd,
-            p->dtag != mkldnn_format_tag_undef ? &dst_d : NULL,
-            p->n_inputs(), p->axis, src_d.data(), NULL, engine_tgt);
+            p->dtag != mkldnn_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
+            p->axis, src_d.data(), NULL, engine_tgt);
 
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -78,10 +78,8 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
 
         r->errors += !ok;
 
-        const bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30)
-            || (verbose >= 99);
+        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             dims_t ddims_idx = off2dims_idx(p->ddims, i);
@@ -93,17 +91,15 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
         }
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp) {
+int fill_src(
+        const prb_t *p, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     auto get_range = [](const mkldnn_data_type_t dt) {
         if (dt == mkldnn_s8 || dt == mkldnn_u8)
             return 256;
@@ -117,11 +113,10 @@ int fill_src(const prb_t *p, int input_idx, dnn_mem_t &mem_dt,
     const int f_min = p->sdt == mkldnn_u8 ? 0 : -range / 2;
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
-            const float gen = ((97 * i) - 17 * input_idx + 101) % range;
-            const float value = f_min + gen;
-            mem_fp.set_elem(i, maybe_saturate(p->sdt, value));
-        }
-    );
+        const float gen = ((97 * i) - 17 * input_idx + 101) % range;
+        const float value = f_min + gen;
+        mem_fp.set_elem(i, maybe_saturate(p->sdt, value));
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -133,8 +128,7 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t c;
 
     SAFE(init_pd(p, cpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
 
@@ -183,4 +177,4 @@ int doit(const prb_t *p, res_t *r) {
     return OK;
 }
 
-}
+} // namespace concat

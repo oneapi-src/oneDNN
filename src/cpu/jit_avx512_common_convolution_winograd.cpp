@@ -1145,4 +1145,4 @@ for (int ofm1 = 0; ofm1 < jcp.oc / simd_w; ofm1++) {
 } // namespace cpu
 } // namespace impl
 } // namespace mkldnn
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

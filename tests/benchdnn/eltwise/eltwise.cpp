@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "mkldnn.h"
 
@@ -41,18 +41,20 @@ static int init_pd(const prb_t *p, mkldnn_eltwise_desc_t &ed,
     mkldnn_alg_kind_t alg = attr_t::post_ops_t::kind2mkldnn_kind(p->alg);
 
     if (p->dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF
-            ? mkldnn_forward_inference : mkldnn_forward_training;
+        auto prop = p->dir & FLAG_INF ? mkldnn_forward_inference
+                                      : mkldnn_forward_training;
 
-        DNN_SAFE(mkldnn_eltwise_forward_desc_init(&ed, prop, alg, &data_d,
-                    p->alpha, p->beta), WARN);
+        DNN_SAFE(mkldnn_eltwise_forward_desc_init(
+                         &ed, prop, alg, &data_d, p->alpha, p->beta),
+                WARN);
     } else {
-        DNN_SAFE(mkldnn_eltwise_backward_desc_init(&ed, alg, &data_d, &data_d,
-                    p->alpha, p->beta), WARN);
+        DNN_SAFE(mkldnn_eltwise_backward_desc_init(
+                         &ed, alg, &data_d, &data_d, p->alpha, p->beta),
+                WARN);
     }
 
-    mkldnn_status_t init_status = mkldnn_primitive_desc_create(&epd, &ed,
-            NULL, engine_tgt, NULL);
+    mkldnn_status_t init_status
+            = mkldnn_primitive_desc_create(&epd, &ed, NULL, engine_tgt, NULL);
 
     if (init_status == mkldnn_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -75,13 +77,11 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
         const dnn_mem_t &mem_dt, res_t *r) {
     float trh = 1e-6;
     if (p->alg == alg_t::GELU) // when x < -3 (tanh(g(x)) + 1) has cancellation
-        trh = 4e-6;            // subtract, which leads to low accuracy.
+        trh = 4e-6; // subtract, which leads to low accuracy.
     if (p->alg == alg_t::ELU) // when x -> -0, a(exp(-x) - 1) has cancellation
-        trh = 4e-5;           // subtract, which leads to low accuracy.
-    if (p->dt == mkldnn_f16)
-        trh = 1e-3;
-    if (p->dt == mkldnn_bf16)
-        trh = 1e-2;
+        trh = 4e-5; // subtract, which leads to low accuracy.
+    if (p->dt == mkldnn_f16) trh = 1e-3;
+    if (p->dt == mkldnn_bf16) trh = 1e-2;
 
     const auto nelems = mem_dt.nelems();
     r->errors = 0;
@@ -103,10 +103,8 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
 
         r->errors += !ok;
 
-        const bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30)
-            || (verbose >= 99);
+        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             dims_t dims_idx = off2dims_idx(p->dims, i);
@@ -118,11 +116,9 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
         }
     }
 
-    if (r->errors)
-        r->state = FAILED;
+    if (r->errors) r->state = FAILED;
 
-    if (r->state == UNTESTED)
-        r->state = PASSED; /* optimism */
+    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
     return r->state == FAILED ? FAIL : OK;
 }
@@ -132,21 +128,19 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const auto nelems = mem_fp.nelems();
 
     mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
-            const int gen = is_fwd
-                ? ((103 * i) + 107) % 109
-                : ((101 * i) + 103) % 107;
+        const int gen
+                = is_fwd ? ((103 * i) + 107) % 109 : ((101 * i) + 103) % 107;
 
-            float value = FLT_MAX;
-            switch (i % 4) {
-            case 0: value = (gen % 11); break;  // int positive
+        float value = FLT_MAX;
+        switch (i % 4) {
+            case 0: value = (gen % 11); break; // int positive
             case 1: value = -(gen % 11); break; // int negative
-            case 2: value = gen / 128.; break;  // fraction positive
+            case 2: value = gen / 128.; break; // fraction positive
             case 3: value = -gen / 128.; break; // fraction negative
-            }
-
-            mem_fp.set_elem(i, maybe_saturate(p->dt, value));
         }
-    );
+
+        mem_fp.set_elem(i, maybe_saturate(p->dt, value));
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -163,8 +157,7 @@ int doit(const prb_t *p, res_t *r) {
     mkldnn_primitive_t e;
 
     SAFE(init_pd(p, ed, epd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED)
-        return OK;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(mkldnn_primitive_create(&e, epd), WARN);
     DNN_SAFE(mkldnn_primitive_desc_destroy(epd), CRIT);
@@ -173,7 +166,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = ed.data_desc;
     dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
-              src_dt(data_desc, engine_tgt);
+            src_dt(data_desc, engine_tgt);
 
     dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
     dnn_mem_t dst_dt;
@@ -185,7 +178,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
     dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref),
-              d_dst_dt(data_desc, engine_tgt);
+            d_dst_dt(data_desc, engine_tgt);
 
     dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
     dnn_mem_t d_src_dt;
@@ -217,8 +210,8 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(p->inplace ? d_dst_dt : d_src_dt, fp, tag,
-                    engine_ref);
+            dnn_mem_t d_src(
+                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_ref);
             SAFE(compare(p, d_src_fp, d_src, r), WARN);
         }
     }
@@ -230,4 +223,4 @@ int doit(const prb_t *p, res_t *r) {
     return OK;
 }
 
-}
+} // namespace eltwise

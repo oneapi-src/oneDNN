@@ -17,6 +17,8 @@
 #ifndef Z_MAGIC_HPP
 #define Z_MAGIC_HPP
 
+#define for_ for
+
 #define CHAIn2(a, b) a b
 #define CHAIN2(a, b) CHAIn2(a, b)
 
@@ -43,4 +45,4 @@
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

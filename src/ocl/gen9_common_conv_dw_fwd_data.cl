@@ -29,9 +29,9 @@
             blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
     } while (0)
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
 gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
@@ -61,8 +61,8 @@ gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
 #if WITH_BIAS
     DATA_T S00[OW_BLOCK];
     DATA_T B = AS_DATA_T(BLOCK_READ((const __global uint *)&bias[g]));
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int k = 0; k < OW_BLOCK;
-                                                       k++) {
+    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+    for (int k = 0; k < OW_BLOCK; k++) {
         S00[k] = B;
     }
 #else
@@ -94,9 +94,8 @@ gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
                         = AS_DATA_T(BLOCK_READ((const __global uint *)(wei1)));
                 DATA_T A0;
 
-                __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int k = 0;
-                                                                   k < OW_BLOCK;
-                                                                   k++) {
+                __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                for (int k = 0; k < OW_BLOCK; k++) {
 
                     if (iw + kw * (1 + DW) + k * SW < 0
                             || iw + kw * (1 + DW) + k * SW >= IW)
@@ -113,8 +112,8 @@ gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
 
 #if WITH_SUM == 1 || WITH_ELTWISE == 1
     DATA_T D00[OW_BLOCK];
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int k = 0; k < OW_BLOCK;
-                                                       k++) {
+    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+    for (int k = 0; k < OW_BLOCK; k++) {
 #if WITH_SUM == 1
         D00[k] = AS_DATA_T(
                 BLOCK_READ((const __global uint *)&dst[k * OC_BLOCK]));
@@ -130,8 +129,8 @@ gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
     }
 #endif
 
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int k = 0; k < OW_BLOCK;
-                                                       k++) {
+    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+    for (int k = 0; k < OW_BLOCK; k++) {
         BLOCK_WRITE(
                 (__global unsigned int *)&dst[k * OC_BLOCK], AS_UINT_T(S00[k]));
     }
@@ -160,7 +159,8 @@ gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
 #if WITH_BIAS
     DATA8_T S00, S01;
     DATA_T B = AS_DATA_T(BLOCK_READ((const __global uint *)&bias[g]));
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int k = 0; k < 8; k++) {
+    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+    for (int k = 0; k < 8; k++) {
         S00[k] = B;
         S01[k] = B;
     }

@@ -45,9 +45,9 @@
             blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
     } while (0)
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
+__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
 gen9_common_conv_fwd_f32_kernel(const __global float *src,
@@ -314,10 +314,9 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
             if (local_id < 3) {
 #if OW % OW_BLOCK != 0 || HAS_PAD_W
                 if (k < 0 || k + SW * OW_BLOCK + KW * (1 + DW) >= IW) {
-                    __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                            + KW * (1 + DW)))) for (int i = 0; i < SW * OW_BLOCK
-                                                            + KW * (1 + DW);
-                                                    i++) {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
                         if (k >= 0 && k < IW)
                             tempA[i] = src1[i * SP_OFF];
                         else
@@ -326,18 +325,17 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
                     }
                 } else {
 #endif
-                    __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                            + KW * (1 + DW)))) for (int i = 0; i < SW * OW_BLOCK
-                                                            + KW * (1 + DW);
-                                                    i++) {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
                         tempA[i] = src1[i * SP_OFF];
                     }
 #if OW % OW_BLOCK != 0 || HAS_PAD_W
                 }
 #endif
             }
-            __attribute__((opencl_unroll_hint(KW))) for (int kw = 0; kw < KW;
-                                                         ++kw) {
+            __attribute__((opencl_unroll_hint(KW))) // attr:no-format
+            for (int kw = 0; kw < KW; ++kw) {
 
                 const __global float *wei1 = wei + kd * KH * KW * OC_BLOCK * IC
                         + kh * KW * OC_BLOCK * IC + kw * OC_BLOCK * IC;
@@ -362,14 +360,14 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
 
                 float blockA[OW_BLOCK] = {0.0f};
                 if (local_id < 3) {
-                    __attribute__((opencl_unroll_hint(
-                            OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
                         blockA[i] = tempA[kw * (1 + DW) + i * SW];
                     }
                 }
-                __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int i = 0;
-                                                                   i < OW_BLOCK;
-                                                                   i++) {
+                __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                for (int i = 0; i < OW_BLOCK; i++) {
                     MULTIPLY_BLOCKS_8x8(blockC00[i], blockA[i], blockB00,
                             blockB01, blockB02);
                 }
@@ -382,9 +380,8 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
                 blockB02 = as_float(intel_sub_group_block_read(
                         (const __global uint *)(wei1 + 2 * OC_BLOCK)));
 
-                __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int i = 0;
-                                                                   i < OW_BLOCK;
-                                                                   i++) {
+                __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                for (int i = 0; i < OW_BLOCK; i++) {
                     MULTIPLY_BLOCKS_8x8(blockC01[i], blockA[i], blockB00,
                             blockB01, blockB02);
                 }
@@ -461,8 +458,8 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
     } else {
 #endif
 #if OW_BLOCK != 8 || MB_BLOCK != 1
-        __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int i = 0;
-                                                           i < OW_BLOCK; i++) {
+        __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+        for (int i = 0; i < OW_BLOCK; i++) {
             intel_sub_group_block_write((__global unsigned int *)(&dst_write0[i
                                                 * OC_BLOCK * MB_BLOCK]),
                     as_uint(blockC00[i]));
@@ -547,10 +544,10 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
         int icb = 0;
         do {
 #if KH != 1 || KW != 1 || KD != 1
-            __attribute__((opencl_unroll_hint(1))) for (int kd = 0; kd < KD;
-                                                        ++kd)
-                    __attribute__((opencl_unroll_hint(1))) for (int kh = 0;
-                                                                kh < KH; ++kh) {
+            __attribute__((opencl_unroll_hint(1))) // attr:no-format
+            for (int kd = 0; kd < KD; ++kd)
+                    __attribute__((opencl_unroll_hint(1))) // attr:no-format
+                    for (int kh = 0; kh < KH; ++kh) {
 
                 if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH
 #if CASE_3D
@@ -567,10 +564,9 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
                 float tempA[SW * OW_BLOCK + KW * (1 + DW)];
                 int k = iw;
                 if (do_if) {
-                    __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                            + KW * (1 + DW)))) for (int i = 0; i < SW * OW_BLOCK
-                                                            + KW * (1 + DW);
-                                                    i++) {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
                         if (k >= 0 && k < IW)
                             tempA[i] = as_float(intel_sub_group_block_read(
                                     (const __global uint
@@ -580,16 +576,15 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
                         k++;
                     }
                 } else {
-                    __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                            + KW * (1 + DW)))) for (int i = 0; i < SW * OW_BLOCK
-                                                            + KW * (1 + DW);
-                                                    i++) {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
                         tempA[i] = as_float(intel_sub_group_block_read(
                                 (const __global uint *)(&src1[i * IC_BLOCK])));
                     }
                 }
-                __attribute__((opencl_unroll_hint(KW))) for (int kw = 0;
-                                                             kw < KW; ++kw) {
+                __attribute__((opencl_unroll_hint(KW))) // attr:no-format
+                for (int kw = 0; kw < KW; ++kw) {
 
                     const __global float *wei1 = wei
                             + kd * KH * KW * OC_BLOCK * IC_BLOCK
@@ -631,8 +626,9 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
 
 #if KH != 1 || KW != 1 || KD != 1
                     float blockA[OW_BLOCK];
-                    __attribute__((opencl_unroll_hint(
-                            OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
                         blockA[i] = tempA[kw * (1 + DW) + SW * i];
                     }
 #else
@@ -660,9 +656,8 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
         } else {
 #endif
 #if SW != 1 || OW_BLOCK != 8 || HAS_PAD_W
-            __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int i = 0;
-                                                               i < OW_BLOCK;
-                                                               i++) {
+            __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+            for (int i = 0; i < OW_BLOCK; i++) {
 #if HAS_PAD_W
                 if (iw + i * SW < 0 || iw + i * SW >= IW) {
                     blockA[i] = 0.0f;
@@ -683,13 +678,15 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
 #endif
 #endif
 #if OW_BLOCK != 16
-                    __attribute__((opencl_unroll_hint(
-                            OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
                         MULTIPLY_BLOCKS_8x8(
                                 blockC00[i], blockA[i], blockB00, blockB01);
                     }
 #else
-        __attribute__((opencl_unroll_hint(8))) for (int i = 0; i < 8; i++) {
+        __attribute__((opencl_unroll_hint(8))) // attr:no-format
+        for (int i = 0; i < 8; i++) {
             MULTIPLY_BLOCKS_8x8(blockC00[i], blockA[i], blockB00, blockB01);
             MULTIPLY_BLOCKS_8x8(blockC01[i], blockA[i + 8], blockB00, blockB01);
         }
@@ -783,8 +780,8 @@ gen9_common_conv_fwd_f32_kernel(const __global float *src,
     } else {
 #endif
 #if OW_BLOCK != 8 && OW_BLOCK != 16
-        __attribute__((opencl_unroll_hint(OW_BLOCK))) for (int i = 0;
-                                                           i < OW_BLOCK; i++) {
+        __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+        for (int i = 0; i < OW_BLOCK; i++) {
             intel_sub_group_block_write(
                     (__global unsigned int *)(&dst_write0[i * OC_BLOCK]),
                     as_uint(blockC00[i]));

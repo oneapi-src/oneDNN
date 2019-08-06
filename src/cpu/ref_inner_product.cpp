@@ -142,49 +142,44 @@ void ref_inner_product_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             const int KD = pd()->KD();
             const int KH = pd()->KH();
             const int KW = pd()->KW();
-            for (int kd = 0; kd < KD; ++kd)
-                for (int kh = 0; kh < KH; ++kh)
-                    for (int kw = 0; kw < KW; ++kw) {
-                        acc_data_t ds = acc_data_t(0);
-                        for (int oc = 0; oc < OC; ++oc) {
-                            switch (ndims) {
-                                case 3:
-                                    ds += (acc_data_t)(
-                                            diff_dst[diff_dst_d.off(mb, oc)]
-                                            * weights[weights_d.off(
-                                                    oc, ic, kd, kh, kw)]);
-                                    break;
-                                case 2:
-                                    ds += (acc_data_t)(
-                                            diff_dst[diff_dst_d.off(mb, oc)]
-                                            * weights[weights_d.off(
-                                                    oc, ic, kh, kw)]);
-                                    break;
-                                case 1:
-                                    ds += (acc_data_t)(
-                                            diff_dst[diff_dst_d.off(mb, oc)]
-                                            * weights[weights_d.off(
-                                                    oc, ic, kw)]);
-                                    break;
-                                default: assert(!"unsupported ndims size");
-                            }
-                        }
-                        switch (ndims) {
-                            case 3:
-                                diff_src[diff_src_d.off(mb, ic, kd, kh, kw)]
-                                        = (diff_src_data_t)ds;
-                                break;
-                            case 2:
-                                diff_src[diff_src_d.off(mb, ic, kh, kw)]
-                                        = (diff_src_data_t)ds;
-                                break;
-                            case 1:
-                                diff_src[diff_src_d.off(mb, ic, kw)]
-                                        = (diff_src_data_t)ds;
-                                break;
-                            default: assert(!"unsupported ndims size");
-                        }
+            for_(int kd = 0; kd < KD; ++kd)
+            for_(int kh = 0; kh < KH; ++kh)
+            for (int kw = 0; kw < KW; ++kw) {
+                acc_data_t ds = acc_data_t(0);
+                for (int oc = 0; oc < OC; ++oc) {
+                    switch (ndims) {
+                        case 3:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(
+                                            oc, ic, kd, kh, kw)]);
+                            break;
+                        case 2:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(oc, ic, kh, kw)]);
+                            break;
+                        case 1:
+                            ds += (acc_data_t)(diff_dst[diff_dst_d.off(mb, oc)]
+                                    * weights[weights_d.off(oc, ic, kw)]);
+                            break;
+                        default: assert(!"unsupported ndims size");
                     }
+                }
+                switch (ndims) {
+                    case 3:
+                        diff_src[diff_src_d.off(mb, ic, kd, kh, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    case 2:
+                        diff_src[diff_src_d.off(mb, ic, kh, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    case 1:
+                        diff_src[diff_src_d.off(mb, ic, kw)]
+                                = (diff_src_data_t)ds;
+                        break;
+                    default: assert(!"unsupported ndims size");
+                }
+            }
         } else {
             acc_data_t ds = acc_data_t(0);
             for (int oc = 0; oc < OC; ++oc) {
@@ -292,4 +287,4 @@ template struct ref_inner_product_bwd_weights_t<data_type::f32>;
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

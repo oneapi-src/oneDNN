@@ -2557,4 +2557,4 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

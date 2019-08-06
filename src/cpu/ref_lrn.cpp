@@ -344,4 +344,4 @@ template void ref_lrn_bwd_t<data_type::bf16>::execute_backward<format_tag::any>(
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

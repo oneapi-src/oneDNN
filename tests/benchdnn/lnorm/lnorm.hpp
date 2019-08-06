@@ -17,25 +17,25 @@
 #ifndef LNORM_HPP
 #define LNORM_HPP
 
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
+#include <limits.h>
 #include <numeric>
+#include <stdint.h>
 
 #include <iostream>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
 #include "mkldnn_debug.hpp"
+#include "mkldnn_memory.hpp"
 #include "perf_report.hpp"
 
 namespace lnorm {
 
 enum check_alg_t { ALG_0, ALG_1, ALG_AUTO };
 check_alg_t str2check_alg(const char *str);
-const char* check_alg2str(check_alg_t alg);
+const char *check_alg2str(check_alg_t alg);
 
 using flags_t = unsigned;
 const flags_t GLOB_STATS = mkldnn_use_global_stats;
@@ -78,8 +78,7 @@ struct prb_t {
     double ops;
 
     void count_ops() {
-        if (ops > 0)
-            return;
+        if (ops > 0) return;
         bool use_scaleshift = flags & USE_SCALESHIFT;
         if (dir & FLAG_FWD) {
             ops = sizeof_dt(dt)

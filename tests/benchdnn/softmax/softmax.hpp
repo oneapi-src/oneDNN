@@ -46,7 +46,7 @@ struct prb_t {
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
-struct perf_report_t: public base_perf_report_t {
+struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
@@ -69,13 +69,15 @@ private:
 
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
-inline void map_off_to_mb_ic(const prb_t *p, int64_t off, int64_t &mb,
-        int64_t &ic) {
+inline void map_off_to_mb_ic(
+        const prb_t *p, int64_t off, int64_t &mb, int64_t &ic) {
     for (int i = (int)p->dims.size() - 1; i > 1; i--)
         off /= p->dims[i];
 
-    ic = off % p->dims[1]; off /= p->dims[1];
-    mb = off % p->dims[0]; off /= p->dims[0];
+    ic = off % p->dims[1];
+    off /= p->dims[1];
+    mb = off % p->dims[0];
+    off /= p->dims[0];
     assert(off == 0);
 }
 
@@ -86,6 +88,6 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
 
-}
+} // namespace softmax
 
 #endif

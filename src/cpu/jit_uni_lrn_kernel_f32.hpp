@@ -26,8 +26,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-using namespace Xbyak;
-
 enum params { VECTOR_LENGTH = 8, MAX_LOCAL_SIZE = 32 };
 
 typedef struct {
@@ -87,7 +85,8 @@ struct jit_uni_lrn_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_f32)
 
     /* cpu specific part */
-    using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
+    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
+            Xbyak::Zmm>::type;
 
     jit_uni_lrn_fwd_kernel_f32(const struct nchw8c_within &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
@@ -151,4 +150,4 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

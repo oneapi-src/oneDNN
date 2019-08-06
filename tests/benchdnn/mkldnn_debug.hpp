@@ -16,6 +16,8 @@
 
 // DO NOT EDIT, AUTO-GENERATED
 
+// clang-format off
+
 #ifndef MKLDNN_DEBUG_HPP
 #define MKLDNN_DEBUG_HPP
 

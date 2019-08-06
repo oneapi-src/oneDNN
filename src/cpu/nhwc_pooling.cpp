@@ -133,30 +133,29 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                 array_nhwc_initialize<true>(
                         OC, dst + dst_offset_init, ws, ws_offset_init, ws_dt);
 
-            for (int kd = 0; kd < KD; ++kd)
-                for (int kh = 0; kh < KH; ++kh)
-                    for (int kw = 0; kw < KW; ++kw) {
-                        const int id = od * SD - padF + kd;
-                        const int ih = oh * SH - padT + kh;
-                        const int iw = ow * SW - padL + kw;
+            for_(int kd = 0; kd < KD; ++kd)
+            for_(int kh = 0; kh < KH; ++kh)
+            for (int kw = 0; kw < KW; ++kw) {
+                const int id = od * SD - padF + kd;
+                const int ih = oh * SH - padT + kh;
+                const int iw = ow * SW - padL + kw;
 
-                        if (id < 0 || id >= ID) continue;
-                        if (ih < 0 || ih >= IH) continue;
-                        if (iw < 0 || iw >= IW) continue;
+                if (id < 0 || id >= ID) continue;
+                if (ih < 0 || ih >= IH) continue;
+                if (iw < 0 || iw >= IW) continue;
 
-                        size_t src_offset_init = strided_offset(mb,
-                                src_n_stride, id, src_d_stride, ih,
-                                src_h_stride, iw, src_w_stride);
+                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
+                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
 
-                        if (!ws)
-                            array_nhwc_max<false>(OC, dst + dst_offset_init,
-                                    src + src_offset_init, ws, ws_offset_init,
-                                    ws_dt, kd * KH * KW + kh * KW + kw);
-                        else
-                            array_nhwc_max<true>(OC, dst + dst_offset_init,
-                                    src + src_offset_init, ws, ws_offset_init,
-                                    ws_dt, kd * KH * KW + kh * KW + kw);
-                    }
+                if (!ws)
+                    array_nhwc_max<false>(OC, dst + dst_offset_init,
+                            src + src_offset_init, ws, ws_offset_init, ws_dt,
+                            kd * KH * KW + kh * KW + kw);
+                else
+                    array_nhwc_max<true>(OC, dst + dst_offset_init,
+                            src + src_offset_init, ws, ws_offset_init, ws_dt,
+                            kd * KH * KW + kh * KW + kw);
+            }
         } else {
             // pooling_avg
             auto d = dst + dst_offset_init;
@@ -174,20 +173,19 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             // as the typical kernel is small
             size_t num_summands = 0;
 
-            for (int id = id_start; id < id_end; ++id)
-                for (int ih = ih_start; ih < ih_end; ++ih)
-                    for (int iw = iw_start; iw < iw_end; ++iw) {
-                        size_t src_offset_init = strided_offset(mb,
-                                src_n_stride, id, src_d_stride, ih,
-                                src_h_stride, iw, src_w_stride);
-                        auto s = src + src_offset_init;
+            for_(int id = id_start; id < id_end; ++id)
+            for_(int ih = ih_start; ih < ih_end; ++ih)
+            for (int iw = iw_start; iw < iw_end; ++iw) {
+                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
+                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
+                auto s = src + src_offset_init;
 
-                        // need to move the loop to separate function
-                        // for GCC 4.8.5 to vectorize
-                        array_add(OC, s, d);
+                // need to move the loop to separate function
+                // for GCC 4.8.5 to vectorize
+                array_add(OC, s, d);
 
-                        num_summands++;
-                    }
+                num_summands++;
+            }
 
             num_summands = (alg == alg_kind::pooling_avg_include_padding)
                     ? KW * KH * KD
@@ -273,33 +271,29 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                 array_nhwc_initialize<true>(
                         OC, dst_f32, ws, ws_offset_init, ws_dt);
 
-            for (int kd = 0; kd < KD; ++kd)
-                for (int kh = 0; kh < KH; ++kh)
-                    for (int kw = 0; kw < KW; ++kw) {
-                        const int id = od * SD - padF + kd;
-                        const int ih = oh * SH - padT + kh;
-                        const int iw = ow * SW - padL + kw;
+            for_(int kd = 0; kd < KD; ++kd)
+            for_(int kh = 0; kh < KH; ++kh)
+            for (int kw = 0; kw < KW; ++kw) {
+                const int id = od * SD - padF + kd;
+                const int ih = oh * SH - padT + kh;
+                const int iw = ow * SW - padL + kw;
 
-                        if (id < 0 || id >= ID) continue;
-                        if (ih < 0 || ih >= IH) continue;
-                        if (iw < 0 || iw >= IW) continue;
+                if (id < 0 || id >= ID) continue;
+                if (ih < 0 || ih >= IH) continue;
+                if (iw < 0 || iw >= IW) continue;
 
-                        size_t src_offset_init = strided_offset(mb,
-                                src_n_stride, id, src_d_stride, ih,
-                                src_h_stride, iw, src_w_stride);
+                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
+                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
 
-                        cvt_bfloat16_to_float(
-                                src_f32, &src[src_offset_init], OC);
+                cvt_bfloat16_to_float(src_f32, &src[src_offset_init], OC);
 
-                        if (!ws)
-                            array_nhwc_max<false>(OC, dst_f32, src_f32, ws,
-                                    ws_offset_init, ws_dt,
-                                    kd * KH * KW + kh * KW + kw);
-                        else
-                            array_nhwc_max<true>(OC, dst_f32, src_f32, ws,
-                                    ws_offset_init, ws_dt,
-                                    kd * KH * KW + kh * KW + kw);
-                    }
+                if (!ws)
+                    array_nhwc_max<false>(OC, dst_f32, src_f32, ws,
+                            ws_offset_init, ws_dt, kd * KH * KW + kh * KW + kw);
+                else
+                    array_nhwc_max<true>(OC, dst_f32, src_f32, ws,
+                            ws_offset_init, ws_dt, kd * KH * KW + kh * KW + kw);
+            }
             cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
         } else {
             // pooling_avg
@@ -320,20 +314,18 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
             // as the typical kernel is small
             size_t num_summands = 0;
 
-            for (int id = id_start; id < id_end; ++id)
-                for (int ih = ih_start; ih < ih_end; ++ih)
-                    for (int iw = iw_start; iw < iw_end; ++iw) {
-                        size_t src_offset_init = strided_offset(mb,
-                                src_n_stride, id, src_d_stride, ih,
-                                src_h_stride, iw, src_w_stride);
-                        cvt_bfloat16_to_float(
-                                src_f32, &src[src_offset_init], OC);
+            for_(int id = id_start; id < id_end; ++id)
+            for_(int ih = ih_start; ih < ih_end; ++ih)
+            for (int iw = iw_start; iw < iw_end; ++iw) {
+                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
+                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
+                cvt_bfloat16_to_float(src_f32, &src[src_offset_init], OC);
 
-                        // need to move the loop to separate function
-                        // for GCC 4.8.5 to vectorize
-                        array_add(OC, src_f32, dst_f32);
-                        num_summands++;
-                    }
+                // need to move the loop to separate function
+                // for GCC 4.8.5 to vectorize
+                array_add(OC, src_f32, dst_f32);
+                num_summands++;
+            }
 
             num_summands = (alg == alg_kind::pooling_avg_include_padding)
                     ? KW * KH * KD
@@ -410,78 +402,73 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         int oh_right = min((ih + padT) / SH + 1, OH);
         int ow_right = min((iw + padL) / SW + 1, OW);
 
-        for (int od = od_left; od < od_right; ++od)
-            for (int oh = oh_left; oh < oh_right; ++oh)
-                for (int ow = ow_left; ow < ow_right; ++ow) {
-                    const int kd = id - od * SD + padF;
-                    const int kh = ih - oh * SH + padT;
-                    const int kw = iw - ow * SW + padL;
+        for_(int od = od_left; od < od_right; ++od)
+        for_(int oh = oh_left; oh < oh_right; ++oh)
+        for (int ow = ow_left; ow < ow_right; ++ow) {
+            const int kd = id - od * SD + padF;
+            const int kh = ih - oh * SH + padT;
+            const int kw = iw - ow * SW + padL;
 
-                    if (kd < 0 || kd >= KD) continue;
-                    if (kh < 0 || kh >= KH) continue;
-                    if (kw < 0 || kw >= KW) continue;
+            if (kd < 0 || kd >= KD) continue;
+            if (kh < 0 || kh >= KH) continue;
+            if (kw < 0 || kw >= KW) continue;
 
-                    size_t dst_offset_init = strided_offset(mb,
-                            diff_dst_n_stride, od, diff_dst_d_stride, oh,
-                            diff_dst_h_stride, ow, diff_dst_w_stride);
+            size_t dst_offset_init = strided_offset(mb, diff_dst_n_stride, od,
+                    diff_dst_d_stride, oh, diff_dst_h_stride, ow,
+                    diff_dst_w_stride);
 
-                    if (alg == alg_kind::pooling_max) {
-                        DECLARE_READ_STRIDES(ws);
-                        size_t ws_offset_init = strided_offset(mb, ws_n_stride,
-                                od, ws_d_stride, oh, ws_h_stride, ow,
-                                ws_w_stride);
-                        const int index = kd * KH * KW + kh * KW + kw;
+            if (alg == alg_kind::pooling_max) {
+                DECLARE_READ_STRIDES(ws);
+                size_t ws_offset_init = strided_offset(mb, ws_n_stride, od,
+                        ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
+                const int index = kd * KH * KW + kh * KW + kw;
 
-                        PRAGMA_OMP_SIMD()
-                        for (int oc = 0; oc < OC; ++oc) {
-                            const int index_from_ws
-                                    = (MEM_D(ws).data_type() == data_type::u8)
-                                    ? (int)ws[ws_offset_init + oc]
-                                    : ((int *)ws)[ws_offset_init + oc];
+                PRAGMA_OMP_SIMD()
+                for (int oc = 0; oc < OC; ++oc) {
+                    const int index_from_ws
+                            = (MEM_D(ws).data_type() == data_type::u8)
+                            ? (int)ws[ws_offset_init + oc]
+                            : ((int *)ws)[ws_offset_init + oc];
 
-                            const data_t d = diff_dst[dst_offset_init + oc];
+                    const data_t d = diff_dst[dst_offset_init + oc];
 
-                            // Check if kernel windows are disjoint, in this case
-                            // there's no update needed and we just write there once
-                            // otherwise we add value to the contents.
-                            auto value = (index_from_ws == index)
-                                    ? d
-                                    : data_type_t(0);
-                            if (!(KD == SD && KH == SH && KW == SW))
-                                diff_src[src_offset_init + oc] += value;
-                            else
-                                diff_src[src_offset_init + oc] = value;
-                        }
-                    } else {
-                        // pooling_avg
-                        auto id_start = apply_offset(od * SD, padF);
-                        auto ih_start = apply_offset(oh * SH, padT);
-                        auto iw_start = apply_offset(ow * SW, padL);
-                        auto id_end = min(od * SD - padF + KD, ID);
-                        auto ih_end = min(oh * SH - padT + KH, IH);
-                        auto iw_end = min(ow * SW - padL + KW, IW);
-
-                        auto num_summands
-                                = (alg == alg_kind::pooling_avg_include_padding)
-                                ? KW * KH * KD
-                                : (ih_end - ih_start) * (iw_end - iw_start)
-                                        * (id_end - id_start);
-
-                        PRAGMA_OMP_SIMD()
-                        for (int oc = 0; oc < OC; ++oc) {
-                            const data_t d = diff_dst[dst_offset_init + oc];
-                            // Check if kernel windows are disjoint, in this case
-                            // there's no update needed and we just write there once
-                            // otherwise we add value to the contents.
-                            if (!(KD == SD && KH == SH && KW == SW))
-                                diff_src[src_offset_init + oc]
-                                        += d / num_summands;
-                            else
-                                diff_src[src_offset_init + oc]
-                                        = d / num_summands;
-                        }
-                    }
+                    // Check if kernel windows are disjoint, in this case
+                    // there's no update needed and we just write there once
+                    // otherwise we add value to the contents.
+                    auto value = (index_from_ws == index) ? d : data_type_t(0);
+                    if (!(KD == SD && KH == SH && KW == SW))
+                        diff_src[src_offset_init + oc] += value;
+                    else
+                        diff_src[src_offset_init + oc] = value;
                 }
+            } else {
+                // pooling_avg
+                auto id_start = apply_offset(od * SD, padF);
+                auto ih_start = apply_offset(oh * SH, padT);
+                auto iw_start = apply_offset(ow * SW, padL);
+                auto id_end = min(od * SD - padF + KD, ID);
+                auto ih_end = min(oh * SH - padT + KH, IH);
+                auto iw_end = min(ow * SW - padL + KW, IW);
+
+                auto num_summands
+                        = (alg == alg_kind::pooling_avg_include_padding)
+                        ? KW * KH * KD
+                        : (ih_end - ih_start) * (iw_end - iw_start)
+                                * (id_end - id_start);
+
+                PRAGMA_OMP_SIMD()
+                for (int oc = 0; oc < OC; ++oc) {
+                    const data_t d = diff_dst[dst_offset_init + oc];
+                    // Check if kernel windows are disjoint, in this case
+                    // there's no update needed and we just write there once
+                    // otherwise we add value to the contents.
+                    if (!(KD == SD && KH == SH && KW == SW))
+                        diff_src[src_offset_init + oc] += d / num_summands;
+                    else
+                        diff_src[src_offset_init + oc] = d / num_summands;
+                }
+            }
+        }
     });
 }
 
@@ -560,79 +547,75 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         int oh_right = min((ih + padT) / SH + 1, OH);
         int ow_right = min((iw + padL) / SW + 1, OW);
 
-        for (int od = od_left; od < od_right; ++od)
-            for (int oh = oh_left; oh < oh_right; ++oh)
-                for (int ow = ow_left; ow < ow_right; ++ow) {
-                    const int kd = id - od * SD + padF;
-                    const int kh = ih - oh * SH + padT;
-                    const int kw = iw - ow * SW + padL;
+        for_(int od = od_left; od < od_right; ++od)
+        for_(int oh = oh_left; oh < oh_right; ++oh)
+        for (int ow = ow_left; ow < ow_right; ++ow) {
+            const int kd = id - od * SD + padF;
+            const int kh = ih - oh * SH + padT;
+            const int kw = iw - ow * SW + padL;
 
-                    if (kd < 0 || kd >= KD) continue;
-                    if (kh < 0 || kh >= KH) continue;
-                    if (kw < 0 || kw >= KW) continue;
+            if (kd < 0 || kd >= KD) continue;
+            if (kh < 0 || kh >= KH) continue;
+            if (kw < 0 || kw >= KW) continue;
 
-                    size_t dst_offset_init = strided_offset(mb,
-                            diff_dst_n_stride, od, diff_dst_d_stride, oh,
-                            diff_dst_h_stride, ow, diff_dst_w_stride);
-                    cvt_bfloat16_to_float(
-                            diff_dst_fp32, &diff_dst[dst_offset_init], OC);
+            size_t dst_offset_init = strided_offset(mb, diff_dst_n_stride, od,
+                    diff_dst_d_stride, oh, diff_dst_h_stride, ow,
+                    diff_dst_w_stride);
+            cvt_bfloat16_to_float(
+                    diff_dst_fp32, &diff_dst[dst_offset_init], OC);
 
-                    if (alg == alg_kind::pooling_max) {
-                        DECLARE_READ_STRIDES(ws);
-                        size_t ws_offset_init = strided_offset(mb, ws_n_stride,
-                                od, ws_d_stride, oh, ws_h_stride, ow,
-                                ws_w_stride);
-                        const int index = kd * KH * KW + kh * KW + kw;
+            if (alg == alg_kind::pooling_max) {
+                DECLARE_READ_STRIDES(ws);
+                size_t ws_offset_init = strided_offset(mb, ws_n_stride, od,
+                        ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
+                const int index = kd * KH * KW + kh * KW + kw;
 
-                        PRAGMA_OMP_SIMD()
-                        for (int oc = 0; oc < OC; ++oc) {
-                            const int index_from_ws
-                                    = (MEM_D(ws).data_type() == data_type::u8)
-                                    ? (int)ws[ws_offset_init + oc]
-                                    : ((int *)ws)[ws_offset_init + oc];
+                PRAGMA_OMP_SIMD()
+                for (int oc = 0; oc < OC; ++oc) {
+                    const int index_from_ws
+                            = (MEM_D(ws).data_type() == data_type::u8)
+                            ? (int)ws[ws_offset_init + oc]
+                            : ((int *)ws)[ws_offset_init + oc];
 
-                            // Check if kernel windows are disjoint, in this case
-                            // there's no update needed and we just write there once
-                            // otherwise we add value to the contents.
-                            float value = (index_from_ws == index)
-                                    ? diff_dst_fp32[oc]
-                                    : 0.0f;
-                            if (!(KD == SD && KH == SH && KW == SW))
-                                diff_src_fp32[oc] += value;
-                            else
-                                diff_src_fp32[oc] = value;
-                        }
-                    } else {
-                        // pooling_avg
-                        auto id_start = apply_offset(od * SD, padF);
-                        auto ih_start = apply_offset(oh * SH, padT);
-                        auto iw_start = apply_offset(ow * SW, padL);
-                        auto id_end = min(od * SD - padF + KD, ID);
-                        auto ih_end = min(oh * SH - padT + KH, IH);
-                        auto iw_end = min(ow * SW - padL + KW, IW);
-
-                        auto num_summands
-                                = (alg == alg_kind::pooling_avg_include_padding)
-                                ? KW * KH * KD
-                                : (ih_end - ih_start) * (iw_end - iw_start)
-                                        * (id_end - id_start);
-
-                        PRAGMA_OMP_SIMD()
-                        for (int oc = 0; oc < OC; ++oc) {
-                            // Check if kernel windows are disjoint, in this case
-                            // there's no update needed and we just write there once
-                            // otherwise we add value to the contents.
-                            if (!(KD == SD && KH == SH && KW == SW))
-                                diff_src_fp32[oc]
-                                        += diff_dst_fp32[oc] / num_summands;
-                            else
-                                diff_src_fp32[oc]
-                                        = diff_dst_fp32[oc] / num_summands;
-                        }
-                    }
-                    cvt_float_to_bfloat16(
-                            &diff_src[src_offset_init], diff_src_fp32, OC);
+                    // Check if kernel windows are disjoint, in this case
+                    // there's no update needed and we just write there once
+                    // otherwise we add value to the contents.
+                    float value = (index_from_ws == index) ? diff_dst_fp32[oc]
+                                                           : 0.0f;
+                    if (!(KD == SD && KH == SH && KW == SW))
+                        diff_src_fp32[oc] += value;
+                    else
+                        diff_src_fp32[oc] = value;
                 }
+            } else {
+                // pooling_avg
+                auto id_start = apply_offset(od * SD, padF);
+                auto ih_start = apply_offset(oh * SH, padT);
+                auto iw_start = apply_offset(ow * SW, padL);
+                auto id_end = min(od * SD - padF + KD, ID);
+                auto ih_end = min(oh * SH - padT + KH, IH);
+                auto iw_end = min(ow * SW - padL + KW, IW);
+
+                auto num_summands
+                        = (alg == alg_kind::pooling_avg_include_padding)
+                        ? KW * KH * KD
+                        : (ih_end - ih_start) * (iw_end - iw_start)
+                                * (id_end - id_start);
+
+                PRAGMA_OMP_SIMD()
+                for (int oc = 0; oc < OC; ++oc) {
+                    // Check if kernel windows are disjoint, in this case
+                    // there's no update needed and we just write there once
+                    // otherwise we add value to the contents.
+                    if (!(KD == SD && KH == SH && KW == SW))
+                        diff_src_fp32[oc] += diff_dst_fp32[oc] / num_summands;
+                    else
+                        diff_src_fp32[oc] = diff_dst_fp32[oc] / num_summands;
+                }
+            }
+            cvt_float_to_bfloat16(
+                    &diff_src[src_offset_init], diff_src_fp32, OC);
+        }
     });
 }
 
@@ -645,4 +628,4 @@ template struct nhwc_pooling_bwd_t<data_type::bf16>;
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

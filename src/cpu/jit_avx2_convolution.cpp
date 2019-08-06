@@ -195,62 +195,58 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
         nd_iterator_init(start, n, jcp.mb, g, jcp.ngroups, icbb, icb_work, ihb,
                 num_ih_blocks);
         for (size_t iwork = start; iwork < end; ++iwork) {
-            for (int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
-                for (int id = 0; id < jcp.id; ++id) {
-                    auto par_conv = jit_conv_call_s();
+            for_(int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
+            for (int id = 0; id < jcp.id; ++id) {
+                auto par_conv = jit_conv_call_s();
 
-                    const int idp = jcp.id + 2 * jcp.f_pad;
-                    const int d_t_overflow
-                            = nstl::max(0, jcp.kd - 1 - id - jcp.f_pad);
-                    const int back_pad = idp - jcp.id - jcp.f_pad;
-                    const int d_b_overflow = nstl::max(
-                            0, jcp.kd - 1 - (jcp.id - 1 - id) - back_pad);
-                    const int od = id + jcp.f_pad - d_b_overflow;
+                const int idp = jcp.id + 2 * jcp.f_pad;
+                const int d_t_overflow
+                        = nstl::max(0, jcp.kd - 1 - id - jcp.f_pad);
+                const int back_pad = idp - jcp.id - jcp.f_pad;
+                const int d_b_overflow = nstl::max(
+                        0, jcp.kd - 1 - (jcp.id - 1 - id) - back_pad);
+                const int od = id + jcp.f_pad - d_b_overflow;
 
-                    int ih_start = ihb * ih_block_size;
-                    int ih_end = nstl::min(jcp.ih, ih_start + ih_block_size);
-                    for (int ih = ih_start; ih < ih_end; ++ih) {
+                int ih_start = ihb * ih_block_size;
+                int ih_end = nstl::min(jcp.ih, ih_start + ih_block_size);
+                for (int ih = ih_start; ih < ih_end; ++ih) {
 
-                        const int i_t_overflow = nstl::max(0,
-                                (jcp.kh - 1 - ih - jcp.t_pad) / jcp.stride_h);
-                        const int i_b_overflow = nstl::max(0,
-                                (jcp.kh - jcp.ih + ih - jcp.b_pad)
-                                        / jcp.stride_h);
-                        int overflow_kh_hi = jcp.kh - 1
-                                - abs((jcp.ih - 1 + jcp.b_pad - ih)
-                                        % jcp.stride_h);
-                        int overflow_kh_lo = (ih + jcp.t_pad) % jcp.stride_h;
+                    const int i_t_overflow = nstl::max(
+                            0, (jcp.kh - 1 - ih - jcp.t_pad) / jcp.stride_h);
+                    const int i_b_overflow = nstl::max(0,
+                            (jcp.kh - jcp.ih + ih - jcp.b_pad) / jcp.stride_h);
+                    int overflow_kh_hi = jcp.kh - 1
+                            - abs((jcp.ih - 1 + jcp.b_pad - ih) % jcp.stride_h);
+                    int overflow_kh_lo = (ih + jcp.t_pad) % jcp.stride_h;
 
-                        par_conv.kd_padding
-                                = jcp.kd - d_t_overflow - d_b_overflow;
-                        par_conv.kh_padding = (overflow_kh_hi - overflow_kh_lo)
-                                        / jcp.stride_h
-                                + 1 - i_t_overflow - i_b_overflow;
-                        par_conv.kw_padding = 0;
+                    par_conv.kd_padding = jcp.kd - d_t_overflow - d_b_overflow;
+                    par_conv.kh_padding
+                            = (overflow_kh_hi - overflow_kh_lo) / jcp.stride_h
+                            + 1 - i_t_overflow - i_b_overflow;
+                    par_conv.kw_padding = 0;
 
-                        const int k_lo
-                                = overflow_kh_lo + i_b_overflow * jcp.stride_h;
-                        const int oh = (ih + jcp.t_pad - k_lo) / jcp.stride_h;
+                    const int k_lo
+                            = overflow_kh_lo + i_b_overflow * jcp.stride_h;
+                    const int oh = (ih + jcp.t_pad - k_lo) / jcp.stride_h;
 
-                        par_conv.src = &diff_src[src_blk_off(diff_src_d, n,
-                                g * jcp.nb_ic + jcp.nb_ic_blocking * icbb, id,
-                                ih, 0)];
-                        par_conv.dst = &diff_dst[src_blk_off(
-                                diff_dst_d, n, g * jcp.nb_oc + oc, od, oh, 0)];
-                        par_conv.filt = &weights[wht_blk_off(weights_d, g, oc,
-                                jcp.nb_ic_blocking * icbb, d_b_overflow, k_lo,
-                                0)];
+                    par_conv.src = &diff_src[src_blk_off(diff_src_d, n,
+                            g * jcp.nb_ic + jcp.nb_ic_blocking * icbb, id, ih,
+                            0)];
+                    par_conv.dst = &diff_dst[src_blk_off(
+                            diff_dst_d, n, g * jcp.nb_oc + oc, od, oh, 0)];
+                    par_conv.filt = &weights[wht_blk_off(weights_d, g, oc,
+                            jcp.nb_ic_blocking * icbb, d_b_overflow, k_lo, 0)];
 
-                        par_conv.src_prf = nullptr;
-                        par_conv.dst_prf = nullptr;
-                        par_conv.filt_prf = nullptr;
-                        par_conv.channel = oc;
-                        par_conv.ch_blocks
-                                = nstl::min(jcp.nb_oc - oc, jcp.nb_oc_blocking);
+                    par_conv.src_prf = nullptr;
+                    par_conv.dst_prf = nullptr;
+                    par_conv.filt_prf = nullptr;
+                    par_conv.channel = oc;
+                    par_conv.ch_blocks
+                            = nstl::min(jcp.nb_oc - oc, jcp.nb_oc_blocking);
 
-                        kernel_->jit_ker(&par_conv);
-                    }
+                    kernel_->jit_ker(&par_conv);
                 }
+            }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups, icbb, icb_work, ihb,
                     num_ih_blocks);
         }
@@ -439,4 +435,4 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
 } // namespace impl
 } // namespace mkldnn
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

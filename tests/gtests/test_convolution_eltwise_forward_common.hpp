@@ -56,30 +56,26 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                 dst_data[didx] = bias_data ? bias_data[g * c.oc / c.ng + oc]
                                            : data_t_dst {0};
 
-                for (memory::dim ic = 0; ic < c.ic / c.ng; ic++)
-                    for (memory::dim kh = 0; kh < c.kh; kh++)
-                        for (memory::dim kw = 0; kw < c.kw; kw++) {
-                            memory::dim ih
-                                    = oh * c.strh - c.padh + kh * (1 + c.dilh);
-                            if (ih < 0 || ih >= c.ih) continue;
-                            memory::dim iw
-                                    = ow * c.strw - c.padw + kw * (1 + c.dilw);
-                            if (iw < 0 || iw >= c.iw) continue;
+                for_(memory::dim ic = 0; ic < c.ic / c.ng; ic++)
+                for_(memory::dim kh = 0; kh < c.kh; kh++)
+                for (memory::dim kw = 0; kw < c.kw; kw++) {
+                    memory::dim ih = oh * c.strh - c.padh + kh * (1 + c.dilh);
+                    if (ih < 0 || ih >= c.ih) continue;
+                    memory::dim iw = ow * c.strw - c.padw + kw * (1 + c.dilw);
+                    if (iw < 0 || iw >= c.iw) continue;
 
-                            memory::dim iidx = n * padded_ic * c.ih * c.iw
-                                    + g * padded_ic / c.ng * c.ih * c.iw
-                                    + ic * c.ih * c.iw + ih * c.iw + iw;
-                            memory::dim widx = 0
-                                    + g * padded_oc / c.ng * padded_ic / c.ng
-                                            * c.kh * c.kw
-                                    + oc * padded_ic / c.ng * c.kh * c.kw
-                                    + ic * c.kh * c.kw + kh * c.kw + kw;
+                    memory::dim iidx = n * padded_ic * c.ih * c.iw
+                            + g * padded_ic / c.ng * c.ih * c.iw
+                            + ic * c.ih * c.iw + ih * c.iw + iw;
+                    memory::dim widx = 0
+                            + g * padded_oc / c.ng * padded_ic / c.ng * c.kh
+                                    * c.kw
+                            + oc * padded_ic / c.ng * c.kh * c.kw
+                            + ic * c.kh * c.kw + kh * c.kw + kw;
 
-                            dst_data[didx]
-                                    += src_data[src_mdw.off_l(iidx, true)]
-                                    * weights_data[weights_mdw.off_l(
-                                            widx, true)];
-                        }
+                    dst_data[didx] += src_data[src_mdw.off_l(iidx, true)]
+                            * weights_data[weights_mdw.off_l(widx, true)];
+                }
 
                 auto &d = dst_data[didx];
                 switch (elt_alg) {

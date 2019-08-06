@@ -19,8 +19,8 @@
 
 #include "mkldnn.h"
 
-#include <CL/cl.h>
 #include <string>
+#include <CL/cl.h>
 
 namespace mkldnn {
 namespace {
@@ -36,8 +36,8 @@ struct ocl_engine_test_params {
     mkldnn_status_t expected_status;
 };
 
-class ocl_engine_test : public ::testing::TestWithParam<ocl_engine_test_params>
-{
+class ocl_engine_test
+    : public ::testing::TestWithParam<ocl_engine_test_params> {
 protected:
     virtual void SetUp() {
         gpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_GPU);
@@ -58,12 +58,8 @@ protected:
     }
 
     virtual void TearDown() {
-        if (gpu_ocl_ctx) {
-            clReleaseContext(gpu_ocl_ctx);
-        }
-        if (cpu_ocl_ctx) {
-            clReleaseContext(cpu_ocl_ctx);
-        }
+        if (gpu_ocl_ctx) { clReleaseContext(gpu_ocl_ctx); }
+        if (cpu_ocl_ctx) { clReleaseContext(cpu_ocl_ctx); }
     }
 
     cl_context gpu_ocl_ctx = nullptr;
@@ -75,13 +71,13 @@ protected:
 
 TEST_P(ocl_engine_test, BasicInteropC) {
     auto p = GetParam();
-    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu) ?
-            gpu_ocl_dev :
-            (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
+            ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
 
-    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu) ?
-            gpu_ocl_ctx :
-            (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
+            ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
 
     SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
             "Required OpenCL device not found.");
@@ -89,7 +85,7 @@ TEST_P(ocl_engine_test, BasicInteropC) {
             "Required OpenCL context not found.");
     SKIP_IF(cpu_ocl_dev == gpu_ocl_dev
                     && (p.adev_kind == dev_kind::cpu
-                               || p.actx_kind == ctx_kind::cpu),
+                            || p.actx_kind == ctx_kind::cpu),
             "OpenCL CPU-only device not found.");
 
     mkldnn_engine_t eng;
@@ -126,13 +122,13 @@ TEST_P(ocl_engine_test, BasicInteropC) {
 
 TEST_P(ocl_engine_test, BasicInteropCpp) {
     auto p = GetParam();
-    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu) ?
-            gpu_ocl_dev :
-            (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
+            ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
 
-    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu) ?
-            gpu_ocl_ctx :
-            (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
+            ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
 
     SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
             "Required OpenCL device not found.");
@@ -140,7 +136,7 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
             "Required OpenCL context not found.");
     SKIP_IF(cpu_ocl_dev == gpu_ocl_dev
                     && (p.adev_kind == dev_kind::cpu
-                               || p.actx_kind == ctx_kind::cpu),
+                            || p.actx_kind == ctx_kind::cpu),
             "OpenCL CPU-only device not found.");
 
     catch_expected_failures(
@@ -174,17 +170,17 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Simple, ocl_engine_test,
-        ::testing::Values(ocl_engine_test_params{
-                dev_kind::gpu, ctx_kind::gpu, mkldnn_success }));
+        ::testing::Values(ocl_engine_test_params {
+                dev_kind::gpu, ctx_kind::gpu, mkldnn_success}));
 
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, ocl_engine_test,
-        ::testing::Values(ocl_engine_test_params{ dev_kind::cpu, ctx_kind::cpu,
-                                  mkldnn_invalid_arguments },
-                ocl_engine_test_params{ dev_kind::gpu, ctx_kind::cpu,
-                        mkldnn_invalid_arguments },
-                ocl_engine_test_params{ dev_kind::null, ctx_kind::gpu,
-                        mkldnn_invalid_arguments },
-                ocl_engine_test_params{ dev_kind::gpu, ctx_kind::null,
-                        mkldnn_invalid_arguments }));
+        ::testing::Values(ocl_engine_test_params {dev_kind::cpu, ctx_kind::cpu,
+                                  mkldnn_invalid_arguments},
+                ocl_engine_test_params {
+                        dev_kind::gpu, ctx_kind::cpu, mkldnn_invalid_arguments},
+                ocl_engine_test_params {dev_kind::null, ctx_kind::gpu,
+                        mkldnn_invalid_arguments},
+                ocl_engine_test_params {dev_kind::gpu, ctx_kind::null,
+                        mkldnn_invalid_arguments}));
 
 } // namespace mkldnn

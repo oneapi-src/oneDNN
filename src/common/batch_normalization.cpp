@@ -97,4 +97,4 @@ status_t mkldnn_batch_normalization_backward_desc_init(
             bnrm_desc, prop_kind, data_desc, diff_data_desc, epsilon, flags);
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

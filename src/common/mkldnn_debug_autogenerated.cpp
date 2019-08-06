@@ -16,6 +16,8 @@
 
 // DO NOT EDIT, AUTO-GENERATED
 
+// clang-format off
+
 #include <assert.h>
 
 #include "mkldnn_debug.h"

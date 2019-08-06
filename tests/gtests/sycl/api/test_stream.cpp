@@ -19,20 +19,17 @@
 
 #include "mkldnn.h"
 
+#include <memory>
 #include <CL/cl.h>
 #include <CL/sycl.hpp>
-#include <memory>
 
 using namespace cl::sycl;
 
 namespace mkldnn {
-class sycl_stream_test : public ::testing::Test
-{
+class sycl_stream_test : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) {
-            return;
-        }
+        if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         eng.reset(new engine(engine::kind::gpu, 0));
         dev.reset(new device(eng->get_sycl_device()));
@@ -99,7 +96,7 @@ TEST_F(sycl_stream_test, InteropIncompatibleQueue) {
     cl_device_id cpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_CPU);
     SKIP_IF(!cpu_ocl_dev, "CPU device not found.");
 
-    queue cpu_sycl_queue(cpu_selector{});
+    queue cpu_sycl_queue(cpu_selector {});
     SKIP_IF(cpu_sycl_queue.get_device().is_gpu(), "CPU-only device not found");
 
     catch_expected_failures([&] { stream s(*eng, cpu_sycl_queue); }, true,

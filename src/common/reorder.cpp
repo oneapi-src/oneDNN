@@ -81,4 +81,4 @@ status_t mkldnn_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
     return unimplemented;
 }
 
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -17,8 +17,8 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
 
 #include "mkldnn.h"
@@ -34,8 +34,8 @@ static inline std::string get_pattern(const std::string &option_name) {
 }
 
 template <typename T, typename F>
-static bool parse_vector_str(T &vec, F process_func, const char *str,
-        char delimeter = ',') {
+static bool parse_vector_str(
+        T &vec, F process_func, const char *str, char delimeter = ',') {
     const std::string s = str;
     vec.clear();
     for (size_t start = 0, delim = 0; delim != eol; start = delim + 1) {
@@ -112,8 +112,8 @@ bool parse_multi_tag(std::vector<std::vector<mkldnn_format_tag_t>> &tag,
 bool parse_mb(std::vector<int64_t> &mb, const char *str,
         const std::string &option_name = "mb");
 
-bool parse_attr(attr_t &attr, const char *str,
-        const std::string &option_name = "attr");
+bool parse_attr(
+        attr_t &attr, const char *str, const std::string &option_name = "attr");
 
 bool parse_axis(std::vector<int> &axis, const char *str,
         const std::string &option_name = "axis");
@@ -152,6 +152,6 @@ void parse_multi_dims(std::vector<dims_t> &dims, const char *str);
 void catch_unknown_options(const char *str, const char *driver_name);
 
 int parse_last_argument();
-}
+} // namespace parser
 
 #endif

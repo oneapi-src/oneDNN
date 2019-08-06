@@ -47,6 +47,8 @@ def banner(year_from):
 
 // DO NOT EDIT, AUTO-GENERATED
 
+// clang-format off
+
 ''' % banner_year
 
 

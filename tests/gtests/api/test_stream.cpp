@@ -23,8 +23,8 @@
 
 namespace mkldnn {
 
-static bool are_valid_flags(mkldnn_engine_kind_t engine_kind,
-        mkldnn_stream_flags_t stream_flags) {
+static bool are_valid_flags(
+        mkldnn_engine_kind_t engine_kind, mkldnn_stream_flags_t stream_flags) {
     bool ok = true;
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
     if (engine_kind == mkldnn_gpu
@@ -41,14 +41,12 @@ static bool are_valid_flags(mkldnn_engine_kind_t engine_kind,
 
 class stream_test_c
     : public ::testing::TestWithParam<
-              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>>
-{
+              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>> {
 protected:
     void SetUp() override {
         std::tie(eng_kind, stream_flags) = GetParam();
 
-        if (mkldnn_engine_get_count(eng_kind) == 0)
-            return;
+        if (mkldnn_engine_get_count(eng_kind) == 0) return;
 
         MKLDNN_CHECK(mkldnn_engine_create(&engine, eng_kind, 0));
 
@@ -63,12 +61,8 @@ protected:
     }
 
     void TearDown() override {
-        if (stream) {
-            MKLDNN_CHECK(mkldnn_stream_destroy(stream));
-        }
-        if (engine) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(engine));
-        }
+        if (stream) { MKLDNN_CHECK(mkldnn_stream_destroy(stream)); }
+        if (engine) { MKLDNN_CHECK(mkldnn_engine_destroy(engine)); }
     }
 
     mkldnn_engine_kind_t eng_kind;
@@ -80,9 +74,7 @@ protected:
 
 class stream_test_cpp
     : public ::testing::TestWithParam<
-              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>>
-{
-};
+              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>> {};
 
 TEST_P(stream_test_c, Create) {
     SKIP_IF(!engine, "Engines not found or stream flags are incompatible.");
@@ -112,8 +104,7 @@ TEST_P(stream_test_cpp, Wait) {
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engines not found.");
 
     engine eng(eng_kind, 0);
-    SKIP_IF(!are_valid_flags(
-                    static_cast<mkldnn_engine_kind_t>(eng.get_kind()),
+    SKIP_IF(!are_valid_flags(static_cast<mkldnn_engine_kind_t>(eng.get_kind()),
                     stream_flags_c),
             "Incompatible stream flags.");
 

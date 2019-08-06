@@ -75,8 +75,6 @@ namespace cpu {
 
 namespace rnn_utils {
 
-using namespace mkldnn::impl::utils;
-
 enum execution_direction_t {
     l2r,
     r2l,
