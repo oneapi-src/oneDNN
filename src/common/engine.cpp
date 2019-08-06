@@ -18,7 +18,9 @@
 
 #include "engine.hpp"
 #include "mkldnn.h"
+#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
+#include "primitive.hpp"
 
 #include "c_types_map.hpp"
 #include "utils.hpp"
@@ -60,6 +62,11 @@ static inline backend_kind_t get_default_backend(engine_kind_t kind) {
 using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
+
+// XXX: allows to have threading related functions in a limited scope
+int mkldnn_engine::mkldnn_get_max_threads() {
+    return ::mkldnn_get_max_threads();
+}
 
 size_t mkldnn_engine_get_count(engine_kind_t kind) {
     auto ef = get_engine_factory(kind, get_default_backend(kind));

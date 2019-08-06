@@ -192,18 +192,10 @@ protected:
         return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
     } \
     virtual status_t create_primitive(primitive_t **p) const override { \
-        double ms = get_msec(); \
-        auto status = safe_ptr_assign<primitive_t>(*p, \
-                new primitive_t(std::make_shared<__VA_ARGS__>(this), false)); \
-        if (status != status::success) return status; \
-        status = (*p)->init(); \
-        if (status != status::success) return status; \
-        ms = get_msec() - ms; \
-        if (mkldnn_verbose()->level >= 2) { \
-            printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \
-            fflush(0); \
-        } \
-        return status::success; \
+        auto status = this->engine()->get_primitive( \
+                p, this, [=] { return std::make_shared<__VA_ARGS__>(this); }, \
+                false); \
+        return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual const char *name() const override { return impl_name; }

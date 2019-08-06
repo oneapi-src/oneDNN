@@ -17,6 +17,8 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
+#include <mutex>
+
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
@@ -120,10 +122,82 @@ struct mkldnn_engine : public mkldnn::impl::c_compatible {
      * NULL-terminated list */
     virtual const primitive_desc_create_f *get_implementation_list() const = 0;
 
+    template <typename F>
+    mkldnn::impl::status_t get_primitive(mkldnn::impl::primitive_t **primitive,
+            const mkldnn::impl::primitive_desc_t *pd,
+            const F &create_primitive_impl, bool use_global_scratchpad) {
+        double ms = mkldnn::impl::get_msec();
+
+        // create a key for the requested primitive
+        int dummy_impl_id = 0;
+        mkldnn::impl::primitive_hashing::key_t key(pd->kind(), pd->op_desc(),
+                pd->attr(), dummy_impl_id, this->mkldnn_get_max_threads());
+
+        // lock cache
+        recursive_mutex_.lock();
+        auto primitive_impl = primitive_cache_->get(key);
+        if (primitive_impl) { // cache hit
+            // unlock cache because it's safe to create a wrapper in parallel
+            recursive_mutex_.unlock();
+            // create a wrapper for primitive_impl
+            auto status
+                    = mkldnn::impl::safe_ptr_assign<mkldnn::impl::primitive_t>(
+                            *primitive,
+                            new mkldnn::impl::primitive_t(
+                                    primitive_impl, use_global_scratchpad));
+            if (status != mkldnn::impl::status::success) return status;
+
+            ms = mkldnn::impl::get_msec() - ms;
+            if (mkldnn::impl::mkldnn_verbose()->level >= 2) {
+                printf("mkldnn_verbose,create:cache hit,%s,%g\n",
+                        (*primitive)->pd()->info(), ms);
+                fflush(0);
+            }
+            return status;
+        }
+
+        // cache miss - create a requested primitive_impl and a wrapper
+        auto status = mkldnn::impl::safe_ptr_assign<mkldnn::impl::primitive_t>(
+                *primitive,
+                new mkldnn::impl::primitive_t(
+                        create_primitive_impl(), use_global_scratchpad));
+
+        if (status != mkldnn::impl::status::success) {
+            recursive_mutex_.unlock();
+            return status;
+        }
+
+        status = (*primitive)->init();
+        if (status != mkldnn::impl::status::success) {
+            recursive_mutex_.unlock();
+            delete *primitive;
+            return status;
+        }
+
+        // update op_desc and attr pointers in the key
+        key.op_desc_ = (*primitive)->pd()->op_desc();
+        key.attr_ = (*primitive)->pd()->attr();
+
+        primitive_cache_->add(key, (*primitive)->get_primitive_impl());
+        recursive_mutex_.unlock();
+
+        ms = mkldnn::impl::get_msec() - ms;
+        if (mkldnn::impl::mkldnn_verbose()->level >= 2) {
+            printf("mkldnn_verbose,create:cache miss,%s,%g\n",
+                    (*primitive)->pd()->info(), ms);
+            fflush(0);
+        }
+        return status;
+    }
+    int mkldnn_get_max_threads();
+
 protected:
     mkldnn::impl::engine_kind_t kind_;
     mkldnn::impl::backend_kind_t backend_kind_;
     std::unique_ptr<mkldnn::impl::primitive_cache_t> primitive_cache_;
+    // As a primitive can be created inside another one a recursive_mutex is
+    // required
+    std::recursive_mutex recursive_mutex_;
 };
 
 namespace mkldnn {
