@@ -142,7 +142,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
         exec_args_t r_args;
         r_args[MKLDNN_ARG_SRC] = in;
         r_args[MKLDNN_ARG_DST] = out;
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
         reorder_->execute(r_ctx);
     }
 
@@ -153,12 +153,12 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
          * input/output statistics are reordered if necessary */
         using namespace memory_tracking::names;
         auto scratchpad = this->scratchpad(ctx);
-        auto mean_handle = scratchpad.template get<void>(key_lnorm_tmp_mean);
-        auto variance_handle = scratchpad.template get<void>(key_lnorm_tmp_var);
-        memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
-                memory_flags_t::use_backend_ptr, mean_handle);
+        auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
+        auto variance_mem = scratchpad.get_memory_storage(key_lnorm_tmp_var);
+        memory_t mean(
+                pd()->engine(), &(pd()->reordered_stat_md_), mean_mem, false);
         memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
-                memory_flags_t::use_backend_ptr, variance_handle);
+                variance_mem, false);
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
@@ -269,14 +269,16 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
-    ~simple_layer_normalization_bwd_t() { reorder_->release(); }
+    ~simple_layer_normalization_bwd_t() {
+        if (reorder_) reorder_->release();
+    }
 
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
         exec_args_t r_args;
         r_args[MKLDNN_ARG_SRC] = in;
         r_args[MKLDNN_ARG_DST] = out;
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
         reorder_->execute(r_ctx);
     }
 
@@ -289,14 +291,13 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
 
         if (reorder_) {
             auto scratchpad = this->scratchpad(ctx);
-            auto mean_handle
-                    = scratchpad.template get<void>(key_lnorm_tmp_mean);
-            auto variance_handle
-                    = scratchpad.template get<void>(key_lnorm_tmp_var);
-            memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
-                    memory_flags_t::use_backend_ptr, mean_handle);
+            auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
+            auto variance_mem
+                    = scratchpad.get_memory_storage(key_lnorm_tmp_var);
+            memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_), mean_mem,
+                    false);
             memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
-                    memory_flags_t::use_backend_ptr, variance_handle);
+                    variance_mem, false);
             reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
             reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
                     {&variance, false});
