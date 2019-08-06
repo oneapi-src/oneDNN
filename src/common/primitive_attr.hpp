@@ -36,6 +36,11 @@ struct rnn_data_qparams_t : public c_compatible {
         return status::success;
     }
 
+    bool operator==(const rnn_data_qparams_t &rhs) const {
+        bool ret = scale_ == rhs.scale_ && shift_ == rhs.shift_;
+        return ret;
+    }
+
     float scale_;
     float shift_;
 };
@@ -54,6 +59,20 @@ struct rnn_tparams_t : public c_compatible {
         scales_ = nullptr;
         ngates_ = 0;
         cscale_ = 0.0f;
+    }
+
+    bool operator==(const rnn_tparams_t &rhs) const {
+        bool ret = test_mode_ == rhs.test_mode_ && ngates_ == rhs.ngates_
+                && cscale_ == rhs.cscale_;
+
+        if (!ret) return ret;
+
+        if (scales_) {
+            for (dim_t g = 0; g < ngates_; g++) {
+                if (scales_[g] != rhs.scales_[g]) { return false; }
+            }
+        }
+        return true;
     }
 
     rnn_tparams_t &operator=(const rnn_tparams_t &rhs) {
@@ -106,6 +125,13 @@ struct scales_t : public c_compatible {
         assert(status == status::success);
         (void)status;
         return *this;
+    }
+
+    bool operator==(const scales_t &rhs) const {
+        bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
+                && !utils::any_null(scales_, rhs.scales_)
+                && utils::array_cmp(scales_, rhs.scales_, count_);
+        return ret;
     }
 
     bool has_default_values() const {
@@ -172,6 +198,29 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
             return kind == primitive_kind::sum
                     && IMPLICATION(require_scale_one, sum.scale == 1.f);
         }
+
+        bool operator==(const entry_t &rhs) const {
+            using namespace mkldnn::impl;
+            if (kind != rhs.kind) { return false; }
+            bool ret = true;
+            switch (kind) {
+                case primitive_kind::eltwise:
+                    ret = eltwise.alg == rhs.eltwise.alg
+                            && eltwise.scale == rhs.eltwise.scale
+                            && eltwise.alpha == rhs.eltwise.alpha
+                            && eltwise.beta == rhs.eltwise.beta;
+                    break;
+                case primitive_kind::sum:
+                    ret = sum.scale == rhs.sum.scale;
+                    break;
+                default: assert(!"unsupported post_op");
+            }
+            return ret;
+        }
+
+        bool operator!=(const entry_t &rhs) const {
+            return !this->operator==(rhs);
+        }
     };
 
     mkldnn_post_ops() : len_(0) {}
@@ -193,6 +242,12 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
 
     bool contain(mkldnn::impl::primitive_kind_t kind, int index) const {
         return find(kind, index, index + 1) == index;
+    }
+
+    bool operator==(const mkldnn_post_ops &rhs) const {
+        bool ret = len_ == rhs.len_
+                && mkldnn::impl::utils::array_cmp(entry_, rhs.entry_, len_);
+        return ret;
     }
 
     enum { capacity = 4 };
@@ -220,11 +275,22 @@ struct mkldnn_primitive_attr : public mkldnn::impl::c_compatible {
                 && rnn_tparams_.has_default_values();
     }
 
+    bool operator==(const mkldnn_primitive_attr &rhs) const {
+        bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
+                && output_scales_ == rhs.output_scales_
+                && post_ops_ == rhs.post_ops_
+                && rnn_data_qparams_ == rhs.rnn_data_qparams_
+                && rnn_weights_qparams_ == rhs.rnn_weights_qparams_
+                && rnn_tparams_ == rhs.rnn_tparams_;
+        return ret;
+    }
+
     mkldnn::impl::status_t set_scratchpad_mode(
             mkldnn::impl::scratchpad_mode_t scratchpad_mode);
     mkldnn::impl::status_t set_post_ops(
             const mkldnn::impl::post_ops_t &post_ops);
 
+    // NOTE: make sure that the types below have overloaded comparison operator
     mkldnn::impl::scratchpad_mode_t scratchpad_mode_;
     mkldnn::impl::scales_t output_scales_;
     mkldnn::impl::post_ops_t post_ops_;
