@@ -17,7 +17,6 @@
 #include <assert.h>
 
 #include "type_helpers.hpp"
-#include "verbose.hpp"
 
 #include "cpu_engine.hpp"
 #include "cpu_memory_storage.hpp"
