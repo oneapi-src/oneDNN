@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "primitive.hpp"
+#include "primitive_cache.hpp"
 #include "utils.hpp"
 
 /** \brief An abstraction of an execution unit with shared resources
@@ -28,11 +29,22 @@
  * Responsibilities:
  *   - Provide engine specific memory allocation
  *   - Provide engine specific primitive_desc_t creators
+ *   - Provide engine specific primitive cache
  */
 struct mkldnn_engine : public mkldnn::impl::c_compatible {
     mkldnn_engine(mkldnn::impl::engine_kind_t kind,
             mkldnn::impl::backend_kind_t backend_kind)
-        : kind_(kind), backend_kind_(backend_kind) {}
+        : kind_(kind), backend_kind_(backend_kind) {
+        size_t cache_capacity
+                = mkldnn::impl::getenv_int("MKLDNN_CACHE_CAPACITY", 0);
+        primitive_cache_ = mkldnn::impl::utils::make_unique<
+                mkldnn::impl::lru_primitive_cache_t>(cache_capacity);
+
+        static_assert(std::has_virtual_destructor<
+                              mkldnn::impl::primitive_cache_t>::value,
+                "primitive_cache_t should have a virtual destructor");
+    }
+
     virtual ~mkldnn_engine() {}
 
     /** get kind of the current engine */
@@ -111,6 +123,7 @@ struct mkldnn_engine : public mkldnn::impl::c_compatible {
 protected:
     mkldnn::impl::engine_kind_t kind_;
     mkldnn::impl::backend_kind_t backend_kind_;
+    std::unique_ptr<mkldnn::impl::primitive_cache_t> primitive_cache_;
 };
 
 namespace mkldnn {

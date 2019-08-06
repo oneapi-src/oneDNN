@@ -50,6 +50,11 @@ namespace impl {
         if (this == &other) return *this; \
     } while (0)
 
+#define MKLDNN_SHORT_CIRCUIT_SELF_COMPARISON(other) \
+    do { \
+        if (this == &other) return true; \
+    } while (0)
+
 #define MKLDNN_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
