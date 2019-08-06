@@ -17,10 +17,7 @@
 #ifndef OCL_REORDER_PD_HPP
 #define OCL_REORDER_PD_HPP
 
-#include "common/c_types_map.hpp"
 #include "common/reorder_pd.hpp"
-#include "common/utils.hpp"
-#include "ocl/ocl_engine.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -28,17 +25,26 @@ namespace ocl {
 
 struct ocl_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
-
-    status_t init() {
-        bool args_ok = true
-                && attr()->has_default_values();
-        if (!args_ok)
-            return status::unimplemented;
-        return status::success;
-    }
 };
 
 } // namespace ocl
 } // namespace impl
 } // namespace mkldnn
+
+#define DECLARE_OCL_REORDER_CREATE()                                    \
+    static status_t create(reorder_pd_t **reorder_pd, engine_t *engine, \
+            const primitive_attr_t *attr, engine_t *src_engine,         \
+            const memory_desc_t *src_md, engine_t *dst_engine,          \
+            const memory_desc_t *dst_md) {                              \
+        auto _pd = new pd_t(                                            \
+                engine, attr, src_engine, src_md, dst_engine, dst_md);  \
+        if (_pd == nullptr)                                             \
+            return status::out_of_memory;                               \
+        if (_pd->init() != status::success) {                           \
+            delete _pd;                                                 \
+            return status::unimplemented;                               \
+        }                                                               \
+        return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);         \
+    }
+
 #endif

@@ -176,8 +176,7 @@ float relu_bwd(float dd, float s, float alpha) {
     return s > 0 ? dd : dd * alpha;
 }
 float tanh_bwd(float dd, float s) {
-    const float th = tanh((float)s);
-    return dd * (1 - th) * (1 + th);
+    return dd * (1 - s) * (1 + s);
 }
 float activation_fwd(float s, float alpha, float cliping) {
 #if CELL_KIND == VANILLA_LSTM

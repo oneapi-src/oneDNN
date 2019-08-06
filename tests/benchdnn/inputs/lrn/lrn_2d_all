@@ -1,5 +1,3 @@
-# all 2d pooling data set
-
 # model problems
 mb256ic96_ih55n"alexnet:norm1"
 mb256ic256_ih27n"alexnet:norm2"

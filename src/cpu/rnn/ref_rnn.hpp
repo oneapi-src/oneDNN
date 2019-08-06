@@ -36,9 +36,6 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <alg_kind_t alg_kind, prop_kind_t prop_kind>
-float activation(float s, float alpha, float cliping, float dd);
-
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
 struct _ref_rnn_common_t : public cpu_primitive_t {
@@ -237,7 +234,7 @@ private:
     rnn_weights_assign_sig(assign_weights);
     rnn_weights_assign_sig(assign_packed_weights);
 
-    float (*activation_func)(float dd, float s, float alpha, float cliping);
+    float (*activation_func)(float s, float alpha, float cliping);
 
     void copy_init_layer(const rnn_utils::rnn_conf_t &rnn,
             src_data_t *ws_states_, float *ws_diff_states_,

@@ -124,6 +124,9 @@ bool parse_test_pattern_match(const char *&match, const char *str,
 bool parse_inplace(std::vector<bool> &inplace, const char *str,
         const std::string &option_name = "inplace");
 
+bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
+        const std::string &option_name = "skip-nonlinear");
+
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name = "skip-impl");
 

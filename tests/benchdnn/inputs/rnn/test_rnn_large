@@ -1,0 +1,12 @@
+--alg=VANILLA_RNN
+--skip-nonlinear=true
+--activation=RELU # will be ignored as we skip non linear
+
+## topology tests
+--batch=rnn_ds2
+
+# Other large tests
+--direction=left2right,right2left,concat,sum
+--batch=rnn_large
+--batch=rnn_large_nonuniform
+

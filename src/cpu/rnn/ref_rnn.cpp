@@ -84,7 +84,10 @@ rnn_gemm_sig((ref_rnn_fwd_u8s8_t::gemm)) {
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
-    sgemm_compute("P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
+    auto st = sgemm_compute(
+            "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
+    assert(st == mkldnn_success);
+    MAYBE_UNUSED(st);
 }
 
 template <>

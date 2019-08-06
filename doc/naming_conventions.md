@@ -32,7 +32,7 @@ tensors:
 | `dst`                 | Destination tensor
 | `weights`             | Weights tensor
 | `bias`                | Bias tensor (used in @ref dev_guide_convolution, @ref dev_guide_inner_product and other primitives)
-| `scale_shift`         | Scale and shift tensors (used in @ref dev_guide_batch_normalization)
+| `scale_shift`         | Scale and shift tensors (used in @ref dev_guide_batch_normalization and @ref dev_guide_layer_normalization)
 | `workspace`           | Workspace tensor that carries additional information from the forward propagation to the backward propagation
 | `scratchpad`          | Temporary tensor that is required to store the intermediate results
 | `diff_src`            | Gradient tensor with respect to the source

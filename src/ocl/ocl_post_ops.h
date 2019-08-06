@@ -17,6 +17,21 @@
 #ifndef OCL_POST_OPS_H
 #define OCL_POST_OPS_H
 
+#if DT_F16 == 1
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#define DATA_MAX HALF_MAX
+#define POST_OP_DATA_T half
+#else
+#define POST_OP_DATA_T float
+#define DATA_MAX FLT_MAX
+#endif
+
+#if DT_S8 == 1
+#define DATA_MAX CHAR_MAX
+#elif DT_U8 == 1
+#define DATA_MAX UCHAR_MAX
+#endif
+
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return s > 0 ? s : s * alpha;
 }
@@ -43,7 +58,7 @@ POST_OP_DATA_T bounded_relu_bwd(
 }
 
 POST_OP_DATA_T soft_relu_fwd(POST_OP_DATA_T s) {
-    return s < log(DATA_MAX) ? log1p(exp(s)) : s;
+    return s < log((POST_OP_DATA_T)DATA_MAX) ? log1p(exp(s)) : s;
 }
 POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd / (1 + exp(-s));

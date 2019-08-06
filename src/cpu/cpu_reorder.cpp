@@ -222,6 +222,10 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
     REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference),
     REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference),
 
+    REG_SR(f16, any, f16, any, fmt_order::any, spec::reference),
+    REG_SR(f16, any, f32, any, fmt_order::any, spec::reference),
+    REG_SR(f32, any, f16, any, fmt_order::any, spec::reference),
+
     /* int: flat <-> blocked with tail */
     REG_SR_BIDIR(f32, any, s32, nChw16c),
     REG_SR_BIDIR(f32, any, s8, nChw16c),

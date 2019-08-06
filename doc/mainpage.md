@@ -42,6 +42,7 @@ Compute intensive operations:
 Memory bandwidth limited operations:
  * [Pooling](@ref dev_guide_pooling)
  * [Batch Normalization](@ref dev_guide_batch_normalization)
+ * [Layer Normalization](@ref dev_guide_layer_normalization)
  * [Local Response Normalization](@ref dev_guide_lrn)
  * [Softmax](@ref dev_guide_softmax)
  * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other

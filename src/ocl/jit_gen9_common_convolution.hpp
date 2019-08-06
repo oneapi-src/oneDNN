@@ -45,7 +45,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             : ocl_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T("ocl:ncsp:any", jit_gen9_common_convolution_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:gen9:blocked", jit_gen9_common_convolution_fwd_t);
 
         status_t init() {
             using namespace prop_kind;
@@ -54,11 +54,6 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
-            bool with_relu = (eltwise_idx != -1)
-                ? attr()->post_ops_.entry_[eltwise_idx].is_relu(true, false)
-                : false;
             auto src_data_t = this->desc()->src_desc.data_type;
 
             bool ok = true
@@ -66,20 +61,14 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_t {
                            forward_inference)
                 && this->desc()->alg_kind == alg_kind::convolution_direct
                 && utils::one_of(true,
-                    expect_data_types(u8, s8, data_type::undef, u8, s32),
                     expect_data_types(f32, f32, f32, f32, f32),
                     expect_data_types(f16, f16, f16, f16, f16))
-                && IMPLICATION(this->with_bias(), true
-                    && IMPLICATION(src_data_t == u8, utils::one_of(
-                        this->desc()->bias_desc.data_type, f32, f16, s32, s8, u8
-                        )))
                 && compute_engine->mayiuse(
                     compute::device_ext_t::intel_subgroups)
                 && IMPLICATION(src_data_t == f16, true
                     && compute_engine->mayiuse(compute::device_ext_t:: khr_fp16)
                     && compute_engine->mayiuse(
                         compute::device_ext_t::intel_subgroups_short))
-                && IMPLICATION(eltwise_idx != -1, with_relu)
                 && !has_zero_dim_memory();
             if (!ok)
                 return status::unimplemented;

@@ -35,10 +35,11 @@ std::vector<const dt_conf_t *> cfg {conf_f32};
 std::vector<alg_t> alg {VANILLA_RNN};
 std::vector<mkldnn_rnn_direction_t> direction {mkldnn_unidirectional_left2right};
 std::vector<activation_t> activation {RELU};
+std::vector<bool> skip_nonlinear{ false };
 std::vector<int64_t> mb {0};
+std::vector<policy_t> scale_policy {NONE};
 
 attr_t attr;
-policy_t scale_policy = NONE;
 bool allow_unimpl = false;
 unsigned int flags = 0x0;
 float alpha = 0.0f;
@@ -57,7 +58,7 @@ void reset_parameters() {
     activation = {RELU};
     mb = {0};
     attr = attr_t();
-    scale_policy = NONE;
+    scale_policy = {NONE};
     allow_unimpl = false;
 }
 
@@ -65,14 +66,17 @@ void check_correctness(const desc_t *c) {
     for (const auto &i_prop: prop)
     for (const auto &i_cfg: cfg)
     for (const auto &i_alg: alg)
+    for (const auto &i_scale_policy: scale_policy)
     for (const auto &i_direction: direction)
     for (const auto &i_activation: activation)
-    for (const auto &i_mb: mb) {
-        check_case_validity(i_cfg, scale_policy);
+    for (const auto &i_skip_nonlinear : skip_nonlinear)
+    for (const auto &i_mb : mb) {
+        check_case_validity(i_cfg, i_scale_policy);
         mkldnn_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
-        const prb_t p(*c, i_cfg, prop_kind, i_alg, i_direction, attr, scale_policy,
-                flags, i_activation, alpha, beta, i_mb);
+        const prb_t p(*c, i_cfg, prop_kind, i_alg, i_direction, attr,
+                      i_scale_policy, flags, i_activation, alpha, beta,
+                      i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -80,7 +84,7 @@ void check_correctness(const desc_t *c) {
         print(1, "run: %s\n", pstr);
 
         res_t res{};
-        const int status = doit(&p, &res);
+        const int status = doit(p, &res);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, allow_unimpl, status, pstr);
@@ -97,24 +101,24 @@ void check_correctness(const desc_t *c) {
 int bench(int argc, char **argv) {
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false
-            || parse_bench_settings(argv[0])
-            || parse_batch(bench, argv[0])
-            || parse_dir(prop, argv[0], "prop")
-            || parse_cfg(cfg, str2cfg, argv[0])
-            || parse_vector_option(alg, str2alg, argv[0], "alg")
-            || parse_vector_option(direction, str2direction, argv[0],
-                    "direction")
-            || parse_vector_option(activation, str2activation, argv[0],
-                    "activation")
-            || parse_single_value_option(scale_policy, str2policy, argv[0],
-                    "scaling")
-            || parse_mb(mb, argv[0])
-            || parse_attr(attr, argv[0])
-            || parse_allow_unimpl(allow_unimpl, argv[0])
-            || parse_perf_template(perf_template, perf_template_def,
-                    perf_template_csv, argv[0])
-            || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = false || parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0])
+                || parse_dir(prop, argv[0], "prop")
+                || parse_cfg(cfg, str2cfg, argv[0])
+                || parse_vector_option(alg, str2alg, argv[0], "alg")
+                || parse_vector_option(
+                        direction, str2direction, argv[0], "direction")
+                || parse_vector_option(
+                        activation, str2activation, argv[0], "activation")
+                || parse_vector_option(
+                        scale_policy, str2policy, argv[0], "scaling")
+                || parse_mb(mb, argv[0])
+                || parse_skip_nonlinear(skip_nonlinear, argv[0])
+                || parse_attr(attr, argv[0])
+                || parse_allow_unimpl(allow_unimpl, argv[0])
+                || parse_perf_template(perf_template, perf_template_def,
+                        perf_template_csv, argv[0])
+                || parse_reset(reset_parameters, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0], "rnn");
 

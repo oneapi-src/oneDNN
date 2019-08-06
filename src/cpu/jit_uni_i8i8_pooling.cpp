@@ -204,31 +204,47 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_max_op(
         if (jpp.src_dt == s32) {
             vpmaskmovd(vreg_src(jj), vreg_mask, ptr[aux_reg_src_w + offset]);
         } else {
-            Label load_data_safely, done;
-            add(aux_reg_src_w, offset);
-
-            // Check if mask crosses page boundary
-            cmp(aux_reg_src_w, reg_src_safe_access);
-            ja(load_data_safely, T_NEAR);
-
-            vpblendvb(vreg_src(jj), vreg_tmp, byte[aux_reg_src_w], vreg_mask);
-            jmp(done, T_NEAR);
-
-            L(load_data_safely);
-            const uint8_t shift = cpu_isa_traits<avx2>::vlen - jpp.c_tail;
-
-            // First load all data from the shifted src ptr
-            vmovups(vreg_src(jj), ptr[aux_reg_src_w - shift]);
-
-            // Now bring the required data from the end of reg to begining.
+            // Steps to access 'tail' section:
+            // 1) First load all data from the shifted src ptr
+            // 2) Now bring the required data from the end of reg to beginning.
             // Example:  idx=[31..0]
             //    vreg_src = [x,x,x,x,.....,x,-,-,-,-,-] ; x => byte data
             //    shift to transform vreg_src = [-,-,-,-,-,x,..,x,x,x,x,]
-            vperm2i128(vreg_tmp, vreg_src(jj), vreg_src(jj), 0x81);
-            vpalignr(vreg_src(jj), vreg_tmp, vreg_src(jj), shift);
+            const uint8_t shift = cpu_isa_traits<avx2>::vlen - jpp.c_tail;
 
-            L(done);
-            { sub(aux_reg_src_w, offset); }
+            if (jpp.safe_c_tail) {
+
+                /* load src_tail at 'src_address - shift' so that it does not
+                 * spill over the memory boundary */
+                vmovups(vreg_src(jj), ptr[aux_reg_src_w + offset - shift]);
+
+                vperm2i128(vreg_tmp, vreg_src(jj), vreg_src(jj), 0x81);
+                vpalignr(vreg_src(jj), vreg_tmp, vreg_src(jj), shift);
+
+            } else {
+                Label load_data_safely, done;
+                add(aux_reg_src_w, offset);
+
+                // Check if mask crosses page boundary
+                cmp(aux_reg_src_w, reg_src_safe_access);
+                ja(load_data_safely, T_NEAR);
+
+                vpblendvb(
+                        vreg_src(jj), vreg_tmp, byte[aux_reg_src_w], vreg_mask);
+                jmp(done, T_NEAR);
+
+                L(load_data_safely);
+
+                /* load src_tail at 'src_address - shift' so that it does not
+                 * spill over the memory boundary */
+                vmovups(vreg_src(jj), ptr[aux_reg_src_w - shift]);
+
+                vperm2i128(vreg_tmp, vreg_src(jj), vreg_src(jj), 0x81);
+                vpalignr(vreg_src(jj), vreg_tmp, vreg_src(jj), shift);
+
+                L(done);
+                sub(aux_reg_src_w, offset);
+            }
         }
 
     } else
@@ -265,39 +281,53 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::load_src_avg_op(int jj, int ll,
             // load ll-th part of mask into vreg_mask_q
             load_vreg_mask_q(ll);
 
-            Label load_data_safely, done;
-            add(aux_reg_src_w, offset);
-
-            // Check if mask crosses page boundary
-            cmp(aux_reg_src_w, reg_src_safe_access);
-            ja(load_data_safely, T_NEAR);
-
-            { vpblendvb(vr_src, vreg_zeros, ptr[aux_reg_src_w], vreg_mask_q); }
-            jmp(done, T_NEAR);
-
-            L(load_data_safely);
-            const int msk_gran
-                    = cpu_isa_traits<avx2>::vlen / data_type_size(avg_proc_dt);
-
-            const uint8_t shift = cpu_isa_traits<avx2>::vlen
-                    - (jpp.c_tail > (ll + 1) * msk_gran
-                                      ? msk_gran
-                                      : jpp.c_tail - (ll * msk_gran));
-
-            // First load all data from the shifted src ptr
-            vmovups(vr_src, ptr[aux_reg_src_w - shift]);
-
-            // Now bring the required data from the end of reg to begining.
+            // Steps to access 'tail' section:
+            // 1) First load all data from the shifted src ptr
+            // 2) Now bring the required data from the end of reg to begining.
             // Example:  idx=[31..0]
             //    vreg_src = [x,x,x,x,.....,x,-,-,-,-,-] ; x => byte data
             //    shift to transform vreg_src = [-,-,-,-,-,x,..,x,x,x,x,]
             // Re-purposing vreg_zeros here. Set it back to zero immmediately.
-            vperm2i128(vreg_zeros, vr_src, vr_src, 0x81);
-            vpalignr(vr_src, vreg_zeros, vr_src, shift);
-            uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+            const int msk_gran
+                    = cpu_isa_traits<avx2>::vlen / data_type_size(avg_proc_dt);
 
-            L(done);
-            { sub(aux_reg_src_w, offset); }
+            const uint8_t shift = cpu_isa_traits<avx2>::vlen
+                    - (jpp.c_tail > (ll + 1) * msk_gran ? msk_gran : jpp.c_tail
+                                                          - (ll * msk_gran));
+            if (jpp.safe_c_tail) {
+                /* load src_tail at 'src_address - shift' so that it does not
+                 * spill over the memory boundary */
+                vmovups(vr_src, ptr[aux_reg_src_w + offset - shift]);
+
+                vperm2i128(vreg_zeros, vr_src, vr_src, 0x81);
+                vpalignr(vr_src, vreg_zeros, vr_src, shift);
+                uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+            } else {
+                Label load_data_safely, done;
+                // assume that it is not safe to load the src_tail
+
+                add(aux_reg_src_w, offset);
+
+                // Check if load crosses the memory boundary
+                cmp(aux_reg_src_w, reg_src_safe_access);
+                ja(load_data_safely, T_NEAR);
+
+                vpblendvb(vr_src, vreg_zeros, ptr[aux_reg_src_w], vreg_mask_q);
+                jmp(done, T_NEAR);
+
+                L(load_data_safely);
+
+                /* load src_tail at 'src_address - shift' so that it does not
+                 * spill over the memory boundary */
+                vmovups(vr_src, ptr[aux_reg_src_w - shift]);
+
+                vperm2i128(vreg_zeros, vr_src, vr_src, 0x81);
+                vpalignr(vr_src, vreg_zeros, vr_src, shift);
+                uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+
+                L(done);
+                sub(aux_reg_src_w, offset);
+            }
 
             // Conversion s8/u8 -> s32
             if (is_signed)
@@ -389,7 +419,12 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(int jj, int ll,
         size_t offset, bool masked, uint64_t msk) {
     using namespace data_type;
 
+    Label store_data_safely, done;
+
     int c_block = jpp.c_block;
+
+    const uint64_t low_mask = (1ULL << (c_block / 2)) - 1;
+    const uint8_t shift = cpu_isa_traits<avx2>::vlen - jpp.c_tail;
 
     if (masked) {
         switch (jpp.src_dt) {
@@ -398,54 +433,49 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(int jj, int ll,
                 break;
             case s8:
             case u8: {
-                const uint64_t low_mask = (1ULL << (c_block / 2)) - 1;
-
-                Label store_data_safely, done;
 
                 lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
 
-                cmp(reg_ptr_maskmovdqu_dst, reg_dst_safe_access);
-                ja(store_data_safely, T_NEAR);
+                if (!jpp.safe_c_tail) {
+                    cmp(reg_ptr_maskmovdqu_dst, reg_dst_safe_access);
+                    ja(store_data_safely, T_NEAR);
 
-                // Store low half by mask (bytes 0...15)
-                maskmovdqu(vreg_dst(jj), xreg_mask_lo);
+                    // Store low half by mask (bytes 0...15)
+                    maskmovdqu(vreg_dst(jj), xreg_mask_lo);
 
-                // Do we need to store high half (bytes 16...31) ?
-                if (msk & ~low_mask) {
-                    vextracti128(Xmm(vreg_dst(jj).getIdx()), vreg_dst(jj), 1);
-                    add(reg_ptr_maskmovdqu_dst, c_block / 2);
-                    maskmovdqu(vreg_dst(jj), xreg_mask_hi);
+                    // Do we need to store high half (bytes 16...31) ?
+                    if (msk & ~low_mask) {
+                        vextracti128(
+                                Xmm(vreg_dst(jj).getIdx()), vreg_dst(jj), 1);
+                        add(reg_ptr_maskmovdqu_dst, c_block / 2);
+                        maskmovdqu(vreg_dst(jj), xreg_mask_hi);
+                    }
+                    jmp(done, T_NEAR);
                 }
-                jmp(done, T_NEAR);
 
                 L(store_data_safely);
-                {
-                    const uint8_t shift = cpu_isa_traits<avx2>::vlen - jpp.c_tail;
-                    vperm2i128(vreg_tail, vreg_dst(jj), vreg_dst(jj), 0x08);
-                    if (shift <= 16) {
-                        vpalignr(
-                                vreg_tail, vreg_dst(jj), vreg_tail, 16 - shift);
-                    } else {
-                        vpalignr(vreg_tail, vreg_tail, vreg_zeros, 32 - shift);
-                    }
 
-                    // Do we need to store low half (bytes 0...15) ?
-                    if (msk & ~low_mask) {
-                        sub(reg_ptr_maskmovdqu_dst, shift);
-                        maskmovdqu(vreg_tail, xreg_mask_2_lo);
-                        add(reg_ptr_maskmovdqu_dst, c_block / 2);
-                    } else {
-                        add(reg_ptr_maskmovdqu_dst, (c_block / 2) - shift);
-                    }
-
-                    // Store high half by mask (bytes 16..31)
-                    vextracti128(Xmm(vreg_tail.getIdx()), vreg_tail, 1);
-                    maskmovdqu(vreg_tail, xreg_mask_2_hi);
+                vperm2i128(vreg_tail, vreg_dst(jj), vreg_dst(jj), 0x08);
+                if (shift <= 16) {
+                    vpalignr(vreg_tail, vreg_dst(jj), vreg_tail, 16 - shift);
+                } else {
+                    vpalignr(vreg_tail, vreg_tail, vreg_zeros, 32 - shift);
                 }
 
+                // Do we need to store low half (bytes 0...15) ?
+                if (msk & ~low_mask) {
+                    sub(reg_ptr_maskmovdqu_dst, shift);
+                    maskmovdqu(vreg_tail, xreg_mask_2_lo);
+                    add(reg_ptr_maskmovdqu_dst, c_block / 2);
+                } else {
+                    add(reg_ptr_maskmovdqu_dst, (c_block / 2) - shift);
+                }
+
+                // Store high half by mask (bytes 16..31)
+                vextracti128(Xmm(vreg_tail.getIdx()), vreg_tail, 1);
+                maskmovdqu(vreg_tail, xreg_mask_2_hi);
 
                 L(done);
-
             } break;
             default: assert(!"unsupported src data type");
         }
@@ -527,23 +557,27 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(int jj, int ll,
 
         if (is_masked && (ll_end > jpp.c_tail)) { //implies this tail not full.
             Label store_data_safely, done;
+            const uint8_t shift = msk_gran - jpp.c_tail % msk_gran;
 
-            cmp(reg_ptr_maskmovdqu_dst, reg_dst_safe_access);
-            ja(store_data_safely, T_NEAR);
+            if (!jpp.safe_c_tail) {
+                cmp(reg_ptr_maskmovdqu_dst, reg_dst_safe_access);
+                ja(store_data_safely, T_NEAR);
 
-            { maskmovq(mmx_dst_i8, mmx_mask(ll)); }
-            jmp(done, T_NEAR);
-
-            L(store_data_safely);
-            { //store_data_safely
-                const uint8_t shift = msk_gran - jpp.c_tail % msk_gran;
-                movq(mmx_tmp, mmx_mask(ll));
-                psllq(mmx_tmp, shift * 8); // multiply with 8 (bits/byte)
-                psllq(mmx_dst_i8, shift * 8);
-                sub(reg_ptr_maskmovdqu_dst, shift);
-                maskmovq(mmx_dst_i8, mmx_tmp);
+                /* store dst_tail with overlap outside the channel dimension,
+                 * but assume it's within the memory boundary. */
+                maskmovq(mmx_dst_i8, mmx_mask(ll));
+                jmp(done, T_NEAR);
             }
 
+            L(store_data_safely);
+
+            /* store dst_tail at 'dst_address - shift' so that it does not
+             * spill over the memory boundary */
+            movq(mmx_tmp, mmx_mask(ll));
+            psllq(mmx_tmp, shift * 8); // multiply with 8 (bits/byte)
+            psllq(mmx_dst_i8, shift * 8);
+            sub(reg_ptr_maskmovdqu_dst, shift);
+            maskmovq(mmx_dst_i8, mmx_tmp);
 
             L(done);
         } else {
@@ -1051,14 +1085,28 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(jit_pool_conf_t &jpp,
     //     isa == avx512* : 64 bytes -> 64 for s8/u8, 16 for s32
     int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.src_dt);
 
+    /* Verify that vlen-sized memory access happens within the tensor's
+     * size, otherwise load/store will always spill outside the memory
+     * boundary.*/
+    bool safe_load_n_store = IMPLICATION(isa == avx2, jpp.mb * jpp.c
+                            * nstl::min(jpp.ih, jpp.oh)
+                            * nstl::min(jpp.iw, jpp.ow)
+                    >= simd_w);
+    if (!safe_load_n_store)
+        return status::unimplemented;
+
     jpp.c_block = simd_w;
     jpp.c_tail = jpp.c % jpp.c_block;
     jpp.nb_c = jpp.c / jpp.c_block;
     jpp.ur_c = 1;
-    jpp.ur_c_tail = jpp.nb_c - (jpp.nb_c / jpp.ur_c)*jpp.ur_c +
-            (jpp.c_tail != 0);
+    jpp.ur_c_tail = jpp.c_tail != 0;
 
     size_t tail_mask = (1ULL << jpp.c_tail) - 1;
+
+    /* If channel_size is bigger than vlen, we can safely assume there is no
+     * underflow of memory boundary, so always perform c_tail and save
+     * a couple of compute cycles*/
+    jpp.safe_c_tail = jpp.c_tail > 0 && jpp.c >= simd_w;
 
     switch (jpp.alg) {
         case pooling_max:
@@ -1112,13 +1160,14 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
 
     const auto &jpp = pd()->jpp_;
 
-    // Compute address of src mapped page boundary minus vector length
+    /* Calculate when the memory-access will happen outisde of the memory
+     * boundary, if so, compute a safe memory access. */
     const auto src_safe_access = reinterpret_cast<char *>(
-            (reinterpret_cast<uintptr_t>(src_i8 + src_d.size() - 1) | 0xFFF)
+            reinterpret_cast<ptrdiff_t >(src_i8 + src_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
     const auto dst_safe_access = reinterpret_cast<char *>(
-            (reinterpret_cast<uintptr_t>(dst_i8 + dst_d.size() - 1) | 0xFFF)
+            reinterpret_cast<ptrdiff_t>(dst_i8 + dst_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
     parallel_nd(jpp.mb, jpp.oh, jpp.ow,

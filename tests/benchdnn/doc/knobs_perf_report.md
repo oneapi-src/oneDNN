@@ -28,30 +28,31 @@ See the table of modifiers below.
 
 Options supported:
 
-| Syntax        | Primitives                                  | Description
-| :--           | :--                                         | :--
-| %alg%         | Conv, Eltwise, Lrn, Pool, Reorder, RNN      | Primitive algorithm
-| %attr%        | Bnorm, Conv, IP, Reorder                    | Primitive attributes
-| %axis%        | Concat, Shuffle, Softmax                    | Primitive axis
-| %@bw%         | All with ops                                | Bytes per second (modifier extended)
-| %cfg%         | Conv, IP, Pool, RNN                         | Config, describes data types and filling rules
-| %@clocks%     | All                                         | Time in clocks (modifier extended)
-| %desc%        | All                                         | Problem descriptor (dimensions and other options included)
-| %DESC%        | All                                         | CSV-style problem descriptor (mostly dimensions)
-| %dir%         | All, except Concat, RNN, Reorder, Sum       | Primitive prop kind
-| %dt%          | Bnorm, Eltwise, Lrn, Shuffle, Softmax       | Data type (precision)
-| %sdt%/%ddt%   | Concat, Reorder, Sum                        | Src/Dst data types (precision)
-| %engine%      | All                                         | Engine kind
-| %flags%       | Bnorm, Reorder                              | Primitive flags
-| %@flops%      | All with ops                                | Ops per second (modifier extended)
-| %@freq%       | All                                         | Effective cpu frequency computed as clocks[@] / time[@]
-| %group%       | Shuffle                                     | Shuffle group
-| %name%        | Bnorm, Conv, IP, Lrn, Pool, RNN             | Problem name
-| %@ops%        | All with ops                                | Number of ops required (padding is not taken into account)
-| %prop%        | RNN                                         | RNN properties
-| %tag%         | Bnorm, Eltwise, Lrn, Pool, Shuffle, Softmax | Data format tag (physical memory layout)
-| %stag%/%dtag% | Concat, Reorder, Sum                        | Src/Dst format tag (physical memory layout)
-| %@time%       | All                                         | Time in ms (modifier extended)
+| Syntax        | Primitives                                         | Description
+| :--           | :--                                                | :--
+| %alg%         | Conv, Eltwise, Lrn, Pool, Reorder, RNN             | Primitive algorithm
+| %attr%        | Bnorm, Conv, IP, Reorder                           | Primitive attributes
+| %axis%        | Concat, Shuffle, Softmax                           | Primitive axis
+| %@bw%         | All with ops                                       | Bytes per second (modifier extended)
+| %cfg%         | Conv, IP, Pool, RNN                                | Config, describes data types and filling rules
+| %@clocks%     | All                                                | Time in clocks (modifier extended)
+| %desc%        | All                                                | Problem descriptor (dimensions and other options included)
+| %DESC%        | All                                                | CSV-style problem descriptor (mostly dimensions)
+| %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
+| %dt%          | Bnorm, Eltwise, Lrn, Shuffle, Softmax              | Data type (precision)
+| %sdt%/%ddt%   | Concat, Reorder, Sum                               | Src/Dst data types (precision)
+| %engine%      | All                                                | Engine kind
+| %flags%       | Bnorm, Lnorn, Reorder                              | Primitive flags
+| %@flops%      | All with ops                                       | Ops per second (modifier extended)
+| %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
+| %group%       | Shuffle                                            | Shuffle group
+| %name%        | Bnorm, Conv, IP, Lrn, Pool, RNN                    | Problem name
+| %@ops%        | All with ops                                       | Number of ops required (padding is not taken into account)
+| %prop%        | RNN                                                | RNN properties
+| %tag%         | Bnorm, Eltwise, Lnorm, Lrn, Pool, Shuffle, Softmax | Data format tag (physical memory layout)
+| %stat_tag%    | Lnorm                                              | Statistics (meand and variance) format tag (physical memory layout)
+| %stag%/%dtag% | Concat, Reorder, Sum                               | Src/Dst format tag (physical memory layout)
+| %@time%       | All                                                | Time in ms (modifier extended)
 
 Modifiers supported:
 

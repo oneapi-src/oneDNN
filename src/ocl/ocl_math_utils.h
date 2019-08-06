@@ -30,4 +30,38 @@ float convert_bf16_to_f32(ushort b) {
     return f;
 }
 
+ushort8 convert_f32_to_bf16_vec8(float8 f){
+    ushort8 r;
+    for (int i = 0; i < 8; i++)
+    {
+        r[i] = convert_f32_to_bf16(f[i]);
+    }
+    return r;
+}
+
+float8 convert_bf16_to_f32_vec8(ushort8 b){
+    float8 f;
+    for (int i = 0; i < 8; i++)
+    {
+        f[i] = convert_bf16_to_f32(b[i]);
+    }
+    return f;
+}
+
+ushort8 convert_f32_to_bf16_8(float8 b) {
+    ushort8 r;
+    for (int i = 0; i < 8; ++i) {
+        r[i] = convert_f32_to_bf16(b[i]);
+    }
+    return r;
+}
+
+float8 convert_bf16_to_f32_8(ushort8 b) {
+    float8 r;
+    for (int i = 0; i < 8; ++i) {
+        r[i] = convert_bf16_to_f32(b[i]);
+    }
+    return r;
+}
+
 #endif

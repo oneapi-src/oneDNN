@@ -19,21 +19,25 @@
 
 #include "ocl/ocl_math_utils.h"
 
+#define CONCAt2(a, b) a##b
+#define CONCAT2(a, b) CONCAt2(a, b)
+
 #if DT_F32 == 1
 #    define DATA_T float
 #    define DATA8_T float8
-#    define POST_OP_DATA_T float
 #    define DATA_MAX FLT_MAX
 #    define DATA_MIN -DATA_MAX
 #    define DATA_ZERO 0.0f
 #    define DATA_ONE 1.0f
 #    define DEF_ACC_DATA_T float
 #    define DEF_ACC_DATA8_T float8
+#    define POST_OP_DATA_T float
 #    define TO_DATA_T(v) (float)(v)
 #    define TO_DEF_ACC_DATA_T(v) (float)(v)
 #    define DATA_TO_REF convert_float
 #    define CONVERT_DATA_T convert_float
 #    define CONVERT_DATA8_T convert_float8
+#    define CONVERT_FLOAT8_T convert_float8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read
@@ -55,7 +59,6 @@
 #    pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #    define DATA_T half
-#    define POST_OP_DATA_T half
 #    define DATA8_T half8
 #    define DATA_MAX HALF_MAX
 #    define DATA_MIN -DATA_MAX
@@ -63,11 +66,13 @@
 #    define DATA_ONE 1.0h
 #    define DEF_ACC_DATA_T half
 #    define DEF_ACC_DATA8_T half8
+#    define POST_OP_DATA_T half
 #    define TO_DATA_T(v) (half)(v)
 #    define TO_DEF_ACC_DATA_T(v) (half)(v)
 #    define DATA_TO_REF convert_half
 #    define CONVERT_DATA_T convert_half
 #    define CONVERT_DATA8_T convert_half8
+#    define CONVERT_FLOAT8_T convert_float8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read_us
@@ -98,15 +103,16 @@
 #    define TO_DEF_ACC_DATA_T(v) convert_bf16_to_f32(v)
 #    define DATA_TO_REF convert_bf16_to_f32
 #    define CONVERT_DATA_T convert_f32_to_bf16
-#    define CONVERT_DATA8_T convert_bf16_8
+#    define CONVERT_DATA8_T convert_f32_to_bf16_vec8
+#    define CONVERT_FLOAT8_T convert_bf16_to_f32_vec8
 #    define ROUND
 
 #    define BLOCK_READ intel_sub_group_block_read_us
 #    define BLOCK_WRITE intel_sub_group_block_write_us
 #    define BLOCK_READ8 intel_sub_group_block_read_us8
 #    define BLOCK_WRITE8 intel_sub_group_block_write_us8
-#    define AS_DATA_T as_bf16
-#    define AS_DATA8_T as_bf16_8
+#    define AS_DATA_T as_ushort
+#    define AS_DATA8_T as_ushort8
 
 #    define AS_UINT_T as_ushort
 #    define AS_UINT8_T as_ushort8
@@ -124,6 +130,7 @@
 #    define DATA_ONE 1
 #    define DEF_ACC_DATA_T int
 #    define DEF_ACC_DATA8_T int8
+#    define POST_OP_DATA_T float
 #    define TO_DATA_T(v) (char)(v)
 #    define DATA_TO_REF convert_char
 #    define CONVERT_DATA_T convert_char
@@ -153,6 +160,7 @@
 #    define DATA_ONE 1
 #    define DEF_ACC_DATA_T int
 #    define DEF_ACC_DATA8_T int8
+#    define POST_OP_DATA_T float
 #    define TO_DATA_T(v) (uchar)(v)
 #    define DATA_TO_REF convert_uchar
 #    define CONVERT_DATA_T convert_uchar
@@ -175,7 +183,9 @@
 #    define AS_BLOCK_DATA8_T as_uchar8
 #elif DT_S32 == 1
 #    define DATA_T int
-#else
+#    define CONVERT_DATA_T convert_int_sat_rte
+#    define POST_OP_DATA_T float
+#elif !defined(DT_UNDEF)
 #    error "Unexpected data type"
 #endif
 
@@ -202,7 +212,7 @@
 #    define VECT_BLOCK_WRITE BLOCK_WRITE8
 #    define VECT_BLOCK_DATA_T BLOCK_DATA8_T
 #    define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA8_T
-#    define CONVERT_VECT_FLOAT_T convert_float8
+#    define CONVERT_VECT_FLOAT_T CONVERT_FLOAT8_T
 #    define CONVERT_VECTOR_DATA_T CONVERT_DATA8_T
 #    define VECT_INT_T int8
 #    define VECT_UINT_T uint8
@@ -212,10 +222,13 @@
 #endif
 
 #ifdef SRC_DATA_T
+#    define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
 #    if SRC_DT_BF16
 #        define SRC_TO_REF(x) convert_bf16_to_f32(x)
+#        define SRC_TO_REF8(x) convert_bf16_to_f32_8(x)
 #    else
 #        define SRC_TO_REF(x) (x)
+#        define SRC_TO_REF8(x) (x)
 #    endif
 #    if SRC_DT_BF16
 #        define TO_SRC(x) convert_f32_to_bf16(x)
@@ -273,23 +286,38 @@
 #endif
 
 #ifdef DST_DATA_T
+#    define DST_DATA8_T CONCAT2(DST_DATA_T, 8)
 #    if DST_DT_BF16
 #        define DST_TO_REF(x) convert_bf16_to_f32(x)
+#        define DST_TO_REF8(x) convert_bf16_to_f32_8(x)
 #        define REF_TO_DST(x) convert_f32_to_bf16(x)
+#        define REF_TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
 #    else
 #        define DST_TO_REF(x) (x)
+#        define DST_TO_REF8(x) (x)
 #        define REF_TO_DST(x) (x)
+#        define REF_TO_DST8(x) (x)
 #    endif
 #    if DST_DT_BF16
 #        define TO_DST(x) convert_f32_to_bf16(x)
+#        define TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
+#    elif DST_DT_F16
+#        define TO_DST(x) convert_half(x)
+#        define TO_DST8(x) convert_half8(x)
 #    elif DST_DT_U8
 #        define TO_DST(x) convert_uchar_sat_rte(x)
+#        define TO_DST8(x) convert_uchar8_sat_rte(x)
 #    elif DST_DT_S8
 #        define TO_DST(x) convert_char_sat_rte(x)
+#        define TO_DST8(x) convert_char8_sat_rte(x)
 #    elif DST_DT_S32
 #        define TO_DST(x) convert_int_sat_rte(x)
+#        define TO_DST8(x) convert_int8_sat_rte(x)
+#    elif DST_DT_F32
+#        define TO_DST(x) convert_float(x)
+#        define TO_DST8(x) convert_float8(x)
 #    else
-#        define TO_DST(x) (x)
+#        error "Not expected"
 #    endif
 #endif
 
@@ -304,6 +332,26 @@
 #        error "Unexpected accumulation data type"
 #    endif
 #endif
+
+#define OFF_MD(prefix, x0, x1, x2, x3, x4, x5)                       \
+    ((x0 / prefix##_B0_2) / prefix##_B0_1 * prefix##_S0_0)           \
+            + ((x0 / prefix##_B0_2) % prefix##_B0_1 * prefix##_S0_1) \
+            + ((x0 % prefix##_B0_2) * prefix##_S0_2)                 \
+            + ((x1 / prefix##_B1_2) / prefix##_B1_1 * prefix##_S1_0) \
+            + ((x1 / prefix##_B1_2) % prefix##_B1_1 * prefix##_S1_1) \
+            + ((x1 % prefix##_B1_2) * prefix##_S1_2)                 \
+            + ((x2 / prefix##_B2_2) / prefix##_B2_1 * prefix##_S2_0) \
+            + ((x2 / prefix##_B2_2) % prefix##_B2_1 * prefix##_S2_1) \
+            + ((x2 % prefix##_B2_2) * prefix##_S2_2)                 \
+            + ((x3 / prefix##_B3_2) / prefix##_B3_1 * prefix##_S3_0) \
+            + ((x3 / prefix##_B3_2) % prefix##_B3_1 * prefix##_S3_1) \
+            + ((x3 % prefix##_B3_2) * prefix##_S3_2)                 \
+            + ((x4 / prefix##_B4_2) / prefix##_B4_1 * prefix##_S4_0) \
+            + ((x4 / prefix##_B4_2) % prefix##_B4_1 * prefix##_S4_1) \
+            + ((x4 % prefix##_B4_2) * prefix##_S4_2)                 \
+            + ((x5 / prefix##_B5_2) / prefix##_B5_1 * prefix##_S5_0) \
+            + ((x5 / prefix##_B5_2) % prefix##_B5_1 * prefix##_S5_1) \
+            + ((x5 % prefix##_B5_2) * prefix##_S5_2)
 
 #if NDIMS == 3
 #    define SRC_OFF(x0, x1, d, h, x2)                                  \

@@ -43,6 +43,7 @@ const char *get_isa_info();
 #endif
 
 void init_info(batch_normalization_pd_t *s, char *buffer);
+void init_info(layer_normalization_pd_t *s, char *buffer);
 void init_info(concat_pd_t *s, char *buffer);
 void init_info(convolution_pd_t *s, char *buffer);
 void init_info(deconvolution_pd_t *s, char *buffer);

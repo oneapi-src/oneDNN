@@ -142,14 +142,8 @@ struct jit_gen9_common_conv_fwd_kernel {
                             : jcp.mb / (jcp.mb_block * 1);
                 }
             } else {
-                jcp.oc_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
-                                       mkldnn_u8)
-                        ? 32
-                        : 16;
-                jcp.ic_block = utils::one_of(src_mdw.data_type(), mkldnn_s8,
-                                       mkldnn_u8)
-                        ? 32
-                        : 16;
+                jcp.oc_block = 16;
+                jcp.ic_block = 16;
                 jcp.mb_block = 32;
                 jcp.sub_group_size = 8;
 
@@ -187,10 +181,12 @@ struct jit_gen9_common_conv_fwd_kernel {
                         * jcp.mb_block;
 
 #ifdef DEBUG_PRINT
-            printf("LWS = %ld\n", jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
+            printf("LWS = %ld\n",
+                    jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
             fflush(0);
             printf("USE SLM %ld KB\n",
-                    utils::div_up(jcp.wht_slm_size + jcp.src_slm_size, 1024));
+                    utils::div_up(
+                            jcp.wht_slm_size + jcp.src_slm_size, 1024));
             fflush(0);
             printf("LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n", jcp.lws_d[0],
                     jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0], jcp.gws_d[1],
@@ -221,39 +217,6 @@ struct jit_gen9_common_conv_fwd_kernel {
                         * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
                 jcp.gws_d[2] = jcp.mb % 2 == 0 ? jcp.mb / 2
                                                : jcp.mb; // unroll mb by 2
-                break;
-            } else if (utils::one_of(
-                               src_mdw.data_type(), mkldnn_s8, mkldnn_u8)) {
-                jcp.mb_block = 32;
-                jcp.oc_block = 32;
-                jcp.ic_block = 32;
-                jcp.slm_ic = 1;
-                jcp.sub_group_size = 8;
-                jcp.lws_d[0] = 2 * 8;
-                jcp.lws_d[1] = utils::max_div(jcp.ow, 16);
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
-                jcp.gws_d[1] = jcp.oh * jcp.ow;
-                jcp.gws_d[2] = jcp.mb / jcp.mb_block;
-                jcp.wht_slm_size = jcp.ic_block * (jcp.lws_d[0] / 8)
-                        * jcp.oc_block * jcp.kw;
-                jcp.src_slm_size = jcp.ic_block
-                        * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
-                        * jcp.mb_block;
-#ifdef DEBUG_PRINT
-                printf("1st: LWS = %ld\n",
-                        jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
-                fflush(0);
-                printf("1st: USE SLM %ld KB\n",
-                        utils::div_up(
-                                jcp.wht_slm_size + jcp.src_slm_size, 1024));
-                fflush(0);
-                printf("1st: LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n",
-                        jcp.lws_d[0], jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0],
-                        jcp.gws_d[1], jcp.gws_d[2]);
-                printf("SRC_SP_GROUP=%ld\n",
-                        jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
-#endif
                 break;
             } else if (!jcp.is_depthwise){
                 jcp.mb_block = (jcp.mb % 16 == 0) ? 16 : 1;
@@ -366,23 +329,14 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         switch (jcp.ver) {
         case ver_1stconv:
-            if (utils::one_of(src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = utils::pick(jcp.ndims - 3, ncw, chwn, ncdhw);
-                dst_tag = jcp.mb % 16 == 0
-                        ? utils::pick(jcp.ndims - 3, ncw, NChw32n32c, ncdhw)
-                        : utils::pick(jcp.ndims - 3, ncw, nChw16c, ncdhw);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, goiw, gOhwi32o, goidhw)
-                        : utils::pick(jcp.ndims - 3, oiw, Ohwi32o, oidhw);
-            } else {
-                src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
-                dst_tag = jcp.mb % 16 == 0
-                        ? utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
-                        : utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
-                        : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
-            }
+            src_tag = utils::pick(jcp.ndims - 3, ncw, nchw, ncdhw);
+            dst_tag = jcp.mb % 16 == 0
+                    ? utils::pick(
+                              jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
+                    : utils::pick(jcp.ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            wei_tag = jcp.with_groups
+                    ? utils::pick(jcp.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                    : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             break;
         case ver_16mb16c:
             if (utils::one_of(src_mdw.data_type(), mkldnn_f16)) {
@@ -401,13 +355,6 @@ struct jit_gen9_common_conv_fwd_kernel {
                             ? utils::pick(jcp.ndims - 3, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
                             : utils::pick(jcp.ndims - 3, IOw16i16o, IOhw16i16o, IOdhw16i16o);
                 }
-            } else if (utils::one_of(
-                               src_mdw.data_type(), mkldnn_u8, mkldnn_s8)) {
-                src_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
-                dst_tag = utils::pick(jcp.ndims - 3, nCw16c, NChw32n32c, ncdhw);
-                wei_tag = jcp.with_groups
-                        ? utils::pick(jcp.ndims - 3, gOiw16o, gOIhw4o8i8o4i, gOidhw16o)
-                        : utils::pick(jcp.ndims - 3, Oiw16o, OIhw4o8i8o4i, Oidhw16o);
             } else {
                 src_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
                 dst_tag = utils::pick(jcp.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
@@ -502,9 +449,11 @@ struct jit_gen9_common_conv_fwd_kernel {
         kernel_ctx.define_int("OWB", utils::div_up(jcp.ow, jcp.ow_block));
         kernel_ctx.define_int("OHB", utils::div_up(jcp.oh, jcp.oh_block));
         kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
+        kernel_ctx.define_int("WITH_ELTWISE", jcp.with_eltwise
+                || jcp.with_post_sum_eltwise);
+        if (jcp.with_eltwise || jcp.with_post_sum_eltwise)
+            def_postops(kernel_ctx, jcp.eltwise.alg);
         kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
         kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);
@@ -739,14 +688,10 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         kernel_ctx.define_int("IH_BLOCK", jcp.ih_block);
         kernel_ctx.define_int("IW_BLOCK", jcp.iw_block);
         kernel_ctx.define_int("IWB", utils::div_up(jcp.iw, jcp.iw_block));
-        kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
-        kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
-        kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);
         kernel_ctx.define_int("IC_BLOCK", jcp.ic_block);
+        kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
 
         kernel_ctx.define_int("LWS_0", jcp.lws_d[0]);
         kernel_ctx.define_int("LWS_1", jcp.lws_d[1]);
@@ -998,10 +943,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         kernel_ctx.define_int("OC_PADDED", jcp.oc);
         kernel_ctx.define_int("OH_BLOCK", jcp.oh_block);
         kernel_ctx.define_int("WITH_BIAS", jcp.with_bias);
-        kernel_ctx.define_int("WITH_RELU", jcp.with_relu);
-        kernel_ctx.define_int("WITH_SUM", jcp.with_sum);
-        kernel_ctx.define_int("WITH_SUM_RELU", jcp.with_sum_relu);
-        kernel_ctx.define_int("SUM_SCALE", jcp.sum_scale == 1.0);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jcp.sub_group_size);
         kernel_ctx.define_int("MB_BLOCK", jcp.mb_block);
         kernel_ctx.define_int("OC_BLOCK", jcp.oc_block);

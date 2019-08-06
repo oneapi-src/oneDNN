@@ -14,11 +14,19 @@
 * limitations under the license.
 *******************************************************************************/
 
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
 #include "ocl/ocl_types.h"
 
 #if IS_DW != 1
 #    error "Kernel supports depth-wise convolutions only"
 #endif
+
+#define DO_ELTWISE(blockC, nelems, alpha, beta) do { \
+    for (uint i = 0;i < nelems; i++) \
+        blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
+} while (0)
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 #if SUB_GROUP_SIZE != 1
@@ -27,14 +35,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __kernel void gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
         const __global DATA_T *wei, const __global DATA_T *bias,
         __global DATA_T *dst,
-#if DT_F32
-        float relu_negative_slope, float sum_scale) {
-#endif
-#if DT_F16
-    float relu_negative_slope_, float sum_scale_) {
-        half relu_negative_slope = relu_negative_slope_;
-        half sum_scale = sum_scale_;
-#endif
+        float eltwise_alpha, float eltwise_beta, float sum_scale) {
 
 #ifdef VER_8OW16C
         const int osp = get_global_id(1);
@@ -106,31 +107,11 @@ __kernel void gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
                 }
 #    endif
 
-#    if WITH_SUM_RELU == 1
+#    if WITH_SUM == 1 || WITH_ELTWISE == 1
         DATA_T D00[OW_BLOCK];
         __attribute__((opencl_unroll_hint(OW_BLOCK)))
         for (int k = 0; k < OW_BLOCK; k++) {
-            D00[k] = AS_DATA_T(
-                    BLOCK_READ((const __global uint *)&dst[k * OC_BLOCK]));
-#        if SUM_SCALE == 1
-            S00[k] += D00[k];
-#        else
-            S00[k] = fma(D00[k], (DATA_T)sum_scale, S00[k]);
-#        endif
-            if (S00[k] < 0)
-                S00[k] *= relu_negative_slope;
-        }
-#    else
-#        if WITH_RELU == 1
-        for (uint i = 0; i < OW_BLOCK; i++) {
-            if (S00[i] < 0)
-                S00[i] *= relu_negative_slope;
-        }
-#        endif
 #        if WITH_SUM == 1
-        DATA_T D00[OW_BLOCK];
-        __attribute__((opencl_unroll_hint(OW_BLOCK)))
-        for (int k = 0; k < OW_BLOCK; k++) {
             D00[k] = AS_DATA_T(
                     BLOCK_READ((const __global uint *)&dst[k * OC_BLOCK]));
 #            if SUM_SCALE == 1
@@ -138,8 +119,11 @@ __kernel void gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
 #            else
             S00[k] = fma(D00[k], (DATA_T)sum_scale, S00[k]);
 #            endif
-        }
+#         endif
+#        if WITH_ELTWISE == 1
+            S00[k] = fwd_eltwise(S00[k], eltwise_alpha, eltwise_beta);
 #        endif
+        }
 #    endif
 
         __attribute__((opencl_unroll_hint(OW_BLOCK)))
@@ -216,7 +200,7 @@ __kernel void gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
                 }
 #    endif
 
-#    if WITH_SUM_RELU == 1
+#    if WITH_SUM == 1
         DATA8_T D00 = AS_DATA8_T(BLOCK_READ8((const __global uint *)dst));
         DATA8_T D01 = AS_DATA8_T(
                 BLOCK_READ8((const __global uint *)&dst[8 * OC_BLOCK]));
@@ -228,33 +212,10 @@ __kernel void gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
         S00 = fma(D00, (DATA8_T)sum_scale, S00);
         S01 = fma(D01, (DATA8_T)sum_scale, S01);
 #        endif
-        for (uint i = 0; i < 8; i++) {
-            if (S00[i] < 0)
-                S00[i] *= relu_negative_slope;
-            if (S01[i] < 0)
-                S01[i] *= relu_negative_slope;
-        }
-#    else
-#        if WITH_RELU == 1
-        for (uint i = 0; i < 8; i++) {
-            if (S00[i] < 0)
-                S00[i] *= relu_negative_slope;
-            if (S01[i] < 0)
-                S01[i] *= relu_negative_slope;
-        }
-#        endif
-#        if WITH_SUM == 1
-        DATA8_T D00 = AS_DATA8_T(BLOCK_READ8((const __global uint *)dst));
-        DATA8_T D01 = AS_DATA8_T(
-                BLOCK_READ8((const __global uint *)&dst[8 * OC_BLOCK]));
-#            if SUM_SCALE == 1
-        S00 += D00;
-        S01 += D01;
-#            else
-        S00 = fma(D00, (DATA8_T)sum_scale, S00);
-        S01 = fma(D01, (DATA8_T)sum_scale, S01);
-#            endif
-#        endif
+#    endif
+#    if WITH_ELTWISE == 1
+        DO_ELTWISE(S00, 8, eltwise_alpha, eltwise_beta);
+        DO_ELTWISE(S01, 8, eltwise_alpha, eltwise_beta);
 #    endif
 
         BLOCK_WRITE8((__global unsigned int *)&dst[0], AS_UINT8_T(S00));

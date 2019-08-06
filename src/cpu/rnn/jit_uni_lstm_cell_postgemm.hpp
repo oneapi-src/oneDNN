@@ -203,10 +203,18 @@ protected:
             }
 
             // add biases
-            uni_vaddps(G0, G0, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
-            uni_vaddps(G1, G1, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
-            uni_vaddps(G2, G2, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
-            uni_vaddps(G3, G3, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G0, G0, tmp1_vmm);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G1, G1, tmp1_vmm);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G2, G2, tmp1_vmm);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G3, G3, tmp1_vmm);
 
             // inject eltwise code
             sigmoid_injector_->compute_vector(G0.getIdx());

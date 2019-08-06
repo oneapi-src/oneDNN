@@ -73,7 +73,7 @@ protected:
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G1(2);
+        Vmm G0(1), G1(2), tmp1_vmm(3);
 
         // We start code generations here
         preamble();
@@ -98,18 +98,23 @@ protected:
         {
             // Compute gate 0: G0 = sigmoid(G0 + b0)
             uni_vmovups(G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G0, G0, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G0, G0, tmp1_vmm);
             sigmoid_injector_->compute_vector(G0.getIdx());
             // we store it for use in postgemm_part2
             uni_vmovups(ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size], G0);
 
             // Compute gate 1:  G1 = sigmoid(G1 + b1)
             uni_vmovups(G1, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
-            uni_vaddps(G1, G1, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
 
             // states_t_l = states_tm1_l * G1
-            uni_vmulps(G1, G1, ptr[addr_states_tm1_l_reg]);
+            uni_vmovups(tmp1_vmm, ptr[addr_states_tm1_l_reg]);
+            uni_vmulps(G1, G1, tmp1_vmm);
             uni_vmovups(ptr[addr_states_t_l_reg], G1);
 
             // increment address pointers

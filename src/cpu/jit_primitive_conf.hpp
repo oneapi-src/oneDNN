@@ -473,6 +473,7 @@ struct jit_pool_conf_t {
     int ur_w;
     int ur_w_tail;
     size_t tail[4];
+    bool safe_c_tail;
     data_type_t src_dt;
     data_type_t dst_dt;
 

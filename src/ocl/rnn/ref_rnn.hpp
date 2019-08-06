@@ -98,8 +98,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<const compute::compute_engine_t *>(
-                            this->engine());
+                    = utils::downcast<const compute::compute_engine_t *>(this->engine());
 
             const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -122,16 +121,17 @@ struct _ref_rnn_common_t : public primitive_t {
                             weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
                     && IMPLICATION(src_type == data_type::f16,
-                            this->desc()->prop_kind == forward_inference)
+                               this->desc()->prop_kind == forward_inference)
                     && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
+                               compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_type == data_type::f16,
-                            true
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp16)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::
-                                                    intel_subgroups_short));
+                               true
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
+                                                          khr_fp16)
+                                       && compute_engine->mayiuse(
+                                                  compute::device_ext_t::
+                                                          intel_subgroups_short));
             if (!ok) {
                 return status::unimplemented;
             }
@@ -280,23 +280,33 @@ struct _ref_rnn_common_t : public primitive_t {
                 break;
             case prop_kind::backward:
                 gemm_ok = true
-                    && utils::everyone_is(status::success,
-                    create_gemm_pd(&gemm_iter_pd_, sic, batch, n_gates * dic,
-                        rnn_conf_.weights_iter_ld, rnn_conf_.gates_ws_ld,
-                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
-                        false, 0.0f),
-                    create_gemm_pd(&gemm_layer_pd_, sic, batch, n_gates * dic,
-                        rnn_conf_.weights_layer_ld, rnn_conf_.gates_ws_ld,
-                        rnn_conf_.states_ws_ld, weights_type, src_type, src_type,
-                        false, 0.0f),
-                    create_gemm_pd(&gemm_diff_wei_layer_pd_, n_gates * dic, slc,
-                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
-                        rnn_conf_.diff_weights_layer_ld, src_type, src_type,
-                        weights_type, true, 1.0f),
-                    create_gemm_pd(&gemm_diff_wei_iter_pd_, n_gates * dic, sic,
-                        batch, rnn_conf_.gates_ws_ld, rnn_conf_.states_ws_ld,
-                        rnn_conf_.diff_weights_iter_ld, src_type, src_type,
-                        weights_type, true, 1.0f));
+                        && utils::everyone_is(status::success,
+                                create_gemm_pd(&gemm_iter_pd_, sic, batch,
+                                        n_gates * dic,
+                                        rnn_conf_.weights_iter_ld,
+                                        rnn_conf_.gates_ws_ld,
+                                        rnn_conf_.states_ws_ld, weights_type,
+                                        src_type, src_type, false, 0.0f),
+                                create_gemm_pd(&gemm_layer_pd_, slc, batch,
+                                        n_gates * dic,
+                                        rnn_conf_.weights_layer_ld,
+                                        rnn_conf_.gates_ws_ld,
+                                        rnn_conf_.states_ws_ld, weights_type,
+                                        src_type, src_type, false, 0.0f),
+                                create_gemm_pd(&gemm_diff_wei_layer_pd_,
+                                        n_gates * dic, slc, batch,
+                                        rnn_conf_.gates_ws_ld,
+                                        rnn_conf_.states_ws_ld,
+                                        rnn_conf_.diff_weights_layer_ld,
+                                        src_type, src_type, weights_type, true,
+                                        1.0f),
+                                create_gemm_pd(&gemm_diff_wei_iter_pd_,
+                                        n_gates * dic, sic, batch,
+                                        rnn_conf_.gates_ws_ld,
+                                        rnn_conf_.states_ws_ld,
+                                        rnn_conf_.diff_weights_iter_ld,
+                                        src_type, src_type, weights_type, true,
+                                        1.0f));
                 break;
             default:
                 assert(!"unknown prop_kind");

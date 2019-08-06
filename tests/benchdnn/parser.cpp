@@ -87,6 +87,11 @@ bool parse_inplace(std::vector<bool> &inplace, const char *str,
     return parse_vector_option(inplace, str2bool, str, option_name);
 }
 
+bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
+        const std::string &option_name /* = "skip-nonlinear"*/) {
+    return parse_vector_option(skip, str2bool, str, option_name);
+}
+
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name/* = "skip-impl"*/) {
     const std::string pattern = get_pattern(option_name);

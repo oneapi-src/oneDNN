@@ -1270,6 +1270,91 @@ mkldnn_status_t MKLDNN_API mkldnn_batch_normalization_backward_desc_init(
 
 /// @}
 
+/// @addtogroup c_api_layer_normalization Layer Normalization
+/// A primitive to perform layer normalization. Normalization is performed over
+/// the last logical axis of data tensor.
+///
+/// Both forward and backward passes support in-place operation; that is, src
+/// and dst point to the same memory for forward pass, and diff_dst and diff_src
+/// point to the same memory for backward pass.
+///
+/// Layer normalization supports different flavors controlled by
+/// mkldnn_layer_normalization_desc_t. For example, layer normalization can
+/// compute the mean and variance on its own or take them as inputs. It can
+/// either perform scaling and shifting using gamma and beta parameters or not.
+///
+/// @sa mkldnn_layer_normalization_desc_t
+///
+/// @sa @ref dev_guide_layer_normalization in developer guide
+/// @sa @ref cpp_api_layer_normalization in @ref cpp_api
+/// @{
+
+/// Initializes a layer normalization descriptor @p lnrm_desc for forward
+/// propagation using @p prop_kind (possible values are
+/// #mkldnn_forward_training and #mkldnn_forward_inference), memory descriptor
+/// @p data_desc, normalization parameter @p epsilon, and @p flags set using bit
+/// flags of type mkldnn_layer_normalization_desc_t.
+///
+/// Inputs:
+///  - src (#mkldnn_query_src_md, 0)
+///  - mean (#mkldnn_query_src_md, 1),
+///      if #mkldnn_use_global_stats bit-flags is set in @p flags
+///  - variance (#mkldnn_query_src_md, 2),
+///      if #mkldnn_use_global_stats bit-flags is set in @p flags
+///  - scale_and_shift (#mkldnn_query_weights_md, 0),
+///      if #mkldnn_use_scaleshift bit-flags is set in @p flags
+///
+/// Outputs:
+///  - dst (#mkldnn_query_dst_md, 0)
+///  - mean (#mkldnn_query_dst_md, 1),
+///      if #mkldnn_use_global_stats bit-flags is not set in @p flags
+///      @p prop_kind = #mkldnn_forward_training
+///  - variance (#mkldnn_query_dst_md, 2),
+///      if #mkldnn_use_global_stats bit-flags is not set in @p flags
+///      and @p prop_kind = #mkldnn_forward_training
+///
+/// @note In-place operation is supported; that is, dst points to the same memory
+///       as src.
+///
+/// @sa mkldnn_layer_normalization_desc_t
+mkldnn_status_t MKLDNN_API mkldnn_layer_normalization_forward_desc_init(
+        mkldnn_layer_normalization_desc_t *lnrm_desc,
+        mkldnn_prop_kind_t prop_kind, const mkldnn_memory_desc_t *data_desc,
+        const mkldnn_memory_desc_t *stat_desc, float epsilon, unsigned flags);
+
+/// Initializes a layer normalization descriptor @p lnrm_desc for backward
+/// propagation with respect to data and scale-shift parameters using memory
+/// descriptors @p data_desc and @p diff_data_desc, normalization parameter
+/// @p epsilon, and @p flags set using bit flags of type
+/// mkldnn_layer_normalization_desc_t.
+///
+/// Inputs:
+///  - src (#mkldnn_query_src_md, 0)
+///  - mean (#mkldnn_query_src_md, 1)
+///  - variance (#mkldnn_query_src_md, 2)
+///  - diff_dst (#mkldnn_query_diff_dst_md, 0)
+///  - scale_and_shift (#mkldnn_query_weights_md, 0),
+///      if #mkldnn_use_scaleshift bit-flags is set in @p flags
+///
+/// Outputs:
+///  - diff_src (#mkldnn_query_diff_src_md, 0)
+///  - diff_scale_and_shift (#mkldnn_query_diff_weights_md, 0),
+///      if #mkldnn_use_scaleshift bit-flags is set in @p flags
+///      and @p prop_kind = #mkldnn_backward
+///
+/// @note in-place operation is supported,
+///       i.e. diff_src points to the same memory as diff_dst.
+///
+/// @sa mkldnn_layer_normalization_desc_t
+mkldnn_status_t MKLDNN_API mkldnn_layer_normalization_backward_desc_init(
+        mkldnn_layer_normalization_desc_t *lnrm_desc,
+        mkldnn_prop_kind_t prop_kind,
+        const mkldnn_memory_desc_t *diff_data_desc,
+        const mkldnn_memory_desc_t *data_desc,
+        const mkldnn_memory_desc_t *stat_desc, float epsilon, unsigned flags);
+
+/// @}
+
 /// @addtogroup c_api_inner_product Inner product
 /// A primitive to compute an inner product.
 ///

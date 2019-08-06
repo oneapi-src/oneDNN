@@ -14,6 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
+
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #if ID > 1
@@ -21,6 +25,11 @@
 #else
 #    define CASE_3D 0
 #endif
+
+#define DO_ELTWISE(blockC, nelems, alpha, beta) do { \
+    for (uint i = 0;i < nelems; i++) \
+        blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
+} while (0)
 
 #define ODHW_SIZE (OD * OH * OW)
 #define IDHW_SIZE (ID * IH * IW)
@@ -36,9 +45,9 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
         const __global half *wei, const __global half *bias, __global half *dst,
-        float relu_negative_slope_, float sum_scale_) {
+        float eltwise_alpha, float eltwise_beta, float sum_scale_) {
 
-    half relu_negative_slope = relu_negative_slope_;
+    half relu_negative_slope = eltwise_alpha;
     half sum_scale = sum_scale_;
 
 #if IC == 3 && OC % 32 == 0
@@ -221,7 +230,7 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
             + od * OH * OW * OC_BLOCK * MB_BLOCK + oh * OW * OC_BLOCK * MB_BLOCK
             + ow * OC_BLOCK * MB_BLOCK + ((mb + 1) % MB_BLOCK) * OC_BLOCK;
 
-#        if WITH_SUM_RELU == 1
+#        if WITH_SUM == 1
     half8 blockS00, blockS01, blockS10, blockS11;
     if (ow == OW_LAST) {
         for (int i = 0; i < OW - OW_LAST; i++) {
@@ -263,73 +272,13 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
         C11[i] = fma(blockS11[i], (half)sum_scale, C11[i]);
 #            endif
     }
+#        endif // with_sum
 
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-        if (C01[i] < 0)
-            C01[i] *= relu_negative_slope;
-        if (C11[i] < 0)
-            C11[i] *= relu_negative_slope;
-    }
-#        else
-#            if WITH_RELU == 1
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-        if (C01[i] < 0)
-            C01[i] *= relu_negative_slope;
-        if (C11[i] < 0)
-            C11[i] *= relu_negative_slope;
-    }
-#            endif
-#            if WITH_SUM == 1
-    half8 blockS00, blockS01, blockS10, blockS11;
-    if (ow == OW_LAST) {
-        for (int i = 0; i < OW - OW_LAST; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-            blockS01[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
-            blockS11[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-        }
-    } else {
-        for (int i = 0; i < OW_BLOCK; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-            blockS01[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
-            blockS11[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-        }
-    }
-    for (int i = 0; i < OW_BLOCK; i++) {
-#            if SUM_SCALE == 1
-        C00[i] += blockS00[i];
-        C10[i] += blockS10[i];
-        C01[i] += blockS01[i];
-        C11[i] += blockS11[i];
-#            else
-        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
-        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
-        C01[i] = fma(blockS01[i], (half)sum_scale, C01[i]);
-        C11[i] = fma(blockS11[i], (half)sum_scale, C11[i]);
-#            endif
-    }
-#            endif
+#        if WITH_ELTWISE == 1
+    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C01, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C11, OW_BLOCK, eltwise_alpha, eltwise_beta);
 #        endif
 
     if (ow == OW_LAST) {
@@ -525,49 +474,6 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
             + oc * OC_BLOCK * ODHW_SIZE + od * OH * OW * OC_BLOCK
             + oh * OW * OC_BLOCK + ow * OC_BLOCK;
 
-#        if WITH_SUM_RELU == 1
-    half8 blockS00, blockS10;
-    if (ow == OW_LAST) {
-        for (int i = 0; i < OW - OW_LAST; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[i * OC_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[ODHW_SIZE * OC_BLOCK
-                            + i * OC_BLOCK]));
-        }
-    } else {
-        for (int i = 0; i < OW_BLOCK; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[i * OC_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[ODHW_SIZE * OC_BLOCK
-                            + i * OC_BLOCK]));
-        }
-    }
-    for (int i = 0; i < OW_BLOCK; i++) {
-#            if SUM_SCALE == 1
-        C00[i] += blockS00[i];
-        C10[i] += blockS10[i];
-#            else
-        C00[i] = fma(blockS00[i], (half)sum_scale, C00[i]);
-        C10[i] = fma(blockS10[i], (half)sum_scale, C10[i]);
-#            endif
-    }
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-    }
-#        else
-#            if WITH_RELU == 1
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-    }
-#            endif
 #            if WITH_SUM == 1
     half8 blockS00, blockS10;
     if (ow == OW_LAST) {
@@ -597,7 +503,10 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #            endif
     }
 #            endif
-#        endif
+#            if WITH_ELTWISE == 1
+    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#            endif
 
     if (ow == OW_LAST) {
         for (int i = 0; i < OW - OW_LAST; i++) {
@@ -794,7 +703,7 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
     __global half *dst_write1 = dst_write0 + OC_BLOCK * ODHW_SIZE * MB_BLOCK;
 #    endif
 
-#    if WITH_SUM_RELU == 1
+#    if WITH_SUM == 1
     half8 blockS00 = as_half8(intel_sub_group_block_read_us8(
             (const __global ushort *)dst_write0));
     half8 blockS01 = as_half8(intel_sub_group_block_read_us8(
@@ -820,18 +729,17 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
     C11 = fma(blockS11, (half8)sum_scale, C11);
 #            endif
 #        endif
-    for (uint i = 0; i < 8; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C01[i] < 0)
-            C01[i] *= relu_negative_slope;
+#    endif
+
+#    if WITH_ELTWISE == 1
+    DO_ELTWISE(C00, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C01, 8, eltwise_alpha, eltwise_beta);
 #        if USE_32OC_UNROLL
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-        if (C11[i] < 0)
-            C11[i] *= relu_negative_slope;
+    DO_ELTWISE(C10, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C11, 8, eltwise_alpha, eltwise_beta);
 #        endif
-    }
+#    endif
+
     intel_sub_group_block_write_us8(
             (__global ushort *)dst_write0, as_ushort8(C00));
     intel_sub_group_block_write_us8(
@@ -843,6 +751,7 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
             (__global ushort *)&dst_write1[8 * OC_BLOCK], as_ushort8(C11));
 #        endif
 
+#    if WITH_SUM == 1
     half8 blockS02 = as_half8(
             intel_sub_group_block_read_us8((const __global ushort *)(dst_write0
                     + MB_BLOCK * OC * G * ODHW_SIZE)));
@@ -872,209 +781,34 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
     C13 = fma(blockS13, (half8)sum_scale, C13);
 #            endif
 #        endif
-    for (uint i = 0; i < 8; i++) {
-        if (C02[i] < 0)
-            C02[i] *= relu_negative_slope;
-        if (C03[i] < 0)
-            C03[i] *= relu_negative_slope;
+#    endif
+#    if WITH_ELTWISE == 1
+    DO_ELTWISE(C02, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C03, 8, eltwise_alpha, eltwise_beta);
 #        if USE_32OC_UNROLL
-        if (C12[i] < 0)
-            C12[i] *= relu_negative_slope;
-        if (C13[i] < 0)
-            C13[i] *= relu_negative_slope;
-#        endif
-    }
-
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C02));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C03));
-#        if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C12));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C13));
-#        endif
-#    else
-#        if WITH_RELU == 1
-    for (uint i = 0; i < 8; i++) {
-        if (C00[i] < 0)
-            C00[i] *= relu_negative_slope;
-        if (C01[i] < 0)
-            C01[i] *= relu_negative_slope;
-#            if USE_32OC_UNROLL
-        if (C10[i] < 0)
-            C10[i] *= relu_negative_slope;
-        if (C11[i] < 0)
-            C11[i] *= relu_negative_slope;
-#            endif
-    }
-#            if WITH_SUM == 0
-    intel_sub_group_block_write_us8(
-            (__global ushort *)dst_write0, as_ushort8(C00));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[8 * OC_BLOCK], as_ushort8(C01));
-#                if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[0], as_ushort8(C10));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[8 * OC_BLOCK], as_ushort8(C11));
-#                endif
-#            endif
-    for (uint i = 0; i < 8; i++) {
-
-        if (C02[i] < 0)
-            C02[i] *= relu_negative_slope;
-        if (C03[i] < 0)
-            C03[i] *= relu_negative_slope;
-#            if USE_32OC_UNROLL
-        if (C12[i] < 0)
-            C12[i] *= relu_negative_slope;
-        if (C13[i] < 0)
-            C13[i] *= relu_negative_slope;
-#            endif
-    }
-#            if WITH_SUM == 0
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C02));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C03));
-#                if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C12));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C13));
-#                endif
-#            endif
-#        endif
-#        if WITH_SUM == 1
-    half8 blockS00 = as_half8(
-            intel_sub_group_block_read_us8((__global ushort *)dst_write0));
-    half8 blockS01 = as_half8(intel_sub_group_block_read_us8(
-            (const __global ushort *)(dst_write0 + 8 * OC_BLOCK)));
-#            if USE_32OC_UNROLL
-    half8 blockS10 = as_half8(intel_sub_group_block_read_us8(
-            (const __global ushort *)dst_write1));
-    half8 blockS11 = as_half8(intel_sub_group_block_read_us8(
-            (const __global ushort *)(dst_write1 + 8 * OC_BLOCK)));
-#            endif
-#            if SUM_SCALE == 1
-    C00 += blockS00;
-    C01 += blockS01;
-#                if USE_32OC_UNROLL
-    C10 += blockS10;
-    C11 += blockS11;
-#                endif
-#            else
-    C00 = fma(blockS00, (half8)sum_scale, C00);
-    C01 = fma(blockS01, (half8)sum_scale, C01);
-#                if USE_32OC_UNROLL
-    C10 = fma(blockS10, (half8)sum_scale, C10);
-    C11 = fma(blockS11, (half8)sum_scale, C11);
-#                endif
-#            endif
-    intel_sub_group_block_write_us8(
-            (__global ushort *)dst_write0, as_ushort8(C00));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[8 * OC_BLOCK], as_ushort8(C01));
-#            if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[0], as_ushort8(C10));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[8 * OC_BLOCK], as_ushort8(C11));
-#            endif
-
-    half8 blockS02 = as_half8(
-            intel_sub_group_block_read_us8((const __global ushort *)(dst_write0
-                    + MB_BLOCK * OC * G * ODHW_SIZE)));
-    half8 blockS03 = as_half8(
-            intel_sub_group_block_read_us8((const __global ushort *)(dst_write0
-                    + MB_BLOCK * OC * G * ODHW_SIZE + 8 * OC_BLOCK)));
-#            if USE_32OC_UNROLL
-    half8 blockS12 = as_half8(
-            intel_sub_group_block_read_us8((const __global ushort *)(dst_write1
-                    + MB_BLOCK * OC * G * ODHW_SIZE)));
-    half8 blockS13 = as_half8(
-            intel_sub_group_block_read_us8((const __global ushort *)(dst_write1
-                    + MB_BLOCK * OC * G * ODHW_SIZE + 8 * OC_BLOCK)));
-#            endif
-
-#            if SUM_SCALE == 1
-    C02 += blockS02;
-    C03 += blockS03;
-#                if USE_32OC_UNROLL
-    C12 += blockS12;
-    C13 += blockS13;
-#                endif
-#            else
-    C02 = fma(blockS02, (half8)sum_scale, C02);
-    C03 = fma(blockS03, (half8)sum_scale, C03);
-#                if USE_32OC_UNROLL
-    C12 = fma(blockS12, (half8)sum_scale, C12);
-    C13 = fma(blockS13, (half8)sum_scale, C13);
-#                endif
-#            endif
-
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C02));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C03));
-#            if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C12));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C13));
-#            endif
-#        endif
-#        if WITH_RELU == 0 && WITH_SUM == 0
-    intel_sub_group_block_write_us8(
-            (__global ushort *)dst_write0, as_ushort8(C00));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[8 * OC_BLOCK], as_ushort8(C01));
-#            if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[0], as_ushort8(C10));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[8 * OC_BLOCK], as_ushort8(C11));
-#            endif
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C02));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C03));
-#            if USE_32OC_UNROLL
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE],
-            as_ushort8(C12));
-    intel_sub_group_block_write_us8(
-            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE
-                    + 8 * OC_BLOCK],
-            as_ushort8(C13));
-#            endif
+    DO_ELTWISE(C12, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C13, 8, eltwise_alpha, eltwise_beta);
 #        endif
 #    endif
 
+    intel_sub_group_block_write_us8(
+            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE],
+            as_ushort8(C02));
+    intel_sub_group_block_write_us8(
+            (__global ushort *)&dst_write0[MB_BLOCK * OC * G * ODHW_SIZE
+                    + 8 * OC_BLOCK],
+            as_ushort8(C03));
+#        if USE_32OC_UNROLL
+    intel_sub_group_block_write_us8(
+            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE],
+            as_ushort8(C12));
+    intel_sub_group_block_write_us8(
+            (__global ushort *)&dst_write1[MB_BLOCK * OC * G * ODHW_SIZE
+                    + 8 * OC_BLOCK],
+            as_ushort8(C13));
+#        endif
 #endif
+
 #if VER_8OW16C == 1 && IC % 16 == 0
     /* Regular convolution. */
     const int sp = get_group_id(1);
@@ -1307,83 +1041,6 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
             + goc * ODHW_SIZE * OC_BLOCK + g * OC * ODHW_SIZE
             + od * OH * OW * OC_BLOCK + oh * OW * OC_BLOCK + ow * OC_BLOCK;
 
-#    if WITH_SUM_RELU == 1
-#        if OW_BLOCK != 8 && OW_BLOCK != 16
-    half blockS00[OW_BLOCK];
-#        else
-    half8 blockS00;
-#            if OW_BLOCK == 16
-    half8 blockS01;
-#            endif
-#        endif
-#        if OW % OW_BLOCK != 0
-    if (ow == OW_LAST) {
-        for (int i = 0; i < OW - OW_LAST; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[i * OC_BLOCK]));
-        }
-    } else {
-#        endif
-#        if OW_BLOCK != 8 && OW_BLOCK != 16
-        for (int i = 0; i < OW_BLOCK; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us(
-                    (const __global ushort *)&dst_write0[i * OC_BLOCK]));
-        }
-#        else
-    blockS00 = as_half8(intel_sub_group_block_read_us8(
-            (const __global ushort *)dst_write0));
-#            if OW_BLOCK == 16
-    blockS01 = as_half8(intel_sub_group_block_read_us8(
-            (const __global ushort *)&dst_write0[8 * OC_BLOCK]));
-#            endif
-#        endif
-#        if OW % OW_BLOCK != 0
-    }
-#        endif
-
-#        if OW_BLOCK != 16
-    for (int i = 0; i < OW_BLOCK; i++) {
-#            if SUM_SCALE == 1
-        blockC00[i] += blockS00[i];
-#            else
-        blockC00[i] = fma(blockS00[i], (half)sum_scale, blockC00[i]);
-#            endif
-    }
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (blockC00[i] < 0)
-            blockC00[i] *= relu_negative_slope;
-    }
-#        else
-#            if SUM_SCALE == 1
-    blockC00 += blockS00;
-    blockC01 += blockS01;
-#            else
-    blockC00 = fma(blockS00, (half8)sum_scale, blockC00);
-    blockC01 = fma(blockS01, (half8)sum_scale, blockC01);
-#            endif
-    for (uint i = 0; i < 8; i++) {
-        if (blockC00[i] < 0)
-            blockC00[i] *= relu_negative_slope;
-        if (blockC01[i] < 0)
-            blockC01[i] *= relu_negative_slope;
-    }
-#        endif
-#    else
-#        if WITH_RELU == 1
-#            if OW_BLOCK != 16
-    for (uint i = 0; i < OW_BLOCK; i++) {
-        if (blockC00[i] < 0)
-            blockC00[i] *= relu_negative_slope;
-    }
-#            else
-    for (uint i = 0; i < 8; i++) {
-        if (blockC00[i] < 0)
-            blockC00[i] *= relu_negative_slope;
-        if (blockC01[i] < 0)
-            blockC01[i] *= relu_negative_slope;
-    }
-#            endif
-#        endif
 #        if WITH_SUM == 1
 #            if OW_BLOCK != 8 && OW_BLOCK != 16
     half blockS00[OW_BLOCK];
@@ -1436,7 +1093,15 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #                endif
 #            endif
 #        endif
-#    endif
+
+#        if WITH_ELTWISE == 1
+#            if OW_BLOCK != 16
+    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#            else
+    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta);
+#            endif
+#        endif
 
 #    if OW % OW_BLOCK != 0
     if (ow + OW_BLOCK > OW) {
@@ -1447,6 +1112,7 @@ __kernel void gen9_common_conv_fwd_f16_kernel(const __global half *src,
         }
     } else {
 #    endif
+
 #    if OW_BLOCK != 8 && OW_BLOCK != 16
         __attribute__((opencl_unroll_hint(OW_BLOCK)))
         for (int i = 0; i < OW_BLOCK; i++) {

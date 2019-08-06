@@ -80,6 +80,7 @@ to limited parallelism):
 * Batch normalization,
 * Convolution backward by weights,
 * Inner product,
+* Layer normalization,
 * `mkldnn_*gemm()`.
 
 ## GPU Options

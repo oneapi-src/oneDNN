@@ -15,8 +15,10 @@
 *******************************************************************************/
 
 #include "common/engine.hpp"
-#include "ocl/ocl_cross_engine_reorder_pd.hpp"
+#include "ocl/cross_engine_reorder.hpp"
+#include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
+#include "ocl/simple_reorder.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -29,7 +31,8 @@ namespace {
 using namespace mkldnn::impl::data_type;
 
 static const rpd_create_f ocl_ce_reorder_impl_list[] = {
-    ocl_cross_engine_reorder_t::pd_t::create,
+    cross_engine_reorder_t::pd_t::create,
+    simple_reorder_t::pd_t::create,
     nullptr
 };
 } // namespace

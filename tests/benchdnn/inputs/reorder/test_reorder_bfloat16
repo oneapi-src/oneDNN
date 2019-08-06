@@ -1,6 +1,5 @@
 # f32 <--> bf16
 --reset
---allow-unimpl=true
 --sdt=f32 --ddt=bf16
 --stag=nchw --dtag=nChw16c 2x64x14x14 2x56x14x14
 --stag=goihw --dtag=gOIhw16i16o 2x64x64x3x3 2x56x56x3x3

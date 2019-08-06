@@ -94,8 +94,7 @@ struct ref_convolution_kernel_t {
         return status::success;
     }
 
-    status_t apply_const(compute::kernel_ctx_t &kernel_ctx, bool with_eltwise,
-            bool with_sum, alg_kind_t alg) const {
+    status_t apply_const(compute::kernel_ctx_t &kernel_ctx) const {
         kernel_ctx.define_int("NDIMS", conf_.ndims);
         kernel_ctx.define_int("G", conf_.ngroups);
         kernel_ctx.define_int("WITH_GROUPS", conf_.with_groups);
@@ -132,10 +131,20 @@ struct ref_convolution_kernel_t {
         def_offsets(off_.bias_off, kernel_ctx, "BIA", 1);
         def_offsets(off_.dst_off, kernel_ctx, "DST", conf_.ndims);
 
-        if (conf_.src_data_type == data_type::f16)
-            kernel_ctx.set_data_type(data_type::f16);
-        else
-            kernel_ctx.set_data_type(data_type::f32);
+        switch(conf_.prop_kind) {
+        case prop_kind::forward_training:
+        case prop_kind::forward_inference:
+            kernel_ctx.set_data_type(conf_.dst_data_type);
+            break;
+        case prop_kind::backward_data:
+            kernel_ctx.set_data_type(conf_.src_data_type);
+            break;
+        case prop_kind::backward_weights:
+            kernel_ctx.set_data_type(conf_.weights_data_type);
+            break;
+        default:
+            break;
+        }
 
         def_data_type(kernel_ctx, conf_.src_data_type, "SRC");
         def_data_type(kernel_ctx, conf_.weights_data_type, "WEI");
@@ -143,12 +152,13 @@ struct ref_convolution_kernel_t {
         def_data_type(kernel_ctx, conf_.dst_data_type, "DST");
         def_data_type(kernel_ctx, conf_.acc_data_type, "ACC");
 
-        if (with_eltwise) {
-            def_postops(kernel_ctx, alg);
+        if (conf_.with_eltwise || conf_.with_post_sum_eltwise) {
+            def_postops(kernel_ctx, conf_.eltwise.alg);
         }
-        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        kernel_ctx.define_int("WITH_SUM", with_sum);
-        kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
+        kernel_ctx.define_int("WITH_ELTWISE", conf_.with_eltwise);
+        kernel_ctx.define_int("WITH_SUM", conf_.with_sum);
+        kernel_ctx.define_int(
+                "WITH_POST_SUM_ELTWISE", conf_.with_post_sum_eltwise);
 
         return status::success;
     }

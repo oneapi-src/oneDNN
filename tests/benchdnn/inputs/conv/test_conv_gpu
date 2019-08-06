@@ -13,7 +13,18 @@
 --mb=2
 --dir=FWD_B,BWD_D,BWD_WB --batch=conv_resnet_50
 
-# int8
+# i8
+# i8 - 1x1 tests
 --reset --cfg=u8s8u8s32,u8s8s8s32
---mb=2,16
---dir=BWD_D --batch=conv_gpu --batch=conv_dilated
+--dir=FWD_I,FWD_B,BWD_D
+mb2ic256ih14oc1024oh14kh1ph0n
+mb2ic32ih14oc32oh14kh1ph0n
+mb2ic32ih7oc512oh7kh1ph0n
+mb2ic512ih14oc32oh14kh1ph0n
+
+--reset --cfg=u8s8u8s32
+--mb=2
+--dir=FWD_B --batch=conv_gpu
+
+# test scale and post-ops
+--batch=test_conv_attrs_gpu
