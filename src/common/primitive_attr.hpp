@@ -50,8 +50,7 @@ struct rnn_tparams_t : public c_compatible {
 
     ~rnn_tparams_t() {
         test_mode_ = false;
-        if (scales_ != nullptr)
-            impl::free(scales_);
+        if (scales_ != nullptr) impl::free(scales_);
         scales_ = nullptr;
         ngates_ = 0;
         cscale_ = 0.0f;
@@ -77,8 +76,7 @@ struct rnn_tparams_t : public c_compatible {
         scales_ = nullptr;
         if (scales != nullptr) {
             scales_ = (float *)impl::malloc(ngates_ * sizeof(*scales_), 64);
-            if (scales_ == nullptr)
-                return status::out_of_memory;
+            if (scales_ == nullptr) return status::out_of_memory;
             utils::array_copy(scales_, scales, ngates_);
         }
 
@@ -93,12 +91,12 @@ struct rnn_tparams_t : public c_compatible {
     float cscale_; /* =0.0f if no c state */
 };
 
-struct scales_t: public c_compatible {
-    scales_t(): count_(1), mask_(0), scales_(scales_buf_)
-    { set(1.); }
+struct scales_t : public c_compatible {
+    scales_t() : count_(1), mask_(0), scales_(scales_buf_) { set(1.); }
 
-    scales_t(const scales_t &rhs): scales_t()
-    { set(rhs.count_, rhs.mask_, rhs.scales_); }
+    scales_t(const scales_t &rhs) : scales_t() {
+        set(rhs.count_, rhs.mask_, rhs.scales_);
+    }
 
     ~scales_t() { cleanup(); }
 
@@ -112,7 +110,7 @@ struct scales_t: public c_compatible {
 
     bool has_default_values() const {
         for (dim_t c = 0; c < count_; ++c) {
-            if(scales_[c] != 1.) return false;
+            if (scales_[c] != 1.) return false;
         }
         return true;
     }
@@ -129,8 +127,7 @@ private:
     float scales_buf_[scales_buf_size];
 
     void cleanup() {
-        if (scales_ != scales_buf_ && scales_ != nullptr)
-            impl::free(scales_);
+        if (scales_ != scales_buf_ && scales_ != nullptr) impl::free(scales_);
 
         count_ = 1;
         mask_ = 0;
@@ -138,10 +135,10 @@ private:
     }
 };
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
-struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
+struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
     struct entry_t {
         struct eltwise_t {
             mkldnn::impl::alg_kind_t alg;
@@ -150,36 +147,38 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
 
         mkldnn::impl::primitive_kind_t kind;
         union {
-            struct { float scale; } sum;
+            struct {
+                float scale;
+            } sum;
             eltwise_t eltwise;
         };
 
         bool is_eltwise(bool require_scale_one = true) const {
             using namespace mkldnn::impl;
             return kind == primitive_kind::eltwise
-                && IMPLICATION(require_scale_one, eltwise.scale == 1.f);
+                    && IMPLICATION(require_scale_one, eltwise.scale == 1.f);
         }
 
         bool is_relu(bool require_scale_one = true,
                 bool require_nslope_zero = true) const {
             using namespace mkldnn::impl;
             return is_eltwise(require_scale_one)
-                && eltwise.alg == alg_kind::eltwise_relu
-                && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
+                    && eltwise.alg == alg_kind::eltwise_relu
+                    && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
         }
 
         bool is_sum(bool require_scale_one = true) const {
             using namespace mkldnn::impl;
             return kind == primitive_kind::sum
-                && IMPLICATION(require_scale_one, sum.scale == 1.f);
+                    && IMPLICATION(require_scale_one, sum.scale == 1.f);
         }
     };
 
-    mkldnn_post_ops(): len_(0) {}
+    mkldnn_post_ops() : len_(0) {}
 
     mkldnn::impl::status_t append_sum(float scale);
-    mkldnn::impl::status_t append_eltwise(float scale,
-            mkldnn::impl::alg_kind_t alg, float alpha, float beta);
+    mkldnn::impl::status_t append_eltwise(
+            float scale, mkldnn::impl::alg_kind_t alg, float alpha, float beta);
 
     int find(mkldnn::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
@@ -192,8 +191,9 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
 
     bool has_default_values() const { return len_ == 0; }
 
-    bool contain(mkldnn::impl::primitive_kind_t kind, int index) const
-    { return find(kind, index, index + 1) == index; }
+    bool contain(mkldnn::impl::primitive_kind_t kind, int index) const {
+        return find(kind, index, index + 1) == index;
+    }
 
     enum { capacity = 4 };
 
@@ -201,13 +201,13 @@ struct mkldnn_post_ops: public mkldnn::impl::c_compatible {
     entry_t entry_[capacity];
 };
 
-struct mkldnn_primitive_attr: public mkldnn::impl::c_compatible {
+struct mkldnn_primitive_attr : public mkldnn::impl::c_compatible {
     mkldnn_primitive_attr()
-        : scratchpad_mode_(mkldnn::impl::scratchpad_mode::library)
-    {}
+        : scratchpad_mode_(mkldnn::impl::scratchpad_mode::library) {}
 
-    mkldnn_primitive_attr *clone() const
-    { return new mkldnn_primitive_attr(*this); }
+    mkldnn_primitive_attr *clone() const {
+        return new mkldnn_primitive_attr(*this);
+    }
 
     /** Returns true if the attributes have default values.
      *

@@ -35,8 +35,7 @@ status_t ocl_stream_t::init() {
 
     // Out-of-order is not supported
     bool args_ok = (flags() & stream_flags::out_of_order) == 0;
-    if (!args_ok)
-        return status::unimplemented;
+    if (!args_ok) return status::unimplemented;
 
     ocl_gpu_engine_t *ocl_engine
             = utils::downcast<ocl_gpu_engine_t *>(engine());
@@ -74,8 +73,7 @@ status_t ocl_stream_t::init() {
 status_t ocl_stream_t::copy(const memory_storage_t &src,
         const memory_storage_t &dst, size_t size) const {
 
-    if (size == 0)
-        return status::success;
+    if (size == 0) return status::success;
 
     if (src.engine()->kind() == engine_kind::cpu
             && src.engine()->backend_kind() == backend_kind::native) {

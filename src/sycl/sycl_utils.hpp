@@ -20,8 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "compute/compute.hpp"
 
-#include <CL/sycl.hpp>
 #include <vector>
+#include <CL/sycl.hpp>
 
 namespace mkldnn {
 namespace impl {
@@ -38,8 +38,7 @@ inline std::vector<cl::sycl::device> get_sycl_devices(
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;
         auto devs = plat.get_devices(dev_type);
-        if (devs.empty())
-            continue;
+        if (devs.empty()) continue;
         devices.insert(devices.end(), devs.begin(), devs.end());
     }
     return devices;

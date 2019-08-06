@@ -62,8 +62,7 @@ struct cross_engine_reorder_t : public primitive_t {
         status_t status;
 
         status = pd()->reorder_->create_primitive(&reorder_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         bool with_sum_ab = (pd()->alpha() != 1.0 || pd()->beta() != 0.0);
         do_reorder_ = with_sum_ab

@@ -25,8 +25,7 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_ocl_gpu_kernel_t : public compute::kernel_impl_t
-{
+class sycl_ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     sycl_ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
     virtual ~sycl_ocl_gpu_kernel_t() override;

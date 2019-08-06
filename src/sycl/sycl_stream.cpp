@@ -16,12 +16,12 @@
 
 #include "sycl/sycl_stream.hpp"
 
-#include "sycl/sycl_engine.hpp"
 #include "ocl/ocl_utils.hpp"
+#include "sycl/sycl_engine.hpp"
 
-#include <CL/cl.h>
 #include <map>
 #include <memory>
+#include <CL/cl.h>
 
 namespace mkldnn {
 namespace impl {
@@ -69,11 +69,11 @@ status_t sycl_stream_t::init() {
             // the engine kind only and check that the device is the same.
             if (sycl_engine.kind() == engine_kind::cpu) {
                 queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::cpu_selector{}));
+                        sycl_ctx, cl::sycl::cpu_selector {}));
             } else {
                 assert(sycl_engine.kind() == engine_kind::gpu);
                 queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::gpu_selector{}));
+                        sycl_ctx, cl::sycl::gpu_selector {}));
             }
             auto queue_ocl_dev = ocl::ocl_utils::make_ocl_wrapper(
                     queue_->get_device().get());
@@ -102,27 +102,24 @@ status_t sycl_stream_t::init() {
         // Validate that the queue is compatible with the engine
         auto sycl_dev = queue_->get_device();
         bool args_ok = true
-                && IMPLICATION(engine()->kind() == engine_kind::gpu,
-                               sycl_dev.is_gpu())
+                && IMPLICATION(
+                        engine()->kind() == engine_kind::gpu, sycl_dev.is_gpu())
                 && IMPLICATION(engine()->kind() == engine_kind::cpu,
-                           (sycl_dev.is_cpu() || sycl_dev.is_host()));
-        if (!args_ok)
-            return status::invalid_arguments;
+                        (sycl_dev.is_cpu() || sycl_dev.is_host()));
+        if (!args_ok) return status::invalid_arguments;
 
         auto ocl_queue = ocl::ocl_utils::make_ocl_wrapper(queue_->get());
         cl_context ocl_ctx;
         err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
                 sizeof(cl_context), &ocl_ctx, nullptr);
         status = ocl::ocl_utils::convert_to_mkldnn(err);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         cl_device_id ocl_dev;
         err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
                 sizeof(cl_device_id), &ocl_dev, nullptr);
         status = ocl::ocl_utils::convert_to_mkldnn(err);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
 
@@ -132,7 +129,6 @@ status_t sycl_stream_t::init() {
                 sycl_engine->context().get());
         if (sycl_ocl_dev != ocl_dev || sycl_ocl_ctx != ocl_ctx)
             return status::invalid_arguments;
-
     }
 
     return status::success;

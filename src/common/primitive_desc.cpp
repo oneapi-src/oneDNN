@@ -31,19 +31,22 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
     };
 
     switch (what) {
-        case query::engine: *(engine_t**)result = engine(); break;
-        case query::primitive_kind: *(primitive_kind_t*)result = kind(); break;
+        case query::engine: *(engine_t **)result = engine(); break;
+        case query::primitive_kind: *(primitive_kind_t *)result = kind(); break;
 
         case query::scratchpad_engine:
-            *(engine_t**)result = scratchpad_engine(); break;
+            *(engine_t **)result = scratchpad_engine();
+            break;
 
         case query::memory_consumption_s64:
-            *(dim_t *)result = scratchpad_size(scratchpad_mode::library); break;
+            *(dim_t *)result = scratchpad_size(scratchpad_mode::library);
+            break;
 
         case query::op_d:
             if (idx != 0 || op_desc() == nullptr) return invalid_arguments;
             *(const_c_op_desc_t *)result
-                = static_cast<const_c_op_desc_t>(op_desc()); break;
+                    = static_cast<const_c_op_desc_t>(op_desc());
+            break;
 
         case query::src_md: return safe_ret_md(src_md(idx));
         case query::diff_src_md: return safe_ret_md(diff_src_md(idx));
@@ -58,8 +61,8 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
             if (idx != 0) return status::invalid_arguments;
             return safe_ret_md(scratchpad_md(idx));
 
-        case query::num_of_inputs_s32: *(int*)result = n_inputs(); break;
-        case query::num_of_outputs_s32: *(int*)result = n_outputs(); break;
+        case query::num_of_inputs_s32: *(int *)result = n_inputs(); break;
+        case query::num_of_outputs_s32: *(int *)result = n_outputs(); break;
 
         case query::impl_info_str: *(const char **)result = name(); break;
 
@@ -68,10 +71,9 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
     return success;
 }
 
-status_t mkldnn_primitive_desc_get_attr(const primitive_desc_t *primitive_desc,
-        const primitive_attr_t **attr) {
-    if (utils::any_null(primitive_desc, attr))
-        return invalid_arguments;
+status_t mkldnn_primitive_desc_get_attr(
+        const primitive_desc_t *primitive_desc, const primitive_attr_t **attr) {
+    if (utils::any_null(primitive_desc, attr)) return invalid_arguments;
 
     *attr = primitive_desc->attr();
     return success;

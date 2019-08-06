@@ -32,21 +32,21 @@ namespace cpu {
 namespace jit_gemm_convolution_utils {
 template <typename data_type_t>
 void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
-    data_type_t *col, int od);
+        data_type_t *col, int od);
 
 template <typename data_type_t>
 void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
-       data_type_t *__restrict col, int ss, int sb, int cs, int cb);
+        data_type_t *__restrict col, int ss, int sb, int cs, int cb);
 
 template <typename T>
 void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
-        T* __restrict imtr, uint8_t *__restrict col,
-        int hs, int hb, int ws, int wb);
+        T *__restrict imtr, uint8_t *__restrict col, int hs, int hb, int ws,
+        int wb);
 
 void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
         int32_t *__restrict im);
-void col2im_3d(const jit_gemm_conv_conf_t &jcp, const float *col, float *im,
-        int od);
+void col2im_3d(
+        const jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od);
 void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im);
 
 status_t init_conf(jit_gemm_conv_conf_t &jcp,
@@ -54,16 +54,16 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads);
 
-void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb,
-        int &ithr_g, int &nthr_g, int &ithr_mb, int &nthr_mb);
+void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
+        int &nthr_g, int &ithr_mb, int &nthr_mb);
 void bwd_weights_reduction_par(int ithr, int nthr,
         const jit_gemm_conv_conf_t &jcp, const float *weights_reduce_ws,
         float *weights);
 
-}
+} // namespace jit_gemm_convolution_utils
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

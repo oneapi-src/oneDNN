@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gemm_inner_product_utils.hpp"
+#include "jit_uni_eltwise.hpp"
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
-#include "gemm_inner_product_utils.hpp"
-#include "jit_uni_eltwise.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -60,14 +60,12 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
         vreg_scale = Zmm(idx_compute_vreg_start_++);
     }
-    if (dst_type == data_type::u8)
-       vreg_zero = Zmm(idx_compute_vreg_start_++);
+    if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
 
     auto &p = pd->attr()->post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     do_eltwise_ = eltwise_ind != -1;
-    if (do_eltwise_)
-        eltwise_ = p.entry_[eltwise_ind].eltwise;
+    if (do_eltwise_) eltwise_ = p.entry_[eltwise_ind].eltwise;
 
     const int sum_ind = p.find(primitive_kind::sum);
     do_sum_ = sum_ind != -1 && !skip_sum;
@@ -96,15 +94,13 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
         if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16) {
             idx_compute_vreg_max_ = 27;
-            bf16_emu_ = new bf16_emulation_t(this,
-                                bf16_emu_reserv_1, bf16_emu_reserv_2,
-                                bf16_emu_reserv_3, bf16_emu_reserv_4,
-                                bf16_emu_reserv_5);
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
+                    bf16_emu_reserv_5);
         }
 
-        int max_unroll =
-               (idx_compute_vreg_max_ - idx_compute_vreg_start_ + 1)
-                       / compute_vregs_per_iter_;
+        int max_unroll = (idx_compute_vreg_max_ - idx_compute_vreg_start_ + 1)
+                / compute_vregs_per_iter_;
         max_OC_loop_unroll_ = nstl::min(max_OC_loop_unroll_, max_unroll);
 
         if (do_eltwise_)
@@ -115,9 +111,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
     }
 }
 
-template<data_type_t acc_type, data_type_t dst_type>
-void pp_kernel_t<acc_type, dst_type>::generate()
-{
+template <data_type_t acc_type, data_type_t dst_type>
+void pp_kernel_t<acc_type, dst_type>::generate() {
     using namespace Xbyak;
     using namespace utils;
 
@@ -129,8 +124,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
-    if (do_scale_)
-        mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
     if (do_scale_ && scale_idx_mult_ == 0)
@@ -144,8 +138,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         vbroadcastss(vreg_sum_scale, xreg_sum_scale);
     }
 
-    if (dst_type == data_type::u8)
-        vxorps(vreg_zero, vreg_zero, vreg_zero);
+    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
 
     // Load accumulated value, convert to float, apply bias (if any), scaling,
     // and eltwise (if any); then convert to destination type and store
@@ -157,8 +150,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         if (do_scale_ && scale_idx_mult_ == 1) {
             auto scale_addr = ptr[reg_scales + offset * sizeof(float)];
             auto vreg_scale_ = vreg_scale;
-            if (apply_mask)
-                vreg_scale_ = vreg_scale_ | kreg_rem_mask;
+            if (apply_mask) vreg_scale_ = vreg_scale_ | kreg_rem_mask;
             vmovups(vreg_scale, scale_addr);
         }
 
@@ -166,42 +158,34 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         auto vreg_dst_msk_ = apply_mask ? vreg_dst_ | kreg_rem_mask : vreg_dst_;
 
         switch (acc_type) {
-        case data_type::s32: vcvtdq2ps(vreg_dst_msk_, acc_addr); break;
-        case data_type::f32: vmovups(vreg_dst_msk_, acc_addr); break;
+            case data_type::s32: vcvtdq2ps(vreg_dst_msk_, acc_addr); break;
+            case data_type::f32: vmovups(vreg_dst_msk_, acc_addr); break;
         }
 
         if (do_bias_) {
             auto bias_addr = ptr[reg_bias + offset * bias_data_type_size_];
             auto vreg_bias_ = vreg_bias(idx);
-            auto vreg_bias_msk_ = apply_mask
-                    ? vreg_bias_ | kreg_rem_mask
-                    : vreg_bias_;
+            auto vreg_bias_msk_
+                    = apply_mask ? vreg_bias_ | kreg_rem_mask : vreg_bias_;
 
             switch (bias_data_type_) {
-            case data_type::s8:
-                vpmovsxbd(vreg_bias_msk_, bias_addr);
-                break;
-            case data_type::u8:
-                vpmovzxbd(vreg_bias_msk_, bias_addr);
-                break;
-            case data_type::s32:
-            case data_type::f32:
-                vmovups(vreg_bias_msk_, bias_addr);
-                break;
-            case data_type::bf16:
-                vpmovzxwd(vreg_bias_msk_, bias_addr);
-                vpslld(vreg_bias_, vreg_bias_, 0x10);
-                break;
-            default: assert(!"unimplemented");
+                case data_type::s8: vpmovsxbd(vreg_bias_msk_, bias_addr); break;
+                case data_type::u8: vpmovzxbd(vreg_bias_msk_, bias_addr); break;
+                case data_type::s32:
+                case data_type::f32: vmovups(vreg_bias_msk_, bias_addr); break;
+                case data_type::bf16:
+                    vpmovzxwd(vreg_bias_msk_, bias_addr);
+                    vpslld(vreg_bias_, vreg_bias_, 0x10);
+                    break;
+                default: assert(!"unimplemented");
             }
-            if (utils::one_of(bias_data_type_, data_type::u8,
-                        data_type::s8, data_type::s32))
+            if (utils::one_of(bias_data_type_, data_type::u8, data_type::s8,
+                        data_type::s32))
                 vcvtdq2ps(vreg_bias_, vreg_bias_);
             vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
         }
 
-        if (do_scale_)
-            vmulps(vreg_dst_, vreg_dst_, vreg_scale);
+        if (do_scale_) vmulps(vreg_dst_, vreg_dst_, vreg_scale);
 
         auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
         if (do_sum_) {
@@ -211,31 +195,35 @@ void pp_kernel_t<acc_type, dst_type>::generate()
                     : vreg_prev_dst_;
 
             switch (dst_type) {
-            case data_type::f32:
-            case data_type::s32: vmovups(vreg_prev_dst_msk_, dst_addr); break;
-            case data_type::s8: vpmovsxbd(vreg_prev_dst_msk_, dst_addr); break;
-            case data_type::u8: vpmovzxbd(vreg_prev_dst_msk_, dst_addr); break;
-            case data_type::bf16:
-                vpmovzxwd(vreg_prev_dst_msk_, dst_addr);
-                vpslld(vreg_prev_dst_, vreg_prev_dst_, 0x10);
-                break;
-            default: assert(!"unsupported data type");
+                case data_type::f32:
+                case data_type::s32:
+                    vmovups(vreg_prev_dst_msk_, dst_addr);
+                    break;
+                case data_type::s8:
+                    vpmovsxbd(vreg_prev_dst_msk_, dst_addr);
+                    break;
+                case data_type::u8:
+                    vpmovzxbd(vreg_prev_dst_msk_, dst_addr);
+                    break;
+                case data_type::bf16:
+                    vpmovzxwd(vreg_prev_dst_msk_, dst_addr);
+                    vpslld(vreg_prev_dst_, vreg_prev_dst_, 0x10);
+                    break;
+                default: assert(!"unsupported data type");
             }
-            if (utils::one_of(dst_type, data_type::u8,
-                        data_type::s8, data_type::s32))
+            if (utils::one_of(
+                        dst_type, data_type::u8, data_type::s8, data_type::s32))
                 vcvtdq2ps(vreg_prev_dst_, vreg_prev_dst_);
 
             vfmadd231ps(vreg_dst_, vreg_prev_dst_, vreg_sum_scale);
         }
 
-        if (do_eltwise_)
-            eltwise_injector_->compute_vector(vreg_dst_.getIdx());
+        if (do_eltwise_) eltwise_injector_->compute_vector(vreg_dst_.getIdx());
 
-        if (dst_type == data_type::u8)
-            vmaxps(vreg_dst_, vreg_dst_, vreg_zero);
+        if (dst_type == data_type::u8) vmaxps(vreg_dst_, vreg_dst_, vreg_zero);
 
-        if (utils::one_of(dst_type, data_type::s8, data_type::u8,
-                    data_type::s32)) {
+        if (utils::one_of(
+                    dst_type, data_type::s8, data_type::u8, data_type::s32)) {
             vcvtps2dq(vreg_dst_, vreg_dst_);
         } else if (dst_type == data_type::bf16) {
             if (isa_ == avx512_core_bf16)
@@ -245,23 +233,16 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         }
 
         switch (dst_type) {
-        case data_type::s8:
-            vpmovsdb(dst_addr, vreg_dst_msk_);
-            break;
-        case data_type::u8:
-            vpmovusdb(dst_addr, vreg_dst_msk_);
-            break;
-        case data_type::f32:
-        case data_type::s32:
-            vmovups(dst_addr, vreg_dst_msk_);
-            break;
-        case data_type::bf16:
-            vmovdqu16(dst_addr,
-                      apply_mask
-                              ? Ymm(vreg_dst_.getIdx()) | kreg_rem_mask
-                              : Ymm(vreg_dst_.getIdx()));
-            break;
-        default: assert(!"unimplemented");
+            case data_type::s8: vpmovsdb(dst_addr, vreg_dst_msk_); break;
+            case data_type::u8: vpmovusdb(dst_addr, vreg_dst_msk_); break;
+            case data_type::f32:
+            case data_type::s32: vmovups(dst_addr, vreg_dst_msk_); break;
+            case data_type::bf16:
+                vmovdqu16(dst_addr,
+                        apply_mask ? Ymm(vreg_dst_.getIdx()) | kreg_rem_mask
+                                   : Ymm(vreg_dst_.getIdx()));
+                break;
+            default: assert(!"unimplemented");
         }
     };
 
@@ -271,8 +252,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         add(reg_acc, offset * sizeof(acc_data_t));
         if (do_scale_ && scale_idx_mult_ == 1)
             add(reg_scales, offset * sizeof(float));
-        if (do_bias_)
-            add(reg_bias, offset * bias_data_type_size_);
+        if (do_bias_) add(reg_bias, offset * bias_data_type_size_);
     };
 
     // Advance all pointers by a value stored in a register
@@ -288,8 +268,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
     // Rewind pointers that point to data that is indixed by output channel
     // (bias or per-oc scaling factors)
     auto rewind_ptrs = [&]() {
-        if (do_bias_)
-            sub(reg_bias, OC_ * bias_data_type_size_);
+        if (do_bias_) sub(reg_bias, OC_ * bias_data_type_size_);
         if (do_scale_ && scale_idx_mult_ == 1)
             sub(reg_scales, OC_ * sizeof(float));
     };
@@ -321,7 +300,8 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         Label prologue_loop, prologue_loop_tail, prologue_loop_end;
         cmp(reg_tmp, vlen);
         jle(prologue_loop_tail, T_NEAR); // Skips for reg_tmp == 16 too (?)
-        L(prologue_loop); {
+        L(prologue_loop);
+        {
             compute(0, 0, false);
             advance_ptrs_imm(vlen);
             sub(reg_tmp, vlen);
@@ -351,7 +331,8 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         jle(main_loop_end, T_NEAR);
 
         Label main_loop;
-        L(main_loop); {
+        L(main_loop);
+        {
             size_t OC_loop, OC_tail;
             if (OC_ < max_OC_loop_unroll_ * vlen) {
                 // Fully unroll small loops
@@ -374,7 +355,8 @@ void pp_kernel_t<acc_type, dst_type>::generate()
             if (OC_loop) {
                 mov(reg_tmp, rnd_dn(OC_, OC_loop));
                 Label oc_loop;
-                L(oc_loop); {
+                L(oc_loop);
+                {
                     for (size_t offset = 0; offset < OC_loop; offset += vlen)
                         compute(offset, offset / vlen, false);
                     advance_ptrs_imm(OC_loop);
@@ -408,7 +390,8 @@ void pp_kernel_t<acc_type, dst_type>::generate()
         Label epilogue_loop, epilogue_loop_tail;
         cmp(reg_len, vlen);
         jle(epilogue_loop_tail, T_NEAR); // Skips for reg_len == 16 (?)
-        L(epilogue_loop); {
+        L(epilogue_loop);
+        {
             compute(0, 0, false);
             sub(reg_len, vlen);
             advance_ptrs_imm(vlen);
@@ -430,8 +413,7 @@ void pp_kernel_t<acc_type, dst_type>::generate()
 
     postamble();
 
-    if (do_eltwise_)
-        eltwise_injector_->prepare_table();
+    if (do_eltwise_) eltwise_injector_->prepare_table();
 
     ker_ = getCode<decltype(ker_)>();
 }
@@ -442,8 +424,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         size_t start, size_t end) {
     using math::get_bias;
 
-    if (end <= start)
-        return;
+    if (end <= start) return;
 
     if (ker_) {
         // JIT
@@ -461,14 +442,10 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         size_t oc = start % OC_;
         for (size_t i = start; i < end; i++) {
             float d = (float)acc[i];
-            if (do_bias_)
-                d += get_bias(bias, oc, bias_data_type_);
-            if (do_scale_)
-                d *= scales[oc * scale_idx_mult_];
-            if (do_sum_)
-                d += sum_scale_ * dst[i];
-            if (do_eltwise_)
-                d = ref_eltwise_->compute_scalar(d);
+            if (do_bias_) d += get_bias(bias, oc, bias_data_type_);
+            if (do_scale_) d *= scales[oc * scale_idx_mult_];
+            if (do_sum_) d += sum_scale_ * dst[i];
+            if (do_eltwise_) d = ref_eltwise_->compute_scalar(d);
             dst[i] = qz_a1b0<float, dst_data_t>()(d);
             oc = (oc == OC_ - 1) ? 0 : oc + 1;
         }
@@ -482,8 +459,8 @@ template class pp_kernel_t<s32, s32>;
 template class pp_kernel_t<s32, s8>;
 template class pp_kernel_t<s32, u8>;
 template class pp_kernel_t<f32, bf16>;
-}
+} // namespace inner_product_utils
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

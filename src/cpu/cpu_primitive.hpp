@@ -43,13 +43,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_primitive_t: public primitive_t {
-    cpu_primitive_t(const primitive_desc_t *pd,
-            bool use_global_scratchpad = false)
-        : primitive_t(pd)
-    {
-        const size_t scratchpad_size =
-            this->pd()->scratchpad_size(scratchpad_mode::library);
+struct cpu_primitive_t : public primitive_t {
+    cpu_primitive_t(
+            const primitive_desc_t *pd, bool use_global_scratchpad = false)
+        : primitive_t(pd) {
+        const size_t scratchpad_size
+                = this->pd()->scratchpad_size(scratchpad_mode::library);
 
         if (scratchpad_size) {
             if (use_global_scratchpad) {
@@ -83,9 +82,9 @@ private:
     std::unique_ptr<scratchpad_t> global_scratchpad_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

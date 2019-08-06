@@ -44,37 +44,35 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     id.diff_bias_desc = id.bias_desc = zero_md();
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    const bool with_bias =
-        bias_desc && bias_desc->format_kind != format_kind::undef;
+    const bool with_bias
+            = bias_desc && bias_desc->format_kind != format_kind::undef;
 
     (prop_kind == backward_data ? id.diff_src_desc : id.src_desc) = *src_desc;
-    (is_fwd ? id.dst_desc : id.diff_dst_desc)  = *dst_desc;
-    (prop_kind == backward_weights ? id.diff_weights_desc : id.weights_desc) =
-        *weights_desc;
+    (is_fwd ? id.dst_desc : id.diff_dst_desc) = *dst_desc;
+    (prop_kind == backward_weights ? id.diff_weights_desc : id.weights_desc)
+            = *weights_desc;
     if (with_bias)
-        (prop_kind == backward_weights ? id.diff_bias_desc : id.bias_desc) =
-            *bias_desc;
+        (prop_kind == backward_weights ? id.diff_bias_desc : id.bias_desc)
+                = *bias_desc;
 
     id.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
 
-    bool consistency = true
-        && memory_desc_wrapper(weights_desc).nelems()
-        && one_of(src_desc->ndims, 2, 3, 4, 5)
-        && dst_desc->ndims == 2
-        && weights_desc->ndims == src_desc->ndims
-        && (with_bias ? bias_desc->ndims == 1 : true)
-        && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
-        && src_desc->dims[0] == dst_desc->dims[0]
-        && array_cmp(&src_desc->dims[1], &weights_desc->dims[1],
-                src_desc->ndims - 1)
-        && dst_desc->dims[1] == weights_desc->dims[0];
+    bool consistency = true && memory_desc_wrapper(weights_desc).nelems()
+            && one_of(src_desc->ndims, 2, 3, 4, 5) && dst_desc->ndims == 2
+            && weights_desc->ndims == src_desc->ndims
+            && (with_bias ? bias_desc->ndims == 1 : true)
+            && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
+            && src_desc->dims[0] == dst_desc->dims[0]
+            && array_cmp(&src_desc->dims[1], &weights_desc->dims[1],
+                    src_desc->ndims - 1)
+            && dst_desc->dims[1] == weights_desc->dims[0];
     if (!consistency) return invalid_arguments;
 
     *ip_desc = id;
     return success;
 }
-}
+} // namespace
 
 status_t mkldnn_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
@@ -82,14 +80,13 @@ status_t mkldnn_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
         const memory_desc_t *dst_desc) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return ip_desc_init(ip_desc, prop_kind, src_desc, weights_desc, bias_desc,
-            dst_desc);
+    return ip_desc_init(
+            ip_desc, prop_kind, src_desc, weights_desc, bias_desc, dst_desc);
 }
 
 status_t mkldnn_inner_product_backward_data_desc_init(
         inner_product_desc_t *ip_desc, const memory_desc_t *diff_src_desc,
-        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc)
-{
+        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc) {
     return ip_desc_init(ip_desc, backward_data, diff_src_desc, weights_desc,
             nullptr, diff_dst_desc);
 }

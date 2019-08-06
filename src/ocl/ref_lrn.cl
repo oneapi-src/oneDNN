@@ -43,7 +43,9 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
-        DEF_ACC_DATA_T val = zero ? 0.0f : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, 0, ih, iw)]);
+        DEF_ACC_DATA_T val = zero
+                ? 0.0f
+                : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, 0, ih, iw)]);
         sum += val * val;
     }
 
@@ -63,7 +65,8 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
             zero = src_offset_w >= IW ? true : zero;
             zero = src_offset_h >= IH ? true : zero;
 
-            DEF_ACC_DATA_T val = zero ? DATA_ZERO : TO_DEF_ACC_DATA_T(src[src_offset]);
+            DEF_ACC_DATA_T val
+                    = zero ? DATA_ZERO : TO_DEF_ACC_DATA_T(src[src_offset]);
 
             sum += val * val;
             src_offset += SRC_W_STRIDE;
@@ -75,7 +78,8 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     const DEF_ACC_DATA_T num_elements_div = NUM_ELEMENTS_DIV;
     const DEF_ACC_DATA_T base = (DEF_ACC_DATA_T)LRN_K
             + (DEF_ACC_DATA_T)LRN_ALPHA * sum * num_elements_div;
-    const DEF_ACC_DATA_T normalization_factor = native_powr(base, (DEF_ACC_DATA_T)(-LRN_BETA));
+    const DEF_ACC_DATA_T normalization_factor
+            = native_powr(base, (DEF_ACC_DATA_T)(-LRN_BETA));
 
     const DEF_ACC_DATA_T val = TO_DEF_ACC_DATA_T(src[src_index]);
     const DEF_ACC_DATA_T normres = val * normalization_factor;
@@ -88,8 +92,7 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
 
 #if LRN_BWD == 1
 __kernel void ref_lrn_bwd(__global const DATA_T *src,
-        __global const DATA_T *diff_dst,
-        __global DATA_T *ws,
+        __global const DATA_T *diff_dst, __global DATA_T *ws,
         __global DATA_T *diff_src) {
     const uint mb = get_global_id(GWS_MB);
     const uint ic = get_global_id(GWS_IC);
@@ -108,7 +111,7 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         bool zero = (z_idx < 0 || z_idx >= IC);
         if (!zero) {
             DATA_T val = src[SRC_OFF(mb, z_idx, 0, ih, iw)];
-            DATA_T omega =  ws[SRC_OFF(mb, z_idx, 0, ih, iw)];
+            DATA_T omega = ws[SRC_OFF(mb, z_idx, 0, ih, iw)];
             DATA_T tmp = 1.0f / native_powr(omega, TO_DATA_T(LRN_BETA + 1));
             B += tmp * val * diff_dst[DST_OFF(mb, z_idx, 0, ih, iw)];
         }
@@ -138,8 +141,11 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         }
     }
 #endif
-    const DEF_ACC_DATA_T A = native_powr(ws[src_index], TO_DATA_T(-LRN_BETA)) * diff_dst[dst_index];
+    const DEF_ACC_DATA_T A = native_powr(ws[src_index], TO_DATA_T(-LRN_BETA))
+            * diff_dst[dst_index];
 
-    diff_src[src_index] = A - src[src_index] * 2 * (DEF_ACC_DATA_T)LRN_ALPHA * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B;
+    diff_src[src_index] = A
+            - src[src_index] * 2 * (DEF_ACC_DATA_T)LRN_ALPHA
+                    * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B;
 }
 #endif

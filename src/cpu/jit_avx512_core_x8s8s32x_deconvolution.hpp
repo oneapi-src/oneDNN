@@ -21,9 +21,9 @@
 #include "cpu_primitive.hpp"
 #include "memory.hpp"
 #include "mkldnn_thread.hpp"
+#include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-#include "nstl.hpp"
 
 #include "cpu_deconvolution_pd.hpp"
 #include "jit_generator.hpp"
@@ -53,20 +53,14 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
         jit_ker = (void (*)(jit_deconv_call_s *))getCode();
     }
 
-    ~jit_avx512_core_x8s8s32x_deconv_fwd_kernel() {
-            delete eltwise_injector_;
-    }
+    ~jit_avx512_core_x8s8s32x_deconv_fwd_kernel() { delete eltwise_injector_; }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
+    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const deconvolution_desc_t &cd,
-            memory_desc_t &src_md,
-            memory_desc_t &weights_md,
-            memory_desc_t &dst_md,
-            const bool with_bias,
-            memory_desc_t &bias_md,
+            const deconvolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &weights_md, memory_desc_t &dst_md,
+            const bool with_bias, memory_desc_t &bias_md,
             const primitive_attr_t &attr);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -75,6 +69,7 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
     const jit_conv_conf_t &jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_deconv_call_s *);
+
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     using reg64_t = const Xbyak::Reg64;
@@ -125,12 +120,8 @@ private:
         assert(idx < 31);
         return zmm_t(idx);
     }
-    zmm_t zmm_bias_alpha() {
-        return zmm_t(jcp.nb_oc_blocking * jcp.ur_w);
-    }
-    xmm_t xmm_bias_alpha() {
-        return xmm_t(jcp.nb_oc_blocking * jcp.ur_w);
-    }
+    zmm_t zmm_bias_alpha() { return zmm_t(jcp.nb_oc_blocking * jcp.ur_w); }
+    xmm_t xmm_bias_alpha() { return xmm_t(jcp.nb_oc_blocking * jcp.ur_w); }
 
     int get_ow_start(int ki, int l_overflow) {
         int res = (jcp.ow - 1 + jcp.r_pad) % jcp.stride_w
@@ -143,9 +134,9 @@ private:
 
     int get_ow_end(int ur_w, int ki, int r_overflow) {
         if (utils::one_of(ur_w, jcp.ow, jcp.ur_w_tail))
-                ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
+            ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
         int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
-            + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
+                + r_overflow * jcp.stride_w - ki * (jcp.dilate_w + 1);
         while (res < 0)
             res += jcp.stride_w;
         return ur_w - res;
@@ -155,12 +146,12 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block);
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
-             ker_block_t last_ic_block_flag, bool h_padded = false);
+            ker_block_t last_ic_block_flag, bool h_padded = false);
     void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool last_block);
     void generate();
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
-        bool mask_flag);
+            bool mask_flag);
 };
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
@@ -168,32 +159,35 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_deconvolution:", ( (jcp_.ver 
-                == ver_vnni) ? avx512_core_vnni : avx512_core), ""),
-                _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type, dst_type>);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_deconvolution:",
+                                    ((jcp_.ver == ver_vnni) ? avx512_core_vnni
+                                                            : avx512_core),
+                                    ""),
+                _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
+                        dst_type>);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && (desc()->alg_kind & alg_kind::deconvolution_direct)
-                && desc()->src_desc.data_type == src_type
-                && desc()->dst_desc.data_type == dst_type
-                && IMPLICATION(with_bias(), utils::one_of(
-                            desc()->bias_desc.data_type, data_type::f32,
-                            data_type::s32, data_type::s8, data_type::u8))
-                && desc()->accum_data_type == data_type::s32;
+            bool ok = true && is_fwd()
+                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
+                    && desc()->src_desc.data_type == src_type
+                    && desc()->dst_desc.data_type == dst_type
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(desc()->bias_desc.data_type,
+                                    data_type::f32, data_type::s32,
+                                    data_type::s8, data_type::u8))
+                    && desc()->accum_data_type == data_type::s32;
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
-                init_conf(jcp_, *desc(), src_md_, weights_md_, dst_md_,
-                        with_bias(), bias_md_, *attr());
+            status_t status
+                    = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
+                            jcp_, *desc(), src_md_, weights_md_, dst_md_,
+                            with_bias(), bias_md_, *attr());
 
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(scratchpad,
-                    jcp_, *attr());
+            jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
+                    scratchpad, jcp_, *attr());
 
             return status::success;
         }
@@ -202,10 +196,9 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     };
 
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
-    {
-        kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(pd()->jcp_,
-                *pd()->attr());
+        : cpu_primitive_t(apd) {
+        kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
+                pd()->jcp_, *pd()->attr());
     }
 
     ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() { delete kernel_; }
@@ -215,7 +208,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if(pd()->ndims() == 3)
+        if (pd()->ndims() == 3)
             execute_forward_1d(ctx);
         else
             execute_forward_2d(ctx);
@@ -229,9 +222,9 @@ private:
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

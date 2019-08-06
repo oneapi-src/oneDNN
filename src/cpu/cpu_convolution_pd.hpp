@@ -28,7 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_convolution_fwd_pd_t: public convolution_fwd_pd_t {
+struct cpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     using convolution_fwd_pd_t::convolution_fwd_pd_t;
 
     bool has_padded_dst() const {
@@ -46,16 +46,16 @@ struct cpu_convolution_fwd_pd_t: public convolution_fwd_pd_t {
         const auto &po = attr()->post_ops_;
         int idx;
         if ((idx = po.find(primitive_kind::eltwise)) == -1) return false;
-        return !math::eltwise_fwd_preserves_zero(po.entry_[idx].eltwise.alg,
-                jit_impl);
+        return !math::eltwise_fwd_preserves_zero(
+                po.entry_[idx].eltwise.alg, jit_impl);
     }
 };
 
-struct cpu_convolution_bwd_data_pd_t: public convolution_bwd_data_pd_t {
+struct cpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
 };
 
-struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
+struct cpu_convolution_bwd_weights_pd_t : public convolution_bwd_weights_pd_t {
     using convolution_bwd_weights_pd_t::convolution_bwd_weights_pd_t;
 
     bool wants_padded_bias() const {
@@ -65,9 +65,9 @@ struct cpu_convolution_bwd_weights_pd_t: public convolution_bwd_weights_pd_t {
     }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

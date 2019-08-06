@@ -30,12 +30,11 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t src_type,
-         impl::data_type_t wei_type = src_type,
-         impl::data_type_t dst_type = src_type,
-         impl::data_type_t acc_type = dst_type>
-struct ref_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_fwd_pd_t {
+template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
+        impl::data_type_t dst_type = src_type,
+        impl::data_type_t acc_type = dst_type>
+struct ref_convolution_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
         using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_fwd_t);
@@ -43,18 +42,18 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
         status_t init() {
             using namespace data_type;
 
-            bool ok = true
-                && is_fwd()
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(src_type, wei_type, data_type::undef,
-                        dst_type, acc_type)
-                && IMPLICATION(with_bias(), true
-                        && IMPLICATION(src_type == u8,
-                            utils::one_of(bias_md_.data_type, f32, s32, s8, u8))
-                        && IMPLICATION(src_type == f32,
-                            bias_md_.data_type == f32))
-                && set_default_formats()
-                && attr()->has_default_values();
+            bool ok = true && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(src_type, wei_type, data_type::undef,
+                            dst_type, acc_type)
+                    && IMPLICATION(with_bias(),
+                            true
+                                    && IMPLICATION(src_type == u8,
+                                            utils::one_of(bias_md_.data_type,
+                                                    f32, s32, s8, u8))
+                                    && IMPLICATION(src_type == f32,
+                                            bias_md_.data_type == f32))
+                    && set_default_formats() && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -63,13 +62,13 @@ struct ref_convolution_fwd_t: public cpu_primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
-    ref_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    ref_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -87,22 +86,20 @@ private:
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-         impl::data_type_t diff_dst_type,
-         impl::data_type_t acc_type = diff_src_type>
-struct ref_convolution_bwd_data_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_bwd_data_pd_t {
+        impl::data_type_t diff_dst_type,
+        impl::data_type_t acc_type = diff_src_type>
+struct ref_convolution_bwd_data_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_data_pd_t {
         using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_data_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_data
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(diff_src_type, wei_type, data_type::undef,
-                        diff_dst_type, acc_type)
-                && set_default_formats()
-                && attr()->has_default_values();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(diff_src_type, wei_type,
+                            data_type::undef, diff_dst_type, acc_type)
+                    && set_default_formats() && attr()->has_default_values();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -114,13 +111,13 @@ struct ref_convolution_bwd_data_t: public cpu_primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -138,22 +135,21 @@ private:
 };
 
 template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
-         impl::data_type_t diff_dst_type,
-         impl::data_type_t acc_type = diff_wei_type>
-struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_bwd_weights_pd_t {
-        using cpu_convolution_bwd_weights_pd_t::cpu_convolution_bwd_weights_pd_t;
+        impl::data_type_t diff_dst_type,
+        impl::data_type_t acc_type = diff_wei_type>
+struct ref_convolution_bwd_weights_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_weights_pd_t {
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_weights_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_weights
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(src_type, diff_wei_type, diff_wei_type,
-                        diff_dst_type, acc_type)
-                && set_default_formats()
-                && attr()->has_default_values();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(src_type, diff_wei_type, diff_wei_type,
+                            diff_dst_type, acc_type)
+                    && set_default_formats() && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -162,13 +158,13 @@ struct ref_convolution_bwd_weights_t: public cpu_primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
-    ref_convolution_bwd_weights_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    ref_convolution_bwd_weights_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<diff_wei_type>::type diff_wei_data_t;
@@ -185,9 +181,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

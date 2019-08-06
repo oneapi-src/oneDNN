@@ -21,15 +21,14 @@
 
 #include "mkldnn.h"
 
-#include "c_types_map.hpp"
 #include "../common/engine.hpp"
+#include "c_types_map.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class cpu_engine_impl_list_t
-{
+class cpu_engine_impl_list_t {
 public:
     static const engine_t::concat_primitive_desc_create_f *
     get_concat_implementation_list();
@@ -40,7 +39,7 @@ public:
     static const engine_t::primitive_desc_create_f *get_implementation_list();
 };
 
-class cpu_engine_t: public engine_t {
+class cpu_engine_t : public engine_t {
 public:
     cpu_engine_t() : engine_t(engine_kind::cpu, backend_kind::native) {}
 
@@ -73,20 +72,20 @@ public:
     }
 };
 
-class cpu_engine_factory_t: public engine_factory_t {
+class cpu_engine_factory_t : public engine_factory_t {
 public:
     virtual size_t count() const override { return 1; }
-    virtual status_t engine_create(engine_t **engine,
-            size_t index) const override {
+    virtual status_t engine_create(
+            engine_t **engine, size_t index) const override {
         assert(index == 0);
         *engine = new cpu_engine_t();
         return status::success;
     };
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

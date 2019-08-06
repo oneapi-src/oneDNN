@@ -17,9 +17,9 @@
 #ifndef OCL_GPU_KERNEL_HPP
 #define OCL_GPU_KERNEL_HPP
 
-#include <CL/cl.h>
 #include <assert.h>
 #include <string>
+#include <CL/cl.h>
 
 #include "compute/compute.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -28,8 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_gpu_kernel_t : public compute::kernel_impl_t
-{
+class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
     virtual ~ocl_gpu_kernel_t() override;

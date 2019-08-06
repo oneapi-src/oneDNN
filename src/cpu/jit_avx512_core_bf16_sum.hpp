@@ -93,7 +93,7 @@ private:
     reg64_t reg_scales = rbx;
     reg64_t reg_sz = rdx;
 
-    reg64_t reg_src[max_num_arrs] = { r8, r9, r10, r11, r12, r13, r14, r15 };
+    reg64_t reg_src[max_num_arrs] = {r8, r9, r10, r11, r12, r13, r14, r15};
 
     static int max_vregs_available(bool bf16_isa) {
         // one vector registers are reserved for vperm index and zero values
@@ -175,13 +175,11 @@ struct jit_bf16_sum_t : public cpu_primitive_t {
                     && cpu_sum_pd_t::init() == status::success
                     && src_mds_.size()
                             <= jit_avx512_core_bf16_sum_kernel::max_num_arrs;
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             const memory_desc_wrapper o_d(&dst_md_);
             ok = true && o_d.data_type() == dst_data_type && o_d.is_dense();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             const auto n = src_mds_.size();
 
@@ -190,15 +188,13 @@ struct jit_bf16_sum_t : public cpu_primitive_t {
 
             for (size_t i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
-                ok = true
-                    && src_data_type == i_d.data_type()
-                    && o_d.similar_to(i_d, true, false, 0)
-                    && i_d.is_dense()
-                    // is scales representable in bfloat16: scales will be down
-                    // converted to bf16 in order to use bf16 vnni instruction
-                    && scales_[i] == float(bfloat16_t(scales_[i]));
-                if (!ok)
-                    return status::unimplemented;
+                ok = true && src_data_type == i_d.data_type()
+                        && o_d.similar_to(i_d, true, false, 0)
+                        && i_d.is_dense()
+                        // is scales representable in bfloat16: scales will be down
+                        // converted to bf16 in order to use bf16 vnni instruction
+                        && scales_[i] == float(bfloat16_t(scales_[i]));
+                if (!ok) return status::unimplemented;
             }
 
             return jit_avx512_core_bf16_sum_kernel::init_conf(

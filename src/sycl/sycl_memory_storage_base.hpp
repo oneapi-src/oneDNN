@@ -28,8 +28,7 @@ enum class memory_api_kind_t {
     usm,
 };
 
-class sycl_memory_storage_base_t : public memory_storage_impl_t
-{
+class sycl_memory_storage_base_t : public memory_storage_impl_t {
 public:
     using memory_storage_impl_t::memory_storage_impl_t;
 

@@ -23,27 +23,28 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_softmax_pd.hpp"
 #include "cpu_isa_traits.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_softmax_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-namespace softmax_impl { template <cpu_isa_t isa> struct driver_t; }
+namespace softmax_impl {
+template <cpu_isa_t isa>
+struct driver_t;
+}
 
 template <cpu_isa_t isa>
-struct jit_uni_softmax_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_softmax_fwd_pd_t {
+struct jit_uni_softmax_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-        {}
+            : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
                 jit_uni_softmax_fwd_t<isa>);
 
         status_t init() {
@@ -56,20 +57,15 @@ struct jit_uni_softmax_fwd_t: public cpu_primitive_t {
                     if (bd.inner_idxs[iblk] == axis())
                         axis_blk_size *= bd.inner_blks[iblk];
 
-                return true
-                    && inner_size() == 1
-                    && data_d.is_dense(true)
-                    && data_d.only_padded_dim(axis())
-                    && bd.strides[axis()] == axis_blk_size;
+                return true && inner_size() == 1 && data_d.is_dense(true)
+                        && data_d.only_padded_dim(axis())
+                        && bd.strides[axis()] == axis_blk_size;
             };
 
-            bool ok = true
-                && mayiuse(isa)
-                && is_fwd()
-                && !has_zero_dim_memory()
-                && src_md()->data_type == data_type::f32
-                && is_dense() // not dense impl can be easily done
-                && (attr()->has_default_values());
+            bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+                    && src_md()->data_type == data_type::f32
+                    && is_dense() // not dense impl can be easily done
+                    && (attr()->has_default_values());
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -89,9 +85,9 @@ private:
     softmax_impl::driver_t<isa> *softmax_driver_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

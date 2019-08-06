@@ -53,7 +53,8 @@ status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
 status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {
     return sycl_stream_t::create_stream(stream, this, flags);
 }
-status_t sycl_engine_base_t::create_stream(stream_t **stream, cl::sycl::queue &queue) {
+status_t sycl_engine_base_t::create_stream(
+        stream_t **stream, cl::sycl::queue &queue) {
     return sycl_stream_t::create_stream(stream, this, queue);
 }
 

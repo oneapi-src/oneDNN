@@ -79,8 +79,7 @@ void rnn_postgemm_template(T func1, const float *scales, float alpha,
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_states_aoc_t states_t_l(rnn, states_t_l_);
-    if (scales != nullptr)
-        alpha = scales[0];
+    if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {
         for (int j = 0; j < rnn.dic; j++) {
@@ -120,8 +119,7 @@ void rnn_postgemm_template(T func1, const float *scales, float alpha,
     ws_gates_aoc_t ws_gates(rnn, ws_gates_);
     ws_diff_states_aoc_t diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc_t diff_states_t_lp1(rnn, diff_states_t_lp1_);
-    if (scales != nullptr)
-        alpha = scales[0];
+    if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {
         for (int j = 0; j < rnn.dic; ++j) {

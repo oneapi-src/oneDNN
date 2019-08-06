@@ -25,21 +25,22 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_deconvolution_fwd_pd_t: public deconvolution_fwd_pd_t {
+struct cpu_deconvolution_fwd_pd_t : public deconvolution_fwd_pd_t {
     using deconvolution_fwd_pd_t::deconvolution_fwd_pd_t;
 };
 
-struct cpu_deconvolution_bwd_data_pd_t: public deconvolution_bwd_data_pd_t {
+struct cpu_deconvolution_bwd_data_pd_t : public deconvolution_bwd_data_pd_t {
     using deconvolution_bwd_data_pd_t::deconvolution_bwd_data_pd_t;
 };
 
-struct cpu_deconvolution_bwd_weights_pd_t: public deconvolution_bwd_weights_pd_t {
+struct cpu_deconvolution_bwd_weights_pd_t
+    : public deconvolution_bwd_weights_pd_t {
     using deconvolution_bwd_weights_pd_t::deconvolution_bwd_weights_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

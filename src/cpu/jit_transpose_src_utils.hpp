@@ -37,12 +37,13 @@ struct jit_trans_src_t {
         simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
-    jit_trans_src_t(const jit_conv_conf_t *conf)
-        : conf_(conf), ker_(nullptr) {}
+    jit_trans_src_t(const jit_conv_conf_t *conf) : conf_(conf), ker_(nullptr) {}
     virtual ~jit_trans_src_t() {}
 
-    void operator()(const ctx_t *ctx)
-    { assert(ker_); ker_(ctx); }
+    void operator()(const ctx_t *ctx) {
+        assert(ker_);
+        ker_(ctx);
+    }
 
     const jit_conv_conf_t *conf_;
     void (*ker_)(const ctx_t *);
@@ -69,12 +70,13 @@ struct jit_trans_dst_t {
         simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
-    jit_trans_dst_t(const jit_conv_conf_t *conf)
-        : conf_(conf), ker_(nullptr) {}
+    jit_trans_dst_t(const jit_conv_conf_t *conf) : conf_(conf), ker_(nullptr) {}
     virtual ~jit_trans_dst_t() {}
 
-    void operator()(const ctx_t *ctx)
-    { assert(ker_); ker_(ctx); }
+    void operator()(const ctx_t *ctx) {
+        assert(ker_);
+        ker_(ctx);
+    }
 
     const jit_conv_conf_t *conf_;
     void (*ker_)(const ctx_t *);
@@ -92,8 +94,7 @@ struct jit_transpose4x16_src : public jit_generator {
 
     jit_transpose4x16_src(const jit_1x1_conv_conf_t *aparams,
             jit_transpose4x16_src_t *tparams_)
-        : params(aparams), tparams(tparams_)
-    {
+        : params(aparams), tparams(tparams_) {
         this->generate();
         jit_ker = (decltype(jit_ker))this->getCode();
     }
@@ -105,6 +106,7 @@ struct jit_transpose4x16_src : public jit_generator {
     void operator()(jit_src_transpose_s *arg) { jit_ker(arg); }
 
     static const int transpose_size = 4;
+
 private:
     static const int typesize = sizeof(float);
 
@@ -138,8 +140,8 @@ private:
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf);
 jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf);
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

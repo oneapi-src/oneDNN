@@ -28,8 +28,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_memory_storage_t : public memory_storage_impl_t
-{
+class ocl_memory_storage_t : public memory_storage_impl_t {
 public:
     ocl_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
             size_t alignment, void *handle);

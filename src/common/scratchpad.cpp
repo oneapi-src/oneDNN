@@ -136,7 +136,6 @@ thread_local std::unique_ptr<memory_storage_t>
 thread_local size_t global_scratchpad_t::size_ = 0;
 thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
 
-
 /*
    Scratchpad creation routine
 */
@@ -147,5 +146,5 @@ scratchpad_t *create_scratchpad(engine_t *engine, size_t size) {
     return new concurrent_scratchpad_t(engine, size);
 #endif
 }
-}
-}
+} // namespace impl
+} // namespace mkldnn

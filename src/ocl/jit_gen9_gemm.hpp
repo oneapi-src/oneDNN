@@ -64,17 +64,15 @@ struct jit_gen9_gemm_t : public primitive_t {
             bool ok = true && desc()->a_type == a_type
                     && desc()->b_type == b_type && desc()->c_type == c_type
                     && compute_engine->mayiuse(
-                               compute::device_ext_t::intel_subgroups)
+                            compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(c_type == f16,
-                               true
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          khr_fp16)
-                                       && compute_engine->mayiuse(
-                                                  compute::device_ext_t::
-                                                          intel_subgroups_short));
-            if (!ok)
-                return status::unimplemented;
+                            true
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)
+                                    && compute_engine->mayiuse(
+                                            compute::device_ext_t::
+                                                    intel_subgroups_short));
+            if (!ok) return status::unimplemented;
 
             return status::success;
         }
@@ -122,15 +120,14 @@ struct jit_gen9_gemm_t : public primitive_t {
         gemm_type_ = get_gemm_type();
 
         switch (gemm_type_) {
-        case type::copy_based: return init_copy_based();
-        case type::no_copy: return init_nocopy();
-        case type::no_copy_if_even_off: {
-            status_t result = init_copy_based();
-            if (result != status::success)
-                return result;
-            return init_nocopy();
-        }
-        case type::no_copy_superkernel: return init_nocopy_superkernel();
+            case type::copy_based: return init_copy_based();
+            case type::no_copy: return init_nocopy();
+            case type::no_copy_if_even_off: {
+                status_t result = init_copy_based();
+                if (result != status::success) return result;
+                return init_nocopy();
+            }
+            case type::no_copy_superkernel: return init_nocopy_superkernel();
         }
 
         return status::invalid_arguments;
@@ -144,49 +141,42 @@ struct jit_gen9_gemm_t : public primitive_t {
         this->engine()->create_memory_storage(&temp_buf_ptr, 128 << 20);
         temp_buf_.reset(temp_buf_ptr);
 
-        for (bool beta0 : { false, true }) {
-            if (beta0 && pd()->desc()->beta != 0)
-                continue;
+        for (bool beta0 : {false, true}) {
+            if (beta0 && pd()->desc()->beta != 0) continue;
 
             compute::kernel_ctx_t kernel_ctx;
 
             auto status = jit_gen9_gemm_compute_kernel<c_type>::init_const_def(
                     kernel_ctx, beta0);
-            if (status != status::success)
-                return status;
+            if (status != status::success) return status;
 
             compute_engine->create_kernel(&compute_kernel_[beta0],
                     "gen9_gemm_compute_kernel", kernel_ctx);
-            if (!compute_kernel_[beta0])
-                return status::runtime_error;
+            if (!compute_kernel_[beta0]) return status::runtime_error;
         }
 
-        for (bool outer : { false, true }) {
+        for (bool outer : {false, true}) {
             compute::kernel_ctx_t kernel_ctx;
 
             auto trans = !outer ? !pd()->desc()->transa : pd()->desc()->transb;
 
             auto status = jit_gen9_gemm_copy_kernel<c_type>::init_const_def(
                     kernel_ctx, outer, trans);
-            if (status != status::success)
-                return status;
+            if (status != status::success) return status;
 
             compute_engine->create_kernel(&copy_kernel_[outer][trans],
                     "gen9_gemm_copy_kernel", kernel_ctx);
-            if (!copy_kernel_[outer][trans])
-                return status::runtime_error;
+            if (!copy_kernel_[outer][trans]) return status::runtime_error;
         }
 
         compute::kernel_ctx_t kernel_ctx;
         auto status
                 = jit_gen9_gemm_beta_kernel<c_type>::init_const_def(kernel_ctx);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(
                 &beta_kernel_, "gen9_gemm_beta_kernel", kernel_ctx);
-        if (!beta_kernel_)
-            return status::runtime_error;
+        if (!beta_kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -195,9 +185,13 @@ struct jit_gen9_gemm_t : public primitive_t {
         const char *kernel_name = nullptr;
 
         switch (c_type) {
-        case data_type::f32: kernel_name = "gen9_gemm_nocopy_f32_kernel"; break;
-        case data_type::f16: kernel_name = "gen9_gemm_nocopy_f16_kernel"; break;
-        default: return status::unimplemented;
+            case data_type::f32:
+                kernel_name = "gen9_gemm_nocopy_f32_kernel";
+                break;
+            case data_type::f16:
+                kernel_name = "gen9_gemm_nocopy_f16_kernel";
+                break;
+            default: return status::unimplemented;
         }
 
         auto *compute_engine
@@ -207,18 +201,15 @@ struct jit_gen9_gemm_t : public primitive_t {
         auto status = jit_gen9_gemm_nocopy_kernel<c_type>::init_const_def(
                 kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind());
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         status = jit_gen9_gemm_nocopy_kernel<c_type>::init_const_def(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind());
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&nocopy_kernel_, kernel_name, kernel_ctx);
-        if (!nocopy_kernel_)
-            return status::runtime_error;
+        if (!nocopy_kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -238,13 +229,11 @@ struct jit_gen9_gemm_t : public primitive_t {
         auto status = jit_gen9_gemm_nocopy_superkernel<c_type>::init_const_def(
                 kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind());
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&nocopy_superkernel_,
                 "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
-        if (!nocopy_superkernel_)
-            return status::runtime_error;
+        if (!nocopy_superkernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -312,42 +301,35 @@ private:
         auto lda = pd()->desc()->lda;
         auto ldb = pd()->desc()->ldb;
 
-        if (pd()->with_eltwise())
-            return true;
+        if (pd()->with_eltwise()) return true;
         if (!utils::one_of(c_type, data_type::f32, data_type::f16))
             return false;
 
         // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
         if (c_type == data_type::f16)
-            if ((lda & 1) || (ldb & 1))
-                return false;
+            if ((lda & 1) || (ldb & 1)) return false;
 
-        if (transa && !transb)
-            return (m < 1024 || n < 1024);
+        if (transa && !transb) return (m < 1024 || n < 1024);
 
         if (c_type == data_type::f16) {
-            if (!(lda & 0x3FF) && (n >= 256))
-                return false;
-            if (!transa && transb && (k <= 64))
-                return false;
+            if (!(lda & 0x3FF) && (n >= 256)) return false;
+            if (!transa && transb && (k <= 64)) return false;
         }
 
         return true;
     }
 
     bool use_superkernel() const {
-        if (c_type != data_type::f32)
-            return false;
+        if (c_type != data_type::f32) return false;
 
         // Older OpenCL runtimes spill registers very badly with superkernels
         //  (~2% resulting efficiency). Avoid using superkernels for these
         //  versions.
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
-        compute::runtime_version_t min_version = { 19, 11, 12599 };
+        compute::runtime_version_t min_version = {19, 11, 12599};
 
-        if (compute_engine->get_runtime_version() < min_version)
-            return false;
+        if (compute_engine->get_runtime_version() < min_version) return false;
 
         bool transa = (pd()->desc()->transa == mkldnn_trans);
         auto k = pd()->desc()->k;

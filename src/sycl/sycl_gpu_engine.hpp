@@ -31,12 +31,11 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_gpu_engine_t : public sycl_engine_base_t
-{
+class sycl_gpu_engine_t : public sycl_engine_base_t {
 public:
     using sycl_engine_base_t::context;
-    using sycl_engine_base_t::device;
     using sycl_engine_base_t::create_stream;
+    using sycl_engine_base_t::device;
 
     sycl_gpu_engine_t(const cl::sycl::device &dev, const cl::sycl::context &ctx)
         : sycl_engine_base_t(engine_kind::gpu, dev, ctx) {

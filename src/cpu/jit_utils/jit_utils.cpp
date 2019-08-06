@@ -38,8 +38,7 @@ namespace jit_utils {
 // WARNING: These functions are not thread safe and must be protected by a
 // mutex
 
-void dump_jit_code(const void *code, size_t code_size, const char *code_name)
-{
+void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
 #if MKLDNN_ENABLE_JIT_DUMP
     if (code && jit_dump_enabled()) {
         static int counter = 0;
@@ -67,20 +66,20 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name)
 }
 
 void register_jit_code_vtune(const void *code, size_t code_size,
-        const char *code_name, const char *source_file_name)
-{
+        const char *code_name, const char *source_file_name) {
 #if MKLDNN_ENABLE_JIT_PROFILING
     if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
         auto jmethod = iJIT_Method_Load();
         jmethod.method_id = iJIT_GetNewMethodID(); // XXX: not thread-safe
         jmethod.method_name = (char *)code_name; // XXX: dropping const
         jmethod.class_file_name = NULL;
-        jmethod.source_file_name = (char *)source_file_name; // XXX: dropping const
+        jmethod.source_file_name
+                = (char *)source_file_name; // XXX: dropping const
         jmethod.method_load_address = (void *)code;
         jmethod.method_size = (unsigned int)code_size;
 
-        iJIT_NotifyEvent(iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED,
-                (void*)&jmethod);
+        iJIT_NotifyEvent(
+                iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED, (void *)&jmethod);
     }
 #else
     UNUSED(code);
@@ -91,8 +90,7 @@ void register_jit_code_vtune(const void *code, size_t code_size,
 }
 
 void register_jit_code(const void *code, size_t code_size,
-        const char *code_name, const char *source_file_name)
-{
+        const char *code_name, const char *source_file_name) {
     // The #ifdef guards are required to avoid generating a function that only
     // consists of lock and unlock code
 #if MKLDNN_ENABLE_JIT_PROFILING || MKLDNN_ENABLE_JIT_DUMP
@@ -109,7 +107,7 @@ void register_jit_code(const void *code, size_t code_size,
 #endif
 }
 
-}
-}
-}
-}
+} // namespace jit_utils
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

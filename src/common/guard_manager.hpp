@@ -31,17 +31,14 @@ template <typename tag_type = void>
 struct guard_manager_t : public c_compatible {
     guard_manager_t() = default;
 
-    ~guard_manager_t() {
-        assert(registered_callbacks.empty());
-    }
+    ~guard_manager_t() { assert(registered_callbacks.empty()); }
 
     static guard_manager_t &instance() {
         static guard_manager_t guard_manager;
         return guard_manager;
     }
 
-    status_t enter(
-            const void *ptr, const std::function<void()> &callback) {
+    status_t enter(const void *ptr, const std::function<void()> &callback) {
         std::lock_guard<std::mutex> guard(mutex_);
 
         assert(registered_callbacks.count(ptr) == 0);

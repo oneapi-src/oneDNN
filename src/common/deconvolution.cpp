@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
 #include <assert.h>
+#include "mkldnn.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -37,13 +37,11 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         const dims_t padding_r) {
     bool args_ok = true
             && !any_null(deconv_desc, src_desc, weights_desc, dst_desc, strides,
-                           padding_l)
+                    padding_l)
             && one_of(alg_kind, deconvolution_direct, deconvolution_winograd);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
-    if (padding_r == nullptr)
-        padding_r = padding_l;
+    if (padding_r == nullptr) padding_r = padding_l;
 
     auto dd = deconvolution_desc_t();
     dd.primitive_kind = primitive_kind::deconvolution;
@@ -81,11 +79,10 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
-    bool consistency = true
-            && src_desc->ndims == dst_desc->ndims
+    bool consistency = true && src_desc->ndims == dst_desc->ndims
             && utils::one_of(src_desc->ndims, 3, 4, 5)
-            && utils::one_of(weights_desc->ndims, src_desc->ndims,
-                    src_desc->ndims + 1)
+            && utils::one_of(
+                    weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1)
             && (with_bias ? bias_desc->ndims == 1 : true)
             && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
             && src_desc->dims[0] == dst_desc->dims[0]
@@ -100,16 +97,14 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        consistency
-                = consistency && (dst - ker_range + pad) / str + 1 == src;
+        consistency = consistency && (dst - ker_range + pad) / str + 1 == src;
     }
-    if (!consistency)
-        return invalid_arguments;
+    if (!consistency) return invalid_arguments;
 
     *deconv_desc = dd;
     return success;
 }
-}
+} // namespace
 
 status_t mkldnn_deconvolution_forward_desc_init(
         deconvolution_desc_t *deconv_desc, prop_kind_t prop_kind,
@@ -153,7 +148,7 @@ status_t mkldnn_dilated_deconvolution_backward_data_desc_init(
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
     return deconv_desc_init(deconv_desc, backward_data, alg_kind, diff_src_desc,
-            weights_desc, nullptr, diff_dst_desc, strides,dilates, padding_l,
+            weights_desc, nullptr, diff_dst_desc, strides, dilates, padding_l,
             padding_r);
 }
 

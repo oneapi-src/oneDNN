@@ -29,42 +29,42 @@ namespace cpu {
 using namespace Xbyak;
 
 // Load vector register data for x, y or A.
-void jit_sse41_gemv_t_f32_kern::v_load(const Xbyak::Xmm &dst,
-        const Xbyak::Address &src, int nelems) {
+void jit_sse41_gemv_t_f32_kern::v_load(
+        const Xbyak::Xmm &dst, const Xbyak::Address &src, int nelems) {
     switch (nelems) {
-    case 1: movss(dst, src); break;
-    case 2: movsd(dst, src); break;
-    default:
-        assert (nelems >= 4);
-        movups(dst, src);
-        break;
+        case 1: movss(dst, src); break;
+        case 2: movsd(dst, src); break;
+        default:
+            assert(nelems >= 4);
+            movups(dst, src);
+            break;
     }
 }
 
 // Store vector register data for x, y or A.
-void jit_sse41_gemv_t_f32_kern::v_store(const Xbyak::Address &dst,
-        const Xbyak::Xmm &src, int nelems) {
+void jit_sse41_gemv_t_f32_kern::v_store(
+        const Xbyak::Address &dst, const Xbyak::Xmm &src, int nelems) {
     switch (nelems) {
-    case 1: movss(dst, src); break;
-    case 2: movsd(dst, src); break;
-    default:
-        assert(nelems >= 4);
-        movups(dst, src);
-        break;
+        case 1: movss(dst, src); break;
+        case 2: movsd(dst, src); break;
+        default:
+            assert(nelems >= 4);
+            movups(dst, src);
+            break;
     }
 }
 
 // Perform Hadamard product of 2 vectors and accumulate.
-void jit_sse41_gemv_t_f32_kern::dot_product(const Xmm &dst,
-        const Xmm &src1, const Xmm &src2) {
+void jit_sse41_gemv_t_f32_kern::dot_product(
+        const Xmm &dst, const Xmm &src1, const Xmm &src2) {
     mulps(src2, src1);
     addps(dst, src2);
 }
 
 // Inner loop.
 void jit_sse41_gemv_t_f32_kern::innerloop(int unroll_m, int unroll_n) {
-    if ((unroll_m > M_UNROLL_) || (unroll_n > N_UNROLL_)
-            || (unroll_m < 0)  || (unroll_n < 0))
+    if ((unroll_m > M_UNROLL_) || (unroll_n > N_UNROLL_) || (unroll_m < 0)
+            || (unroll_n < 0))
         return;
 
     int um_vecs = (unroll_m + 3) >> 2;
@@ -103,10 +103,10 @@ void jit_sse41_gemv_t_f32_kern::innerloop(int unroll_m, int unroll_n) {
 }
 
 // Outer loop.
-void jit_sse41_gemv_t_f32_kern::outerloop(int unroll_x, int unroll_y,
-        Label *&cur_outerloop_label) {
-    if ((unroll_x > M_UNROLL_) || (unroll_y > N_UNROLL_)
-            || (unroll_y < 0)  || (unroll_y < 0))
+void jit_sse41_gemv_t_f32_kern::outerloop(
+        int unroll_x, int unroll_y, Label *&cur_outerloop_label) {
+    if ((unroll_x > M_UNROLL_) || (unroll_y > N_UNROLL_) || (unroll_y < 0)
+            || (unroll_y < 0))
         return;
 
     Label label_m_loop, label_n_loop, label_m_remainder_loops[4];
@@ -116,13 +116,14 @@ void jit_sse41_gemv_t_f32_kern::outerloop(int unroll_x, int unroll_y,
     if (unroll_y >= N_UNROLL_) {
         mov(I_, N_);
         cmp(I_, unroll_y);
-        jl(*cur_outerloop_label, T_NEAR);    // Jump to next outerloop label.
+        jl(*cur_outerloop_label, T_NEAR); // Jump to next outerloop label.
     } else {
         test(I_, unroll_y);
         jle(*cur_outerloop_label, T_NEAR);
     }
 
-    L_aligned(label_n_loop); {
+    L_aligned(label_n_loop);
+    {
 
         mov(YO_, Y_);
         lea(Y_, ptr[YO_ + INCY_ * unroll_y]);
@@ -141,7 +142,8 @@ void jit_sse41_gemv_t_f32_kern::outerloop(int unroll_x, int unroll_y,
         cmp(J_, unroll_x);
         jl(label_m_remainder_loops[0], T_NEAR);
 
-        L_aligned(label_m_loop); {
+        L_aligned(label_m_loop);
+        {
             innerloop(unroll_x, unroll_y);
             sub(J_, unroll_x);
             cmp(J_, unroll_x);
@@ -260,8 +262,7 @@ void jit_sse41_gemv_t_f32_kern::generate() {
 
     // n remainder loops.
     for (int un = 2; un > 0; un >>= 1)
-        if (N_UNROLL_ > un)
-            outerloop(M_UNROLL_, un, cur_outerloop_label);
+        if (N_UNROLL_ > un) outerloop(M_UNROLL_, un, cur_outerloop_label);
 
     L(*cur_outerloop_label);
 
@@ -269,19 +270,22 @@ void jit_sse41_gemv_t_f32_kern::generate() {
     postamble();
 }
 
-jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern() :
-    jit_generator(nullptr, 100000), arg_lda_(0), arg_x_(0), arg_incy_(0),
-    arg_y_(0) {
+jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern()
+    : jit_generator(nullptr, 100000)
+    , arg_lda_(0)
+    , arg_x_(0)
+    , arg_incy_(0)
+    , arg_y_(0) {
 
     // Assign integer registers
-    M_     = abi_param1;
-    N_     = abi_param2;
+    M_ = abi_param1;
+    N_ = abi_param2;
     ALPHA_ = abi_param3;
-    A_     = abi_param4;
-    LDA_   = is_windows ? rdi : r8;
-    X_     = is_windows ? rsi : r9;
-    INCY_  = r10;
-    Y_     = r11;
+    A_ = abi_param4;
+    LDA_ = is_windows ? rdi : r8;
+    X_ = is_windows ? rsi : r9;
+    INCY_ = r10;
+    Y_ = r11;
 
     J_ = r12;
     I_ = r13;
@@ -311,17 +315,16 @@ jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern() :
         acc_[i] = Xmm(12 + i);
 
     // Assign stack variables.
-    auto args_offset =  get_size_of_abi_save_regs()
-        + 8 + (is_windows ? 48 : 0);
+    auto args_offset = get_size_of_abi_save_regs() + 8 + (is_windows ? 48 : 0);
 
-    arg_lda_  = ptr[rsp + (args_offset - 16)];
-    arg_x_    = ptr[rsp + (args_offset - 8)];
+    arg_lda_ = ptr[rsp + (args_offset - 16)];
+    arg_x_ = ptr[rsp + (args_offset - 8)];
     arg_incy_ = ptr[rsp + (args_offset + 0)];
-    arg_y_    = ptr[rsp + (args_offset + 8)];
+    arg_y_ = ptr[rsp + (args_offset + 8)];
 
     generate();
 }
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

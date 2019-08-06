@@ -36,12 +36,11 @@ constexpr int simd_w = 16;
 struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
     _jit_avx512_common_conv_winograd_data_kernel_f32(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp)
-    {
+        : jcp(ajcp) {
         //******************* First iter kernel ********************//
         this->gemm_loop_generate(true);
         gemm_loop_ker_first_iter
-                = (decltype(gemm_loop_ker_first_iter)) this->getCode();
+                = (decltype(gemm_loop_ker_first_iter))this->getCode();
 
         //************** Subsequent iterations kernel **************//
         if (jcp.dimK_nb_block > 1) {
@@ -52,7 +51,8 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
         }
     }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_winograd_data_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(
+            _jit_avx512_common_conv_winograd_data_kernel_f32)
 
     static status_t init_conf_common(jit_conv_winograd_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -82,7 +82,7 @@ protected:
 };
 
 struct jit_avx512_common_conv_winograd_fwd_kernel_f32
-        : _jit_avx512_common_conv_winograd_data_kernel_f32 {
+    : _jit_avx512_common_conv_winograd_data_kernel_f32 {
     using _jit_avx512_common_conv_winograd_data_kernel_f32::
             _jit_avx512_common_conv_winograd_data_kernel_f32;
 
@@ -95,7 +95,7 @@ struct jit_avx512_common_conv_winograd_fwd_kernel_f32
 };
 
 struct jit_avx512_common_conv_winograd_bwd_data_kernel_f32
-        : public _jit_avx512_common_conv_winograd_data_kernel_f32 {
+    : public _jit_avx512_common_conv_winograd_data_kernel_f32 {
     using _jit_avx512_common_conv_winograd_data_kernel_f32::
             _jit_avx512_common_conv_winograd_data_kernel_f32;
 
@@ -106,13 +106,13 @@ struct jit_avx512_common_conv_winograd_bwd_data_kernel_f32
 };
 
 struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
-        : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_winograd_bwd_weights_kernel_f32)
+    : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(
+            _jit_avx512_common_conv_winograd_bwd_weights_kernel_f32)
 
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp)
-    {
+        : jcp(ajcp) {
 
         //******************* First iter kernel ********************//
         {
@@ -172,8 +172,8 @@ private:
     reg64_t reg_dimK_block_loop_cnt = r12;
     reg64_t reg_dimN_block_loop_cnt = r11;
 };
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

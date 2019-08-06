@@ -44,7 +44,7 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
 
         this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_dw_conv_fwd_kernel_bf16() {
@@ -125,9 +125,7 @@ struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
-    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() {
-        delete bf16_emu_;
-    }
+    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() { delete bf16_emu_; }
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -192,7 +190,7 @@ struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
 
         this->generate();
-        jit_ker = (void (*)(jit_dw_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_dw_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_dw_conv_bwd_weights_kernel_bf16() { delete bf16_emu_; }
@@ -280,8 +278,8 @@ private:
     void generate();
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif /* JIT_UNI_DW_CONV_KERNEL_BF16_HPP */

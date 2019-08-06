@@ -35,17 +35,14 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
         unsigned flags;
         status_t status = ocl_stream_t::init_flags(&flags, generic_flags);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         std::unique_ptr<ocl_stream_t> ocl_stream(
                 new ocl_stream_t(engine, flags));
-        if (!ocl_stream)
-            return status::out_of_memory;
+        if (!ocl_stream) return status::out_of_memory;
 
         status = ocl_stream->init();
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         *stream = ocl_stream.release();
         return status::success;
@@ -55,17 +52,14 @@ struct ocl_stream_t : public compute::compute_stream_t {
             stream_t **stream, engine_t *engine, cl_command_queue queue) {
         unsigned flags;
         status_t status = ocl_stream_t::init_flags(&flags, queue);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         std::unique_ptr<ocl_stream_t> ocl_stream(
                 new ocl_stream_t(engine, flags, queue));
-        if (!ocl_stream)
-            return status::out_of_memory;
+        if (!ocl_stream) return status::out_of_memory;
 
         status = ocl_stream->init();
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         *stream = ocl_stream.release();
         return status::success;
@@ -83,9 +77,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
     ~ocl_stream_t() {
         wait();
-        if (queue_) {
-            clReleaseCommandQueue(queue_);
-        }
+        if (queue_) { clReleaseCommandQueue(queue_); }
     }
 
 private:

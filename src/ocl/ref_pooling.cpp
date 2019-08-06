@@ -30,8 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-status_t ref_pooling_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
+status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -52,8 +51,7 @@ status_t ref_pooling_fwd_t::execute_forward(
     return status;
 }
 
-status_t ref_pooling_bwd_t::execute_backward(
-        const exec_ctx_t &ctx) const {
+status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 

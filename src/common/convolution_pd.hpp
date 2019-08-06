@@ -26,12 +26,11 @@
 namespace mkldnn {
 namespace impl {
 
-status_t conv_desc_init(convolution_desc_t *conv_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
-        const dims_t strides, const dims_t dilates,
-        const dims_t padding_l, const dims_t padding_r);
+status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *src_desc,
+        const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
+        const memory_desc_t *dst_desc, const dims_t strides,
+        const dims_t dilates, const dims_t padding_l, const dims_t padding_r);
 
 memory_desc_t *conv_prop_invariant_src_d(convolution_desc_t *desc);
 memory_desc_t *conv_prop_invariant_wei_d(convolution_desc_t *desc);
@@ -44,28 +43,28 @@ const memory_desc_t *conv_prop_invariant_dst_d(const convolution_desc_t *desc);
 
 struct convolution_fwd_pd_t;
 
-struct convolution_pd_t: public primitive_desc_t {
+struct convolution_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::convolution;
 
-    convolution_pd_t(engine_t *engine,
-            const convolution_desc_t *adesc,
+    convolution_pd_t(engine_t *engine, const convolution_desc_t *adesc,
             const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(engine, attr, base_pkind)
         , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd)
-    {}
+        , hint_fwd_pd_(hint_fwd_pd) {}
 
     const convolution_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override
-    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
+    }
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
-        case pkind_traits<base_pkind>::query_d:
-            *(const convolution_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
+            case pkind_traits<base_pkind>::query_d:
+                *(const convolution_desc_t **)result = desc();
+                break;
+            default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;
     }
@@ -86,8 +85,12 @@ struct convolution_pd_t: public primitive_desc_t {
     dim_t OH() const { return ndims() >= 4 ? _dst_md()->dims[ndims() - 2] : 1; }
     dim_t OW() const { return _dst_md()->dims[ndims() - 1]; }
 
-    dim_t KD() const { return ndims() >= 5 ? _wei_md()->dims[ndims() + with_groups() - 3] : 1; }
-    dim_t KH() const { return ndims() >= 4 ? _wei_md()->dims[ndims() + with_groups() - 2] : 1; }
+    dim_t KD() const {
+        return ndims() >= 5 ? _wei_md()->dims[ndims() + with_groups() - 3] : 1;
+    }
+    dim_t KH() const {
+        return ndims() >= 4 ? _wei_md()->dims[ndims() + with_groups() - 2] : 1;
+    }
     dim_t KW() const { return _wei_md()->dims[ndims() + with_groups() - 1]; }
 
     dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
@@ -98,16 +101,26 @@ struct convolution_pd_t: public primitive_desc_t {
     dim_t KDH() const { return ndims() >= 4 ? desc_.dilates[ndims() - 4] : 1; }
     dim_t KDW() const { return desc_.dilates[ndims() - 3]; }
 
-    dim_t padFront() const { return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0; }
-    dim_t padBack() const { return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0; }
-    dim_t padT() const { return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0; }
-    dim_t padB() const { return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0; }
+    dim_t padFront() const {
+        return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0;
+    }
+    dim_t padBack() const {
+        return ndims() >= 5 ? desc_.padding[1][ndims() - 5] : 0;
+    }
+    dim_t padT() const {
+        return ndims() >= 4 ? desc_.padding[0][ndims() - 4] : 0;
+    }
+    dim_t padB() const {
+        return ndims() >= 4 ? desc_.padding[1][ndims() - 4] : 0;
+    }
     dim_t padL() const { return desc_.padding[0][ndims() - 3]; }
     dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     int ndims() const { return _src_md()->ndims; }
 
-    bool with_bias() const { return !memory_desc_wrapper(*_bia_md()).is_zero(); }
+    bool with_bias() const {
+        return !memory_desc_wrapper(*_bia_md()).is_zero();
+    }
     bool with_groups() const { return _wei_md()->ndims == ndims() + 1; }
 
     bool is_fwd() const {
@@ -133,15 +146,16 @@ protected:
     convolution_desc_t desc_;
     const convolution_fwd_pd_t *hint_fwd_pd_;
 
-    bool set_default_formats_common_template(
-            memory_desc_t &src_md, format_tag_t src_tag,
-            memory_desc_t &wei_md, format_tag_t wei_tag,
+    bool set_default_formats_common_template(memory_desc_t &src_md,
+            format_tag_t src_tag, memory_desc_t &wei_md, format_tag_t wei_tag,
             memory_desc_t &dst_md, format_tag_t dst_tag,
             memory_desc_t &bia_md) {
         using namespace format_tag;
 
-#       define IS_OK(f) \
-        do { if ((f) != status::success) return false; } while(0)
+#define IS_OK(f) \
+    do { \
+        if ((f) != status::success) return false; \
+    } while (0)
         if (src_md.format_kind == format_kind::any
                 && !utils::one_of(src_tag, any, undef))
             IS_OK(memory_desc_init_by_tag(src_md, src_tag));
@@ -153,14 +167,14 @@ protected:
             IS_OK(memory_desc_init_by_tag(wei_md, wei_tag));
         if (with_bias() && bia_md.format_kind == format_kind::any)
             IS_OK(memory_desc_init_by_tag(bia_md, x));
-#       undef IS_OK
+#undef IS_OK
 
         return true;
     }
 
     bool set_default_alg_kind(alg_kind_t alg_kind) {
         assert(utils::one_of(alg_kind, alg_kind::convolution_direct,
-                    alg_kind::convolution_winograd));
+                alg_kind::convolution_winograd));
         if (desc_.alg_kind == alg_kind::convolution_auto)
             desc_.alg_kind = alg_kind;
         return desc_.alg_kind == alg_kind;
@@ -169,54 +183,64 @@ protected:
     bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
             data_type_t bia_dt, data_type_t dst_dt, data_type_t acc_dt) const {
         bool ok = true
-            && (src_dt == data_type::undef || _src_md()->data_type == src_dt)
-            && (wei_dt == data_type::undef || _wei_md()->data_type == wei_dt)
-            && (dst_dt == data_type::undef || _dst_md()->data_type == dst_dt)
-            && (acc_dt == data_type::undef || desc_.accum_data_type == acc_dt);
+                && (src_dt == data_type::undef
+                        || _src_md()->data_type == src_dt)
+                && (wei_dt == data_type::undef
+                        || _wei_md()->data_type == wei_dt)
+                && (dst_dt == data_type::undef
+                        || _dst_md()->data_type == dst_dt)
+                && (acc_dt == data_type::undef
+                        || desc_.accum_data_type == acc_dt);
         if (with_bias() && bia_dt != data_type::undef)
             ok = ok && _bia_md()->data_type == bia_dt;
         return ok;
     }
 
 private:
-    const memory_desc_t *_src_md() const { return conv_prop_invariant_src_d(&desc_); }
-    const memory_desc_t *_wei_md() const { return conv_prop_invariant_wei_d(&desc_); }
-    const memory_desc_t *_bia_md() const { return conv_prop_invariant_bia_d(&desc_); }
-    const memory_desc_t *_dst_md() const { return conv_prop_invariant_dst_d(&desc_); }
+    const memory_desc_t *_src_md() const {
+        return conv_prop_invariant_src_d(&desc_);
+    }
+    const memory_desc_t *_wei_md() const {
+        return conv_prop_invariant_wei_d(&desc_);
+    }
+    const memory_desc_t *_bia_md() const {
+        return conv_prop_invariant_bia_d(&desc_);
+    }
+    const memory_desc_t *_dst_md() const {
+        return conv_prop_invariant_dst_d(&desc_);
+    }
 };
 
-struct convolution_fwd_pd_t: public convolution_pd_t {
+struct convolution_fwd_pd_t : public convolution_pd_t {
     typedef convolution_fwd_pd_t base_class;
     typedef convolution_fwd_pd_t hint_class;
 
-    convolution_fwd_pd_t(engine_t *engine,
-            const convolution_desc_t *adesc,
+    convolution_fwd_pd_t(engine_t *engine, const convolution_desc_t *adesc,
             const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(engine, adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc)
         , bias_md_(desc_.bias_desc)
-        , dst_md_(desc_.dst_desc)
-    {}
+        , dst_md_(desc_.dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_WEIGHTS))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_BIAS && with_bias())
-            return arg_usage_t::input;
+        if (arg == MKLDNN_ARG_BIAS && with_bias()) return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 ? &src_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *dst_md(int index = 0) const override {
+        return index == 0 ? &dst_md_ : &glob_zero_md;
+    }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
@@ -232,42 +256,41 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
-    bool set_default_formats_common(format_tag_t src_tag,
-            format_tag_t wei_tag, format_tag_t dst_tag) {
+    bool set_default_formats_common(
+            format_tag_t src_tag, format_tag_t wei_tag, format_tag_t dst_tag) {
         return set_default_formats_common_template(src_md_, src_tag,
                 weights_md_, wei_tag, dst_md_, dst_tag, bias_md_);
     }
 };
 
-struct convolution_bwd_data_pd_t: public convolution_pd_t {
+struct convolution_bwd_data_pd_t : public convolution_pd_t {
     typedef convolution_bwd_data_pd_t base_class;
     typedef convolution_fwd_pd_t hint_class;
 
-    convolution_bwd_data_pd_t(engine_t *engine,
-            const convolution_desc_t *adesc,
+    convolution_bwd_data_pd_t(engine_t *engine, const convolution_desc_t *adesc,
             const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(engine, adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , weights_md_(desc_.weights_desc)
         , bias_md_(desc_.bias_desc)
-        , diff_dst_md_(desc_.diff_dst_desc)
-    {}
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_SRC)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 ? &diff_src_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+        return index == 0 ? &diff_src_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    }
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
@@ -292,27 +315,24 @@ protected:
     }
 };
 
-struct convolution_bwd_weights_pd_t: public convolution_pd_t {
+struct convolution_bwd_weights_pd_t : public convolution_pd_t {
     typedef convolution_bwd_weights_pd_t base_class;
     typedef convolution_fwd_pd_t hint_class;
 
     convolution_bwd_weights_pd_t(engine_t *engine,
-            const convolution_desc_t *adesc,
-            const primitive_attr_t *attr,
+            const convolution_desc_t *adesc, const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(engine, adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , diff_weights_md_(desc_.diff_weights_desc)
         , diff_bias_md_(desc_.diff_bias_desc)
-        , diff_dst_md_(desc_.diff_dst_desc)
-    {}
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_WEIGHTS)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_DIFF_WEIGHTS) return arg_usage_t::output;
 
         if (arg == MKLDNN_ARG_DIFF_BIAS && with_bias())
             return arg_usage_t::output;
@@ -320,10 +340,12 @@ struct convolution_bwd_weights_pd_t: public convolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 ? &src_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 ? &diff_dst_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 ? &src_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+        return index == 0 ? &diff_dst_md_ : &glob_zero_md;
+    }
     virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_md_;
         if (index == 1 && with_bias()) return &diff_bias_md_;
@@ -347,8 +369,8 @@ protected:
     }
 };
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

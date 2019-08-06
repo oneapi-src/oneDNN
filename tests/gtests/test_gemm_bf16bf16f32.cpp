@@ -24,10 +24,9 @@ namespace mkldnn {
 
 using gemm_test = gemm_test_common<bfloat16_t, bfloat16_t, float>;
 
-TEST_P(gemm_test, TestGEMM)
-{}
+TEST_P(gemm_test, TestGEMM) {}
 
 #define TEST_CASE_NAME_PREFIX bf16bf16f32
 #define BF16BF16F32
 #include "gemm_in.h"
-}
+} // namespace mkldnn

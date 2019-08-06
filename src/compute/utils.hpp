@@ -25,8 +25,7 @@ namespace impl {
 namespace compute {
 
 // Stores global/local ranges to use for kernel enqueueing
-class nd_range_t
-{
+class nd_range_t {
 public:
     nd_range_t(size_t n, const size_t *global_range,
             const size_t *local_range = nullptr) {

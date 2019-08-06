@@ -22,15 +22,13 @@
 
 namespace mkldnn {
 
-using convolution_test = convolution_backward_weights_test<float, float,
-                                                        float, float>;
+using convolution_test
+        = convolution_backward_weights_test<float, float, float, float>;
 
-TEST_P(convolution_test, TestConvolution)
-{
-}
+TEST_P(convolution_test, TestConvolution) {}
 
 #define FP32
 #define DIRECTION_BACKWARD_WEIGHTS
 #include "convolution_common.h"
 
-}
+} // namespace mkldnn

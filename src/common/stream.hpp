@@ -23,7 +23,7 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 
-struct mkldnn_stream: public mkldnn::impl::c_compatible {
+struct mkldnn_stream : public mkldnn::impl::c_compatible {
     mkldnn_stream(mkldnn::impl::engine_t *engine, unsigned flags)
         : engine_(engine), flags_(flags) {}
     virtual ~mkldnn_stream() {}
@@ -34,7 +34,9 @@ struct mkldnn_stream: public mkldnn::impl::c_compatible {
     /** returns stream's kind */
     unsigned flags() const { return flags_; }
 
-    virtual mkldnn::impl::status_t enqueue_primitive(const mkldnn::impl::primitive_t *primitive, const mkldnn::impl::exec_ctx_t &ctx);
+    virtual mkldnn::impl::status_t enqueue_primitive(
+            const mkldnn::impl::primitive_t *primitive,
+            const mkldnn::impl::exec_ctx_t &ctx);
 
     /** blocks until all submitted primitives to the stream are completed */
     virtual mkldnn::impl::status_t wait() = 0;

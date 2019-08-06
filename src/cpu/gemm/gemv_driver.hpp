@@ -28,7 +28,7 @@ template <typename a_t, typename b_t, typename c_t>
 mkldnn_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg);
 
 }
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif // GEMV_DRIVER_HPP

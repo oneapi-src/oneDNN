@@ -27,29 +27,25 @@ using namespace mkldnn::impl;
 
 status_t mkldnn_memory_get_ocl_mem_object(
         const memory_t *memory, cl_mem *mem_object) {
-    if (utils::any_null(mem_object))
-        return status::invalid_arguments;
+    if (utils::any_null(mem_object)) return status::invalid_arguments;
 
     if (!memory) {
         *mem_object = nullptr;
         return status::success;
     }
     bool args_ok = (memory->engine()->backend_kind() == backend_kind::ocl);
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     void *handle;
     status_t status = memory->get_data_handle(&handle);
-    if (status == status::success)
-        *mem_object = static_cast<cl_mem>(handle);
+    if (status == status::success) *mem_object = static_cast<cl_mem>(handle);
 
     return status;
 }
 
 status_t mkldnn_memory_set_ocl_mem_object(memory_t *memory, cl_mem mem_object) {
     bool args_ok = (memory->engine()->backend_kind() == backend_kind::ocl);
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     return memory->set_data_handle(static_cast<void *>(mem_object));
 }

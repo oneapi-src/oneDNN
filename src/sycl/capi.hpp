@@ -42,7 +42,6 @@ mkldnn_status_t mkldnn_stream_create_sycl(
 /** Returns a SYCL command queue associated with @p stream. */
 mkldnn_status_t mkldnn_stream_get_sycl_queue(
         mkldnn_stream_t stream, void **queue);
-
 }
 
 #endif

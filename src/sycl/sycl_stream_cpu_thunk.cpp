@@ -18,8 +18,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "common/utils.hpp"
 #include "common/primitive.hpp"
+#include "common/utils.hpp"
 #include "sycl/sycl_stream.hpp"
 
 #include <assert.h>

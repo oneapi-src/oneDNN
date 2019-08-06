@@ -43,13 +43,11 @@ struct layout_desc_t {
     strides_t strides;
 };
 
-status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
-        layout_desc_t &ld) {
+status_t cvt_mem_desc_to_layout_desc(
+        const memory_desc_t &md_, layout_desc_t &ld) {
     const auto md = memory_desc_wrapper(md_);
 
-    bool ok = true
-        && md.is_blocking_desc()
-        && md.extra().flags == 0;
+    bool ok = true && md.is_blocking_desc() && md.extra().flags == 0;
     if (!ok) return invalid_arguments;
 
     const auto &bd = md.blocking_desc();
@@ -73,8 +71,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         if (blocks[d] != 1) {
             stride_t stride = 1;
             for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
-                if (bd.inner_idxs[iblk] == d)
-                    P(d, bd.inner_blks[iblk], stride);
+                if (bd.inner_idxs[iblk] == d) P(d, bd.inner_blks[iblk], stride);
                 stride *= bd.inner_blks[iblk];
             }
         }
@@ -99,13 +96,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     auto im_d = memory_desc_wrapper(imd);
     auto om_d = memory_desc_wrapper(omd);
 
-    bool ok = true
-        && im_d.is_blocking_desc()
-        && om_d.is_blocking_desc()
-        && !im_d.has_zero_dim()
-        && !om_d.has_zero_dim();
-    if (!ok)
-        return unimplemented;
+    bool ok = true && im_d.is_blocking_desc() && om_d.is_blocking_desc()
+            && !im_d.has_zero_dim() && !om_d.has_zero_dim();
+    if (!ok) return unimplemented;
 
     dims_t iblocks, oblocks;
     im_d.compute_blocks(iblocks);
@@ -114,11 +107,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     /* padding_dim consistency check */
     for (int d = 0; d < im_d.ndims(); ++d) {
         const auto pdim = im_d.padded_dims()[d];
-        bool ok = true
-            && pdim == om_d.padded_dims()[d]
-            && pdim % iblocks[d] == 0
-            && pdim % oblocks[d] == 0;
-            if (!ok) return unimplemented;
+        bool ok = true && pdim == om_d.padded_dims()[d]
+                && pdim % iblocks[d] == 0 && pdim % oblocks[d] == 0;
+        if (!ok) return unimplemented;
     }
 
     layout_desc_t ild, old;
@@ -131,15 +122,14 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.otype = old.dt;
 
     p.scale_type = attr->output_scales_.has_default_values()
-        ? scale_type_t::NONE
-        : (attr->output_scales_.mask_ == 0
-                ? scale_type_t::COMMON
-                : scale_type_t::MANY);
+            ? scale_type_t::NONE
+            : (attr->output_scales_.mask_ == 0 ? scale_type_t::COMMON
+                                               : scale_type_t::MANY);
 
     ptrdiff_t ss[max_ndims] = {0};
     if (p.scale_type == scale_type_t::MANY) {
         ptrdiff_t last_ss = 1;
-        for (int d = old.ndims - 1; d >=0; --d) {
+        for (int d = old.ndims - 1; d >= 0; --d) {
             assert((d == 0 || old.id[d - 1] <= old.id[d])
                     && "logical dimensions should be in ascending order");
             if (attr->output_scales_.mask_ & (1 << old.id[d])) {
@@ -156,12 +146,10 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     while (i_pos < ild.ndims && o_pos < old.ndims) {
         assert(ild.id[i_pos] == old.id[o_pos]);
-        if (ild.id[i_pos] != old.id[o_pos])
-            return runtime_error;
+        if (ild.id[i_pos] != old.id[o_pos]) return runtime_error;
 
         assert(ndims < max_ndims);
-        if (ndims == max_ndims)
-            return runtime_error;
+        if (ndims == max_ndims) return runtime_error;
 
         if (ild.dims[i_pos] == old.dims[o_pos]) {
             p.nodes[ndims].n = ild.dims[i_pos];
@@ -209,15 +197,12 @@ void prb_normalize(prb_t &p) {
     for (int d = 0; d < p.ndims; ++d) {
         int min_pos = d;
         for (int j = d + 1; j < p.ndims; ++j) {
-            bool new_min = false
-                || p.nodes[j].os < p.nodes[min_pos].os
-                || (true
-                        && p.nodes[j].os == p.nodes[min_pos].os
-                        && p.nodes[j].n < p.nodes[min_pos].n);
+            bool new_min = false || p.nodes[j].os < p.nodes[min_pos].os
+                    || (true && p.nodes[j].os == p.nodes[min_pos].os
+                            && p.nodes[j].n < p.nodes[min_pos].n);
             if (new_min) min_pos = j;
         }
-        if (min_pos != d)
-            nstl::swap(p.nodes[d], p.nodes[min_pos]);
+        if (min_pos != d) nstl::swap(p.nodes[d], p.nodes[min_pos]);
     }
 }
 
@@ -232,11 +217,12 @@ void prb_simplify(prb_t &p) {
         auto &this_node = p.nodes[d + 0];
         auto &next_node = p.nodes[d + 1];
         const bool fold = false
-            || next_node.n == (size_t)1 // trivial case, just drop next node
-            || (true // or real folding if possible
-                    && next_node.is == (ptrdiff_t)this_node.n * this_node.is
-                    && next_node.os == (ptrdiff_t)this_node.n * this_node.os
-                    && next_node.ss == (ptrdiff_t)this_node.n * this_node.ss);
+                || next_node.n == (size_t)1 // trivial case, just drop next node
+                || (true // or real folding if possible
+                        && next_node.is == (ptrdiff_t)this_node.n * this_node.is
+                        && next_node.os == (ptrdiff_t)this_node.n * this_node.os
+                        && next_node.ss
+                                == (ptrdiff_t)this_node.n * this_node.ss);
         if (fold) {
             this_node.n *= next_node.n;
             for (int j = d + 2; j < p.ndims; ++j)
@@ -301,13 +287,13 @@ void prb_dump(const prb_t &p) {
     printf("@@@ type:%s:%s ndims:%d ", mkldnn_dt2str(p.itype),
             mkldnn_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d)
-        printf("[%zu:%td:%td:%td]",
-                p.nodes[d].n, p.nodes[d].is, p.nodes[d].os, p.nodes[d].ss);
+        printf("[%zu:%td:%td:%td]", p.nodes[d].n, p.nodes[d].is, p.nodes[d].os,
+                p.nodes[d].ss);
     printf(" off:%zu:%zu\n", p.ioff, p.ooff);
 }
 
-}
+} // namespace tr
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

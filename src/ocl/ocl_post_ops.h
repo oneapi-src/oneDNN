@@ -145,20 +145,20 @@ POST_OP_DATA_T fwd_eltwise(
         POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
-    case RELU: return relu_fwd(x, alpha_); break;
-    case LINEAR: return linear_fwd(x, alpha_, beta_); break;
-    case BOUNDED_RELU: return bounded_relu_fwd(x, alpha_); break;
-    case SOFT_RELU: return soft_relu_fwd(x); break;
-    case LOGISTIC: return logistic_fwd(x); break;
-    case TANH: return tanh_fwd(x); break;
-    case ELU: return elu_fwd(x, alpha_); break;
-    case SQUARE: return square_fwd(x); break;
-    case SQRT: return sqrt_fwd(x); break;
-    case ABS: return abs_fwd(x); break;
-    case EXP: return exp_fwd(x); break;
-    case GELU: return gelu_fwd(x); break;
-    case SWISH: return swish_fwd(x, alpha_); break;
-    default: return x; break;
+        case RELU: return relu_fwd(x, alpha_); break;
+        case LINEAR: return linear_fwd(x, alpha_, beta_); break;
+        case BOUNDED_RELU: return bounded_relu_fwd(x, alpha_); break;
+        case SOFT_RELU: return soft_relu_fwd(x); break;
+        case LOGISTIC: return logistic_fwd(x); break;
+        case TANH: return tanh_fwd(x); break;
+        case ELU: return elu_fwd(x, alpha_); break;
+        case SQUARE: return square_fwd(x); break;
+        case SQRT: return sqrt_fwd(x); break;
+        case ABS: return abs_fwd(x); break;
+        case EXP: return exp_fwd(x); break;
+        case GELU: return gelu_fwd(x); break;
+        case SWISH: return swish_fwd(x, alpha_); break;
+        default: return x; break;
     }
 #else
     return x;
@@ -169,20 +169,20 @@ POST_OP_DATA_T bwd_eltwise(
         POST_OP_DATA_T x, POST_OP_DATA_T y, POST_OP_DATA_T alpha_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
-    case RELU: return relu_bwd(x, y, alpha_); break;
-    case LINEAR: return linear_bwd(x, alpha_); break;
-    case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
-    case SOFT_RELU: return soft_relu_bwd(x, y); break;
-    case LOGISTIC: return logistic_bwd(x, y); break;
-    case TANH: return tanh_bwd(x, y); break;
-    case ELU: return elu_bwd(x, y, alpha_); break;
-    case SQUARE: return square_bwd(x, y); break;
-    case SQRT: return sqrt_bwd(x, y); break;
-    case ABS: return abs_bwd(x, y); break;
-    case EXP: return exp_bwd(x, y); break;
-    case GELU: return gelu_bwd(x, y); break;
-    case SWISH: return swish_bwd(x, y, alpha_); break;
-    default: return x; break;
+        case RELU: return relu_bwd(x, y, alpha_); break;
+        case LINEAR: return linear_bwd(x, alpha_); break;
+        case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
+        case SOFT_RELU: return soft_relu_bwd(x, y); break;
+        case LOGISTIC: return logistic_bwd(x, y); break;
+        case TANH: return tanh_bwd(x, y); break;
+        case ELU: return elu_bwd(x, y, alpha_); break;
+        case SQUARE: return square_bwd(x, y); break;
+        case SQRT: return sqrt_bwd(x, y); break;
+        case ABS: return abs_bwd(x, y); break;
+        case EXP: return exp_bwd(x, y); break;
+        case GELU: return gelu_bwd(x, y); break;
+        case SWISH: return swish_bwd(x, y, alpha_); break;
+        default: return x; break;
     }
 #else
     return x;

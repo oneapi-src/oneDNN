@@ -141,7 +141,6 @@ namespace memory_tracking {
  *  ```
  */
 
-
 /* namespace with common keys and prefixes */
 namespace names {
 enum {
@@ -207,7 +206,7 @@ enum {
     prefix_reducer_bia,
     prefix_reducer_wei,
 };
-}
+} // namespace names
 
 // level 0: 00 00 00 xxx
 // level 1: 00 00 aa xxx
@@ -219,14 +218,20 @@ enum {
 //      aa, bb, cc : [1 .. MAX_PREFIX) : prefixes for levels 1, 2, and 3
 
 using key_t = uint32_t;
-enum { MAX_KEY = (1u << 10), MAX_PREFIX = (1u << 7), };
+enum {
+    MAX_KEY = (1u << 10),
+    MAX_PREFIX = (1u << 7),
+};
 
 /// generates global key based on a prefix and a local key
-inline key_t make_key(key_t prefix, key_t key) { return prefix + key; }
+inline key_t make_key(key_t prefix, key_t key) {
+    return prefix + key;
+}
 
 /// generates global prefix based on the global parent and the local ones
-inline key_t make_prefix(key_t parent_prefix, key_t prefix)
-{ return MAX_PREFIX * parent_prefix + MAX_KEY * prefix; }
+inline key_t make_prefix(key_t parent_prefix, key_t prefix) {
+    return MAX_PREFIX * parent_prefix + MAX_KEY * prefix;
+}
 
 struct registrar_t;
 struct grantor_t;
@@ -238,7 +243,7 @@ struct registry_t {
 
         size = utils::rnd_up(size, minimal_alignment);
         alignment = nstl::max<size_t>(alignment, minimal_alignment);
-        offset_map_[key] = entry_t{size_, size, alignment};
+        offset_map_[key] = entry_t {size_, size, alignment};
 
         size_ += size + alignment - minimal_alignment;
     }
@@ -249,8 +254,7 @@ struct registry_t {
             assert(size() == 0);
             return nullptr;
         }
-        if (offset_map_.count(key) != 1)
-            return nullptr;
+        if (offset_map_.count(key) != 1) return nullptr;
 
         const auto &e = offset_map_.at(key);
 
@@ -265,8 +269,9 @@ struct registry_t {
         return new memory_storage_t(*base_mem_storage, aligned_ptr - base_ptr);
     }
 
-    size_t size() const
-    { return size_ > 0 ? size_ + minimal_alignment - 1 : 0; }
+    size_t size() const {
+        return size_ > 0 ? size_ + minimal_alignment - 1 : 0;
+    }
 
     registrar_t registrar();
     grantor_t grantor(const memory_storage_t *mem_storage,
@@ -274,7 +279,9 @@ struct registry_t {
 
 protected:
     enum { minimal_alignment = 64 };
-    struct entry_t { size_t offset, size, alignment; };
+    struct entry_t {
+        size_t offset, size, alignment;
+    };
 
     std::unordered_map<key_t, entry_t> offset_map_;
     size_t size_ = 0;
@@ -283,14 +290,15 @@ protected:
 struct registrar_t {
     enum { default_alignment = 64 };
 
-    registrar_t(registry_t &registry): registry_(registry), prefix_(0) {}
+    registrar_t(registry_t &registry) : registry_(registry), prefix_(0) {}
     registrar_t(registrar_t &parent, const key_t &prefix)
         : registry_(parent.registry_)
         , prefix_(make_prefix(parent.prefix_, prefix)) {}
 
     void book(const key_t &key, size_t size,
-            size_t alignment = default_alignment)
-    { registry_.book(make_key(prefix_, key), size, alignment); }
+            size_t alignment = default_alignment) {
+        registry_.book(make_key(prefix_, key), size, alignment);
+    }
 
 protected:
     registry_t &registry_;
@@ -314,8 +322,7 @@ struct grantor_t {
     template <typename T = void>
     T *get(const key_t &key) const {
         std::unique_ptr<memory_storage_t> mem_storage(get_memory_storage(key));
-        if (!mem_storage)
-            return nullptr;
+        if (!mem_storage) return nullptr;
         return static_cast<T *>(exec_ctx_->host_ptr(mem_storage.get()));
     }
 
@@ -331,13 +338,15 @@ protected:
     const exec_ctx_t *exec_ctx_;
 };
 
-inline registrar_t registry_t::registrar() { return registrar_t(*this); }
+inline registrar_t registry_t::registrar() {
+    return registrar_t(*this);
+}
 inline grantor_t registry_t::grantor(
         const memory_storage_t *mem_storage, const exec_ctx_t &exec_ctx) const {
     return grantor_t(*this, mem_storage, exec_ctx);
 }
-}
-}
-}
+} // namespace memory_tracking
+} // namespace impl
+} // namespace mkldnn
 
 #endif

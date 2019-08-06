@@ -56,8 +56,7 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, const float *scales,
                     ws_gates(i, 2, j) + ws_gates(i, 1, j) * Wh_b + bias(2, j));
             states_t_l(i, j) = states_tm1_l(i, j) * ws_gates(i, 0, j)
                     + (1.0f - ws_gates(i, 0, j)) * ws_gates(i, 2, j);
-            if (rnn.is_training)
-                ws_Wh_b(i, j) = Wh_b;
+            if (rnn.is_training) ws_Wh_b(i, j) = Wh_b;
         }
     });
 }
@@ -67,9 +66,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
     const float *scales = pd_->attr()->rnn_tparams_.scales_;
 
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
-    auto logistic_f
-            = [](const float *scale, float a) { return logistic_fwd<float>(a); };
-    auto tanh_f = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, scales, rnn,
                 ws_gates_, states_t_l_, states_tm1_l_, bias_, ws_grid_,

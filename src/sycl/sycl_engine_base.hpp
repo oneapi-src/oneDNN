@@ -36,8 +36,7 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_engine_base_t : public compute::compute_engine_t
-{
+class sycl_engine_base_t : public compute::compute_engine_t {
 public:
     sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
             const cl::sycl::context &ctx)
@@ -49,9 +48,9 @@ public:
     status_t init() {
         CHECK(compute::compute_engine_t::init());
         stream_t *service_stream_ptr;
-        status_t status = create_stream(&service_stream_ptr, stream_flags::default_flags);
-        if (status != status::success)
-            return status;
+        status_t status = create_stream(
+                &service_stream_ptr, stream_flags::default_flags);
+        if (status != status::success) return status;
         service_stream_.reset(service_stream_ptr);
         return status::success;
     }
@@ -81,8 +80,7 @@ public:
                 &ocl_kernels, kernel_names, kernel_ctx));
         *kernels = std::vector<compute::kernel_t>(kernel_names.size());
         for (size_t i = 0; i < ocl_kernels.size(); ++i) {
-            if (!ocl_kernels[i])
-                continue;
+            if (!ocl_kernels[i]) continue;
 
             auto *k = utils::downcast<ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());

@@ -28,13 +28,13 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_shuffle_pd_t: public shuffle_pd_t {
+struct cpu_shuffle_pd_t : public shuffle_pd_t {
     using shuffle_pd_t::shuffle_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

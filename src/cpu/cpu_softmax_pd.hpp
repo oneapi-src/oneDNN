@@ -28,17 +28,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_softmax_fwd_pd_t: public softmax_fwd_pd_t {
+struct cpu_softmax_fwd_pd_t : public softmax_fwd_pd_t {
     using softmax_fwd_pd_t::softmax_fwd_pd_t;
 };
 
-struct cpu_softmax_bwd_pd_t: public softmax_bwd_pd_t {
+struct cpu_softmax_bwd_pd_t : public softmax_bwd_pd_t {
     using softmax_bwd_pd_t::softmax_bwd_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

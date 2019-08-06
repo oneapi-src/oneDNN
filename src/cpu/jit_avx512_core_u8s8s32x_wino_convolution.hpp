@@ -27,8 +27,8 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_primitive.hpp"
 
-#include "jit_primitive_conf.hpp"
 #include "jit_generator.hpp"
+#include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -39,33 +39,33 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t;
 
 template <data_type_t dst_data_type>
-struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t {
+struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t
+    : public cpu_primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            :  cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_()
-        {}
+            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            , jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_int8_wino:", ((jcp_.ver == ver_vnni)
-                    ? avx512_core_vnni : avx512_core), ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8_wino:",
+                                    ((jcp_.ver == ver_vnni) ? avx512_core_vnni
+                                                            : avx512_core),
+                                    ""),
                 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && utils::one_of(desc()->alg_kind,
-                           alg_kind::convolution_auto,
-                           alg_kind::convolution_winograd)
-                && expect_data_types(data_type::u8, data_type::s8,
-                        data_type::undef, dst_data_type, data_type::s32)
-                && IMPLICATION(with_bias(), utils::one_of(
-                            desc()->bias_desc.data_type, data_type::f32,
-                            data_type::s32, data_type::s8, data_type::u8))
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && is_fwd()
+                    && utils::one_of(desc()->alg_kind,
+                            alg_kind::convolution_auto,
+                            alg_kind::convolution_winograd)
+                    && expect_data_types(data_type::u8, data_type::s8,
+                            data_type::undef, dst_data_type, data_type::s32)
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(desc()->bias_desc.data_type,
+                                    data_type::f32, data_type::s32,
+                                    data_type::s8, data_type::u8))
+                    && !has_zero_dim_memory() && set_default_formats();
 
             if (!ok) return status::unimplemented;
 
@@ -104,8 +104,8 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public cpu_primitive_t 
     }
 
 private:
-    const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad)
-        const;
+    const float *adjust_oscales(
+            const memory_tracking::grantor_t &scratchpad) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_small_mb(const src_data_t *src, const wei_data_t *wei,
             const char *bia, dst_data_t *dst,
@@ -120,9 +120,9 @@ private:
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t *dst_trans_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

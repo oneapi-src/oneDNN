@@ -39,7 +39,7 @@ struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
                     = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
 
         this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_uni_dw_conv_fwd_kernel_f32() { delete eltwise_injector_; }
@@ -49,10 +49,10 @@ struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
-        isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
-    const Xbyak::AddressFrame &vmmword = (isa == sse41)
-        ? xword : (isa == avx2) ? yword : zword;
+    const Xbyak::AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     // dw convolution
@@ -89,10 +89,10 @@ private:
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_dw_conv_bwd_data_kernel_f32: public jit_generator {
+struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_data_kernel_f32)
 
-    jit_uni_dw_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp): jcp(ajcp) {
+    jit_uni_dw_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
@@ -101,28 +101,28 @@ struct jit_uni_dw_conv_bwd_data_kernel_f32: public jit_generator {
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
-        isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
+            isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
     inline Vmm get_acc_reg(int idx) { return Vmm(idx + 4); }
 
-    reg64_t reg_ddst       = rax;
-    reg64_t aux_reg_ddst   = r8;
+    reg64_t reg_ddst = rax;
+    reg64_t aux_reg_ddst = r8;
     reg64_t aux1_reg_ddst = abi_not_param1;
-    reg64_t reg_kernel     = rdx;
+    reg64_t reg_kernel = rdx;
     reg64_t aux_reg_kernel = r10;
     reg64_t aux1_reg_kernel = rbp;
-    reg64_t reg_dsrc       = rsi;
+    reg64_t reg_dsrc = rsi;
 
     reg64_t reg_ur_str_w = r9;
     reg64_t reg_ch_blocks = rbx;
 
     reg64_t iter_kh = r11;
     reg64_t iter_kw = r12;
-    reg64_t reg_kh  = r13;
-    reg64_t reg_kw  = r14;
+    reg64_t reg_kh = r13;
+    reg64_t reg_kw = r14;
 
     inline void loop_body(int ur_ch_blocks);
     inline void load_ddst(int ur_ch_blocks, int ur_str_w);
@@ -139,7 +139,7 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_uni_dw_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
         this->generate();
-        jit_ker = (void (*)(jit_dw_conv_call_s *)) this->getCode();
+        jit_ker = (void (*)(jit_dw_conv_call_s *))this->getCode();
     }
 
     jit_conv_conf_t jcp;
@@ -214,8 +214,8 @@ private:
     void generate();
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

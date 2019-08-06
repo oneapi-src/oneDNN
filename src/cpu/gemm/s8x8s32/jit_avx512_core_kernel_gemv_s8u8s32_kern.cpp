@@ -27,9 +27,7 @@ namespace impl {
 namespace cpu {
 
 void jit_avx512_core_gemv_s8u8s32_kern::vnni(Xbyak::Zmm acc, Xbyak::Zmm b,
-                                             Xbyak::Zmm a, Xbyak::Zmm tmp,
-                                             Xbyak::Zmm one, bool swap,
-                                             int use_vnni) {
+        Xbyak::Zmm a, Xbyak::Zmm tmp, Xbyak::Zmm one, bool swap, int use_vnni) {
 
     if (use_vnni) {
         if (swap)
@@ -46,7 +44,6 @@ void jit_avx512_core_gemv_s8u8s32_kern::vnni(Xbyak::Zmm acc, Xbyak::Zmm b,
         vpmaddwd(tmp, tmp, one);
         vpaddd(acc, tmp, acc);
     }
-
 }
 
 void jit_avx512_core_gemv_s8u8s32_kern::n_loop_body(int start_a_idx,
@@ -76,7 +73,7 @@ void jit_avx512_core_gemv_s8u8s32_kern::n_loop_body(int start_a_idx,
     for (i = 0; i < nreg_A; i++) {
         // vnni (acc, b, a, tmp, one, swap, use_vnni)
         vnni(Xbyak::Zmm(start_acc_idx + i), Xbyak::Zmm(b_idx),
-             Xbyak::Zmm(start_a_idx + i), tmp, one, swap, use_vnni);
+                Xbyak::Zmm(start_a_idx + i), tmp, one, swap, use_vnni);
     }
 
     for (i = 0; i < nreg_A - (nreg_acc % 2); i++) {
@@ -89,9 +86,8 @@ void jit_avx512_core_gemv_s8u8s32_kern::n_loop_body(int start_a_idx,
 
     for (i = 0; i < nreg_A - (nreg_acc % 2); i++) {
         vnni(Xbyak::Zmm(start_acc_idx + i + nreg_A), Xbyak::Zmm(b_idx),
-             Xbyak::Zmm(start_a_idx + i), tmp, one, swap, use_vnni);
+                Xbyak::Zmm(start_a_idx + i), tmp, one, swap, use_vnni);
     }
-
 }
 
 void jit_avx512_core_gemv_s8u8s32_kern::shuffle_and_add(Xbyak::Zmm dest,
@@ -108,7 +104,6 @@ void jit_avx512_core_gemv_s8u8s32_kern::shuffle_and_add(Xbyak::Zmm dest,
     vshufi32x4(A, C, D, 0x88);
     vshufi32x4(B, C, D, 0xDD);
     vpaddd(dest, A, B); // dest = SAi|SBi|SCi|SDi
-
 }
 
 void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
@@ -124,10 +119,10 @@ void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
             if (j < nreg_acc) {
                 // shuffle per block of 4 registers
                 shuffle_and_add(Xbyak::Zmm(start_a_idx + l), // dest
-                                Xbyak::Zmm(start_acc_idx + j), // A = acc0
-                                Xbyak::Zmm(start_acc_idx + 1 + j), // B = acc1
-                                Xbyak::Zmm(start_acc_idx + 4 + j), // C = acc4
-                                Xbyak::Zmm(start_acc_idx + 5 + j)); // D = acc5
+                        Xbyak::Zmm(start_acc_idx + j), // A = acc0
+                        Xbyak::Zmm(start_acc_idx + 1 + j), // B = acc1
+                        Xbyak::Zmm(start_acc_idx + 4 + j), // C = acc4
+                        Xbyak::Zmm(start_acc_idx + 5 + j)); // D = acc5
 
                 // extract low and high from dest and hadd
                 vextracti32x8(Xbyak::Ymm(start_a_idx + l + 1),
@@ -141,17 +136,15 @@ void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
             l++;
         }
 
-        vphaddd(Xbyak::Ymm(start_a_idx + l),
-                Xbyak::Ymm(start_a_idx + l - 2),
+        vphaddd(Xbyak::Ymm(start_a_idx + l), Xbyak::Ymm(start_a_idx + l - 2),
                 Xbyak::Ymm(start_a_idx + l - 1));
 
         l++;
     }
 
     // eventually add with C and store new value
-    vxorps(Xbyak::Ymm(start_a_idx),
-           Xbyak::Ymm(start_a_idx),
-           Xbyak::Ymm(start_a_idx));
+    vxorps(Xbyak::Ymm(start_a_idx), Xbyak::Ymm(start_a_idx),
+            Xbyak::Ymm(start_a_idx));
     vucomiss(beta, Xbyak::Ymm(start_a_idx));
     je(store_label, T_NEAR);
 
@@ -160,14 +153,13 @@ void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
         // load Y and add
         last_it = (k + 8) > nreg_acc;
         if (use_mask && last_it)
-            vmovdqu32(Xbyak::Ymm(start_a_idx + k / 8) | mask_m
-                    | T_z, ptr[Y + (k / 8) * 32]);
+            vmovdqu32(Xbyak::Ymm(start_a_idx + k / 8) | mask_m | T_z,
+                    ptr[Y + (k / 8) * 32]);
         else
             vmovdqu32(Xbyak::Ymm(start_a_idx + k / 8), ptr[Y + (k / 8) * 32]);
 
-        vpaddd(Xbyak::Ymm(start_a_idx + l),
-               Xbyak::Ymm(start_a_idx + l),
-               Xbyak::Ymm(start_a_idx + k / 8));
+        vpaddd(Xbyak::Ymm(start_a_idx + l), Xbyak::Ymm(start_a_idx + l),
+                Xbyak::Ymm(start_a_idx + k / 8));
     }
 
     // store
@@ -175,12 +167,11 @@ void jit_avx512_core_gemv_s8u8s32_kern::update_c(int nreg_acc, Xbyak::Reg64 Y,
     for (k = 0, l = 2; k < nreg_acc; k += 8, l += 3) {
         last_it = (k + 8) > nreg_acc;
         if (use_mask && last_it)
-            vmovdqu32(ptr[Y + (k / 8) * 32], Xbyak::Ymm(start_a_idx + l)
-                    | mask_m);
+            vmovdqu32(ptr[Y + (k / 8) * 32],
+                    Xbyak::Ymm(start_a_idx + l) | mask_m);
         else
             vmovdqu32(ptr[Y + (k / 8) * 32], Xbyak::Ymm(start_a_idx + l));
     }
-
 }
 
 template <typename T>
@@ -219,8 +210,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         tmp = Xbyak::Zmm(0);
         one = Xbyak::Zmm(zmm_idx + 1);
         zmm_idx += 2; // one + tmp
-    }
-    else {
+    } else {
         beta = xmm0;
     }
 
@@ -233,9 +223,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         mov(Y, ptr[rsp + get_size_of_abi_save_regs() + 64]);
     }
 
-    if (use_vnni && !is_windows) {
-        movaps(beta, xmm1);
-    }
+    if (use_vnni && !is_windows) { movaps(beta, xmm1); }
 
     mov(rax, (1 << unroll_n_) - 1);
     kmovq(k3, rax);
@@ -258,9 +246,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     // mask_m set (AVX512 only), can use rax and rbx again
 
     // setup register of ones when VNNI instructions not available
-    if (!use_vnni) {
-        vmovdqu16(one, ptr[rip + one_label]);
-    }
+    if (!use_vnni) { vmovdqu16(one, ptr[rip + one_label]); }
 
     // M loop
     // base pointer for A rax contains a + i * lda
@@ -291,10 +277,10 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     jge(m_tail_label, T_NEAR);
 
     // enter M loop
-    for(i = 0; i < nreg_acc; i++) {
+    for (i = 0; i < nreg_acc; i++) {
         vpxorq(Xbyak::Zmm(i + zmm_idx + nreg_A),
-               Xbyak::Zmm(i + zmm_idx + nreg_A),
-               Xbyak::Zmm(i + zmm_idx + nreg_A));
+                Xbyak::Zmm(i + zmm_idx + nreg_A),
+                Xbyak::Zmm(i + zmm_idx + nreg_A));
     }
 
     // N loop
@@ -306,8 +292,8 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
 
     // enter N loop
 
-    n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, nreg_acc,
-                r13, lda, r11, tmp, one, swap, use_vnni, 0, mask_n);
+    n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, nreg_acc, r13,
+            lda, r11, tmp, one, swap, use_vnni, 0, mask_n);
 
     // increment rax with un
     add(r11, 1 << unroll_n_);
@@ -320,8 +306,8 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
 
     ktestq(mask_n, k3);
     je(update_c_label, T_NEAR);
-    n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, nreg_acc,
-                r13, lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
+    n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, nreg_acc, r13,
+            lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
 
     // update C matrix
     aligned_label(update_c_label);
@@ -341,7 +327,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
     mov(r10, m);
     and_(r10, (1 << unroll_m_) - 1);
     for (ii = 1; ii < 1 << unroll_m_; ii++) {
-        L_aligned(m_tail_label_case[ii-1]);
+        L_aligned(m_tail_label_case[ii - 1]);
         cmp(r10, ii);
         if (ii == (1 << unroll_m_) - 1)
             jne(end_label, T_NEAR);
@@ -350,10 +336,10 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
 
         // m_tail = i, use i accumulators
 
-        for(i = 0; i < ii; i++) {
+        for (i = 0; i < ii; i++) {
             vpxorq(Xbyak::Zmm(i + zmm_idx + nreg_A),
-                   Xbyak::Zmm(i + zmm_idx + nreg_A),
-                   Xbyak::Zmm(i + zmm_idx + nreg_A));
+                    Xbyak::Zmm(i + zmm_idx + nreg_A),
+                    Xbyak::Zmm(i + zmm_idx + nreg_A));
         }
 
         // N loop
@@ -364,7 +350,7 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         jge(n_tail_label_case[ii - 1], T_NEAR);
 
         n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, ii, r13,
-                    lda, r11, tmp, one, swap, use_vnni, 0, mask_n);
+                lda, r11, tmp, one, swap, use_vnni, 0, mask_n);
 
         // increment rax with un
         add(r11, 1 << unroll_n_);
@@ -377,14 +363,13 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
         ktestq(mask_n, k3);
         je(update_c_label_case[ii - 1], T_NEAR);
         n_loop_body(zmm_idx, zmm_idx + nreg_A, zmm_idx + nreg_A_acc, ii, r13,
-                    lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
+                lda, r11, tmp, one, swap, use_vnni, 1, mask_n);
 
         // update C matrix
         aligned_label(update_c_label_case[ii - 1]);
         update_c(ii, rbp, zmm_idx, zmm_idx + nreg_A, beta, 1, mask_m);
 
-        if (ii < ((1 << unroll_m_) - 1))
-            jmp(end_label, T_NEAR);
+        if (ii < ((1 << unroll_m_) - 1)) jmp(end_label, T_NEAR);
     }
 
     aligned_label(end_label);
@@ -393,21 +378,21 @@ T jit_avx512_core_gemv_s8u8s32_kern::generate(int use_vnni) {
 
     if (!use_vnni) {
         L_aligned(one_label);
-        for (i = 0; i < size_vec_reg_/8; i++)
+        for (i = 0; i < size_vec_reg_ / 8; i++)
             dq(0x0001000100010001);
     }
 
-    return (T) getCode();
+    return (T)getCode();
 }
 
 template jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t
 jit_avx512_core_gemv_s8u8s32_kern::generate<
-jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t>(int);
+        jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t>(int);
 
 template jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t
 jit_avx512_core_gemv_s8u8s32_kern::generate<
-jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>(int);
+        jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>(int);
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

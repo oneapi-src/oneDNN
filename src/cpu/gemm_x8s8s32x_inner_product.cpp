@@ -53,8 +53,9 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     const float *scales = pd()->attr()->output_scales_.scales_;
 
     acc_data_t *acc = pd()->dst_is_acc_
-        ? (acc_data_t *)dst
-        : scratchpad(ctx).template get<acc_data_t>(key_iprod_int_dat_in_acc_dt);
+            ? (acc_data_t *)dst
+            : scratchpad(ctx).template get<acc_data_t>(
+                    key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
     gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef, weights,
@@ -82,6 +83,6 @@ template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s32>;
 template struct gemm_x8s8s32x_inner_product_fwd_t<s8, s8>;
 template struct gemm_x8s8s32x_inner_product_fwd_t<s8, u8>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

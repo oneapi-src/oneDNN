@@ -25,8 +25,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "jit_primitive_conf.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
+#include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -43,7 +43,7 @@ struct jit_uni_pool_kernel : public jit_generator {
                     bf16_emu_reserv_5);
 
         this->generate();
-        jit_ker = (decltype(jit_ker)) this->getCode();
+        jit_ker = (decltype(jit_ker))this->getCode();
     }
 
     ~jit_uni_pool_kernel() { delete bf16_emu_; }
@@ -111,18 +111,18 @@ private:
     // is applied to the forward pass as well to keep things simpler.
 
     using reg64_t = const Xbyak::Reg64;
-    reg64_t reg_param      = rdi; // Always mimic the Unix ABI
-    reg64_t reg_input      = r8;
-    reg64_t aux_reg_input  = r9;
-    reg64_t reg_index      = r10;
-    reg64_t reg_output     = r12;
+    reg64_t reg_param = rdi; // Always mimic the Unix ABI
+    reg64_t reg_input = r8;
+    reg64_t aux_reg_input = r9;
+    reg64_t reg_index = r10;
+    reg64_t reg_output = r12;
     reg64_t reg_kd_pad_shift = r13;
-    reg64_t dst_ptr        = rdi; // Must be rdi due to maskmovdqu
+    reg64_t dst_ptr = rdi; // Must be rdi due to maskmovdqu
 
-    reg64_t kj      = r14;
+    reg64_t kj = r14;
     reg64_t oi_iter = r15;
-    reg64_t reg_kh  = rax;
-    reg64_t reg_k_shift  = rbx;
+    reg64_t reg_kh = rax;
+    reg64_t reg_k_shift = rbx;
     reg64_t tmp_gpr = rcx; // Must be rcx because rdi is used above
     reg64_t reg_ker_area_h = rdx;
 
@@ -175,7 +175,7 @@ private:
 
     void generate();
 
-    void avx_vpadd1(const Ymm& y0, const Xmm& x1, const Xmm& xtmp) {
+    void avx_vpadd1(const Ymm &y0, const Xmm &x1, const Xmm &xtmp) {
         assert(y0.getIdx() != x1.getIdx());
         vextractf128(xtmp, y0, 0);
         vpaddd(xtmp, xtmp, x1);
@@ -185,12 +185,12 @@ private:
         vinsertf128(y0, y0, xtmp, 1);
     }
 
-    void avx_vpadd1(const Xmm& x0, const Xmm& x1, const Xmm&) {
+    void avx_vpadd1(const Xmm &x0, const Xmm &x1, const Xmm &) {
         assert(false /*function should not be used*/);
         paddd(x0, x1);
     }
 
-    void avx_pmovzxbd(const Ymm& y0, const Xmm& x1, const Xmm& xtmp) {
+    void avx_pmovzxbd(const Ymm &y0, const Xmm &x1, const Xmm &xtmp) {
         Xmm x0(y0.getIdx());
         pshufd(xmm_tmp, x1, 1);
         pmovzxbd(x0, x1);
@@ -198,12 +198,13 @@ private:
         vinsertf128(y0, y0, xmm_tmp, 1);
     }
 
-    void avx_pmovzxbd(const Xmm& x0, const Xmm& x1, const Xmm&) {
+    void avx_pmovzxbd(const Xmm &x0, const Xmm &x1, const Xmm &) {
         assert(false /*function should not be used*/);
         pmovzxbd(x0, x1);
     }
 
-    void avx_pcmpeqd(const Ymm& y0, const Ymm& y1, const Ymm& y2, const Xmm& xtmp) {
+    void avx_pcmpeqd(
+            const Ymm &y0, const Ymm &y1, const Ymm &y2, const Xmm &xtmp) {
         assert(y0.getIdx() != y1.getIdx());
         assert(y0.getIdx() != y2.getIdx());
         Xmm x0(y0.getIdx());
@@ -216,7 +217,7 @@ private:
         vinsertf128(y0, y0, xtmp, 1);
     }
 
-    void avx_pcmpeqd(const Xmm& x0, const Xmm& x1, const Xmm&, const Xmm&) {
+    void avx_pcmpeqd(const Xmm &x0, const Xmm &x1, const Xmm &, const Xmm &) {
         assert(false /*function should not be used*/);
         pcmpeqd(x0, x1);
     }
@@ -224,9 +225,9 @@ private:
     bf16_emulation_t *bf16_emu_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

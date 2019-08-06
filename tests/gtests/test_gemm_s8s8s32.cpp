@@ -24,10 +24,9 @@ namespace mkldnn {
 
 using gemm_test = gemm_test_common<int8_t, int8_t, int32_t>;
 
-TEST_P(gemm_test, TestGEMM)
-{}
+TEST_P(gemm_test, TestGEMM) {}
 
 #define TEST_CASE_NAME_PREFIX s8s8s32
 #define S8S8S32
 #include "gemm_in.h"
-}
+} // namespace mkldnn

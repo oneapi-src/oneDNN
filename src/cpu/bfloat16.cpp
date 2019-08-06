@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 #include <memory>
-#include "jit_avx512_core_bf16cvt.hpp"
 #include "bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,38 +35,37 @@ bfloat16_t &bfloat16_t::operator=(float f) {
         jit_call_t p;
         p.inp = (void *)&f;
         p.out = (void *)this;
-        static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(1);
+        static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(
+                1);
         cvt_one_ps_to_bf16.jit_ker(&p);
     } else {
-        float_raw r = { f };
+        float_raw r = {f};
         switch (std::fpclassify(f)) {
-        case FP_SUBNORMAL:
-        case FP_ZERO:
-            // sign preserving zero (denormal go to zero)
-            raw_bits_ = r.iraw[1];
-            raw_bits_ &= 0x8000;
-            break;
-        case FP_INFINITE: 
-            raw_bits_ = r.iraw[1]; 
-            break;
-        case FP_NAN:
-            // truncate and set MSB of the mantissa force QNAN
-            raw_bits_ = r.iraw[1];
-            raw_bits_ |= 1 << 6;
-            break;
-        case FP_NORMAL:
-            // round to nearest even and truncate
-            unsigned int rounding_bias = 0x00007FFF + (r.iraw[1] & 0x1);
-            r.int_raw += rounding_bias;
-            raw_bits_ = r.iraw[1];
-            break;
+            case FP_SUBNORMAL:
+            case FP_ZERO:
+                // sign preserving zero (denormal go to zero)
+                raw_bits_ = r.iraw[1];
+                raw_bits_ &= 0x8000;
+                break;
+            case FP_INFINITE: raw_bits_ = r.iraw[1]; break;
+            case FP_NAN:
+                // truncate and set MSB of the mantissa force QNAN
+                raw_bits_ = r.iraw[1];
+                raw_bits_ |= 1 << 6;
+                break;
+            case FP_NORMAL:
+                // round to nearest even and truncate
+                unsigned int rounding_bias = 0x00007FFF + (r.iraw[1] & 0x1);
+                r.int_raw += rounding_bias;
+                raw_bits_ = r.iraw[1];
+                break;
         }
     }
     return *this;
 }
 
 bfloat16_t::operator float() const {
-    float_raw r = { 0 };
+    float_raw r = {0};
     r.iraw[1] = raw_bits_;
     r.iraw[0] = 0;
     return r.fraw;

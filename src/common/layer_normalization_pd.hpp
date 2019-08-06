@@ -50,10 +50,10 @@ struct layer_normalization_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
-        case query::layer_normalization_d:
-            *(const layer_normalization_desc_t **)result = desc();
-            break;
-        default: return primitive_desc_t::query(what, idx, result);
+            case query::layer_normalization_d:
+                *(const layer_normalization_desc_t **)result = desc();
+                break;
+            default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;
     }
@@ -111,16 +111,12 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
         : layer_normalization_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg == MKLDNN_ARG_SRC)
-            return arg_usage_t::input;
-        if (arg == MKLDNN_ARG_DST)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
+        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
 
         if (utils::one_of(arg, MKLDNN_ARG_MEAN, MKLDNN_ARG_VARIANCE)) {
-            if (stats_are_src())
-                return arg_usage_t::input;
-            if (!stats_are_src() && is_training())
-                return arg_usage_t::output;
+            if (stats_are_src()) return arg_usage_t::input;
+            if (!stats_are_src() && is_training()) return arg_usage_t::output;
             return arg_usage_t::unused;
         }
 
@@ -131,16 +127,13 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override {
-        if (index == 0)
-            return &data_md_;
-        if (stats_are_src() && (index == 1 || index == 2))
-            return &stat_md_;
+        if (index == 0) return &data_md_;
+        if (stats_are_src() && (index == 1 || index == 2)) return &stat_md_;
         return &glob_zero_md;
     }
 
     virtual const memory_desc_t *dst_md(int index = 0) const override {
-        if (index == 0)
-            return &data_md_;
+        if (index == 0) return &data_md_;
         if (!stats_are_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
         return &glob_zero_md;
@@ -178,8 +171,7 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
         if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_SRC)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
 
         if (arg == MKLDNN_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::output;

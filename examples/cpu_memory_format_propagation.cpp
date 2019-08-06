@@ -115,14 +115,13 @@ void cpu_memory_format_propagation_tutorial() {
     // for both convolution and pooling primitives, which means that the
     // activation tensor shapes do not change.
     const int N = 1, H = 14, W = 14, IC = 256, OC = IC, KH = 3, KW = 3;
-    auto conv_src_md = memory::desc(
-            {N, IC, H, W}, memory::data_type::f32,
+    auto conv_src_md = memory::desc({N, IC, H, W}, memory::data_type::f32,
             memory::format_tag::any // let convolution choose memory format
-            );
+    );
     auto conv_weights_md = memory::desc(
             {IC, OC, KH, KW}, memory::data_type::f32,
             memory::format_tag::any // let convolution choose memory format
-            );
+    );
     auto conv_dst_md = conv_src_md; // shape does not change
     auto pool_dst_md = conv_dst_md; // shape does not change
     // [Create placeholder memory descriptors]
@@ -134,17 +133,18 @@ void cpu_memory_format_propagation_tutorial() {
     ///
     // @snippet cpu_memory_format_propagation.cpp Create convolution and pooling primitive descriptors
     // [Create convolution and pooling primitive descriptors]
-    auto conv_pd = convolution_forward::primitive_desc({
-            prop_kind::forward_inference, algorithm::convolution_auto,
-            conv_src_md, conv_weights_md, conv_dst_md, // shape information
-            {1, 1}, // strides
-            {1, 1}, {1, 1}}, // left and right padding
+    auto conv_pd = convolution_forward::primitive_desc(
+            {prop_kind::forward_inference, algorithm::convolution_auto,
+                    conv_src_md, conv_weights_md,
+                    conv_dst_md, // shape information
+                    {1, 1}, // strides
+                    {1, 1}, {1, 1}}, // left and right padding
             cpu_engine);
-    auto pool_pd = pooling_forward::primitive_desc({
-            prop_kind::forward_inference, algorithm::pooling_max,
-            conv_pd.dst_desc(), pool_dst_md, // shape information
-            {1, 1}, {KH, KW}, // strides and kernel
-            {1, 1}, {1, 1}}, // left and right padding
+    auto pool_pd = pooling_forward::primitive_desc(
+            {prop_kind::forward_inference, algorithm::pooling_max,
+                    conv_pd.dst_desc(), pool_dst_md, // shape information
+                    {1, 1}, {KH, KW}, // strides and kernel
+                    {1, 1}, {1, 1}}, // left and right padding
             cpu_engine);
     // [Create convolution and pooling primitive descriptors]
 
@@ -158,14 +158,14 @@ void cpu_memory_format_propagation_tutorial() {
     ///
     /// @snippet cpu_memory_format_propagation.cpp Create source and destination memory objects
     // [Create source and destination memory objects]
-    auto src_mem = memory({{N, IC, H, W},
-            memory::data_type::f32, memory::format_tag::nchw},
+    auto src_mem = memory(
+            {{N, IC, H, W}, memory::data_type::f32, memory::format_tag::nchw},
             cpu_engine);
-    auto weights_mem = memory({{IC, OC, KH, KW},
-            memory::data_type::f32, memory::format_tag::oihw},
+    auto weights_mem = memory({{IC, OC, KH, KW}, memory::data_type::f32,
+                                      memory::format_tag::oihw},
             cpu_engine);
-    auto dst_mem = memory({{N, IC, H, W},
-            memory::data_type::f32, memory::format_tag::nchw},
+    auto dst_mem = memory(
+            {{N, IC, H, W}, memory::data_type::f32, memory::format_tag::nchw},
             cpu_engine);
     // [Create source and destination memory objects]
 
@@ -195,7 +195,8 @@ void cpu_memory_format_propagation_tutorial() {
     ///
     /// @snippet cpu_memory_format_propagation.cpp Determine if weights and destination need to be reordered
     // [Determine if weights and destination need to be reordered]
-    bool need_reorder_weights = conv_pd.weights_desc() != weights_mem.get_desc();
+    bool need_reorder_weights
+            = conv_pd.weights_desc() != weights_mem.get_desc();
     bool need_reorder_dst = conv_pd.dst_desc() != dst_mem.get_desc();
     // [Determine if weights and destination need to be reordered]
 
@@ -213,15 +214,15 @@ void cpu_memory_format_propagation_tutorial() {
     /// @snippet cpu_memory_format_propagation.cpp Allocate intermediate buffers if necessary
     // [Allocate intermediate buffers if necessary]
     auto conv_src_mem = need_reorder_src
-        ? memory(conv_pd.src_desc(), cpu_engine)
-        : src_mem;
+            ? memory(conv_pd.src_desc(), cpu_engine)
+            : src_mem;
     auto conv_weights_mem = need_reorder_weights
-        ? memory(conv_pd.weights_desc(), cpu_engine)
-        : weights_mem;
+            ? memory(conv_pd.weights_desc(), cpu_engine)
+            : weights_mem;
     auto conv_dst_mem = memory(conv_pd.dst_desc(), cpu_engine);
     auto pool_dst_mem = need_reorder_dst
-        ? memory(pool_pd.dst_desc(), cpu_engine)
-        : dst_mem;
+            ? memory(pool_pd.dst_desc(), cpu_engine)
+            : dst_mem;
     // [Allocate intermediate buffers if necessary]
 
     /// @page cpu_memory_format_propagation_cpp
@@ -239,19 +240,16 @@ void cpu_memory_format_propagation_tutorial() {
     // [Perform reorders for source data if necessary]
     if (need_reorder_src) {
         auto reorder_src = reorder(src_mem, conv_src_mem);
-        reorder_src.execute(cpu_stream, {
-                {MKLDNN_ARG_FROM, src_mem},
-                {MKLDNN_ARG_TO, conv_src_mem}
-                });
+        reorder_src.execute(cpu_stream,
+                {{MKLDNN_ARG_FROM, src_mem}, {MKLDNN_ARG_TO, conv_src_mem}});
         cpu_stream.wait(); // wait for the reorder to complete
     }
 
     if (need_reorder_weights) {
         auto reorder_weights = reorder(weights_mem, conv_weights_mem);
-        reorder_weights.execute(cpu_stream, {
-                {MKLDNN_ARG_FROM, weights_mem},
-                {MKLDNN_ARG_TO, conv_weights_mem}
-                });
+        reorder_weights.execute(cpu_stream,
+                {{MKLDNN_ARG_FROM, weights_mem},
+                        {MKLDNN_ARG_TO, conv_weights_mem}});
         cpu_stream.wait(); // wait for the reorder to complete
     }
     // [Perform reorders for source data if necessary]
@@ -266,17 +264,14 @@ void cpu_memory_format_propagation_tutorial() {
     // [Create and execute convolution and pooling primitives]
     auto conv_scratchpad_mem = memory(conv_pd.scratchpad_desc(), cpu_engine);
     auto conv = convolution_forward(conv_pd);
-    conv.execute(cpu_stream, {
-            {MKLDNN_ARG_SRC, conv_src_mem},
-            {MKLDNN_ARG_WEIGHTS, conv_weights_mem},
-            {MKLDNN_ARG_DST, conv_dst_mem}
-            });
+    conv.execute(cpu_stream,
+            {{MKLDNN_ARG_SRC, conv_src_mem},
+                    {MKLDNN_ARG_WEIGHTS, conv_weights_mem},
+                    {MKLDNN_ARG_DST, conv_dst_mem}});
     auto pool_scratchpad_mem = memory(pool_pd.scratchpad_desc(), cpu_engine);
     auto pool = pooling_forward(pool_pd);
-    pool.execute(cpu_stream, {
-            {MKLDNN_ARG_SRC, conv_dst_mem},
-            {MKLDNN_ARG_DST, pool_dst_mem}
-            });
+    pool.execute(cpu_stream,
+            {{MKLDNN_ARG_SRC, conv_dst_mem}, {MKLDNN_ARG_DST, pool_dst_mem}});
     cpu_stream.wait();
     // [Create and execute convolution and pooling primitives]
 
@@ -292,10 +287,8 @@ void cpu_memory_format_propagation_tutorial() {
     // [Reorder destination data if necessary]
     if (need_reorder_dst) {
         auto reorder_dst = reorder(pool_dst_mem, dst_mem);
-        reorder_dst.execute(cpu_stream, {
-                {MKLDNN_ARG_FROM, pool_dst_mem},
-                {MKLDNN_ARG_TO, dst_mem}
-                });
+        reorder_dst.execute(cpu_stream,
+                {{MKLDNN_ARG_FROM, pool_dst_mem}, {MKLDNN_ARG_TO, dst_mem}});
         cpu_stream.wait();
     }
     // [Reorder destination data if necessary]
@@ -306,7 +299,8 @@ int main(int argc, char **argv) {
         cpu_memory_format_propagation_tutorial();
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-            << "Error status: " << mkldnn_status2str(e.status) << std::endl;
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

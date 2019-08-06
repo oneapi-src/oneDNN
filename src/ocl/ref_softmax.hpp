@@ -46,21 +46,19 @@ struct ref_softmax_fwd_t : public primitive_t {
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
-                               prop_kind::forward_inference,
-                               prop_kind::forward_training)
+                            prop_kind::forward_inference,
+                            prop_kind::forward_training)
                     && utils::one_of(desc()->data_desc.data_type,
-                        data_type::f32, data_type::f16, data_type::bf16)
+                            data_type::f32, data_type::f16, data_type::bf16)
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
-                                compute_engine->mayiuse(
-                                       compute::device_ext_t::khr_fp16))
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             for (int i = 0; i < src_md()->ndims; ++i) {
-                if (i != desc()->softmax_axis)
-                    gws.push_back(src_md()->dims[i]);
+                if (i != desc()->softmax_axis) gws.push_back(src_md()->dims[i]);
             }
 
             return status::success;
@@ -88,8 +86,7 @@ struct ref_softmax_fwd_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -108,17 +105,16 @@ protected:
 struct ref_softmax_bwd_t : public primitive_t {
     struct pd_t : public ocl_softmax_bwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const softmax_fwd_pd_t *hint_fwd_pd)
+                const primitive_attr_t *attr,
+                const softmax_fwd_pd_t *hint_fwd_pd)
             : ocl_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_data
-                && desc()->data_desc.data_type == data_type::f32
-                && attr()->has_default_values();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && desc()->data_desc.data_type == data_type::f32
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             for (int i = 0; i < desc()->data_desc.ndims; ++i) {
@@ -151,8 +147,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }

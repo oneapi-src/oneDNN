@@ -32,9 +32,9 @@
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_lrn.hpp"
 #include "ocl/ref_pooling.hpp"
-#include "ocl/rnn/ref_rnn.hpp"
 #include "ocl/ref_shuffle.hpp"
 #include "ocl/ref_softmax.hpp"
+#include "ocl/rnn/ref_rnn.hpp"
 
 #include "ocl/ocl_engine.hpp"
 
@@ -48,8 +48,7 @@ status_t ocl_gpu_engine_t::init() {
     cl_int err = CL_SUCCESS;
     if (is_user_context_) {
         err = clRetainContext(context_);
-        if (err != CL_SUCCESS)
-            context_ = nullptr;
+        if (err != CL_SUCCESS) context_ = nullptr;
     } else {
         context_
                 = clCreateContext(nullptr, 1, &device_, nullptr, nullptr, &err);
@@ -59,19 +58,17 @@ status_t ocl_gpu_engine_t::init() {
 
     status_t status
             = ocl_utils::check_device(engine_kind::gpu, device_, context_);
-    if (status != status::success)
-        return status;
+    if (status != status::success) return status;
 
     stream_t *service_stream_ptr;
     status = create_stream(&service_stream_ptr, stream_flags::default_flags);
-    if (status != status::success)
-        return status;
+    if (status != status::success) return status;
     service_stream_.reset(service_stream_ptr);
     return status::success;
 }
 
-status_t ocl_gpu_engine_t::create_memory_storage(
-        memory_storage_t **storage, unsigned flags, size_t size, size_t alignment, void *handle) {
+status_t ocl_gpu_engine_t::create_memory_storage(memory_storage_t **storage,
+        unsigned flags, size_t size, size_t alignment, void *handle) {
     return safe_ptr_assign<memory_storage_t>(*storage,
             new memory_storage_t(new ocl_memory_storage_t(
                     this, flags, size, alignment, handle)));
@@ -101,8 +98,7 @@ status_t ocl_gpu_engine_t::create_kernels(
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
-        if (!kernel_names[i] || (*kernels)[i])
-            continue;
+        if (!kernel_names[i] || (*kernels)[i]) continue;
 
         const char *code = code_strings[i];
 
@@ -154,50 +150,50 @@ using namespace mkldnn::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f ocl_impl_list[] = {
-    /*eltwise*/
-    INSTANCE(ref_eltwise_fwd_t),
-    INSTANCE(ref_eltwise_bwd_t),
-    /*deconv*/
-    INSTANCE(ref_deconvolution_fwd_t),
-    INSTANCE(ref_deconvolution_bwd_data_t),
-    INSTANCE(ref_deconvolution_bwd_weights_t),
-    /*conv*/
-    INSTANCE(jit_gen9_common_convolution_fwd_t),
-    INSTANCE(jit_gen9_common_convolution_bwd_data_t),
-    INSTANCE(jit_gen9_common_convolution_bwd_weights_t),
-    INSTANCE(ref_convolution_fwd_t),
-    INSTANCE(ref_convolution_bwd_data_t),
-    INSTANCE(ref_convolution_bwd_weights_t),
-    /*bnorm*/
-    INSTANCE(ref_batch_normalization_fwd_t),
-    INSTANCE(ref_batch_normalization_bwd_t),
-    /*pool*/
-    INSTANCE(ref_pooling_fwd_t),
-    INSTANCE(ref_pooling_bwd_t),
-    /* lrn */
-    INSTANCE(ref_lrn_fwd_t),
-    INSTANCE(ref_lrn_bwd_t),
-    /*inner_product*/
-    INSTANCE(gemm_inner_product_fwd_t),
-    INSTANCE(gemm_inner_product_bwd_data_t),
-    INSTANCE(gemm_inner_product_bwd_weights_t),
+        /*eltwise*/
+        INSTANCE(ref_eltwise_fwd_t),
+        INSTANCE(ref_eltwise_bwd_t),
+        /*deconv*/
+        INSTANCE(ref_deconvolution_fwd_t),
+        INSTANCE(ref_deconvolution_bwd_data_t),
+        INSTANCE(ref_deconvolution_bwd_weights_t),
+        /*conv*/
+        INSTANCE(jit_gen9_common_convolution_fwd_t),
+        INSTANCE(jit_gen9_common_convolution_bwd_data_t),
+        INSTANCE(jit_gen9_common_convolution_bwd_weights_t),
+        INSTANCE(ref_convolution_fwd_t),
+        INSTANCE(ref_convolution_bwd_data_t),
+        INSTANCE(ref_convolution_bwd_weights_t),
+        /*bnorm*/
+        INSTANCE(ref_batch_normalization_fwd_t),
+        INSTANCE(ref_batch_normalization_bwd_t),
+        /*pool*/
+        INSTANCE(ref_pooling_fwd_t),
+        INSTANCE(ref_pooling_bwd_t),
+        /* lrn */
+        INSTANCE(ref_lrn_fwd_t),
+        INSTANCE(ref_lrn_bwd_t),
+        /*inner_product*/
+        INSTANCE(gemm_inner_product_fwd_t),
+        INSTANCE(gemm_inner_product_bwd_data_t),
+        INSTANCE(gemm_inner_product_bwd_weights_t),
 
-    INSTANCE(ref_inner_product_fwd_t),
-    INSTANCE(ref_inner_product_bwd_data_t),
-    INSTANCE(ref_inner_product_bwd_weights_t),
-    /*softmax*/
-    INSTANCE(ref_softmax_fwd_t),
-    INSTANCE(ref_softmax_bwd_t),
-    /* gemm */
-    INSTANCE(jit_gen9_gemm_t<f16>),
-    INSTANCE(jit_gen9_gemm_t<f32>),
-    /*rnn*/
-    INSTANCE(ref_rnn_fwd_f16_t),
-    INSTANCE(ref_rnn_fwd_f32_t),
-    INSTANCE(ref_rnn_bwd_f32_t),
-    /* shuffle */
-    INSTANCE(ref_shuffle_t),
-    nullptr,
+        INSTANCE(ref_inner_product_fwd_t),
+        INSTANCE(ref_inner_product_bwd_data_t),
+        INSTANCE(ref_inner_product_bwd_weights_t),
+        /*softmax*/
+        INSTANCE(ref_softmax_fwd_t),
+        INSTANCE(ref_softmax_bwd_t),
+        /* gemm */
+        INSTANCE(jit_gen9_gemm_t<f16>),
+        INSTANCE(jit_gen9_gemm_t<f32>),
+        /*rnn*/
+        INSTANCE(ref_rnn_fwd_f16_t),
+        INSTANCE(ref_rnn_fwd_f32_t),
+        INSTANCE(ref_rnn_bwd_f32_t),
+        /* shuffle */
+        INSTANCE(ref_shuffle_t),
+        nullptr,
 };
 
 #undef INSTANCE

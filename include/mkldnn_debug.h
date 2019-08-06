@@ -54,14 +54,14 @@ const char MKLDNN_API *mkldnn_scratchpad_mode2str(mkldnn_scratchpad_mode_t v);
 ///  - fmt_kind -- format kind (blocked, wino, etc...)
 ///  - fmt      -- extended format string (format_kind specific)
 ///  - extra    -- shows extra fields (underspecified)
-int MKLDNN_API mkldnn_md2fmt_str(char *fmt_str, size_t fmt_str_len,
-        const mkldnn_memory_desc_t *md);
+int MKLDNN_API mkldnn_md2fmt_str(
+        char *fmt_str, size_t fmt_str_len, const mkldnn_memory_desc_t *md);
 
 /// Forms a dimension string for a given memory descriptor.
 ///
 /// The format is defined as: 'dim0xdim1x...xdimN
-int MKLDNN_API mkldnn_md2dim_str(char *dim_str, size_t dim_str_len,
-        const mkldnn_memory_desc_t *md);
+int MKLDNN_API mkldnn_md2dim_str(
+        char *dim_str, size_t dim_str_len, const mkldnn_memory_desc_t *md);
 
 #ifdef __cplusplus
 }

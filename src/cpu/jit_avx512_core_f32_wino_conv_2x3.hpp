@@ -27,8 +27,8 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_primitive.hpp"
 
-#include "jit_primitive_conf.hpp"
 #include "jit_generator.hpp"
+#include "jit_primitive_conf.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -51,14 +51,13 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
                 jit_avx512_core_f32_wino_conv_2x3_fwd_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::forward_inference
-                && utils::one_of(desc()->alg_kind,
-                        alg_kind::convolution_auto,
-                        alg_kind::convolution_winograd)
-                && expect_data_types(data_type::f32, data_type::f32,
-                        data_type::f32, data_type::f32, data_type::f32)
-                && set_default_formats();
+            bool ok = true && desc()->prop_kind == prop_kind::forward_inference
+                    && utils::one_of(desc()->alg_kind,
+                            alg_kind::convolution_auto,
+                            alg_kind::convolution_winograd)
+                    && expect_data_types(data_type::f32, data_type::f32,
+                            data_type::f32, data_type::f32, data_type::f32)
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             memory_desc_t expect_wei_md = *weights_md();
@@ -68,8 +67,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
 
             if (weights_md_.format_kind == format_kind::any)
                 weights_md_ = expect_wei_md;
-            if (weights_md_ != expect_wei_md)
-                return status::unimplemented;
+            if (weights_md_ != expect_wei_md) return status::unimplemented;
 
             init_scratchpad();
 
@@ -79,7 +77,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public cpu_primitive_t {
         jit_conv_conf_2x3_wino_t jcp_;
 
     protected:
-        status_t jit_conf(memory_desc_t& expect_wei_md);
+        status_t jit_conf(memory_desc_t &expect_wei_md);
 
         void init_scratchpad() {
             using namespace memory_tracking::names;
@@ -137,8 +135,8 @@ private:
     jit_avx512_core_f32_wino_conv_2x3_dst_trans_t *dst_trans_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

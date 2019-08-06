@@ -32,12 +32,12 @@
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 #endif
 
-#include <CL/cl.h>
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <map>
 #include <memory>
 #include <utility>
+#include <CL/cl.h>
+#include <CL/sycl.hpp>
 
 namespace mkldnn {
 namespace impl {
@@ -50,17 +50,14 @@ struct sycl_stream_t : public compute::compute_stream_t {
             stream_t **stream, engine_t *engine, unsigned generic_flags) {
         unsigned flags;
         status_t status = sycl_stream_t::init_flags(&flags, generic_flags);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         std::unique_ptr<sycl_stream_t> sycl_stream(
                 new sycl_stream_t(engine, flags));
-        if (!sycl_stream)
-            return status::out_of_memory;
+        if (!sycl_stream) return status::out_of_memory;
 
         status = sycl_stream->init();
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
         *stream = sycl_stream.release();
         return status::success;
     }
@@ -69,15 +66,13 @@ struct sycl_stream_t : public compute::compute_stream_t {
             stream_t **stream, engine_t *engine, cl::sycl::queue &queue) {
         unsigned flags;
         status_t status = sycl_stream_t::init_flags(&flags, queue);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         std::unique_ptr<sycl_stream_t> sycl_stream(
                 new sycl_stream_t(engine, flags, queue));
 
         status = sycl_stream->init();
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         *stream = sycl_stream.release();
         return status::success;
@@ -112,15 +107,13 @@ struct sycl_stream_t : public compute::compute_stream_t {
         };
         status_t status = execute_func();
         // Emulate in-order behavior
-        if (flags() & stream_flags::in_order)
-            wait();
+        if (flags() & stream_flags::in_order) wait();
         return status;
     }
 
     virtual status_t copy(const memory_storage_t &src,
             const memory_storage_t &dst, size_t size) const override {
-        if (size == 0)
-            return status::success;
+        if (size == 0) return status::success;
 
         // TODO: add src and dst sizes check
 

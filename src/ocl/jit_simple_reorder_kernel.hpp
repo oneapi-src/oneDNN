@@ -50,9 +50,8 @@ struct jit_simple_reorder_kernel {
                 ? false
                 : (pd->alpha() != 1.f || pd->beta() != 0.f);
         jrp.with_sum_a = jrp.with_sum_ab && pd->beta() == 0.f;
-        jrp.do_reorder = jrp.scale_quant || jrp.with_sum_ab
-                ? true
-                : src_md != dst_md;
+        jrp.do_reorder
+                = jrp.scale_quant || jrp.with_sum_ab ? true : src_md != dst_md;
         jrp.has_padding = !src_md.is_dense() || !dst_md.is_dense();
         jrp.ndims = src_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
@@ -89,8 +88,7 @@ struct jit_simple_reorder_kernel {
                         gOIhw2o8i8o2i))
             jrp.with_group = 1;
 
-        if (jrp.has_padding || jrp.scale_quant)
-            return status;
+        if (jrp.has_padding || jrp.scale_quant) return status;
 
         const bool type_s8_u8
                 = utils::one_of(src_md.data_type(), mkldnn_s8, mkldnn_u8)

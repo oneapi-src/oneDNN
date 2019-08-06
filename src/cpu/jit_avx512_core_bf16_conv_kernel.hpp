@@ -20,10 +20,10 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
+#include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
 
 //#define BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 #if !MKLDNN_THR_SYNC
@@ -36,21 +36,19 @@ namespace cpu {
 
 struct jit_avx512_core_bf16_fwd_kernel : public jit_generator {
 
-    jit_avx512_core_bf16_fwd_kernel(const jit_conv_conf_t &ajcp,
-            const primitive_attr_t &attr) :
-        jit_generator(nullptr, ker_code_size),
-        jcp(ajcp),
-        attr_(attr),
-        eltwise_injector_(nullptr),
-        bf16_emu_(nullptr)
-    {
+    jit_avx512_core_bf16_fwd_kernel(
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
+        : jit_generator(nullptr, ker_code_size)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr)
+        , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this,
-                    bf16_emu_reserv_1, bf16_emu_reserv_2,
-                    bf16_emu_reserv_3, bf16_emu_scratch,
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                     bf16_emu_reserv_4, bf16_emu_reserv_5);
 
         generate();
@@ -64,15 +62,12 @@ struct jit_avx512_core_bf16_fwd_kernel : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_fwd_kernel)
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp,
-            const primitive_attr_t &attr);
+    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_md,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &weights_md,
             const memory_desc_wrapper &dst_md,
-            const memory_desc_wrapper &bias_md,
-            const primitive_attr_t &attr,
+            const memory_desc_wrapper &bias_md, const primitive_attr_t &attr,
             int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
@@ -108,7 +103,6 @@ private:
     reg64_t reg_ki = reg_out;
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
-
 
     reg64_t reg_out_long_offt = r14;
 
@@ -151,8 +145,9 @@ private:
     void generate();
 
     size_t get_output_offset(int oi, int n_oc_block) {
-        return (size_t)jcp.typesize_out * ((size_t)n_oc_block * jcp.oh
-            * jcp.ow * jcp.od + oi) * jcp.oc_block;
+        return (size_t)jcp.typesize_out
+                * ((size_t)n_oc_block * jcp.oh * jcp.ow * jcp.od + oi)
+                * jcp.oc_block;
     }
 
     size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
@@ -161,18 +156,17 @@ private:
         size_t ic_str = 1;
         return (size_t)jcp.typesize_in
                 * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
-                          * iw_str
-                          + scale * ic * ic_str);
+                                * iw_str
+                        + scale * ic * ic_str);
     }
 
-    size_t get_kernel_offset(int ki, int ic,
-                                    int n_oc_block, int ker_number) {
+    size_t get_kernel_offset(int ki, int ic, int n_oc_block, int ker_number) {
         int scale = 2; //bf16 vnni is used
-        size_t oc_block_stride = (size_t)jcp.nb_ic
-                               * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+        size_t oc_block_stride
+                = (size_t)jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
         return jcp.typesize_in * jcp.oc_block
-            * (n_oc_block * oc_block_stride
-                    + (ic + ker_number) * scale + ki * jcp.ic_block);
+                * (n_oc_block * oc_block_stride + (ic + ker_number) * scale
+                        + ki * jcp.ic_block);
     }
 
     int get_ow_start(int ki, int pad_l) {
@@ -181,37 +175,32 @@ private:
     }
 
     int get_ow_end(int ur_w, int ki, int pad_r) {
-        return ur_w - nstl::max(0, utils::div_up(pad_r
-                                                   - (jcp.kw - 1 - ki)
-                                                           * (jcp.dilate_w + 1),
-                                           jcp.stride_w));
+        return ur_w
+                - nstl::max(0,
+                        utils::div_up(
+                                pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
+                                jcp.stride_w));
     }
 };
 
-struct jit_avx512_core_bf16_bwd_data_kernel: public jit_generator {
+struct jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
 
-    jit_avx512_core_bf16_bwd_data_kernel(const jit_conv_conf_t &ajcp):
-        jit_generator(nullptr, ker_code_size),
-        jcp(ajcp), bf16_emu_(nullptr)
-    {
+    jit_avx512_core_bf16_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+        : jit_generator(nullptr, ker_code_size), jcp(ajcp), bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this,
-                    bf16_emu_reserv_1, bf16_emu_reserv_2,
-                    bf16_emu_reserv_3, bf16_emu_scratch,
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                     bf16_emu_reserv_4, bf16_emu_reserv_5);
         generate();
         jit_ker = (decltype(jit_ker))getCode();
     }
 
-    ~jit_avx512_core_bf16_bwd_data_kernel() {
-        delete bf16_emu_;
-    }
+    ~jit_avx512_core_bf16_bwd_data_kernel() { delete bf16_emu_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_bwd_data_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &diff_src_d,
+            const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &diff_dst_d);
 
@@ -276,8 +265,7 @@ private:
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
     void generate();
 
-    int get_iw_start(int ki, int l_overflow)
-    {
+    int get_iw_start(int ki, int l_overflow) {
         int res = (jcp.iw - 1 + jcp.r_pad) % jcp.stride_w
                 + l_overflow * jcp.stride_w
                 - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1);
@@ -287,8 +275,7 @@ private:
         return res;
     }
 
-    int get_iw_end(int ur_w, int ki, int r_overflow)
-    {
+    int get_iw_end(int ur_w, int ki, int r_overflow) {
         if (utils::one_of(ur_w, jcp.iw, jcp.ur_w_tail))
             ur_w += nstl::min(0, jcp.r_pad); // remove negative padding
         int res = (ur_w - 1 + jcp.l_pad) % jcp.stride_w
@@ -302,27 +289,24 @@ private:
 
 struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
-    jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp) :
-        jit_generator(nullptr, ker_code_size),
-        jcp(ajcp), bf16_emu_(nullptr)
-    {
+    jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(
+            const jit_conv_conf_t &ajcp)
+        : jit_generator(nullptr, ker_code_size), jcp(ajcp), bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa)) {
-            bf16_emu_ = new bf16_emulation_t(this, one, even, selector, scratch,
-                                        tmp0, tmp1);
+            bf16_emu_ = new bf16_emulation_t(
+                    this, one, even, selector, scratch, tmp0, tmp1);
         }
         generate();
         jit_ker = (decltype(jit_ker))getCode();
     }
 
-    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() {
-        delete bf16_emu_;
-    }
+    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() { delete bf16_emu_; }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(
+            jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd,
-            const memory_desc_wrapper &src_md,
+            const convolution_desc_t &cd, const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &diff_weights_md,
             const memory_desc_wrapper &diff_bias_md,
             const memory_desc_wrapper &diff_dst_md);
@@ -376,10 +360,9 @@ private:
     inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();
     inline void compute_oh_step_unroll_ow(int ic_block_step);
-    inline void compute_ic_block_step(int ur_w,
-            int pad_l, int pad_r, int ic_block_step,
-            int input_offset, int kernel_offset, int output_offset,
-            bool is_tail = false);
+    inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
+            int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool is_tail = false);
     inline void compute_oh_step_common(int ic_block_step);
     inline void compute_oh_step_disp();
     inline void compute_loop();
@@ -397,7 +380,7 @@ private:
 #endif
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 #endif

@@ -24,25 +24,23 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_softmax_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_softmax_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct ref_softmax_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_softmax_fwd_pd_t {
+struct ref_softmax_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && src_md()->data_type == data_type
-                && attr()->has_default_values();
+            bool ok = true && is_fwd() && src_md()->data_type == data_type
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             init_scratchpad();
@@ -63,7 +61,7 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *apd): cpu_primitive_t(apd) {
+    ref_softmax_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -77,11 +75,9 @@ struct ref_softmax_fwd_t: public cpu_primitive_t {
             if (bd.inner_idxs[iblk] == axis)
                 axis_blk_size *= bd.inner_blks[iblk];
 
-        use_dense_ = true
-            && inner_size_ == 1
-            && data_d.is_dense(true)
-            && data_d.only_padded_dim(axis)
-            && bd.strides[axis] == axis_blk_size;
+        use_dense_ = true && inner_size_ == 1 && data_d.is_dense(true)
+                && data_d.only_padded_dim(axis)
+                && bd.strides[axis] == axis_blk_size;
     }
 
     typedef typename prec_traits<data_type>::type data_t;
@@ -111,26 +107,24 @@ private:
 };
 
 template <impl::data_type_t data_type>
-struct ref_softmax_bwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_softmax_bwd_pd_t {
+struct ref_softmax_bwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init() {
-            bool ok = true
-                && !is_fwd()
-                && utils::everyone_is(data_type,
-                        dst_md()->data_type,
-                        diff_src_md()->data_type)
-                && attr()->has_default_values();
+            bool ok = true && !is_fwd()
+                    && utils::everyone_is(data_type, dst_md()->data_type,
+                            diff_src_md()->data_type)
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return status::success;
         }
     };
 
-    ref_softmax_bwd_t(const pd_t *apd): cpu_primitive_t(apd) {
+    ref_softmax_bwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -145,11 +139,8 @@ struct ref_softmax_bwd_t: public cpu_primitive_t {
             if (bd.inner_idxs[iblk] == axis)
                 axis_blk_size *= bd.inner_blks[iblk];
 
-        use_dense_ = true
-            && inner_size_ == 1
-            && diff_d == data_d
-            && diff_d.is_dense()
-            && bd.strides[axis] == axis_blk_size;
+        use_dense_ = true && inner_size_ == 1 && diff_d == data_d
+                && diff_d.is_dense() && bd.strides[axis] == axis_blk_size;
     }
 
     typedef typename prec_traits<data_type>::type data_t;
@@ -171,10 +162,9 @@ private:
     int outer_size_, channels_, inner_size_;
 };
 
-
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

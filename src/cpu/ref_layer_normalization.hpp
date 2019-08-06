@@ -23,9 +23,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu_isa_traits.hpp"
 #include "cpu_layer_normalization_pd.hpp"
 #include "cpu_primitive.hpp"
-#include "cpu_isa_traits.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -51,8 +51,7 @@ struct ref_layer_normalization_fwd_t : public cpu_primitive_t {
                     && IMPLICATION(
                             use_scaleshift(), weights_md()->data_type == f32)
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             return status::success;
         }
@@ -94,8 +93,7 @@ struct ref_layer_normalization_bwd_t : public cpu_primitive_t {
                             utils::everyone_is(f32, weights_md()->data_type,
                                     diff_weights_md()->data_type))
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             return status::success;
         }

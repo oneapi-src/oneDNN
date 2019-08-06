@@ -25,8 +25,8 @@
 #include "utils.hpp"
 
 #include "gemm/gemm.hpp"
-#include "jit_generator.hpp"
 #include "gemm_inner_product_utils.hpp"
+#include "jit_generator.hpp"
 
 #include "cpu_inner_product_pd.hpp"
 #include "cpu_primitive.hpp"
@@ -36,30 +36,27 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_inner_product_fwd_pd_t {
+struct gemm_x8s8s32x_inner_product_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(src_type == data_type::u8
-                ? IGEMM_S8U8S32_IMPL_STR
-                : IGEMM_S8S8S32_IMPL_STR,
+        DECLARE_COMMON_PD_T(src_type == data_type::u8 ? IGEMM_S8U8S32_IMPL_STR
+                                                      : IGEMM_S8S8S32_IMPL_STR,
                 gemm_x8s8s32x_inner_product_fwd_t);
 
         status_t init() {
             using namespace data_type;
 
-            bool ok = true
-                && is_fwd()
-                && !has_zero_dim_memory()
-                && src_md()->data_type == src_type
-                && dst_md()->data_type == dst_type
-                && weights_md()->data_type == s8
-                && IMPLICATION(with_bias(), utils::one_of(
-                            weights_md(1)->data_type, f32, s32, s8, u8))
-                && post_ops_ok()
-                && set_default_params() == status::success
-                && dense_gemm_consitency_check(src_md(), weights_md(),
-                        dst_md());
+            bool ok = true && is_fwd() && !has_zero_dim_memory()
+                    && src_md()->data_type == src_type
+                    && dst_md()->data_type == dst_type
+                    && weights_md()->data_type == s8
+                    && IMPLICATION(with_bias(),
+                            utils::one_of(
+                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && post_ops_ok() && set_default_params() == status::success
+                    && dense_gemm_consitency_check(
+                            src_md(), weights_md(), dst_md());
             if (!ok) return status::unimplemented;
 
             bool do_sum = attr()->post_ops_.find(primitive_kind::sum) >= 0;
@@ -79,13 +76,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t: public cpu_primitive_t {
                     = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
             switch (po.len_) {
-            case 0:
-                return true; // no post_ops
-            case 1:
-                return is_eltwise(0) || is_sum(0); // sum OR eltwise
-            case 2:
-                return is_sum(0) && is_eltwise(1); // sum -> eltwise
-            default: return false;
+                case 0: return true; // no post_ops
+                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
+                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+                default: return false;
             }
             return false;
         }
@@ -127,9 +121,9 @@ private:
     inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

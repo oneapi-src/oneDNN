@@ -42,31 +42,27 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
-                               prop_kind::forward_training,
-                               prop_kind::forward_inference)
+                            prop_kind::forward_training,
+                            prop_kind::forward_inference)
                     && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
-                               alg_kind::eltwise_linear,
-                               alg_kind::eltwise_bounded_relu,
-                               alg_kind::eltwise_abs, alg_kind::eltwise_tanh,
-                               alg_kind::eltwise_elu, alg_kind::eltwise_square,
-                               alg_kind::eltwise_sqrt,
-                               alg_kind::eltwise_soft_relu,
-                               alg_kind::eltwise_logistic,
-                               alg_kind::eltwise_exp,
-                               alg_kind::eltwise_gelu,
-                               alg_kind::eltwise_swish)
+                            alg_kind::eltwise_linear,
+                            alg_kind::eltwise_bounded_relu,
+                            alg_kind::eltwise_abs, alg_kind::eltwise_tanh,
+                            alg_kind::eltwise_elu, alg_kind::eltwise_square,
+                            alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
+                            alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
+                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
-                               data_type::f32, data_type::f16, data_type::bf16)
+                            data_type::f32, data_type::f16, data_type::bf16)
                     && attr()->has_default_values()
                     && IMPLICATION(
-                               desc()->data_desc.data_type == data_type::f16,
-                               compute_engine->mayiuse(
-                                       compute::device_ext_t::khr_fp16));
-            if (!ok)
-                return status::unimplemented;
+                            desc()->data_desc.data_type == data_type::f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16));
+            if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_,
-                    data_md_, glob_zero_md, jit_off_, desc()->alg_kind, true);
+            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
+                    glob_zero_md, jit_off_, desc()->alg_kind, true);
         }
 
         jit_eltwise_conf_t jel_;
@@ -81,12 +77,10 @@ struct ref_eltwise_fwd_t : public primitive_t {
         status_t status = jit_ref_eltwise_common_kernel::init_const_def(
                 kernel_ctx, pd()->jel_, pd()->jit_off_);
 
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_eltwise_fwd", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -120,29 +114,22 @@ struct ref_eltwise_bwd_t : public primitive_t {
             memory_desc_wrapper data_mdw(desc()->data_desc);
             memory_desc_wrapper diff_data_mdw(desc()->diff_data_desc);
 
-            bool ok = true
-                    && desc()->prop_kind == backward_data
+            bool ok = true && desc()->prop_kind == backward_data
                     && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
-                               alg_kind::eltwise_linear,
-                               alg_kind::eltwise_bounded_relu,
-                               alg_kind::eltwise_abs,
-                               alg_kind::eltwise_tanh,
-                               alg_kind::eltwise_elu,
-                               alg_kind::eltwise_square,
-                               alg_kind::eltwise_sqrt,
-                               alg_kind::eltwise_soft_relu,
-                               alg_kind::eltwise_logistic,
-                               alg_kind::eltwise_exp,
-                               alg_kind::eltwise_gelu,
-                               alg_kind::eltwise_swish)
+                            alg_kind::eltwise_linear,
+                            alg_kind::eltwise_bounded_relu,
+                            alg_kind::eltwise_abs, alg_kind::eltwise_tanh,
+                            alg_kind::eltwise_elu, alg_kind::eltwise_square,
+                            alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
+                            alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
+                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
-                               data_type::f32, data_type::bf16)
+                            data_type::f32, data_type::bf16)
                     && attr()->has_default_values();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_,
-                    data_md_, diff_data_md_, jit_off_, desc()->alg_kind, false);
+            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
+                    diff_data_md_, jit_off_, desc()->alg_kind, false);
         }
 
         jit_eltwise_conf_t jel_;
@@ -157,12 +144,10 @@ struct ref_eltwise_bwd_t : public primitive_t {
 
         status_t status = jit_ref_eltwise_common_kernel::init_const_def(
                 kernel_ctx, pd()->jel_, pd()->jit_off_);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_eltwise_bwd", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }

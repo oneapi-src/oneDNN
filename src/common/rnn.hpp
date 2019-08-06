@@ -23,5 +23,5 @@ namespace rnn {
 int get_gates_count(mkldnn_alg_kind_t cell_kind);
 
 }
-}
-}
+} // namespace impl
+} // namespace mkldnn

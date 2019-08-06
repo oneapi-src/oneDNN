@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <CL/cl.h>
 #include <assert.h>
 #include <string>
+#include <CL/cl.h>
 
 #include "common/utils.hpp"
 #include "ocl/ocl_gpu_kernel.hpp"
@@ -29,8 +29,7 @@ namespace impl {
 namespace ocl {
 
 ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
-    if (ocl_kernel_)
-        OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
+    if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
@@ -60,14 +59,11 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             set_err = clSetKernelArg(ocl_kernel_, i, arg.size(), arg.value());
         }
         status_t status = ocl_utils::convert_to_mkldnn(set_err);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
     }
 
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
-    if (range.is_zero()) {
-        return status::success;
-    }
+    if (range.is_zero()) { return status::success; }
     cl_int err = clEnqueueNDRangeKernel(queue, ocl_kernel_, ndims, nullptr,
             range.global_range(), range.local_range(), 0, nullptr, nullptr);
     status_t status = ocl_utils::convert_to_mkldnn(err);

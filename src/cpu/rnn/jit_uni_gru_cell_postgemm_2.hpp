@@ -24,8 +24,7 @@ namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t>
-struct jit_uni_gru_cell_postgemm_part2_fwd: public jit_uni_rnn_postgemm
-{
+struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_cell_postgemm_part2_fwd)
 
     typedef typename utils::conditional<src_data_t == data_type::u8, int32_t,
@@ -34,19 +33,18 @@ struct jit_uni_gru_cell_postgemm_part2_fwd: public jit_uni_rnn_postgemm
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
 
-    jit_uni_gru_cell_postgemm_part2_fwd(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
-    : jit_uni_rnn_postgemm(rnn, pd){}
+    jit_uni_gru_cell_postgemm_part2_fwd(
+            const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
+        : jit_uni_rnn_postgemm(rnn, pd) {}
 
-    ~jit_uni_gru_cell_postgemm_part2_fwd(){
-        delete tanh_injector_;
-    }
+    ~jit_uni_gru_cell_postgemm_part2_fwd() { delete tanh_injector_; }
 
     void init() override {
         // we use rax for both constant tables as they use the same table
-        tanh_injector_ = new injector_t(this,
-                alg_kind::eltwise_tanh, 0.0f, 0.0f, true, rax);
+        tanh_injector_ = new injector_t(
+                this, alg_kind::eltwise_tanh, 0.0f, 0.0f, true, rax);
         generate();
-        kernel_ = (kernel_t) this->getCode();
+        kernel_ = (kernel_t)this->getCode();
     }
 
 protected:
@@ -55,9 +53,11 @@ protected:
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
     size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_dst = (src_data_t == data_type::u8) ? vlen/4 : vlen;
-    size_t hstate_dt_size = (src_data_t == data_type::u8) ? sizeof(uint8_t) : sizeof(float);
-    size_t gate_dt_size = (src_data_t == data_type::u8) ? sizeof(uint32_t) : sizeof(float);
+    size_t vlen_dst = (src_data_t == data_type::u8) ? vlen / 4 : vlen;
+    size_t hstate_dt_size
+            = (src_data_t == data_type::u8) ? sizeof(uint8_t) : sizeof(float);
+    size_t gate_dt_size
+            = (src_data_t == data_type::u8) ? sizeof(uint32_t) : sizeof(float);
     size_t bias_dt_size = sizeof(float);
 
     void generate() {
@@ -69,7 +69,7 @@ protected:
         Label table_label;
 
         // Register map
-        Reg64 loop_cnt(r11);  // loop counter
+        Reg64 loop_cnt(r11); // loop counter
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
@@ -98,14 +98,16 @@ protected:
         L(vector_loop_start_label);
         {
             // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovups(G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(
+                    G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
             uni_vmovups(
                     tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             uni_vaddps(G2, G2, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovups(G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(
+                    G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
             uni_vmovups(tmp1_vmm, one_addr);
             uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
             uni_vmovups(tmp2_vmm, ptr[addr_states_tm1_l_reg]);
@@ -118,7 +120,7 @@ protected:
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
- 
+
             // increment loop counter
             sub(loop_cnt, vlen);
             cmp(loop_cnt, vlen);
@@ -137,12 +139,15 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovss(G2s, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
-            uni_vaddss(G2s, G2s, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(
+                    G2s, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
+            uni_vaddss(
+                    G2s, G2s, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             tanh_injector_->compute_vector(G2s.getIdx());
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovss(G0s, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vmovss(
+                    G0s, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
             uni_vmovss(tmp1s_vmm, one_addr);
             uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
             uni_vmulss(G0s, G0s, ptr[addr_states_tm1_l_reg]);
@@ -159,7 +164,6 @@ protected:
             sub(loop_cnt, gate_dt_size);
             cmp(loop_cnt, 0);
             jg(rem_loop_start_label);
-
         }
         L(rem_loop_end_label);
 
@@ -169,14 +173,14 @@ protected:
 
         L(table_label);
         {
-            for (size_t i = 0; i < vlen / sizeof(float); i++) dd(float2int(1.0f));
+            for (size_t i = 0; i < vlen / sizeof(float); i++)
+                dd(float2int(1.0f));
         }
     }
-
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

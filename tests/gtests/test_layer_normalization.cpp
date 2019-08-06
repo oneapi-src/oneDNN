@@ -22,7 +22,7 @@
 #include "mkldnn.hpp"
 
 #define CPU_INST_TEST_CASE(str, ...) \
-    CPU_INSTANTIATE_TEST_SUITE_P(    \
+    CPU_INSTANTIATE_TEST_SUITE_P( \
             str, lnorm_test, ::testing::Values(__VA_ARGS__));
 
 namespace mkldnn {
@@ -43,8 +43,7 @@ void fill(const memory &m) {
     fill_data<T>(numElements, m);
 }
 
-class lnorm_test : public ::testing::TestWithParam<test_lnorm_params_t>
-{
+class lnorm_test : public ::testing::TestWithParam<test_lnorm_params_t> {
 private:
     std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
     memory weights, diff_weights, mean, variance;
@@ -127,8 +126,7 @@ protected:
 
         fill<float>(src->get());
         fill<float>(dst->get());
-        if (useScaleShift)
-            fill<float>(weights);
+        if (useScaleShift) fill<float>(weights);
         if (useGlobalStats) {
             fill<float>(mean);
             fill<float>(variance);
@@ -155,14 +153,12 @@ protected:
         lnorm_bwd_pd = layer_normalization_backward::primitive_desc(
                 lnorm_bwd_d, eng, lnorm_fwd_pd);
 
-        if (useScaleShift)
-            weights = memory(lnorm_bwd_pd.weights_desc(), eng);
+        if (useScaleShift) weights = memory(lnorm_bwd_pd.weights_desc(), eng);
         diff_weights = memory(lnorm_bwd_pd.diff_weights_desc(), eng);
         mean = memory(*stat_d, eng);
         variance = memory(*stat_d, eng);
 
-        if (useScaleShift)
-            fill<float>(weights);
+        if (useScaleShift) fill<float>(weights);
         fill<float>(diff_src->get());
         fill<float>(diff_dst->get());
         fill<float>(mean);
@@ -176,16 +172,15 @@ protected:
     void execlnormFwd(
             bool isTraining, bool useGlobalStats, bool useScaleShift) {
         std::unordered_map<int, memory> args = {
-            { MKLDNN_ARG_SRC, src->get() },
-            { MKLDNN_ARG_DST, dst->get() },
+                {MKLDNN_ARG_SRC, src->get()},
+                {MKLDNN_ARG_DST, dst->get()},
         };
 
-        if (useScaleShift)
-            args.insert({ MKLDNN_ARG_SCALE_SHIFT, weights });
+        if (useScaleShift) args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
 
         if (isTraining || useGlobalStats) {
-            args.insert({ MKLDNN_ARG_MEAN, mean });
-            args.insert({ MKLDNN_ARG_VARIANCE, variance });
+            args.insert({MKLDNN_ARG_MEAN, mean});
+            args.insert({MKLDNN_ARG_VARIANCE, variance});
         }
 
         layer_normalization_forward(lnorm_fwd_pd).execute(strm, args);
@@ -194,17 +189,17 @@ protected:
 
     void execlnormBwd(bool useScaleShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
-            { MKLDNN_ARG_SRC, src->get() },
-            { MKLDNN_ARG_DIFF_DST, diff_dst->get() },
-            { MKLDNN_ARG_MEAN, mean },
-            { MKLDNN_ARG_VARIANCE, variance },
-            { MKLDNN_ARG_DIFF_SRC, diff_src->get() },
+                {MKLDNN_ARG_SRC, src->get()},
+                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
+                {MKLDNN_ARG_MEAN, mean},
+                {MKLDNN_ARG_VARIANCE, variance},
+                {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
         };
 
         if (useScaleShift) {
-            args.insert({ MKLDNN_ARG_SCALE_SHIFT, weights });
+            args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
             if (pk == prop_kind::backward)
-                args.insert({ MKLDNN_ARG_DIFF_SCALE_SHIFT, diff_weights });
+                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
 
         layer_normalization_backward(lnorm_bwd_pd).execute(strm, args);
@@ -216,8 +211,7 @@ protected:
             const memory &dst, normalization_flags flags, prop_kind pk) {
         const size_t nelems = std::accumulate(p.dims.begin(), p.dims.end(),
                 size_t(1), std::multiplies<size_t>());
-        if (!nelems)
-            return;
+        if (!nelems) return;
 
         const bool use_weights
                 = (bool)(flags & normalization_flags::use_scale_shift);
@@ -254,8 +248,7 @@ protected:
 
         float eps = static_cast<float>(1.e-4 * nelems / C);
         mkldnn::impl::parallel_nd(nelems / C, [&](memory::dim n) {
-            if (is_current_test_failed())
-                return;
+            if (is_current_test_failed()) return;
             float ref_mean = float(0);
             float ref_variance = float(0);
             const auto stat_off = stat_mdw.off_l(n);
@@ -268,8 +261,7 @@ protected:
                 if (is_training) {
                     float mean_norm_max = std::max(
                             std::abs(mean_data[stat_off]), std::abs(ref_mean));
-                    if (mean_norm_max < eps)
-                        mean_norm_max = float(1);
+                    if (mean_norm_max < eps) mean_norm_max = float(1);
                     ASSERT_NEAR(
                             (mean_data[stat_off] - ref_mean) / mean_norm_max,
                             0., eps);
@@ -285,8 +277,7 @@ protected:
                     float variance_norm_max
                             = std::max(std::abs(variance_data[stat_off]),
                                     std::abs(ref_variance));
-                    if (variance_norm_max < eps)
-                        variance_norm_max = float(1);
+                    if (variance_norm_max < eps) variance_norm_max = float(1);
                     ASSERT_NEAR((variance_data[stat_off] - ref_variance)
                                     / variance_norm_max,
                             0., eps);
@@ -316,8 +307,7 @@ protected:
 
                 float out = dst_data[dst_mdw.off_l(n * C + c)];
                 float norm_max = std::max(std::abs(out), std::abs(ref_dst));
-                if (norm_max < 1e-2)
-                    norm_max = 1.;
+                if (norm_max < 1e-2) norm_max = 1.;
                 ASSERT_NEAR((out - ref_dst) / norm_max, 0., eps);
             }
         });
@@ -381,8 +371,7 @@ protected:
         const float eps = static_cast<float>(1.e-4 * nelems / C);
 
         mkldnn::impl::parallel_nd(C, [&](memory::dim c) {
-            if (is_current_test_failed())
-                return;
+            if (is_current_test_failed()) return;
 
             float ref_diff_gamma = float(0);
             float ref_diff_beta = float(0);
@@ -404,16 +393,14 @@ protected:
                 auto diff_gamma = diff_weights_data[diff_weights_mdw.off_l(c)];
                 float norm_max = std::max(
                         std::abs(diff_gamma), std::abs(ref_diff_gamma));
-                if (norm_max < 1e-2)
-                    norm_max = float(1);
+                if (norm_max < 1e-2) norm_max = float(1);
                 ASSERT_NEAR((diff_gamma - ref_diff_gamma) / norm_max, 0., eps);
 
                 auto diff_beta
                         = diff_weights_data[diff_weights_mdw.off_l(C + c)];
                 norm_max = std::max(
                         std::abs(diff_beta), std::abs(ref_diff_beta));
-                if (norm_max < 1e-2)
-                    norm_max = float(1);
+                if (norm_max < 1e-2) norm_max = float(1);
                 ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
 
@@ -434,8 +421,7 @@ protected:
                         = diff_src_data[diff_src_mdw.off_l(n * C + c)];
                 float norm_max = std::max(
                         std::abs(out_diff_src), std::abs(ref_diff_src));
-                if (norm_max < eps)
-                    norm_max = float(1);
+                if (norm_max < eps) norm_max = float(1);
                 ASSERT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
         });

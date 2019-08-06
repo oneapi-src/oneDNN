@@ -26,16 +26,15 @@
 #include "sycl/sycl_engine_base.hpp"
 #include "sycl/sycl_memory_storage_base.hpp"
 
-#include <CL/sycl.hpp>
 #include <functional>
 #include <memory>
+#include <CL/sycl.hpp>
 
 namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t
-{
+class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     sycl_usm_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
             size_t alignment, void *handle)

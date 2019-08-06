@@ -29,8 +29,7 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t
-{
+class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     sycl_buffer_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
             size_t alignment, void *handle);

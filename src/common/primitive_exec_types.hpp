@@ -25,11 +25,11 @@
 #include "memory.hpp"
 #include "memory_storage.hpp"
 
-#define CTX_IN_STORAGE(arg)                               \
+#define CTX_IN_STORAGE(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
                     : memory_storage_t::empty_storage())
 
-#define CTX_OUT_STORAGE(arg)                                \
+#define CTX_OUT_STORAGE(arg) \
     (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
                      : memory_storage_t::empty_storage())
 
@@ -48,10 +48,9 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct exec_ctx_t {
-    exec_ctx_t(stream_t *stream = nullptr): stream_(stream) {}
+    exec_ctx_t(stream_t *stream = nullptr) : stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
-        : stream_(stream)
-        , args_(std::move(args)) {}
+        : stream_(stream), args_(std::move(args)) {}
     exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
         : stream_(other.stream_)
         , args_(std::move(args))
@@ -81,7 +80,7 @@ private:
             memory_storage_mapping_;
 };
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif

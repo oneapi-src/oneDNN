@@ -23,17 +23,17 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_pooling_fwd_pd_t: public pooling_fwd_pd_t {
+struct cpu_pooling_fwd_pd_t : public pooling_fwd_pd_t {
     using pooling_fwd_pd_t::pooling_fwd_pd_t;
 };
 
-struct cpu_pooling_bwd_pd_t: public pooling_bwd_pd_t {
+struct cpu_pooling_bwd_pd_t : public pooling_bwd_pd_t {
     using pooling_bwd_pd_t::pooling_bwd_pd_t;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

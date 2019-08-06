@@ -18,11 +18,11 @@
 #include "math_utils.hpp"
 #include "mkldnn_thread.hpp"
 
-#include "rnn.hpp"
+#include "gemm/gemm_pack.hpp"
 #include "ref_rnn.hpp"
+#include "rnn.hpp"
 #include "rnn_utils.hpp"
 #include "type_helpers.hpp"
-#include "gemm/gemm_pack.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,8 +35,7 @@ using namespace rnn_packed_format;
 using namespace data_type;
 
 bool rnn_utils::is_ldigo(const memory_desc_wrapper &md) {
-    if (md.format_kind() != format_kind::blocked)
-        return false;
+    if (md.format_kind() != format_kind::blocked) return false;
 
     auto blk = md.blocking_desc();
     auto str = blk.strides;
@@ -47,8 +46,7 @@ bool rnn_utils::is_ldigo(const memory_desc_wrapper &md) {
 };
 
 bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
-    if (md.format_kind() != format_kind::blocked)
-        return false;
+    if (md.format_kind() != format_kind::blocked) return false;
 
     auto blk = md.blocking_desc();
     auto str = blk.strides;
@@ -71,11 +69,11 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_lbr = rd.cell_kind == mkldnn_lbr_gru;
 
     switch (rd.direction) {
-    case mkldnn_unidirectional_left2right: rnn.exec_dir = l2r; break;
-    case mkldnn_unidirectional_right2left: rnn.exec_dir = r2l; break;
-    case mkldnn_bidirectional_concat: rnn.exec_dir = bi_concat; break;
-    case mkldnn_bidirectional_sum: rnn.exec_dir = bi_sum; break;
-    default: break;
+        case mkldnn_unidirectional_left2right: rnn.exec_dir = l2r; break;
+        case mkldnn_unidirectional_right2left: rnn.exec_dir = r2l; break;
+        case mkldnn_bidirectional_concat: rnn.exec_dir = bi_concat; break;
+        case mkldnn_bidirectional_sum: rnn.exec_dir = bi_sum; break;
+        default: break;
     }
 
     if (everyone_is(f32, src_layer_d.data_type(), dst_layer_d.data_type(),
@@ -126,10 +124,10 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide wich gemm implementation to use: packed/nonpacked jit/cblas
      * and if to mergre gemm across iterations */
     bool is_int8 = rnn.dt_conf != all_f32;
-    rnn.merge_gemm_layer = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
-            || is_int8;
-    bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
-            alg_kind::lbr_gru);
+    rnn.merge_gemm_layer
+            = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || is_int8;
+    bool is_gru = utils::one_of(
+            rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
     rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru);
     bool is_inference = !rnn.is_training;
 
@@ -155,9 +153,8 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     int sizeof_states_dt
             = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
-    rnn.states_ws_ld
-            = get_good_ld(nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)),
-                sizeof_states_dt);
+    rnn.states_ws_ld = get_good_ld(
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof_states_dt);
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
@@ -213,7 +210,8 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Set leading dimensions for input weights arrays depending on input format
      */
     auto set_dims = [&](const memory_desc_wrapper &md, int &ld, int &nld) {
-        ld = 0; nld = 0;
+        ld = 0;
+        nld = 0;
         if (md.is_blocking_desc()) {
             if (is_ldigo(md)) {
                 ld = (int)md.blocking_desc().strides[2];
@@ -251,20 +249,18 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
                     * rnn.states_ws_ld * sizeof(float)
             : 0;
-    rnn.ws_diff_states_size = rnn.is_training
-            ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1)
-                    * (rnn.n_states + 1) * rnn.mb * rnn.states_ws_ld
-                    * sizeof(float)
-            : (size_t)0;
+    rnn.ws_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
+                    * rnn.n_dir * (rnn.n_iter + 1) * (rnn.n_states + 1) * rnn.mb
+                    * rnn.states_ws_ld * sizeof(float)
+                                              : (size_t)0;
     rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
             * rnn.gates_ws_ld * sizeof(float);
 
     /* set other sizes */
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic * sizeof(float);
-    rnn.ws_cell_comp_size
-            = rnn.is_lbr || rnn.dt_conf != all_f32
-                ? (size_t) rnn.gates_nld * rnn.gates_ws_ld * sizeof(float)
-                : 0;
+    rnn.ws_cell_comp_size = rnn.is_lbr || rnn.dt_conf != all_f32
+            ? (size_t)rnn.gates_nld * rnn.gates_ws_ld * sizeof(float)
+            : 0;
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * sizeof(float);
     rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic
@@ -361,12 +357,11 @@ status_t rnn_utils::set_good_strides(
     return status::success;
 }
 
-status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
-        memory_desc_t &weights_md, bool is_iter) {
+status_t rnn_utils::set_expected_desc(
+        rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
     using namespace format_tag;
-    bool use_packed_gemm = is_iter
-        ? rnn.use_iter_packed_gemm
-        : rnn.use_layer_packed_gemm;
+    bool use_packed_gemm
+            = is_iter ? rnn.use_iter_packed_gemm : rnn.use_layer_packed_gemm;
     if (use_packed_gemm) {
         weights_md.format_kind = format_kind::rnn_packed;
         rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
@@ -399,6 +394,6 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     return status::success;
 }
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

@@ -67,7 +67,7 @@ struct jit_memory_desc_info_t {
             jit_md_info.strides[d][0] = blk.strides[d];
         }
 
-        int levels[MAX_NDIMS] = { 0 };
+        int levels[MAX_NDIMS] = {0};
         for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
             int d = blk.inner_idxs[iblk];
             ++levels[d];
@@ -389,8 +389,7 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
 
     jcp.eltwise_alg_relu
             = (eltwise_ind != -1 && jcp.eltwise.alg == alg_kind::eltwise_relu);
-    if (jcp.eltwise_alg_relu)
-        jcp.relu_negative_slope = jcp.eltwise.alpha;
+    if (jcp.eltwise_alg_relu) jcp.relu_negative_slope = jcp.eltwise.alpha;
 
     jcp.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
 }
@@ -505,37 +504,37 @@ inline void def_data_type(
         compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
     char tempstr[64];
     switch (dt) {
-    case data_type::bf16:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=ushort -D%s_DT_BF16",
-                str, str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    case data_type::f16:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16", str,
-                str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    case data_type::f32:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32", str,
-                str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    case data_type::s8:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8", str,
-                str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    case data_type::u8:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8", str,
-                str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    case data_type::s32:
-        snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32", str,
-                str);
-        kernel_ctx.add_option(tempstr);
-        break;
-    default: assert(!"unsupported data type"); break;
+        case data_type::bf16:
+            snprintf(tempstr, sizeof(tempstr),
+                    "-D%s_DATA_T=ushort -D%s_DT_BF16", str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        case data_type::f16:
+            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16",
+                    str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        case data_type::f32:
+            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32",
+                    str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        case data_type::s8:
+            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8",
+                    str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        case data_type::u8:
+            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8",
+                    str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        case data_type::s32:
+            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32",
+                    str, str);
+            kernel_ctx.add_option(tempstr);
+            break;
+        default: assert(!"unsupported data type"); break;
     }
 }
 

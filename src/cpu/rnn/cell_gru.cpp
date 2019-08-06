@@ -42,9 +42,8 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru) {
     // 1. gemm Wx[0-2],x
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
-                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
-                states_t_lm1_, rnn.states_ws_ld, 0.0, ws_gates_,
-                rnn.gates_ws_ld);
+                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
+                rnn.states_ws_ld, 0.0, ws_gates_, rnn.gates_ws_ld);
     }
 
     // 2. gemm Wh[0-1],h
@@ -122,9 +121,9 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     // 5. calculate diff states
     // dht-1 += dG1 * W1h + dG0 * W0h
     (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
-            (rnn.n_gates - 1) * rnn.dic, 1.0, w_iter_[0],
-            rnn.weights_iter_ld, ws_gates_, rnn.gates_ws_ld, 1.0,
-            diff_states_t_l_, rnn.states_ws_ld);
+            (rnn.n_gates - 1) * rnn.dic, 1.0, w_iter_[0], rnn.weights_iter_ld,
+            ws_gates_, rnn.gates_ws_ld, 1.0, diff_states_t_l_,
+            rnn.states_ws_ld);
 
     if (!rnn.merge_gemm_layer) {
         // dWx += [dG0 dG1 dG2] * [x]
@@ -133,8 +132,8 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
                 diff_w_layer_, rnn.diff_weights_layer_ld);
         // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
         (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, w_layer_[0],
-                rnn.weights_layer_ld, ws_gates_, rnn.gates_ws_ld, 0.0,
+                rnn.n_gates * rnn.dic, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                ws_gates_, rnn.gates_ws_ld, 0.0,
                 &(diff_states_t_l(rnn.n_states, 0, 0)), rnn.states_ws_ld);
     }
 
@@ -143,6 +142,6 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
 }
 #undef AOC
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

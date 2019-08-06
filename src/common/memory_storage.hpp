@@ -94,8 +94,7 @@ public:
 
     // Returns the associated data handle, offset is ignored
     void *data_handle() const {
-        if (!impl_)
-            return nullptr;
+        if (!impl_) return nullptr;
 
         void *handle;
         status_t status = impl_->get_data_handle(&handle);
@@ -106,8 +105,7 @@ public:
 
     // Returns the associated data handle, offset is ignored
     status_t get_data_handle(void **handle) const {
-        if (!impl_)
-            return status::invalid_arguments;
+        if (!impl_) return status::invalid_arguments;
 
         return impl_->get_data_handle(handle);
     }
@@ -137,8 +135,7 @@ public:
     }
 
     status_t unmap_data(void *mapped_ptr) const {
-        if (!impl_)
-            return status::success;
+        if (!impl_) return status::success;
 
         auto *ptr_u8 = static_cast<uint8_t *>(mapped_ptr);
         return impl_->unmap_data(ptr_u8 - offset());
@@ -146,8 +143,7 @@ public:
 
     // Returns true if the pointer associated with the storage is NULL
     bool is_null() const {
-        if (!impl_)
-            return true;
+        if (!impl_) return true;
 
         return !data_handle();
     }

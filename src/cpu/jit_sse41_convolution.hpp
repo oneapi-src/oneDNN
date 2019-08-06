@@ -30,27 +30,23 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_sse41_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+struct jit_sse41_convolution_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", sse41, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", sse41, ""),
                 jit_sse41_convolution_fwd_t);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(data_type::f32, data_type::f32,
-                        data_type::f32, data_type::f32, data_type::f32)
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(data_type::f32, data_type::f32,
+                            data_type::f32, data_type::f32, data_type::f32)
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
             return jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
@@ -65,22 +61,22 @@ struct jit_sse41_convolution_fwd_t: public cpu_primitive_t {
 
             const bool flat = IC() == 3;
             auto src_tag = flat
-                ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
-                : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto dst_tag =
-                utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
+                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto dst_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
-                        gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
-                : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
-                        OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
+                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                            gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
+                    : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
+                            OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
 
             return set_default_formats_common(src_tag, wei_tag, dst_tag);
         }
     };
 
-    jit_sse41_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
-    { kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
+    jit_sse41_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+        kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
+    }
     ~jit_sse41_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -96,8 +92,8 @@ private:
     jit_sse41_conv_fwd_kernel_f32 *kernel_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

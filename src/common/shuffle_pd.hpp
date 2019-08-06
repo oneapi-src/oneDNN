@@ -25,63 +25,62 @@
 namespace mkldnn {
 namespace impl {
 
-struct shuffle_pd_t: public primitive_desc_t {
+struct shuffle_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::shuffle;
 
     typedef shuffle_pd_t base_class;
     typedef shuffle_pd_t hint_class;
 
-    shuffle_pd_t(engine_t *engine,
-            const shuffle_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const shuffle_pd_t *hint_fwd_pd)
+    shuffle_pd_t(engine_t *engine, const shuffle_desc_t *adesc,
+            const primitive_attr_t *attr, const shuffle_pd_t *hint_fwd_pd)
         : primitive_desc_t(engine, attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
-        , data_md_(desc_.data_desc)
-    {}
+        , data_md_(desc_.data_desc) {}
 
     const shuffle_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override
-    { return reinterpret_cast<const op_desc_t *>(this->desc()); }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
+    }
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
-        case query::shuffle_d:
-            *(const shuffle_desc_t**)result = desc(); break;
-        default: return primitive_desc_t::query(what, idx, result);
+            case query::shuffle_d:
+                *(const shuffle_desc_t **)result = desc();
+                break;
+            default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;
     }
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (is_fwd()) {
-            if (arg == MKLDNN_ARG_SRC)
-                return arg_usage_t::input;
+            if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
 
-            if (arg == MKLDNN_ARG_DST)
-                return arg_usage_t::output;
+            if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
         } else {
-            if (arg == MKLDNN_ARG_DIFF_DST)
-                return arg_usage_t::input;
+            if (arg == MKLDNN_ARG_DIFF_DST) return arg_usage_t::input;
 
-            if (arg == MKLDNN_ARG_DIFF_SRC)
-                return arg_usage_t::output;
+            if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
         }
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *src_md(int index = 0) const override {
+        return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *dst_md(int index = 0) const override {
+        return index == 0 && is_fwd() ? &data_md_ : &glob_zero_md;
+    }
 
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md; }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override
-    { return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+        return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md;
+    }
+    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+        return index == 0 && !is_fwd() ? &data_md_ : &glob_zero_md;
+    }
 
     virtual int n_inputs() const override { return 1; }
     virtual int n_outputs() const override { return 1; }
@@ -113,8 +112,8 @@ protected:
     memory_desc_t data_md_;
 };
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

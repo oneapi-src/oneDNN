@@ -33,7 +33,6 @@ mkldnn_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
         int32_t *C, const int *LDC, const int32_t *co);
 
 }
-}
-}
+} // namespace impl
+} // namespace mkldnn
 #endif // REF_GEMM_S8X8S32_HPP
-

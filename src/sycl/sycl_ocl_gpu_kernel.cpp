@@ -28,34 +28,32 @@ namespace sycl {
 static void set_scalar_arg(
         cl::sycl::handler &cgh, int index, size_t size, void *value) {
     switch (size) {
-    case sizeof(uint8_t):
-        cgh.set_arg(index, *static_cast<uint8_t *>(value));
-        break;
-    case sizeof(uint16_t):
-        cgh.set_arg(index, *static_cast<uint16_t *>(value));
-        break;
-    case sizeof(uint32_t):
-        cgh.set_arg(index, *static_cast<uint32_t *>(value));
-        break;
-    case sizeof(uint64_t):
-        cgh.set_arg(index, *static_cast<uint64_t *>(value));
-        break;
-    default:
-        assert(!"Please add another case");
-        throw std::runtime_error("Internal error");
+        case sizeof(uint8_t):
+            cgh.set_arg(index, *static_cast<uint8_t *>(value));
+            break;
+        case sizeof(uint16_t):
+            cgh.set_arg(index, *static_cast<uint16_t *>(value));
+            break;
+        case sizeof(uint32_t):
+            cgh.set_arg(index, *static_cast<uint32_t *>(value));
+            break;
+        case sizeof(uint64_t):
+            cgh.set_arg(index, *static_cast<uint64_t *>(value));
+            break;
+        default:
+            assert(!"Please add another case");
+            throw std::runtime_error("Internal error");
     }
 }
 
 sycl_ocl_gpu_kernel_t::~sycl_ocl_gpu_kernel_t() {
-    if (ocl_kernel_)
-        OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
+    if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
 status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list) const {
-    if (range.is_zero())
-        return status::success;
+    if (range.is_zero()) return status::success;
 
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);
     auto *sycl_engine
@@ -73,27 +71,27 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                             const sycl_memory_storage_base_t *>(
                             mem_storage->impl());
                     switch (sycl_mem_storage->memory_api_kind()) {
-                    case memory_api_kind_t::buffer: {
-                        auto *m = utils::downcast<
-                                const sycl_buffer_memory_storage_t *>(
-                                mem_storage->impl());
-                        auto &sycl_buf = m->buffer();
-                        cgh.set_arg((int)i,
-                                sycl_buf.get_access<
-                                        cl::sycl::access::mode::read_write>(
-                                        cgh));
-                        break;
-                    }
+                        case memory_api_kind_t::buffer: {
+                            auto *m = utils::downcast<
+                                    const sycl_buffer_memory_storage_t *>(
+                                    mem_storage->impl());
+                            auto &sycl_buf = m->buffer();
+                            cgh.set_arg((int)i,
+                                    sycl_buf.get_access<
+                                            cl::sycl::access::mode::read_write>(
+                                            cgh));
+                            break;
+                        }
 #ifdef MKLDNN_SYCL_INTEL
-                    case memory_api_kind_t::usm: {
-                        auto *m = utils::downcast<
-                                const sycl_usm_memory_storage_t *>(
-                                mem_storage->impl());
-                        cgh.set_arg((int)i, m->usm_ptr());
-                        break;
-                    }
+                        case memory_api_kind_t::usm: {
+                            auto *m = utils::downcast<
+                                    const sycl_usm_memory_storage_t *>(
+                                    mem_storage->impl());
+                            cgh.set_arg((int)i, m->usm_ptr());
+                            break;
+                        }
 #endif
-                    default: assert(!"not expected");
+                        default: assert(!"not expected");
                     }
                 } else {
                     cgh.set_arg((int)i, nullptr);

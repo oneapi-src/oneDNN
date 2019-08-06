@@ -30,38 +30,38 @@ __kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
     const int oc = get_global_id(0) % OC;
 
     ACC_DATA_T d = 0;
-#    if HAS_SPATIAL == 1
+#if HAS_SPATIAL == 1
     for (int ic = 0; ic < IC; ++ic)
         for (int kd = 0; kd < KD; ++kd)
             for (int kh = 0; kh < KH; ++kh)
                 for (int kw = 0; kw < KW; ++kw) {
                     const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
                     const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
-#    else
+#else
     for (int ic = 0; ic < IC_TOTAL; ++ic) {
         const uint src_off = mb * IC_TOTAL + ic;
         const uint wht_off = oc * IC_TOTAL + ic;
-#    endif
+#endif
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wht[wht_off]);
                 }
     DATA_T tmp = d;
-#    if WITH_BIAS
+#if WITH_BIAS
     tmp += BIA_TO_REF(bias[oc]);
-#    endif
+#endif
 
     tmp *= output_scale;
 
-#    if WITH_SUM_ELTWISE == 1
+#if WITH_SUM_ELTWISE == 1
     tmp += sum_scale * DST_TO_REF(dst[mb * OC + oc]);
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
-#    else
-#        if WITH_ELTWISE == 1
+#else
+#if WITH_ELTWISE == 1
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta);
-#        endif
-#        if WITH_SUM == 1
+#endif
+#if WITH_SUM == 1
     tmp = sum_scale * DST_TO_REF(dst[mb * OC + oc]) + tmp;
-#        endif
-#    endif
+#endif
+#endif
     dst[mb * OC + oc] = TO_DST(tmp);
 }
 #endif
@@ -112,7 +112,7 @@ __kernel void ref_inner_product_bwd_weights_kernel(__global SRC_DATA_T *src,
     }
     const uint diff_wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
     diff_wht[diff_wht_off] = REF_TO_WEI(ds);
-#    if WITH_BIAS == 1
+#if WITH_BIAS == 1
     if (ic == 0) {
         float db = 0.0f;
         for (int mb = 0; mb < MB; ++mb) {
@@ -121,6 +121,6 @@ __kernel void ref_inner_product_bwd_weights_kernel(__global SRC_DATA_T *src,
         }
         diff_bias[oc] = REF_TO_BIA(db);
     }
-#    endif
+#endif
 }
 #endif

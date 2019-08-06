@@ -179,60 +179,60 @@
 
 #if SCALE_QUANT
 
-#define REORDER(_out, _src, _a, _b)        \
-    do {                                   \
+#define REORDER(_out, _src, _a, _b) \
+    do { \
         const float _x = SRC_TO_REF(_src); \
-        const float _s = _a * _x + _b;     \
-        _out = TO_DST(_s);                 \
+        const float _s = _a * _x + _b; \
+        _out = TO_DST(_s); \
     } while (0)
-#define REORDER8(_out, _src, _a, _b)                         \
-    do {                                                     \
+#define REORDER8(_out, _src, _a, _b) \
+    do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = _a * _x + _b;                      \
-        _out = TO_DST8(_s);                                  \
+        const float8 _s = _a * _x + _b; \
+        _out = TO_DST8(_s); \
     } while (0)
 
 #elif WITH_SUM_A
 
-#define REORDER(_dst, _src, _a, _b)        \
-    do {                                   \
+#define REORDER(_dst, _src, _a, _b) \
+    do { \
         const float _x = SRC_TO_REF(_src); \
-        const float _s = _a * _x;          \
-        _dst = TO_DST(_s);                 \
+        const float _s = _a * _x; \
+        _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b)                         \
-    do {                                                     \
+#define REORDER8(_dst, _src, _a, _b) \
+    do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = _a * _x;                           \
-        _dst = TO_DST8(_s);                                  \
+        const float8 _s = _a * _x; \
+        _dst = TO_DST8(_s); \
     } while (0)
 
 #elif WITH_SUM_AB
 
-#define REORDER(_dst, _src, _a, _b)         \
-    do {                                    \
-        const float _x = SRC_TO_REF(_src);  \
-        const float _y = DST_TO_REF(_dst);  \
+#define REORDER(_dst, _src, _a, _b) \
+    do { \
+        const float _x = SRC_TO_REF(_src); \
+        const float _y = DST_TO_REF(_dst); \
         const float _s = _a * _x + _b * _y; \
-        _dst = TO_DST(_s);                  \
+        _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b)                         \
-    do {                                                     \
+#define REORDER8(_dst, _src, _a, _b) \
+    do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
         const float8 _y = convert_float8(DST_TO_REF8(_dst)); \
-        const float8 _s = _a * _x + _b * _y;                 \
-        _dst = TO_DST8(_s);                                  \
+        const float8 _s = _a * _x + _b * _y; \
+        _dst = TO_DST8(_s); \
     } while (0)
 
 #else // WITH_SUM_AB == 0
 
 #define REORDER(_dst, _src, _a, _b) \
-    do {                            \
-        _dst = SRC_TO_DST(_src);    \
+    do { \
+        _dst = SRC_TO_DST(_src); \
     } while (0)
 #define REORDER8(_dst, _src, _a, _b) \
-    do {                             \
-        _dst = SRC_TO_DST8(_src);    \
+    do { \
+        _dst = SRC_TO_DST8(_src); \
     } while (0)
 
 #endif // WITH_SUM_AB
@@ -255,8 +255,8 @@
 #define SCALE_S4 (SCALE_D5)
 #define SCALE_S5 (1)
 
-#define SCALE_OFF(x0, x1, x2, x3, x4, x5)                           \
-    ((x0)*SCALE_S0 * MASK_D(0) + (x1)*SCALE_S1 * MASK_D(1)          \
+#define SCALE_OFF(x0, x1, x2, x3, x4, x5) \
+    ((x0)*SCALE_S0 * MASK_D(0) + (x1)*SCALE_S1 * MASK_D(1) \
             + (x2)*SCALE_S2 * MASK_D(2) + (x3)*SCALE_S3 * MASK_D(3) \
             + (x4)*SCALE_S4 * MASK_D(4) + (x5)*SCALE_S5 * MASK_D(5))
 

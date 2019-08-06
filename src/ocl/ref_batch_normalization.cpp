@@ -67,21 +67,19 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         calc_mean_arg_list.set(1, *temp_reduce);
 
         auto nd_range_mean = compute::nd_range_t(
-                { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
+                {jbn.sp_chunk, jbn.mb_chunk, jbn.ic}, {1, 1, 16});
         status = compute_stream->parallel_for(
                 nd_range_mean, calculate_mean_kernel_, calc_mean_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute::kernel_arg_list_t reduce_mean_arg_list;
         reduce_mean_arg_list.set(0, *temp_reduce);
         reduce_mean_arg_list.set(1, mean);
 
         status = compute_stream->parallel_for(
-                compute::nd_range_t({ jbn.ic }, { 1 }), reduce_mean_kernel_,
+                compute::nd_range_t({jbn.ic}, {1}), reduce_mean_kernel_,
                 reduce_mean_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute::kernel_arg_list_t calc_var_arg_list;
         calc_var_arg_list.set(0, src);
@@ -89,21 +87,19 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         calc_var_arg_list.set(2, *temp_reduce);
 
         auto nd_range_calculate_variance = compute::nd_range_t(
-                { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
+                {jbn.sp_chunk, jbn.mb_chunk, jbn.ic}, {1, 1, 16});
         status = compute_stream->parallel_for(nd_range_calculate_variance,
                 calculate_variance_kernel_, calc_var_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute::kernel_arg_list_t reduce_var_arg_list;
         reduce_var_arg_list.set(0, *temp_reduce);
         reduce_var_arg_list.set(1, variance);
 
-        auto nd_range_reduce_variance = compute::nd_range_t({ jbn.ic }, { 1 });
+        auto nd_range_reduce_variance = compute::nd_range_t({jbn.ic}, {1});
         status = compute_stream->parallel_for(nd_range_reduce_variance,
                 reduce_variance_kernel_, reduce_var_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
     }
 
     compute::kernel_arg_list_t arg_list;
@@ -155,11 +151,10 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
         calc_stats_arg_list.set(4, *temp_reduce);
 
         auto nd_range = compute::nd_range_t(
-                { jbn.sp_chunk, jbn.mb_chunk, jbn.ic }, { 1, 1, 16 });
+                {jbn.sp_chunk, jbn.mb_chunk, jbn.ic}, {1, 1, 16});
         status = compute_stream->parallel_for(
                 nd_range, calculate_stats_kernel_, calc_stats_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute::kernel_arg_list_t reduce_stats_arg_list;
         reduce_stats_arg_list.set(0, *temp_reduce);
@@ -168,10 +163,9 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
         reduce_stats_arg_list.set(3, jbn.eps);
 
         status = compute_stream->parallel_for(
-                compute::nd_range_t({ jbn.ic }, { 1 }), reduce_stats_kernel_,
+                compute::nd_range_t({jbn.ic}, {1}), reduce_stats_kernel_,
                 reduce_stats_arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
     }
 
     compute::kernel_arg_list_t arg_list;

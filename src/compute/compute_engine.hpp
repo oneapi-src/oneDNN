@@ -30,8 +30,7 @@ namespace mkldnn {
 namespace impl {
 namespace compute {
 
-class compute_engine_t : public engine_t
-{
+class compute_engine_t : public engine_t {
 public:
     compute_engine_t(engine_kind_t kind, backend_kind_t backend_kind,
             device_info_t *device_info)
@@ -43,9 +42,8 @@ public:
             const kernel_ctx_t &kernel_ctx) const {
 
         std::vector<kernel_t> kernels(1);
-        auto status = create_kernels(&kernels, { kernel_name }, kernel_ctx);
-        if (status == status::success)
-            *kernel = kernels[0];
+        auto status = create_kernels(&kernels, {kernel_name}, kernel_ctx);
+        if (status == status::success) *kernel = kernels[0];
 
         return status;
     }

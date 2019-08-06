@@ -40,7 +40,6 @@ inline float maybe_up_convert<bfloat16_t>(bfloat16_t x) {
 
 } // namespace
 
-
 using namespace data_type;
 
 template <impl::data_type_t d_type>

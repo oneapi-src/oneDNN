@@ -19,23 +19,23 @@
 
 #include <assert.h>
 
-#include "cpu_isa_traits.hpp"
 #include "c_types_map.hpp"
+#include "cpu_isa_traits.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_shuffle_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_shuffle_pd.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template<int data_type_size>
+template <int data_type_size>
 struct ref_shuffle_t : public cpu_primitive_t {
     using shuffle_class = ref_shuffle_t<data_type_size>;
 
-    struct pd_t: public cpu_shuffle_pd_t {
+    struct pd_t : public cpu_shuffle_pd_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", shuffle_class);
@@ -47,8 +47,8 @@ struct ref_shuffle_t : public cpu_primitive_t {
                     && data_type_size
                             == types::data_type_size(data_md()->data_type)
                     && IMPLICATION(this->desc()->data_desc.data_type
-                                       == data_type::bf16,
-                               mayiuse(avx512_core));
+                                    == data_type::bf16,
+                            mayiuse(avx512_core));
             if (!ok) return status::unimplemented;
 
             if (ndims() == 5) {
@@ -66,13 +66,13 @@ struct ref_shuffle_t : public cpu_primitive_t {
         format_tag_t dat_tag_;
     };
 
-    ref_shuffle_t(const pd_t *apd): cpu_primitive_t(apd) {
+    ref_shuffle_t(const pd_t *apd) : cpu_primitive_t(apd) {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();
-        const int transpose_row = pd()->is_fwd() ? group_size
-                                                 : axis_size / group_size;
-        const int transpose_col = pd()->is_fwd() ? axis_size / group_size
-                                                 : group_size;
+        const int transpose_row
+                = pd()->is_fwd() ? group_size : axis_size / group_size;
+        const int transpose_col
+                = pd()->is_fwd() ? axis_size / group_size : group_size;
         rev_transposed_ = (int *)malloc(axis_size * sizeof(int), 64);
         parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
@@ -86,31 +86,31 @@ struct ref_shuffle_t : public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
-        case nCdhw16c: execute_<nCdhw16c>(ctx); break;
-        case nChw16c:  execute_<nChw16c>(ctx); break;
-        case nCdhw8c:  execute_<nCdhw8c>(ctx); break;
-        case nChw8c:   execute_<nChw8c>(ctx); break;
-        case nCdhw4c:  execute_<nCdhw4c>(ctx); break;
-        case nChw4c:   execute_<nChw4c>(ctx); break;
-        case ncdhw:    execute_<ncdhw>(ctx); break;
-        case nchw:     execute_<nchw>(ctx); break;
-        case ndhwc:    execute_<ndhwc>(ctx); break;
-        case nhwc:     execute_<nhwc>(ctx); break;
-        default:       execute_<any>(ctx); break;
+            case nCdhw16c: execute_<nCdhw16c>(ctx); break;
+            case nChw16c: execute_<nChw16c>(ctx); break;
+            case nCdhw8c: execute_<nCdhw8c>(ctx); break;
+            case nChw8c: execute_<nChw8c>(ctx); break;
+            case nCdhw4c: execute_<nCdhw4c>(ctx); break;
+            case nChw4c: execute_<nChw4c>(ctx); break;
+            case ncdhw: execute_<ncdhw>(ctx); break;
+            case nchw: execute_<nchw>(ctx); break;
+            case ndhwc: execute_<ndhwc>(ctx); break;
+            case nhwc: execute_<nhwc>(ctx); break;
+            default: execute_<any>(ctx); break;
         }
         return status::success;
     }
 
 private:
-    template<format_tag_t tag>
+    template <format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int *rev_transposed_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

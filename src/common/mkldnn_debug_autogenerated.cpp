@@ -403,8 +403,10 @@ const char *mkldnn_alg_kind2str(mkldnn_alg_kind_t v) {
     if (v == mkldnn_eltwise_exp) return "eltwise_exp";
     if (v == mkldnn_eltwise_gelu) return "eltwise_gelu";
     if (v == mkldnn_pooling_max) return "pooling_max";
-    if (v == mkldnn_pooling_avg_include_padding) return "pooling_avg_include_padding";
-    if (v == mkldnn_pooling_avg_exclude_padding) return "pooling_avg_exclude_padding";
+    if (v == mkldnn_pooling_avg_include_padding)
+        return "pooling_avg_include_padding";
+    if (v == mkldnn_pooling_avg_exclude_padding)
+        return "pooling_avg_exclude_padding";
     if (v == mkldnn_pooling_avg) return "pooling_avg";
     if (v == mkldnn_lrn_across_channels) return "lrn_across_channels";
     if (v == mkldnn_lrn_within_channel) return "lrn_within_channel";
@@ -431,8 +433,10 @@ const char *mkldnn_rnn_flags2str(mkldnn_rnn_flags_t v) {
 }
 
 const char *mkldnn_rnn_direction2str(mkldnn_rnn_direction_t v) {
-    if (v == mkldnn_unidirectional_left2right) return "unidirectional_left2right";
-    if (v == mkldnn_unidirectional_right2left) return "unidirectional_right2left";
+    if (v == mkldnn_unidirectional_left2right)
+        return "unidirectional_left2right";
+    if (v == mkldnn_unidirectional_right2left)
+        return "unidirectional_right2left";
     if (v == mkldnn_bidirectional_concat) return "bidirectional_concat";
     if (v == mkldnn_bidirectional_sum) return "bidirectional_sum";
     if (v == mkldnn_unidirectional) return "unidirectional";
@@ -454,5 +458,3 @@ const char *mkldnn_scratchpad_mode2str(mkldnn_scratchpad_mode_t v) {
     assert(!"unknown scratchpad_mode");
     return "unknown scratchpad_mode";
 }
-
-

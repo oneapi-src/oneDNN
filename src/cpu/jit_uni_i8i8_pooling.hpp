@@ -37,25 +37,22 @@ struct jit_uni_i8i8_pooling_fwd_t : public cpu_primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_int:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int:", isa, ""),
                 jit_uni_i8i8_pooling_fwd_t<isa>);
 
         status_t init() {
-            bool ok = true
-                && mayiuse(isa)
-                && ndims() == 4
-                && set_default_params() == status::success
-                && desc()->prop_kind == prop_kind::forward_inference
-                && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
-                        alg_kind::pooling_avg_include_padding,
-                        alg_kind::pooling_avg_exclude_padding)
-                && utils::one_of(src_md()->data_type, data_type::s32,
-                        data_type::s8, data_type::u8)
-                && src_md()->data_type == dst_md()->data_type
-                && attr()->has_default_values()
-                && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
-                && memory_desc_matches_tag(*dst_md(), format_tag::nhwc);
+            bool ok = true && mayiuse(isa) && ndims() == 4
+                    && set_default_params() == status::success
+                    && desc()->prop_kind == prop_kind::forward_inference
+                    && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
+                            alg_kind::pooling_avg_include_padding,
+                            alg_kind::pooling_avg_exclude_padding)
+                    && utils::one_of(src_md()->data_type, data_type::s32,
+                            data_type::s8, data_type::u8)
+                    && src_md()->data_type == dst_md()->data_type
+                    && attr()->has_default_values()
+                    && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
+                    && memory_desc_matches_tag(*dst_md(), format_tag::nhwc);
             if (!ok) return status::unimplemented;
 
             return jit_conf();
@@ -82,8 +79,8 @@ private:
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

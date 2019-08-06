@@ -49,9 +49,9 @@
 /// @snippet  gpu_sycl_interop.cpp Prologue
 // [Prologue]
 
-#include <CL/sycl.hpp>
 #include <mkldnn.hpp>
 #include "mkldnn_debug.h"
+#include <CL/sycl.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -115,7 +115,7 @@ void gpu_sycl_interop_tutorial() {
     /// The library allocates memory internally.
     /// @snippet  gpu_sycl_interop.cpp memory alloc
     //  [memory alloc]
-    memory::dims tz_dims = { 2, 3, 4, 5 };
+    memory::dims tz_dims = {2, 3, 4, 5};
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
             std::multiplies<size_t>());
 
@@ -175,7 +175,7 @@ void gpu_sycl_interop_tutorial() {
     /// Next, execute the primitive.
     /// @snippet gpu_sycl_interop.cpp relu exec
     // [relu exec]
-    relu.execute(strm, { { MKLDNN_ARG_SRC, mem }, { MKLDNN_ARG_DST, mem } });
+    relu.execute(strm, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
     strm.wait();
     // [relu exec]
     ///

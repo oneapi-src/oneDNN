@@ -45,7 +45,7 @@ namespace barrier = simple_barrier;
 typedef float acc_data_t;
 
 template <cpu_isa_t isa>
-struct jit_bnorm_t: public jit_generator {
+struct jit_bnorm_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         size_t N_ithr, N_nthr;
@@ -67,10 +67,10 @@ struct jit_bnorm_t: public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
 
     /* cpu specific part */
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm,
-                                             isa == avx2, Ymm, Zmm>::type;
-    const AddressFrame &vmmword = (isa == sse41) ? xword :
-                                  (isa == avx2) ? yword : zword;
+    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
+            Ymm, Zmm>::type;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     int vlen_spat_data_; // set by ctor depending on data type (BF16 or FP32);
@@ -124,7 +124,7 @@ struct jit_bnorm_t: public jit_generator {
     Opmask ktail_mask = Opmask(2);
 
     // FP32->BF16 emulation
-    bf16_emulation_t *bf16_emu_{ nullptr };
+    bf16_emulation_t *bf16_emu_ {nullptr};
     Reg64 reg_bf16_tmp = reg_tmp;
     Zmm bf16_emu_reserved_1 = Zmm(16);
     Zmm bf16_emu_reserved_2 = Zmm(17);
@@ -167,13 +167,9 @@ struct jit_bnorm_t: public jit_generator {
         stack_size_required = 104,
     };
 
-    int bit_shift() {
-        return 5 - is_bf16_;
-    }
+    int bit_shift() { return 5 - is_bf16_; }
 
-    bool stream_store_supported() {
-        return !is_bf16_;
-    }
+    bool stream_store_supported() { return !is_bf16_; }
 
     bool is_c_padded() const {
         const memory_desc_wrapper data_d(bdesc_->src_md());
@@ -194,10 +190,9 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     void load_common_params() {
-#       define PARAM_OFF(x) offsetof(call_params_t, x)
+#define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_rbuf1, ptr[reg_param + PARAM_OFF(rbuf1)]);
-        if (bdesc_->is_bwd())
-            mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
+        if (bdesc_->is_bwd()) mov(reg_rbuf2, ptr[reg_param + PARAM_OFF(rbuf2)]);
         mov(reg_coff_max, ptr[reg_param + PARAM_OFF(coff_max)]);
         mov(reg_soff_max, ptr[reg_param + PARAM_OFF(soff_max)]);
         mov(reg_mb_stride_Bc, ptr[reg_param + PARAM_OFF(mb_stride_Bc)]);
@@ -248,7 +243,7 @@ struct jit_bnorm_t: public jit_generator {
             mov(reg_tmp, ptr[reg_param + PARAM_OFF(var)]);
             mov(reg_var, reg_tmp);
         }
-#       undef PARAM_OFF
+#undef PARAM_OFF
     }
 
     void prepare_tail_mask_avx512_common() {
@@ -267,8 +262,8 @@ struct jit_bnorm_t: public jit_generator {
 
         const int tail = bdesc_->C() % (int)(vlen / sizeof(float));
         static const uint32_t mask[16] = {0xffffffff, 0xffffffff, 0xffffffff,
-                0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                0, 0, 0, 0, 0, 0, 0, 0};
+                0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0,
+                0, 0, 0, 0, 0, 0, 0};
 
         mov(reg_tmp, reinterpret_cast<size_t>(&mask[8 - tail]));
         vmovups(vtail_mask, ptr[reg_tmp]);
@@ -276,16 +271,15 @@ struct jit_bnorm_t: public jit_generator {
 
     void prepare_relu() {
         with_relu = bdesc_->is_fwd()
-            ? bdesc_->with_relu_post_op() || bdesc_->fuse_norm_relu()
-            : bdesc_->fuse_norm_relu();
+                ? bdesc_->with_relu_post_op() || bdesc_->fuse_norm_relu()
+                : bdesc_->fuse_norm_relu();
         with_relu_inf_only = with_relu && bdesc_->is_fwd()
-            && !(bdesc_->fuse_norm_relu() && bdesc_->is_training());
+                && !(bdesc_->fuse_norm_relu() && bdesc_->is_training());
 
         vzero = bdesc_->is_fwd() ? vdiff_beta : vbeta;
         if (with_relu) {
             uni_vpxor(vzero, vzero, vzero);
-            if (!bdesc_->is_fwd() && isa == avx2)
-                prepare_l_relu_mask_avx2();
+            if (!bdesc_->is_fwd() && isa == avx2) prepare_l_relu_mask_avx2();
         }
     }
 
@@ -294,7 +288,8 @@ struct jit_bnorm_t: public jit_generator {
         jmp(l_mask_after);
         align(32);
         L(l_relu_mask_avx2); /* [0x80 0x40 0x20 0x10 0x08 0x04 0x02 0x01] */
-        for (int i = 0; i < 8; ++i) dd(1<<i);
+        for (int i = 0; i < 8; ++i)
+            dd(1 << i);
         L(l_mask_after);
     }
 
@@ -356,8 +351,8 @@ struct jit_bnorm_t: public jit_generator {
         }
     }
 
-    void uni_vmovups_tail_avx2_common(const Operand &dst,
-            const Operand &src, Label &l_ret) {
+    void uni_vmovups_tail_avx2_common(
+            const Operand &dst, const Operand &src, Label &l_ret) {
         if (dst.isMEM()) {
             vmaskmovps(dst.getAddress(), vtail_mask, Vmm(src.getIdx()));
         } else {
@@ -366,8 +361,8 @@ struct jit_bnorm_t: public jit_generator {
         jmp(l_ret);
     }
 
-    void uni_vmovups_tail_avx512_common(const Operand &dst,
-            const Operand &src, Label &l_ret) {
+    void uni_vmovups_tail_avx512_common(
+            const Operand &dst, const Operand &src, Label &l_ret) {
         if (dst.isMEM())
             uni_vmovups(dst.getAddress() | ktail_mask | T_z, Vmm(src.getIdx()));
         else
@@ -418,13 +413,13 @@ struct jit_bnorm_t: public jit_generator {
 
     Address diff_gamma_ptr(size_t offt = 0) {
         return vmmword[reg_diff_scale_shift + reg_coff + offt
-            + 0 * chan_data_offt];
+                + 0 * chan_data_offt];
     }
 
     Address diff_beta_ptr(size_t offt = 0) {
         return vmmword[reg_diff_scale_shift + reg_coff + offt
-            + 1 * chan_data_offt];
-     }
+                + 1 * chan_data_offt];
+    }
 
     Address gamma_ptr(size_t offt = 0) {
         return vmmword[reg_scale_shift + reg_coff + offt + 0 * chan_data_offt];
@@ -435,8 +430,8 @@ struct jit_bnorm_t: public jit_generator {
     }
 
     template <typename init_t, typename body_t, typename fini_t>
-    void spat_loop(size_t len, size_t blocks, size_t regs,
-            init_t init, body_t body, fini_t fini) {
+    void spat_loop(size_t len, size_t blocks, size_t regs, init_t init,
+            body_t body, fini_t fini) {
         size_t factor = regs * blocks;
         size_t loop_unroll = len / factor * factor;
         size_t loop_tail = len - loop_unroll;
@@ -451,7 +446,8 @@ struct jit_bnorm_t: public jit_generator {
                 mov(reg_ctr, loop_unroll);
             }
             Label label;
-            L(label); {
+            L(label);
+            {
                 for (size_t i = 0; i < factor; i++) {
                     size_t base_reg = i % regs;
                     body(base_reg, i);
@@ -460,17 +456,14 @@ struct jit_bnorm_t: public jit_generator {
                 sub(reg_ctr, factor);
                 jnz(label);
             }
-            if (is_spatial_thr_) {
-                add(reg_soff, ptr[rsp + stack_off_s_tail]);
-            }
+            if (is_spatial_thr_) { add(reg_soff, ptr[rsp + stack_off_s_tail]); }
         }
 
         for (size_t i = 0; i < loop_tail; i++) {
             size_t base_reg = i % regs;
             body(base_reg, i);
         }
-        if (loop_tail)
-            add(reg_soff, loop_tail * vlen_spat_data_);
+        if (loop_tail) add(reg_soff, loop_tail * vlen_spat_data_);
 
         for (size_t i = 0; i < num_active_regs; i++)
             fini(i);
@@ -478,14 +471,14 @@ struct jit_bnorm_t: public jit_generator {
 
     void mean_channels() {
         Label ch_label;
-        L(ch_label); {
+        L(ch_label);
+        {
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
-            spat_loop(spat_size, unroll_blocks,
-                unroll_regs,
+            spat_loop(
+                    spat_size, unroll_blocks, unroll_regs,
                     [=](size_t base_reg) {
                         Vmm v = Vmm(base_reg * 2);
-                        if (base_reg)
-                            uni_vpxor(v, v, v);
+                        if (base_reg) uni_vpxor(v, v, v);
                     },
                     [=](size_t base_reg, size_t i) {
                         Vmm v0 = Vmm(base_reg * 2 + 0);
@@ -494,16 +487,15 @@ struct jit_bnorm_t: public jit_generator {
                         uni_vmovups_spat_data(
                                 v1, vmmword[reg_src + reg_soff + offt]);
                         uni_vaddps(v0, v0, v1);
-                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                + t0_pf_offt]);
-                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                + t1_pf_offt]);
+                        mic_prefetcht0(
+                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
+                        mic_prefetcht1(
+                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b = Vmm(0);
                         Vmm v = Vmm(base_reg * 2);
-                        if (base_reg)
-                            uni_vaddps(b, b, v);
+                        if (base_reg) uni_vaddps(b, b, v);
                     });
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
 
@@ -515,14 +507,15 @@ struct jit_bnorm_t: public jit_generator {
 
     void var_channels() {
         Label ch_label;
-        L(ch_label); {
+        L(ch_label);
+        {
             uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
-            spat_loop(spat_size, unroll_blocks, unroll_regs,
+            spat_loop(
+                    spat_size, unroll_blocks, unroll_regs,
                     [=](size_t base_reg) {
                         Vmm v = Vmm(base_reg * 3);
-                        if (base_reg > 0)
-                            uni_vpxor(v, v, v);
+                        if (base_reg > 0) uni_vpxor(v, v, v);
                     },
                     [=](size_t base_reg, size_t i) {
                         Vmm v = Vmm(3 * base_reg);
@@ -539,16 +532,15 @@ struct jit_bnorm_t: public jit_generator {
                         }
                         uni_vfmadd231ps(v, vtmp1, vtmp1);
 
-                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                + t0_pf_offt]);
-                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                + t1_pf_offt]);
+                        mic_prefetcht0(
+                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
+                        mic_prefetcht1(
+                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b = Vmm(0);
                         Vmm v = Vmm(base_reg * 3);
-                        if (base_reg)
-                            uni_vaddps(b, b, v);
+                        if (base_reg) uni_vaddps(b, b, v);
                     });
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
             add(reg_coff, vlen);
@@ -561,7 +553,8 @@ struct jit_bnorm_t: public jit_generator {
         uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
         xor_(reg_coff, reg_coff);
         Label zero_rbuf;
-        L(zero_rbuf); {
+        L(zero_rbuf);
+        {
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
             add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
             cmp(reg_coff, reg_coff_max);
@@ -572,11 +565,11 @@ struct jit_bnorm_t: public jit_generator {
 
         xor_(reg_soff, reg_soff);
         Label mean_spatial;
-        L(mean_spatial); {
+        L(mean_spatial);
+        {
             xor_(reg_coff, reg_coff);
 
-            if (isa == sse41)
-                mov(reg_tmp_off, reg_soff);
+            if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
             mean_channels();
 
@@ -596,20 +589,23 @@ struct jit_bnorm_t: public jit_generator {
         }
 
         Label no_mean_reduction;
-        barrier(); {
+        barrier();
+        {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             jne(no_mean_reduction);
             mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
             xor_(reg_coff, reg_coff);
             Label mean_reduction_channels;
-            L(mean_reduction_channels); {
+            L(mean_reduction_channels);
+            {
                 mov(reg_roff, reg_coff);
                 uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
                 mov(reg_ctr, reg_nnthr);
                 Label mean_reduction_thrs;
-                L(mean_reduction_thrs); {
+                L(mean_reduction_thrs);
+                {
                     uni_vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
                     uni_vmovups(vmmword[reg_rbuf1 + reg_roff], Vmm(0));
                     add(reg_roff, reg_coff_max);
@@ -630,11 +626,11 @@ struct jit_bnorm_t: public jit_generator {
 
         xor_(reg_soff, reg_soff);
         Label var_spatial;
-        L(var_spatial); {
+        L(var_spatial);
+        {
             xor_(reg_coff, reg_coff);
 
-            if (isa == sse41)
-                mov(reg_tmp_off, reg_soff);
+            if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
             var_channels();
 
@@ -654,7 +650,8 @@ struct jit_bnorm_t: public jit_generator {
         }
 
         Label no_var_reduction;
-        barrier(); {
+        barrier();
+        {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             jne(no_var_reduction);
@@ -662,12 +659,14 @@ struct jit_bnorm_t: public jit_generator {
             mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
             xor_(reg_coff, reg_coff);
             Label var_reduction_channels;
-            L(var_reduction_channels); {
+            L(var_reduction_channels);
+            {
                 mov(reg_roff, reg_coff);
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
                 mov(reg_ctr, reg_nnthr);
                 Label var_reduction_thrs;
-                L(var_reduction_thrs); { // TODO: unroll (?)
+                L(var_reduction_thrs);
+                { // TODO: unroll (?)
                     uni_vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf1 + reg_roff]);
                     add(reg_roff, reg_coff_max);
                     sub(reg_ctr, 1);
@@ -687,7 +686,8 @@ struct jit_bnorm_t: public jit_generator {
 
     void forward_channels() {
         Label ch_label;
-        L(ch_label); {
+        L(ch_label);
+        {
             uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups_maybe_tail(vsqrtvar, var_ptr());
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
@@ -710,40 +710,41 @@ struct jit_bnorm_t: public jit_generator {
             }
 
             auto compute = [=](bool stream_store_allowed) {
-                spat_loop(spat_size, unroll_blocks, unroll_regs,
-                        [](size_t base_reg) {UNUSED(base_reg);},
+                spat_loop(
+                        spat_size, unroll_blocks, unroll_regs,
+                        [](size_t base_reg) { UNUSED(base_reg); },
                         [=](size_t base_reg, size_t i) {
-                             Vmm v = Vmm(base_reg);
-                             size_t offt = i * vlen_spat_data_;
-                             uni_vmovups_spat_data(
-                                     v, vmmword[reg_src + reg_soff + offt]);
-                             mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                     + t0_pf_offt]);
-                             mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                     + t1_pf_offt]);
-                             uni_vsubps(v, v, vmean);
-                             if (bdesc_->use_scaleshift()) {
-                                 uni_vfmadd213ps(v, vgamma, vbeta);
-                             } else {
+                            Vmm v = Vmm(base_reg);
+                            size_t offt = i * vlen_spat_data_;
+                            uni_vmovups_spat_data(
+                                    v, vmmword[reg_src + reg_soff + offt]);
+                            mic_prefetcht0(ptr[reg_src + reg_soff + offt
+                                    + t0_pf_offt]);
+                            mic_prefetcht1(ptr[reg_src + reg_soff + offt
+                                    + t1_pf_offt]);
+                            uni_vsubps(v, v, vmean);
+                            if (bdesc_->use_scaleshift()) {
+                                uni_vfmadd213ps(v, vgamma, vbeta);
+                            } else {
                                 uni_vmulps(v, v, vsqrtvar);
-                             }
-                             if (with_relu_inf_only) {
-                                 uni_vmaxps(v, v, vzero);
-                             } else if (with_relu) {
-                                 if (isa == avx512_common)
-                                     fwd_process_relu_avx512_common(v, offt);
-                                 else
-                                     fwd_process_relu_avx2(v, offt, Vmm(3));
-                             }
-                             if (stream_store_allowed) {
-                                 uni_vmovntps(
-                                     vmmword[reg_dst + reg_soff + offt], v);
-                             } else {
-                                 uni_vmovups_spat_data(
-                                         vmmword[reg_dst + reg_soff + offt], v);
-                             }
+                            }
+                            if (with_relu_inf_only) {
+                                uni_vmaxps(v, v, vzero);
+                            } else if (with_relu) {
+                                if (isa == avx512_common)
+                                    fwd_process_relu_avx512_common(v, offt);
+                                else
+                                    fwd_process_relu_avx2(v, offt, Vmm(3));
+                            }
+                            if (stream_store_allowed) {
+                                uni_vmovntps(
+                                        vmmword[reg_dst + reg_soff + offt], v);
+                            } else {
+                                uni_vmovups_spat_data(
+                                        vmmword[reg_dst + reg_soff + offt], v);
+                            }
                         },
-                        [](size_t base_reg) {UNUSED(base_reg);});
+                        [](size_t base_reg) { UNUSED(base_reg); });
             };
 
             if (stream_store_supported()) {
@@ -752,9 +753,8 @@ struct jit_bnorm_t: public jit_generator {
                 jnz(normal_store, T_NEAR);
                 compute(true);
                 jmp(end_store, T_NEAR);
-                L(normal_store); {
-                    compute(false);
-                }
+                L(normal_store);
+                { compute(false); }
                 L(end_store);
             } else {
                 compute(false); // no NT store for BF16
@@ -773,10 +773,10 @@ struct jit_bnorm_t: public jit_generator {
 
         xor_(reg_soff, reg_soff);
         Label dst_spatial;
-        L(dst_spatial); {
+        L(dst_spatial);
+        {
             xor_(reg_coff, reg_coff);
-            if (isa == sse41)
-                mov(reg_tmp_off, reg_soff);
+            if (isa == sse41) mov(reg_tmp_off, reg_soff);
 
             forward_channels();
 
@@ -800,11 +800,13 @@ struct jit_bnorm_t: public jit_generator {
 
     void backward_sh_channels() {
         Label sh_channels;
-        L(sh_channels); {
+        L(sh_channels);
+        {
             uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups(Vmm(0), vmmword[reg_rbuf1 + reg_coff]);
             uni_vmovups(Vmm(1), vmmword[reg_rbuf2 + reg_coff]);
-            spat_loop(spat_size, 1, 1,
+            spat_loop(
+                    spat_size, 1, 1,
                     [=](size_t base_reg) {
                         if (base_reg > 0) {
                             for (int i = 0; i < 2; i++) {
@@ -842,12 +844,12 @@ struct jit_bnorm_t: public jit_generator {
                         uni_vaddps(o1, o1, t2);
                         mic_prefetcht0(ptr[reg_diff_dst + reg_soff + offt
                                 + t0_pf_offt]);
-                        mic_prefetcht0(ptr[reg_src + reg_soff + offt
-                                + t0_pf_offt]);
+                        mic_prefetcht0(
+                                ptr[reg_src + reg_soff + offt + t0_pf_offt]);
                         mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
                                 + t1_pf_offt]);
-                        mic_prefetcht1(ptr[reg_src + reg_soff + offt
-                                + t1_pf_offt]);
+                        mic_prefetcht1(
+                                ptr[reg_src + reg_soff + offt + t1_pf_offt]);
                     },
                     [=](size_t base_reg) {
                         Vmm b0 = Vmm(0);
@@ -867,7 +869,8 @@ struct jit_bnorm_t: public jit_generator {
 
     void backward_diff_channels() {
         Label diff_channels;
-        L(diff_channels); {
+        L(diff_channels);
+        {
             uni_vmovups_maybe_tail(vmean, mean_ptr());
             uni_vmovups_maybe_tail(vsqrtvar, var_ptr());
             uni_vaddps(vsqrtvar, vsqrtvar, veps);
@@ -882,8 +885,9 @@ struct jit_bnorm_t: public jit_generator {
             uni_vdivps(vdiff_gamma, vdiff_gamma, vchan_size);
 
             auto compute = [=](bool stream_store_allowed) {
-                spat_loop(spat_size, unroll_blocks, unroll_regs,
-                        [=](size_t base_reg) {UNUSED(base_reg);},
+                spat_loop(
+                        spat_size, unroll_blocks, unroll_regs,
+                        [=](size_t base_reg) { UNUSED(base_reg); },
                         [=](size_t base_reg, size_t i) {
                             Vmm v(base_reg * 2 + 0);
                             Vmm t(base_reg * 2 + 1);
@@ -913,8 +917,8 @@ struct jit_bnorm_t: public jit_generator {
                             }
                             if (stream_store_allowed) {
                                 uni_vmovntps(
-                                    vmmword[reg_diff_src + reg_soff + offt],
-                                    v);
+                                        vmmword[reg_diff_src + reg_soff + offt],
+                                        v);
                             } else {
                                 uni_vmovups_spat_data(
                                         vmmword[reg_diff_src + reg_soff + offt],
@@ -924,12 +928,12 @@ struct jit_bnorm_t: public jit_generator {
                                     + t0_pf_offt]);
                             mic_prefetcht0(ptr[reg_src + reg_soff + offt
                                     + t0_pf_offt]);
-                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff
-                                    + offt + t1_pf_offt]);
+                            mic_prefetcht1(ptr[reg_diff_dst + reg_soff + offt
+                                    + t1_pf_offt]);
                             mic_prefetcht1(ptr[reg_src + reg_soff + offt
                                     + t1_pf_offt]);
                         },
-                        [=](size_t base_reg) {UNUSED(base_reg);});
+                        [=](size_t base_reg) { UNUSED(base_reg); });
             };
 
             if (stream_store_supported()) {
@@ -938,9 +942,8 @@ struct jit_bnorm_t: public jit_generator {
                 jnz(normal_store, T_NEAR);
                 compute(true);
                 jmp(end_store, T_NEAR);
-                L(normal_store); {
-                    compute(false);
-                }
+                L(normal_store);
+                { compute(false); }
                 L(end_store);
             } else {
                 compute(false); // no NT store for BF16
@@ -957,7 +960,8 @@ struct jit_bnorm_t: public jit_generator {
         xor_(reg_coff, reg_coff);
         Label zero_rbuf, sh_spatial;
 
-        L(zero_rbuf); {
+        L(zero_rbuf);
+        {
             uni_vmovups(vmmword[reg_rbuf1 + reg_coff], Vmm(0));
             uni_vmovups(vmmword[reg_rbuf2 + reg_coff], Vmm(0));
             add(reg_coff, isa == sse41 ? vlen / 2 : vlen);
@@ -973,11 +977,10 @@ struct jit_bnorm_t: public jit_generator {
         }
 
         xor_(reg_soff, reg_soff);
-        L(sh_spatial); {
+        L(sh_spatial);
+        {
             xor_(reg_coff, reg_coff);
-            if (isa == sse41) {
-                mov(reg_tmp_off, reg_soff);
-            }
+            if (isa == sse41) { mov(reg_tmp_off, reg_soff); }
             backward_sh_channels();
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
@@ -996,7 +999,8 @@ struct jit_bnorm_t: public jit_generator {
         mov(reg_diff_scale_shift, ptr[rsp + stack_off_diff_scale_shift]);
 
         Label no_sh_reduction;
-        barrier(); {
+        barrier();
+        {
             mov(reg_tmp, ptr[rsp + stack_off_N_ithr]);
             cmp(reg_tmp, 0);
             Label sh_reduction_channels;
@@ -1004,7 +1008,8 @@ struct jit_bnorm_t: public jit_generator {
 
             mov(reg_nnthr, ptr[rsp + stack_off_N_nthr]);
             xor_(reg_coff, reg_coff);
-            L(sh_reduction_channels); {
+            L(sh_reduction_channels);
+            {
                 mov(reg_roff, reg_coff);
                 uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
                 uni_vpxor(Vmm(1), Vmm(1), Vmm(1));
@@ -1014,7 +1019,8 @@ struct jit_bnorm_t: public jit_generator {
                 uni_vdivps(vsqrtvar, vone, vsqrtvar, vbuf);
                 mov(reg_ctr, reg_nnthr);
                 Label sh_reduction_thrs;
-                L(sh_reduction_thrs); { // TODO: unroll (?)
+                L(sh_reduction_thrs);
+                { // TODO: unroll (?)
                     uni_vaddps(Vmm(0), Vmm(0), vmmword[reg_rbuf1 + reg_roff]);
                     uni_vaddps(Vmm(1), Vmm(1), vmmword[reg_rbuf2 + reg_roff]);
                     add(reg_roff, reg_coff_max);
@@ -1040,11 +1046,10 @@ struct jit_bnorm_t: public jit_generator {
 
         xor_(reg_soff, reg_soff);
         Label diff_spatial;
-        L(diff_spatial); {
+        L(diff_spatial);
+        {
             xor_(reg_coff, reg_coff);
-            if (isa == sse41) {
-                mov(reg_tmp_off, reg_soff);
-            }
+            if (isa == sse41) { mov(reg_tmp_off, reg_soff); }
             backward_diff_channels();
             if (isa == sse41) {
                 mov(reg_soff, reg_tmp_off);
@@ -1103,9 +1108,7 @@ struct jit_bnorm_t: public jit_generator {
         prepare_relu();
 
         if (bdesc_->is_fwd()) {
-            if (!bdesc_->stats_is_src()) {
-                compute_mean_variance();
-            }
+            if (!bdesc_->stats_is_src()) { compute_mean_variance(); }
             forward();
         } else {
             backward();
@@ -1113,21 +1116,20 @@ struct jit_bnorm_t: public jit_generator {
         add(rsp, stack_size_required);
         postamble();
 
-        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
-                    this->getCode()));
+        ker = reinterpret_cast<decltype(ker)>(
+                const_cast<uint8_t *>(this->getCode()));
     }
 
     ~jit_bnorm_t() { delete bf16_emu_; }
 };
-}
+} // namespace
 
 namespace bnorm_impl {
 
 template <cpu_isa_t isa>
-struct driver_t: public c_compatible {
+struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc)
-        : bdesc_(bdesc), ker_(bdesc_)
-    {
+        : bdesc_(bdesc), ker_(bdesc_) {
         const int nthrs = mkldnn_get_max_threads();
         const dim_t C_PADDED = get_c_padded(bdesc_);
 
@@ -1188,11 +1190,12 @@ struct driver_t: public c_compatible {
 
         dim_t C_blks = C_PADDED / simd_w;
 
-        int C_ithr{0}, C_nthr{0}, N_ithr{0}, N_nthr{0}, S_ithr{0}, S_nthr{0};
-        dim_t C_blk_s{0}, C_blk_e{0}, N_s{0}, N_e{0}, S_s{0}, S_e{0};
+        int C_ithr {0}, C_nthr {0}, N_ithr {0}, N_nthr {0}, S_ithr {0},
+                S_nthr {0};
+        dim_t C_blk_s {0}, C_blk_e {0}, N_s {0}, N_e {0}, S_s {0}, S_e {0};
 
-        dim_t C_blks_per_iter{ 1 };
-        int64_t iters{ 1 };
+        dim_t C_blks_per_iter {1};
+        int64_t iters {1};
         if (do_blocking_) {
             int num_tensors = bdesc_->is_fwd() ? 1 : 2;
             size_t working_set_size
@@ -1230,9 +1233,9 @@ struct driver_t: public c_compatible {
                 p.N_nthr = N_nthr * S_nthr;
             }
 
-            global_C_blk_s = do_blocking_ ?
-                    (C_blk_s == -1) ? -1 : it * C_blks_per_iter + C_blk_s :
-                    C_blk_s;
+            global_C_blk_s = do_blocking_
+                    ? (C_blk_s == -1) ? -1 : it * C_blks_per_iter + C_blk_s
+                    : C_blk_s;
 
             int C_blks_thr = C_blk_e - C_blk_s;
             int N_thr = N_e - N_s;
@@ -1248,8 +1251,10 @@ struct driver_t: public c_compatible {
             p.mean = (use_tmp_stats(bdesc_) ? sbuf : mean) + coff_base;
             p.var = (use_tmp_stats(bdesc_) ? sbuf + C_PADDED : var) + coff_base;
             p.scale_shift = scale_shift + coff_base;
-            p.diff_scale_shift = (use_tmp_diff_scale_shift(bdesc_)
-                    ? pbuf : diff_scale_shift) + coff_base;
+            p.diff_scale_shift
+                    = (use_tmp_diff_scale_shift(bdesc_) ? pbuf
+                                                        : diff_scale_shift)
+                    + coff_base;
 
             p.soff_max = dt_size_ * N_thr * img_size;
             p.src = (void *)((char *)src + soff_base * dt_size_);
@@ -1262,8 +1267,10 @@ struct driver_t: public c_compatible {
 
             // use SP_N_nthr which is the same as p.N_nthr except maybe for
             // the last iteration.
-            p.rbuf1 = rbuf + ((it * C_blks_per_iter) * SP_N_nthr
-                    + C_blk_s * p.N_nthr + p.N_ithr * C_blks_thr) * simd_w;
+            p.rbuf1 = rbuf
+                    + ((it * C_blks_per_iter) * SP_N_nthr + C_blk_s * p.N_nthr
+                              + p.N_ithr * C_blks_thr)
+                            * simd_w;
             // rbuf1 and rbuf2 have to be disjoint
             p.rbuf2 = p.rbuf1 + C_PADDED * nthr;
             p.is_cblk_tail = (it * C_blks_per_iter + C_blk_e) * simd_w > C;
@@ -1271,8 +1278,7 @@ struct driver_t: public c_compatible {
             size_t iter_bariers
                     = do_blocking_ ? it * global_barriers_per_iter : 0;
             p.barrier = barriers + C_ithr + iter_bariers;
-            if (p.soff_max != 0 && p.coff_max != 0)
-                ker_(&p);
+            if (p.soff_max != 0 && p.coff_max != 0) ker_(&p);
         }
     }
 
@@ -1293,20 +1299,19 @@ private:
     };
 
     static bool use_tmp_stats(const batch_normalization_pd_t *bdesc) {
-        return true
-            && !bdesc->stats_is_src()
-            && bdesc->desc()->prop_kind == prop_kind::forward_inference;
+        return true && !bdesc->stats_is_src()
+                && bdesc->desc()->prop_kind == prop_kind::forward_inference;
     }
 
-    static bool use_tmp_diff_scale_shift(const batch_normalization_pd_t *bdesc)
-    {
-        return false
-            || (bdesc->is_bwd() && !bdesc->use_scaleshift())
-            || bdesc->desc()->prop_kind == prop_kind::backward_data;
+    static bool use_tmp_diff_scale_shift(
+            const batch_normalization_pd_t *bdesc) {
+        return false || (bdesc->is_bwd() && !bdesc->use_scaleshift())
+                || bdesc->desc()->prop_kind == prop_kind::backward_data;
     }
 
-    static dim_t get_c_padded(const batch_normalization_pd_t *bdesc)
-    { return bdesc->src_md()->padded_dims[1]; }
+    static dim_t get_c_padded(const batch_normalization_pd_t *bdesc) {
+        return bdesc->src_md()->padded_dims[1];
+    }
 
     const batch_normalization_pd_t *bdesc_;
     jit_bnorm_t<isa> ker_;
@@ -1314,7 +1319,7 @@ private:
     size_t l3_size_;
     size_t dt_size_;
 };
-}
+} // namespace bnorm_impl
 
 using namespace data_type;
 using namespace format_tag;
@@ -1328,17 +1333,12 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
             ? isa == avx512_common ? nChw16c : nChw8c
             : isa == avx512_common ? nCdhw16c : nCdhw8c;
 
-    bool ok = true
-        && mayiuse(isa)
-        && is_fwd()
-        && !has_zero_dim_memory()
-        && one_of(ndims(), 4, 5)
-        && one_of(src_md()->data_type, f32, bf16)
-        && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
-        && IMPLICATION(use_scaleshift(),
-                weights_md()->data_type == f32)
-        && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-        && (attr()->has_default_values() || this->with_relu_post_op());
+    bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
+            && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
+            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+            && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+            && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
     if (is_training() && fuse_norm_relu()) {
@@ -1370,11 +1370,11 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
-                      CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN))
+                    CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN))
             : CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_MEAN);
     auto var = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
-                      CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE))
+                    CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE))
             : CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_VARIANCE);
 
     auto dst = CTX_OUT_MEM(void *, MKLDNN_ARG_DST);
@@ -1385,8 +1385,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     bnorm_driver_->init_barriers(scratchpad);
 
     parallel(0, [&](const int ithr, const int nthr) {
-        bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr,
-            scale_shift, nullptr, mean, var, ws, scratchpad);
+        bnorm_driver_->exec(ithr, nthr, src, nullptr, dst, nullptr, scale_shift,
+                nullptr, mean, var, ws, scratchpad);
     });
 
     return status::success;
@@ -1403,33 +1403,29 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
             ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
             : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;
 
-    bool ok = true
-        && mayiuse(isa)
-        && is_bwd()
-        && !has_zero_dim_memory()
-        && one_of(ndims(), 4, 5)
-        && one_of(true,
-            everyone_is(f32, src_md()->data_type, diff_src_md()->data_type),
-            everyone_is(bf16, src_md()->data_type, diff_src_md()->data_type))
-        && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
-        && IMPLICATION(use_scaleshift(),
-                utils::everyone_is(f32,
-                    weights_md()->data_type,
-                    diff_weights_md()->data_type))
-        && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-        && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
-        && attr()->has_default_values();
+    bool ok = true && mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
+            && one_of(ndims(), 4, 5)
+            && one_of(true,
+                    everyone_is(
+                            f32, src_md()->data_type, diff_src_md()->data_type),
+                    everyone_is(bf16, src_md()->data_type,
+                            diff_src_md()->data_type))
+            && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
+            && IMPLICATION(use_scaleshift(),
+                    utils::everyone_is(f32, weights_md()->data_type,
+                            diff_weights_md()->data_type))
+            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+            && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
+            && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
-    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
-            && isa < avx2)
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C() && isa < avx2)
         return status::unimplemented;
 
     if (fuse_norm_relu()) {
         if (isa < avx2) return status::unimplemented;
         init_default_ws(1);
-        if (!compare_ws(hint_fwd_pd_))
-            return status::unimplemented;
+        if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
     }
 
     /* TODO: extra checks required */
@@ -1486,6 +1482,6 @@ template struct jit_uni_batch_normalization_bwd_t<avx2>;
 template struct jit_uni_batch_normalization_fwd_t<avx512_common>;
 template struct jit_uni_batch_normalization_bwd_t<avx512_common>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

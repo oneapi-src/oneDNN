@@ -63,8 +63,7 @@ status_t sycl_buffer_memory_storage_t::map_data(void **mapped_ptr) const {
 }
 
 status_t sycl_buffer_memory_storage_t::unmap_data(void *mapped_ptr) const {
-    if (!mapped_ptr)
-        return status::success;
+    if (!mapped_ptr) return status::success;
 
     auto &guard_manager = guard_manager_t<map_tag>::instance();
     return guard_manager.exit(this);

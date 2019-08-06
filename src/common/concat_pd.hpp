@@ -28,15 +28,17 @@
 namespace mkldnn {
 namespace impl {
 
-struct concat_pd_t: public primitive_desc_t {
+struct concat_pd_t : public primitive_desc_t {
     concat_pd_t(engine_t *engine, const primitive_attr_t *attr,
             const memory_desc_t *dst_md, int n, int concat_dim,
             const memory_desc_t *src_mds)
         : primitive_desc_t(engine, attr, primitive_kind::concat)
-        , n_(n), concat_dim_(concat_dim), dst_md_(*dst_md)
-    {
+        , n_(n)
+        , concat_dim_(concat_dim)
+        , dst_md_(*dst_md) {
         src_mds_.reserve(n_);
-        for (int i = 0; i < n_; ++i) src_mds_.push_back(src_mds[i]);
+        for (int i = 0; i < n_; ++i)
+            src_mds_.push_back(src_mds[i]);
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
@@ -46,24 +48,26 @@ struct concat_pd_t: public primitive_desc_t {
                 && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST)
-            return arg_usage_t::output;
+        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override
-    { return index < n_inputs() ? &src_mds_[index] : &glob_zero_md; }
-    virtual const memory_desc_t *dst_md(int index = 0) const override
-    { return index == 0 ? &dst_md_ : &glob_zero_md; }
+    virtual const memory_desc_t *src_md(int index = 0) const override {
+        return index < n_inputs() ? &src_mds_[index] : &glob_zero_md;
+    }
+    virtual const memory_desc_t *dst_md(int index = 0) const override {
+        return index == 0 ? &dst_md_ : &glob_zero_md;
+    }
 
     virtual int n_inputs() const override { return n_; }
     virtual int n_outputs() const override { return 1; }
 
     int concat_dim() const { return concat_dim_; }
 
-    const memory_desc_t *src_image_md(int index = 0) const
-    { return index < n_inputs() ? &src_image_mds_[index] : &glob_zero_md; }
+    const memory_desc_t *src_image_md(int index = 0) const {
+        return index < n_inputs() ? &src_image_mds_[index] : &glob_zero_md;
+    }
 
 protected:
     int n_, concat_dim_;
@@ -78,9 +82,8 @@ protected:
 protected:
     /* inits src_image_mds_ and dst_md_ in simple cases. The call may fail */
     status_t init() {
-        bool ok = true
-            && set_default_params() == status::success
-            && attr()->has_default_values();
+        bool ok = true && set_default_params() == status::success
+                && attr()->has_default_values();
         if (!ok) return status::unimplemented;
 
         for (int i = 0; i < n_; ++i) {
@@ -99,8 +102,8 @@ protected:
             offsets[concat_dim_] = current_concat_dim_offset;
 
             memory_desc_t src_img_d;
-            status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
-                    &dst_md_, dims, offsets);
+            status_t status = mkldnn_memory_desc_init_submemory(
+                    &src_img_d, &dst_md_, dims, offsets);
             if (status != status::success) return status;
             src_image_mds_.push_back(src_img_d);
             current_concat_dim_offset += dim;
@@ -110,8 +113,7 @@ protected:
     }
 
     status_t set_default_params() {
-        if (dst_md_.format_kind != format_kind::any)
-            return status::success;
+        if (dst_md_.format_kind != format_kind::any) return status::success;
 
         const int ndims = dst_md_.ndims;
 
@@ -125,8 +127,8 @@ protected:
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper src_d(src_mds_[i]);
             if (src_d.is_blocking_desc() && !src_d.is_plain()) {
-                status = memory_desc_init_by_blocking_desc(dst_md_,
-                        src_d.blocking_desc());
+                status = memory_desc_init_by_blocking_desc(
+                        dst_md_, src_d.blocking_desc());
                 if (status == status::success) break;
             }
         }
@@ -143,8 +145,8 @@ protected:
                 offsets[concat_dim_] = current_concat_dim_offset;
 
                 memory_desc_t src_img_d;
-                status_t status = mkldnn_memory_desc_init_submemory(&src_img_d,
-                        &dst_md_, dims, offsets);
+                status_t status = mkldnn_memory_desc_init_submemory(
+                        &src_img_d, &dst_md_, dims, offsets);
                 if (status != status::success) {
                     desired_format_ok = false;
                     break;
@@ -152,8 +154,7 @@ protected:
                 current_concat_dim_offset += dim;
             }
 
-            if (!desired_format_ok)
-                status = status::unimplemented;
+            if (!desired_format_ok) status = status::unimplemented;
         }
 
         /* if no success so far, try using the format of the first plain input */
@@ -177,14 +178,16 @@ protected:
 };
 
 #define DECLARE_CONCAT_PD_t(impl_name, ...) \
-    static status_t create(concat_pd_t **concat_pd, \
-            engine_t *engine, const primitive_attr_t *attr, \
-            const memory_desc_t *dst_md, int n, int concat_dim, \
-            const memory_desc_t *src_mds) { \
+    static status_t create(concat_pd_t **concat_pd, engine_t *engine, \
+            const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
+            int concat_dim, const memory_desc_t *src_mds) { \
         using namespace status; \
         auto _pd = new pd_t(engine, attr, dst_md, n, concat_dim, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init() != success) { delete _pd; return unimplemented; } \
+        if (_pd->init() != success) { \
+            delete _pd; \
+            return unimplemented; \
+        } \
         return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
     } \
     virtual status_t create_primitive(primitive_t **p) const override { \
@@ -200,12 +203,12 @@ protected:
         return ret; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual const char *name() const override { return impl_name; } \
+    virtual const char *name() const override { return impl_name; }
 
 #define DECLARE_CONCAT_PD_T(impl_name, ...) \
     DECLARE_CONCAT_PD_t(impl_name, __VA_ARGS__)
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif

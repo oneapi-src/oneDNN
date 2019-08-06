@@ -28,9 +28,9 @@ namespace ocl {
 struct jit_ref_inner_product_fwd_kernel {
 
     jit_ref_inner_product_fwd_kernel(jit_inner_product_conf_t ajip)
-        : jip(ajip){};
+        : jip(ajip) {};
 
-    ~jit_ref_inner_product_fwd_kernel(){};
+    ~jit_ref_inner_product_fwd_kernel() {};
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
             const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
@@ -81,11 +81,13 @@ struct jit_ref_inner_product_fwd_kernel {
 
         if (jip.is_forward) {
             jip.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
-            jip.bia_dt = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
+            jip.bia_dt
+                    = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
         } else if (jip.is_backward_weights) {
             jip.with_bias
                     = ipd.diff_bias_desc.format_kind != format_kind::undef;
-            jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type : data_type::f32;
+            jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type
+                                       : data_type::f32;
         } else {
             jip.with_bias = 0;
             jip.bia_dt = data_type::f32;
@@ -116,10 +118,8 @@ struct jit_ref_inner_product_fwd_kernel {
         kernel_ctx.define_int("KD", jip.kd);
         kernel_ctx.define_int("KH", jip.kh);
         kernel_ctx.define_int("KW", jip.kw);
-        if (jip.with_bias)
-            kernel_ctx.define_int("WITH_BIAS", 1);
-        if (jip.has_spatial)
-            kernel_ctx.define_int("HAS_SPATIAL", 1);
+        if (jip.with_bias) kernel_ctx.define_int("WITH_BIAS", 1);
+        if (jip.has_spatial) kernel_ctx.define_int("HAS_SPATIAL", 1);
 
         if (jip.is_forward)
             kernel_ctx.define_int("INNER_PRODUCT_FWD", 1);
@@ -128,9 +128,7 @@ struct jit_ref_inner_product_fwd_kernel {
         else if (jip.is_backward_weights)
             kernel_ctx.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
 
-        if (with_eltwise) {
-            def_postops(kernel_ctx, alg);
-        }
+        if (with_eltwise) { def_postops(kernel_ctx, alg); }
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
         kernel_ctx.define_int("WITH_SUM", with_sum);
         kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);

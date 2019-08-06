@@ -28,27 +28,22 @@ using namespace mkldnn::impl;
 
 status_t mkldnn_stream_create_sycl(
         stream_t **stream, engine_t *engine, void *queue) {
-    bool args_ok = true
-            && !utils::any_null(stream, engine, queue)
+    bool args_ok = true && !utils::any_null(stream, engine, queue)
             && engine->kind() == engine_kind::gpu;
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto *sycl_engine = utils::downcast<sycl::sycl_engine_base_t *>(engine);
     auto &sycl_queue = *static_cast<cl::sycl::queue *>(queue);
     return sycl_engine->create_stream(stream, sycl_queue);
 }
 
-status_t mkldnn_stream_get_sycl_queue(stream_t *stream,
-        void **queue) {
-    bool args_ok = true
-        && !utils::any_null(queue, stream)
-        && stream->engine()->backend_kind() == backend_kind::sycl;
+status_t mkldnn_stream_get_sycl_queue(stream_t *stream, void **queue) {
+    bool args_ok = true && !utils::any_null(queue, stream)
+            && stream->engine()->backend_kind() == backend_kind::sycl;
 
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
-    auto sycl_stream = utils::downcast<sycl::sycl_stream_t*>(stream);
+    auto sycl_stream = utils::downcast<sycl::sycl_stream_t *>(stream);
     auto &sycl_queue = sycl_stream->queue();
     *queue = static_cast<void *>(&sycl_queue);
     return status::success;

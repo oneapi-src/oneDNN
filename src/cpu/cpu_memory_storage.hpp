@@ -29,14 +29,12 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-class cpu_memory_storage_t : public memory_storage_impl_t
-{
+class cpu_memory_storage_t : public memory_storage_impl_t {
 public:
     cpu_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
             size_t alignment, void *handle)
         : memory_storage_impl_t(engine, size) {
-        if (alignment == 0)
-            alignment = 64;
+        if (alignment == 0) alignment = 64;
 
         if (size == 0 || (!handle && (flags & memory_flags_t::alloc) == 0)) {
             return;

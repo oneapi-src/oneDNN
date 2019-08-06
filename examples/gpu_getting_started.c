@@ -39,14 +39,14 @@
 
 #include "mkldnn.h"
 
-#define CHECK(f)                                                             \
-    do {                                                                     \
-        mkldnn_status_t s = f;                                               \
-        if (s != mkldnn_success) {                                           \
+#define CHECK(f) \
+    do { \
+        mkldnn_status_t s = f; \
+        if (s != mkldnn_success) { \
             printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s);                                                      \
-            exit(2);                                                         \
-        }                                                                    \
+                    s); \
+            exit(2); \
+        } \
     } while (0)
 
 size_t product(int n_dims, const mkldnn_dim_t dims[]) {
@@ -90,7 +90,7 @@ int doit() {
     CHECK(mkldnn_engine_create(&engine_cpu, mkldnn_cpu, 0));
     CHECK(mkldnn_engine_create(&engine_gpu, mkldnn_gpu, 0));
 
-    mkldnn_dim_t tz[4] = { 2, 16, 1, 1 };
+    mkldnn_dim_t tz[4] = {2, 16, 1, 1};
 
     mkldnn_memory_desc_t m_cpu_md, m_gpu_md;
     CHECK(mkldnn_memory_desc_init_by_tag(
@@ -141,21 +141,20 @@ int doit() {
             &stream_gpu, engine_gpu, mkldnn_stream_default_flags));
 
     mkldnn_exec_arg_t r1_args[]
-            = { { MKLDNN_ARG_FROM, m_cpu }, { MKLDNN_ARG_TO, m_gpu } };
+            = {{MKLDNN_ARG_FROM, m_cpu}, {MKLDNN_ARG_TO, m_gpu}};
     CHECK(mkldnn_primitive_execute(r1, stream_gpu, 2, r1_args));
 
     mkldnn_exec_arg_t relu_args[]
-            = { { MKLDNN_ARG_SRC, m_gpu }, { MKLDNN_ARG_DST, m_gpu } };
+            = {{MKLDNN_ARG_SRC, m_gpu}, {MKLDNN_ARG_DST, m_gpu}};
     CHECK(mkldnn_primitive_execute(relu, stream_gpu, 2, relu_args));
 
     mkldnn_exec_arg_t r2_args[]
-            = { { MKLDNN_ARG_FROM, m_gpu }, { MKLDNN_ARG_TO, m_cpu } };
+            = {{MKLDNN_ARG_FROM, m_gpu}, {MKLDNN_ARG_TO, m_cpu}};
     CHECK(mkldnn_primitive_execute(r2, stream_gpu, 2, r2_args));
 
     CHECK(mkldnn_stream_wait(stream_gpu));
 
-    if (find_negative(m_cpu, 4, tz) != 0)
-        return 2;
+    if (find_negative(m_cpu, 4, tz) != 0) return 2;
 
     /* clean up */
     mkldnn_primitive_desc_destroy(relu_pd);

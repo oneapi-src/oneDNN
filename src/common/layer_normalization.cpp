@@ -39,8 +39,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
             && (flags & ~(mkldnn_use_global_stats | mkldnn_use_scaleshift)) == 0
             && IMPLICATION(
                     flags & mkldnn_use_global_stats, stat_desc != nullptr);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
     auto ld = layer_normalization_desc_t();
     ld.primitive_kind = primitive_kind::layer_normalization;
@@ -56,7 +55,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         ld.stat_desc = *stat_desc;
     else {
         int stat_ndims = data_desc->ndims - 1;
-        dims_t stat_dims = { 0 }, stat_strides = { 0 };
+        dims_t stat_dims = {0}, stat_strides = {0};
         array_copy(stat_dims, data_desc->dims, stat_ndims);
         auto data_strides = data_desc->format_desc.blocking.strides;
         for (int i = 0; i < stat_ndims; i++)
@@ -69,7 +68,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     }
 
     int ndims = data_desc->ndims;
-    dims_t scaleshift_dims = { 2, data_desc->dims[ndims - 1] };
+    dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};
     mkldnn_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2, scaleshift_dims,
             data_type::f32, mkldnn_nc);
     ld.diff_data_scaleshift_desc = zero_md();
@@ -90,8 +89,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                 && array_cmp(ld.stat_desc.dims, ld.data_desc.dims,
                         ld.stat_desc.ndims);
 
-    if (!consistency)
-        return invalid_arguments;
+    if (!consistency) return invalid_arguments;
 
     *lnorm_desc = ld;
     return success;
@@ -112,8 +110,7 @@ status_t mkldnn_layer_normalization_backward_desc_init(
         layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
         const memory_desc_t *stat_desc, float epsilon, unsigned flags) {
-    if (!one_of(prop_kind, backward, backward_data))
-        return invalid_arguments;
+    if (!one_of(prop_kind, backward, backward_data)) return invalid_arguments;
     return lnorm_desc_init(lnorm_desc, prop_kind, data_desc, stat_desc,
             diff_data_desc, epsilon, flags);
 }

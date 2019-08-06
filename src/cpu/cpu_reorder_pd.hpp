@@ -27,21 +27,22 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct cpu_reorder_pd_t: public reorder_pd_t {
+struct cpu_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
 
     status_t init() {
         const auto &post_ops = attr()->post_ops_;
-        bool args_ok = IMPLICATION(post_ops.len_ != 0, post_ops.len_ == 1
-                && post_ops.entry_[0].kind == primitive_kind::sum);
+        bool args_ok = IMPLICATION(post_ops.len_ != 0,
+                post_ops.len_ == 1
+                        && post_ops.entry_[0].kind == primitive_kind::sum);
         scratchpad_engine_ = src_engine_;
         return args_ok ? status::success : status::unimplemented;
     }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

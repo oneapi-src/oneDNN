@@ -31,31 +31,27 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+struct jit_avx2_convolution_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_fwd_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
                 jit_avx2_convolution_fwd_t);
 
         status_t init() {
-            bool ok = true
-                && is_fwd()
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(data_type::f32, data_type::f32,
-                        data_type::f32, data_type::f32, data_type::f32)
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && is_fwd()
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(data_type::f32, data_type::f32,
+                            data_type::f32, data_type::f32, data_type::f32)
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx2_conv_fwd_kernel_f32::init_conf(jcp_,
-                    *desc(), src_md(), weights_md(), dst_md(), *attr());
+            status_t status = jit_avx2_conv_fwd_kernel_f32::init_conf(
+                    jcp_, *desc(), src_md(), weights_md(), dst_md(), *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -72,22 +68,22 @@ struct jit_avx2_convolution_fwd_t: public cpu_primitive_t {
 
             const bool flat = IC() < 8;
             auto src_tag = flat
-                ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
-                : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto dst_tag =
-                utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
+                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto dst_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
-                        gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
-                : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
-                        OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
+                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                            gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
+                    : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
+                            OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
 
             return set_default_formats_common(src_tag, wei_tag, dst_tag);
         }
     };
 
-    jit_avx2_convolution_fwd_t(const pd_t *apd): cpu_primitive_t(apd)
-    { kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr()); }
+    jit_avx2_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+        kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
+    }
     ~jit_avx2_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -104,38 +100,32 @@ private:
     jit_avx2_conv_fwd_kernel_f32 *kernel_;
 };
 
-struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
-    struct pd_t: public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine,
-                const convolution_desc_t *adesc,
+struct jit_avx2_convolution_bwd_data_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_data_pd_t {
+        pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_()
-        {}
+            , jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
                 jit_avx2_convolution_bwd_data_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_data
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(data_type::f32, data_type::f32,
-                        data_type::undef, data_type::f32, data_type::f32)
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(data_type::f32, data_type::f32,
+                            data_type::undef, data_type::f32, data_type::f32)
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_avx2_conv_bwd_data_kernel_f32::init_conf(
-                    jcp_, *desc(), *diff_src_md(), *weights_md(),
-                    *diff_dst_md());
+            status_t status = jit_avx2_conv_bwd_data_kernel_f32::init_conf(jcp_,
+                    *desc(), *diff_src_md(), *weights_md(), *diff_dst_md());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx2_conv_bwd_data_kernel_f32::init_scratchpad(scratchpad,
-                    jcp_);
+            jit_avx2_conv_bwd_data_kernel_f32::init_scratchpad(
+                    scratchpad, jcp_);
 
             return status::success;
         }
@@ -148,15 +138,16 @@ struct jit_avx2_convolution_bwd_data_t: public cpu_primitive_t {
 
             auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
-                : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
+                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
+                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
 
-    jit_avx2_convolution_bwd_data_t(const pd_t *apd): cpu_primitive_t(apd)
-    { kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_); }
+    jit_avx2_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {
+        kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_);
+    }
     ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -173,26 +164,23 @@ private:
     jit_avx2_conv_bwd_data_kernel_f32 *kernel_;
 };
 
-struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
-    struct pd_t: public  cpu_convolution_bwd_weights_pd_t {
+struct jit_avx2_convolution_bwd_weights_t : public cpu_primitive_t {
+    struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx2, ""),
                 jit_avx2_convolution_bwd_weights_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_weights
-                && set_default_alg_kind(alg_kind::convolution_direct)
-                && expect_data_types(data_type::f32, data_type::f32,
-                        data_type::f32, data_type::f32, data_type::f32)
-                && !has_zero_dim_memory()
-                && set_default_formats();
+            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && expect_data_types(data_type::f32, data_type::f32,
+                            data_type::f32, data_type::f32, data_type::f32)
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_bwd_weights_kernel_f32::init_conf(
@@ -203,8 +191,8 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             init_balancers();
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(scratchpad,
-                    jcp_);
+            jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(
+                    scratchpad, jcp_);
 
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
                     scratchpad, memory_tracking::names::prefix_reducer_bia);
@@ -227,15 +215,14 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
             const bool flat = IC() == 3;
 
             auto src_tag = flat
-                ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
-                : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-            auto dst_tag =
-                utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    ? utils::pick(ndims() - 3, ncw, nchw, ncdhw)
+                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto dst_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
-                        gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
-                : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
-                        OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
+                    ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
+                            gOIhw8i8o, gOhwi8o, gOIdhw8i8o, gOdhwi8o)
+                    : utils::pick(2 * ndims() - 6 + flat, OIw8i8o, Owi8o,
+                            OIhw8i8o, Ohwi8o, OIdhw8i8o, Odhwi8o);
 
             return set_default_formats_common(src_tag, wei_tag, dst_tag);
         }
@@ -243,19 +230,18 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
     private:
         void init_balancers() {
             const int max_threads = mkldnn_get_max_threads();
-            const size_t max_buffer_size = 1<<21; /* just a heuristic */
+            const size_t max_buffer_size = 1 << 21; /* just a heuristic */
 
-            if(with_bias()) {
+            if (with_bias()) {
                 reducer_bia_conf_.init(reduce_balancer_t(max_threads,
-                            jcp_.oc_block, jcp_.ngroups * jcp_.nb_oc, jcp_.mb,
-                            max_buffer_size, true));
+                        jcp_.oc_block, jcp_.ngroups * jcp_.nb_oc, jcp_.mb,
+                        max_buffer_size, true));
             }
 
             reducer_wei_conf_.init(reduce_balancer_t(max_threads,
-                        jcp_.kd * jcp_.kh * jcp_.kw
-                        * jcp_.ic_block * jcp_.oc_block,
-                        jcp_.ngroups * jcp_.nb_ic * jcp_.nb_oc,
-                        jcp_.mb * jcp_.od, max_buffer_size, true));
+                    jcp_.kd * jcp_.kh * jcp_.kw * jcp_.ic_block * jcp_.oc_block,
+                    jcp_.ngroups * jcp_.nb_ic * jcp_.nb_oc, jcp_.mb * jcp_.od,
+                    max_buffer_size, true));
         }
     };
 
@@ -263,13 +249,12 @@ struct jit_avx2_convolution_bwd_weights_t: public cpu_primitive_t {
         : cpu_primitive_t(apd)
         , kernel_(nullptr)
         , reducer_weights_(nullptr)
-        , reducer_bias_(nullptr)
-    {
+        , reducer_bias_(nullptr) {
         kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(pd()->jcp_);
-        reducer_bias_ =
-            new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-        reducer_weights_ =
-            new cpu_reducer_t<data_type::f32>(pd()->reducer_wei_conf_);
+        reducer_bias_
+                = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
+        reducer_weights_
+                = new cpu_reducer_t<data_type::f32>(pd()->reducer_wei_conf_);
     }
 
     ~jit_avx2_convolution_bwd_weights_t() {
@@ -293,9 +278,9 @@ private:
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

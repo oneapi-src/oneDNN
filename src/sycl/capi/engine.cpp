@@ -26,11 +26,9 @@ using namespace mkldnn::impl;
 
 status_t mkldnn_engine_create_sycl(engine_t **engine, engine_kind_t kind,
         const void *dev, const void *ctx) {
-    bool args_ok = true
-            && (kind == engine_kind::gpu)
+    bool args_ok = true && (kind == engine_kind::gpu)
             && !utils::any_null(engine, dev, ctx);
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto ef = sycl::get_engine_factory(kind);
     auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
@@ -39,12 +37,10 @@ status_t mkldnn_engine_create_sycl(engine_t **engine, engine_kind_t kind,
 }
 
 status_t mkldnn_engine_get_sycl_context(engine_t *engine, void **ctx) {
-    bool args_ok = true
-        && !utils::any_null(ctx, engine)
-        && engine->backend_kind() == backend_kind::sycl;
+    bool args_ok = true && !utils::any_null(ctx, engine)
+            && engine->backend_kind() == backend_kind::sycl;
 
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto *sycl_engine = utils::downcast<sycl::sycl_engine_base_t *>(engine);
     auto &sycl_ctx = const_cast<cl::sycl::context &>(sycl_engine->context());
@@ -53,12 +49,10 @@ status_t mkldnn_engine_get_sycl_context(engine_t *engine, void **ctx) {
 }
 
 status_t mkldnn_engine_get_sycl_device(engine_t *engine, void **dev) {
-    bool args_ok = true
-        && !utils::any_null(dev, engine)
-        && engine->backend_kind() == backend_kind::sycl;
+    bool args_ok = true && !utils::any_null(dev, engine)
+            && engine->backend_kind() == backend_kind::sycl;
 
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto *sycl_engine = utils::downcast<sycl::sycl_engine_base_t *>(engine);
     auto &sycl_dev = const_cast<cl::sycl::device &>(sycl_engine->device());

@@ -25,42 +25,37 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-enum struct matrix_id {
-    a,
-    b
-};
+enum struct matrix_id { a, b };
 
 struct gemm_pack_storage_t {
-    gemm_threading_t &threading()   { return header->threading; }
-    matrix_id &which()              { return header->which; }
-    bool &has_row_sums()            { return header->has_row_sums; }
-    bool &has_col_sums()            { return header->has_col_sums; }
+    gemm_threading_t &threading() { return header->threading; }
+    matrix_id &which() { return header->which; }
+    bool &has_row_sums() { return header->has_row_sums; }
+    bool &has_col_sums() { return header->has_col_sums; }
 
-    const gemm_threading_t &threading() const   { return header->threading; }
-    const matrix_id &which() const              { return header->which; }
-    const bool &has_row_sums() const            { return header->has_row_sums; }
-    const bool &has_col_sums() const            { return header->has_col_sums; }
+    const gemm_threading_t &threading() const { return header->threading; }
+    const matrix_id &which() const { return header->which; }
+    const bool &has_row_sums() const { return header->has_row_sums; }
+    const bool &has_col_sums() const { return header->has_col_sums; }
 
-    size_t size() const             { return header->size; }
-    void *get() const               { return static_cast<void *>(base); }
+    size_t size() const { return header->size; }
+    void *get() const { return static_cast<void *>(base); }
 
     bool single_nocopy() const {
         return (threading().copy == copy_type::no_copy);
     }
 
-    int nthr() const {
-        return single_nocopy() ? 1 : threading().nthrs();
-    }
+    int nthr() const { return single_nocopy() ? 1 : threading().nthrs(); }
 
     int nslice() const {
-        return (which() == matrix_id::a) ?
-            threading().nthrs_m * threading().nthrs_k :
-            threading().nthrs_n * threading().nthrs_k;
+        return (which() == matrix_id::a)
+                ? threading().nthrs_m * threading().nthrs_k
+                : threading().nthrs_n * threading().nthrs_k;
     }
 
     template <typename data_type>
     gemm_pack_storage_t(data_type *data_) {
-        reset((void *) data_);
+        reset((void *)data_);
     }
 
     std::tuple<int, int> thread_slice_info(int ithr) const {
@@ -138,15 +133,14 @@ struct gemm_pack_storage_t {
         matrix_header->slice[id].get_blocking(block_r, block_c);
     }
 
-    void set_blocking(int ithr, dim_t rows, dim_t cols, dim_t block_r,
-            dim_t block_c) {
+    void set_blocking(
+            int ithr, dim_t rows, dim_t cols, dim_t block_r, dim_t block_c) {
 
         auto id = thread_to_slice(ithr);
         auto nblk_r = (block_r == 0) ? 0 : utils::div_up(rows, block_r);
         auto nblk_c = (block_c == 0) ? 0 : utils::div_up(cols, block_c);
 
-        matrix_header->slice[id].set_blocking(nblk_r, nblk_c, block_r,
-                block_c);
+        matrix_header->slice[id].set_blocking(nblk_r, nblk_c, block_r, block_c);
 
         if (has_row_sums())
             sums_header->slice[id].set_blocking(nblk_r, nblk_c, block_r, 1);
@@ -204,8 +198,8 @@ protected:
         bool has_col_sums;
         size_t off_matrix, off_sums;
         size_t size;
-        gemm_threading_t threading;     /* if packed */
-    } *header;
+        gemm_threading_t threading; /* if packed */
+    } * header;
 
     struct slice_header_t {
         bool packed;
@@ -215,8 +209,8 @@ protected:
 
         template <typename data_type>
         size_t block_size() const {
-            return utils::rnd_up(block_r * block_c * sizeof(data_type),
-                    align_data);
+            return utils::rnd_up(
+                    block_r * block_c * sizeof(data_type), align_data);
         }
 
         template <typename data_type>
@@ -236,8 +230,8 @@ protected:
             return block_size<data_type>() * nblk_r * nblk_c;
         }
 
-        void set_blocking(int nblk_r_, int nblk_c_, dim_t block_r_,
-                dim_t block_c_) {
+        void set_blocking(
+                int nblk_r_, int nblk_c_, dim_t block_r_, dim_t block_c_) {
             packed = true;
             nblk_r = nblk_r_;
             nblk_c = nblk_c_;
@@ -275,15 +269,15 @@ protected:
     };
 
     struct matrix_header_t {
-        dim_t ld;                       /* if not packed */
-        slice_header_t slice[1];        /* array of size nthr, if packed */
+        dim_t ld; /* if not packed */
+        slice_header_t slice[1]; /* array of size nthr, if packed */
 
         template <typename data_type>
         void finalize(size_t &cur_off, int nslices) {
             for (int id = 0; id < nslices; id++)
                 slice[id].finalize<data_type>(cur_off);
         }
-    } *matrix_header, *sums_header;
+    } * matrix_header, *sums_header;
 
     size_t total_header_size = 0;
 
@@ -296,45 +290,41 @@ protected:
 
     static size_t matrix_header_size(int max_nthr) {
         auto sz = sizeof(matrix_header_t)
-            + sizeof(slice_header_t) * (max_nthr - 1);
+                + sizeof(slice_header_t) * (max_nthr - 1);
 
         return utils::rnd_up(sz, align_headers);
     }
 
     template <typename data_type>
-    data_type *get_block(const slice_header_t &slice, dim_t r0, dim_t c0) const
-    {
+    data_type *get_block(
+            const slice_header_t &slice, dim_t r0, dim_t c0) const {
         return reinterpret_cast<data_type *>(base + slice.off_data
                 + slice.block_offset<data_type>(r0, c0, col_major()));
     }
 
-    bool col_major() const {
-        return (which() == matrix_id::a);
-    }
+    bool col_major() const { return (which() == matrix_id::a); }
 
     void reset(void *data) {
-        base = static_cast<char*>(data);
-        header = static_cast<header_t*>(data);
+        base = static_cast<char *>(data);
+        header = static_cast<header_t *>(data);
 
-        matrix_header = reinterpret_cast<matrix_header_t *>
-            (base + header->off_matrix);
-        sums_header = reinterpret_cast<matrix_header_t *>
-            (base + header->off_sums);
+        matrix_header = reinterpret_cast<matrix_header_t *>(
+                base + header->off_matrix);
+        sums_header
+                = reinterpret_cast<matrix_header_t *>(base + header->off_sums);
     }
 };
 
 struct gemm_pack_storage_shell_t : public gemm_pack_storage_t {
 
-    gemm_pack_storage_shell_t(int max_nthr, bool has_row_sums = false,
-            bool has_col_sums = false) :
-            gemm_pack_storage_t(malloc(shell_size(max_nthr), 64)) {
+    gemm_pack_storage_shell_t(
+            int max_nthr, bool has_row_sums = false, bool has_col_sums = false)
+        : gemm_pack_storage_t(malloc(shell_size(max_nthr), 64)) {
 
         setup(max_nthr, has_row_sums, has_col_sums);
     }
 
-    ~gemm_pack_storage_shell_t() {
-        free(get());
-    }
+    ~gemm_pack_storage_shell_t() { free(get()); }
 
 private:
     static size_t shell_size(int max_nthr) {
@@ -342,8 +332,8 @@ private:
     }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif

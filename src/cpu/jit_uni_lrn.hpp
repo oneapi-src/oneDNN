@@ -29,17 +29,18 @@ namespace mkldnn {
 namespace impl {
 namespace cpu {
 
-template <cpu_isa_t isa> struct jit_uni_lrn_fwd_kernel_f32;
-template <cpu_isa_t isa> struct jit_uni_lrn_bwd_kernel_f32;
+template <cpu_isa_t isa>
+struct jit_uni_lrn_fwd_kernel_f32;
+template <cpu_isa_t isa>
+struct jit_uni_lrn_bwd_kernel_f32;
 
 template <cpu_isa_t isa>
-struct jit_uni_lrn_fwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_lrn_fwd_pd_t {
+struct jit_uni_lrn_fwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_lrn_fwd_t<isa>);
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_lrn_fwd_t<isa>);
 
         status_t init();
 
@@ -64,13 +65,12 @@ private:
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_lrn_bwd_t: public cpu_primitive_t {
-    struct pd_t: public cpu_lrn_bwd_pd_t {
+struct jit_uni_lrn_bwd_t : public cpu_primitive_t {
+    struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
         DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_lrn_bwd_t<isa>);
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_lrn_bwd_t<isa>);
 
         status_t init();
 
@@ -94,9 +94,9 @@ private:
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

@@ -19,11 +19,11 @@
 
 #include <memory>
 #include <numeric>
-#include <type_traits>
 #include <utility>
+#include <type_traits>
 
-#include "gtest/gtest.h"
 #include "mkldnn_test_common.hpp"
+#include "gtest/gtest.h"
 
 #include "mkldnn.hpp"
 
@@ -31,8 +31,7 @@ namespace mkldnn {
 
 template <typename data_i_t, typename data_o_t>
 inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
-        memory &src, memory &dst)
-{
+        memory &src, memory &dst) {
     auto src_data = map_memory<data_i_t>(src);
     auto dst_data = map_memory<data_o_t>(dst);
 
@@ -61,9 +60,8 @@ struct test_simple_params {
 };
 
 template <typename reorder_types>
-class reorder_simple_test:
-    public ::testing::TestWithParam<test_simple_params<reorder_types>>
-{
+class reorder_simple_test
+    : public ::testing::TestWithParam<test_simple_params<reorder_types>> {
 protected:
     void Test() {
         test_simple_params<reorder_types> p
@@ -87,7 +85,7 @@ protected:
         using data_o_t = typename reorder_types::second_type;
 
         test_simple_params<reorder_types> p
-            = ::testing::TestWithParam<decltype(p)>::GetParam();
+                = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         auto eng_i = engine(eng_kind_i, 0);
         auto eng_o = (eng_kind_o == eng_kind_i) ? eng_i : engine(eng_kind_o, 0);
@@ -111,7 +109,8 @@ protected:
                 src_data[mdw_i.off_l(i, false)] = data_i_t(i);
         }
 
-        reorder::primitive_desc r_pd(eng_i, md_i, eng_o, md_o, primitive_attr());
+        reorder::primitive_desc r_pd(
+                eng_i, md_i, eng_o, md_o, primitive_attr());
         auto r = reorder(r_pd);
 
         auto strm = stream(r_pd.get_engine());

@@ -42,9 +42,9 @@ extern "C" {
 
 /// Version type
 typedef struct {
-    int    major;
-    int    minor;
-    int    patch;
+    int major;
+    int minor;
+    int patch;
     const char *hash;
 } mkldnn_version_t;
 
@@ -1205,9 +1205,7 @@ typedef struct {
 } mkldnn_inner_product_desc_t;
 
 /// Flags for RNN cell.
-typedef enum {
-    mkldnn_rnn_flags_undef = 0x0
-} mkldnn_rnn_flags_t;
+typedef enum { mkldnn_rnn_flags_undef = 0x0 } mkldnn_rnn_flags_t;
 
 /// A direction of RNN primitive execution.
 typedef enum {
@@ -1327,12 +1325,11 @@ typedef const struct mkldnn_engine *const_mkldnn_engine_t;
 struct mkldnn_primitive_desc_iterator;
 
 /// @brief A primitive descriptor iterator handle.
-typedef struct mkldnn_primitive_desc_iterator
-    *mkldnn_primitive_desc_iterator_t;
+typedef struct mkldnn_primitive_desc_iterator *mkldnn_primitive_desc_iterator_t;
 
 /// @brief A constant primitive descriptor iterator handle.
 typedef const struct mkldnn_primitive_desc_iterator
-    *const_mkldnn_primitive_desc_iterator_t;
+        *const_mkldnn_primitive_desc_iterator_t;
 
 /// @}
 
@@ -1418,76 +1415,76 @@ typedef const struct mkldnn_primitive *const_mkldnn_primitive_t;
 /// @addtogroup c_api_types_arguments Argument indices
 /// @{
 
-#define MKLDNN_ARG_SRC_0                1
-#define MKLDNN_ARG_SRC                  MKLDNN_ARG_SRC_0
-#define MKLDNN_ARG_SRC_LAYER            MKLDNN_ARG_SRC_0
-#define MKLDNN_ARG_FROM                 MKLDNN_ARG_SRC_0
+#define MKLDNN_ARG_SRC_0 1
+#define MKLDNN_ARG_SRC MKLDNN_ARG_SRC_0
+#define MKLDNN_ARG_SRC_LAYER MKLDNN_ARG_SRC_0
+#define MKLDNN_ARG_FROM MKLDNN_ARG_SRC_0
 
-#define MKLDNN_ARG_SRC_1                2
-#define MKLDNN_ARG_SRC_ITER             MKLDNN_ARG_SRC_1
+#define MKLDNN_ARG_SRC_1 2
+#define MKLDNN_ARG_SRC_ITER MKLDNN_ARG_SRC_1
 
-#define MKLDNN_ARG_SRC_2                3
-#define MKLDNN_ARG_SRC_ITER_C           MKLDNN_ARG_SRC_2
+#define MKLDNN_ARG_SRC_2 3
+#define MKLDNN_ARG_SRC_ITER_C MKLDNN_ARG_SRC_2
 
-#define MKLDNN_ARG_DST_0                17
-#define MKLDNN_ARG_DST                  MKLDNN_ARG_DST_0
-#define MKLDNN_ARG_TO                   MKLDNN_ARG_DST_0
-#define MKLDNN_ARG_DST_LAYER            MKLDNN_ARG_DST_0
+#define MKLDNN_ARG_DST_0 17
+#define MKLDNN_ARG_DST MKLDNN_ARG_DST_0
+#define MKLDNN_ARG_TO MKLDNN_ARG_DST_0
+#define MKLDNN_ARG_DST_LAYER MKLDNN_ARG_DST_0
 
-#define MKLDNN_ARG_DST_1                18
-#define MKLDNN_ARG_DST_ITER             MKLDNN_ARG_DST_1
+#define MKLDNN_ARG_DST_1 18
+#define MKLDNN_ARG_DST_ITER MKLDNN_ARG_DST_1
 
-#define MKLDNN_ARG_DST_2                19
-#define MKLDNN_ARG_DST_ITER_C           MKLDNN_ARG_DST_2
+#define MKLDNN_ARG_DST_2 19
+#define MKLDNN_ARG_DST_ITER_C MKLDNN_ARG_DST_2
 
-#define MKLDNN_ARG_WEIGHTS_0            33
-#define MKLDNN_ARG_WEIGHTS              MKLDNN_ARG_WEIGHTS_0
-#define MKLDNN_ARG_SCALE_SHIFT          MKLDNN_ARG_WEIGHTS_0
-#define MKLDNN_ARG_WEIGHTS_LAYER        MKLDNN_ARG_WEIGHTS_0
+#define MKLDNN_ARG_WEIGHTS_0 33
+#define MKLDNN_ARG_WEIGHTS MKLDNN_ARG_WEIGHTS_0
+#define MKLDNN_ARG_SCALE_SHIFT MKLDNN_ARG_WEIGHTS_0
+#define MKLDNN_ARG_WEIGHTS_LAYER MKLDNN_ARG_WEIGHTS_0
 
-#define MKLDNN_ARG_WEIGHTS_1            34
-#define MKLDNN_ARG_WEIGHTS_ITER         MKLDNN_ARG_WEIGHTS_1
+#define MKLDNN_ARG_WEIGHTS_1 34
+#define MKLDNN_ARG_WEIGHTS_ITER MKLDNN_ARG_WEIGHTS_1
 
-#define MKLDNN_ARG_BIAS                 41
+#define MKLDNN_ARG_BIAS 41
 
-#define MKLDNN_ARG_MEAN                 49
-#define MKLDNN_ARG_VARIANCE             50
+#define MKLDNN_ARG_MEAN 49
+#define MKLDNN_ARG_VARIANCE 50
 
-#define MKLDNN_ARG_WORKSPACE            64
-#define MKLDNN_ARG_SCRATCHPAD           80
+#define MKLDNN_ARG_WORKSPACE 64
+#define MKLDNN_ARG_SCRATCHPAD 80
 
-#define MKLDNN_ARG_DIFF_SRC_0           129
-#define MKLDNN_ARG_DIFF_SRC             MKLDNN_ARG_DIFF_SRC_0
-#define MKLDNN_ARG_DIFF_SRC_LAYER       MKLDNN_ARG_DIFF_SRC_0
+#define MKLDNN_ARG_DIFF_SRC_0 129
+#define MKLDNN_ARG_DIFF_SRC MKLDNN_ARG_DIFF_SRC_0
+#define MKLDNN_ARG_DIFF_SRC_LAYER MKLDNN_ARG_DIFF_SRC_0
 
-#define MKLDNN_ARG_DIFF_SRC_1           130
-#define MKLDNN_ARG_DIFF_SRC_ITER        MKLDNN_ARG_DIFF_SRC_1
+#define MKLDNN_ARG_DIFF_SRC_1 130
+#define MKLDNN_ARG_DIFF_SRC_ITER MKLDNN_ARG_DIFF_SRC_1
 
-#define MKLDNN_ARG_DIFF_SRC_2           131
-#define MKLDNN_ARG_DIFF_SRC_ITER_C      MKLDNN_ARG_DIFF_SRC_2
+#define MKLDNN_ARG_DIFF_SRC_2 131
+#define MKLDNN_ARG_DIFF_SRC_ITER_C MKLDNN_ARG_DIFF_SRC_2
 
-#define MKLDNN_ARG_DIFF_DST_0           145
-#define MKLDNN_ARG_DIFF_DST             MKLDNN_ARG_DIFF_DST_0
-#define MKLDNN_ARG_DIFF_DST_LAYER       MKLDNN_ARG_DIFF_DST_0
+#define MKLDNN_ARG_DIFF_DST_0 145
+#define MKLDNN_ARG_DIFF_DST MKLDNN_ARG_DIFF_DST_0
+#define MKLDNN_ARG_DIFF_DST_LAYER MKLDNN_ARG_DIFF_DST_0
 
-#define MKLDNN_ARG_DIFF_DST_1           146
-#define MKLDNN_ARG_DIFF_DST_ITER        MKLDNN_ARG_DIFF_DST_1
+#define MKLDNN_ARG_DIFF_DST_1 146
+#define MKLDNN_ARG_DIFF_DST_ITER MKLDNN_ARG_DIFF_DST_1
 
-#define MKLDNN_ARG_DIFF_DST_2           147
-#define MKLDNN_ARG_DIFF_DST_ITER_C      MKLDNN_ARG_DIFF_DST_2
+#define MKLDNN_ARG_DIFF_DST_2 147
+#define MKLDNN_ARG_DIFF_DST_ITER_C MKLDNN_ARG_DIFF_DST_2
 
-#define MKLDNN_ARG_DIFF_WEIGHTS_0       161
-#define MKLDNN_ARG_DIFF_WEIGHTS         MKLDNN_ARG_DIFF_WEIGHTS_0
-#define MKLDNN_ARG_DIFF_SCALE_SHIFT     MKLDNN_ARG_DIFF_WEIGHTS_0
-#define MKLDNN_ARG_DIFF_WEIGHTS_LAYER   MKLDNN_ARG_DIFF_WEIGHTS_0
+#define MKLDNN_ARG_DIFF_WEIGHTS_0 161
+#define MKLDNN_ARG_DIFF_WEIGHTS MKLDNN_ARG_DIFF_WEIGHTS_0
+#define MKLDNN_ARG_DIFF_SCALE_SHIFT MKLDNN_ARG_DIFF_WEIGHTS_0
+#define MKLDNN_ARG_DIFF_WEIGHTS_LAYER MKLDNN_ARG_DIFF_WEIGHTS_0
 
-#define MKLDNN_ARG_DIFF_WEIGHTS_1       162
-#define MKLDNN_ARG_DIFF_WEIGHTS_ITER    MKLDNN_ARG_DIFF_WEIGHTS_1
+#define MKLDNN_ARG_DIFF_WEIGHTS_1 162
+#define MKLDNN_ARG_DIFF_WEIGHTS_ITER MKLDNN_ARG_DIFF_WEIGHTS_1
 
-#define MKLDNN_ARG_DIFF_BIAS            169
+#define MKLDNN_ARG_DIFF_BIAS 169
 
-#define MKLDNN_ARG_MULTIPLE_SRC         1024
-#define MKLDNN_ARG_MULTIPLE_DST         2048
+#define MKLDNN_ARG_MULTIPLE_SRC 1024
+#define MKLDNN_ARG_MULTIPLE_DST 2048
 
 /// @}
 
@@ -1546,12 +1543,12 @@ typedef enum {
 
     mkldnn_query_time_estimate_f64, ///< runtime estimation (seconds)
     mkldnn_query_memory_consumption_s64, ///< memory consumption -- extra
-                                         ///  (scratch) memory, additional to
-                                         ///  all inputs and outputs memory
-                                         ///  (bytes)
+    ///  (scratch) memory, additional to
+    ///  all inputs and outputs memory
+    ///  (bytes)
 
     mkldnn_query_scratchpad_engine, ///< scratchpad engine -- engine to be used
-                                    ///  for creating scratchpad memory
+    ///  for creating scratchpad memory
 
     mkldnn_query_impl_info_str, ///< implementation name
 
@@ -1616,6 +1613,5 @@ typedef const struct mkldnn_stream *const_mkldnn_stream_t;
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif

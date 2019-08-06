@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include <stdio.h>
 #include <cinttypes>
+#include <stdio.h>
 
 #include "mkldnn_debug.h"
 #include "mkldnn_types.h"
@@ -25,25 +25,25 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#define DPRINT(...) do { \
-    int l = snprintf(str + written_len, str_len, __VA_ARGS__); \
-    if (l < 0) return l; \
-    if ((size_t)l >= str_len) return -1; \
-    written_len += l; str_len -= l; \
-} while(0)
+#define DPRINT(...) \
+    do { \
+        int l = snprintf(str + written_len, str_len, __VA_ARGS__); \
+        if (l < 0) return l; \
+        if ((size_t)l >= str_len) return -1; \
+        written_len += l; \
+        str_len -= l; \
+    } while (0)
 
-int mkldnn_md2fmt_str(char *str, size_t str_len,
-        const mkldnn_memory_desc_t *mdesc) {
+int mkldnn_md2fmt_str(
+        char *str, size_t str_len, const mkldnn_memory_desc_t *mdesc) {
     using namespace mkldnn::impl;
 
-    if (str == nullptr || str_len <= 1u)
-        return -1;
+    if (str == nullptr || str_len <= 1u) return -1;
 
     int written_len = 0;
 
     if (mdesc == nullptr) {
-        DPRINT("%s::%s::",
-                mkldnn_dt2str(data_type::undef),
+        DPRINT("%s::%s::", mkldnn_dt2str(data_type::undef),
                 mkldnn_fmt_kind2str(format_kind::undef));
         return written_len;
     }
@@ -58,9 +58,7 @@ int mkldnn_md2fmt_str(char *str, size_t str_len,
         if (md.padded_offsets()[d] != 0) padded_offsets = true;
     }
     bool offset0 = md.offset0();
-    DPRINT("%s%s%s:",
-            padded_dims ? "p" : "",
-            padded_offsets ? "o" : "",
+    DPRINT("%s%s%s:", padded_dims ? "p" : "", padded_offsets ? "o" : "",
             offset0 ? "0" : "");
 
     DPRINT("%s:", mkldnn_fmt_kind2str(md.format_kind()));
@@ -105,12 +103,11 @@ int mkldnn_md2fmt_str(char *str, size_t str_len,
     return written_len;
 }
 
-int mkldnn_md2dim_str(char *str, size_t str_len,
-        const mkldnn_memory_desc_t *mdesc) {
+int mkldnn_md2dim_str(
+        char *str, size_t str_len, const mkldnn_memory_desc_t *mdesc) {
     using namespace mkldnn::impl;
 
-    if (str == nullptr || str_len <= 1)
-        return -1;
+    if (str == nullptr || str_len <= 1) return -1;
 
     int written_len = 0;
 
@@ -128,4 +125,4 @@ int mkldnn_md2dim_str(char *str, size_t str_len,
     return written_len;
 }
 
-#undef  DPRINT
+#undef DPRINT

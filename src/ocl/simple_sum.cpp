@@ -53,11 +53,10 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, scale);
         arg_list.set(3, a);
 
-        auto nd_range = compute::nd_range_t({ nelems });
+        auto nd_range = compute::nd_range_t({nelems});
         status_t status
                 = compute_stream->parallel_for(nd_range, kernel_, arg_list);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
     }
     return status::success;
 }

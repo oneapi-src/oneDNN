@@ -39,7 +39,7 @@ typedef float data_t;
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
-struct jit_softmax_t: public jit_generator {
+struct jit_softmax_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const data_t *src, *dst;
@@ -49,8 +49,8 @@ struct jit_softmax_t: public jit_generator {
 
     // cpu specific part
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword = (isa == sse41) ? xword :
-                                  (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const softmax_pd_t *sdesc_;
@@ -105,11 +105,11 @@ struct jit_softmax_t: public jit_generator {
         movq(xneg_flt_max, reg_tmp);
         uni_vbroadcastss(vneg_flt_max, xneg_flt_max);
 
-#       define PARAM_OFF(x) offsetof(call_params_t, x)
+#define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_soff_max, ptr[reg_param + PARAM_OFF(soff_max)]);
         mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-#       undef PARAM_OFF
+#undef PARAM_OFF
     }
 
     void prepare_tail_mask_sse41() {
@@ -127,8 +127,9 @@ struct jit_softmax_t: public jit_generator {
                 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
                 0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
 
-        mov(reg_tmp, reinterpret_cast<size_t>(
-                    &mask_f32[8 - axis_simd_tail_ % simd_w_]));
+        mov(reg_tmp,
+                reinterpret_cast<size_t>(
+                        &mask_f32[8 - axis_simd_tail_ % simd_w_]));
         vmovups(vtail_mask, ptr[reg_tmp]);
     }
 
@@ -174,8 +175,10 @@ struct jit_softmax_t: public jit_generator {
     enum class op_t : unsigned { max, sum };
 
     void perform_op(Vmm v, Vmm vtmp, op_t op) {
-        if (op == op_t::max) uni_vmaxps(v, v, vtmp);
-        else if (op == op_t::sum) uni_vaddps(v, v, vtmp);
+        if (op == op_t::max)
+            uni_vmaxps(v, v, vtmp);
+        else if (op == op_t::sum)
+            uni_vaddps(v, v, vtmp);
     }
 
     void get_horizontal_op(Vmm &v, Vmm &vtmp, op_t op) {
@@ -198,8 +201,9 @@ struct jit_softmax_t: public jit_generator {
         Label main_loop, tail_loop, tail_axis;
 
         mov(reg_rsoff, reg_soff_max); // reverse soff to dispatch between labels
-        xor_(reg_soff, reg_soff);     // soff to get addr of src/dst
-        L(main_loop); {
+        xor_(reg_soff, reg_soff); // soff to get addr of src/dst
+        L(main_loop);
+        {
             if (n_loops_) {
                 cmp(reg_rsoff, unroll_regs_ * vlen);
                 jl(tail_loop, T_NEAR);
@@ -211,17 +215,17 @@ struct jit_softmax_t: public jit_generator {
             }
         }
 
-        L(tail_loop); {
+        L(tail_loop);
+        {
             if (loop_tail_) {
                 body(loop_tail_);
                 add(reg_soff, loop_tail_ * vlen);
             }
         }
 
-        L(tail_axis); {
-            if (axis_simd_tail_) {
-                body(1, true);
-            }
+        L(tail_axis);
+        {
+            if (axis_simd_tail_) { body(1, true); }
         }
     }
 
@@ -287,7 +291,8 @@ struct jit_softmax_t: public jit_generator {
             }
         };
 
-        uni_vmovups(vmax, vneg_flt_max); // flush to -FLT_MAX before accumulation
+        uni_vmovups(
+                vmax, vneg_flt_max); // flush to -FLT_MAX before accumulation
         axis_loop(accumulate_vmax);
 
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
@@ -301,15 +306,15 @@ struct jit_softmax_t: public jit_generator {
         axis_loop(compute_dst);
     }
 
-    jit_softmax_t(const softmax_pd_t *sdesc): sdesc_(sdesc) {
+    jit_softmax_t(const softmax_pd_t *sdesc) : sdesc_(sdesc) {
         static_assert(utils::one_of(isa, sse41, avx2, avx512_common),
                 "unsupported isa");
 
         compute_predefined_variables();
 
-        eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(
-                this, alg_kind::eltwise_exp, 0.0f, 0.0f, true,
-                reg_injector_table, injector_mask);
+        eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+                alg_kind::eltwise_exp, 0.0f, 0.0f, true, reg_injector_table,
+                injector_mask);
 
         preamble();
 
@@ -329,25 +334,26 @@ struct jit_softmax_t: public jit_generator {
 
         eltwise_injector_->prepare_table();
 
-        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t*>(
-                    this->getCode()));
+        ker = reinterpret_cast<decltype(ker)>(
+                const_cast<uint8_t *>(this->getCode()));
     }
 
-    ~jit_softmax_t() {
-        delete eltwise_injector_;
-    }
+    ~jit_softmax_t() { delete eltwise_injector_; }
 };
 
 // keep two sse41 functions separately to have common part human-friendly code
 template <>
 void jit_softmax_t<sse41>::uni_vmovups_tail(
-        const Operand &dst, const Operand &src) = delete;
+        const Operand &dst, const Operand &src)
+        = delete;
 template <>
 void jit_softmax_t<sse41>::uni_vmovups_tail_avx2(
-        const Operand &dst, const Operand &src) = delete;
+        const Operand &dst, const Operand &src)
+        = delete;
 template <>
 void jit_softmax_t<sse41>::uni_vmovups_tail_avx512(
-        const Operand &dst, const Operand &src) = delete;
+        const Operand &dst, const Operand &src)
+        = delete;
 
 template <>
 void jit_softmax_t<sse41>::get_horizontal_op(Vmm &v, Vmm &vtmp, op_t op) {
@@ -379,7 +385,7 @@ void jit_softmax_t<sse41>::forward() {
                 }
             }
         }
-     };
+    };
 
     auto accumulate_vsum = [&](int unroll, bool tail = false) {
         for (int i = 0; i < unroll; i++) {
@@ -437,7 +443,7 @@ void jit_softmax_t<sse41>::forward() {
     axis_loop(compute_dst);
 }
 
-}
+} // namespace
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
@@ -469,10 +475,9 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 namespace softmax_impl {
 
 template <cpu_isa_t isa>
-struct driver_t: public c_compatible {
+struct driver_t : public c_compatible {
 
-    driver_t(const softmax_pd_t *sdesc)
-        : sdesc_(sdesc), ker_(sdesc_) {}
+    driver_t(const softmax_pd_t *sdesc) : sdesc_(sdesc), ker_(sdesc_) {}
     ~driver_t() {}
 
     void exec(const data_t *src, data_t *dst) {
@@ -489,13 +494,13 @@ private:
     jit_softmax_t<isa> ker_;
 };
 
-}
+} // namespace softmax_impl
 
 /* struct instantiation */
 template struct jit_uni_softmax_fwd_t<sse41>;
 template struct jit_uni_softmax_fwd_t<avx2>;
 template struct jit_uni_softmax_fwd_t<avx512_common>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

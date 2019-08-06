@@ -30,8 +30,8 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-struct ref_convolution_fwd_t: public primitive_t {
-    struct pd_t: public ocl_convolution_fwd_pd_t {
+struct ref_convolution_fwd_t : public primitive_t {
+    struct pd_t : public ocl_convolution_fwd_pd_t {
         using ocl_convolution_fwd_pd_t::ocl_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
@@ -41,18 +41,16 @@ struct ref_convolution_fwd_t: public primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine());
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
-                               prop_kind::forward_training,
-                               prop_kind::forward_inference)
+                            prop_kind::forward_training,
+                            prop_kind::forward_inference)
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && IMPLICATION(
-                               utils::one_of(data_type::f16, src_md_.data_type,
-                                       weights_md_.data_type,
-                                       dst_md_.data_type),
-                               compute_engine->mayiuse(
-                                       compute::device_ext_t::khr_fp16))
+                            utils::one_of(data_type::f16, src_md_.data_type,
+                                    weights_md_.data_type, dst_md_.data_type),
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
                     && this->set_default_formats();
-            if (!ok)
-                return status::unimplemented;
+            if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->src_md(),
                     *this->weights_md(), *this->weights_md(1), *this->dst_md(),
@@ -67,35 +65,33 @@ struct ref_convolution_fwd_t: public primitive_t {
         }
 
         float eltwise_alpha() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise(0) || with_eltwise(1)
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                : 1.0f;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
+                    : 1.0f;
         }
 
         float eltwise_beta() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise(0) || with_eltwise(1)
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                : 0.0f;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
+                    : 0.0f;
         }
 
         float sum_scale() const {
-            const int sum_idx =
-                attr()->post_ops_.find(primitive_kind::sum);
-            return with_sum()
-                ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                : 1.0f;
+            const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
+            return with_sum() ? attr()->post_ops_.entry_[sum_idx].sum.scale
+                              : 1.0f;
         }
 
         alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx =
-                attr()->post_ops_.find(primitive_kind::eltwise);
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise(0) || with_eltwise(1)
-                ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                : mkldnn_alg_kind_undef;
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
+                    : mkldnn_alg_kind_undef;
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -105,8 +101,8 @@ struct ref_convolution_fwd_t: public primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
@@ -119,13 +115,11 @@ struct ref_convolution_fwd_t: public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->kernel()->apply_const(kernel_ctx);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(
                 &kernel_, "ref_convolution_fwd_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -142,23 +136,21 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_data_t: public primitive_t {
-    struct pd_t: public ocl_convolution_bwd_data_pd_t {
+struct ref_convolution_bwd_data_t : public primitive_t {
+    struct pd_t : public ocl_convolution_bwd_data_pd_t {
         using ocl_convolution_bwd_data_pd_t::ocl_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_data_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_data
-                && desc()->alg_kind == alg_kind::convolution_direct
-                && this->set_default_formats();
-            if (!ok)
-                return status::unimplemented;
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && desc()->alg_kind == alg_kind::convolution_direct
+                    && this->set_default_formats();
+            if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->diff_src_md(),
                     *this->weights_md(), *this->weights_md(1),
-                    *this->diff_dst_md(),*this->attr());
+                    *this->diff_dst_md(), *this->attr());
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -168,8 +160,8 @@ struct ref_convolution_bwd_data_t: public primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
@@ -182,13 +174,11 @@ struct ref_convolution_bwd_data_t: public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->kernel()->apply_const(kernel_ctx);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(
                 &kernel_, "ref_convolution_bwd_data_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -205,23 +195,22 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_weights_t: public primitive_t {
-    struct pd_t: public ocl_convolution_bwd_weights_pd_t {
-        using ocl_convolution_bwd_weights_pd_t::ocl_convolution_bwd_weights_pd_t;
+struct ref_convolution_bwd_weights_t : public primitive_t {
+    struct pd_t : public ocl_convolution_bwd_weights_pd_t {
+        using ocl_convolution_bwd_weights_pd_t::
+                ocl_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 
         status_t init() {
-            bool ok = true
-                && desc()->prop_kind == prop_kind::backward_weights
-                && desc()->alg_kind == alg_kind::convolution_direct
-                && this->set_default_formats();
-            if (!ok)
-                return status::unimplemented;
+            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+                    && desc()->alg_kind == alg_kind::convolution_direct
+                    && this->set_default_formats();
+            if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->src_md(),
                     *this->diff_weights_md(), *this->diff_weights_md(1),
-                    *this->diff_dst_md(),*this->attr());
+                    *this->diff_dst_md(), *this->attr());
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -231,8 +220,8 @@ struct ref_convolution_bwd_weights_t: public primitive_t {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
             auto wei_tag = with_groups()
-                ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                : utils::pick(ndims() - 3, oiw, oihw, oidhw);
+                    ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
+                    : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
@@ -245,13 +234,11 @@ struct ref_convolution_bwd_weights_t: public primitive_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->kernel()->apply_const(kernel_ctx);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
         compute_engine->create_kernel(
                 &kernel_, "ref_convolution_bwd_weights_kernel", kernel_ctx);
-        if (!kernel_)
-            return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -268,7 +255,7 @@ private:
     compute::kernel_t kernel_;
 };
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 #endif

@@ -31,7 +31,10 @@
 
 // #define TR_DEBUG
 #if defined(TR_DEBUG)
-#define DEBUg(...) do { __VA_ARGS__ } while (0)
+#define DEBUg(...) \
+    do { \
+        __VA_ARGS__ \
+    } while (0)
 #else
 #define DEBUg(...)
 #endif
@@ -57,7 +60,7 @@ namespace tr {
 const size_t ker_prb_size_min = 64;
 
 /* kernel */
-struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
+struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_reorder_kernel_f32)
 
     enum {
@@ -71,8 +74,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         int len_unroll;
     };
 
-    static bool simple_impl_desc_init(const prb_t &prb,
-            simple_impl_desc_t *desc) {
+    static bool simple_impl_desc_init(
+            const prb_t &prb, simple_impl_desc_t *desc) {
         const int ndims = prb.ndims;
 
         int ndims_full_unroll = 0;
@@ -93,8 +96,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             }
         }
 
-        if (prb.ndims - ndims_full_unroll > ndims_jit_loop_max)
-            return false;
+        if (prb.ndims - ndims_full_unroll > ndims_jit_loop_max) return false;
 
         if (desc) {
             desc->ndims_full_unroll = ndims_full_unroll;
@@ -108,47 +110,62 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     static bool applicable(const prb_t &p) {
         using namespace data_type;
 
-        bool ok = true
-            && p.ndims > 0
-            && utils::one_of(p.itype, f32, bf16, s32, s8, u8)
-            && utils::one_of(p.otype, f32, bf16, s32, s8, u8)
-            && IMPLICATION(p.itype == bf16, utils::one_of(p.otype, f32, bf16))
-            && IMPLICATION(p.otype == bf16, utils::one_of(p.itype, f32, bf16))
-            && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
-            && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-            && simple_impl_desc_init(p, nullptr)
-            && mayiuse(sse41)
-            && IMPLICATION(!utils::everyone_is(f32, p.itype, p.otype),
-                    mayiuse(avx))
-            && IMPLICATION((p.itype == bf16 || p.otype == bf16),
-                    mayiuse(avx512_core));
+        bool ok = true && p.ndims > 0
+                && utils::one_of(p.itype, f32, bf16, s32, s8, u8)
+                && utils::one_of(p.otype, f32, bf16, s32, s8, u8)
+                && IMPLICATION(
+                        p.itype == bf16, utils::one_of(p.otype, f32, bf16))
+                && IMPLICATION(
+                        p.otype == bf16, utils::one_of(p.itype, f32, bf16))
+                && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
+                && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
+                && simple_impl_desc_init(p, nullptr) && mayiuse(sse41)
+                && IMPLICATION(!utils::everyone_is(f32, p.itype, p.otype),
+                        mayiuse(avx))
+                && IMPLICATION((p.itype == bf16 || p.otype == bf16),
+                        mayiuse(avx512_core));
         if (!ok) return false;
 
-        const ptrdiff_t max_stride = (1LL<<31) - 1;
+        const ptrdiff_t max_stride = (1LL << 31) - 1;
         for (int d = 0; d < p.ndims; ++d) {
             const ptrdiff_t cms = max_stride / p.nodes[d].n;
             bool strides_ok = true
-                && p.nodes[d].is < cms / (int)data_type_size(p.itype)
-                && p.nodes[d].os < cms / (int)data_type_size(p.otype);
+                    && p.nodes[d].is < cms / (int)data_type_size(p.itype)
+                    && p.nodes[d].os < cms / (int)data_type_size(p.otype);
             if (!strides_ok) return false;
         }
 
         return true;
     }
 
-    int n(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].n; }
-    int is(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].is; }
-    int os(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].os; }
-    int ss(int d) { assert(d < prb_.ndims); return (int)prb_.nodes[d].ss; }
+    int n(int d) {
+        assert(d < prb_.ndims);
+        return (int)prb_.nodes[d].n;
+    }
+    int is(int d) {
+        assert(d < prb_.ndims);
+        return (int)prb_.nodes[d].is;
+    }
+    int os(int d) {
+        assert(d < prb_.ndims);
+        return (int)prb_.nodes[d].os;
+    }
+    int ss(int d) {
+        assert(d < prb_.ndims);
+        return (int)prb_.nodes[d].ss;
+    }
 
-    Address i_addr(int i_off)
-    { return ptr[reg_ptr_in + reg_off_in + i_off * itype_sz]; }
+    Address i_addr(int i_off) {
+        return ptr[reg_ptr_in + reg_off_in + i_off * itype_sz];
+    }
 
-    Address o_addr(int o_off)
-    { return ptr[reg_ptr_out + reg_off_out + o_off * otype_sz]; }
+    Address o_addr(int o_off) {
+        return ptr[reg_ptr_out + reg_off_out + o_off * otype_sz];
+    }
 
-    Address s_addr(int s_off)
-    { return ptr[reg_ptr_scale + reg_off_scale + s_off * stype_sz]; }
+    Address s_addr(int s_off) {
+        return ptr[reg_ptr_scale + reg_off_scale + s_off * stype_sz];
+    }
 
     void step(int off, int prev_i_off, int prev_o_off, int prev_s_off,
             int &i_off, int &o_off, int &s_off, int step_size = 1) {
@@ -171,9 +188,9 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
             if (off % n(d)) break;
 
-            i_off += - n(d) * is(d);
-            o_off += - n(d) * os(d);
-            s_off += - n(d) * ss(d);
+            i_off += -n(d) * is(d);
+            o_off += -n(d) * os(d);
+            s_off += -n(d) * ss(d);
             off /= n(d);
 
             if (off == 0) break; /* FIXME: is it really required? */
@@ -225,15 +242,12 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
     }
 
     bool process_unroll_tr8x8(int len) {
-        bool can_do = true
-            && mayiuse(avx2)
-            && prb_.ndims >= 2
-            && utils::everyone_is(4, itype_sz, otype_sz)
-            && utils::everyone_is(8, n(0), n(1))
-            && utils::everyone_is(1, os(0), is(1))
-            && utils::everyone_is(8, os(1), is(0))
-            && prb_.scale_type == scale_type_t::NONE
-            && prb_.beta == 0.f;
+        bool can_do = true && mayiuse(avx2) && prb_.ndims >= 2
+                && utils::everyone_is(4, itype_sz, otype_sz)
+                && utils::everyone_is(8, n(0), n(1))
+                && utils::everyone_is(1, os(0), is(1))
+                && utils::everyone_is(8, os(1), is(0))
+                && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 
         const int step_size = n(0) * n(1);
@@ -253,18 +267,13 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         using Vmm = typename cpu_isa_traits<isa>::Vmm;
         const int simd_w = cpu_isa_traits<isa>::vlen / itype_sz;
 
-        bool can_do = true
-            && mayiuse(isa)
-            && utils::everyone_is(1, os(0), is(0))
-            && (false
-                    || prb_.itype == prb_.otype
-                    || (prb_.itype == s32 && prb_.otype == f32)
-                    || (prb_.itype == f32 && prb_.otype == s32)
-                    )
-            && len % simd_w == 0
-            && n(0) % len == 0
-            && prb_.scale_type == scale_type_t::NONE
-            && prb_.beta == 0.f;
+        bool can_do = true && mayiuse(isa)
+                && utils::everyone_is(1, os(0), is(0))
+                && (false || prb_.itype == prb_.otype
+                        || (prb_.itype == s32 && prb_.otype == f32)
+                        || (prb_.itype == f32 && prb_.otype == s32))
+                && len % simd_w == 0 && n(0) % len == 0
+                && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 
         for (int off = 0; off < len;) {
@@ -279,7 +288,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                         uni_vcvtdq2ps(Vmm(ur), Vmm(ur));
                     else if (prb_.itype == f32 && prb_.otype == s32)
                         uni_vcvtps2dq(Vmm(ur), Vmm(ur));
-                    else assert(!"unreachable");
+                    else
+                        assert(!"unreachable");
                 }
             }
 
@@ -299,104 +309,113 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         auto cvt2ps = [=](const Xmm &dst, const Operand &src, data_type_t idt) {
             Xmm dst_pure = Xmm(dst.getIdx());
             switch (idt) {
-            case f32:
-                if (src.isMEM() || src.getIdx() != dst.getIdx())
-                    vmovups(dst, src);
-                break;
-            case bf16: vpmovzxwd(dst, src); vpslld(dst, dst, 0x10); break;
-            case s32: vcvtdq2ps(dst, src); break;
-            case s8: vpmovsxbd(dst, src); vcvtdq2ps(dst_pure, dst); break;
-            case u8: vpmovzxbd(dst, src); vcvtdq2ps(dst_pure, dst); break;
-            default: assert(!"unreachable");
+                case f32:
+                    if (src.isMEM() || src.getIdx() != dst.getIdx())
+                        vmovups(dst, src);
+                    break;
+                case bf16:
+                    vpmovzxwd(dst, src);
+                    vpslld(dst, dst, 0x10);
+                    break;
+                case s32: vcvtdq2ps(dst, src); break;
+                case s8:
+                    vpmovsxbd(dst, src);
+                    vcvtdq2ps(dst_pure, dst);
+                    break;
+                case u8:
+                    vpmovzxbd(dst, src);
+                    vcvtdq2ps(dst_pure, dst);
+                    break;
+                default: assert(!"unreachable");
             }
         };
 
         auto cvt2odt = [=](const Xmm &xmm, data_type_t odt, data_type_t idt) {
             switch (odt) {
-            case bf16:
-                if (idt == f32) {
-                    if (mayiuse(avx512_core_bf16)) {
-                        vcvtneps2bf16(xmm, xmm);
-                    } else {
-                        bf16_emu_->vcvtneps2bf16(
-                                Ymm(xmm.getIdx()), Zmm(xmm.getIdx()));
+                case bf16:
+                    if (idt == f32) {
+                        if (mayiuse(avx512_core_bf16)) {
+                            vcvtneps2bf16(xmm, xmm);
+                        } else {
+                            bf16_emu_->vcvtneps2bf16(
+                                    Ymm(xmm.getIdx()), Zmm(xmm.getIdx()));
+                        }
                     }
-                }
-                break;
-            case s32:
-                if (idt == f32) vcvtps2dq(xmm, xmm);
-                else if (idt == s8) vpmovsxbd(xmm, xmm);
-                else if (idt == u8) vpmovzxbd(xmm, xmm);
-                break;
-            case s8:
-                if (idt == f32) vcvtps2dq(xmm, xmm);
-                if (idt == f32 || idt == s32) {
-                    if (mayiuse(avx512_core)) {
-                        vpmovsdb(xmm, xmm);
-                    } else {
-                        vpackssdw(xmm, xmm, xmm_zero);
-                        vpacksswb(xmm, xmm, xmm_zero);
+                    break;
+                case s32:
+                    if (idt == f32)
+                        vcvtps2dq(xmm, xmm);
+                    else if (idt == s8)
+                        vpmovsxbd(xmm, xmm);
+                    else if (idt == u8)
+                        vpmovzxbd(xmm, xmm);
+                    break;
+                case s8:
+                    if (idt == f32) vcvtps2dq(xmm, xmm);
+                    if (idt == f32 || idt == s32) {
+                        if (mayiuse(avx512_core)) {
+                            vpmovsdb(xmm, xmm);
+                        } else {
+                            vpackssdw(xmm, xmm, xmm_zero);
+                            vpacksswb(xmm, xmm, xmm_zero);
+                        }
                     }
-                }
-                if (idt == u8) vpminub(xmm, xmm, xmm_4x127b);
-                break;
-            case u8:
-                if (idt == f32) vcvtps2dq(xmm, xmm);
-                if (idt == f32 || idt == s32) {
-                    if (mayiuse(avx512_core)) {
-                        vpmaxsd(xmm, xmm, xmm_zero);
-                        vpmovusdb(xmm, xmm);
-                    } else {
-                        vpackssdw(xmm, xmm, xmm_zero);
-                        vpackuswb(xmm, xmm, xmm_zero);
+                    if (idt == u8) vpminub(xmm, xmm, xmm_4x127b);
+                    break;
+                case u8:
+                    if (idt == f32) vcvtps2dq(xmm, xmm);
+                    if (idt == f32 || idt == s32) {
+                        if (mayiuse(avx512_core)) {
+                            vpmaxsd(xmm, xmm, xmm_zero);
+                            vpmovusdb(xmm, xmm);
+                        } else {
+                            vpackssdw(xmm, xmm, xmm_zero);
+                            vpackuswb(xmm, xmm, xmm_zero);
+                        }
                     }
-                }
-                if (idt == s8) vpmaxsb(xmm, xmm, xmm_zero);
-                break;
-            default: assert(!"unreachable");
+                    if (idt == s8) vpmaxsb(xmm, xmm, xmm_zero);
+                    break;
+                default: assert(!"unreachable");
             }
         };
 
         auto load = [=](const Xmm &xmm, const Address &addr, int size) {
             switch (size) {
-            case 16: movups(xmm, addr); break;
-            case 8: movsd(xmm, addr); break;
-            case 4: movss(xmm, addr); break;
-            case 2: pinsrw(xmm, addr, 0x0); break;
-            case 1: pinsrb(xmm, addr, 0x0); break;
-            default: assert(!"unreachable");
+                case 16: movups(xmm, addr); break;
+                case 8: movsd(xmm, addr); break;
+                case 4: movss(xmm, addr); break;
+                case 2: pinsrw(xmm, addr, 0x0); break;
+                case 1: pinsrb(xmm, addr, 0x0); break;
+                default: assert(!"unreachable");
             }
         };
 
         auto store = [=](const Address &addr, const Xmm &xmm, int size) {
             switch (size) {
-            case 16: movups(addr, xmm); break;
-            case 8: movsd(addr, xmm); break;
-            case 4: movss(addr, xmm); break;
-            case 2: pextrw(addr, xmm, 0x0); break;
-            case 1: pextrb(addr, xmm, 0x0); break;
-            default: assert(!"unreachable");
+                case 16: movups(addr, xmm); break;
+                case 8: movsd(addr, xmm); break;
+                case 4: movss(addr, xmm); break;
+                case 2: pextrw(addr, xmm, 0x0); break;
+                case 1: pextrb(addr, xmm, 0x0); break;
+                default: assert(!"unreachable");
             }
         };
 
         /* check whether loading 4 values at once is possible */
         bool can_load_xmm = mayiuse(avx) && reg_unroll % 4 == 0;
         for (int ur = 1; ur < reg_unroll; ++ur)
-            if (i_off[ur] != i_off[ur - 1] + 1)
-                can_load_xmm = false;
+            if (i_off[ur] != i_off[ur - 1] + 1) can_load_xmm = false;
         const int load_step = can_load_xmm ? 4 : 1;
 
         /* check whether storing 4 values at once is possible */
         bool can_store_xmm = reg_unroll % 4 == 0;
         for (int ur = 1; ur < reg_unroll; ++ur)
-            if (o_off[ur] != o_off[ur - 1] + 1)
-                can_store_xmm = false;
+            if (o_off[ur] != o_off[ur - 1] + 1) can_store_xmm = false;
         const int ur_step = can_store_xmm ? 4 : 1;
 
         const bool interim_f32 = false
-            || utils::one_of(f32, prb_.itype, prb_.otype)
-            || prb_.scale_type != scale_type_t::NONE
-            || prb_.beta != 0.f;
+                || utils::one_of(f32, prb_.itype, prb_.otype)
+                || prb_.scale_type != scale_type_t::NONE || prb_.beta != 0.f;
 
         if (!can_load_xmm && can_store_xmm) {
             assert(ur_step == 4);
@@ -425,8 +444,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
 
         if (can_load_xmm && !can_store_xmm) {
             const bool fast_return = true // transposition on the fly
-                && prb_.scale_type != scale_type_t::MANY
-                && prb_.beta == 0.f;
+                    && prb_.scale_type != scale_type_t::MANY
+                    && prb_.beta == 0.f;
             if (fast_return) {
                 for (int ur = 0; ur < reg_unroll; ur += load_step) {
                     if (prb_.scale_type == scale_type_t::COMMON)
@@ -472,8 +491,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
                 enum class scale_load_type_t { bcast, load, gather };
 
                 for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                    scale_load_type_t scale_load_type =
-                        scale_load_type_t::bcast; // the best case
+                    scale_load_type_t scale_load_type
+                            = scale_load_type_t::bcast; // the best case
 
                     for (int r = ur + 1; r < ur + ur_step; ++r)
                         if (s_off[r] != s_off[r - 1] + 0)
@@ -582,8 +601,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
             for (int ur = off != 0 ? 0 : 1; ur < reg_unroll; ++ur) {
                 const int ur_c = curr * blk + ur;
                 const int ur_p = (ur_c - 1 + 2 * blk) % (2 * blk); // prev ur
-                step(off + ur,
-                        i_off[ur_p], o_off[ur_p], s_off[ur_p],
+                step(off + ur, i_off[ur_p], o_off[ur_p], s_off[ur_p],
                         i_off[ur_c], o_off[ur_c], s_off[ur_c]);
             }
 
@@ -599,8 +617,8 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         L(l);
     }
 
-    void loop_end(Label &l, Reg64 reg_cnt, int len,
-            int i_step, int o_step, int s_step) {
+    void loop_end(Label &l, Reg64 reg_cnt, int len, int i_step, int o_step,
+            int s_step) {
         add(reg_off_in, i_step * itype_sz);
         add(reg_off_out, o_step * otype_sz);
         if (prb_.scale_type == scale_type_t::MANY)
@@ -631,34 +649,29 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         Label l_loop[3];
         Reg64 reg_cnt[3] = {r15, r14, r13};
 
-        if (n_jit_loops > 2)
-            loop_begin(l_loop[2], reg_cnt[2], n(nfu + 2));
+        if (n_jit_loops > 2) loop_begin(l_loop[2], reg_cnt[2], n(nfu + 2));
 
-        if (n_jit_loops > 1)
-            loop_begin(l_loop[1], reg_cnt[1], n(nfu + 1));
+        if (n_jit_loops > 1) loop_begin(l_loop[1], reg_cnt[1], n(nfu + 1));
 
         if (n_jit_loops > 0)
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
-        const bool optimized = false
-            || process_direct_copy<avx>(d.len_unroll)
-            || process_direct_copy<sse41>(d.len_unroll)
-            || process_unroll_tr8x8(d.len_unroll);
-        if (!optimized)
-            process_unroll_generic(d.len_unroll);
+        const bool optimized = false || process_direct_copy<avx>(d.len_unroll)
+                || process_direct_copy<sse41>(d.len_unroll)
+                || process_unroll_tr8x8(d.len_unroll);
+        if (!optimized) process_unroll_generic(d.len_unroll);
 
         if (n_jit_loops > 0)
-            loop_end(l_loop[0], reg_cnt[0],
-                    n(nfu + 0) / ldu, is(nfu + 0) * ldu, os(nfu + 0) * ldu,
-                    ss(nfu + 0) * ldu);
+            loop_end(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu, is(nfu + 0) * ldu,
+                    os(nfu + 0) * ldu, ss(nfu + 0) * ldu);
 
         if (n_jit_loops > 1)
-            loop_end(l_loop[1], reg_cnt[1],
-                    n(nfu + 1), is(nfu + 1), os(nfu + 1), ss(nfu + 1));
+            loop_end(l_loop[1], reg_cnt[1], n(nfu + 1), is(nfu + 1),
+                    os(nfu + 1), ss(nfu + 1));
 
         if (n_jit_loops > 2)
-            loop_end(l_loop[2], reg_cnt[2],
-                    n(nfu + 2), is(nfu + 2), os(nfu + 2), ss(nfu + 2));
+            loop_end(l_loop[2], reg_cnt[2], n(nfu + 2), is(nfu + 2),
+                    os(nfu + 2), ss(nfu + 2));
 
         return true;
     }
@@ -674,15 +687,14 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         otype_sz = data_type_size(prb_.otype);
         stype_sz = sizeof(float);
         if (prb_.otype == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
-            bf16_emu_ = new bf16_emulation_t(this,
-                    bf16_emu_reserv_1, bf16_emu_reserv_2,
-                    bf16_emu_reserv_3, bf16_emu_scratch,
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
+                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                     bf16_emu_reserv_4);
             bf16_emu_->init_vcvtneps2bf16();
         }
 
         preamble();
-#       define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
+#define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         if (prb_.scale_type == scale_type_t::COMMON) {
             auto reg_ptr_scale_tmp = reg_ptr_in;
             mov(reg_ptr_scale_tmp, PARAM(scale));
@@ -692,7 +704,7 @@ struct jit_uni_reorder_kernel_f32: public kernel_t, public jit_generator {
         }
         mov(reg_ptr_in, PARAM(in));
         mov(reg_ptr_out, PARAM(out));
-#       undef PARAM
+#undef PARAM
 
         if (mayiuse(avx)) {
             vxorps(xmm_zero, xmm_zero, xmm_zero);
@@ -738,13 +750,12 @@ private:
     Zmm bf16_emu_reserv_4 = Zmm(19);
 };
 
-status_t kernel_t::desc_init(kernel_t::desc_t &desc, const prb_t &prb,
-        int ndims_ker_max) {
+status_t kernel_t::desc_init(
+        kernel_t::desc_t &desc, const prb_t &prb, int ndims_ker_max) {
     desc.prb = prb;
     desc.prb.ioff = desc.prb.ooff = 0;
 
-    if (ndims_ker_max > prb.ndims)
-        return status::invalid_arguments;
+    if (ndims_ker_max > prb.ndims) return status::invalid_arguments;
 
     auto ndims_ker_max_f = [&]() {
         size_t cur_size = 1;
@@ -753,8 +764,7 @@ status_t kernel_t::desc_init(kernel_t::desc_t &desc, const prb_t &prb,
         return prb.ndims;
     };
 
-    if (ndims_ker_max <= 0)
-        ndims_ker_max = ndims_ker_max_f();
+    if (ndims_ker_max <= 0) ndims_ker_max = ndims_ker_max_f();
 
     /* traverse through kernel implementations */
     /* TODO: find a better way to do that... */
@@ -770,27 +780,28 @@ status_t kernel_t::desc_init(kernel_t::desc_t &desc, const prb_t &prb,
 
 kernel_t *kernel_t::create(const kernel_t::desc_t &desc) {
     switch (desc.id) {
-    case 0: return new jit_uni_reorder_kernel_f32(desc);
-    default: assert(!"unknown kernel id"); return nullptr;
+        case 0: return new jit_uni_reorder_kernel_f32(desc);
+        default: assert(!"unknown kernel id"); return nullptr;
     }
 
     return nullptr;
 }
 
-}
+} // namespace tr
 
 static void prb_block_for_cache(tr::prb_t &prb) {
     const bool do_blocking = false
-        || (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16)
-        || (prb.ndims > 1 && prb.nodes[1].is % 64 == 0
-                && prb.nodes[1].n > 16);
+            || (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16)
+            || (prb.ndims > 1 && prb.nodes[1].is % 64 == 0
+                    && prb.nodes[1].n > 16);
 
     if (do_blocking) {
         /** an attempt to use caches more efficient and
          * address the 4K-aliasing issue */
         /* TODO: improve the logic around here */
         int j = 1;
-        for (; j < prb.ndims && prb.nodes[j].is != 1; ++j);
+        for (; j < prb.ndims && prb.nodes[j].is != 1; ++j)
+            ;
         if (j == prb.ndims) return;
 
         /* it makes sense to re-prioritize sequential read over
@@ -804,7 +815,10 @@ static void prb_block_for_cache(tr::prb_t &prb) {
             prb_node_split(prb, j, 16);
 
         prb_node_move(prb, j, move_to);
-        DEBUG({ printf("cache: "); prb_dump(prb); });
+        DEBUG({
+            printf("cache: ");
+            prb_dump(prb);
+        });
     }
 }
 
@@ -819,8 +833,7 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
     const size_t sz_drv_min = nstl::min<size_t>(
-            16 * mkldnn_get_max_threads(),
-            utils::div_up(sz_total, 1024));
+            16 * mkldnn_get_max_threads(), utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
      * sz_ker_cur -- product of the dimension processed by a kernel
@@ -840,10 +853,8 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
      * It might happen that for chosen kdims the sz_ker_cur is too small
      * (less than tr::ker_prb_size_min). In that case try to split the
      * innermost driver dimension into two, to increase sz_ker_cur. */
-    bool want_borrow_ker_from_drv = true
-        && kdims < prb.ndims
-        && sz_ker_cur < tr::ker_prb_size_min
-        && sz_drv_cur > sz_drv_min;
+    bool want_borrow_ker_from_drv = true && kdims < prb.ndims
+            && sz_ker_cur < tr::ker_prb_size_min && sz_drv_cur > sz_drv_min;
     if (want_borrow_ker_from_drv) {
         /* sz_want_borrow is the minimal sz, so that:
          *  o) sz_ker_cur * sz_want_borrow >= tr::ker_prb_size_min
@@ -854,9 +865,9 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
          *  In the worst case the minimal sz_want_borrow is equal
          *  to the innermost driver dimension itself. In that case
          *  we will sacrifice it in favor of kernel (is it fine?). */
-        size_t sz_want_borrow
-            = utils::div_up(tr::ker_prb_size_min, sz_ker_cur);
-        for (; prb.nodes[kdims].n % sz_want_borrow; ++sz_want_borrow);
+        size_t sz_want_borrow = utils::div_up(tr::ker_prb_size_min, sz_ker_cur);
+        for (; prb.nodes[kdims].n % sz_want_borrow; ++sz_want_borrow)
+            ;
         if (sz_want_borrow != prb.nodes[kdims].n)
             prb_node_split(prb, kdims, sz_want_borrow);
         kdims += 1;
@@ -866,22 +877,25 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
      * the sz_drv_cur is too small (less than sz_drv_min). In that case
      * try to split the outermost kernel dimension into two, to increase
      * sz_drv_cur. */
-    bool want_borrow_drv_from_ker = true
-        && sz_ker_cur > tr::ker_prb_size_min
-        && sz_drv_cur < sz_drv_min;
+    bool want_borrow_drv_from_ker = true && sz_ker_cur > tr::ker_prb_size_min
+            && sz_drv_cur < sz_drv_min;
     if (want_borrow_drv_from_ker) {
         size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
-        for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow);
+        for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow)
+            ;
         if (sz_want_borrow != prb.nodes[kdims - 1].n)
-            prb_node_split(prb, kdims - 1,
-                    prb.nodes[kdims - 1].n / sz_want_borrow);
+            prb_node_split(
+                    prb, kdims - 1, prb.nodes[kdims - 1].n / sz_want_borrow);
     }
 
     ndims_ker_max = kdims;
 
     if (want_borrow_ker_from_drv || want_borrow_drv_from_ker) {
-        DEBUG({ printf("split: "); prb_dump(prb);
-                printf("ndims_ker_max = %d\n", ndims_ker_max); });
+        DEBUG({
+            printf("split: ");
+            prb_dump(prb);
+            printf("ndims_ker_max = %d\n", ndims_ker_max);
+        });
     }
 }
 
@@ -891,20 +905,29 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
         DECLARE_COMMON_PD_T("jit:uni", jit_uni_reorder_t);
 
-        static status_t create(reorder_pd_t **reorder_pd,
-                engine_t *engine, const primitive_attr_t *attr,
-                engine_t *src_engine, const memory_desc_t *src_md,
-                engine_t *dst_engine, const memory_desc_t *dst_md) {
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
             auto prb = tr::prb_t();
 
             status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
             if (prb_init_status != status::success) return prb_init_status;
 
-            DEBUG({ printf("init : "); prb_dump(prb); });
+            DEBUG({
+                printf("init : ");
+                prb_dump(prb);
+            });
             prb_normalize(prb);
-            DEBUG({ printf("norm : "); prb_dump(prb); });
+            DEBUG({
+                printf("norm : ");
+                prb_dump(prb);
+            });
             prb_simplify(prb);
-            DEBUG({ printf("smpl : "); prb_dump(prb); });
+            DEBUG({
+                printf("smpl : ");
+                prb_dump(prb);
+            });
 
             prb_block_for_cache(prb);
 
@@ -913,17 +936,20 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
 
             tr::kernel_t::desc_t ker_desc;
             status_t ker_init_status
-                = tr::kernel_t::desc_init(ker_desc, prb, ndims_ker_max);
+                    = tr::kernel_t::desc_init(ker_desc, prb, ndims_ker_max);
             if (ker_init_status != status::success) return ker_init_status;
 
             const int ndims_driver = prb.ndims - ker_desc.prb.ndims;
             if (ndims_driver > jit_uni_reorder_t::ndims_driver_max)
                 return status::unimplemented;
 
-            DEBUG({ printf("ker  : "); prb_dump(ker_desc.prb); });
+            DEBUG({
+                printf("ker  : ");
+                prb_dump(ker_desc.prb);
+            });
 
-            auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
-                    dst_md);
+            auto _pd = new pd_t(
+                    engine, attr, src_engine, src_md, dst_engine, dst_md);
             if (_pd == nullptr) return status::out_of_memory;
             if (_pd->init() != status::success) {
                 delete _pd;
@@ -938,15 +964,15 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         tr::kernel_t::desc_t ker_desc_;
     };
 
-    jit_uni_reorder_t(const pd_t *apd): cpu_primitive_t(apd) {
+    jit_uni_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {
         kernel_ = tr::kernel_t::create(pd()->ker_desc_);
         assert(kernel_);
     }
     ~jit_uni_reorder_t() { delete kernel_; }
 
-    void omp_driver_0d(int off, const char *in, char *out,
-            const float *scale) const {
-        tr::call_param_t c{in, out, scale};
+    void omp_driver_0d(
+            int off, const char *in, char *out, const float *scale) const {
+        tr::call_param_t c {in, out, scale};
         (*kernel_)(&c);
     }
 
@@ -967,14 +993,16 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         const tr::node_t *ns = pd()->prb_.nodes + off;
         for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d1, ptrdiff_t d0) {
-            auto c = tr::call_param_t();
-            c.in = in + (d0 * ns[0].is + d1 * ns[1].is)
-                * data_type_size(pd()->prb_.itype);
-            c.out = out + (d0 * ns[0].os + d1 * ns[1].os)
-                * data_type_size(pd()->prb_.otype);
-            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
-            (*kernel_)(&c);
-        });
+                    auto c = tr::call_param_t();
+                    c.in = in
+                            + (d0 * ns[0].is + d1 * ns[1].is)
+                                    * data_type_size(pd()->prb_.itype);
+                    c.out = out
+                            + (d0 * ns[0].os + d1 * ns[1].os)
+                                    * data_type_size(pd()->prb_.otype);
+                    c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
+                    (*kernel_)(&c);
+                });
     }
 
     void omp_driver_3d(int ithr, int nthr, int off, const char *in, char *out,
@@ -983,14 +1011,17 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
                 (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
-            auto c = tr::call_param_t();
-            c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
-                * data_type_size(pd()->prb_.itype);
-            c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
-                * data_type_size(pd()->prb_.otype);
-            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
-            (*kernel_)(&c);
-        });
+                    auto c = tr::call_param_t();
+                    c.in = in
+                            + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is)
+                                    * data_type_size(pd()->prb_.itype);
+                    c.out = out
+                            + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
+                                    * data_type_size(pd()->prb_.otype);
+                    c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss
+                            + d2 * ns[2].ss;
+                    (*kernel_)(&c);
+                });
     }
 
     void omp_driver_4d(int ithr, int nthr, int off, const char *in, char *out,
@@ -999,23 +1030,33 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
                 (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
                 [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
-            auto c = tr::call_param_t();
-            c.in = in + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
-                    + d3 * ns[3].is) * data_type_size(pd()->prb_.itype);
-            c.out = out + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
-                    + d3 * ns[3].os) * data_type_size(pd()->prb_.otype);
-            c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
-                + d3 * ns[3].ss;
-            (*kernel_)(&c);
-        });
+                    auto c = tr::call_param_t();
+                    c.in = in
+                            + (d0 * ns[0].is + d1 * ns[1].is + d2 * ns[2].is
+                                      + d3 * ns[3].is)
+                                    * data_type_size(pd()->prb_.itype);
+                    c.out = out
+                            + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os
+                                      + d3 * ns[3].os)
+                                    * data_type_size(pd()->prb_.otype);
+                    c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss
+                            + d2 * ns[2].ss + d3 * ns[3].ss;
+                    (*kernel_)(&c);
+                });
     }
 
     void omp_driver(const char *in, char *out, const float *scale) const {
         in += pd()->prb_.ioff * data_type_size(pd()->prb_.itype);
         out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
-        DEBUG({ printf("prb : "); tr::prb_dump(pd()->prb_); });
-        DEBUG({ printf("ker : "); tr::prb_dump(pd()->ker_desc_.prb); });
+        DEBUG({
+            printf("prb : ");
+            tr::prb_dump(pd()->prb_);
+        });
+        DEBUG({
+            printf("ker : ");
+            tr::prb_dump(pd()->ker_desc_.prb);
+        });
 
         int ndims = pd()->prb_.ndims;
         int ndims_ker = pd()->ker_desc_.prb.ndims;
@@ -1026,11 +1067,19 @@ struct jit_uni_reorder_t : public cpu_primitive_t {
         } else {
             parallel(0, [&](const int ithr, const int nthr) {
                 switch (ndims - ndims_ker) {
-                case 1: omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale); break;
-                case 2: omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale); break;
-                case 3: omp_driver_3d(ithr, nthr, ndims_ker, in, out, scale); break;
-                case 4: omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale); break;
-                default: assert(!"unimplemented");
+                    case 1:
+                        omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale);
+                        break;
+                    case 2:
+                        omp_driver_2d(ithr, nthr, ndims_ker, in, out, scale);
+                        break;
+                    case 3:
+                        omp_driver_3d(ithr, nthr, ndims_ker, in, out, scale);
+                        break;
+                    case 4:
+                        omp_driver_4d(ithr, nthr, ndims_ker, in, out, scale);
+                        break;
+                    default: assert(!"unimplemented");
                 }
             });
         }
@@ -1052,14 +1101,14 @@ private:
     tr::kernel_t *kernel_;
 };
 
-status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd,
-        engine_t *engine, const primitive_attr_t *attr,
-        engine_t *src_engine, const memory_desc_t *src_md,
-        engine_t *dst_engine, const memory_desc_t *dst_md) {
-    return jit_uni_reorder_t::pd_t::create(reorder_pd, engine, attr,
-            src_engine, src_md, dst_engine, dst_md);
+status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
+        const primitive_attr_t *attr, engine_t *src_engine,
+        const memory_desc_t *src_md, engine_t *dst_engine,
+        const memory_desc_t *dst_md) {
+    return jit_uni_reorder_t::pd_t::create(
+            reorder_pd, engine, attr, src_engine, src_md, dst_engine, dst_md);
 }
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

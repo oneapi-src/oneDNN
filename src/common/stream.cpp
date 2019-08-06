@@ -28,25 +28,24 @@ using namespace mkldnn::impl;
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::utils;
 
-status_t stream_t::enqueue_primitive(const primitive_t *primitive, const exec_ctx_t &ctx) {
+status_t stream_t::enqueue_primitive(
+        const primitive_t *primitive, const exec_ctx_t &ctx) {
     return primitive->execute(ctx);
 }
 
 /* API */
 
-status_t mkldnn_stream_create(stream_t **stream, engine_t *engine,
-        unsigned flags) {
+status_t mkldnn_stream_create(
+        stream_t **stream, engine_t *engine, unsigned flags) {
     bool args_ok = !utils::any_null(stream, engine);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
     return engine->create_stream(stream, flags);
 }
 
 status_t mkldnn_stream_wait(stream_t *stream) {
     bool args_ok = !any_null(stream);
-    if (!args_ok)
-        return invalid_arguments;
+    if (!args_ok) return invalid_arguments;
 
     return stream->wait();
 }

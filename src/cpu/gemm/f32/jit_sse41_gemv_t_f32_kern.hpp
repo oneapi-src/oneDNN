@@ -19,7 +19,6 @@
 
 #include "jit_generator.hpp"
 
-
 namespace mkldnn {
 namespace impl {
 namespace cpu {
@@ -34,12 +33,11 @@ protected:
     void v_store(const Xbyak::Address &dst, const Xbyak::Xmm &src, int nelems);
 
     void dot_product(const Xbyak::Xmm &dst, const Xbyak::Xmm &src1,
-        const Xbyak::Xmm &src2);
+            const Xbyak::Xmm &src2);
     void innerloop(int unroll_m, int unroll_n);
     void outerloop(int unroll_x, int unroll_y, Xbyak::Label *&outerloop_label);
 
     void generate();
-
 
 private:
     static const int M_UNROLL_ = 8;
@@ -61,8 +59,8 @@ private:
     Xbyak::Address arg_lda_, arg_x_, arg_incy_, arg_y_;
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif // JIT_SSE41_GEMV_T_F32_KERN_HPP

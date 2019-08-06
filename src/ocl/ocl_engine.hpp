@@ -23,8 +23,7 @@ namespace mkldnn {
 namespace impl {
 namespace ocl {
 
-class ocl_engine_factory_t : public engine_factory_t
-{
+class ocl_engine_factory_t : public engine_factory_t {
 public:
     ocl_engine_factory_t(engine_kind_t engine_kind) {
         assert(engine_kind == engine_kind::gpu);
@@ -35,8 +34,7 @@ public:
         std::vector<cl_device_id> ocl_devices;
         status_t status
                 = ocl_utils::get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
         return ocl_devices.size();
     }
 
@@ -46,15 +44,12 @@ public:
         std::vector<cl_device_id> ocl_devices;
 
         status = ocl_utils::get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
-        if (status != status::success)
-            return status;
+        if (status != status::success) return status;
 
-        if (index >= ocl_devices.size())
-            return status::invalid_arguments;
+        if (index >= ocl_devices.size()) return status::invalid_arguments;
 
         auto *ocl_engine = new ocl_gpu_engine_t(ocl_devices[index]);
-        if (!ocl_engine)
-            return status::out_of_memory;
+        if (!ocl_engine) return status::out_of_memory;
 
         status = ocl_engine->init();
         if (status != status::success) {
@@ -68,8 +63,7 @@ public:
     status_t engine_create(
             engine_t **engine, cl_device_id device, cl_context context) {
         auto *ocl_engine = new ocl_gpu_engine_t(device, context);
-        if (!ocl_engine)
-            return status::out_of_memory;
+        if (!ocl_engine) return status::out_of_memory;
 
         status_t status = ocl_engine->init();
         if (status != status::success) {

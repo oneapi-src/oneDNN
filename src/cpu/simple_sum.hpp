@@ -35,11 +35,11 @@ struct sum_bf16_params_t {
     dim_t ws_elements_per_thread_;
     dim_t acc_loop_step_;
 };
-}
+} // namespace
 
 template <data_type_t src_data_type, data_type_t dst_data_type = src_data_type>
-struct simple_sum_t: public cpu_primitive_t {
-    struct pd_t: public cpu_sum_pd_t {
+struct simple_sum_t : public cpu_primitive_t {
+    struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
         DECLARE_SUM_PD_T("simple:any", simple_sum_t);
@@ -48,16 +48,15 @@ struct simple_sum_t: public cpu_primitive_t {
             const int n = n_inputs();
 
             bool ok = true
-                && IMPLICATION(utils::one_of(data_type::bf16, src_data_type,
-                        dst_data_type), mayiuse(avx512_core))
-                && cpu_sum_pd_t::init() == status::success
-                && n <= max_num_arrs;
+                    && IMPLICATION(utils::one_of(data_type::bf16, src_data_type,
+                                           dst_data_type),
+                            mayiuse(avx512_core))
+                    && cpu_sum_pd_t::init() == status::success
+                    && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
 
             const memory_desc_wrapper o_d(dst_md());
-            ok = ok
-                && o_d.data_type() == dst_data_type
-                && o_d.is_dense();
+            ok = ok && o_d.data_type() == dst_data_type && o_d.is_dense();
             if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n; ++i) {
@@ -65,8 +64,7 @@ struct simple_sum_t: public cpu_primitive_t {
                 ok = true && utils::everyone_is(src_data_type, i_d.data_type())
                         && o_d.similar_to(i_d, true, false, 0)
                         && i_d.is_dense();
-                if (!ok)
-                    return status::unimplemented;
+                if (!ok) return status::unimplemented;
             }
 
             compute_blocking();
@@ -119,11 +117,11 @@ struct simple_sum_t: public cpu_primitive_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd): cpu_primitive_t(apd) {}
+    simple_sum_t(const pd_t *apd) : cpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
-    enum {max_num_arrs = 16 };
+    enum { max_num_arrs = 16 };
     typedef typename prec_traits<src_data_type>::type src_data_t;
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -132,9 +130,9 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

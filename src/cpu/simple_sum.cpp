@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_thread.hpp"
 #include "simple_sum.hpp"
 #include "bfloat16.hpp"
+#include "mkldnn_thread.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -57,23 +57,23 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
 
         for (dim_t b = start; b < end; b += bf16_p.acc_loop_step_) {
             acc_data_t *my_acc = is_dst_bf16
-                                 ? &my_ws[bf16_p.ws_cvt_elements_per_thread_]
-                                 : (acc_data_t *)&output[b];
+                    ? &my_ws[bf16_p.ws_cvt_elements_per_thread_]
+                    : (acc_data_t *)&output[b];
             dim_t current_block = nstl::min(bf16_p.acc_loop_step_, end - b);
-            cvt_bfloat16_to_float(my_ws,
-                    (bfloat16_t *)&input_ptrs[0][b], current_block);
+            cvt_bfloat16_to_float(
+                    my_ws, (bfloat16_t *)&input_ptrs[0][b], current_block);
             for (dim_t e = 0; e < current_block; e++)
                 my_acc[e] = scales[0] * my_ws[e];
 
             for (int a = 1; a < num_arrs; a++) {
-                cvt_bfloat16_to_float(my_ws,
-                        (bfloat16_t *)&input_ptrs[a][b], current_block);
+                cvt_bfloat16_to_float(
+                        my_ws, (bfloat16_t *)&input_ptrs[a][b], current_block);
                 for (dim_t e = 0; e < current_block; e++)
                     my_acc[e] += scales[a] * my_ws[e];
             }
             if (is_dst_bf16)
-                cvt_float_to_bfloat16((bfloat16_t *)&output[b],
-                    my_acc, current_block);
+                cvt_float_to_bfloat16(
+                        (bfloat16_t *)&output[b], my_acc, current_block);
         }
     };
 
@@ -91,7 +91,7 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
     };
 
     parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start{0}, end{0};
+        dim_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
         for (dim_t nb = start; nb < end; ++nb) {
@@ -120,6 +120,6 @@ template struct simple_sum_t<data_type::f32>;
 template struct simple_sum_t<data_type::bf16>;
 template struct simple_sum_t<data_type::bf16, data_type::f32>;
 
-}
-}
-}
+} // namespace cpu
+} // namespace impl
+} // namespace mkldnn

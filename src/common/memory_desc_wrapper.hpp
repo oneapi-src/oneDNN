@@ -30,13 +30,13 @@ namespace impl {
 
 /** thin wrapper class over \struct memory_desc_t which allows easy
  * manipulations with underlying C structure, which is taken by reference */
-struct memory_desc_wrapper: public c_compatible {
+struct memory_desc_wrapper : public c_compatible {
     const memory_desc_t *md_;
 
     /** constructor which takes a reference to a constant underlying C memory
      * descriptor \param md */
-    memory_desc_wrapper(const memory_desc_t *md): md_(md) {}
-    memory_desc_wrapper(const memory_desc_t &md): memory_desc_wrapper(&md) {}
+    memory_desc_wrapper(const memory_desc_t *md) : md_(md) {}
+    memory_desc_wrapper(const memory_desc_t &md) : memory_desc_wrapper(&md) {}
 
     /* implementing attributes */
     int ndims() const { return md_->ndims; }
@@ -49,12 +49,13 @@ struct memory_desc_wrapper: public c_compatible {
 
     format_kind_t format_kind() const { return md_->format_kind; }
 
-    bool is_blocking_desc() const
-    { return format_kind() == format_kind::blocked; }
-    bool is_wino_desc() const
-    { return format_kind() == format_kind::wino; }
-    bool is_rnn_packed_desc() const
-    { return format_kind() == format_kind::rnn_packed; }
+    bool is_blocking_desc() const {
+        return format_kind() == format_kind::blocked;
+    }
+    bool is_wino_desc() const { return format_kind() == format_kind::wino; }
+    bool is_rnn_packed_desc() const {
+        return format_kind() == format_kind::rnn_packed;
+    }
 
     const blocking_desc_t &blocking_desc() const {
         assert(is_blocking_desc());
@@ -88,8 +89,7 @@ struct memory_desc_wrapper: public c_compatible {
     bool has_zero_dim() const { return nelems() == 0; }
 
     /** return the size of data type (a shortcut) */
-    size_t data_type_size() const
-    { return types::data_type_size(data_type()); }
+    size_t data_type_size() const { return types::data_type_size(data_type()); }
 
     /** return the size of data type of additional buffer */
     size_t additional_buffer_data_size() const {
@@ -110,7 +110,7 @@ struct memory_desc_wrapper: public c_compatible {
             assert(cmask == 1 || cmask == 3);
             dim_t prod = 1;
             for (int d = 0; d < ndims(); ++d)
-                if (cmask & (1<<d)) prod *= padded_dims()[d];
+                if (cmask & (1 << d)) prod *= padded_dims()[d];
             return prod * additional_buffer_data_size();
         }
 
@@ -137,8 +137,8 @@ struct memory_desc_wrapper: public c_compatible {
 
             size_t max_size = 0;
             for (int d = 0; d < ndims(); ++d)
-                max_size = nstl::max<size_t>(max_size,
-                        padded_dims()[d] / blocks[d] * bd.strides[d]);
+                max_size = nstl::max<size_t>(
+                        max_size, padded_dims()[d] / blocks[d] * bd.strides[d]);
 
             if (max_size == 1 && bd.inner_nblks != 0) {
                 max_size = utils::array_product(bd.inner_blks, bd.inner_nblks);
@@ -161,8 +161,7 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns true if the only (potentially) padded dim is \param dim */
     bool only_padded_dim(int dim) const {
         for (int d = 0; d < ndims(); ++d)
-            if (d != dim && dims()[d] != padded_dims()[d])
-                return false;
+            if (d != dim && dims()[d] != padded_dims()[d]) return false;
         return true;
     }
 
@@ -195,14 +194,16 @@ struct memory_desc_wrapper: public c_compatible {
 
     /* comparison section */
 
-    bool operator==(const memory_desc_wrapper &rhs) const
-    { return *this->md_ == *rhs.md_; }
-    bool operator!=(const memory_desc_wrapper &rhs) const
-    { return !operator==(rhs); }
-    bool operator==(const memory_desc_t &rhs) const
-    { return operator==(memory_desc_wrapper(rhs)); }
-    bool operator!=(const memory_desc_t &rhs) const
-    { return !operator==(rhs); }
+    bool operator==(const memory_desc_wrapper &rhs) const {
+        return *this->md_ == *rhs.md_;
+    }
+    bool operator!=(const memory_desc_wrapper &rhs) const {
+        return !operator==(rhs);
+    }
+    bool operator==(const memory_desc_t &rhs) const {
+        return operator==(memory_desc_wrapper(rhs));
+    }
+    bool operator!=(const memory_desc_t &rhs) const { return !operator==(rhs); }
 
     /** returns true if data (w/o padding if with_padding == false and w/
      * padding otherwise) have the same physical structure, i.e. dimensions,
@@ -212,9 +213,8 @@ struct memory_desc_wrapper: public c_compatible {
      * CAUTION: format kind any and undef are not similar to whatever, hence the
      * following statement might be true: lhs == rhs && !lhs.similar_to(rhs) */
     /* TODO: revise */
-    bool similar_to(const memory_desc_wrapper &rhs,
-            bool with_padding = true, bool with_data_type = true,
-            int dim_start = 0) const;
+    bool similar_to(const memory_desc_wrapper &rhs, bool with_padding = true,
+            bool with_data_type = true, int dim_start = 0) const;
 
     /** returns true if one memory can be reordered to another */
     bool consistent_with(const memory_desc_wrapper &rhs) const;
@@ -229,10 +229,9 @@ struct memory_desc_wrapper: public c_compatible {
     /** returns matching tag (or undef if match is not found)
      * XXX: This is a workaround that eventually should go away! */
     template <typename... Tags>
-    format_tag_t matches_one_of_tag(Tags ...tags) const {
-        for (const auto tag: {tags...}) {
-            if (memory_desc_matches_tag(*md_, tag))
-                return tag;
+    format_tag_t matches_one_of_tag(Tags... tags) const {
+        for (const auto tag : {tags...}) {
+            if (memory_desc_matches_tag(*md_, tag)) return tag;
         }
         return format_tag::undef;
     }
@@ -306,65 +305,68 @@ struct memory_desc_wrapper: public c_compatible {
 
     /** returns physical offset by logical one. logical offset is represented by
      * a tuple of indices (\param xn, ..., \param x1, \param x0) */
-    template<typename... Args>
+    template <typename... Args>
     dim_t off(Args... args) const {
         assert(sizeof...(args) == ndims());
-        dims_t pos = { args... };
+        dims_t pos = {args...};
         return off_v(pos, false);
     }
 
     /** returns physical offset by logical one. logical offset is represented by
      * a tuple of indices (\param xn, ..., \param x1, \param x0) in already
      * padded area */
-    template<typename... Args>
+    template <typename... Args>
     dim_t off_padding(Args... args) const {
         assert(sizeof...(args) == ndims());
-        dims_t pos = { args... };
+        dims_t pos = {args...};
         return off_v(pos, true);
     }
 
     /** returns physical offset by logical one. Logical offset is represented by
      * a tuple of block indices (\param bn, ..., \param b1, \param b0). It is a
      * user responsibility to adjust the result to get offset within blocks */
-    template<typename ...Args>
+    template <typename... Args>
     dim_t blk_off(Args... args) const {
         return _blk_off<sizeof...(args), Args...>(args...);
     }
 
-    template<bool skip_first, typename T, typename ...Args>
+    template <bool skip_first, typename T, typename... Args>
     dim_t blk_off(T xn, Args... args) const {
-        return skip_first
-            ? blk_off<Args...>(args...)
-            : blk_off<T, Args...>(xn, args...);
+        return skip_first ? blk_off<Args...>(args...)
+                          : blk_off<T, Args...>(xn, args...);
     }
 
     /* static functions section */
     /* TODO: replace with non-static, once md_ becomes non-const ref */
 
-    static status_t compute_blocking(memory_desc_t &memory_desc,
-            format_tag_t tag);
+    static status_t compute_blocking(
+            memory_desc_t &memory_desc, format_tag_t tag);
 
 private:
     /* TODO: put logical_offset in utils */
-    template<typename T>
-    dim_t logical_offset(T x0) const { return x0; }
-
-    template<typename T, typename... Args>
-    dim_t logical_offset(T xn, Args... args) const {
-        const size_t n_args = sizeof...(args);
-        return xn * utils::array_product<n_args>(
-                &dims()[ndims() - n_args]) + logical_offset(args...);
+    template <typename T>
+    dim_t logical_offset(T x0) const {
+        return x0;
     }
 
-    template<int ORIG_LEN, typename ...Void>
-    dim_t _blk_off() const { return offset0(); }
+    template <typename T, typename... Args>
+    dim_t logical_offset(T xn, Args... args) const {
+        const size_t n_args = sizeof...(args);
+        return xn * utils::array_product<n_args>(&dims()[ndims() - n_args])
+                + logical_offset(args...);
+    }
 
-    template<int ORIG_LEN, typename T, typename ...Args>
-    dim_t _blk_off(T xc, Args ...args) const {
+    template <int ORIG_LEN, typename... Void>
+    dim_t _blk_off() const {
+        return offset0();
+    }
+
+    template <int ORIG_LEN, typename T, typename... Args>
+    dim_t _blk_off(T xc, Args... args) const {
         assert(is_blocking_desc());
         constexpr int dc = ORIG_LEN - sizeof...(args) - 1;
         return xc * blocking_desc().strides[dc]
-            + _blk_off<ORIG_LEN, Args...>(args...);
+                + _blk_off<ORIG_LEN, Args...>(args...);
     }
 };
 
@@ -374,27 +376,26 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
 
     if (one_of(format_kind(), format_kind::undef, format_kind::any))
         return false;
-    if (is_wino_desc() || is_rnn_packed_desc())
-        return false;
+    if (is_wino_desc() || is_rnn_packed_desc()) return false;
 
     const int ds = dim_start;
     const auto &blk = blocking_desc();
     const auto &r_blk = rhs.blocking_desc();
 
-    return ndims() == rhs.ndims()
-        && dim_start <= ndims() /* guard */
-        && format_kind() == rhs.format_kind()
-        && IMPLICATION(with_data_type, data_type() == rhs.data_type())
-        && array_cmp(dims() + ds, rhs.dims() + ds, ndims() - ds)
-        && array_cmp(blk.strides + ds, r_blk.strides + ds, ndims() - ds)
-        && blk.inner_nblks == r_blk.inner_nblks
-        && array_cmp(blk.inner_blks, r_blk.inner_blks, blk.inner_nblks)
-        && array_cmp(blk.inner_idxs, r_blk.inner_idxs, blk.inner_nblks)
-        && IMPLICATION(with_padding, true
-                && array_cmp(padded_dims() + ds, rhs.padded_dims() + ds,
-                    ndims() - ds)
-                && array_cmp(padded_offsets() + ds, rhs.padded_offsets() + ds,
-                    ndims() - ds));
+    return ndims() == rhs.ndims() && dim_start <= ndims() /* guard */
+            && format_kind() == rhs.format_kind()
+            && IMPLICATION(with_data_type, data_type() == rhs.data_type())
+            && array_cmp(dims() + ds, rhs.dims() + ds, ndims() - ds)
+            && array_cmp(blk.strides + ds, r_blk.strides + ds, ndims() - ds)
+            && blk.inner_nblks == r_blk.inner_nblks
+            && array_cmp(blk.inner_blks, r_blk.inner_blks, blk.inner_nblks)
+            && array_cmp(blk.inner_idxs, r_blk.inner_idxs, blk.inner_nblks)
+            && IMPLICATION(with_padding,
+                    true
+                            && array_cmp(padded_dims() + ds,
+                                    rhs.padded_dims() + ds, ndims() - ds)
+                            && array_cmp(padded_offsets() + ds,
+                                    rhs.padded_offsets() + ds, ndims() - ds));
 }
 
 inline bool memory_desc_wrapper::consistent_with(
@@ -414,8 +415,8 @@ inline bool memory_desc_wrapper::consistent_with(
     }
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #endif
 

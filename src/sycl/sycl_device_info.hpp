@@ -17,8 +17,8 @@
 #ifndef SYCL_DEVICE_INFO_HPP
 #define SYCL_DEVICE_INFO_HPP
 
-#include <CL/sycl.hpp>
 #include <vector>
+#include <CL/sycl.hpp>
 
 #include "ocl/ocl_device_info.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -27,8 +27,7 @@ namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_device_info_t : public ocl::ocl_device_info_t
-{
+class sycl_device_info_t : public ocl::ocl_device_info_t {
 public:
     sycl_device_info_t(const cl::sycl::device &dev)
         : ocl::ocl_device_info_t(ocl::ocl_utils::make_ocl_wrapper(dev.get())) {}

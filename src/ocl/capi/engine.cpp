@@ -25,23 +25,19 @@ using namespace mkldnn::impl::ocl;
 
 status_t mkldnn_engine_create_ocl(engine_t **engine, engine_kind_t kind,
         cl_device_id device, cl_context context) {
-    bool args_ok = true
-            && (kind == engine_kind::gpu)
+    bool args_ok = true && (kind == engine_kind::gpu)
             && !utils::any_null(engine, device, context);
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     ocl_engine_factory_t f(kind);
     return f.engine_create(engine, device, context);
 }
 
 status_t mkldnn_engine_get_ocl_context(engine_t *engine, cl_context *context) {
-    bool args_ok = true
-            && !utils::any_null(engine, context)
+    bool args_ok = true && !utils::any_null(engine, context)
             && (engine->backend_kind() == backend_kind::ocl);
 
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     *context = ocl_engine->context();
@@ -49,12 +45,10 @@ status_t mkldnn_engine_get_ocl_context(engine_t *engine, cl_context *context) {
 }
 
 status_t mkldnn_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
-    bool args_ok = true
-            && !utils::any_null(engine, device)
+    bool args_ok = true && !utils::any_null(engine, device)
             && (engine->backend_kind() == backend_kind::ocl);
 
-    if (!args_ok)
-        return status::invalid_arguments;
+    if (!args_ok) return status::invalid_arguments;
 
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     *device = ocl_engine->device();

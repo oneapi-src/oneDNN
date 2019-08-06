@@ -20,100 +20,98 @@
 
 #if DT_F32 == 1
 
-#    if UNROLL_M <= 1 * GRX
-#        define FLOATX float
-#        define SIZEX 1
-#    elif UNROLL_M <= 2 * GRX
-#        define FLOATX float2
-#        define SIZEX 2
-#    elif UNROLL_M <= 3 * GRX
-#        define FLOATX float3
-#        define SIZEX 3
-#    else
-#        define FLOATX float4
-#        define SIZEX 4
-#    endif
+#if UNROLL_M <= 1 * GRX
+#define FLOATX float
+#define SIZEX 1
+#elif UNROLL_M <= 2 * GRX
+#define FLOATX float2
+#define SIZEX 2
+#elif UNROLL_M <= 3 * GRX
+#define FLOATX float3
+#define SIZEX 3
+#else
+#define FLOATX float4
+#define SIZEX 4
+#endif
 
-#    if UNROLL_N <= 1 * GRX
-#        define FLOATY float
-#        define SIZEY 1
-#    elif UNROLL_N <= 2 * GRX
-#        define FLOATY float2
-#        define SIZEY 2
-#    elif UNROLL_N <= 3 * GRX
-#        define FLOATY float3
-#        define SIZEY 3
-#    else
-#        define FLOATY float4
-#        define SIZEY 4
-#    endif
+#if UNROLL_N <= 1 * GRX
+#define FLOATY float
+#define SIZEY 1
+#elif UNROLL_N <= 2 * GRX
+#define FLOATY float2
+#define SIZEY 2
+#elif UNROLL_N <= 3 * GRX
+#define FLOATY float3
+#define SIZEY 3
+#else
+#define FLOATY float4
+#define SIZEY 4
+#endif
 
-#    define SHUFFLE(X, Y) intel_sub_group_shuffle(X, Y)
-#    define SHUFFLE_DOWN(X, Y) intel_sub_group_shuffle_down(X, X, Y)
-#    define SHUFFLE_UP(X, Y) intel_sub_group_shuffle_up(X, X, Y)
+#define SHUFFLE(X, Y) intel_sub_group_shuffle(X, Y)
+#define SHUFFLE_DOWN(X, Y) intel_sub_group_shuffle_down(X, X, Y)
+#define SHUFFLE_UP(X, Y) intel_sub_group_shuffle_up(X, X, Y)
 
 #elif DT_F16 == 1
 
-#    if UNROLL_M <= 1 * GRX
-#        define FLOATX half
-#        define SIZEX 1
-#    elif UNROLL_M <= 2 * GRX
-#        define FLOATX half2
-#        define SIZEX 2
-#    elif UNROLL_M <= 3 * GRX
-#        define FLOATX half3
-#        define SIZEX 3
-#    elif UNROLL_M <= 4 * GRX
-#        define FLOATX half4
-#        define SIZEX 4
-#    else
-#        define FLOATX half8
-#        define SIZEX 8
-#    endif
+#if UNROLL_M <= 1 * GRX
+#define FLOATX half
+#define SIZEX 1
+#elif UNROLL_M <= 2 * GRX
+#define FLOATX half2
+#define SIZEX 2
+#elif UNROLL_M <= 3 * GRX
+#define FLOATX half3
+#define SIZEX 3
+#elif UNROLL_M <= 4 * GRX
+#define FLOATX half4
+#define SIZEX 4
+#else
+#define FLOATX half8
+#define SIZEX 8
+#endif
 
-#    if UNROLL_N <= 1 * GRX
-#        define FLOATY half
-#        define SIZEY 1
-#    elif UNROLL_N <= 2 * GRX
-#        define FLOATY half2
-#        define SIZEY 2
-#    elif UNROLL_N <= 3 * GRX
-#        define FLOATY half3
-#        define SIZEY 3
-#    elif UNROLL_N <= 4 * GRX
-#        define FLOATY half4
-#        define SIZEY 4
-#    else
-#        define FLOATY half8
-#        define SIZEY 8
-#    endif
+#if UNROLL_N <= 1 * GRX
+#define FLOATY half
+#define SIZEY 1
+#elif UNROLL_N <= 2 * GRX
+#define FLOATY half2
+#define SIZEY 2
+#elif UNROLL_N <= 3 * GRX
+#define FLOATY half3
+#define SIZEY 3
+#elif UNROLL_N <= 4 * GRX
+#define FLOATY half4
+#define SIZEY 4
+#else
+#define FLOATY half8
+#define SIZEY 8
+#endif
 
-#    if SIZEY == 2
-#        define SHUFFLE(X, Y) as_half2(intel_sub_group_shuffle(as_float(X), Y))
-#    elif SIZEY == 4
-#        define SHUFFLE(X, Y) as_half4(intel_sub_group_shuffle(as_float2(X), Y))
-#    else
-#        define SHUFFLE(X, Y) as_half8(intel_sub_group_shuffle(as_float4(X), Y))
-#    endif
+#if SIZEY == 2
+#define SHUFFLE(X, Y) as_half2(intel_sub_group_shuffle(as_float(X), Y))
+#elif SIZEY == 4
+#define SHUFFLE(X, Y) as_half4(intel_sub_group_shuffle(as_float2(X), Y))
+#else
+#define SHUFFLE(X, Y) as_half8(intel_sub_group_shuffle(as_float4(X), Y))
+#endif
 
-#    if SIZEX == 2
-#        define SHUFFLE_UP(X, Y) \
-            as_half2(intel_sub_group_shuffle_up(as_float(X), as_float(X), Y))
-#        define SHUFFLE_DOWN(X, Y) \
-            as_half2(intel_sub_group_shuffle_down(as_float(X), as_float(X), Y))
-#    elif SIZEX == 4
-#        define SHUFFLE_UP(X, Y) \
-            as_half4(intel_sub_group_shuffle_up(as_float2(X), as_float2(X), Y))
-#        define SHUFFLE_DOWN(X, Y)                 \
-            as_half4(intel_sub_group_shuffle_down( \
-                    as_float2(X), as_float2(X), Y))
-#    else
-#        define SHUFFLE_UP(X, Y) \
-            as_half8(intel_sub_group_shuffle_up(as_float4(X), as_float4(X), Y))
-#        define SHUFFLE_DOWN(X, Y)                 \
-            as_half8(intel_sub_group_shuffle_down( \
-                    as_float4(X), as_float4(X), Y))
-#    endif
+#if SIZEX == 2
+#define SHUFFLE_UP(X, Y) \
+    as_half2(intel_sub_group_shuffle_up(as_float(X), as_float(X), Y))
+#define SHUFFLE_DOWN(X, Y) \
+    as_half2(intel_sub_group_shuffle_down(as_float(X), as_float(X), Y))
+#elif SIZEX == 4
+#define SHUFFLE_UP(X, Y) \
+    as_half4(intel_sub_group_shuffle_up(as_float2(X), as_float2(X), Y))
+#define SHUFFLE_DOWN(X, Y) \
+    as_half4(intel_sub_group_shuffle_down(as_float2(X), as_float2(X), Y))
+#else
+#define SHUFFLE_UP(X, Y) \
+    as_half8(intel_sub_group_shuffle_up(as_float4(X), as_float4(X), Y))
+#define SHUFFLE_DOWN(X, Y) \
+    as_half8(intel_sub_group_shuffle_down(as_float4(X), as_float4(X), Y))
+#endif
 
 #endif
 
@@ -121,31 +119,31 @@
 #define AS_FLOATY(X, Y) *((__global FLOATY *)(X + Y))
 
 #if UNROLL_M <= 1 * GRX
-#    define CALC_X(x, a, b, R0, R1, R2, R3) \
-        bb = SHUFFLE(b, x);                 \
-        R0##x = mad(a, bb, R0##x);
+#define CALC_X(x, a, b, R0, R1, R2, R3) \
+    bb = SHUFFLE(b, x); \
+    R0##x = mad(a, bb, R0##x);
 #elif UNROLL_M <= 2 * GRX
-#    define CALC_X(x, a, b, R0, R1, R2, R3) \
-        bb = SHUFFLE(b, x);                 \
-        R0##x = mad(a.s0, bb, R0##x);       \
-        R1##x = mad(a.s1, bb, R1##x);
+#define CALC_X(x, a, b, R0, R1, R2, R3) \
+    bb = SHUFFLE(b, x); \
+    R0##x = mad(a.s0, bb, R0##x); \
+    R1##x = mad(a.s1, bb, R1##x);
 #elif UNROLL_M <= 3 * GRX
-#    define CALC_X(x, a, b, R0, R1, R2, R3) \
-        bb = SHUFFLE(b, x);                 \
-        R0##x = mad(a.s0, bb, R0##x);       \
-        R1##x = mad(a.s1, bb, R1##x);       \
-        R2##x = mad(a.s2, bb, R2##x);
+#define CALC_X(x, a, b, R0, R1, R2, R3) \
+    bb = SHUFFLE(b, x); \
+    R0##x = mad(a.s0, bb, R0##x); \
+    R1##x = mad(a.s1, bb, R1##x); \
+    R2##x = mad(a.s2, bb, R2##x);
 #else
-#    define CALC_X(x, a, b, R0, R1, R2, R3) \
-        bb = SHUFFLE(b, x);                 \
-        R0##x = mad(a.s0, bb, R0##x);       \
-        R1##x = mad(a.s1, bb, R1##x);       \
-        R2##x = mad(a.s2, bb, R2##x);       \
-        R3##x = mad(a.s3, bb, R3##x);
+#define CALC_X(x, a, b, R0, R1, R2, R3) \
+    bb = SHUFFLE(b, x); \
+    R0##x = mad(a.s0, bb, R0##x); \
+    R1##x = mad(a.s1, bb, R1##x); \
+    R2##x = mad(a.s2, bb, R2##x); \
+    R3##x = mad(a.s3, bb, R3##x);
 #endif
 
 // This is fixed; 8 threads per core
-#define CALC(a, b, R0, R1, R2, R3)   \
+#define CALC(a, b, R0, R1, R2, R3) \
     CALC_X(0, a, b, R0, R1, R2, R3); \
     CALC_X(1, a, b, R0, R1, R2, R3); \
     CALC_X(2, a, b, R0, R1, R2, R3); \
@@ -155,88 +153,68 @@
     CALC_X(6, a, b, R0, R1, R2, R3); \
     CALC_X(7, a, b, R0, R1, R2, R3);
 
-#define INIT_C(n)                                      \
+#define INIT_C(n) \
     FLOATY cc##n##0 = DATA_ZERO, cc##n##1 = DATA_ZERO; \
     FLOATY cc##n##2 = DATA_ZERO, cc##n##3 = DATA_ZERO; \
     FLOATY cc##n##4 = DATA_ZERO, cc##n##5 = DATA_ZERO; \
     FLOATY cc##n##6 = DATA_ZERO, cc##n##7 = DATA_ZERO;
 
 #ifdef BETA_ZERO
-#    define UPOP =
+#define UPOP =
 #else
-#    define UPOP +=
+#define UPOP +=
 #endif
 
 #if SIZEX == 1
-#    define UPDATE_YY(X, Y, R0, R1, R2, R3) \
-        if (n > (Y)) {                      \
-            if ((m > 0)) {                  \
-                c[offsetC + 0] UPOP R0;     \
-            }                               \
-            offsetC += ldc;                 \
-        }
+#define UPDATE_YY(X, Y, R0, R1, R2, R3) \
+    if (n > (Y)) { \
+        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
+        offsetC += ldc; \
+    }
 #elif SIZEX == 2
-#    define UPDATE_YY(X, Y, R0, R1, R2, R3) \
-        if (n > (Y)) {                      \
-            if ((m > 0)) {                  \
-                c[offsetC + 0] UPOP R0;     \
-            }                               \
-            if ((m > 1)) {                  \
-                c[offsetC + 1] UPOP R1;     \
-            }                               \
-            offsetC += ldc;                 \
-        }
+#define UPDATE_YY(X, Y, R0, R1, R2, R3) \
+    if (n > (Y)) { \
+        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
+        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
+        offsetC += ldc; \
+    }
 #elif SIZEX == 3
-#    define UPDATE_YY(X, Y, R0, R1, R2, R3) \
-        if (n > (Y)) {                      \
-            if ((m > 0)) {                  \
-                c[offsetC + 0] UPOP R0;     \
-            }                               \
-            if ((m > 1)) {                  \
-                c[offsetC + 1] UPOP R1;     \
-            }                               \
-            if ((m > 2)) {                  \
-                c[offsetC + 2] UPOP R2;     \
-            }                               \
-            offsetC += ldc;                 \
-        }
+#define UPDATE_YY(X, Y, R0, R1, R2, R3) \
+    if (n > (Y)) { \
+        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
+        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
+        if ((m > 2)) { c[offsetC + 2] UPOP R2; } \
+        offsetC += ldc; \
+    }
 #else
-#    define UPDATE_YY(X, Y, R0, R1, R2, R3) \
-        if (n > (Y)) {                      \
-            if ((m > 0)) {                  \
-                c[offsetC + 0] UPOP R0;     \
-            }                               \
-            if ((m > 1)) {                  \
-                c[offsetC + 1] UPOP R1;     \
-            }                               \
-            if ((m > 2)) {                  \
-                c[offsetC + 2] UPOP R2;     \
-            }                               \
-            if ((m > 3)) {                  \
-                c[offsetC + 3] UPOP R3;     \
-            }                               \
-            offsetC += ldc;                 \
-        }
+#define UPDATE_YY(X, Y, R0, R1, R2, R3) \
+    if (n > (Y)) { \
+        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
+        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
+        if ((m > 2)) { c[offsetC + 2] UPOP R2; } \
+        if ((m > 3)) { c[offsetC + 3] UPOP R3; } \
+        offsetC += ldc; \
+    }
 #endif
 
 #if SIZEY == 1
-#    define UPDATE_Y(X, R0, R1, R2, R3) \
-        UPDATE_YY(X, X *SIZEY + 0, R0##X, R1##X, R2##X, R3##X);
+#define UPDATE_Y(X, R0, R1, R2, R3) \
+    UPDATE_YY(X, X *SIZEY + 0, R0##X, R1##X, R2##X, R3##X);
 #elif SIZEY == 2
-#    define UPDATE_Y(X, R0, R1, R2, R3)                                     \
-        UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
-        UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1);
+#define UPDATE_Y(X, R0, R1, R2, R3) \
+    UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
+    UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1);
 #elif SIZEY == 3
-#    define UPDATE_Y(X, R0, R1, R2, R3)                                     \
-        UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
-        UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1); \
-        UPDATE_YY(X, X *SIZEY + 2, R0##X.s2, R1##X.s2, R2##X.s2, R3##X.s2);
+#define UPDATE_Y(X, R0, R1, R2, R3) \
+    UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
+    UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1); \
+    UPDATE_YY(X, X *SIZEY + 2, R0##X.s2, R1##X.s2, R2##X.s2, R3##X.s2);
 #else
-#    define UPDATE_Y(X, R0, R1, R2, R3)                                     \
-        UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
-        UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1); \
-        UPDATE_YY(X, X *SIZEY + 2, R0##X.s2, R1##X.s2, R2##X.s2, R3##X.s2); \
-        UPDATE_YY(X, X *SIZEY + 3, R0##X.s3, R1##X.s3, R2##X.s3, R3##X.s3);
+#define UPDATE_Y(X, R0, R1, R2, R3) \
+    UPDATE_YY(X, X *SIZEY + 0, R0##X.s0, R1##X.s0, R2##X.s0, R3##X.s0); \
+    UPDATE_YY(X, X *SIZEY + 1, R0##X.s1, R1##X.s1, R2##X.s1, R3##X.s1); \
+    UPDATE_YY(X, X *SIZEY + 2, R0##X.s2, R1##X.s2, R2##X.s2, R3##X.s2); \
+    UPDATE_YY(X, X *SIZEY + 3, R0##X.s3, R1##X.s3, R2##X.s3, R3##X.s3);
 #endif
 
 __kernel void gen9_gemm_compute_kernel(long m, long n, long k,
@@ -250,11 +228,9 @@ __kernel void gen9_gemm_compute_kernel(long m, long n, long k,
     lid = get_local_id(0); // local ID
 
     m -= UNROLL_M * idx;
-    if (m > UNROLL_M)
-        m = UNROLL_M;
+    if (m > UNROLL_M) m = UNROLL_M;
     n -= UNROLL_N * idy;
-    if (n > UNROLL_N)
-        n = UNROLL_N;
+    if (n > UNROLL_N) n = UNROLL_N;
     m -= UNROLL_M * lid / GRX;
 
     offsetA += UNROLL_M * k * idx + UNROLL_M * lid / GRX;

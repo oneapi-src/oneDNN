@@ -20,8 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
 
-#include <CL/sycl.hpp>
 #include <vector>
+#include <CL/sycl.hpp>
 
 namespace mkldnn {
 namespace impl {

@@ -23,10 +23,10 @@
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
+#include "math_utils.hpp"
 #include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
-#include "math_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -35,21 +35,30 @@ namespace impl {
 extern memory_desc_t glob_zero_md;
 
 template <typename T>
-status_t safe_ptr_assign(T * &lhs, T* rhs) {
+status_t safe_ptr_assign(T *&lhs, T *rhs) {
     if (rhs == nullptr) return status::out_of_memory;
     lhs = rhs;
     return status::success;
 }
 
-template <typename T, typename U> struct is_subset
-{ static constexpr bool value = false; };
-template <typename T> struct is_subset<T, T>
-{ static constexpr bool value = true; };
-template <typename T> struct is_subset<T,
-         typename utils::enable_if<nstl::is_integral<T>::value, float>::type>
-{ static constexpr bool value = true; };
-#define ISSPEC(t1, t2) template <> \
-    struct is_subset<t1, t2> { static constexpr bool value = true; }
+template <typename T, typename U>
+struct is_subset {
+    static constexpr bool value = false;
+};
+template <typename T>
+struct is_subset<T, T> {
+    static constexpr bool value = true;
+};
+template <typename T>
+struct is_subset<T,
+        typename utils::enable_if<nstl::is_integral<T>::value, float>::type> {
+    static constexpr bool value = true;
+};
+#define ISSPEC(t1, t2) \
+    template <> \
+    struct is_subset<t1, t2> { \
+        static constexpr bool value = true; \
+    }
 ISSPEC(int16_t, int32_t);
 ISSPEC(int8_t, int32_t);
 ISSPEC(uint8_t, int32_t);
@@ -64,74 +73,64 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch (data_type) {
-    case f16: return sizeof(prec_traits<f16>::type);
-    case bf16: return sizeof(prec_traits<bf16>::type);
-    case f32: return sizeof(prec_traits<f32>::type);
-    case s32: return sizeof(prec_traits<s32>::type);
-    case s8: return sizeof(prec_traits<s8>::type);
-    case u8: return sizeof(prec_traits<u8>::type);
-    case data_type::undef:
-    default: assert(!"unknown data_type");
+        case f16: return sizeof(prec_traits<f16>::type);
+        case bf16: return sizeof(prec_traits<bf16>::type);
+        case f32: return sizeof(prec_traits<f32>::type);
+        case s32: return sizeof(prec_traits<s32>::type);
+        case s8: return sizeof(prec_traits<s8>::type);
+        case u8: return sizeof(prec_traits<u8>::type);
+        case data_type::undef:
+        default: assert(!"unknown data_type");
     }
     return 0; /* not supposed to be reachable */
 }
 
 inline format_kind_t format_tag_to_kind(format_tag_t tag) {
     switch (tag) {
-    case format_tag::undef: return format_kind::undef;
-    case format_tag::any: return format_kind::any;
-    case format_tag::last: return format_kind::undef;
-    default: return format_kind::blocked;
+        case format_tag::undef: return format_kind::undef;
+        case format_tag::any: return format_kind::any;
+        case format_tag::last: return format_kind::undef;
+        default: return format_kind::blocked;
     }
 
     assert(!"unreachable");
     return format_kind::undef;
 }
 
-inline bool memory_extra_desc_is_equal(const memory_extra_desc_t &lhs,
-        const memory_extra_desc_t &rhs) {
-    return true
-        && lhs.flags == rhs.flags
-        && IMPLICATION(lhs.flags & memory_extra_flags::compensation_conv_s8s8,
-                lhs.compensation_mask == rhs.compensation_mask)
-        && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
-                lhs.scale_adjust == rhs.scale_adjust);
+inline bool memory_extra_desc_is_equal(
+        const memory_extra_desc_t &lhs, const memory_extra_desc_t &rhs) {
+    return true && lhs.flags == rhs.flags
+            && IMPLICATION(
+                    lhs.flags & memory_extra_flags::compensation_conv_s8s8,
+                    lhs.compensation_mask == rhs.compensation_mask)
+            && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
+                    lhs.scale_adjust == rhs.scale_adjust);
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
         const blocking_desc_t &rhs, int ndims = MKLDNN_MAX_NDIMS) {
     using mkldnn::impl::utils::array_cmp;
-    return true
-        && lhs.inner_nblks == rhs.inner_nblks
-        && array_cmp(lhs.strides, rhs.strides, ndims)
-        && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
-        && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
+    return true && lhs.inner_nblks == rhs.inner_nblks
+            && array_cmp(lhs.strides, rhs.strides, ndims)
+            && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
+            && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
 }
 
-inline bool wino_desc_is_equal(const wino_desc_t &lhs,
-    const wino_desc_t &rhs) {
-    return lhs.wino_format == rhs.wino_format
-        && lhs.alpha == rhs.alpha
-        && lhs.ic == rhs.ic
-        && lhs.oc == rhs.oc
-        && lhs.ic_block == rhs.ic_block
-        && lhs.oc_block == rhs.oc_block
-        && lhs.ic2_block == rhs.ic2_block
-        && lhs.oc2_block == rhs.oc2_block
-        && lhs.r == rhs.r;
+inline bool wino_desc_is_equal(const wino_desc_t &lhs, const wino_desc_t &rhs) {
+    return lhs.wino_format == rhs.wino_format && lhs.alpha == rhs.alpha
+            && lhs.ic == rhs.ic && lhs.oc == rhs.oc
+            && lhs.ic_block == rhs.ic_block && lhs.oc_block == rhs.oc_block
+            && lhs.ic2_block == rhs.ic2_block && lhs.oc2_block == rhs.oc2_block
+            && lhs.r == rhs.r;
 }
 
 inline bool rnn_packed_desc_is_equal(
         const rnn_packed_desc_t &lhs, const rnn_packed_desc_t &rhs) {
-    bool ok = true
-        && lhs.format == rhs.format
-        && lhs.ldb == rhs.ldb
-        && lhs.n_parts == rhs.n_parts
-        && lhs.offset_compensation == rhs.offset_compensation
-        && lhs.size == rhs.size
-        && lhs.n == rhs.n;
-    if (!ok)
-        return false;
+    bool ok = true && lhs.format == rhs.format && lhs.ldb == rhs.ldb
+            && lhs.n_parts == rhs.n_parts
+            && lhs.offset_compensation == rhs.offset_compensation
+            && lhs.size == rhs.size && lhs.n == rhs.n;
+    if (!ok) return false;
 
     for (int i = 0; i < rhs.n_parts; i++)
         ok = ok && lhs.parts[i] == rhs.parts[i];
@@ -149,8 +148,8 @@ inline bool is_zero_md(const memory_desc_t *md) {
     return md == nullptr || *md == zero_md();
 }
 
-inline data_type_t default_accum_data_type(data_type_t src_dt,
-        data_type_t dst_dt) {
+inline data_type_t default_accum_data_type(
+        data_type_t src_dt, data_type_t dst_dt) {
     using namespace utils;
     using namespace data_type;
 
@@ -177,12 +176,12 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (everyone_is(f32, src_dt, wei_dt, dst_dt)) return f32;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
-        if ((src_dt == u8 || src_dt == s8)
-            && wei_dt == s8 && one_of(dst_dt, f32, s32, s8, u8))
+        if ((src_dt == u8 || src_dt == s8) && wei_dt == s8
+                && one_of(dst_dt, f32, s32, s8, u8))
             return s32;
     } else if (prop_kind == backward_data) {
-        if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8 &&
-                one_of(dst_dt, s8, u8))
+        if (one_of(src_dt, f32, s32, s8, u8) && wei_dt == s8
+                && one_of(dst_dt, s8, u8))
             return s32;
     }
 
@@ -190,30 +189,27 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     return dst_dt;
 }
 
-}
+} // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     using namespace mkldnn::impl::utils;
     // quick path for zero_mds
-    if (utils::everyone_is(0, lhs.ndims, rhs.ndims))
-        return true;
+    if (utils::everyone_is(0, lhs.ndims, rhs.ndims)) return true;
 
-    bool base_equal = true
-        && lhs.ndims == rhs.ndims
-        && array_cmp(lhs.dims, rhs.dims, lhs.ndims)
-        && lhs.data_type == rhs.data_type
-        && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
-        && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)
-        && lhs.offset0 == rhs.offset0
-        && lhs.format_kind == rhs.format_kind;
+    bool base_equal = true && lhs.ndims == rhs.ndims
+            && array_cmp(lhs.dims, rhs.dims, lhs.ndims)
+            && lhs.data_type == rhs.data_type
+            && array_cmp(lhs.padded_dims, rhs.padded_dims, lhs.ndims)
+            && array_cmp(lhs.padded_offsets, rhs.padded_offsets, lhs.ndims)
+            && lhs.offset0 == rhs.offset0 && lhs.format_kind == rhs.format_kind;
     if (!base_equal) return false;
     if (!types::memory_extra_desc_is_equal(lhs.extra, rhs.extra)) return false;
     if (lhs.format_kind == format_kind::blocked)
-        return types::blocking_desc_is_equal(lhs.format_desc.blocking,
-                rhs.format_desc.blocking, lhs.ndims);
+        return types::blocking_desc_is_equal(
+                lhs.format_desc.blocking, rhs.format_desc.blocking, lhs.ndims);
     else if (lhs.format_kind == format_kind::wino)
-        return types::wino_desc_is_equal(lhs.format_desc.wino_desc,
-            rhs.format_desc.wino_desc);
+        return types::wino_desc_is_equal(
+                lhs.format_desc.wino_desc, rhs.format_desc.wino_desc);
     else if (lhs.format_kind == format_kind::rnn_packed)
         return types::rnn_packed_desc_is_equal(lhs.format_desc.rnn_packed_desc,
                 rhs.format_desc.rnn_packed_desc);
@@ -224,18 +220,17 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     return !operator==(lhs, rhs);
 }
 
-inline status_t memory_desc_init_by_strides(memory_desc_t &md,
-        const dims_t strides) {
+inline status_t memory_desc_init_by_strides(
+        memory_desc_t &md, const dims_t strides) {
     return mkldnn_memory_desc_init_by_strides(
             &md, md.ndims, md.dims, md.data_type, strides);
 }
 
-inline status_t memory_desc_init_by_tag(memory_desc_t &md, format_tag_t tag,
-        const dims_t strides = nullptr) {
+inline status_t memory_desc_init_by_tag(
+        memory_desc_t &md, format_tag_t tag, const dims_t strides = nullptr) {
     status_t status = mkldnn_memory_desc_init_by_tag(
             &md, md.ndims, md.dims, md.data_type, tag);
-    if (status != status::success || strides == nullptr)
-        return status;
+    if (status != status::success || strides == nullptr) return status;
 
     /* TODO: add consistency check */
 
@@ -252,8 +247,8 @@ inline status_t memory_desc_init_by_tag(memory_desc_t &md, format_tag_t tag,
  *
  * TODO: move md related functions to one single place
  */
-inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
-        const blocking_desc_t &blk) {
+inline status_t memory_desc_init_by_blocking_desc(
+        memory_desc_t &md, const blocking_desc_t &blk) {
     dims_t blocks = {0};
     utils::array_set(blocks, 1, md.ndims);
     dim_t block_size = 1;
@@ -276,7 +271,8 @@ inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
     utils::array_copy(mblk.strides, blk.strides, ndims);
 
     int perm[MKLDNN_MAX_NDIMS];
-    for (int d = 0; d < ndims; ++d) perm[d] = d;
+    for (int d = 0; d < ndims; ++d)
+        perm[d] = d;
 
     utils::simultaneous_sort(mblk.strides, perm, ndims,
             [](stride_t a, stride_t b) { return b - a; });
@@ -304,8 +300,7 @@ inline status_t memory_desc_init_by_blocking_desc(memory_desc_t &md,
  * doesn't matter. */
 inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
         const dims_t strides = nullptr) {
-    if (md.format_kind != types::format_tag_to_kind(tag))
-        return false;
+    if (md.format_kind != types::format_tag_to_kind(tag)) return false;
 
     memory_desc_t md_gold;
     status_t status = mkldnn_memory_desc_init_by_tag(
@@ -319,13 +314,11 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
     const auto &blk_gold = md_gold.format_desc.blocking;
 
     using utils::array_cmp;
-    bool same_blocks = true
-        && blk.inner_nblks == blk_gold.inner_nblks
-        && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
-        && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
+    bool same_blocks = true && blk.inner_nblks == blk_gold.inner_nblks
+            && array_cmp(blk.inner_blks, blk_gold.inner_blks, blk.inner_nblks)
+            && array_cmp(blk.inner_idxs, blk_gold.inner_idxs, blk.inner_nblks);
 
-    if (!same_blocks)
-        return false;
+    if (!same_blocks) return false;
 
     if (strides == nullptr)
         return array_cmp(blk.strides, blk_gold.strides, md.ndims);
@@ -343,17 +336,16 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
 /** returns matching tag (or undef if match is not found)
  * XXX: This is a workaround that eventually should go away! */
 template <typename... Tags>
-format_tag_t memory_desc_matches_one_of_tag(const memory_desc_t &md,
-        Tags ...tags) {
-    for (const auto tag: {tags...}) {
-        if (memory_desc_matches_tag(md, tag))
-            return tag;
+format_tag_t memory_desc_matches_one_of_tag(
+        const memory_desc_t &md, Tags... tags) {
+    for (const auto tag : {tags...}) {
+        if (memory_desc_matches_tag(md, tag)) return tag;
     }
     return format_tag::undef;
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 #include "memory_desc_wrapper.hpp"
 

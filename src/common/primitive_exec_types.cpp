@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "primitive_exec_types.hpp"
 #include "engine.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
 #include "primitive.hpp"
-#include "primitive_exec_types.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -37,18 +37,17 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         auto *mem = c_args[i].memory;
 
         switch (pd->arg_usage(arg)) {
-        case primitive_desc_t::arg_usage_t::input:
-            if (args.count(arg) != 0) return invalid_arguments;
-            args[arg] = {mem, true};
-            n_inputs++;
-            break;
-        case primitive_desc_t::arg_usage_t::output:
-            if (args.count(arg) != 0) return invalid_arguments;
-            args[arg] = {mem, false};
-            n_outputs++;
-            break;
-        case primitive_desc_t::arg_usage_t::unused:
-            break;
+            case primitive_desc_t::arg_usage_t::input:
+                if (args.count(arg) != 0) return invalid_arguments;
+                args[arg] = {mem, true};
+                n_inputs++;
+                break;
+            case primitive_desc_t::arg_usage_t::output:
+                if (args.count(arg) != 0) return invalid_arguments;
+                args[arg] = {mem, false};
+                n_outputs++;
+                break;
+            case primitive_desc_t::arg_usage_t::unused: break;
         }
     }
 
@@ -85,7 +84,7 @@ memory_t *exec_ctx_t::memory(int arg) const {
 void exec_ctx_t::register_memory_storage_mapping(
         const memory_storage_t *mem_storage, void *data) {
     assert(memory_storage_mapping_.count(mem_storage->impl()) == 0);
-    memory_storage_mapping_.insert({ mem_storage->impl(), data });
+    memory_storage_mapping_.insert({mem_storage->impl(), data});
 }
 
 void *exec_ctx_t::host_ptr(int arg) const {
@@ -97,8 +96,7 @@ void *exec_ctx_t::host_ptr(int arg) const {
 }
 
 void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
-    if (!*mem_storage)
-        return nullptr;
+    if (!*mem_storage) return nullptr;
 
     uint8_t *base_ptr = nullptr;
     if (memory_storage_mapping_.count(mem_storage->impl()) > 0) {
@@ -112,8 +110,7 @@ void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
 }
 
 void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
-    if (!*storage)
-        return nullptr;
+    if (!*storage) return nullptr;
 
     if (memory_storage_mapping_.count(storage->impl()) > 0) {
         return host_ptr(storage);
@@ -128,12 +125,11 @@ void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
 
 void exec_ctx_t::unmap_memory_storage(
         const memory_storage_t *storage, void *mapped_ptr) const {
-    if (!*storage || memory_storage_mapping_.count(storage->impl()) > 0)
-        return;
+    if (!*storage || memory_storage_mapping_.count(storage->impl()) > 0) return;
 
     status_t status = storage->unmap_data(mapped_ptr);
     assert(status == status::success);
     MAYBE_UNUSED(status);
 }
-}
-}
+} // namespace impl
+} // namespace mkldnn

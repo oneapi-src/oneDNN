@@ -20,8 +20,8 @@
 #include <windows.h>
 #endif
 #include <limits.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "mkldnn.h"
 #include "utils.hpp"
@@ -54,25 +54,21 @@ int getenv(const char *name, char *buffer, int buffer_size) {
             term_zero_idx = int_value_length;
             result = int_value_length;
 #ifndef _WIN32
-            if (value)
-                strncpy(buffer, value, buffer_size - 1);
+            if (value) strncpy(buffer, value, buffer_size - 1);
 #endif
         }
     }
 
-    if (buffer != NULL)
-        buffer[term_zero_idx] = '\0';
+    if (buffer != NULL) buffer[term_zero_idx] = '\0';
     return result;
 }
 
-int getenv_int(const char *name, int default_value)
-{
+int getenv_int(const char *name, int default_value) {
     int value = default_value;
     // # of digits in the longest 32-bit signed int + sign + terminating null
     const int len = 12;
     char value_str[len];
-    if (getenv(name, value_str, len) > 0)
-        value = atoi(value_str);
+    if (getenv(name, value_str, len) > 0) value = atoi(value_str);
     return value;
 }
 
@@ -109,7 +105,7 @@ void free(void *p) {
 // Atomic operations
 int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #ifdef _WIN32
-    return InterlockedExchangeAdd(reinterpret_cast<long*>(dst), val);
+    return InterlockedExchangeAdd(reinterpret_cast<long *>(dst), val);
 #else
     return __sync_fetch_and_add(dst, val);
 #endif
@@ -125,8 +121,8 @@ bool jit_dump_enabled() {
     return jit_dump_flag != 0;
 }
 
-}
-}
+} // namespace impl
+} // namespace mkldnn
 
 mkldnn_status_t mkldnn_set_jit_dump(int enabled) {
     using namespace mkldnn::impl::status;

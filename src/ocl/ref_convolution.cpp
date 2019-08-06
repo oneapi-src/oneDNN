@@ -42,8 +42,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(4, eltwise_alpha);
     arg_list.set(5, eltwise_beta);
     arg_list.set(6, sum_scale);
-    if (utils::one_of(pd()->src_md()->data_type, data_type::u8,
-        data_type::s8)) {
+    if (utils::one_of(
+                pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
         float scales = pd()->attr()->output_scales_.scales_[0];
         arg_list.set(7, scales);
     }
@@ -54,8 +54,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t ref_convolution_bwd_data_t::execute_backward_data
-    (const exec_ctx_t &ctx) const {
+status_t ref_convolution_bwd_data_t::execute_backward_data(
+        const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -78,8 +78,8 @@ status_t ref_convolution_bwd_data_t::execute_backward_data
     return status;
 }
 
-status_t ref_convolution_bwd_weights_t::execute_backward_weights
-    (const exec_ctx_t &ctx) const {
+status_t ref_convolution_bwd_weights_t::execute_backward_weights(
+        const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -102,6 +102,6 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights
     return status;
 }
 
-}
-}
-}
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
