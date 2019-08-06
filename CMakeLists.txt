@@ -75,31 +75,7 @@ if(UNIX OR MINGW)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
-# Tentative remapping of old options to the new one.
-# CAUTION: The old options will soon be removed.
-
-if(DNNL_THREADING)
-    set(DNNL_CPU_RUNTIME "${DNNL_THREADING}" CACHE STRING "" FORCE)
-    message(STATUS "Using the obsolete way to specify the CPU runtime. "
-        "Use DNNL_CPU_RUNTIME=${DNNL_CPU_RUNTIME} instead.")
-endif()
-
-if(DNNL_GPU_BACKEND)
-    if (DNNL_GPU_BACKEND STREQUAL "OPENCL")
-        set(DNNL_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
-        message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
-            "Use DNNL_GPU_RUNTIME=OCL instead.")
-    endif()
-    set(DNNL_GPU_RUNTIME "${DNNL_GPU_BACKEND}" CACHE STRING "" FORCE)
-    message(STATUS "Using the obsolete way to specify the GPU runtime. "
-        "Use DNNL_GPU_RUNTME=${DNNL_GPU_RUNTIME} instead.")
-endif()
-
-if (DNNL_GPU_RUNTIME STREQUAL "OPENCL")
-    set(DNNL_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
-    message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
-        "Use DNNL_GPU_RUNTIME=OCL instead.")
-endif()
+include("cmake/mkldnn_compat.cmake")
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")

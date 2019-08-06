@@ -121,6 +121,11 @@ install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
+# MKL-DNN compat cmake files
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
+    -DDIR=${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
+    -P ${PROJECT_SOURCE_DIR}/cmake/gen_mkldnn_compat_cmakes.cmake)")
+
 # Install custom find modules for transitive dependencies
 if(DNNL_CPU_RUNTIME STREQUAL "TBB")
     if(WIN32)

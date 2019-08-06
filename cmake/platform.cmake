@@ -34,6 +34,11 @@ set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
+# Compatibility with MKL-DNN
+if($ENV{MKLDNN_WERROR})
+    set(DNNL_WERROR $ENV{MKLDNN_WERROR})
+endif()
+
 if($ENV{DNNL_WERROR})
     set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
