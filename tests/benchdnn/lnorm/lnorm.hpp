@@ -48,7 +48,8 @@ struct prb_t {
             mkldnn_format_tag_t stat_tag, dir_t dir, mkldnn_data_type_t dt,
             flags_t flags, bool inplace, const attr_t &attr,
             check_alg_t check_alg)
-        : dims(dims)
+        : check_alg(check_alg)
+        , dims(dims)
         , data_tag(data_tag)
         , stat_tag(stat_tag)
         , dir(dir)
