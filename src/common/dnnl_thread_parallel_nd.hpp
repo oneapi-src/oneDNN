@@ -39,17 +39,17 @@ namespace impl {
 template <typename F>
 void parallel(int nthr, F f) {
     if (nthr == 0) nthr = dnnl_get_max_threads();
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
     assert(nthr == 1);
     f(0, 1);
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
     if (nthr == 1) {
         f(0, 1);
         return;
     }
 #pragma omp parallel num_threads(nthr)
     f(dnnl_get_thread_num(), dnnl_get_num_threads());
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
     if (nthr == 1) {
         f(0, 1);
         return;
@@ -178,12 +178,12 @@ constexpr size_t get_work_amount(const T &v, Args &&... args) {
 
 /* parallel_nd and parallel_nd_in_omp section */
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_TBB
+#if DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_TBB
 template <typename... Args>
 void parallel_nd(Args &&... args) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
     const bool do_parallel = get_work_amount(utils::forward<Args>(args)...) > 1;
 #pragma omp parallel if (do_parallel)
     {
@@ -193,7 +193,7 @@ void parallel_nd(Args &&... args) {
     }
 #endif
 }
-#else // DNNL_CPU_RUNTIME != DNNL_RUNTIME_TBB
+#else // DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_TBB
 
 // gcc 4.8 has a bug with passing parameter pack to lambdas.
 // So have to explicitly instantiate all the cases.
@@ -255,12 +255,12 @@ void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
 
 template <typename... Args>
 void parallel_nd_in_omp(Args &&... args) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
     for_nd(dnnl_get_thread_num(), dnnl_get_num_threads(),
             utils::forward<Args>(args)...);
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
     assert(!"unsupported parallel_nd_in_omp()");
 #endif
 }

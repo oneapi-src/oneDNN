@@ -69,14 +69,15 @@ else()
     append_if(OpenMP_C_FOUND CMAKE_SRC_CCXX_FLAGS "${OpenMP_C_FLAGS}")
 endif()
 
-if (DNNL_CPU_RUNTIME MATCHES "OMP")
+if (DNNL_CPU_THREADING_RUNTIME MATCHES "OMP")
     if (OpenMP_CXX_FOUND)
-        set(DNNL_CPU_RUNTIME_CURRENT "OMP")
         append(CMAKE_TEST_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
         append(CMAKE_EXAMPLE_CCXX_FLAGS "${OpenMP_CXX_FLAGS}")
     else()
         message(${_omp_severity} "OpenMP library could not be found. "
             "Proceeding might lead to highly sub-optimal performance.")
+        # Override CPU threading to sequential if allowed to proceed
+        set(DNNL_CPU_THREADING_RUNTIME "SEQ")
     endif()
 else()
     # Compilation happens with OpenMP to enable `#pragma omp simd`

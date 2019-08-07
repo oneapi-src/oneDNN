@@ -22,13 +22,11 @@ if(Threading_cmake_included)
 endif()
 set(Threading_cmake_included true)
 
+# CPU threading runtime specifies the threading used by the library:
+# sequential, OpenMP or TBB. In future it may be different from CPU runtime.
+set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")
+
 # Always require pthreads even for sequential threading (required for e.g.
 # std::call_once that relies on mutexes)
 find_package(Threads REQUIRED)
 list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
-
-# While DNNL defaults to OpenMP (if _OPENMP is defined) without CMake, here
-# we default to sequential threading and let OpenMP.cmake and TBB.cmake to
-# figure things out. This is especially important because OpenMP is used both
-# for threading and vectorization via #pragma omp simd
-set(DNNL_CPU_RUNTIME_CURRENT "SEQ")

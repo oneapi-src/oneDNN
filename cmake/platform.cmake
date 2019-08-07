@@ -92,7 +92,7 @@ elseif(UNIX OR MINGW)
         # unconditionally.
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
         if(DNNL_USE_CLANG_SANITIZER MATCHES "Memory(WithOrigin)?")
-            if(NOT DNNL_CPU_RUNTIME STREQUAL "SEQ")
+            if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "SEQ")
                 message(WARNING "Clang OpenMP is not compatible with MSan! "
                     "Expect a lot of false positives!")
             endif()

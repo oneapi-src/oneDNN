@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
 #define DNNL_THR_SYNC 1
 inline int dnnl_get_max_threads() {
     return 1;
@@ -38,7 +38,7 @@ inline void dnnl_thr_barrier() {}
 
 #define PRAGMA_OMP(...)
 
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #include <omp.h>
 #define DNNL_THR_SYNC 1
 
@@ -60,7 +60,7 @@ inline void dnnl_thr_barrier() {
 
 #define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 
-#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
 #define DNNL_THR_SYNC 0
