@@ -284,6 +284,25 @@ struct jit_bnorm_conf_t {
     size_t gws_d[3], lws_d[3];
 };
 
+/* lnorm */
+struct jit_lnorm_conf_t {
+    data_type_t data_type;
+
+    int ndims;
+    int norm_axis;
+
+    jit_memory_desc_info_t src_md_info;
+    jit_memory_desc_info_t dst_md_info;
+    jit_memory_desc_info_t stat_md_info;
+
+    bool use_scaleshift;
+    bool calculate_stats;
+    bool save_stats;
+    float eps;
+
+    size_t gws_d[3];
+};
+
 /* simple sum */
 struct jit_simple_sum_conf_t {
     int ndims;
