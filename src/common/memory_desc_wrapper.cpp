@@ -79,6 +79,9 @@ status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
 }
 
 void memory_desc_wrapper::compute_strides_compat(dims_t *strides_compat) const {
+
+    if (ndims() == 0) return;
+
     const blocking_desc_t &blk = md_->format_desc.blocking;
 
     dims_t blocks;

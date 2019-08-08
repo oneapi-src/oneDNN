@@ -76,7 +76,8 @@ struct jit_ref_eltwise_common_kernel {
         kernel_ctx.define_int("NDIMS", jel.ndims);
 
         def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
-        def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA", jel.ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA",
+                jel.is_forward ? 0 : jel.ndims);
 
         return status::success;
     }
