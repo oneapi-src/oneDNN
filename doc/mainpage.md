@@ -64,6 +64,7 @@ Data manipulation:
 # Advanced topics
 
  * @ref dev_guide_transition_to_v1
+ * @ref dev_guide_transition_to_dnnl
  * @ref dev_guide_understanding_memory_formats
  * @ref dev_guide_int8_computations
  * @ref dev_guide_opencl_interoperability

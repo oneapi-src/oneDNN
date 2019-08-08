@@ -3,6 +3,11 @@ Deep Neural Network Library (DNNL)
 
 > **Note**
 >
+> Starting with version 1.1 the library is renamed to DNNL. Please read
+> [Intel MKL-DNN to DNNL Transition Guide](https://intel.github.io/mkl-dnn/dev_guide_transition_to_dnnl.html).
+
+> **Note**
+>
 > Version 1.0 brings incompatible changes to the 0.20 version. Please read
 > [Version 1.0 Transition Guide](https://intel.github.io/mkl-dnn/dev_guide_transition_to_v1.html).
 
@@ -10,10 +15,6 @@ Deep Neural Network Library (DNNL) is an
 open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
-
-> **Note**
-> DNNL is distinct from Intel MKL, which is general math
-> performance library.
 
 DNNL is intended for deep learning applications and framework
 developers interested in improving application performance
