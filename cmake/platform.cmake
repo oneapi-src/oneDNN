@@ -63,6 +63,8 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
         set(DEF_ARCH_OPT_FLAGS "-QxSSE4.1")
         # disable: loop was not vectorized with "simd"
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:13379")
+        # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
         # disable: unknown pragma
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:3180")
@@ -133,11 +135,9 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-strict-overflow")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         set(DEF_ARCH_OPT_FLAGS "-xSSE4.1")
-        # workaround for Intel Compiler 16.0 that produces error caused
+        # workaround for Intel Compiler that produces error caused
         # by pragma omp simd collapse(..)
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
-            append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:13379")
-        endif()
+        append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:13379")
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15552")
         # disable `was not vectorized: vectorization seems inefficient` remark
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15335")
