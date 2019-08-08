@@ -27,12 +27,12 @@
 
 #if BNORM_FWD == 1
 
-#if USE_16MB_UNROLL == 1 && DT_F32 == 1
+#if USE_16MB_UNROLL == 1
 
 __attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 __kernel void
-calculate_mean(__global float *src, __global float *mean) {
+calculate_mean(__global DATA_T *src, __global float *mean) {
     const int mb = get_global_id(1);
     const int sp_chunk = get_global_id(0);
     const int c = get_group_id(2) * 16;
@@ -43,12 +43,13 @@ calculate_mean(__global float *src, __global float *mean) {
     src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW * MB_BLOCK
             + sp_str * MB_BLOCK * IC_BLOCK;
 
-    VECT_DATA_T sum0 = 0.0, sum1 = 0.0f;
+    VECT_FLOAT_T sum0 = 0.0f, sum1 = 0.0f;
     for (int sp = 0; sp < sp_end - sp_str; sp++) {
-        sum0 += AS_VECT_DATA_T(VECT_BLOCK_READ((const __global uint *)&src[0]));
+        sum0 += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
 #ifdef MB16
-        sum1 += AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global uint *)&src[8 * 16]));
+        sum1 += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[8 * 16])));
 #endif
         src += MB_BLOCK * IC_BLOCK;
     }
@@ -78,7 +79,7 @@ __attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 __kernel void
 calculate_variance(
-        __global float *src, __global float *mean, __global float *variance) {
+        __global DATA_T *src, __global float *mean, __global float *variance) {
     const int mb = get_global_id(1);
     const int sp_chunk = get_global_id(0);
     const int c = get_group_id(2) * 16;
@@ -89,19 +90,19 @@ calculate_variance(
     src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW * MB_BLOCK
             + sp_str * MB_BLOCK * IC_BLOCK;
 
-    VECT_DATA_T sum0 = 0.0, sum1 = 0.0f;
+    VECT_FLOAT_T sum0 = 0.0, sum1 = 0.0f;
     float v_mean = as_float(
             intel_sub_group_block_read((const __global uint *)&mean[c]));
 
     for (int sp = 0; sp < sp_end - sp_str; sp++) {
-        VECT_DATA_T v0 = AS_VECT_DATA_T(VECT_BLOCK_READ(
-                                 (const __global uint *)&src[0]))
-                - (VECT_DATA_T)v_mean;
+        VECT_FLOAT_T v0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                                  (const __global BLOCK_DATA_T *)&src[0])))
+                - (VECT_FLOAT_T)v_mean;
         sum0 = fma(v0, v0, sum0);
 #ifdef MB16
-        VECT_DATA_T v1 = AS_VECT_DATA_T(VECT_BLOCK_READ(
-                                 (const __global uint *)&src[8 * 16]))
-                - (VECT_DATA_T)v_mean;
+        VECT_FLOAT_T v1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                                  (const __global BLOCK_DATA_T *)&src[8 * 16])))
+                - (VECT_FLOAT_T)v_mean;
         sum1 = fma(v1, v1, sum1);
 #endif
         src += MB_BLOCK * IC_BLOCK;
@@ -195,9 +196,9 @@ ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
 #endif
 #if IS_TRAINING == 1
     ws += d_off;
-    VECT_BLOCK_WRITE((__global uint *)&ws[0], AS_VECT_UINT_T(blockWS0));
+    VECT_UINT_WRITE((__global uint *)&ws[0], AS_VECT_UINT_T(blockWS0));
 #ifdef MB16
-    VECT_BLOCK_WRITE((__global uint *)&ws[8 * 16], AS_VECT_UINT_T(blockWS1));
+    VECT_UINT_WRITE((__global uint *)&ws[8 * 16], AS_VECT_UINT_T(blockWS1));
 #endif
 #endif
 #endif
@@ -299,8 +300,8 @@ ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
 __attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 __kernel void
-calculate_stats(__global float *src, __global float *mean,
-        __global float *diff_dst, __global int *ws,
+calculate_stats(__global DATA_T *src, __global float *mean,
+        __global DATA_T *diff_dst, __global int *ws,
         __global float *diff_scaleshift) {
     const int mb = get_global_id(1);
     const int sp_chunk = get_global_id(0);
@@ -315,37 +316,37 @@ calculate_stats(__global float *src, __global float *mean,
 #if FUSE_BN_RELU == 1
     ws += s_off;
 #endif
-    VECT_DATA_T diff_gamma0 = 0.0f, diff_beta0 = 0.0f;
-    VECT_DATA_T diff_gamma1 = 0.0f, diff_beta1 = 0.0f;
+    VECT_FLOAT_T diff_gamma0 = 0.0f, diff_beta0 = 0.0f;
+    VECT_FLOAT_T diff_gamma1 = 0.0f, diff_beta1 = 0.0f;
     float v_mean = as_float(
             intel_sub_group_block_read((const __global uint *)&mean[c]));
 
     for (int sp = 0; sp < sp_end - sp_str; sp++) {
-        VECT_DATA_T dd0 = AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global uint *)&diff_dst[0]));
-        VECT_DATA_T ss0 = AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global uint *)&src[0]));
+        VECT_FLOAT_T dd0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&diff_dst[0])));
+        VECT_FLOAT_T ss0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
 #ifdef MB16
-        VECT_DATA_T dd1 = AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global uint *)&diff_dst[8 * 16]));
-        VECT_DATA_T ss1 = AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global uint *)&src[8 * 16]));
+        VECT_FLOAT_T dd1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                (const __global BLOCK_DATA_T *)&diff_dst[8 * 16])));
+        VECT_FLOAT_T ss1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[8 * 16])));
 #endif
 #if FUSE_BN_RELU == 1
         VECT_INT_T ws0
-                = AS_VECT_INT_T(VECT_BLOCK_READ((const __global uint *)&ws[0]));
-        dd0 = select((VECT_DATA_T)0.0f, dd0, ws0);
+                = AS_VECT_INT_T(VECT_UINT_READ((const __global uint *)&ws[0]));
+        dd0 = select((VECT_FLOAT_T)0.0f, dd0, ws0);
 #ifdef MB16
         VECT_INT_T ws1 = AS_VECT_INT_T(
-                VECT_BLOCK_READ((const __global uint *)&ws[8 * 16]));
-        dd1 = select((VECT_DATA_T)0.0f, dd1, ws1);
+                VECT_UINT_READ((const __global uint *)&ws[8 * 16]));
+        dd1 = select((VECT_FLOAT_T)0.0f, dd1, ws1);
 #endif
         ws += MB_BLOCK * IC_BLOCK;
 #endif
-        diff_gamma0 = fma((ss0 - (VECT_DATA_T)v_mean), dd0, diff_gamma0);
+        diff_gamma0 = fma((ss0 - (VECT_FLOAT_T)v_mean), dd0, diff_gamma0);
         diff_beta0 += dd0;
 #ifdef MB16
-        diff_gamma1 = fma((ss1 - (VECT_DATA_T)v_mean), dd1, diff_gamma1);
+        diff_gamma1 = fma((ss1 - (VECT_FLOAT_T)v_mean), dd1, diff_gamma1);
         diff_beta1 += dd1;
 #endif
 
@@ -398,9 +399,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(LWS_1))) // attr:no-format
 #endif
 __kernel void
-ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
-        __global float *variance, __global float *diff_dst,
-        __global float *scaleshift, __global int *ws, __global float *diff_src,
+ref_bnorm_bwd_kernel(__global DATA_T *src, __global float *mean,
+        __global float *variance, __global DATA_T *diff_dst,
+        __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
         __global float *diff_scaleshift, float eps) {
 
 #if USE_16MB_UNROLL == 1
@@ -440,21 +441,21 @@ ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
     diff_dst += d_off;
     src += d_off;
 
-    VECT_DATA_T blockD0 = AS_VECT_DATA_T(
-            VECT_BLOCK_READ((const __global uint *)&diff_dst[0]));
+    VECT_FLOAT_T blockD0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+            VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&diff_dst[0])));
 #ifdef MB16
-    VECT_DATA_T blockD1 = AS_VECT_DATA_T(
-            VECT_BLOCK_READ((const __global uint *)&diff_dst[8 * IC_BLOCK]));
+    VECT_FLOAT_T blockD1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+            (const __global BLOCK_DATA_T *)&diff_dst[8 * IC_BLOCK])));
 #endif
 #if FUSE_BN_RELU == 1
     ws += d_off;
     VECT_INT_T blockWS0
-            = AS_VECT_INT_T(VECT_BLOCK_READ((const __global uint *)&ws[0]));
-    blockD0 = select((VECT_DATA_T)0.0f, blockD0, blockWS0);
+            = AS_VECT_INT_T(VECT_UINT_READ((const __global uint *)&ws[0]));
+    blockD0 = select((VECT_FLOAT_T)0.0f, blockD0, blockWS0);
 #ifdef MB16
     VECT_INT_T blockWS1 = AS_VECT_INT_T(
-            VECT_BLOCK_READ((const __global uint *)&ws[8 * IC_BLOCK]));
-    blockD1 = select((VECT_DATA_T)0.0f, blockD1, blockWS1);
+            VECT_UINT_READ((const __global uint *)&ws[8 * IC_BLOCK]));
+    blockD1 = select((VECT_FLOAT_T)0.0f, blockD1, blockWS1);
 #endif
 #endif
 
@@ -465,23 +466,24 @@ ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
     diff_gamma /= (MB * ID * IH * IW);
     diff_beta /= (MB * ID * IH * IW);
 
-    VECT_DATA_T blockS0
-            = AS_VECT_DATA_T(VECT_BLOCK_READ((const __global uint *)&src[0]));
-    blockD0 -= fma((VECT_DATA_T)diff_gamma, (blockS0 - (VECT_DATA_T)v_mean),
-            (VECT_DATA_T)diff_beta);
+    VECT_FLOAT_T blockS0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+            VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
+    blockD0 -= fma((VECT_FLOAT_T)diff_gamma, (blockS0 - (VECT_FLOAT_T)v_mean),
+            (VECT_FLOAT_T)diff_beta);
 #ifdef MB16
-    VECT_DATA_T blockS1 = AS_VECT_DATA_T(
-            VECT_BLOCK_READ((const __global uint *)&src[8 * IC_BLOCK]));
-    blockD1 -= fma((VECT_DATA_T)diff_gamma, (blockS1 - (VECT_DATA_T)v_mean),
-            (VECT_DATA_T)diff_beta);
+    VECT_FLOAT_T blockS1 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+            (const __global BLOCK_DATA_T *)&src[8 * IC_BLOCK])));
+    blockD1 -= fma((VECT_FLOAT_T)diff_gamma, (blockS1 - (VECT_FLOAT_T)v_mean),
+            (VECT_FLOAT_T)diff_beta);
 #endif
 #endif
     blockD0 *= gamma;
-    VECT_BLOCK_WRITE((__global uint *)&diff_src[0], AS_VECT_UINT_T(blockD0));
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&diff_src[0],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
 #ifdef MB16
     blockD1 *= gamma;
-    VECT_BLOCK_WRITE(
-            (__global uint *)&diff_src[8 * 16], AS_VECT_UINT_T(blockD1));
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&diff_src[8 * 16],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
 #endif
 #else
 
@@ -503,11 +505,11 @@ ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
             for (int h = 0; h < IH; ++h)
                 for (int w = 0; w < IW; ++w) {
                     uint s_off = SRC_OFF(n, c, d, h, w);
-                    float dd = diff_dst[s_off];
+                    float dd = CONVERT_FLOAT_T(diff_dst[s_off]);
 #if FUSE_BN_RELU == 1
                     if (!ws[s_off]) dd = 0;
 #endif
-                    diff_gamma += (src[s_off] - v_mean) * dd;
+                    diff_gamma += (CONVERT_FLOAT_T(src[s_off]) - v_mean) * dd;
                     diff_beta += dd;
                 }
     }
@@ -524,7 +526,7 @@ ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
             for (int h = 0; h < IH; ++h)
                 for (int w = 0; w < IW; ++w) {
                     uint s_off = SRC_OFF(n, c, d, h, w);
-                    float dd = diff_dst[s_off];
+                    float dd = CONVERT_FLOAT_T(diff_dst[s_off]);
 #if FUSE_BN_RELU == 1
                     if (!ws[s_off]) dd = 0;
 #endif
@@ -532,11 +534,12 @@ ref_bnorm_bwd_kernel(__global float *src, __global float *mean,
                     float v_diff_src = dd;
 #if CALCULATE_DIFF_STATS == 1
                     v_diff_src -= diff_beta / (MB * ID * IH * IW)
-                            + (src[s_off] - v_mean) * diff_gamma * sqrt_variance
+                            + (CONVERT_FLOAT_T(src[s_off]) - v_mean)
+                                    * diff_gamma * sqrt_variance
                                     / (MB * ID * IH * IW);
 #endif
                     v_diff_src *= gamma * sqrt_variance;
-                    diff_src[s_off] = v_diff_src;
+                    diff_src[s_off] = TO_DATA_T(v_diff_src);
                 }
     }
 #endif
