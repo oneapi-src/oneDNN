@@ -143,8 +143,13 @@ struct jit_uni_eltwise_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_eltwise_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:",
+                                    ((d_type == data_type::bf16)
+                                            && mayiuse(avx512_core_bf16))
+                                            ? avx512_core_bf16
+                                            : isa,
+                                    ""),
+                jit_uni_eltwise_fwd_t);
 
         status_t init();
     };
@@ -170,8 +175,13 @@ struct jit_uni_eltwise_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_eltwise_bwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:",
+                                    ((d_type == data_type::bf16)
+                                            && mayiuse(avx512_core_bf16))
+                                            ? avx512_core_bf16
+                                            : isa,
+                                    ""),
+                jit_uni_eltwise_bwd_t);
 
         status_t init();
     };
