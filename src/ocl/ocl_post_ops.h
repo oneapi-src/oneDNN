@@ -19,17 +19,26 @@
 
 #if DT_F16 == 1
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-#define DATA_MAX HALF_MAX
+#endif
+
+#ifndef POST_OP_DATA_T
+#if DT_F16 == 1
 #define POST_OP_DATA_T half
 #else
 #define POST_OP_DATA_T float
-#define DATA_MAX FLT_MAX
+#endif
 #endif
 
-#if DT_S8 == 1
+#ifndef DATA_MAX
+#if DT_F16 == 1
+#define DATA_MAX HALF_MAX
+#elif DT_S8 == 1
 #define DATA_MAX CHAR_MAX
 #elif DT_U8 == 1
 #define DATA_MAX UCHAR_MAX
+#else
+#define DATA_MAX FLT_MAX
+#endif
 #endif
 
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
