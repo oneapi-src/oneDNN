@@ -61,7 +61,7 @@ if(MSVC)
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         append(CMAKE_CCXX_FLAGS "/MP")
-        set(DEF_ARCH_OPT_FLAGS "-QxHOST")
+        set(DEF_ARCH_OPT_FLAGS "-QxSSE4.1")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
         # disable: unknown pragma
@@ -84,6 +84,7 @@ elseif(UNIX OR MINGW)
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
     # compiler specific settings
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(DEF_ARCH_OPT_FLAGS "-msse4.1")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
         # very upset. Tell it that it's okay and that we love it
         # unconditionally.
@@ -127,13 +128,11 @@ elseif(UNIX OR MINGW)
             append(CMAKE_CCXX_SANITIZER_FLAGS "-g -fno-omit-frame-pointer")
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-            set(DEF_ARCH_OPT_FLAGS "-march=native -mtune=native")
-        endif()
+        set(DEF_ARCH_OPT_FLAGS "-msse4.1")
         # suppress warning on assumptions made regarding overflow (#146)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-strict-overflow")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-        set(DEF_ARCH_OPT_FLAGS "-xHOST")
+        set(DEF_ARCH_OPT_FLAGS "-xSSE4.1")
         # workaround for Intel Compiler 16.0 that produces error caused
         # by pragma omp simd collapse(..)
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "17.0")
