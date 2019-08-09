@@ -63,14 +63,13 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     If empty default optimization level would be applied which depends on the
     compiler being used.
 
-    - For Intel(R) C++ Compilers the default option is `-xHOST` which instructs
-      the compiler to generate the code for the architecture where building is
-      happening. This option would not allow to run the library on older
+    - For Intel(R) C++ Compilers the default option is `-xSSE4.1` which instructs
+      the compiler to generate the code for the processors that support SSE4.1
+      instructions. This option would not allow to run the library on older
       architectures.
 
-    - For GNU* Compiler Collection version 5 and newer the default options are
-      `-march=native -mtune=native` which behaves similarly to the description
-      above.
+    - For GNU* Compiler Collection and Clang, the default option is `-msse4.1` which
+      behaves similarly to the description above.
 
     - For all other cases there are no special optimizations flags.
 

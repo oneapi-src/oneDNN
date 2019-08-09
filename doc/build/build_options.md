@@ -29,13 +29,12 @@ some DNNL functionality will still benefit from targeting a specific
 processor architecture at build time. You can use `DNNL_ARCH_OPT_FLAGS` CMake
 option for this.
 
-For Intel(R) C++ Compilers, the default option is `-xHOST`, which instructs
-the compiler to generate the code for the architecture of the processor where
-the build is occurring.  This option would not allow you to run the library on
+For Intel(R) C++ Compilers, the default option is `-xSSE4.1`, which instructs
+the compiler to generate the code for the processors that support SSE4.1
+instructions. This option would not allow you to run the library on
 older processor architectures.
 
-For GNU\* Compiler 5.0 and newer, the default options are `-march=native
--mtune=native`.
+For GNU\* Compilers and Clang, the default option is `-msse4.1`.
 
 @warning
 While use of `DNNL_ARCH_OPT_FLAGS` option gives better performance, the
