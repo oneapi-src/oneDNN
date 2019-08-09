@@ -78,16 +78,9 @@ public:
         }
     }
 
-    std::string get_options() const {
-        std::ostringstream oss;
-        for (auto &opt : option_set_)
-            oss << " " << opt;
-        return oss.str();
-    }
-
     void print_options() const {
 #ifdef DEBUG_PRINT
-        std::cout << "OPT:\n" << get_options() << std::endl;
+        std::cout << "OPT:\n" << options() << std::endl;
 #endif
     }
 
