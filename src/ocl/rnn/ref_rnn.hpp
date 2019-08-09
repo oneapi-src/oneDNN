@@ -82,6 +82,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            base_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;

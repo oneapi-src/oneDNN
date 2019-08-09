@@ -124,6 +124,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             conv_supports_bias_ = other.conv_supports_bias_;
@@ -282,6 +283,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_deconvolution_bwd_data_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -391,6 +393,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_deconvolution_bwd_weights_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;

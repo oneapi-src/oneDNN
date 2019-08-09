@@ -63,6 +63,7 @@ struct simple_layer_normalization_fwd_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_layer_normalization_fwd_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;
@@ -194,6 +195,7 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_layer_normalization_bwd_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;

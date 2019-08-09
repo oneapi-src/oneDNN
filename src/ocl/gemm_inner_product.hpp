@@ -68,6 +68,7 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &rhs) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_inner_product_fwd_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -172,6 +173,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &rhs) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_inner_product_bwd_data_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -253,6 +255,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
 
         pd_t &operator=(const pd_t &rhs) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_ip_bwd_weights_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;

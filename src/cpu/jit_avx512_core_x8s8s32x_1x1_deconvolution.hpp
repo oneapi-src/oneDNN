@@ -49,6 +49,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
 
         pd_t &operator=(const pd_t &other) {
             MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
