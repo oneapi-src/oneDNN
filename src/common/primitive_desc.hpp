@@ -17,6 +17,8 @@
 #ifndef PRIMITIVE_DESC_HPP
 #define PRIMITIVE_DESC_HPP
 
+#include <typeindex>
+
 #include "mkldnn.h"
 
 #include "c_types_map.hpp"
@@ -100,6 +102,11 @@ struct mkldnn_primitive_desc : public mkldnn::impl::c_compatible {
                 mkldnn::impl::data_type::u8, mkldnn_x);
     }
 
+    virtual std::type_index impl_id() const {
+        assert(!"mkldnn_primitive_desc doesn't have impl_id");
+        return typeid(mkldnn_primitive_desc);
+    }
+
     /** returns the scratchpad size for the given scratchpad mode. */
     mkldnn::impl::dim_t scratchpad_size(
             mkldnn::impl::scratchpad_mode_t mode) const {
@@ -176,7 +183,8 @@ protected:
                 use_global_scratchpad); \
         return status; \
     } \
-    virtual const char *name() const override { return impl_name; }
+    virtual const char *name() const override { return impl_name; } \
+    virtual std::type_index impl_id() const override { return typeid(pd_t); }
 
 #define DECLARE_COMMON_PD_T_USE_GLOBAL_SCRATCHPAD(impl_name, impl_type) \
     DECLARE_COMMON_PD_t(impl_name, impl_type, true)

@@ -129,9 +129,8 @@ struct mkldnn_engine : public mkldnn::impl::c_compatible {
         double ms = mkldnn::impl::get_msec();
 
         // create a key for the requested primitive
-        int dummy_impl_id = 0;
         mkldnn::impl::primitive_hashing::key_t key(pd->kind(), pd->op_desc(),
-                pd->attr(), dummy_impl_id, this->mkldnn_get_max_threads());
+                pd->attr(), pd->impl_id(), this->mkldnn_get_max_threads());
 
         // lock cache
         recursive_mutex_.lock();

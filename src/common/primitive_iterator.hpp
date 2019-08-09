@@ -64,7 +64,9 @@ struct mkldnn_primitive_desc_iterator : public mkldnn::impl::c_compatible {
         while (++idx_ != last_idx_) {
             auto s = impl_list_[idx_](
                     &pd_, op_desc_, &attr_, engine_, hint_fwd_pd_);
-            if (s == mkldnn::impl::status::success) break;
+            if (s == mkldnn::impl::status::success) {
+                break;
+            }
         }
         return *this;
     }

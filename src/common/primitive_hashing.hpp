@@ -27,7 +27,8 @@ namespace primitive_hashing {
 
 struct key_t {
     key_t(mkldnn_primitive_kind_t primitive_kind, const op_desc_t *op_desc,
-            const primitive_attr_t *attr, int impl_id, int impl_nthr)
+            const primitive_attr_t *attr, const std::type_index &impl_id,
+            int impl_nthr)
         : primitive_kind_(primitive_kind)
         , op_desc_(op_desc)
         , attr_(attr)
@@ -43,7 +44,7 @@ private:
     mkldnn_primitive_kind_t primitive_kind_;
     const op_desc_t *op_desc_;
     const primitive_attr_t *attr_;
-    int impl_id_;
+    std::type_index impl_id_;
     int impl_nthr_;
 };
 
