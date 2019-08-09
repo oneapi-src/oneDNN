@@ -65,8 +65,6 @@ status_t mkldnn_sum_primitive_desc_create(primitive_desc_t **sum_pd,
 
     for (auto s = engine->get_sum_implementation_list(); *s; ++s) {
         if ((*s)(s_pd, engine, attr, dst_md, n, scales, src_mds) == success) {
-            (*s_pd)->init_info();
-            (*s_pd)->init_scratchpad_md();
             return success;
         }
     }

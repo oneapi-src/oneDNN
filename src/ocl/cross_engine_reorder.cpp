@@ -66,8 +66,6 @@ status_t cross_engine_reorder_t::pd_t::init() {
         if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
                     reorder_engine, dst_md())
                 == status::success) {
-
-            r_pd->init_info();
             reorder_.reset(r_pd);
             break;
         }

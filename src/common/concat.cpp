@@ -73,8 +73,6 @@ status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
     for (auto c = engine->get_concat_implementation_list(); *c; ++c) {
         if ((*c)(c_pd, engine, attr, dst_md, n, concat_dim, src_mds)
                 == success) {
-            (*c_pd)->init_info();
-            (*c_pd)->init_scratchpad_md();
             return success;
         }
     }

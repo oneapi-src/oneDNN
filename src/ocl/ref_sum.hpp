@@ -57,7 +57,6 @@ struct ref_sum_t : public primitive_impl_t {
                     if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
                                 dst_md())
                             == status::success) {
-                        r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
                     }

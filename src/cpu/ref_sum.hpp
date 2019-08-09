@@ -60,7 +60,6 @@ struct ref_sum_t : public primitive_impl_t {
                     if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
                                 dst_acc_md())
                             == status::success) {
-                        r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
                     }
@@ -70,12 +69,10 @@ struct ref_sum_t : public primitive_impl_t {
             if (need_output_reorder()) {
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t attr;
-
                     reorder_pd_t *r_pd;
                     if ((*r)(&r_pd, engine_, &attr, engine_, dst_acc_md(),
                                 engine_, dst_md())
                             == status::success) {
-                        r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
                     }

@@ -202,6 +202,8 @@ protected:
             delete _pd; \
             return unimplemented; \
         } \
+        _pd->init_info(); \
+        _pd->init_scratchpad_md(); \
         return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
     } \
     virtual status_t create_primitive(primitive_t **p) const override { \

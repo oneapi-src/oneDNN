@@ -73,8 +73,6 @@ status_t mkldnn_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
         if ((*r)(r_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
                 == success) {
-            (*r_pd)->init_info();
-            (*r_pd)->init_scratchpad_md();
             return success;
         }
     }
