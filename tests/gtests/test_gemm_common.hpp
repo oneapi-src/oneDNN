@@ -61,6 +61,39 @@ mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, char transa,
 }
 #endif
 
+#if MKLDNN_WITH_SYCL
+
+// Declare SYCL GEMM interfaces for testing
+namespace mkldnn {
+void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        cl::sycl::buffer<float, 1> &a, memory::dim offset_a, memory::dim lda,
+        cl::sycl::buffer<float, 1> &b, memory::dim offset_b, memory::dim ldb,
+        float beta, cl::sycl::buffer<float, 1> &c, memory::dim offset_c,
+        memory::dim ldc);
+
+void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        cl::sycl::buffer<cl::sycl::half, 1> &a, memory::dim offset_a,
+        memory::dim lda, cl::sycl::buffer<cl::sycl::half, 1> &b,
+        memory::dim offset_b, memory::dim ldb, float beta,
+        cl::sycl::buffer<cl::sycl::half, 1> &c, memory::dim offset_c,
+        memory::dim ldc);
+
+void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        const float *a, memory::dim lda, const float *b, memory::dim ldb,
+        float beta, float *c, memory::dim ldc);
+
+void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        const cl::sycl::half *a, memory::dim lda, const cl::sycl::half *b,
+        memory::dim ldb, float beta, cl::sycl::half *c, memory::dim ldc);
+
+} // namespace mkldnn
+
+#endif
+
 // Declare bfloat16 GEMM interfaces for testing
 extern "C" {
 mkldnn_status_t mkldnn_gemm_bf16bf16f32(char transa, char transb,
@@ -148,6 +181,10 @@ struct test_params {
     mkldnn_status_t expected_status;
 
     gemm_offset off;
+
+#if MKLDNN_WITH_SYCL
+    bool test_usm_api;
+#endif
 
     bool tr_a() const { return transA == 'T' || transA == 't'; }
     bool tr_b() const { return transB == 'T' || transB == 't'; }
@@ -471,9 +508,20 @@ inline void get_matrix_size(
 
 template <typename T>
 inline test_memory get_matrix_memory(
-        memory::dim n, memory::dim off, engine &eng) {
+        const test_params &p, memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
+#ifdef MKLDNN_SYCL_INTEL
+    if (p.test_usm_api) {
+        auto dev = eng.get_sycl_device();
+        auto ctx = eng.get_sycl_context();
+        auto f_malloc = [=](size_t sz) {
+            return cl::sycl::malloc_shared(sz, dev, ctx);
+        };
+        auto f_free = [=](void *ptr) { return cl::sycl::free(ptr, ctx); };
+        return test_memory(d, eng, f_malloc, f_free);
+    }
+#endif
     return test_memory(d, eng);
 }
 
@@ -527,7 +575,7 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
     static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
-        engine eng(get_test_engine_kind(), 0);
+        engine eng = a_mem.get().get_engine();
         stream s(eng);
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
@@ -538,6 +586,31 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
                     c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
+        }
+#elif MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+            if (p.test_usm_api) {
+                // Test USM API
+                auto a = static_cast<cl::sycl::half *>(
+                        a_mem.get().get_data_handle());
+                auto b = static_cast<cl::sycl::half *>(
+                        b_mem.get().get_data_handle());
+                auto c = static_cast<cl::sycl::half *>(
+                        c_mem.get().get_data_handle());
+                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                        p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+            } else {
+                // Test buffer API
+                auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
+                auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
+                auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
+                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                        p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
+                        c, p.off.c, p.ldc);
+            }
+            s.wait();
+            return mkldnn_success;
         }
 #endif
         throw error(mkldnn_runtime_error, "unknown gemm");
@@ -634,13 +707,39 @@ struct mkldnn_gemm<float, float, float> {
             s.wait();
             return status;
         }
+#elif MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+            if (p.test_usm_api) {
+                // Test USM API
+                auto a = static_cast<float *>(a_mem.get().get_data_handle());
+                auto b = static_cast<float *>(b_mem.get().get_data_handle());
+                auto c = static_cast<float *>(c_mem.get().get_data_handle());
+                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                        p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+            } else {
+                // Test buffer API
+                auto a = a_mem.get().get_sycl_buffer<float>();
+                auto b = b_mem.get().get_sycl_buffer<float>();
+                auto c = c_mem.get().get_sycl_buffer<float>();
+                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                        p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
+                        c, p.off.c, p.ldc);
+            }
+            s.wait();
+            return mkldnn_success;
+        }
 #endif
-        auto A = map_memory<float>(a_mem);
-        auto B = map_memory<float>(b_mem);
-        auto C = map_memory<float>(c_mem);
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            auto A = map_memory<float>(a_mem);
+            auto B = map_memory<float>(b_mem);
+            auto C = map_memory<float>(c_mem);
 
-        return mkldnn_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A,
-                p.lda, B, p.ldb, p.beta, C, p.ldc);
+            return mkldnn_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A,
+                    p.lda, B, p.ldb, p.beta, C, p.ldc);
+        }
+
+        throw error(mkldnn_runtime_error, "unknown gemm");
     }
 };
 
@@ -797,11 +896,11 @@ struct run_test_gemm {
         get_matrix_size(p, sizeA, sizeB, sizeC);
 
         engine eng(get_test_engine_kind(), 0);
-        test_memory a_mem = get_matrix_memory<a_dt>(sizeA, p.off.a, eng);
-        test_memory b_mem = get_matrix_memory<b_dt>(sizeB, p.off.b, eng);
-        test_memory c_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
-        test_memory c_ref_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
-        test_memory oc_mem = get_matrix_memory<c_dt>(p.size_oc(), 0, eng);
+        test_memory a_mem = get_matrix_memory<a_dt>(p, sizeA, p.off.a, eng);
+        test_memory b_mem = get_matrix_memory<b_dt>(p, sizeB, p.off.b, eng);
+        test_memory c_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
+        test_memory c_ref_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
+        test_memory oc_mem = get_matrix_memory<c_dt>(p, p.size_oc(), 0, eng);
 
         mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
         const int64_t M_test = mapper_m.dim_test();
@@ -845,11 +944,6 @@ protected:
                 "SYCL CPU GEMM not implemented.");
 #endif
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
-                "SYCL GPU GEMM not implemented.");
-#endif
-
         bool is_bfloat16 = true
                 && data_traits<a_dt>::data_type == memory::data_type::bf16
                 && data_traits<b_dt>::data_type == memory::data_type::bf16
@@ -874,6 +968,31 @@ protected:
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
     void Test() {
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            const auto &p = ::testing::TestWithParam<test_params>::GetParam();
+
+            // Test SYCL buffer interfaces
+            auto p_buffer = p;
+            p_buffer.test_usm_api = false;
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p_buffer);
+
+            bool zero_off = (p.off.a == 0 && p.off.b == 0 && p.off.c == 0);
+            SKIP_IF(!zero_off, "USM interfaces do not support offsets.");
+
+            // TODO: enable USM tests after OpenCL driver update
+#if 0
+#ifdef MKLDNN_SYCL_INTEL
+            // Test SYCL USM interfaces
+            auto p_usm = p;
+            p_usm.test_usm_api = true;
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p_usm);
+#endif
+#endif
+
+            return;
+        }
+#endif
         const auto &p = ::testing::TestWithParam<test_params>::GetParam();
         run_test_gemm<a_dt, b_dt, c_dt>::call(p);
     }

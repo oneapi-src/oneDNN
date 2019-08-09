@@ -543,6 +543,23 @@ public:
         mapped_ptr_t<char> ptr(&mem_);
         memset(ptr, 0xFF, size_);
     }
+
+    template <typename malloc_t, typename free_t>
+    test_memory(const memory::desc &d, const mkldnn::engine &e,
+            const malloc_t &f_malloc, const free_t &f_free) {
+        int backend_kind;
+        mkldnn::error::wrap_c_api(
+                mkldnn_engine_get_backend_kind(e.get(), &backend_kind),
+                "internal error");
+        size_ = d.get_size();
+        data_.reset(static_cast<char *>(f_malloc(size_)), f_free);
+        mem_ = memory(d, e, data_.get());
+
+        // Fill with a magic number to catch possible uninitialized access
+        mapped_ptr_t<char> ptr(&mem_);
+        memset(ptr, 0xFF, size_);
+    }
+
     size_t get_size() const { return size_; }
     const memory &get() const { return mem_; }
 
