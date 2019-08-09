@@ -30,6 +30,7 @@
 #include "ocl/ref_deconvolution.hpp"
 #include "ocl/ref_eltwise.hpp"
 #include "ocl/ref_inner_product.hpp"
+#include "ocl/ref_layer_normalization.hpp"
 #include "ocl/ref_lrn.hpp"
 #include "ocl/ref_pooling.hpp"
 #include "ocl/ref_shuffle.hpp"
@@ -193,6 +194,9 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_rnn_bwd_f32_t),
         /* shuffle */
         INSTANCE(ref_shuffle_t),
+        /*layer normalization */
+        INSTANCE(ref_layer_normalization_fwd_t),
+        INSTANCE(ref_layer_normalization_bwd_t),
         nullptr,
 };
 

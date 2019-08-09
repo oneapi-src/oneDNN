@@ -46,11 +46,11 @@
 int verbose {0};
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
+const char *driver_name = "";
 
 double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
 int fix_times_per_prb {0};
-prim_t prim = DEF;
 
 int main(int argc, char **argv) {
     using namespace parser;
@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
     --argc;
     ++argv;
 
+    prim_t prim = DEF;
     for (; argc > 0; --argc, ++argv) {
         if (parse_bench_settings(argv[0]))
             ;

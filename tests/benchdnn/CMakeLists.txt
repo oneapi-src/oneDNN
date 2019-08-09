@@ -168,6 +168,8 @@ if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --deconv --batch=inputs/deconv/test_deconv_gpu")
     register_benchdnn_test(test_benchdnn_bnorm
         gpu "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_gpu")
+    register_benchdnn_test(test_benchdnn_lnorm
+        gpu "-v1 --lnorm --batch=inputs/lnorm/test_lnorm_gpu")
     register_benchdnn_test(test_benchdnn_ip
         gpu "-v1 --ip --batch=inputs/ip/test_ip_gpu")
     register_benchdnn_test(test_benchdnn_rnn

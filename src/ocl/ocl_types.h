@@ -39,6 +39,7 @@
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_float
 #define CONVERT_DATA8_T convert_float8
+#define CONVERT_FLOAT_T convert_float
 #define CONVERT_FLOAT8_T convert_float8
 #define ROUND
 
@@ -74,6 +75,7 @@
 #define DATA_TO_REF convert_half
 #define CONVERT_DATA_T convert_half
 #define CONVERT_DATA8_T convert_half8
+#define CONVERT_FLOAT_T convert_float
 #define CONVERT_FLOAT8_T convert_float8
 #define ROUND
 
@@ -95,8 +97,8 @@
 #define DATA_T ushort
 #define POST_OP_DATA_T float
 #define DATA8_T ushort8
-#define DATA_MAX FLT_MAX
-#define DATA_MIN -DATA_MAX
+#define DATA_MAX 3.38953138925153547590470800371487866880e+38F
+#define DATA_MIN (-DATA_MAX)
 #define DATA_ZERO 0.0f
 #define DATA_ONE 1.0f
 #define DEF_ACC_DATA_T float
@@ -106,6 +108,7 @@
 #define DATA_TO_REF convert_bf16_to_f32
 #define CONVERT_DATA_T convert_f32_to_bf16
 #define CONVERT_DATA8_T convert_f32_to_bf16_vec8
+#define CONVERT_FLOAT_T convert_bf16_to_f32
 #define CONVERT_FLOAT8_T convert_bf16_to_f32_vec8
 #define ROUND
 
@@ -197,9 +200,11 @@
 #define AS_VECT_DATA_T AS_DATA_T
 #define VECT_BLOCK_READ BLOCK_READ
 #define VECT_BLOCK_WRITE BLOCK_WRITE
+#define VECT_UINT_READ intel_sub_group_block_read
+#define VECT_UINT_WRITE intel_sub_group_block_write
 #define VECT_BLOCK_DATA_T BLOCK_DATA_T
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA_T
-#define CONVERT_VECT_FLOAT_T convert_float
+#define CONVERT_VECT_FLOAT_T CONVERT_FLOAT_T
 #define CONVERT_VECTOR_DATA_T CONVERT_DATA_T
 #define VECT_INT_T int
 #define VECT_UINT_T uint
@@ -212,6 +217,8 @@
 #define AS_VECT_DATA_T AS_DATA8_T
 #define VECT_BLOCK_READ BLOCK_READ8
 #define VECT_BLOCK_WRITE BLOCK_WRITE8
+#define VECT_UINT_READ intel_sub_group_block_read8
+#define VECT_UINT_WRITE intel_sub_group_block_write8
 #define VECT_BLOCK_DATA_T BLOCK_DATA8_T
 #define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA8_T
 #define CONVERT_VECT_FLOAT_T CONVERT_FLOAT8_T
@@ -227,7 +234,7 @@
 #define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
 #if SRC_DT_BF16
 #define SRC_TO_REF(x) convert_bf16_to_f32(x)
-#define SRC_TO_REF8(x) convert_bf16_to_f32_8(x)
+#define SRC_TO_REF8(x) convert_bf16_to_f32_vec8(x)
 #else
 #define SRC_TO_REF(x) (x)
 #define SRC_TO_REF8(x) (x)
@@ -291,9 +298,9 @@
 #define DST_DATA8_T CONCAT2(DST_DATA_T, 8)
 #if DST_DT_BF16
 #define DST_TO_REF(x) convert_bf16_to_f32(x)
-#define DST_TO_REF8(x) convert_bf16_to_f32_8(x)
+#define DST_TO_REF8(x) convert_bf16_to_f32_vec8(x)
 #define REF_TO_DST(x) convert_f32_to_bf16(x)
-#define REF_TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
+#define REF_TO_DST8(x) convert_f32_to_bf16_vec8(convert_float8(x))
 #else
 #define DST_TO_REF(x) (x)
 #define DST_TO_REF8(x) (x)
@@ -302,7 +309,7 @@
 #endif
 #if DST_DT_BF16
 #define TO_DST(x) convert_f32_to_bf16(x)
-#define TO_DST8(x) convert_f32_to_bf16_8(convert_float8(x))
+#define TO_DST8(x) convert_f32_to_bf16_vec8(convert_float8(x))
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)
 #define TO_DST8(x) convert_half8(x)

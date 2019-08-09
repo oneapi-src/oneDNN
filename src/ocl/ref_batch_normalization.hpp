@@ -54,8 +54,8 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
-                    && IMPLICATION(utils::one_of(src_data_t, f16, bf16),
-                            !is_training() && stats_is_src())
+                    && IMPLICATION(
+                            src_data_t == f16, !is_training() && stats_is_src())
                     && (attr()->has_default_values() || with_relu_post_op())
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
@@ -86,8 +86,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
                 = {"ref_bnorm_fwd_kernel", nullptr, nullptr, nullptr, nullptr};
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic
-                    * types::data_type_size(pd()->src_md()->data_type);
+                    * pd()->jbn_.ic * types::data_type_size(data_type::f32);
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);
             temp_reduce.reset(temp_reduce_ptr);
@@ -148,8 +147,10 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         status_t init() {
             using namespace data_type;
             bool ok = true && is_bwd()
-                    && utils::everyone_is(
-                            f32, src_md()->data_type, diff_src_md()->data_type)
+                    && (utils::everyone_is(f32, src_md()->data_type,
+                                diff_src_md()->data_type)
+                            || utils::everyone_is(bf16, src_md()->data_type,
+                                    diff_src_md()->data_type))
                     && IMPLICATION(use_scaleshift(),
                             utils::everyone_is(f32, weights_md()->data_type,
                                     diff_weights_md()->data_type))
@@ -182,9 +183,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
         if (pd()->jbn_.use_16mb_unroll) {
             size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic
-                    * types::data_type_size(pd()->src_md()->data_type);
-            ;
+                    * pd()->jbn_.ic * types::data_type_size(data_type::f32);
 
             memory_storage_t *temp_reduce_ptr;
             engine()->create_memory_storage(&temp_reduce_ptr, size);

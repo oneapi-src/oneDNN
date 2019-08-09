@@ -28,8 +28,14 @@ namespace cpu {
 
 namespace simple_barrier {
 
+#ifdef _WIN32
+#define CTX_ALIGNMENT 64
+#else
+#define CTX_ALIGNMENT 4096
+#endif
+
 STRUCT_ALIGN(
-        64, struct ctx_t {
+        CTX_ALIGNMENT, struct ctx_t {
             enum { CACHE_LINE_SIZE = 64 };
             volatile size_t ctr;
             char pad1[CACHE_LINE_SIZE - 1 * sizeof(size_t)];

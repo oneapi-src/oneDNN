@@ -46,7 +46,7 @@ struct jit_memory_desc_info_t {
     int strides[MAX_NDIMS][nlevels + 1];
 
     static jit_memory_desc_info_t create(const memory_desc_wrapper &mdw) {
-        jit_memory_desc_info_t jit_md_info;
+        jit_memory_desc_info_t jit_md_info{};
 
         jit_md_info.ndims = mdw.ndims();
         jit_md_info.data_type = mdw.data_type();
@@ -282,6 +282,25 @@ struct jit_bnorm_conf_t {
     bool diff_scaleshift;
     float relu_negative_slope, eps;
     size_t gws_d[3], lws_d[3];
+};
+
+/* lnorm */
+struct jit_lnorm_conf_t {
+    data_type_t data_type;
+
+    int ndims;
+    int norm_axis;
+
+    jit_memory_desc_info_t src_md_info;
+    jit_memory_desc_info_t dst_md_info;
+    jit_memory_desc_info_t stat_md_info;
+
+    bool use_scaleshift;
+    bool calculate_stats;
+    bool save_stats;
+    float eps;
+
+    size_t gws_d[3];
 };
 
 /* simple sum */

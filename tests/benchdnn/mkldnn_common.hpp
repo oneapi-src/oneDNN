@@ -212,7 +212,9 @@ inline int init() {
     // and concat primitives are used to test GPU reorders so leave them
     // without changes.
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
-    if (prim != REORDER && prim != SUM && prim != CONCAT) {
+    std::string driver = std::string(driver_name);
+    if (driver != std::string("reorder") && driver != std::string("sum")
+            && driver != std::string("concat")) {
         mkldnn_impl_gpu_reorder_set_engine_kind(mkldnn_cpu);
     }
 #endif

@@ -14,36 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_MATH_UTILS_H
-#define OCL_MATH_UTILS_H
+#ifndef OCL_LAYER_NORMALIZATION_PD_HPP
+#define OCL_LAYER_NORMALIZATION_PD_HPP
 
-ushort convert_f32_to_bf16(float f) {
-    uint i = as_uint(f);
-    i += 0x00007FFF + ((i & 0x10000) >> 16);
-    ushort2 r = as_ushort2(i);
-    return r[1];
-}
+#include "layer_normalization_pd.hpp"
 
-float convert_bf16_to_f32(ushort b) {
-    ushort2 r = {0, b};
-    float f = as_float(r);
-    return f;
-}
+namespace mkldnn {
+namespace impl {
+namespace ocl {
 
-ushort8 convert_f32_to_bf16_vec8(float8 f) {
-    ushort8 r;
-    for (int i = 0; i < 8; i++) {
-        r[i] = convert_f32_to_bf16(f[i]);
-    }
-    return r;
-}
+struct ocl_layer_normalization_fwd_pd_t : public layer_normalization_fwd_pd_t {
+    using layer_normalization_fwd_pd_t::layer_normalization_fwd_pd_t;
+};
 
-float8 convert_bf16_to_f32_vec8(ushort8 b) {
-    float8 f;
-    for (int i = 0; i < 8; i++) {
-        f[i] = convert_bf16_to_f32(b[i]);
-    }
-    return f;
-}
+struct ocl_layer_normalization_bwd_pd_t : public layer_normalization_bwd_pd_t {
+    using layer_normalization_bwd_pd_t::layer_normalization_bwd_pd_t;
+};
+
+} // namespace ocl
+} // namespace impl
+} // namespace mkldnn
 
 #endif
+
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

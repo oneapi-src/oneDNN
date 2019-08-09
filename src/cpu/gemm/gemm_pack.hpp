@@ -32,7 +32,7 @@ static inline bool pack_sgemm_supported() {
 }
 #else
 static inline bool pack_sgemm_supported() {
-    return mayiuse(avx);
+    return mayiuse(sse41);
 }
 #endif
 

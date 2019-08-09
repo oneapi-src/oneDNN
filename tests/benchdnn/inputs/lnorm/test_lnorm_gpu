@@ -1,0 +1,7 @@
+--reset
+--dt=f32,bf16
+--dir=FWD_D,BWD_D  --inplace=true,false  --flags=     --batch=lnorm_all
+--dir=FWD_D,BWD_DW --inplace=true        --flags=GS,S --batch=lnorm_all
+
+--dt=f16
+--dir=FWD_I        --inplace=true,false  --flags=GS   --batch=lnorm_all

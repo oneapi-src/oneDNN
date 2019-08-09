@@ -127,9 +127,9 @@ const char *direction2str(mkldnn_rnn_direction_t direction) {
 void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
     if (cfg != conf_f32 && cfg != conf_f16 && policy == NONE) {
         fprintf(stderr,
-                "rnn driver: configuration `%s` requires scale policy "
+                "%s driver: configuration `%s` requires scale policy "
                 "to be COMMON or PER_OC, exiting...\n",
-                cfg2str(cfg));
+                driver_name, cfg2str(cfg));
         exit(2);
     }
 }

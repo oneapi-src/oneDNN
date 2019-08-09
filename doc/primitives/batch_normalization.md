@@ -45,6 +45,18 @@ The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 In training mode the primitive also optionally supports fusion with ReLU
 activation applied to the result (see #mkldnn_fuse_norm_relu flag).
 
+@note
+* The batch normalization primitive computes population mean and variance and
+  not their sample or unbiased versions that are typically used to compute
+  running mean and variance.
+* Using the mean and variance computed by the batch normalization primitive,
+  running mean and variance \f$\hat\mu\f$ and \f$\hat\sigma^2\f$ can be
+  computed as \f[
+    \hat\mu := \alpha \cdot \hat\mu + (1 - \alpha) \cdot \mu, \\
+    \hat\sigma^2 := \alpha \cdot \hat\sigma^2 + (1 - \alpha) \cdot \sigma^2.
+  \f]
+
+
 #### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
 
  * If mean and variance are computed at run-time (i.e., #mkldnn_use_global_stats
