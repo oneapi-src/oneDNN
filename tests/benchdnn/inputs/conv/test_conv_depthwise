@@ -2,6 +2,7 @@
 --reset
 --mb=2
 --dir=FWD_D,BWD_D,BWD_WB --batch=conv_mobilenet_dw
+--dir=FWD_D,BWD_D,BWD_WB --batch=conv_regression_dw
 
 #post-ops
 --dir=FWD_D

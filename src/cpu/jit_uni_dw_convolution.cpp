@@ -382,7 +382,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
                     const int h_work = nstl::min(h_block_size, jcp.oh - oh);
                     auto kh_t_padding = nstl::max(0, jcp.t_pad - oh);
                     auto kh_b_padding
-                            = (oh * jcp.stride_h + jcp.kh > jcp.ih)
+                            = (oh * jcp.stride_h + jcp.kh > jcp.ih + jcp.t_pad)
                             ? nstl::max(jcp.b_pad - (h_work - 1), 0)
                             : 0;
 
