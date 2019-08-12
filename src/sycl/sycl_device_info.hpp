@@ -20,17 +20,69 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-#include "ocl/ocl_device_info.hpp"
+#include "compute/device_info.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace sycl {
 
-class sycl_device_info_t : public ocl::ocl_device_info_t {
+class sycl_device_info_t : public compute::device_info_t {
 public:
-    sycl_device_info_t(const cl::sycl::device &dev)
-        : ocl::ocl_device_info_t(ocl::ocl_utils::make_ocl_wrapper(dev.get())) {}
+    sycl_device_info_t(const cl::sycl::device &device)
+        : device_(device)
+        , ext_(0)
+        , eu_count_(0)
+        , hw_threads_(0)
+        , runtime_version_ {0, 0, 0} {}
+
+    virtual status_t init() override {
+        // Extensions
+        for (uint64_t i_ext = 1; i_ext < (uint64_t)compute::device_ext_t::last;
+                i_ext <<= 1) {
+            const char *s_ext = ext2cl_str((compute::device_ext_t)i_ext);
+            if (s_ext != nullptr && device_.has_extension(s_ext)) {
+                ext_ |= i_ext;
+            }
+        }
+
+        // EU count
+        eu_count_
+                = device_.get_info<cl::sycl::info::device::max_compute_units>();
+
+        // Gen9 value, for GPU, for now
+        int threads_per_eu = (device_.is_gpu() ? 7 : 1);
+        hw_threads_ = eu_count_ * threads_per_eu;
+
+        // Runtime version
+        auto driver_version
+                = device_.get_info<cl::sycl::info::device::driver_version>();
+        if (runtime_version_.set_from_string(driver_version.c_str())
+                != status::success) {
+            runtime_version_.major = 0;
+            runtime_version_.minor = 0;
+            runtime_version_.build = 0;
+        }
+
+        return status::success;
+    }
+
+    virtual bool has(compute::device_ext_t ext) const override {
+        return ext_ & (uint64_t)ext;
+    }
+
+    virtual int eu_count() const override { return eu_count_; }
+    virtual int hw_threads() const override { return hw_threads_; }
+
+    virtual const compute::runtime_version_t &runtime_version() const override {
+        return runtime_version_;
+    }
+
+private:
+    cl::sycl::device device_;
+    uint64_t ext_;
+    int32_t eu_count_, hw_threads_;
+    compute::runtime_version_t runtime_version_;
 };
 
 } // namespace sycl

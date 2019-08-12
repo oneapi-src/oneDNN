@@ -20,25 +20,12 @@
 #include <vector>
 #include <CL/cl.h>
 
-#include "common/z_magic.hpp"
 #include "compute/device_info.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace mkldnn {
 namespace impl {
 namespace ocl {
-
-static const char *ext2cl_str(compute::device_ext_t ext) {
-#define CASE(x) \
-    case compute::device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
-    switch (ext) {
-        CASE(khr_fp16);
-        CASE(intel_subgroups);
-        CASE(intel_subgroups_short);
-        default: return nullptr;
-    }
-#undef CASE
-}
 
 class ocl_device_info_t : public compute::device_info_t {
 public:

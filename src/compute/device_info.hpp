@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "common/c_types_map.hpp"
+#include "common/z_magic.hpp"
 
 namespace mkldnn {
 namespace impl {
@@ -33,6 +34,18 @@ enum class device_ext_t {
     intel_subgroups_short = 1 << 2,
     last
 };
+
+inline const char *ext2cl_str(compute::device_ext_t ext) {
+#define CASE(x) \
+    case compute::device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
+    switch (ext) {
+        CASE(khr_fp16);
+        CASE(intel_subgroups);
+        CASE(intel_subgroups_short);
+        default: return nullptr;
+    }
+#undef CASE
+}
 
 struct runtime_version_t {
     int major;
