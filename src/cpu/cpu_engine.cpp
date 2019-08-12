@@ -53,6 +53,7 @@
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
 #include "cpu/jit_uni_i8i8_pooling.hpp"
+#include "cpu/jit_uni_layer_normalization.hpp"
 #include "cpu/jit_uni_lrn.hpp"
 #include "cpu/jit_uni_pooling.hpp"
 #include "cpu/jit_uni_softmax.hpp"
@@ -72,7 +73,6 @@
 #include "cpu/ref_pooling.hpp"
 #include "cpu/ref_shuffle.hpp"
 #include "cpu/ref_softmax.hpp"
-#include "cpu/simple_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -354,8 +354,8 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>),
         INSTANCE(ref_inner_product_fwd_t<u8, s8, f32, s32>),
         /* layer normalization */
-        INSTANCE(simple_layer_normalization_fwd_t),
-        INSTANCE(simple_layer_normalization_bwd_t),
+        INSTANCE(jit_uni_layer_normalization_fwd_t),
+        INSTANCE(jit_uni_layer_normalization_bwd_t),
         INSTANCE(ref_layer_normalization_fwd_t<f32>),
         INSTANCE(ref_layer_normalization_bwd_t<f32>),
         INSTANCE(ref_layer_normalization_fwd_t<bf16>),
