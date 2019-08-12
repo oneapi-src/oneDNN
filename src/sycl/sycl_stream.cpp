@@ -38,8 +38,6 @@ status_t sycl_stream_t::init() {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
 
-        auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(sycl_dev.get());
-
         // TODO: enable this code and remove all the workarounds below after
         // the related SYCL bugs are fixed
 #if 0
@@ -62,36 +60,56 @@ status_t sycl_stream_t::init() {
         auto *service_stream = utils::downcast<sycl_stream_t *>(
                 sycl_engine.service_stream());
         if (!service_stream) {
+            bool is_computecpp = false;
 #ifdef MKLDNN_SYCL_COMPUTECPP
-            // FIXME: workaround for ComputeCpp SYCL
-            // ComputeCpp SYCL works incorrectly with OpenCL interop API for
-            // queues so let's create a queue based on the SYCL context and
-            // the engine kind only and check that the device is the same.
-            if (sycl_engine.kind() == engine_kind::cpu) {
-                queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::cpu_selector {}));
-            } else {
-                assert(sycl_engine.kind() == engine_kind::gpu);
-                queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::gpu_selector {}));
-            }
-            auto queue_ocl_dev = ocl::ocl_utils::make_ocl_wrapper(
-                    queue_->get_device().get());
-            if (queue_ocl_dev.get() != ocl_dev.get()) {
-                assert(!"Not expected");
-                return status::runtime_error;
-            }
-#else
-            auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(sycl_ctx.get());
-            cl_int err;
-            cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(
-                    ocl_ctx, ocl_dev, nullptr, &err);
-            assert(err == CL_SUCCESS);
-            queue_.reset(new cl::sycl::queue(ocl_queue, sycl_ctx));
-            err = clReleaseCommandQueue(ocl_queue);
-            assert(err == CL_SUCCESS);
+            is_computecpp = true;
 #endif
+            if (is_computecpp || sycl_dev.is_host()) {
+                // FIXME: workaround for ComputeCpp SYCL
+                // ComputeCpp SYCL works incorrectly with OpenCL interop API for
+                // queues so let's create a queue based on the SYCL context and
+                // the engine kind only and check that the device is the same.
+                if (sycl_dev.is_cpu) {
+                    assert(sycl_engine.kind() == engine_kind::cpu);
+                    queue_.reset(new cl::sycl::queue(
+                            sycl_ctx, cl::sycl::cpu_selector {}));
+                } else if (sycl_dev.is_cpu) {
+                    assert(sycl_engine.kind() == engine_kind::cpu);
+                    queue_.reset(new cl::sycl::queue(
+                            sycl_ctx, cl::sycl::host_selector {}));
+                } else {
+                    assert(sycl_engine.kind() == engine_kind::gpu);
+                    queue_.reset(new cl::sycl::queue(
+                            sycl_ctx, cl::sycl::gpu_selector {}));
+                }
+#if 0
+                auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(sycl_dev.get());
+                auto queue_ocl_dev = ocl::ocl_utils::make_ocl_wrapper(
+                        queue_->get_device().get());
+                if (queue_ocl_dev.get() != ocl_dev.get()) {
+                    assert(!"Not expected");
+                    return status::runtime_error;
+                }
+#else
+                if (queue_->get_device() != sycl_dev) {
+                    assert(!"Not expected");
+                    return status::runtime_error;
+                }
+#endif
+            } else {
+                auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(sycl_dev.get());
+                auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(sycl_ctx.get());
+                cl_int err;
+                cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(
+                        ocl_ctx, ocl_dev, nullptr, &err);
+                assert(err == CL_SUCCESS);
+                queue_.reset(new cl::sycl::queue(ocl_queue, sycl_ctx));
+                err = clReleaseCommandQueue(ocl_queue);
+                assert(err == CL_SUCCESS);
+            }
         } else {
+            // XXX: multiple queues support has some issues, so always re-use
+            // the same queue from the service stream.
             queue_.reset(new cl::sycl::queue(service_stream->queue()));
         }
 #endif
@@ -108,27 +126,29 @@ status_t sycl_stream_t::init() {
                         (sycl_dev.is_cpu() || sycl_dev.is_host()));
         if (!args_ok) return status::invalid_arguments;
 
-        auto ocl_queue = ocl::ocl_utils::make_ocl_wrapper(queue_->get());
-        cl_context ocl_ctx;
-        err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
-                sizeof(cl_context), &ocl_ctx, nullptr);
-        status = ocl::ocl_utils::convert_to_mkldnn(err);
-        if (status != status::success) return status;
+        if (sycl_dev.is_cpu() || sycl_dev.is_gpu()) {
+            auto ocl_queue = ocl::ocl_utils::make_ocl_wrapper(queue_->get());
+            cl_context ocl_ctx;
+            err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
+                    sizeof(cl_context), &ocl_ctx, nullptr);
+            status = ocl::ocl_utils::convert_to_mkldnn(err);
+            if (status != status::success) return status;
 
-        cl_device_id ocl_dev;
-        err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
-                sizeof(cl_device_id), &ocl_dev, nullptr);
-        status = ocl::ocl_utils::convert_to_mkldnn(err);
-        if (status != status::success) return status;
+            cl_device_id ocl_dev;
+            err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
+                    sizeof(cl_device_id), &ocl_dev, nullptr);
+            status = ocl::ocl_utils::convert_to_mkldnn(err);
+            if (status != status::success) return status;
 
-        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
+            auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
 
-        auto sycl_ocl_dev
-                = ocl::ocl_utils::make_ocl_wrapper(sycl_engine->device().get());
-        auto sycl_ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(
-                sycl_engine->context().get());
-        if (sycl_ocl_dev != ocl_dev || sycl_ocl_ctx != ocl_ctx)
-            return status::invalid_arguments;
+            auto sycl_ocl_dev = ocl::ocl_utils::make_ocl_wrapper(
+                    sycl_engine->device().get());
+            auto sycl_ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(
+                    sycl_engine->context().get());
+            if (sycl_ocl_dev != ocl_dev || sycl_ocl_ctx != ocl_ctx)
+                return status::invalid_arguments;
+        }
     }
 
     return status::success;

@@ -98,9 +98,11 @@ public:
     stream_t *service_stream() const { return service_stream_.get(); }
 
     cl_device_id ocl_device() const {
+        assert(device_.is_cpu() || device_.is_gpu());
         return ocl::ocl_utils::make_ocl_wrapper(device().get());
     }
     cl_context ocl_context() const {
+        assert(device_.is_cpu() || device_.is_gpu());
         return ocl::ocl_utils::make_ocl_wrapper(context().get());
     }
 

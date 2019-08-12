@@ -27,18 +27,16 @@ using namespace cl::sycl;
 namespace mkldnn {
 namespace {
 
-enum class dev_kind { cpu, cpu_only, gpu, gpu_only, host_only };
-enum class ctx_kind { cpu, cpu_only, gpu, gpu_only, host_only };
+enum class dev_kind { cpu, cpu_only, gpu, gpu_only, host };
+enum class ctx_kind { cpu, cpu_only, gpu, gpu_only, host };
 
 std::string to_string(dev_kind kind) {
-    static const char *strs[]
-            = {"CPU", "CPU-only", "GPU", "GPU-only", "Host-only"};
+    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only", "Host"};
     return strs[static_cast<int>(kind)];
 }
 
 std::string to_string(ctx_kind kind) {
-    static const char *strs[]
-            = {"CPU", "CPU-only", "GPU", "GPU-only", "Host-only"};
+    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only", "Host"};
     return strs[static_cast<int>(kind)];
 }
 
@@ -76,9 +74,9 @@ protected:
                         cpu_only_ctx.reset(new context(*cpu_only_dev));
                     }
                 } else if (dev.is_host()) {
-                    if (!host_only_dev && !dev.is_cpu() && !dev.is_gpu()) {
-                        host_only_dev.reset(new device(dev));
-                        host_only_ctx.reset(new context(*host_only_dev));
+                    if (!host_dev) {
+                        host_dev.reset(new device(dev));
+                        host_ctx.reset(new context(*host_dev));
                     }
                 }
             }
@@ -89,10 +87,10 @@ protected:
 
     std::unique_ptr<device> cpu_dev, cpu_only_dev;
     std::unique_ptr<device> gpu_dev, gpu_only_dev;
-    std::unique_ptr<device> host_only_dev;
+    std::unique_ptr<device> host_dev;
     std::unique_ptr<context> cpu_ctx, cpu_only_ctx;
     std::unique_ptr<context> gpu_ctx, gpu_only_ctx;
-    std::unique_ptr<context> host_only_ctx;
+    std::unique_ptr<context> host_ctx;
 };
 
 TEST_P(sycl_engine_test, BasicInterop) {
@@ -104,7 +102,7 @@ TEST_P(sycl_engine_test, BasicInterop) {
         case dev_kind::cpu_only: dev_ptr = cpu_only_dev.get(); break;
         case dev_kind::gpu: dev_ptr = gpu_dev.get(); break;
         case dev_kind::gpu_only: dev_ptr = gpu_only_dev.get(); break;
-        case dev_kind::host_only: dev_ptr = host_only_dev.get(); break;
+        case dev_kind::host: dev_ptr = host_dev.get(); break;
     }
     context *ctx_ptr = nullptr;
     switch (param.actx_kind) {
@@ -112,7 +110,7 @@ TEST_P(sycl_engine_test, BasicInterop) {
         case ctx_kind::cpu_only: ctx_ptr = cpu_only_ctx.get(); break;
         case ctx_kind::gpu: ctx_ptr = gpu_ctx.get(); break;
         case ctx_kind::gpu_only: ctx_ptr = gpu_only_ctx.get(); break;
-        case ctx_kind::host_only: ctx_ptr = host_only_ctx.get(); break;
+        case ctx_kind::host: ctx_ptr = host_ctx.get(); break;
     }
 
     SKIP_IF(!dev_ptr, to_string(param.adev_kind) + " device not found");
@@ -134,18 +132,49 @@ TEST_P(sycl_engine_test, BasicInterop) {
             param.expected_status != mkldnn_success, param.expected_status);
 }
 
+TEST(sycl_engine_test, HostDevice) {
+    device dev(host_selector {});
+    context ctx(dev);
+
+    engine eng(engine::kind::cpu, dev, ctx);
+
+    memory::dims tz = {2, 3, 4, 5};
+    memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
+    memory mem(mem_d, eng);
+
+    {
+        auto *ptr = mem.map_data<float>();
+        for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
+            ptr[i] = float(i) * (i % 2 == 0 ? 1 : -1);
+        mem.unmap_data(ptr);
+    }
+
+    auto eltwise_d = eltwise_forward::desc(
+            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
+    auto eltwise = eltwise_forward({eltwise_d, eng});
+
+    stream s(eng);
+    eltwise.execute(s, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
+    s.wait();
+
+    {
+        auto *ptr = mem.map_data<float>();
+        for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
+            ASSERT_EQ(ptr[i], (i % 2 == 0 ? i : 0));
+        mem.unmap_data(ptr);
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
         ::testing::Values(sycl_engine_test_params {engine::kind::gpu,
-                dev_kind::gpu, ctx_kind::gpu, mkldnn_success}));
+                                  dev_kind::gpu, ctx_kind::gpu, mkldnn_success},
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu,
+                        ctx_kind::cpu, mkldnn_success},
+                sycl_engine_test_params {engine::kind::cpu, dev_kind::host,
+                        ctx_kind::host, mkldnn_success}));
 
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, sycl_engine_test,
         ::testing::Values(
-                // SYCL CPU device is not yet supported
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu,
-                        ctx_kind::cpu, mkldnn_invalid_arguments},
-                // SYCL host device is not yet supported
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::host_only,
-                        ctx_kind::host_only, mkldnn_invalid_arguments},
                 sycl_engine_test_params {engine::kind::cpu, dev_kind::gpu,
                         ctx_kind::gpu, mkldnn_invalid_arguments},
                 sycl_engine_test_params {engine::kind::gpu, dev_kind::gpu_only,

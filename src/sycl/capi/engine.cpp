@@ -26,11 +26,12 @@ using namespace mkldnn::impl;
 
 status_t mkldnn_engine_create_sycl(engine_t **engine, engine_kind_t kind,
         const void *dev, const void *ctx) {
-    bool args_ok = true && (kind == engine_kind::gpu)
-            && !utils::any_null(engine, dev, ctx);
+    bool args_ok = !utils::any_null(engine, dev, ctx);
     if (!args_ok) return status::invalid_arguments;
 
     auto ef = sycl::get_engine_factory(kind);
+    if (!ef) return status::invalid_arguments;
+
     auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
     auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
     return ef->engine_create(engine, sycl_dev, sycl_ctx);

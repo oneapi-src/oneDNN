@@ -73,11 +73,18 @@ public:
 
     status_t engine_create(engine_t **engine, const cl::sycl::device &dev,
             const cl::sycl::context &ctx) const {
-        auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(dev.get());
-        auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(ctx.get());
-        status_t status
-                = ocl::ocl_utils::check_device(engine_kind_, ocl_dev, ocl_ctx);
-        if (status != status::success) { return status; }
+
+        status_t status = status::success;
+
+        // CPU and GPU devices work through OpenCL, so we can extract their
+        // OpenCL device/context and validate them.
+        if (dev.is_cpu() || dev.is_gpu()) {
+            auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(dev.get());
+            auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(ctx.get());
+            status = ocl::ocl_utils::check_device(
+                    engine_kind_, ocl_dev, ocl_ctx);
+            if (status != status::success) { return status; }
+        }
 
         assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
 
