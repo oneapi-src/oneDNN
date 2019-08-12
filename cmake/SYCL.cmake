@@ -26,7 +26,7 @@ endif()
 
 set(_computecpp_flags "-Wno-sycl-undef-func -no-serial-memop")
 set(COMPUTECPP_USER_FLAGS "${_computecpp_flags} ${COMPUTECPP_USER_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "")
 
 find_package(SYCL REQUIRED)
 
