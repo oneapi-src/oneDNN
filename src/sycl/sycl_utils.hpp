@@ -29,21 +29,6 @@ namespace sycl {
 
 using buffer_u8_t = cl::sycl::buffer<uint8_t, 1>;
 
-inline std::vector<cl::sycl::device> get_sycl_devices(
-        engine_kind_t engine_kind) {
-    std::vector<cl::sycl::device> devices;
-    auto all_platforms = cl::sycl::platform::get_platforms();
-    for (auto &plat : all_platforms) {
-        auto dev_type = (engine_kind == engine_kind::cpu)
-                ? cl::sycl::info::device_type::cpu
-                : cl::sycl::info::device_type::gpu;
-        auto devs = plat.get_devices(dev_type);
-        if (devs.empty()) continue;
-        devices.insert(devices.end(), devs.begin(), devs.end());
-    }
-    return devices;
-}
-
 inline cl::sycl::nd_range<3> to_sycl_nd_range(
         const compute::nd_range_t &range) {
     auto *global_range = range.global_range();

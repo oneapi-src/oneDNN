@@ -38,13 +38,19 @@ public:
         : engine_kind_(engine_kind) {}
 
     virtual size_t count() const override {
-        return get_sycl_devices(engine_kind_).size();
+        auto dev_type = (engine_kind_ == engine_kind::cpu)
+                ? cl::sycl::info::device_type::cpu
+                : cl::sycl::info::device_type::gpu;
+        return cl::sycl::device::get_devices(dev_type).size();
     }
 
     virtual status_t engine_create(
             engine_t **engine, size_t index) const override {
         assert(index < count());
-        auto devices = get_sycl_devices(engine_kind_);
+        auto dev_type = (engine_kind_ == engine_kind::cpu)
+                ? cl::sycl::info::device_type::cpu
+                : cl::sycl::info::device_type::gpu;
+        auto devices = cl::sycl::device::get_devices(dev_type);
         auto &dev = devices[index];
 
         auto exception_handler = [](cl::sycl::exception_list eptr_list) {
