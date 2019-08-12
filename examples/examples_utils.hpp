@@ -17,10 +17,10 @@
 #ifndef EXAMPLE_UTILS_HPP
 #define EXAMPLE_UTILS_HPP
 
-#include <string>
+#include <algorithm>
 #include <iostream>
 #include <stdlib.h>
-#include <algorithm>
+#include <string>
 
 #include "mkldnn.hpp"
 

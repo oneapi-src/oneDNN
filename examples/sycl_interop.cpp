@@ -50,9 +50,9 @@
 // [Prologue]
 
 #include <mkldnn.hpp>
+#include "examples_utils.hpp"
 #include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
-#include "examples_utils.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -92,7 +92,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     // [Initialize engine]
     engine eng(engine_kind, 0);
     // [Initialize engine]
- 
+
     /// In addition to an engine, all primitives require a @ref mkldnn::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
@@ -120,8 +120,8 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
             std::multiplies<size_t>());
 
-    memory::desc mem_d(tz_dims, memory::data_type::f32,
-            memory::format_tag::nchw);
+    memory::desc mem_d(
+            tz_dims, memory::data_type::f32, memory::format_tag::nchw);
 
     memory mem(mem_d, eng);
     //  [memory alloc]
@@ -167,8 +167,8 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// "heavier".
     /// @snippet sycl_interop.cpp relu creation
     //  [relu creation]
-    auto relu_d = eltwise_forward::desc(prop_kind::forward,
-            algorithm::eltwise_relu, mem_d, 0.0f);
+    auto relu_d = eltwise_forward::desc(
+            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
     auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
     auto relu = eltwise_forward(relu_pd);
     //  [relu creation]
@@ -222,11 +222,12 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 // [Main]
 int main(int argc, char **argv) {
     try {
-         engine::kind engine_kind = get_engine_kind(argc, argv);
-         sycl_interop_tutorial(engine_kind);
+        engine::kind engine_kind = get_engine_kind(argc, argv);
+        sycl_interop_tutorial(engine_kind);
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-            << "Error status: " << mkldnn_status2str(e.status) << std::endl;
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;
@@ -246,4 +247,3 @@ int main(int argc, char **argv) {
 /// ~~~
 ///
 /// @page sycl_interop_cpp
-
