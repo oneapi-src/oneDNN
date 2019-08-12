@@ -554,11 +554,13 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
 
     const int iw_block = ow_block * jcp.stride_w;
     const int right_border = jcp.iw - iw_block;
+    const int r_pad = jcp.r_pad;
 
     const int cascade_input = nstl::min(jcp.stride_w, jcp.kw);
 
     /* preamble count for number of cascaded LOAD + FMA operation */
     const int input_overlap = nstl::max(jcp.kw - l_pad, 0);
+    const bool is_last_block = (unroll_w + ow_block == jcp.ow);
 
     /* LOAD initial input registers, then cascade LOADs and FMAs*/
     for (int r = 0; r < reg_repeats; ++r) {
@@ -572,6 +574,13 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     int off_input
                             = ((c - pad_offset) * reg_repeats + r) * simd_w;
                     if (off_input < 0 && unroll_w == jcp.ow) continue;
+
+                    const bool over_steps_bdry = true
+                        && is_last_block
+                        && (c - pad_offset + r_pad > right_border);
+                    if (over_steps_bdry)
+                        continue;
+
                     Vmm vmm_input
                             = get_input_reg((c % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -585,6 +594,13 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                             * simd_w;
                     if (off_input < 0 || overlap + c + l_pad > right_border)
                         continue;
+
+                    const bool over_steps_bdry = true
+                        && is_last_block
+                        && (overlap + c - pad_offset + r_pad > right_border);
+                    if (over_steps_bdry)
+                        continue;
+
                     Vmm vmm_input = get_input_reg(
                             ((overlap + c) % jcp.kw) * reg_repeats + r);
                     uni_vmovups(vmm_input,
@@ -599,6 +615,13 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                 if (io_overlap - l_pad < 0
                         || io_overlap - jcp.l_pad >= right_border)
                     continue;
+
+                const bool over_steps_bdry = true
+                    && is_last_block
+                    && (io_overlap - jcp.l_pad + jcp.r_pad > right_border);
+                if (over_steps_bdry)
+                    continue;
+
                 Vmm vmm_input = get_input_reg(
                         ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
                 Vmm vmm_acc = get_acc_reg(i_kw * reg_repeats + r);
@@ -853,11 +876,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     int ow = jcp.ow;
     int pad_offset = 0;
     int l_pad = jcp.l_pad;
-
-    /* Calculate effective padding */
-    int r_pad = nstl::max(0,
-            (ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                    - (jcp.iw + jcp.l_pad - 1));
+    int r_pad = jcp.r_pad;
 
     /* Is this strictly defined by:
      * -code-size (?)
@@ -868,8 +887,9 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     int unroll_w_tail = 0;
     int unroll_w = 0;
     int unroll_w_trips = 0;
+    const bool do_unroll_w = jcp.ow > max_unroll_w;
 
-    if (jcp.ow > max_unroll_w) {
+    if (do_unroll_w) {
         unroll_w = nstl::min(block_size, jcp.ow);
         unroll_w_trips = ow / unroll_w;
         /* calculate tail */
@@ -887,8 +907,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
             }
         }
     } else {
-        unroll_w = jcp.ow;
-        unroll_w_trips = nstl::max(1, ow / unroll_w);
+        unroll_w_tail = jcp.ow;
     }
     if (jcp.with_bias) {
         Label skip_load_bias;
@@ -918,7 +937,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
     add(reg_filter_baddr, reg_kh_offset);
 
     /* compute left padded block */
-    if (l_pad) {
+    if (l_pad && do_unroll_w) {
         compute_h_loop(unroll_w, l_pad, 0, 0);
         add(reg_output_baddr, unroll_w * ch_offset * sizeof(float));
         add(reg_input_baddr,
@@ -952,7 +971,7 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 
     /* compute right padded block */
     if (unroll_w_tail) {
-        compute_h_loop(unroll_w_tail, 0, pad_offset, jcp.ow - unroll_w_tail);
+        compute_h_loop(unroll_w_tail, l_pad, pad_offset, jcp.ow - unroll_w_tail);
     }
 }
 
