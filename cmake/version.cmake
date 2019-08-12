@@ -28,7 +28,7 @@ list(GET VERSION_LIST 1 DNNL_VERSION_MINOR)
 list(GET VERSION_LIST 2 DNNL_VERSION_PATCH)
 
 find_package(Git)
-if (GIT_FOUND)
+if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} log -1 --format=%H
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         RESULT_VARIABLE RESULT
@@ -44,3 +44,12 @@ configure_file(
     "${PROJECT_SOURCE_DIR}/include/dnnl_version.h.in"
     "${PROJECT_BINARY_DIR}/include/dnnl_version.h"
 )
+
+if(WIN32)
+    string(TIMESTAMP DNNL_VERSION_YEAR "%Y")
+    set(VERSION_RESOURCE_FILE ${PROJECT_BINARY_DIR}/src/version.rc)
+    configure_file(${PROJECT_SOURCE_DIR}/cmake/version.rc.in
+        ${VERSION_RESOURCE_FILE})
+else()
+    set(VERSION_RESOURCE_FILE "")
+endif()
