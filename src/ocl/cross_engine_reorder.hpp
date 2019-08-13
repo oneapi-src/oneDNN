@@ -94,7 +94,7 @@ private:
 
     std::unique_ptr<primitive_t> reorder_;
     std::unique_ptr<memory_t> temp_buf;
-    bool do_reorder_;
+    bool do_reorder_ = true;
 };
 
 } // namespace ocl
