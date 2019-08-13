@@ -56,6 +56,7 @@
 #include "cpu/jit_uni_lrn.hpp"
 #include "cpu/jit_uni_pooling.hpp"
 #include "cpu/jit_uni_softmax.hpp"
+#include "cpu/jit_uni_tbb_batch_normalization.hpp"
 #include "cpu/nchw_pooling.hpp"
 #include "cpu/ncsp_batch_normalization.hpp"
 #include "cpu/nhwc_pooling.hpp"
@@ -303,6 +304,12 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_uni_batch_normalization_bwd_t<avx2>),
         INSTANCE(jit_uni_batch_normalization_fwd_t<sse41>),
         INSTANCE(jit_uni_batch_normalization_bwd_t<sse41>),
+        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<avx512_common>),
+        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<avx512_common>),
+        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<avx2>),
+        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<avx2>),
+        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<sse41>),
+        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<sse41>),
         INSTANCE(ncsp_batch_normalization_fwd_t<f32>),
         INSTANCE(ncsp_batch_normalization_bwd_t<f32>),
         INSTANCE(ncsp_batch_normalization_fwd_t<bf16>),
