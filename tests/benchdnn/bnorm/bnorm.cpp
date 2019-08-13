@@ -51,13 +51,14 @@ static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
 
         const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
         const int64_t l = l_base + sp;
-        s[sp] = maybe_saturate(p->dt, (l % 256) - 128);
+        const int64_t value = (l % 65) - 32;
+        s[sp] = maybe_saturate(p->dt, value);
 
         ((float *)mean)[c] = 4 * ((c % 5) - 2);
         ((float *)var)[c] = ((c % 7) << 1);
 
         if (p->flags & USE_SCALESHIFT) {
-            ((float *)ss)[c] = 8 * (1 << (c % 7));
+            ((float *)ss)[c] = (1 << (c % 7));
             ((float *)ss)[p->ic + c] = ((c % 3) - 1) * ((float *)ss)[c];
         } else {
             ((float *)ss)[c] = 1;
@@ -392,9 +393,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 
         r->errors += !ok;
 
-        bool dump = false
-            || (!ok && (r->errors < 10 || verbose >= 10))
-            || (verbose >= 50 && i < 30);
+        bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             if (kind == DATA) {
