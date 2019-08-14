@@ -140,14 +140,31 @@ void clear_buf(char *buf, int &written) {
     written = 1;
 }
 
+#define CHECK_WRITTEN(buf, buf_len, written_now, written_total) \
+    do { \
+        if (written_now < 0 || written_total + written_now > buf_len) { \
+            clear_buf(buf, written_total); \
+        } else { \
+            written_total += written_now; \
+        } \
+    } while (0)
+
 #define DPRINT(buf, buf_len, written, ...) \
     do { \
         int l = snprintf(buf + written, buf_len - written, __VA_ARGS__); \
-        if (l < 0 || written + l > buf_len) { \
-            clear_buf(buf, written); \
-        } else { \
-            written += l; \
-        } \
+        CHECK_WRITTEN(buf, buf_len, l, written); \
+    } while (0)
+
+#define MD2STR(buf, buf_len, written, md) \
+    do { \
+        int l = dnnl_md2fmt_str(buf + written, buf_len - written, md); \
+        CHECK_WRITTEN(buf, buf_len, l, written); \
+    } while (0)
+
+#define DIM2STR(buf, buf_len, written, md) \
+    do { \
+        int l = dnnl_md2dim_str(buf + written, buf_len - written, md); \
+        CHECK_WRITTEN(buf, buf_len, l, written); \
     } while (0)
 
 // XXX: Outputs strings corresponding to memory formats used for data tensors.
@@ -193,23 +210,13 @@ static void init_info_bnorm(pd_t *s, char *buffer) {
     if (1) { // data
         auto md = s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // diff data
         auto md = s->diff_src_md();
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
 
@@ -223,6 +230,38 @@ static void init_info_bnorm(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
+static void init_info_concat(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    if (1) { // src
+        for (int i = 0; i < s->n_inputs(); ++i) {
+            auto md = s->src_md(i);
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
+
+            DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+            if (i != s->n_inputs() - 1)
+                DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
+        }
+    }
+    if (1) { // dst
+        auto md = s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+
+    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:" DFMT,
+            s->desc()->concat_dimension);
+
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(), prop_kind::undef,
+            dat_str, aux_str, prb_str);
+}
+
+template <typename pd_t>
 static void init_info_conv(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
@@ -231,24 +270,14 @@ static void init_info_conv(pd_t *s, char *buffer) {
                 ? s->diff_src_md()
                 : s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // wei
         auto md = s->desc()->prop_kind == prop_kind::backward_weights
                 ? s->diff_weights_md()
                 : s->weights_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // bia
         auto md = s->desc()->prop_kind == prop_kind::backward_weights
@@ -256,23 +285,13 @@ static void init_info_conv(pd_t *s, char *buffer) {
                 : s->weights_md(1);
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
     if (1) { // dst
         auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
 
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
@@ -330,12 +349,7 @@ static void init_info_shuffle(pd_t *s, char *buffer) {
 
     if (1) { // data
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
 
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written,
@@ -354,23 +368,13 @@ static void init_info_eltwise(pd_t *s, char *buffer) {
     if (1) { // data
         auto md = s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // diff data
         auto md = s->diff_src_md();
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
 
@@ -407,24 +411,14 @@ static void init_info_iprod(pd_t *s, char *buffer) {
                 ? s->diff_src_md()
                 : s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // wei
         auto md = s->desc()->prop_kind == prop_kind::backward_weights
                 ? s->diff_weights_md()
                 : s->weights_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // bia
         auto md = s->desc()->prop_kind == prop_kind::backward_weights
@@ -432,23 +426,13 @@ static void init_info_iprod(pd_t *s, char *buffer) {
                 : s->weights_md(1);
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
     if (1) { // dst
         auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
 
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
@@ -465,23 +449,13 @@ static void init_info_lrn(pd_t *s, char *buffer) {
     if (1) { // data
         auto md = s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // diff data
         auto md = s->diff_src_md();
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
 
@@ -502,27 +476,15 @@ static void init_info_mem(pd_t *s, char *buffer) {
         for (int i = 0; i < s->n_inputs(); ++i) {
             auto md = s->src_md(i);
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
         }
     }
     if (1) { // dst
         auto md = s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
-
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "num:%d", s->n_inputs());
 
     dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
 
@@ -537,33 +499,18 @@ static void init_info_pool(pd_t *s, char *buffer) {
     if (1) { // src
         auto md = s->is_fwd() ? s->src_md() : s->diff_src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // dst
         auto md = s->is_fwd() ? s->dst_md() : s->diff_dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // ws
         auto md = s->workspace_md();
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ws_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
 
@@ -604,23 +551,13 @@ static void init_info_softmax(pd_t *s, char *buffer) {
     if (1) { // data
         auto md = s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // diff data
         auto md = s->diff_src_md();
         if (md) {
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
-            int l = dnnl_md2fmt_str(dat_str + dat_written,
-                    DNNL_VERBOSE_DAT_LEN - dat_written, md);
-            if (l >= 0)
-                dat_written += l;
-            else
-                clear_buf(dat_str, dat_written);
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
         }
     }
 
@@ -639,72 +576,37 @@ static void init_info_rnn(pd_t *s, char *buffer) {
     if (1) { // src layer
         auto md = s->is_fwd() ? s->src_md(0) : s->diff_src_md(0);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_layer_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // src iter
         auto md = s->is_fwd() ? s->src_md(1) : s->diff_src_md(1);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_iter_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // wei_layer
         auto md = s->is_fwd() ? s->weights_md(0) : s->diff_weights_md(0);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_layer_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // wei_iter
         auto md = s->is_fwd() ? s->weights_md(1) : s->diff_weights_md(1);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_layer_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // bias
         auto md = s->is_fwd() ? s->weights_md(2) : s->diff_weights_md(2);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bias_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // dst layer
         auto md = s->is_fwd() ? s->dst_md(0) : s->diff_dst_md(0);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_layer_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (1) { // dst iter
         auto md = s->is_fwd() ? s->dst_md(1) : s->diff_dst_md(1);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_iter_");
-        int l = dnnl_md2fmt_str(
-                dat_str + dat_written, DNNL_VERBOSE_DAT_LEN - dat_written, md);
-        if (l >= 0)
-            dat_written += l;
-        else
-            clear_buf(dat_str, dat_written);
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
 
     alg_kind_t alg_kind = s->cell_kind();
@@ -733,6 +635,7 @@ static void init_info_rnn(pd_t *s, char *buffer) {
     }
 
 DEFINE_STUB(bnorm);
+DEFINE_STUB(concat);
 DEFINE_STUB(conv);
 DEFINE_STUB(eltwise);
 DEFINE_STUB(gemm);
@@ -752,7 +655,7 @@ void init_info(batch_normalization_pd_t *s, char *b) {
     init_info_bnorm(s, b);
 }
 void init_info(concat_pd_t *s, char *b) {
-    init_info_mem(s, b);
+    init_info_concat(s, b);
 }
 void init_info(convolution_pd_t *s, char *b) {
     init_info_conv(s, b);
