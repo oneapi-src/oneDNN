@@ -189,6 +189,7 @@ enum {
     key_reorder_rnn_weights_reduction,
     key_reorder_rnn_weights_transposition,
     key_rnn_space,
+    key_rnn_cell,
     key_rnn_ptrs_bia,
     key_rnn_ptrs_wei_layer,
     key_rnn_ptrs_wei_iter,

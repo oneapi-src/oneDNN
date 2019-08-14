@@ -41,11 +41,11 @@ rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr) {
     }
     (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb, rnn.sic,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
-            rnn.states_ws_ld, 0.0, ws_cell_, rnn.gates_ws_ld);
+            rnn.states_ws_ld, 0.0, scratch_cell_, rnn.gates_ws_ld);
     rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
             states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
-            ws_cell_);
+            scratch_cell_);
 }
 
 template <>
@@ -55,13 +55,13 @@ rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr) {
 
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
-    ws_gates_aoc_t ws_gates_r(rnn, ws_cell_);
+    ws_gates_aoc_t scratch_gates_r(rnn, scratch_cell_);
     ws_diff_states_aoc_t diff_states_t_l(rnn, diff_states_t_l_);
 
     rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
             states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
-            ws_cell_);
+            scratch_cell_);
 
     if (!rnn.merge_gemm_layer) {
         //  dx = dG * Wx^t
@@ -76,11 +76,11 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
     }
     // dh +=  dGr * Wh^t
     (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb, rnn.n_gates * rnn.dic,
-            1.0, w_iter_[0], rnn.weights_iter_ld, ws_cell_, rnn.gates_ws_ld,
-            1.0, diff_states_t_l_, rnn.states_ws_ld);
+            1.0, w_iter_[0], rnn.weights_iter_ld, scratch_cell_,
+            rnn.gates_ws_ld, 1.0, diff_states_t_l_, rnn.states_ws_ld);
 
     // dWh += dGr^t * h
-    gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, ws_cell_,
+    gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, scratch_cell_,
             rnn.gates_ws_ld, states_tm1_l_, rnn.states_ws_ld, 1.0, diff_w_iter_,
             rnn.diff_weights_layer_ld);
 
@@ -90,7 +90,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
 
     parallel_nd(rnn.dic, [&](int j) {
         for (int i = 0; i < rnn.mb; i++) {
-            diff_bias_[3 * rnn.dic + j] += ws_gates_r(i, 2, j);
+            diff_bias_[3 * rnn.dic + j] += scratch_gates_r(i, 2, j);
         }
     });
 }

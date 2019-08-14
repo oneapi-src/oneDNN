@@ -27,7 +27,7 @@
             src_data_t *states_tm1_l_, float *c_states_tm1_l_, \
             float *diff_states_t_l_, float *diff_states_t_lp1_, \
             float *diff_states_tp1_l_, float *bias_, float *ws_grid_, \
-            acc_data_t *ws_cell_) const
+            acc_data_t *scratch_cell_) const
 
 #define rnn_cell_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *states_t_l_, \
@@ -37,7 +37,7 @@
             src_data_t *states_tm1_l_, float *c_states_tm1_l_, \
             float *diff_states_t_lp1_, float *diff_states_tp1_l_, \
             float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_, \
-            acc_data_t *ws_gates_, float *ws_grid_, acc_data_t *ws_cell_) \
+            acc_data_t *ws_gates_, float *ws_grid_, acc_data_t *scratch_cell_) \
             const
 
 #define rnn_grid_execution_sig(f) \
@@ -45,8 +45,9 @@
             weights_data_t **weights_iter_, float **bias_, \
             src_data_t *ws_states_, float *ws_c_states_, \
             float *ws_diff_states_, acc_data_t *ws_gates_, \
-            acc_data_t *ws_cell_, float *ws_grid_, float *diff_weights_layer_, \
-            float *diff_weights_iter_, float *diff_bias_) const
+            acc_data_t *scratch_cell_, float *ws_grid_, \
+            float *diff_weights_layer_, float *diff_weights_iter_, \
+            float *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
     void f(const char transA, const char transB, int m, int n, int k, \
@@ -112,7 +113,7 @@ struct rnn_conf_t {
 
     /* Size of workspace for each tensor in bytes */
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
+            scratch_cell_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
     bool merge_gemm_iter, merge_gemm_layer, force_nocopy, use_layer_packed_gemm,
             use_iter_packed_gemm;
 };
@@ -138,7 +139,7 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &ws_bias_offset, size_t &scratch_cell_offset,
         size_t &scratchpad_size, size_t &workspace_size);
 
 void get_scratchpad_and_workspace_sizes(

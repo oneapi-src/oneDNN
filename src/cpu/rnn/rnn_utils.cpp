@@ -257,12 +257,15 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             * rnn.gates_ws_ld * sizeof(float);
 
     /* set other sizes */
-    rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic * sizeof(float);
-    rnn.ws_cell_comp_size = rnn.is_lbr || rnn.dt_conf != all_f32
+    /// scratchpad buffer for each cell to hold intermediate data in lbr gru
+    rnn.scratch_cell_size = rnn.is_lbr || rnn.dt_conf != all_f32
             ? (size_t)rnn.gates_nld * rnn.gates_ws_ld * sizeof(float)
             : 0;
+    /// workspace needed for lbr GRU
+    rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic * sizeof(float);
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * sizeof(float);
+    /// bias ws needed to add compensation in int8
     rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic
             * sizeof(float);
 }
@@ -277,7 +280,7 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &ws_bias_offset, size_t &scratch_cell_offset,
         size_t &scratchpad_size, size_t &workspace_size) {
 
     const size_t page_size = 4096; // 2097152;
@@ -304,10 +307,6 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     ws_grid_comp_offset = current_offset;
     current_offset += rnn.ws_grid_comp_size;
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_cell_comp_offset = current_offset;
-    current_offset += rnn.ws_cell_comp_size;
-
     workspace_size = rnn.use_workspace ? current_offset : 0;
 
     /* Optional scratchpads */
@@ -315,6 +314,10 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     // If use_workspace, the following goes to scratchpad alone,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    scratch_cell_offset = current_offset;
+    current_offset += rnn.scratch_cell_size;
 
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
@@ -328,11 +331,11 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
 void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
-            ws_diff_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
+            ws_diff_states_offset, ws_grid_comp_offset, scratch_cell_offset,
             ws_bias_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-            ws_c_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
-            ws_bias_offset, scratchpad_size, workspace_size);
+            ws_c_states_offset, ws_grid_comp_offset, ws_bias_offset,
+            scratch_cell_offset, scratchpad_size, workspace_size);
 }
 
 status_t rnn_utils::set_good_strides(

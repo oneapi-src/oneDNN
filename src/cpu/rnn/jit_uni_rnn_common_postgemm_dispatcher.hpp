@@ -180,12 +180,12 @@ struct rnn_postgemm_dispatcher {
             rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
                     states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
                     diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                    ws_cell_);
+                    scratch_cell_);
         else
             (this->*postgemm_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
                     states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
                     diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                    ws_cell_);
+                    scratch_cell_);
     }
 
     // template <typename src_data_t, typename acc_data_t>
@@ -194,12 +194,12 @@ struct rnn_postgemm_dispatcher {
             rnn_postgemm_part2_->execute(rnn, ws_gates_, states_t_l_,
                     c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                    bias_, ws_grid_, ws_cell_);
+                    bias_, ws_grid_, scratch_cell_);
         else
             (this->*postgemm_part2_func)(rnn, ws_gates_, states_t_l_,
                     c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                    bias_, ws_grid_, ws_cell_);
+                    bias_, ws_grid_, scratch_cell_);
     }
 
 private:

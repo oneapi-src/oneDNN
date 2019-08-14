@@ -39,7 +39,7 @@ rnn_cell_execution_sig(
     rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
             states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
-            ws_cell_);
+            scratch_cell_);
 }
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
@@ -50,7 +50,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
     rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
             states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
             diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], ws_grid_,
-            ws_cell_);
+            scratch_cell_);
 
     /// bwd by data on the cell
     (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb, rnn.n_gates * rnn.dic,

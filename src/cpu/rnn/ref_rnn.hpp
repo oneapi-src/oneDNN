@@ -161,6 +161,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             scratchpad.book(
                     key_rnn_ptrs_wei_iter, sizeof(float *) * ptr_wei_sz);
             scratchpad.book(key_rnn_ptrs_bia, sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(
+                    key_rnn_cell, sizeof(acc_data_t) * rnn_.scratch_cell_size);
         }
     };
 
@@ -211,7 +213,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
+                ws_grid_comp_offset_, ws_bias_offset_, scratch_cell_offset_,
                 scratchpad_size, workspace_size);
     }
 
@@ -271,7 +273,7 @@ private:
     size_t ws_bias_offset_;
     size_t ws_diff_states_offset_;
     size_t ws_grid_comp_offset_;
-    size_t ws_cell_comp_offset_;
+    size_t scratch_cell_offset_;
     rnn_postgemm_dispatcher<aprop, src_type> *rnn_postgemm_;
 
     grid_execution_f grid_computation;

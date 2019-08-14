@@ -181,7 +181,7 @@ rnn_grid_execution_sig(
                         &(diff_weights_iter(lay, dir, 0)),
                         &(diff_bias(lay, dir, 0)),
                         &(ws_gates(lay, dir, iter, 0)),
-                        &(ws_grid(lay, dir, iter, 0)), ws_cell_);
+                        &(ws_grid(lay, dir, iter, 0)), scratch_cell_);
             }
 
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
@@ -685,6 +685,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto ptr_wei_iter
             = scratchpad.template get<weights_data_t *>(key_rnn_ptrs_wei_iter);
     auto ptr_bias = scratchpad.template get<float *>(key_rnn_ptrs_bia);
+    auto scratch_cell = scratchpad.template get<acc_data_t>(key_rnn_cell);
 
     // fetchihg buffers from the workspace
     // if no workspace was provided we use the scratchpad
@@ -701,7 +702,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     float *ws_c_states = (float *)(base_ptr + ws_c_states_offset_);
     float *ws_diff_states = (float *)(base_ptr + ws_diff_states_offset_);
     float *ws_grid = (float *)(base_ptr + ws_grid_comp_offset_);
-    acc_data_t *ws_cell = (acc_data_t *)(base_ptr + ws_cell_comp_offset_);
 
     auto diff_src_layer = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_LAYER);
     auto diff_src_iter = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_ITER);
@@ -757,8 +757,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     // run the execution on the grid
     (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias,
-            ws_states, ws_c_states, ws_diff_states, ws_gates, ws_cell, ws_grid,
-            diff_weights_layer, diff_weights_iter, diff_bias);
+            ws_states, ws_c_states, ws_diff_states, ws_gates, scratch_cell,
+            ws_grid, diff_weights_layer, diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
     if (rnn.dt_conf == u8u8u8f32 || rnn.dt_conf == f32u8f32f32

@@ -50,7 +50,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         rnn_utils::ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
         rnn_utils::ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
         rnn_utils::ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
-        rnn_utils::ws_gates_aoc<acc_data_t> ws_gemm(rnn, ws_cell_);
+        rnn_utils::ws_gates_aoc<acc_data_t> ws_scratch(rnn, scratch_cell_);
         utils::array_offset_calculator<float, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dic);
 
@@ -69,7 +69,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     break;
                 case alg_kind::lbr_gru:
                     param4_ = &states_tm1_l(i, 0);
-                    param5_ = &ws_gemm(i, 0, 0);
+                    param5_ = &ws_scratch(i, 0, 0);
                     param6_ = &ws_Wh_b(i, 0);
                     break;
                 case alg_kind::vanilla_gru:
