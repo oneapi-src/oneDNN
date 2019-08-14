@@ -38,9 +38,25 @@ namespace cpu {
 
 typedef struct {
     int nthrs_m, nthrs_n, nthrs_k;
+    dim_t thread_m, thread_n, thread_k;
+    dim_t block_m, block_n, block_k;
     int partition;
     int copy_type;
 } blas_thread_t;
+
+template <typename T>
+int get_vector_length() {
+    int v_bytes;
+
+    if (mayiuse(avx512_core))
+        v_bytes = cpu_isa_traits<avx512_core>::vlen;
+    else if (mayiuse(avx))
+        v_bytes = cpu_isa_traits<avx>::vlen;
+    else
+        v_bytes = cpu_isa_traits<sse42>::vlen;
+
+    return v_bytes / sizeof(T);
+}
 
 template <typename c_type>
 static inline void round_to_nearest(c_type *rounded_val, double fp_val) {
@@ -658,6 +674,184 @@ static inline int nocopy_checker(const int nthr, const int transa,
     }
 }
 
+static inline std::tuple<int, int> partition_2d_minblk_with_primes(dim_t m,
+        dim_t n, dim_t block_m, dim_t block_n, dim_t min_m, dim_t min_n,
+        int nthr) {
+
+    auto part_m = nstl::max(dim_t(1), m / block_m);
+    auto part_n = nstl::max(dim_t(1), n / block_n);
+
+    // Quick exit if there are enough partitions in one direction
+    // and there is only 1 partition in the other one
+    if (part_m == 1 && part_n >= nthr)
+        return std::make_tuple(1, (int)nstl::min(part_n, (dim_t)nthr));
+
+    if (part_n == 1 && part_m >= nthr)
+        return std::make_tuple((int)nstl::min(part_m, (dim_t)nthr), 1);
+
+    auto num_parts = part_m * part_n;
+
+    int nthr_ite = nthr;
+    int nthr_m = 1, nthr_n = 1;
+    dim_t band_m = m, band_n = n;
+
+    for (auto p : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29}) {
+        bool finished = false;
+
+        while ((nthr_ite % p) == 0 && !finished) {
+            nthr_ite /= p;
+            auto nthr_m_ite = nthr_m * p;
+            auto nthr_n_ite = nthr_n * p;
+
+            auto band_m_ite = band_m / p;
+            auto band_n_ite = band_n / p;
+
+            // Try partitioning with block size bm x bn
+            auto try_partition = [&](dim_t bm, dim_t bn, bool pick_small) {
+                float ratio_m = (float)band_m_ite / bm;
+                float ratio_n = (float)band_n_ite / bn;
+                bool do_m = false, do_n = false;
+
+                if (ratio_m < 1. && ratio_n >= 1.)
+                    do_n = true;
+                else if (ratio_m >= 1. && ratio_n < 1.)
+                    do_m = true;
+                else if (ratio_m >= 1. && ratio_n >= 1.) {
+                    // Pick either the smaller or larger ratio as appropriate.
+                    (((ratio_m < ratio_n) == pick_small) ? do_m : do_n) = true;
+                }
+
+                if (do_m) {
+                    // Partition m.
+                    nthr_m = nthr_m_ite;
+                    band_m = band_m_ite;
+                } else if (do_n) {
+                    // Partition n.
+                    nthr_n = nthr_n_ite;
+                    band_n = band_n_ite;
+                }
+
+                return do_m || do_n;
+            };
+
+            // If we will need min based partitioning do it now
+            if (num_parts < nthr) {
+                num_parts *= p;
+                if (try_partition(min_m, min_n, true)) continue;
+            }
+
+            if (try_partition(block_m, block_n, false)) continue;
+            if (try_partition(min_m, min_n, true)) continue;
+
+            // Both band_m/n are smaller than min_m/n
+            // exit the loops, nothing to partition
+            finished = true;
+        }
+
+        if (finished) break;
+    }
+
+    return std::make_tuple(nthr_m, nthr_n);
+}
+
+static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
+        dim_t block_m, dim_t block_n, dim_t min_m, dim_t min_n, int nthr) {
+
+    dim_t part_m = nstl::max(dim_t(1), m / min_m);
+    dim_t part_n = nstl::max(dim_t(1), n / min_n);
+
+    // Quick exit if one of the dimensions is too small to partition.
+    if (part_m == 1) {
+        part_n = nstl::max(dim_t(1), utils::div_up(n, min_n));
+        return std::make_tuple(1, (int)nstl::min(part_n, (dim_t)nthr));
+    }
+
+    if (part_n == 1) {
+        part_m = nstl::max(dim_t(1), utils::div_up(m, min_m));
+        return std::make_tuple((int)nstl::min(part_m, (dim_t)nthr), 1);
+    }
+
+    int nthr_m = 0, nthr_n = 0;
+    auto nthr_thresh = nstl::min(0.95 * nthr, (double)(part_m * part_n));
+
+    for (int nthr_new = nthr; nthr_new > nthr / 2; nthr_new--) {
+        if (nthr_m * nthr_n >= nthr_thresh) break;
+        std::tie(nthr_m, nthr_n) = partition_2d_minblk_with_primes(
+                m, n, block_m, block_n, min_m, min_n, nthr_new);
+    }
+
+    return std::make_tuple(nthr_m, nthr_n);
+}
+
+template <typename a_type, typename b_type, typename c_type>
+static inline void set_alternative_2d_partition(int nthrs,
+        blas_thread_t &thread_info,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
+
+    auto m = arg->m, n = arg->n;
+
+    auto &nthr_m = thread_info.nthrs_m;
+    auto &nthr_n = thread_info.nthrs_n;
+    auto &thread_m = thread_info.thread_m;
+    auto &thread_n = thread_info.thread_n;
+    auto &block_m = thread_info.block_m;
+    auto &block_n = thread_info.block_n;
+
+    constexpr auto MBLK = 64;
+    constexpr auto NBLK = 64;
+
+    nthr_m = nthr_n = 1;
+    thread_info.copy_type = COPY_NONE;
+    thread_info.partition = PARTITION_2D_ALTERNATIVE;
+
+    auto choose_blocking
+            = [&](dim_t size_z, dim_t &thread_z, int &nthr_z,
+                    dim_t block_z_init, dim_t &block_z, dim_t block_align) {
+                  thread_z = utils::div_up(size_z, nthr_z);
+                  auto num_blk = utils::div_up(thread_z, block_z_init);
+                  block_z = utils::div_up(thread_z, num_blk);
+                  block_z = utils::rnd_up(block_z, block_align);
+                  thread_z = num_blk * block_z;
+                  if (thread_z * nthr_z > size_z)
+                      nthr_z = (int) utils::div_up(size_z, thread_z);
+              };
+
+    auto choose_m_blocking = [&]() {
+        auto align = is_int8 ? 16 : get_vector_length<a_type>();
+        choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
+    };
+    auto choose_n_blocking = [&]() {
+        choose_blocking(n, thread_n, nthr_n, arg->bn, block_n, arg->un);
+    };
+
+    // Choose m/n blocking.
+    auto min_mblk = mayiuse(avx512_core) ? (MBLK / 2) : arg->um;
+    std::tie(nthr_m, nthr_n) = partition_2d_minblk(
+            m, n, MBLK, NBLK, min_mblk, NBLK / 2, nthrs);
+
+    auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
+
+    choose_m_blocking();
+    choose_n_blocking();
+
+    if (is_int8) {
+        // If we lost a thread in one dimension because we padded the blocking
+        // size, try to rebalance the other dimensions.
+        if ((nthr_n != nthr_n_init)
+                && ((nthr_m + 1) * nthr_n <= nthrs)) {
+            nthr_m++;
+            choose_m_blocking();
+        }
+
+        if ((nthr_m != nthr_m_init)
+                && (nthr_m * (nthr_n + 1) <= nthrs)) {
+            nthr_n++;
+            choose_n_blocking();
+        }
+    }
+}
 
 #define N2D_MAX 384
 #define M2D_MIN 384
@@ -678,6 +872,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     thread_info->nthrs_m = 0;
     thread_info->nthrs_n = 0;
     thread_info->nthrs_k = 0;
+    thread_info->block_m = thread_info->block_n = thread_info->block_k = -1;
+    thread_info->thread_m = thread_info->thread_n = thread_info->thread_k = -1;
     thread_info->copy_type = COPY_NONE; // By default don't do parallel copy.
 
     bool isInteger = data_traits<a_type>::data_type == data_type::s8;
@@ -757,23 +953,48 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     }
 
     if (condition_2D_bsrc == 1) {
-        int nthrs_m = 1;
-        int nthrs_n = nthrs;
+        if (isSgemm) {
+            int nthrs_m = 1;
+            int nthrs_n = nthrs;
 
-        while ((nthrs_n % 2 == 0) &&
-                (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
-                (m / nthrs_m >= 2 * M2D_MIN) &&
-                (nthrs_m < 4)) {
-            nthrs_m *= 2;
-            nthrs_n /= 2;
+            while ((nthrs_n % 2 == 0) &&
+                    (n / nthrs > N2D_MAX || n / nthrs_n <= N2D_MAX / 2) &&
+                    (m / nthrs_m >= 2 * M2D_MIN) &&
+                    (nthrs_m < 4)) {
+                nthrs_m *= 2;
+                nthrs_n /= 2;
+            }
+
+            thread_info->nthrs_m = nthrs_m;
+            thread_info->nthrs_n = nthrs_n;
+            thread_info->partition = PARTITION_2D;
+
+        } else {
+            if (n <= 64 || n >= 256) {
+                int nthrs_m = 1;
+                int nthrs_n = nthrs;
+
+                while (((nthrs_n > 1) && (n / nthrs_n < arg->un)
+                            && (m / nthrs_m >= 2 * arg->um))
+                        || ((nthrs_n % 2 == 0)
+                            && (n / nthrs > N2D_MAX ||
+                                n / nthrs_n <= N2D_MAX / 2)
+                            && (m / nthrs_m >= 2 * M2D_MIN) && (nthrs_m < 4))) {
+                    nthrs_m *= 2;
+                    nthrs_n /= 2;
+                }
+
+                thread_info->nthrs_m = nthrs_m;
+                thread_info->nthrs_n = nthrs_n;
+                thread_info->partition = PARTITION_2D;
+            } else {
+                // Use 3D decompostition from pack api without k-partitioning.
+                set_alternative_2d_partition(nthrs, *thread_info, arg);
+            }
         }
 
-        thread_info->nthrs_m = nthrs_m;
-        thread_info->nthrs_n = nthrs_n;
-        thread_info->partition = PARTITION_2D;
-
         // Reset the total number of threads that will be used.
-        *p_nthrs = nthrs_m * nthrs_n;
+        *p_nthrs = thread_info->nthrs_m * thread_info->nthrs_n;
 
     } else if (condition_1D_copya && mkldnn_thr_syncable()) {
         // Use parallel copy A algorithm
@@ -1005,6 +1226,49 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
 
             partition_2d(ithr, nthrs, ithr_i, ithr_j, nthrs_m, nthrs_n,
                     arg->m, arg->n, &m_disp, &m_band, &n_disp, &n_band);
+
+            *m = m_band;
+            *n = n_band;
+            *k = arg->k;
+
+            // Set matrix A.
+            *a = arg->a + m_disp * strideAm;
+
+            // Set matrix B.
+            *b = arg->b + n_disp * strideBn;
+
+            // Set matrix C.
+            *c = arg->c + m_disp + n_disp * arg->ldc;
+
+            // Set offset vector for C matrix
+            if (isInteger) {
+                dim_t co_stride = 0;
+                if (offsetc == FIX_OFFSET) {
+                    co_stride = 0;
+                } else if (offsetc == ROW_OFFSET) {
+                    co_stride = n_disp;
+                } else if (offsetc == COL_OFFSET) {
+                    co_stride = m_disp;
+                }
+                *co = arg->co + co_stride;
+            }
+            break;
+        }
+
+    case PARTITION_2D_ALTERNATIVE:
+        {
+            dim_t thread_m = thread_info->thread_m;
+            dim_t thread_n = thread_info->thread_n;
+            assert(thread_m > 0 && thread_n > 0);
+
+            int nthrs_m = thread_info->nthrs_m;
+            int ithr_m = ithr % nthrs_m;
+            int ithr_n = ithr / nthrs_m;
+
+            dim_t m_disp = ithr_m * thread_m;
+            dim_t m_band = nstl::min(thread_m, arg->m - m_disp);
+            dim_t n_disp = ithr_n * thread_n;
+            dim_t n_band = nstl::min(thread_n, arg->n - n_disp);
 
             *m = m_band;
             *n = n_band;
