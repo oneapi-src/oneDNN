@@ -42,7 +42,7 @@
 
 #define rnn_grid_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
-            weights_data_t **weights_states_, float **bias_, \
+            weights_data_t **weights_iter_, float **bias_, \
             src_data_t *ws_states_, float *ws_c_states_, \
             float *ws_diff_states_, acc_data_t *ws_gates_, \
             acc_data_t *ws_cell_, float *ws_grid_, float *diff_weights_layer_, \
@@ -113,7 +113,7 @@ struct rnn_conf_t {
     /* Size of workspace for each tensor in bytes */
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
             ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
-    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
+    bool merge_gemm_iter, merge_gemm_layer, force_nocopy, use_layer_packed_gemm,
             use_iter_packed_gemm;
 };
 
