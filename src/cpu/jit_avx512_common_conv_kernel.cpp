@@ -1326,6 +1326,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
     if (jcp.l_pad > 0 && r_pad > 0) n_oi--;
 
+    // Heuristic to optimize code size on KNX
     bool large_code_size = jcp.ur_w != jcp.ow && jcp.l_pad > 0 && r_pad > 0
             && ((jcp.l_pad <= 0 && n_oi > 0) || (jcp.l_pad > 0 && n_oi > 1));
     if (large_code_size) {
@@ -1591,6 +1592,18 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         } else if (jcp.ic > 64) {
             jcp.nb_ic_L2 = 2; /* according to performance data*/
         }
+    }
+
+    // A rough check on code size
+    // TODO: come up with a tighter bound
+    {
+        const int max_code_size = 256 * 1024; // default size of jit generator
+        int mult = 1 + (jcp.l_pad > 0) + (r_pad > 0);
+        const float max_instruction_size = 15;
+        float ur_fac
+                = (float)jcp.kw * jcp.ic_block * jcp.nb_oc_blocking * jcp.ur_w;
+        float code_size = mult * ur_fac * max_instruction_size;
+        if (code_size > max_code_size) return status::unimplemented;
     }
 
     return status::success;
@@ -2363,6 +2376,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     jcp.loop_order = loop_gnc;
 
+    // Heuristic to optimize code size on KNX
     bool large_code_size = (jcp.ur_w != jcp.ow)
             && ((l_overflow <= 0 && n_oi > 0) || (l_overflow > 0 && n_oi > 1))
             && (r_overflow1 > 0) && (l_overflow > 0);
@@ -2465,6 +2479,18 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
             && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
+
+    // A rough check on code size
+    // TODO: come up with a tighter bound
+    {
+        const int max_code_size = 256 * 1024; // default size of jit generator
+        int mult = 1 + (l_overflow > 0) + (r_overflow1 > 0);
+        const float max_instruction_size = 15;
+        float ur_fac
+                = (float)jcp.kw * jcp.oc_block * jcp.nb_ic_blocking * jcp.ur_w;
+        float code_size = mult * ur_fac * max_instruction_size;
+        if (code_size > max_code_size) return status::unimplemented;
+    }
 
     return status::success;
 }
