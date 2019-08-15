@@ -35,6 +35,28 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+template <typename src_data_t, typename acc_data_t>
+void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
+        const src_data_t *ws_gates_, acc_data_t *diff_bias_) {
+    auto body = [&](int i, int k) {
+        for (int j = 0; j < rnn.mb; j++)
+            diff_bias_[i * rnn.dic + k]
+                    += ws_gates_[j * rnn.gates_ws_ld + i * rnn.dic + k];
+    };
+
+    // @todo block k on simd-width
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
+        && _OPENMP >= 201307 /* icc 17.0 has a problem with simd collapse */ \
+        && !((defined __INTEL_COMPILER) && (__INTEL_COMPILER == 1700))
+#pragma omp parallel for simd collapse(2)
+    for (int i = 0; i < rnn.n_gates; i++)
+        for (int k = 0; k < rnn.dic; k++)
+            body(i, k);
+#else
+    parallel_nd(rnn.n_gates, rnn.dic, body);
+#endif
+}
+
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
 struct _ref_rnn_common_t : public primitive_impl_t {
@@ -42,6 +64,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
     typedef typename prec_traits<weights_type>::type weights_data_t;
     typedef typename utils::conditional<src_type == data_type::u8, int32_t,
             float>::type acc_data_t;
+    typedef typename utils::conditional<aprop == prop_kind::forward, acc_data_t,
+            src_data_t>::type scratch_data_t;
 
     using class_name = _ref_rnn_common_t<aprop, src_type, weights_type>;
 
@@ -161,6 +185,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             scratchpad.book(
                     key_rnn_ptrs_wei_iter, sizeof(float *) * ptr_wei_sz);
             scratchpad.book(key_rnn_ptrs_bia, sizeof(float *) * ptr_wei_sz);
+            scratchpad.book(key_rnn_gates,
+                    sizeof(scratch_data_t) * rnn_.scratch_gates_size);
             scratchpad.book(
                     key_rnn_cell, sizeof(acc_data_t) * rnn_.scratch_cell_size);
         }
@@ -213,8 +239,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_, ws_gates_offset_, ws_states_offset_,
                 ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_bias_offset_, scratch_cell_offset_,
-                scratchpad_size, workspace_size);
+                ws_grid_comp_offset_, ws_bias_offset_, scratch_gates_offset_,
+                scratch_cell_offset_, scratchpad_size, workspace_size);
     }
 
     ~_ref_rnn_common_t() { delete rnn_postgemm_; }
@@ -242,28 +268,28 @@ private:
     float (*activation_func)(float s, float alpha, float cliping);
 
     void copy_init_layer(const rnn_utils::rnn_conf_t &rnn,
-            src_data_t *ws_states_, float *ws_diff_states_,
-            const src_data_t *xt_, const float *diff_dst_layer) const;
+            src_data_t *ws_states_, acc_data_t *ws_diff_states_,
+            const src_data_t *xt_, const acc_data_t *diff_dst_layer) const;
 
     template <typename input_data_t>
     void copy_init_iter(const rnn_utils::rnn_conf_t &rnn,
-            src_data_t *ws_states_, float *ws_c_states_, float *ws_diff_states_,
-            const input_data_t *firstit_states_, const float *firstit_c_states_,
-            const float *diff_dst_iter_, const float *diff_dst_iter_c_) const;
+            src_data_t *ws_states_, float *ws_c_states_,
+            acc_data_t *ws_diff_states_, const input_data_t *firstit_states_,
+            const float *firstit_c_states_, const acc_data_t *diff_dst_iter_,
+            const float *diff_dst_iter_c_) const;
 
     template <typename dst_data_t>
     void copy_res_layer(const rnn_utils::rnn_conf_t &rnn,
-            dst_data_t *dst_layer_, float *diff_src_layer_,
-            const src_data_t *ws_states_, const float *ws_diff_states_) const;
+            dst_data_t *dst_layer_, acc_data_t *diff_src_layer_,
+            const src_data_t *ws_states_,
+            const acc_data_t *ws_diff_states_) const;
 
     template <typename output_data_t>
     void copy_res_iter(const rnn_utils::rnn_conf_t &rnn,
-            output_data_t *dst_iter_, float *dst_iter_c_, float *diff_src_iter_,
-            float *diff_src_iter_c_, const src_data_t *ws_states_,
-            float *ws_c_states, const float *ws_diff_states_) const;
-
-    void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
-            const acc_data_t *ws_gates_, float *diff_bias_) const;
+            output_data_t *dst_iter_, float *dst_iter_c_,
+            acc_data_t *diff_src_iter_, float *diff_src_iter_c_,
+            const src_data_t *ws_states_, float *ws_c_states,
+            const acc_data_t *ws_diff_states_) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
@@ -273,6 +299,7 @@ private:
     size_t ws_bias_offset_;
     size_t ws_diff_states_offset_;
     size_t ws_grid_comp_offset_;
+    size_t scratch_gates_offset_;
     size_t scratch_cell_offset_;
     rnn_postgemm_dispatcher<aprop, src_type> *rnn_postgemm_;
 

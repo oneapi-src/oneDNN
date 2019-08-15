@@ -48,10 +48,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         rnn_utils::bias_aoc_t bias(rnn, bias_);
         rnn_utils::ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
         rnn_utils::ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
-        rnn_utils::ws_states_aoc_t c_states_t_l(rnn, c_states_t_l_);
-        rnn_utils::ws_states_aoc_t c_states_tm1_l(rnn, c_states_tm1_l_);
-        rnn_utils::ws_gates_aoc<acc_data_t> ws_scratch(rnn, scratch_cell_);
-        utils::array_offset_calculator<float, 2> ws_Wh_b(
+        rnn_utils::ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_);
+        rnn_utils::ws_states_aoc<float> c_states_tm1_l(rnn, c_states_tm1_l_);
+        rnn_utils::ws_gates_aoc<scratch_data_t> scratch_cell(
+                rnn, scratch_cell_);
+        utils::array_offset_calculator<src_data_t, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dic);
 
         // Todo: add parallelization on dic for the batch 1 case
