@@ -146,7 +146,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     q.submit([&](handler &cgh) {
         auto a = sycl_buf.get_access<access::mode::write>(cgh);
         cgh.parallel_for<kernel_tag>(range<1>(N), [=](id<1> i) {
-            int idx = i[0];
+            int idx = (int)i[0];
             a[idx] = (idx % 2) ? -idx : idx;
         });
     });
