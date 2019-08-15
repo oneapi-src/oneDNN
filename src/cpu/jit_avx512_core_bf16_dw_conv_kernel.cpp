@@ -563,11 +563,9 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
                 int off_input = (c - pad_offset) * jcp.ch_block;
                 if (off_input < 0 && unroll_w == jcp.ow) continue;
 
-                const bool over_steps_bdry = true
-                    && is_last_block
-                    && (c - pad_offset + r_pad > right_border);
-                if (over_steps_bdry)
-                    continue;
+                const bool over_steps_bdry = true && is_last_block
+                        && (c - pad_offset + r_pad > right_border);
+                if (over_steps_bdry) continue;
 
                 Zmm zmm_input = get_input_reg(c);
                 vpmovzxwd(zmm_input,
@@ -580,11 +578,9 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
                 if (off_input < 0 || overlap + c + l_pad > right_border)
                     continue;
 
-                const bool over_steps_bdry = true
-                    && is_last_block
-                    && (overlap + c - pad_offset + r_pad > right_border);
-                if (over_steps_bdry)
-                    continue;
+                const bool over_steps_bdry = true && is_last_block
+                        && (overlap + c - pad_offset + r_pad > right_border);
+                if (over_steps_bdry) continue;
 
                 Zmm zmm_input = get_input_reg(overlap + c);
                 vpmovzxwd(zmm_input,
@@ -600,11 +596,9 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_step_unroll(
                     || io_overlap - jcp.l_pad >= right_border)
                 continue;
 
-            const bool over_steps_bdry = true
-                && is_last_block
-                && (io_overlap - jcp.l_pad + jcp.r_pad > right_border);
-            if (over_steps_bdry)
-                continue;
+            const bool over_steps_bdry = true && is_last_block
+                    && (io_overlap - jcp.l_pad + jcp.r_pad > right_border);
+            if (over_steps_bdry) continue;
 
             Zmm zmm_input = get_input_reg(io_overlap - l_pad);
             Zmm zmm_acc = get_acc_reg(i_kw);
@@ -933,7 +927,8 @@ jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_ow_block_unroll() {
 
     /* compute right padded block */
     if (unroll_w_tail) {
-        compute_h_loop(unroll_w_tail, l_pad, pad_offset, jcp.ow - unroll_w_tail);
+        compute_h_loop(
+                unroll_w_tail, l_pad, pad_offset, jcp.ow - unroll_w_tail);
     }
 }
 

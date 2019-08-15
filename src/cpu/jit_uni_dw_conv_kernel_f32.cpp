@@ -575,11 +575,9 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                             = ((c - pad_offset) * reg_repeats + r) * simd_w;
                     if (off_input < 0 && unroll_w == jcp.ow) continue;
 
-                    const bool over_steps_bdry = true
-                        && is_last_block
-                        && (c - pad_offset + r_pad > right_border);
-                    if (over_steps_bdry)
-                        continue;
+                    const bool over_steps_bdry = true && is_last_block
+                            && (c - pad_offset + r_pad > right_border);
+                    if (over_steps_bdry) continue;
 
                     Vmm vmm_input
                             = get_input_reg((c % jcp.kw) * reg_repeats + r);
@@ -595,11 +593,10 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                     if (off_input < 0 || overlap + c + l_pad > right_border)
                         continue;
 
-                    const bool over_steps_bdry = true
-                        && is_last_block
-                        && (overlap + c - pad_offset + r_pad > right_border);
-                    if (over_steps_bdry)
-                        continue;
+                    const bool over_steps_bdry = true && is_last_block
+                            && (overlap + c - pad_offset + r_pad
+                                    > right_border);
+                    if (over_steps_bdry) continue;
 
                     Vmm vmm_input = get_input_reg(
                             ((overlap + c) % jcp.kw) * reg_repeats + r);
@@ -616,11 +613,9 @@ inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_step_unroll(
                         || io_overlap - jcp.l_pad >= right_border)
                     continue;
 
-                const bool over_steps_bdry = true
-                    && is_last_block
-                    && (io_overlap - jcp.l_pad + jcp.r_pad > right_border);
-                if (over_steps_bdry)
-                    continue;
+                const bool over_steps_bdry = true && is_last_block
+                        && (io_overlap - jcp.l_pad + jcp.r_pad > right_border);
+                if (over_steps_bdry) continue;
 
                 Vmm vmm_input = get_input_reg(
                         ((io_overlap - l_pad) % jcp.kw) * reg_repeats + r);
@@ -971,7 +966,8 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 
     /* compute right padded block */
     if (unroll_w_tail) {
-        compute_h_loop(unroll_w_tail, l_pad, pad_offset, jcp.ow - unroll_w_tail);
+        compute_h_loop(
+                unroll_w_tail, l_pad, pad_offset, jcp.ow - unroll_w_tail);
     }
 }
 
