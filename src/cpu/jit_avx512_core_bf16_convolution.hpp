@@ -41,7 +41,7 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", jcp_.isa, ""),
                 jit_avx512_core_bf16_convolution_fwd_t);
 
         status_t init() {
@@ -129,7 +129,7 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", jcp_.isa, ""),
                 jit_avx512_core_bf16_convolution_bwd_data_t);
 
         status_t init() {
@@ -202,7 +202,7 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16:", jcp_.isa, ""),
                 jit_avx512_core_bf16_convolution_bwd_weights_t);
 
         status_t init() {
