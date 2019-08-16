@@ -245,8 +245,9 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
 
     const data_t eps = static_cast<data_t>(p.alg_kind == algorithm::eltwise_soft_relu
                                || p.alg_kind == algorithm::eltwise_tanh)
-            ? 2e-6
-            : (p.alg_kind == algorithm::eltwise_gelu ? 1e-5 : 1e-6);
+            ? (data_t)2e-6f
+            : (p.alg_kind == algorithm::eltwise_gelu ? (data_t)1e-5f
+                                                     : (data_t)1e-6f);
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -323,22 +324,18 @@ protected:
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
-        SKIP_IF(p.alg_kind != algorithm::eltwise_relu
-                        && (data_type == memory::data_type::s32 
-                            || data_type == memory::data_type::s8),
-                        "Integer types supported only for relu");
+        SKIP_IF((p.alg_kind != algorithm::eltwise_relu
+                        || (p.alg_kind == algorithm::eltwise_relu
+                                && p.alpha != 0.0))
+                        && (data_type == memory::data_type::s32
+                                || data_type == memory::data_type::s8),
+                "MKL-DNN only supports relu w/ slope=0 for integers");
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
     }
 
     void Test() {
         p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
-
-        // Integer relu supports only alpha == 0
-        if (p.alg_kind == algorithm::eltwise_relu
-                && (data_type == memory::data_type::s32
-                    || data_type == memory::data_type::s8))
-            p.alpha = 0.0;
 
         eng = engine(get_test_engine_kind(), 0);
         strm = stream(eng);
