@@ -35,8 +35,8 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_pooling_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jpp_.isa, ""),
+                jit_uni_pooling_fwd_t);
 
         status_t init() {
             using namespace utils;
@@ -101,8 +101,8 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_pooling_bwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jpp_.isa, ""),
+                jit_uni_pooling_bwd_t);
 
         status_t init() {
             using namespace utils;
