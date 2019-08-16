@@ -31,7 +31,13 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("lrn_jit:", avx512_common, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("lrn_jit:",
+                        (d_type == data_type::bf16)
+                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                             : avx512_core)
+                                : avx512_common,
+                        ""),
                 jit_avx512_common_lrn_fwd_t);
 
         status_t init();
@@ -63,7 +69,13 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("lrn_jit:", avx512_common, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("lrn_jit:",
+                        (d_type == data_type::bf16)
+                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                             : avx512_core)
+                                : avx512_common,
+                        ""),
                 jit_avx512_common_lrn_bwd_t);
 
         status_t init();
