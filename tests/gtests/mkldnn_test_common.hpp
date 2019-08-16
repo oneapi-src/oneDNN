@@ -308,7 +308,8 @@ static void compare_data(
     ASSERT_TRUE(data_traits<data_t>::data_type == data_type::f32
             || data_traits<data_t>::data_type == data_type::f16
             || data_traits<data_t>::data_type == data_type::bf16
-            || data_traits<data_t>::data_type == data_type::s32);
+            || data_traits<data_t>::data_type == data_type::s32
+            || data_traits<data_t>::data_type == data_type::s8);
 
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();

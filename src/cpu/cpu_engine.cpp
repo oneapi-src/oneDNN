@@ -224,12 +224,18 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
         /* eltwise */
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_common, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx2, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx2, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<sse41, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<sse41, f32>),
         INSTANCE(ref_eltwise_fwd_t<f32>),
         INSTANCE(ref_eltwise_bwd_t<f32>),
