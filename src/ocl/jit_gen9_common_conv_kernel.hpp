@@ -811,7 +811,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                 ? jcp.kh * jcp.kw * jcp.kd * jcp.ngroups
                 : jcp.kh * jcp.kw * jcp.kd * (jcp.oc / 16) * (jcp.ic / 16)
                         * jcp.ngroups;
-        int opt_chunk = 1;
+        dim_t opt_chunk = 1;
 
         switch (jcp.ver) {
             case ver_1stconv:
@@ -823,12 +823,12 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
                 /* 2KB per thread (72 EU and 7 thr/EU)*/
                 opt_chunk = utils::div_up(
-                        (jcp.ic_block * jcp.ih * jcp.iw * jcp.id
-                                + jcp.oc_block * jcp.oh * jcp.ow * jcp.od)
+                        ((dim_t)jcp.ic_block * jcp.ih * jcp.iw * jcp.id
+                                + (dim_t)jcp.oc_block * jcp.oh * jcp.ow * jcp.od)
                                 * jcp.mb * 4,
                         1024 * 2 * 72 * 7);
                 jcp.oh_chunk = 1;
-                jcp.mb_chunk = utils::div_up(jcp.mb, opt_chunk);
+                jcp.mb_chunk = utils::div_up(jcp.mb, (dim_t)opt_chunk);
                 jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
                 jcp.oh_block
                         = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
@@ -859,9 +859,9 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                                                       * jcp.od)
                                         * jcp.mb * 4,
                                 1024 * 2 * 72 * 7));
-                jcp.oh_chunk = nstl::min(jcp.oh * jcp.ow * jcp.od, opt_chunk);
-                jcp.mb_chunk = nstl::min(jcp.mb / jcp.mb_block,
-                        utils::div_up(opt_chunk, jcp.oh_chunk));
+                jcp.oh_chunk = nstl::min((dim_t)jcp.oh * jcp.ow * jcp.od, opt_chunk);
+                jcp.mb_chunk = nstl::min((dim_t)jcp.mb / jcp.mb_block,
+                        utils::div_up(opt_chunk, (dim_t)jcp.oh_chunk));
                 jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
                 jcp.oh_block
                         = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
