@@ -220,14 +220,22 @@ template <typename data_t>
 void compare_eltwise_fwd(const eltwise_test_params &p,
         const memory::desc &md, const memory &dst, const memory &ref_dst)
 {
-    const data_t eps = static_cast<data_t>(data_traits<data_t>::data_type == memory::data_type::f16
-                               || data_traits<data_t>::data_type
-                                       == memory::data_type::bf16)
-            ? 5e-2
-            : (p.alg_kind == algorithm::eltwise_elu
-                      || p.alg_kind == algorithm::eltwise_gelu)
-                    ? 2e-5
-                    : p.alg_kind == algorithm::eltwise_soft_relu ? 2e-6 : 1e-6;
+    data_t eps;
+    if (data_traits<data_t>::data_type == memory::data_type::s8
+            || data_traits<data_t>::data_type == memory::data_type::s32)
+        eps = 0;
+    else
+        eps = static_cast<data_t>(
+                (data_traits<data_t>::data_type == memory::data_type::f16
+                        || data_traits<data_t>::data_type
+                                == memory::data_type::bf16)
+                        ? 5e-2
+                        : (p.alg_kind == algorithm::eltwise_elu
+                                  || p.alg_kind == algorithm::eltwise_gelu)
+                                ? 2e-5
+                                : p.alg_kind == algorithm::eltwise_soft_relu
+                                        ? 2e-6
+                                        : 1e-6);
     compare_data(ref_dst, dst, eps);
 }
 
@@ -243,11 +251,11 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
     const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
     const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    const data_t eps = static_cast<data_t>(p.alg_kind == algorithm::eltwise_soft_relu
-                               || p.alg_kind == algorithm::eltwise_tanh)
-            ? (data_t)2e-6f
-            : (p.alg_kind == algorithm::eltwise_gelu ? (data_t)1e-5f
-                                                     : (data_t)1e-6f);
+    const data_t eps = static_cast<data_t>(
+            (p.alg_kind == algorithm::eltwise_soft_relu
+                    || p.alg_kind == algorithm::eltwise_tanh)
+                    ? 2e-6f
+                    : (p.alg_kind == algorithm::eltwise_gelu ? 1e-5f : 1e-6f));
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
