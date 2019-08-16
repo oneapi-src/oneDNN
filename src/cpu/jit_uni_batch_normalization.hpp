@@ -44,7 +44,13 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_impl_t {
             : cpu_batch_normalization_fwd_pd_t(
                     engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("bnorm_jit:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("bnorm_jit:",
+                        (this->desc()->data_desc.data_type == data_type::bf16)
+                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                             : avx512_core)
+                                : isa,
+                        ""),
                 jit_uni_batch_normalization_fwd_t);
 
         status_t init();
@@ -70,7 +76,13 @@ struct jit_uni_batch_normalization_bwd_t : public primitive_impl_t {
             : cpu_batch_normalization_bwd_pd_t(
                     engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("bnorm_jit:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("bnorm_jit:",
+                        (this->desc()->data_desc.data_type == data_type::bf16)
+                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                             : avx512_core)
+                                : isa,
+                        ""),
                 jit_uni_batch_normalization_bwd_t);
 
         status_t init();
