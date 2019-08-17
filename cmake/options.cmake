@@ -26,11 +26,11 @@ set(options_cmake_included true)
 # Features
 # ========
 
-option(MKLDNN_VERBOSE
-    "allows Intel(R) MKL-DNN be verbose whenever MKLDNN_VERBOSE
+option(DNNL_VERBOSE
+    "allows DNNL be verbose whenever DNNL_VERBOSE
     environment variable set to 1" ON) # enabled by default
 
-option(MKLDNN_ENABLE_CONCURRENT_EXEC
+option(DNNL_ENABLE_CONCURRENT_EXEC
     "disables sharing a common scratchpad between primitives.
     This option must be turned on if there is a possibility of concurrent
     execution of primitives that were created in the same thread.
@@ -41,24 +41,24 @@ option(MKLDNN_ENABLE_CONCURRENT_EXEC
 # Building properties and scope
 # =============================
 
-set(MKLDNN_LIBRARY_TYPE "SHARED" CACHE STRING
-    "specifies whether Intel(R) MKL-DNN library should be SHARED or STATIC")
-option(MKLDNN_BUILD_EXAMPLES "builds examples"  ON)
-option(MKLDNN_BUILD_TESTS "builds tests" ON)
-option(MKLDNN_BUILD_FOR_CI "specifies whether Intel(R) MKL-DNN library should be built for CI" OFF)
-option(MKLDNN_WERROR "treat warnings as errors" OFF)
+set(DNNL_LIBRARY_TYPE "SHARED" CACHE STRING
+    "specifies whether DNNL library should be SHARED or STATIC")
+option(DNNL_BUILD_EXAMPLES "builds examples"  ON)
+option(DNNL_BUILD_TESTS "builds tests" ON)
+option(DNNL_BUILD_FOR_CI "specifies whether DNNL library should be built for CI" OFF)
+option(DNNL_WERROR "treat warnings as errors" OFF)
 
-set(MKLDNN_INSTALL_MODE "DEFAULT" CACHE STRING
+set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT or BUNDLE.
 
-    When BUNDLE option is set MKL-DNN will be installed as a bundle
+    When BUNDLE option is set DNNL will be installed as a bundle
     which contains examples and benchdnn.")
 
 # =============
 # Optimizations
 # =============
 
-set(MKLDNN_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
+set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     "specifies compiler optimization flags (see below for more information).
     If empty default optimization level would be applied which depends on the
     compiler being used.
@@ -75,15 +75,15 @@ set(MKLDNN_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     - For all other cases there are no special optimizations flags.
 
     If the library is to be built for generic architecture (e.g. built by a
-    Linux distributive maintainer) one may want to specify MKLDNN_ARCH_OPT_FLAGS=\"\"
+    Linux distributive maintainer) one may want to specify DNNL_ARCH_OPT_FLAGS=\"\"
     to not use any host specific instructions")
 
 # ======================
 # Profiling capabilities
 # ======================
 
-option(MKLDNN_ENABLE_JIT_PROFILING
-    "Enable registration of Intel(R) MKL-DNN kernels that are generated at
+option(DNNL_ENABLE_JIT_PROFILING
+    "Enable registration of DNNL kernels that are generated at
     runtime with Intel VTune Amplifier (on by default). Without the
     registrations, Intel VTune Amplifier would report data collected inside
     the kernels as `outside any known module`."
@@ -93,7 +93,7 @@ option(MKLDNN_ENABLE_JIT_PROFILING
 # Engine capabilities
 # ===================
 
-set(MKLDNN_CPU_RUNTIME "OMP" CACHE STRING
+set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
     supports OMP (default) or TBB.
 
@@ -105,7 +105,7 @@ set(TBBROOT "" CACHE STRING
     "path to Intel(R) Thread Building Blocks (Intel(R) TBB).
     Use this option to specify Intel(R) TBB installation locaton.")
 
-set(MKLDNN_GPU_RUNTIME "NONE" CACHE STRING
+set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
     Can be NONE (default; no GPU engines) or OCL (OpenCL GPU engines).
 
@@ -129,7 +129,7 @@ option(BENCHDNN_USE_RDPMC
 # Developer and debug flags
 # =========================
 
-set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
+set(DNNL_USE_CLANG_SANITIZER "" CACHE STRING
     "instructs build system to use a Clang sanitizer. Possible values:
     Address: enables AddressSanitizer
     Memory: enables MemorySanitizer
@@ -137,4 +137,4 @@ set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
     Undefined: enables UndefinedBehaviourSanitizer
     This feature is experimental and is only available on Linux.")
 
-option(_MKLDNN_USE_MKL "use BLAS functions from Intel MKL" OFF)
+option(_DNNL_USE_MKL "use BLAS functions from Intel MKL" OFF)

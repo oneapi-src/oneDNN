@@ -42,11 +42,11 @@ if(POLICY CMP0066)
     cmake_policy(SET CMP0066 NEW)
 endif()
 
-set(PROJECT_NAME "Intel(R) MKL-DNN")
-set(PROJECT_FULL_NAME "Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)")
+set(PROJECT_NAME "DNNL")
+set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
 set(PROJECT_VERSION "1.0.0")
 
-set(LIB_NAME mkldnn)
+set(LIB_NAME dnnl)
 
 if (CMAKE_VERSION VERSION_LESS 3.0)
     project(${PROJECT_NAME} C CXX)
@@ -56,7 +56,7 @@ else()
 endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "Intel(R) MKL-DNN supports 64 bit platforms only")
+    message(FATAL_ERROR "DNNL supports 64 bit platforms only")
 endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -78,27 +78,27 @@ endif()
 # Tentative remapping of old options to the new one.
 # CAUTION: The old options will soon be removed.
 
-if(MKLDNN_THREADING)
-    set(MKLDNN_CPU_RUNTIME "${MKLDNN_THREADING}" CACHE STRING "" FORCE)
+if(DNNL_THREADING)
+    set(DNNL_CPU_RUNTIME "${DNNL_THREADING}" CACHE STRING "" FORCE)
     message(STATUS "Using the obsolete way to specify the CPU runtime. "
-        "Use MKLDNN_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME} instead.")
+        "Use DNNL_CPU_RUNTIME=${DNNL_CPU_RUNTIME} instead.")
 endif()
 
-if(MKLDNN_GPU_BACKEND)
-    if (MKLDNN_GPU_BACKEND STREQUAL "OPENCL")
-        set(MKLDNN_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
+if(DNNL_GPU_BACKEND)
+    if (DNNL_GPU_BACKEND STREQUAL "OPENCL")
+        set(DNNL_GPU_BACKEND "OCL" CACHE STRING "" FORCE)
         message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
-            "Use MKLDNN_GPU_RUNTIME=OCL instead.")
+            "Use DNNL_GPU_RUNTIME=OCL instead.")
     endif()
-    set(MKLDNN_GPU_RUNTIME "${MKLDNN_GPU_BACKEND}" CACHE STRING "" FORCE)
+    set(DNNL_GPU_RUNTIME "${DNNL_GPU_BACKEND}" CACHE STRING "" FORCE)
     message(STATUS "Using the obsolete way to specify the GPU runtime. "
-        "Use MKLDNN_GPU_RUNTME=${MKLDNN_GPU_RUNTIME} instead.")
+        "Use DNNL_GPU_RUNTME=${DNNL_GPU_RUNTIME} instead.")
 endif()
 
-if (MKLDNN_GPU_RUNTIME STREQUAL "OPENCL")
-    set(MKLDNN_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
+if (DNNL_GPU_RUNTIME STREQUAL "OPENCL")
+    set(DNNL_GPU_RUNTIME "OCL" CACHE STRING "" FORCE)
     message(STATUS "Using the obsolete way to specify the OpenCL runtime. "
-        "Use MKLDNN_GPU_RUNTIME=OCL instead.")
+        "Use DNNL_GPU_RUNTIME=OCL instead.")
 endif()
 
 include("cmake/utils.cmake")
@@ -117,12 +117,12 @@ enable_testing()
 include_directories(include)
 
 configure_file(
-    "${PROJECT_SOURCE_DIR}/include/mkldnn_config.h.in"
-    "${PROJECT_BINARY_DIR}/include/mkldnn_config.h"
+    "${PROJECT_SOURCE_DIR}/include/dnnl_config.h.in"
+    "${PROJECT_BINARY_DIR}/include/dnnl_config.h"
 )
 include_directories(${PROJECT_BINARY_DIR}/include)
 
-if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
     # define CMAKE_INSTALL_LIBDIR as "lib" in the case of bundle
     set(CMAKE_INSTALL_LIBDIR "lib")
 endif()
@@ -132,9 +132,9 @@ include(CMakePackageConfigHelpers)
 
 add_subdirectory(src)
 add_subdirectory(examples)
-add_subdirectory(tests)
+# add_subdirectory(tests)
 
-if(MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE")
     install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_PREFIX})
     install(FILES README.md DESTINATION ${CMAKE_INSTALL_PREFIX})
 else()

@@ -58,7 +58,7 @@ if(DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
     add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
 
-    if(NOT MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+    if(NOT DNNL_INSTALL_MODE STREQUAL "BUNDLE")
         install(
             DIRECTORY ${DOXYGEN_OUTPUT_DIR}
             DESTINATION share/doc/${LIB_NAME} OPTIONAL)

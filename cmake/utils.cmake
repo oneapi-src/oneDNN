@@ -25,7 +25,7 @@ include("cmake/options.cmake")
 
 # Common configuration for tests / test cases on Windows
 function(maybe_configure_windows_test name kind)
-    if(WIN32 AND (NOT MKLDNN_BUILD_FOR_CI))
+    if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
         string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
         set_property(${kind} ${name} PROPERTY ENVIRONMENT "PATH=${PATH}")
         if(CMAKE_GENERATOR MATCHES "Visual Studio")

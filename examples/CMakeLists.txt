@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT MKLDNN_BUILD_EXAMPLES)
+if (NOT DNNL_BUILD_EXAMPLES)
     return()
 endif()
 
@@ -44,7 +44,7 @@ foreach(src ${sources})
         register_exe(${example_name} ${src} "test" ${LIBM})
     elseif(${example_name} MATCHES "^(cross-engine|gpu)")
         # Example name contains cross-engine or gpu-
-        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
             register_exe(${example_name} ${src} "test" ${LIBM})
         endif() 
     else()
@@ -55,14 +55,14 @@ foreach(src ${sources})
         maybe_configure_windows_test("cpu-${example_name}" TEST)
         
         # Adding test for GPU
-        if (NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
            add_test("gpu-${example_name}" "${example_name}" gpu)             
            maybe_configure_windows_test("gpu-${example_name}" TEST)
         endif()
     endif()
 endforeach()
 
-if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
+if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
     file(GLOB example_sources 
          "cpu_*.cpp" "c_*.c" "cnn_*.c" "cnn_*.cpp" "rnn_*.cpp" "*.h*")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)

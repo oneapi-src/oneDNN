@@ -14,23 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+// Header file ensures the backwards compatibility with previous namings.
+
 #ifndef MKLDNN_VERSION_H
 #define MKLDNN_VERSION_H
 
-// clang-format off
+#include "mkldnn_dnnl_mangling.h"
 
-/// Major version
-#define MKLDNN_VERSION_MAJOR @MKLDNN_VERSION_MAJOR@
+#include "dnnl_version.h"
 
-/// Minor version
-#define MKLDNN_VERSION_MINOR @MKLDNN_VERSION_MINOR@
-
-/// Patch version
-#define MKLDNN_VERSION_PATCH @MKLDNN_VERSION_PATCH@
-
-/// Git commit hash
-#define MKLDNN_VERSION_HASH  "@MKLDNN_VERSION_HASH@"
-
-// clang-format on
-
-#endif
+#endif /* MKLDNN_VERSION_H */

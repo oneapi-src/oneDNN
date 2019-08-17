@@ -1,4 +1,4 @@
-Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
+Deep Neural Network Library (DNNL)
 ========================================================================
 
 > **Note**
@@ -6,19 +6,19 @@ Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
 > Version 1.0 brings incompatible changes to the 0.20 version. Please read
 > [Version 1.0 Transition Guide](https://intel.github.io/mkl-dnn/dev_guide_transition_to_v1.html).
 
-Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
+Deep Neural Network Library (DNNL) is an
 open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
 
 > **Note**
-> Intel MKL-DNN is distinct from Intel MKL, which is general math
+> DNNL is distinct from Intel MKL, which is general math
 > performance library.
 
-Intel MKL-DNN is intended for deep learning applications and framework
+DNNL is intended for deep learning applications and framework
 developers interested in improving application performance
 on Intel CPUs and GPUs. Deep learning practitioners should use one of the
-applications enabled with Intel MKL-DNN:
+applications enabled with DNNL:
 * [Apache\* MXNet](https://mxnet.apache.org)
 * [BigDL](https://github.com/intel-analytics/BigDL)
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
@@ -42,9 +42,9 @@ names use the following convention:
 
 | OS      | Package name
 | :------ | :-----------
-| Linux   | `mkldnn_lnx_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].tgz`
-| Windows | `mkldnn_win_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].zip`
-| macOS   | `mkldnn_mac_<version>_cpu_<cpu runtime>.tgz`
+| Linux   | `dnnl_lnx_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].tgz`
+| Windows | `dnnl_win_<version>_cpu_<cpu runtime>[_gpu_<gpu runtime>].zip`
+| macOS   | `dnnl_mac_<version>_cpu_<cpu runtime>.tgz`
 
 Several packages are available for each operating system to ensure
 interoperability with CPU or GPU runtime libraries used by the application.
@@ -67,7 +67,7 @@ If the configuration you need is not available, you can
 [build the library from source](http://intel.github.io/mkl-dnn/dev_guide_build.html).
 
 # Contributing
-We welcome community contributions to Intel MKL-DNN. If you have an idea on how
+We welcome community contributions to DNNL. If you have an idea on how
 to improve the library:
 
 * For changes impacting the public API, submit
@@ -86,7 +86,7 @@ Please submit your questions, feature requests, and bug reports on the
 [GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
 
 # License
-Intel MKL-DNN is licensed under
+DNNL is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
 software includes the following third-party components:
 * [Xbyak](https://github.com/herumi/xbyak) distributed under
@@ -104,7 +104,7 @@ includes annotated examples.
 comprehensive reference of the library API.
 
 # System Requirements
-Intel MKL-DNN supports systems based on Intel 64 architecture or
+DNNL supports systems based on Intel 64 architecture or
 compatible processors.
 
 The library is optimized for the following CPUs:
@@ -116,7 +116,7 @@ The library is optimized for the following CPUs:
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
-Intel MKL-DNN detects instruction set architecture (ISA) in the runtime and uses
+DNNL detects instruction set architecture (ISA) in the runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
 
@@ -126,7 +126,7 @@ The library is optimized for the following GPUs:
 * Intel Iris Plus Graphics
 
 ## Requirements for Building from Source
-Intel MKL-DNN supports systems meeting the following requirements:
+DNNL supports systems meeting the following requirements:
 * Operating sytem with Intel 64 architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
@@ -138,7 +138,7 @@ dependencies.
 
 ### CPU Engine
 Intel Architecture Processors and compatible devices are supported by the
-Intel MKL-DNN CPU engine. The CPU engine is built by default and cannot
+DNNL CPU engine. The CPU engine is built by default and cannot
 be disabled at build time. The engine can be configured to use the OpenMP or
 TBB threading runtime. The following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support
@@ -150,7 +150,7 @@ Some implementations rely on OpenMP 4.0 SIMD extensions, and we recommend using
 the Intel C++ Compiler for the best performance results.
 
 ### GPU Engine
-Intel Processor Graphics is supported by the Intel MKL-DNN GPU engine. The GPU
+Intel Processor Graphics is supported by the DNNL GPU engine. The GPU
 engine is disabled in the default build configuration. The following
 additional requirements apply when GPU engine is enabled:
 * OpenCL\* runtime library (OpenCL version 1.2 or later)
@@ -158,7 +158,7 @@ additional requirements apply when GPU engine is enabled:
   with Intel subgroups extension support
 
 ### Runtime Dependencies
-When Intel MKL-DNN is built from source, the library runtime dependencies
+When DNNL is built from source, the library runtime dependencies
 and specific versions are defined by the build environment.
 
 #### Linux
@@ -172,11 +172,11 @@ Runtime specific dependencies:
 
 | Runtime configuration    | Compiler                      | Dependency
 | :----------------------- | :---------------------------- | :---------
-| `MKLDNN_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (libgomp.so)
-| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
-| `MKLDNN_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
-| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.so)
-| `MKLDNN_GPU_RUNTIME=OCL` | any                           | Intel Graphics Compute Runtime for OpenCL (libOpenCL.so)
+| `DNNL_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (libgomp.so)
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
+| `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.so)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | Intel Graphics Compute Runtime for OpenCL (libOpenCL.so)
 
 #### Windows
 Common dependencies:
@@ -186,10 +186,10 @@ Runtime specific dependencies:
 
 | Runtime configuration    | Compiler                      | Dependency
 | :----------------------- | :---------------------------- | :---------
-| `MKLDNN_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
-| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
-| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (tbb.dll)
-| `MKLDNN_GPU_RUNTIME=OCL` | any                           | Intel Graphics Driver (OpenCL.dll)
+| `DNNL_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (tbb.dll)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | Intel Graphics Driver (OpenCL.dll)
 
 #### macOS
 Common dependencies:
@@ -199,8 +199,8 @@ Runtime specific dependencies:
 
 | Runtime configuration    | Compiler                      | Dependency
 | :----------------------- | :---------------------------- | :---------
-| `MKLDNN_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
-| `MKLDNN_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.dylib)
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.dylib)
 
 ### Validated Configurations
 CPU engine was validated on RedHat\* Enterprise Linux 7 with

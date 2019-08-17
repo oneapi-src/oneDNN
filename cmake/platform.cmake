@@ -24,7 +24,7 @@ set(platform_cmake_included true)
 
 include("cmake/utils.cmake")
 
-add_definitions(-DMKLDNN_DLL -DMKLDNN_DLL_EXPORTS)
+add_definitions(-DDNNL_DLL -DDNNL_DLL_EXPORTS)
 
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
@@ -34,13 +34,13 @@ set(CMAKE_CCXX_FLAGS)
 set(CMAKE_CCXX_NOWARN_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
-if($ENV{MKLDNN_WERROR})
-    set(MKLDNN_WERROR $ENV{MKLDNN_WERROR})
+if($ENV{DNNL_WERROR})
+    set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
 
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
-    append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "/WX")
+    append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
         # int -> bool
@@ -74,7 +74,7 @@ if(MSVC)
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
-    append_if(MKLDNN_WERROR CMAKE_CCXX_FLAGS "-Werror")
+    append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")
     # compiler specific settings
@@ -83,41 +83,41 @@ elseif(UNIX OR MINGW)
         # very upset. Tell it that it's okay and that we love it
         # unconditionally.
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
-        if(MKLDNN_USE_CLANG_SANITIZER MATCHES "Memory(WithOrigin)?")
-            if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SEQ")
+        if(DNNL_USE_CLANG_SANITIZER MATCHES "Memory(WithOrigin)?")
+            if(NOT DNNL_CPU_RUNTIME STREQUAL "SEQ")
                 message(WARNING "Clang OpenMP is not compatible with MSan! "
                     "Expect a lot of false positives!")
             endif()
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=memory")
-            if(MKLDNN_USE_CLANG_SANITIZER STREQUAL "MemoryWithOrigin")
+            if(DNNL_USE_CLANG_SANITIZER STREQUAL "MemoryWithOrigin")
                 append(CMAKE_CCXX_SANITIZER_FLAGS
                     "-fsanitize-memory-track-origins=2")
                 append(CMAKE_CCXX_SANITIZER_FLAGS
                     "-fno-omit-frame-pointer")
             endif()
-            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
-        elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Undefined")
+            set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
+        elseif(DNNL_USE_CLANG_SANITIZER STREQUAL "Undefined")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=undefined")
             append(CMAKE_CCXX_SANITIZER_FLAGS
                 "-fno-sanitize=function,vptr")  # work around linking problems
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fno-omit-frame-pointer")
-            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
-        elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Address")
+            set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
+        elseif(DNNL_USE_CLANG_SANITIZER STREQUAL "Address")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=address")
-            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
-        elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Thread")
+            set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
+        elseif(DNNL_USE_CLANG_SANITIZER STREQUAL "Thread")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=thread")
-            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
-        elseif(MKLDNN_USE_CLANG_SANITIZER STREQUAL "Leak")
+            set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
+        elseif(DNNL_USE_CLANG_SANITIZER STREQUAL "Leak")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-fsanitize=leak")
-            set(MKLDNN_ENABLED_CLANG_SANITIZER "${MKLDNN_USE_CLANG_SANITIZER}")
-        elseif(NOT MKLDNN_USE_CLANG_SANITIZER STREQUAL "")
+            set(DNNL_ENABLED_CLANG_SANITIZER "${DNNL_USE_CLANG_SANITIZER}")
+        elseif(NOT DNNL_USE_CLANG_SANITIZER STREQUAL "")
             message(FATAL_ERROR
-                "Unsupported Clang sanitizer '${MKLDNN_USE_CLANG_SANITIZER}'")
+                "Unsupported Clang sanitizer '${DNNL_USE_CLANG_SANITIZER}'")
         endif()
-        if(MKLDNN_ENABLED_CLANG_SANITIZER)
+        if(DNNL_ENABLED_CLANG_SANITIZER)
             message(STATUS
-                "Using Clang ${MKLDNN_ENABLED_CLANG_SANITIZER} "
+                "Using Clang ${DNNL_ENABLED_CLANG_SANITIZER} "
                 "sanitizer (experimental!)")
             append(CMAKE_CCXX_SANITIZER_FLAGS "-g -fno-omit-frame-pointer")
         endif()
@@ -151,12 +151,12 @@ if(UNIX OR MINGW)
     endif()
 endif()
 
-if(MKLDNN_ARCH_OPT_FLAGS STREQUAL "HostOpts")
-    set(MKLDNN_ARCH_OPT_FLAGS "${DEF_ARCH_OPT_FLAGS}")
+if(DNNL_ARCH_OPT_FLAGS STREQUAL "HostOpts")
+    set(DNNL_ARCH_OPT_FLAGS "${DEF_ARCH_OPT_FLAGS}")
 endif()
 
-append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS} ${MKLDNN_ARCH_OPT_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS} ${MKLDNN_ARCH_OPT_FLAGS}")
+append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
+append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
 
 if(APPLE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)

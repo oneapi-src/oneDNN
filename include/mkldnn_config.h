@@ -16,11 +16,11 @@
 
 // Header file ensures the backwards compatibility with previous namings.
 
-#ifndef MKLDNN_DEBUG_H
-#define MKLDNN_DEBUG_H
+#ifndef MKLDNN_CONFIG_H
+#define MKLDNN_CONFIG_H
 
 #include "mkldnn_dnnl_mangling.h"
 
-#include "dnnl_debug.h"
+#include "dnnl_config.h"
 
-#endif /* MKLDNN_DEBUG_H */
+#endif /* MKLDNN_CONFIG_H */

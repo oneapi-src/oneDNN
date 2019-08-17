@@ -1,6 +1,6 @@
 # Contributing guidelines
 
-If you have improvements to the Intel MKL-DNN code, please send us your pull
+If you have improvements to the DNNL code, please send us your pull
 requests! For getting started, see GitHub
 [howto](https://help.github.com/en/articles/about-pull-requests).
 
@@ -27,7 +27,7 @@ list.
 
 ## Library functionality guidelines
 
-Intel MKL-DNN focuses on functionality that satisfies all of the following
+DNNL focuses on functionality that satisfies all of the following
 criteria:
 
 1. *Performance*: the functionality has material impact on a workload level.
@@ -53,27 +53,27 @@ primitives. In the RFC, please provide the following details:
   significant percentage of the total time and thus is a good optimization
   candidate.
 
-* The definition of the operation as an MKL-DNN primitive including interface
+* The definition of the operation as an DNNL primitive including interface
   and semantics. It is OK to have sketches for the interface, but the
   semantics should be fairly well defined.
 
 * If possible, provide information about similar compute operations. Sometimes
-  Intel MKL-DNN primitives are super-sets of operations available in the
+  DNNL primitives are super-sets of operations available in the
   deep learning applications for the sake of greater portability across them.
 
 ## Code contribution guidelines
 
 The code must be:
 
-* *Tested*: Intel MKL-DNN uses gtests for lightweight functional testing and
+* *Tested*: DNNL uses gtests for lightweight functional testing and
   benchdnn for functionality that requires both performance and functional
   testing.
 
-* *Documented*: Intel MKL-DNN uses Doxygen for inline comments in public header
+* *Documented*: DNNL uses Doxygen for inline comments in public header
   files that is used to build reference manual and markdown (also processed by
   Doxygen) for user guide.
 
-* *Portable*: Intel MKL-DNN supports different operating systems, CPU and GPU
+* *Portable*: DNNL supports different operating systems, CPU and GPU
   architectures, compilers, and run-times. The new code should be complaint
   with the [System Requirements](README.md#system-requirements).
 
@@ -97,13 +97,13 @@ If in doubt, use the `clang-format`:
 clang-format -style=file -i foo.cpp
 ```
 This will format code using the `_clang_format` file found in the Intel
-MKL-DNN top level directory.
+DNNL top level directory.
 
 Coding style is secondary to the general code design.
 
 ## Unit tests
 
-Intel MKL-DNN uses gtests for lightweight functional testing and benchdnn for
+DNNL uses gtests for lightweight functional testing and benchdnn for
 performance and functional testing.
 
 Be sure to extend the existing tests when fixing an issue.

@@ -23,7 +23,7 @@ endif()
 set(TBB_cmake_included true)
 include("cmake/Threading.cmake")
 
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "TBB")
+if(NOT DNNL_CPU_RUNTIME STREQUAL "TBB")
     return()
 endif()
 
@@ -35,7 +35,7 @@ elseif(UNIX)
     find_package(TBB REQUIRED tbb HINTS cmake/lnx)
 endif()
 
-set(MKLDNN_CPU_RUNTIME_CURRENT "TBB")
+set(DNNL_CPU_RUNTIME_CURRENT "TBB")
 include_directories(${TBB_INCLUDE_DIRS})
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 
