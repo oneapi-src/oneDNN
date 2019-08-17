@@ -92,10 +92,13 @@
 using namespace dnnl;
 
 // [Prologue]
+
 // Set Strides and Padding
 const memory::dims strides = {4, 4};
 const memory::dims padding = {0, 0};
 
+// [Prologue]
+//
 // function to init data
 void init_data(memory &m, float v) {
     size_t size = m.get_desc().get_size() / sizeof(float);

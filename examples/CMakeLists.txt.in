@@ -17,6 +17,9 @@
 cmake_minimum_required(VERSION 2.8.11)
 project (DNNL_EXAMPLES)
 
+set(DNNL_CPU_RUNTIME "@MKLDNN_CPU_RUNTIME@")
+set(DNNL_GPU_RUNTIME "@MKLDNN_GPU_RUNTIME@")
+
 if(POLICY CMP0015)
     cmake_policy(SET CMP0015 NEW)
 endif()
@@ -97,17 +100,17 @@ file(GLOB sources *.cpp *.c)
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cpu)") 
+    if(${example_name} MATCHES "^(cpu)")
         # Example name contains cpu-
         register_example(${example_name} ${src} "test" ${LIBM})
-    elseif(${example_name} MATCHES "^(cross-engine|gpu)")  
+    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
         # Example Name contains cross-engine or gpu-
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
             register_example(${example_name} ${src} "test" ${LIBM})
-        endif() 
+        endif()
     else()
         register_example(${example_name} ${src} "" ${LIBM})
-        
+
         # Adding test for CPU
         add_test("cpu-${example_name}" "${example_name}" cpu)
         maybe_configure_test("cpu-${example_name}" TEST)

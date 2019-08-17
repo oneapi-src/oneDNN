@@ -450,6 +450,7 @@ dnnl_status_t simple_net(dnnl_engine_kind_t engine_kind) {
 int main(int argc, char **argv) {
     dnnl_status_t result = simple_net(parse_engine_kind(argc, argv));
     printf("%s\n",
-            (result == dnnl_success) ? "Example Passed!" : "Example Failed!");
+            (result == dnnl_success) ? "Simple net f32 inference passed!"
+                                       : "Simple net f32 inference failed!");
     return result;
 }

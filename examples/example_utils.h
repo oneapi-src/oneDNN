@@ -81,10 +81,15 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     size_t bytes = dnnl_memory_desc_get_size(md);
 
     if (eng_kind == dnnl_cpu) {
-        void *ptr;
+        void *ptr = NULL;
         CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        for (size_t i = 0; i < bytes; ++i) {
-            ((char *)handle)[i] = ((char *)ptr)[i];
+        if ((char *)ptr != NULL) {
+            for (size_t i = 0; i < bytes; ++i) {
+                ((char *)handle)[i] = ((char *)ptr)[i];
+            }
+        }
+        else{
+            handle = NULL;
         }
     }
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -125,10 +130,15 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     size_t bytes = dnnl_memory_desc_get_size(md);
 
     if (eng_kind == dnnl_cpu) {
-        void *ptr;
+        void *ptr = NULL;
         CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        for (size_t i = 0; i < bytes; ++i) {
-            ((char *)handle)[i] = ((char *)ptr)[i];
+        if ((char *)ptr != NULL) {
+            for (size_t i = 0; i < bytes; ++i) {
+                ((char *)handle)[i] = ((char *)ptr)[i];
+            }
+        }
+        else{
+            handle = NULL;
         }
     }
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL

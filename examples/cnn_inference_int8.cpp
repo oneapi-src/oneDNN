@@ -271,7 +271,7 @@ void simple_net_int8(engine::kind engine_kind) {
 int main(int argc, char **argv) {
     try {
         simple_net_int8(parse_engine_kind(argc, argv));
-        std::cout << "Simple-net-int8 example passed!" << std::endl;
+        std::cout << "Simple net int8 inference example passed!" << std::endl;
     } catch (error &e) {
         std::cerr << "status: " << e.status << std::endl;
         std::cerr << "message: " << e.message << std::endl;
