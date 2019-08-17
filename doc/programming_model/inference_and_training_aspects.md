@@ -110,8 +110,8 @@ with DNNL:
    better performance.
 
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_inference_f32_cpp
-- @ref cpu_cnn_inference_int8_cpp
+- @ref cnn_inference_f32_cpp
+- @ref cnn_inference_int8_cpp
 
 @anchor dev_guide_inference_and_training_aspects_training
 ## Training-Specific Aspects
@@ -186,7 +186,7 @@ with DNNL:
    are detailed in the section @ref dev_guide_training_bf16.
 
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_training_f32_cpp
+- @ref cnn_training_f32_cpp
 - @ref cpu_cnn_training_bf16_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace

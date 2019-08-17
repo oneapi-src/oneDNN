@@ -342,7 +342,7 @@ performance boost achieved from using the Winograd algorithm:
   significantly less accurate than results from the direct convolution.
 
 Create a Winograd convolution by simply creating a convolution descriptor
-(step 6 in [simple network example](@ref cpu_cnn_inference_f32_cpp) specifying
+(step 6 in [simple network example](@ref cnn_inference_f32_cpp) specifying
 the Winograd algorithm. The rest of the steps are exactly the same.
 
 ~~~cpp

@@ -61,7 +61,7 @@
 ///   memory formats.
 ///
 /// This tutorial assumes that the reader has already reviewed the
-/// @ref cpu_getting_started_cpp tutorial.
+/// @ref getting_started_cpp tutorial.
 ///
 /// The example is built around a CNN consisting of a convolution followed by
 /// a pooling and consists of the following steps:
