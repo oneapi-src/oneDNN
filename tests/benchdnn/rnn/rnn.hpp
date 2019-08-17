@@ -23,9 +23,9 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 #define AOC array_offset_calculator
@@ -35,15 +35,15 @@ namespace rnn {
 enum alg_t { VANILLA_RNN, VANILLA_LSTM, VANILLA_GRU, LBR_GRU };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
-mkldnn_alg_kind_t alg2kind(alg_t alg);
+dnnl_alg_kind_t alg2kind(alg_t alg);
 
 enum activation_t { UNDEF, RELU, LOGISTIC, TANH };
 activation_t str2activation(const char *str);
 const char *activation2str(activation_t alg);
-mkldnn_alg_kind_t activation2kind(activation_t alg);
+dnnl_alg_kind_t activation2kind(activation_t alg);
 
-mkldnn_rnn_direction_t str2direction(const char *str);
-const char *direction2str(mkldnn_rnn_direction_t direction);
+dnnl_rnn_direction_t str2direction(const char *str);
+const char *direction2str(dnnl_rnn_direction_t direction);
 
 const int H = 0;
 const int C = 1;
@@ -158,7 +158,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 */
 
 typedef struct dt_conf_t {
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     int min, max; /* representative */
     float f_min, f_max; /* fill range */
     float f_mean,
@@ -181,8 +181,8 @@ policy_t str2policy(const char *str);
 const char *policy2str(attr_t::scale_t::policy_t policy);
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, const dt_conf_t *cfg, mkldnn_prop_kind_t prop,
-            alg_t alg, mkldnn_rnn_direction_t direction, const attr_t &attr,
+    prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
+            alg_t alg, dnnl_rnn_direction_t direction, const attr_t &attr,
             policy_t scale_policy, unsigned int flags, activation_t activation,
             float alpha, float beta, bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
@@ -227,13 +227,13 @@ struct prb_t : public desc_t {
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t)n_dir() * n_layer * n_iter;
         int64_t cell_ops = (int64_t)2 * (n_gates() * dic) * mb * (sic + slc);
-        int64_t prop_multiplier = prop == mkldnn_backward ? 2 : 1;
+        int64_t prop_multiplier = prop == dnnl_backward ? 2 : 1;
         ops = prop_multiplier * num_cells * cell_ops;
     }
 
     int64_t n_dir() const {
-        return (direction == mkldnn_bidirectional_concat
-                       || direction == mkldnn_bidirectional_sum)
+        return (direction == dnnl_bidirectional_concat
+                       || direction == dnnl_bidirectional_sum)
                 ? 2
                 : 1;
     }
@@ -249,9 +249,9 @@ struct prb_t : public desc_t {
     }
 
     const dt_conf_t *cfg;
-    mkldnn_prop_kind_t prop;
+    dnnl_prop_kind_t prop;
     alg_t alg;
-    mkldnn_rnn_direction_t direction;
+    dnnl_rnn_direction_t direction;
     unsigned int flags;
     activation_t activation;
     float alpha;
@@ -300,9 +300,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual double ops() const override { return p_->ops; }
     virtual const char *name() const override { return p_->name; }
-    virtual const mkldnn_prop_kind_t *prop() const override {
-        return &p_->prop;
-    }
+    virtual const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
     const prb_t *p_ = nullptr;
@@ -330,7 +328,7 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
         dnn_mem_t &dst_diff_c_states_m, dnn_mem_t &dst_diff_weights_input_m,
         dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m);
 
-// mkldnn_ntc
+// dnnl_ntc
 inline size_t ntc_off_f(const prb_t &p, int64_t n, int64_t t, int64_t c) {
     return (n * p.n_iter + t) * p.slc + c;
 }
@@ -346,7 +344,7 @@ inline void inv_ntc_off_f(
     assert(off == 0);
 }
 
-// mkldnn_ldnc
+// dnnl_ldnc
 inline size_t ldnc_off_f(
         const prb_t &p, int64_t l, int64_t d, int64_t n, int64_t c) {
     return ((l * p.n_dir() + d) * p.mb + n) * p.sic + c;
@@ -365,7 +363,7 @@ inline void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
     assert(off == 0);
 }
 
-// mkldnn_ldigo
+// dnnl_ldigo
 inline size_t ldigo_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
         int64_t ic, int64_t oc) {
     return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.slc) + ic)
@@ -388,7 +386,7 @@ inline void inv_ldigo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
     assert(off == 0);
 }
 
-// mkldnn_ldwOcIc
+// dnnl_ldwOcIc
 inline size_t ldwOcIc_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
         int64_t oc, int64_t ic) {
     return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.sic) + oc)
@@ -411,7 +409,7 @@ inline void inv_ldwOcIc_off_f(const prb_t &p, size_t off, int64_t &l,
     assert(off == 0);
 }
 
-// bias: mkldnn_ldgo
+// bias: dnnl_ldgo
 inline size_t ldgo_off_f(
         const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
     return ((l * p.n_dir() + d) * p.n_bias() + b) * p.sic + c;
@@ -430,14 +428,14 @@ inline void inv_ldgo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
     assert(off == 0);
 }
 
-// dst_last_layer: mkldnn_tnc
+// dst_last_layer: dnnl_tnc
 inline size_t tnc_off_f(const prb_t &p, int64_t t, int64_t n, int64_t c) {
     return (t * p.mb + n) * p.sic + c;
 }
 
 inline void inv_tnc_off_f(
         const prb_t &p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
-    auto cout = p.sic * (1 + (p.direction == mkldnn_bidirectional_concat));
+    auto cout = p.sic * (1 + (p.direction == dnnl_bidirectional_concat));
     c = off % cout;
     off /= cout;
     n = off % p.mb;

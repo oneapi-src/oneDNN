@@ -17,53 +17,53 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "concat/concat.hpp"
 
 namespace concat {
 
-static int init_pd(const prb_t *p, mkldnn_primitive_desc_t &cpd, res_t *r) {
-    std::vector<mkldnn_memory_desc_t> src_d;
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &cpd, res_t *r) {
+    std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
-    mkldnn_memory_desc_t dst_d;
+    dnnl_memory_desc_t dst_d;
     const int ndims = (int)p->ddims.size();
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const dims_t &i_sdims = p->sdims[i_input];
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d[i_input], ndims,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], ndims,
                          i_sdims.data(), p->sdt, p->stag[i_input]),
                 WARN);
     }
 
-    if (p->dtag != mkldnn_format_tag_undef) {
-        DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+    if (p->dtag != dnnl_format_tag_undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(
                          &dst_d, ndims, p->ddims.data(), p->ddt, p->dtag),
                 WARN);
     }
 
-    mkldnn_status_t init_status = mkldnn_concat_primitive_desc_create(&cpd,
-            p->dtag != mkldnn_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
+    dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
+            p->dtag != dnnl_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
             p->axis, src_d.data(), NULL, engine_tgt);
 
-    if (init_status == mkldnn_unimplemented)
+    if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(cpd);
-    print(5, "mkldnn implementation: %s\n", impl_str);
+    print(5, "dnnl implementation: %s\n", impl_str);
 
     return OK;
 }
 
-static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
+static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
         const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
@@ -100,19 +100,19 @@ static int compare(const prb_t *p, const mkldnn_data_type_t dst_data_type,
 
 int fill_src(
         const prb_t *p, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    auto get_range = [](const mkldnn_data_type_t dt) {
-        if (dt == mkldnn_s8 || dt == mkldnn_u8)
+    auto get_range = [](const dnnl_data_type_t dt) {
+        if (dt == dnnl_s8 || dt == dnnl_u8)
             return 256;
-        else if (dt == mkldnn_bf16 || dt == mkldnn_f16)
+        else if (dt == dnnl_bf16 || dt == dnnl_f16)
             return 128;
         return 1024;
     };
 
     const auto nelems = mem_fp.nelems();
     const int range = get_range(p->sdt);
-    const int f_min = p->sdt == mkldnn_u8 ? 0 : -range / 2;
+    const int f_min = p->sdt == dnnl_u8 ? 0 : -range / 2;
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 17 * input_idx + 101) % range;
         const float value = f_min + gen;
         mem_fp.set_elem(i, maybe_saturate(p->sdt, value));
@@ -124,41 +124,41 @@ int fill_src(
 }
 
 int doit(const prb_t *p, res_t *r) {
-    mkldnn_primitive_desc_t cpd;
-    mkldnn_primitive_t c;
+    dnnl_primitive_desc_t cpd;
+    dnnl_primitive_t c;
 
     SAFE(init_pd(p, cpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    DNN_SAFE(mkldnn_primitive_create(&c, cpd), WARN);
+    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
 
-    const auto q = [=](mkldnn_query_t query, int index = 0) {
-        return *mkldnn_primitive_desc_query_md(cpd, query, index);
+    const auto q = [=](dnnl_query_t query, int index = 0) {
+        return *dnnl_primitive_desc_query_md(cpd, query, index);
     };
 
-    const auto fp = mkldnn_f32;
+    const auto fp = dnnl_f32;
     const auto tag = get_default_tag((int)p->sdims[0].size());
 
-    const auto dst_dt_d = q(mkldnn_query_dst_md);
+    const auto dst_dt_d = q(dnnl_query_dst_md);
     const auto dst_data_type = dst_dt_d.data_type; // needed for deduced dst
     dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_ref),
             dst_dt(dst_dt_d, engine_tgt);
 
     args_t args;
-    args.set(MKLDNN_ARG_DST, dst_dt.m_);
+    args.set(DNNL_ARG_DST, dst_dt.m_);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(p->n_inputs());
     src_dt.reserve(p->n_inputs());
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
-        const auto src_dt_d = q(mkldnn_query_src_md, i_input);
+        const auto src_dt_d = q(dnnl_query_src_md, i_input);
         src_fp.emplace_back(src_dt_d, fp, tag, engine_ref);
         src_dt.emplace_back(src_dt_d, engine_tgt);
 
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
 
-        args.set(MKLDNN_ARG_MULTIPLE_SRC + i_input, src_dt[i_input].m_);
+        args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input].m_);
     }
 
     DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
@@ -171,8 +171,8 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, c, args);
 
-    DNN_SAFE(mkldnn_primitive_desc_destroy(cpd), CRIT);
-    DNN_SAFE(mkldnn_primitive_destroy(c), CRIT);
+    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
 
     return OK;
 }

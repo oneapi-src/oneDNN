@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename T, typename A>
 inline T relu_fwd(T s, A alpha) {
@@ -170,7 +170,7 @@ struct eltwise_test_params {
     float alpha, beta;
     memory::dims dims;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 memory::dim n_elems(const memory::desc &md) {
@@ -248,8 +248,8 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
 
     const memory::desc data_d = src.get_desc();
     const memory::desc diff_data_d = diff_src.get_desc();
-    const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
+    const dnnl::impl::memory_desc_wrapper data_mdw(data_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
     const data_t eps = static_cast<data_t>(
             (p.alg_kind == algorithm::eltwise_soft_relu
@@ -337,7 +337,7 @@ protected:
                                 && p.alpha != 0.0))
                         && (data_type == memory::data_type::s32
                                 || data_type == memory::data_type::s8),
-                "MKL-DNN only supports relu w/ slope=0 for integers");
+                "DNNL only supports relu w/ slope=0 for integers");
         catch_expected_failures([=](){Test();}, p.expect_to_fail,
                     p.expected_status);
     }
@@ -372,7 +372,7 @@ protected:
                 p.alg_kind, *data_desc, p.alpha, p.beta);
         eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
         eltwise_forward(eltwise_prim_desc)
-                .execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+                .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
 
         check_zero_tail<data_t>(0, dst);
@@ -402,8 +402,8 @@ protected:
 
         eltwise_backward(eltwise_bwd_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DIFF_DST, diff_dst},
-                                {MKLDNN_ARG_DIFF_SRC, diff_src}});
+                        {{DNNL_ARG_SRC, src}, {DNNL_ARG_DIFF_DST, diff_dst},
+                                {DNNL_ARG_DIFF_SRC, diff_src}});
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src);
@@ -505,7 +505,7 @@ INST_TEST_CASE(SimpleZeroDim,
 #define CASE_EF(alg, d0, d1, d2, d3) \
     eltwise_test_params { \
         algorithm::eltwise_##alg, EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), \
-                0.f, 0.f, {d0, d1, d2, d3}, true, mkldnn_invalid_arguments \
+                0.f, 0.f, {d0, d1, d2, d3}, true, dnnl_invalid_arguments \
     }
 INST_TEST_CASE(SimpleExpectedFails, CASE_EF(relu, -1, 2, 4, 4),
         CASE_EF(sqrt, -1, 2, 4, 4), CASE_EF(logistic, -1, 2, 4, 4),
@@ -591,4 +591,4 @@ INST_TEST_CASE(AlexNet_NCHW,
 
 INST_TEST_CASE(Simple_X, PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55));
 
-} // namespace mkldnn
+} // namespace dnnl

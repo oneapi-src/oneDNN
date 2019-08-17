@@ -236,7 +236,7 @@ int mxcsr_round(float f);
 /* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);
 
-/* wrapper to mkldnn_sgemm
+/* wrapper to dnnl_sgemm
  * layout = 'F' - column major
  * layout = 'C' - row major*/
 void gemm(const char *layout, const char *transa, const char *transb, int64_t m,

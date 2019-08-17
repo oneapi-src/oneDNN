@@ -16,13 +16,13 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_lrn_desc_t {
     memory::dim mb, c;
@@ -38,7 +38,7 @@ struct lrn_params {
     memory::format_tag dst_format;
     test_lrn_desc_t test_ld;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t, typename acc_data_t = data_t>
@@ -61,8 +61,8 @@ void check_lrn_fwd(const lrn_params &p, const memory::desc &src_d,
             : size * size;
     const auto padded_c = src.get_desc().data.padded_dims[1];
 
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
     auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
         return ((n * padded_c + c) * ld.h + h) * ld.w + w;
@@ -96,9 +96,9 @@ void check_lrn_fwd(const lrn_params &p, const memory::desc &src_d,
         acc_data_t eps = static_cast<acc_data_t>(1.e-7f * (2 * summands + 5));
 
         memory::data_type data_type = data_traits<data_t>::data_type;
-        if (data_type == mkldnn::memory::data_type::f16)
+        if (data_type == dnnl::memory::data_type::f16)
             eps = static_cast<acc_data_t>(1.e-4f * 2 * summands);
-        else if (data_type == mkldnn::memory::data_type::bf16)
+        else if (data_type == dnnl::memory::data_type::bf16)
             eps = static_cast<acc_data_t>(1.e-3f * 2 * summands);
 
         acc_data_t out = d[0];
@@ -108,7 +108,7 @@ void check_lrn_fwd(const lrn_params &p, const memory::desc &src_d,
     };
 
     const memory::dim N = ld.mb;
-    mkldnn::impl::parallel_nd(N, padded_c, H, W,
+    dnnl::impl::parallel_nd(N, padded_c, H, W,
             [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
                 ker(&dst_ptr[dst_mdw.off_l(off(n, c, h, w), true)], n, c, h, w);
             });
@@ -126,8 +126,8 @@ protected:
                 "CPU does not support f16 data type.");
         SKIP_IF(data_type == memory::data_type::bf16
                         && get_test_engine_kind() == engine::kind::cpu
-                        && !mkldnn::impl::cpu::mayiuse(
-                                mkldnn::impl::cpu::avx512_core),
+                        && !dnnl::impl::cpu::mayiuse(
+                                dnnl::impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
@@ -166,19 +166,19 @@ protected:
 
         // Execute
         auto l = lrn_forward(lrn_prim_desc);
-        std::unordered_map<int, memory> args = {
-                {MKLDNN_ARG_SRC, l_src.get()}, {MKLDNN_ARG_DST, l_dst.get()}};
+        std::unordered_map<int, memory> args
+                = {{DNNL_ARG_SRC, l_src.get()}, {DNNL_ARG_DST, l_dst.get()}};
         if (with_workspace) {
             auto workspace_md = lrn_prim_desc.workspace_desc();
             workspace = memory(workspace_md, eng);
-            args.insert({MKLDNN_ARG_WORKSPACE, workspace});
+            args.insert({DNNL_ARG_WORKSPACE, workspace});
         }
         l.execute(strm, args);
         strm.wait();
 
         check_zero_tail<data_t>(0, l_dst.get());
 
-        if (data_type == mkldnn::memory::data_type::bf16)
+        if (data_type == dnnl::memory::data_type::bf16)
             check_lrn_fwd<data_t, float>(
                     p, l_src_desc, l_dst_desc, l_src.get(), l_dst.get());
         else
@@ -211,13 +211,13 @@ static auto ForwardEF_cases = []() {
     return ::testing::Values(
             lrn_params {fwd_training, across, fmt::nchw, fmt::nchw,
                     {-1, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             lrn_params {fwd_scoring, across, fmt::nchw, fmt::nchw,
                     {2, -10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             lrn_params {fwd_training, across, fmt::nchw, fmt::nchw,
                     {2, 10, -4, 4, 5, 1.0e-4f, 0.75f, 3.0f}, true,
-                    mkldnn_invalid_arguments});
+                    dnnl_invalid_arguments});
 };
 
 static auto Forward_nChw16c_padded_cases = []() {
@@ -524,4 +524,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_fp16,
 GPU_INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardNCHWTail, lrn_fp16, ForwardNCHWTail_cases());
 
-} // namespace mkldnn
+} // namespace dnnl

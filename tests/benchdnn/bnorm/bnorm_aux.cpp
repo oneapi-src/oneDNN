@@ -152,8 +152,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.flags != (flags_t)0) s << "--flags=" << flags2str(p.flags) << " ";
     if (p.check_alg != ALG_AUTO)
         s << "--check-alg=" << check_alg2str(p.check_alg) << " ";

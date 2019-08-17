@@ -26,9 +26,9 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace lnorm {
@@ -38,14 +38,14 @@ check_alg_t str2check_alg(const char *str);
 const char *check_alg2str(check_alg_t alg);
 
 using flags_t = unsigned;
-const flags_t GLOB_STATS = mkldnn_use_global_stats;
-const flags_t USE_SCALESHIFT = mkldnn_use_scaleshift;
+const flags_t GLOB_STATS = dnnl_use_global_stats;
+const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
 flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
 struct prb_t {
-    prb_t(const dims_t &dims, mkldnn_format_tag_t data_tag,
-            mkldnn_format_tag_t stat_tag, dir_t dir, mkldnn_data_type_t dt,
+    prb_t(const dims_t &dims, dnnl_format_tag_t data_tag,
+            dnnl_format_tag_t stat_tag, dir_t dir, dnnl_data_type_t dt,
             flags_t flags, bool inplace, const attr_t &attr,
             check_alg_t check_alg)
         : check_alg(check_alg)
@@ -69,9 +69,9 @@ struct prb_t {
     check_alg_t check_alg;
     int64_t n, c;
     dims_t dims;
-    mkldnn_format_tag_t data_tag, stat_tag;
+    dnnl_format_tag_t data_tag, stat_tag;
     dir_t dir;
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     flags_t flags;
     bool inplace;
     attr_t attr;
@@ -113,11 +113,11 @@ struct perf_report_t : public base_perf_report_t {
     virtual double ops() const override { return p_->ops; }
     virtual const attr_t *attr() const override { return &p_->attr; }
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
-    virtual const mkldnn_format_tag_t *tag() const override {
+    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    virtual const dnnl_format_tag_t *tag() const override {
         return &p_->data_tag;
     }
-    virtual const mkldnn_format_tag_t *stat_tag() const override {
+    virtual const dnnl_format_tag_t *stat_tag() const override {
         return &p_->stat_tag;
     }
 

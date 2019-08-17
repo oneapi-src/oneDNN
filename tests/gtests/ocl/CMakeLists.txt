@@ -20,5 +20,5 @@ file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 
 foreach(TEST_FILE ${TEST_SOURCES})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
-    register_exe(${exe} "${TEST_SOURCES};${MAIN_SRC_GTEST}" "test" "mkldnn_gtest")
+    register_exe(${exe} "${TEST_SOURCES};${MAIN_SRC_GTEST}" "test" "dnnl_gtest")
 endforeach()

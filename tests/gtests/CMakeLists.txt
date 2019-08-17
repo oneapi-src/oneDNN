@@ -36,7 +36,7 @@ endif()
 file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_pd_iter.cpp
                               test_iface_attr.cpp
-                              test_mkldnn_threading.cpp
+                              test_dnnl_threading.cpp
                               test_memory.cpp
                               test_sum.cpp
                               test_reorder.cpp
@@ -86,10 +86,10 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
 
     add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
     add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
-    target_link_libraries(${exe} ${LIB_NAME} mkldnn_gtest ${EXTRA_SHARED_LIBS})
-    target_compile_definitions(${exe} PUBLIC -DMKLDNN_TEST_WITH_ENGINE_PARAM)
+    target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
+    target_compile_definitions(${exe} PUBLIC -DDNNL_TEST_WITH_ENGINE_PARAM)
 
-    if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+    if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
         add_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
         maybe_configure_windows_test(${exe}_cpu TEST)
 
@@ -103,7 +103,7 @@ endforeach()
 
 add_subdirectory(api)
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 

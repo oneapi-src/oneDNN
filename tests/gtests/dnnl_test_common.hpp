@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_TEST_COMMON_HPP
-#define MKLDNN_TEST_COMMON_HPP
+#ifndef DNNL_TEST_COMMON_HPP
+#define DNNL_TEST_COMMON_HPP
 
 #include <cmath>
 #include <limits>
@@ -32,34 +32,34 @@
 #define collapse(x)
 #endif
 
-#include "mkldnn.hpp"
-#include "mkldnn_test_macros.hpp"
+#include "dnnl.hpp"
+#include "dnnl_test_macros.hpp"
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
-#include "mkldnn_test_common_ocl.hpp"
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "dnnl_test_common_ocl.hpp"
 #endif
 
 #include "src/common/bfloat16.hpp"
+#include "src/common/dnnl_thread.hpp"
 #include "src/common/float16.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
-#include "src/common/mkldnn_thread.hpp"
 #include "src/common/nstl.hpp"
 
 #define for_ for
 
-using mkldnn::impl::bfloat16_t;
-using mkldnn::impl::f16_support::float16_t;
+using dnnl::impl::bfloat16_t;
+using dnnl::impl::f16_support::float16_t;
 
-#define MKLDNN_CHECK(f) \
+#define DNNL_CHECK(f) \
     do { \
-        mkldnn_status_t s = (f); \
-        ASSERT_EQ(s, mkldnn_success); \
+        dnnl_status_t s = (f); \
+        ASSERT_EQ(s, dnnl_success); \
     } while (0)
 
-using memory = mkldnn::memory;
+using memory = dnnl::memory;
 
 bool is_current_test_failed();
-mkldnn::engine::kind get_test_engine_kind();
+dnnl::engine::kind get_test_engine_kind();
 
 template <typename data_t>
 struct data_traits {};
@@ -199,9 +199,9 @@ void check_zero_tail(int set_zero_flag, const memory &src) {
     const int ndims = src_d.data.ndims;
     const auto *dims = src_d.data.dims;
     const auto *pdims = src_d.data.padded_dims;
-    const mkldnn::impl::memory_desc_wrapper mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper mdw(src_d.data);
 
-    memory::dim idx[MKLDNN_MAX_NDIMS] = {}, str[MKLDNN_MAX_NDIMS] = {};
+    memory::dim idx[DNNL_MAX_NDIMS] = {}, str[DNNL_MAX_NDIMS] = {};
     memory::dim nelems = 1;
     int tail_flag = 0;
     for (int i = 0; i < ndims; ++i) {
@@ -269,7 +269,7 @@ static inline data_t set_value(
 template <typename data_t>
 static void fill_data(const memory::dim size, data_t *data, data_t mean,
         data_t deviation, double sparsity = 1.) {
-    mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
+    dnnl::impl::parallel_nd(size, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, mean, deviation, sparsity);
     });
 }
@@ -284,7 +284,7 @@ static void fill_data(const memory::dim size, const memory &mem, data_t mean,
 template <typename data_t>
 static void fill_data(const memory::dim size, data_t *data,
         double sparsity = 1., bool init_negs = false) {
-    mkldnn::impl::parallel_nd(size, [&](memory::dim n) {
+    dnnl::impl::parallel_nd(size, [&](memory::dim n) {
         data[n] = set_value<data_t>(n, data_t(1), data_t(2e-1), sparsity);
 
         if (init_negs && n % 4 == 0)
@@ -314,8 +314,8 @@ static void compare_data(
     /* Note: size_t incompatible with MSVC++ */
     auto ref_desc = ref.get_desc();
     auto dst_desc = dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper mdw_ref(ref_desc.data);
-    const mkldnn::impl::memory_desc_wrapper mdw_dst(dst_desc.data);
+    const dnnl::impl::memory_desc_wrapper mdw_ref(ref_desc.data);
+    const dnnl::impl::memory_desc_wrapper mdw_dst(dst_desc.data);
 
     ASSERT_TRUE(ref_desc.data.ndims == dst_desc.data.ndims);
 
@@ -335,7 +335,7 @@ static void compare_data(
     auto ref_data = map_memory<data_t>(ref);
     auto dst_data = map_memory<data_t>(dst);
 
-    mkldnn::impl::parallel_nd(num, [&](memory::dim i) {
+    dnnl::impl::parallel_nd(num, [&](memory::dim i) {
         if (is_current_test_failed()) return;
 
         data_t ref = ref_data[mdw_ref.off_l(i, true)];
@@ -360,19 +360,18 @@ static void compare_data(
     });
 }
 
-inline const char *query_impl_info(const_mkldnn_primitive_desc_t pd) {
+inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str;
-    mkldnn_primitive_desc_query(pd, mkldnn_query_impl_info_str, 0, &str);
+    dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &str);
     return str;
 };
 
-inline mkldnn_status_t get_conv_impl_status(
-        const_mkldnn_primitive_desc_t pd, const char *match_str) {
+inline dnnl_status_t get_conv_impl_status(
+        const_dnnl_primitive_desc_t pd, const char *match_str) {
     const char *conv_str = query_impl_info(pd);
 
-    if (strstr(conv_str, match_str) != NULL)
-        return mkldnn_status_t::mkldnn_success;
-    return mkldnn_status_t::mkldnn_unimplemented;
+    if (strstr(conv_str, match_str) != NULL) return dnnl_status_t::dnnl_success;
+    return dnnl_status_t::dnnl_unimplemented;
 };
 
 struct test_convolution_sizes_t {
@@ -419,8 +418,8 @@ struct test_convolution_attr_t {
         float scale;
     };
 
-    void mkldnn_attr_recreate() {
-        mkl_attr = mkldnn::primitive_attr();
+    void dnnl_attr_recreate() {
+        mkl_attr = dnnl::primitive_attr();
         if (oscale.is_def()) {
             const memory::dim count = 1;
             const int mask = 0;
@@ -436,7 +435,7 @@ struct test_convolution_attr_t {
     test_convolution_attr_t() : test_convolution_attr_t(1.f) {}
 
     scale_t oscale;
-    mkldnn::primitive_attr mkl_attr;
+    dnnl::primitive_attr mkl_attr;
 };
 
 struct test_convolution_formats_t {
@@ -447,37 +446,37 @@ struct test_convolution_formats_t {
 };
 
 struct test_convolution_params_t {
-    mkldnn::algorithm aalgorithm;
+    dnnl::algorithm aalgorithm;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 struct test_convolution_eltwise_params_t {
-    const mkldnn::algorithm alg;
-    mkldnn::algorithm aalgorithm;
+    const dnnl::algorithm alg;
+    dnnl::algorithm aalgorithm;
     const float eltwise_alpha;
     const float eltwise_beta;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename F>
 bool catch_expected_failures(const F &f, bool expect_to_fail,
-        mkldnn_status_t expected_status, bool ignore_unimplemented = true) {
+        dnnl_status_t expected_status, bool ignore_unimplemented = true) {
     try {
         f();
-    } catch (const mkldnn::error &e) {
+    } catch (const dnnl::error &e) {
         // Rethrow the exception if it is not expected or the error status did
         // not match.
         if (!(expect_to_fail) || e.status != (expected_status)) {
             // Ignore unimplemented
-            if (ignore_unimplemented && (e.status == mkldnn_unimplemented)) {
+            if (ignore_unimplemented && (e.status == dnnl_unimplemented)) {
                 // Print unimplemented but do not treat as error
                 std::cout << "[  UNIMPL  ] "
                           << "Implementation not found" << std::endl;
@@ -520,17 +519,17 @@ static void test_free(char *ptr) {
 }
 #undef TEST_MALLOC_OFFSET
 
-extern "C" mkldnn_status_t mkldnn_engine_get_backend_kind(
-        mkldnn_engine_t engine, int *backend_kind);
+extern "C" dnnl_status_t dnnl_engine_get_backend_kind(
+        dnnl_engine_t engine, int *backend_kind);
 
 class test_memory {
 public:
-    test_memory(const memory::desc &d, const mkldnn::engine &e) {
+    test_memory(const memory::desc &d, const dnnl::engine &e) {
         int backend_kind;
-        mkldnn::error::wrap_c_api(
-                mkldnn_engine_get_backend_kind(e.get(), &backend_kind),
+        dnnl::error::wrap_c_api(
+                dnnl_engine_get_backend_kind(e.get(), &backend_kind),
                 "internal error");
-        bool is_cpu_native = (e.get_kind() == mkldnn::engine::kind::cpu)
+        bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu)
                 && (backend_kind == 0);
 
         size_ = d.get_size();
@@ -560,11 +559,11 @@ mapped_ptr_t<T> map_memory(const test_memory &mem) {
     return mapped_ptr_t<T>(&mem.get());
 }
 
-inline std::string to_string(mkldnn_engine_kind_t engine_kind) {
+inline std::string to_string(dnnl_engine_kind_t engine_kind) {
     std::stringstream ss;
-    if (engine_kind == mkldnn_cpu)
+    if (engine_kind == dnnl_cpu)
         ss << "cpu";
-    else if (engine_kind == mkldnn_gpu)
+    else if (engine_kind == dnnl_gpu)
         ss << "gpu";
     else
         ss << "unknown";

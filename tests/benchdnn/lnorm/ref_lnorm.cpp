@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "lnorm/lnorm.hpp"
 
@@ -22,7 +22,7 @@ namespace lnorm {
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
-    mkldnn::impl::parallel_nd(p->n, [&](int64_t n) {
+    dnnl::impl::parallel_nd(p->n, [&](int64_t n) {
         float smean = ((float *)mean)[n];
         float svar = ((float *)var)[n];
         float sqrt_var = sqrtf(svar + p->eps);
@@ -45,7 +45,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
 
-    mkldnn::impl::parallel_nd(p->c, [&](int64_t c) {
+    dnnl::impl::parallel_nd(p->c, [&](int64_t c) {
         float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
         float d_gamma = 0;
         float d_beta = 0;

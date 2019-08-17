@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "pool/pool.hpp"
 
@@ -60,7 +60,7 @@ void compute_ref_fwd(
             dst.set_elem(dst_off, avg_value / get_num_summands(p, od, oh, ow));
     };
 
-    mkldnn::impl::parallel_nd(p->mb, p->ic, p->od, p->oh, p->ow,
+    dnnl::impl::parallel_nd(p->mb, p->ic, p->od, p->oh, p->ow,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
                 ker(mb, ic, od, oh, ow);
             });
@@ -107,7 +107,7 @@ void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
         }
     };
 
-    mkldnn::impl::parallel_nd(p->mb, p->ic, [&](int64_t mb, int64_t ic) {
+    dnnl::impl::parallel_nd(p->mb, p->ic, [&](int64_t mb, int64_t ic) {
         zero_diff_src(mb, ic);
         for (int64_t od = 0; od < p->od; ++od)
             for (int64_t oh = 0; oh < p->oh; ++oh)

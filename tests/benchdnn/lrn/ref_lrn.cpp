@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "lrn/lrn.hpp"
 
@@ -62,7 +62,7 @@ float get_omega(const prb_t *p, const dnn_mem_t &src, int64_t mb, int64_t c,
 }
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
-    mkldnn::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
+    dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
                 const auto off = data_off(p, mb, c, d, h, w);
                 const float omega = get_omega(p, src, mb, c, d, h, w);
@@ -77,7 +77,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     const int half_size = (size - 1) / 2;
     const int summands = get_summands(p);
 
-    mkldnn::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
+    dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {
                 float A = 0, B = 0;
                 if (p->alg == ACROSS) {

@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "concat/concat.hpp"
 
@@ -37,7 +37,7 @@ void compute_ref(
 
     float *dst_ptr = (float *)dst;
 
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
                 int64_t off_dst = ou * axis_size * inner_size;
                 for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {

@@ -38,11 +38,11 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-mkldnn_alg_kind_t alg2alg_kind(alg_t alg) {
-    if (alg == ACROSS) return mkldnn_lrn_across_channels;
-    if (alg == WITHIN) return mkldnn_lrn_within_channel;
+dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
+    if (alg == ACROSS) return dnnl_lrn_across_channels;
+    if (alg == WITHIN) return dnnl_lrn_within_channel;
     assert(!"unknown algorithm");
-    return mkldnn_alg_kind_undef;
+    return dnnl_alg_kind_undef;
 }
 
 int str2desc(desc_t *desc, const char *str) {
@@ -151,8 +151,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);

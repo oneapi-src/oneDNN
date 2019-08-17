@@ -18,22 +18,22 @@
 #include <memory>
 #include <tuple>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 typedef float data_t;
 
 struct params_t {
     memory::dims dims;
     memory::format_tag fmt_tag;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
-using params_w_engine_t = std::tuple<mkldnn::engine::kind, params_t>;
+using params_w_engine_t = std::tuple<dnnl::engine::kind, params_t>;
 
 class memory_creation_test
     : public ::testing::TestWithParam<params_w_engine_t> {
@@ -43,23 +43,23 @@ protected:
                 = ::testing::TestWithParam<decltype(pwe)>::GetParam();
 
         auto engine_kind = std::get<0>(pwe);
-        if (mkldnn::engine::get_count(engine_kind) == 0) return;
+        if (dnnl::engine::get_count(engine_kind) == 0) return;
 
-        eng = mkldnn::engine(engine_kind, 0);
+        eng = dnnl::engine(engine_kind, 0);
         p = std::get<1>(pwe);
     }
 
     void Test() {
-        mkldnn::memory::desc md(p.dims, memory::data_type::f32, p.fmt_tag);
-        mkldnn::memory::dim phys_size = md.get_size() / sizeof(data_t);
+        dnnl::memory::desc md(p.dims, memory::data_type::f32, p.fmt_tag);
+        dnnl::memory::dim phys_size = md.get_size() / sizeof(data_t);
 
         // mem0
         // Initially spoiled by putting non-zero values in padded area.
         // The test will manually fix it later.
-        mkldnn::memory mem0(md, eng);
+        dnnl::memory mem0(md, eng);
 
         // `runtime`-aware buffer for future mem1
-        mkldnn::memory mem1_placeholder(md, eng);
+        dnnl::memory mem1_placeholder(md, eng);
 
         // Map-unmap section
         {
@@ -69,14 +69,14 @@ protected:
 
             // mem1_placeholder = copy(mem0)
             auto mem1_ph_ptr = map_memory<data_t>(mem1_placeholder);
-            for (mkldnn::memory::dim i = 0; i < phys_size; ++i)
+            for (dnnl::memory::dim i = 0; i < phys_size; ++i)
                 mem1_ph_ptr[i] = mem0_ptr[i];
         }
 
         // mem1
         // A `corrected` version of mem0 (i.e. padded area should be filled with
         // zeros) and with a buffer taken from mem1_placeholder.
-        mkldnn::memory mem1(md, eng, mem1_placeholder.get_data_handle());
+        dnnl::memory mem1(md, eng, mem1_placeholder.get_data_handle());
 
         check_zero_tail<data_t>(0, mem1); // Check, if mem1 is indeed corrected
         check_zero_tail<data_t>(1, mem0); // Manually correct mem0
@@ -87,30 +87,30 @@ protected:
             auto mem1_ptr = map_memory<data_t>(mem1);
 
             // Check if mem0 == mem1
-            for (mkldnn::memory::dim i = 0; i < phys_size; ++i)
+            for (dnnl::memory::dim i = 0; i < phys_size; ++i)
                 ASSERT_EQ(mem0_ptr[i], mem1_ptr[i]) << i;
         }
     }
 
-    mkldnn::engine eng;
+    dnnl::engine eng;
     params_t p;
 };
 
 TEST_P(memory_creation_test, TestsMemoryCreation) {
     SKIP_IF(eng.get(true) == nullptr, "Engine is not supported");
     catch_expected_failures([=]() { Test(); },
-            p.expected_status != mkldnn_success, p.expected_status);
+            p.expected_status != dnnl_success, p.expected_status);
 }
 
 namespace {
-auto all_engine_kinds = ::testing::Values(
-        mkldnn::engine::kind::cpu, mkldnn::engine::kind::gpu);
+auto all_engine_kinds
+        = ::testing::Values(dnnl::engine::kind::cpu, dnnl::engine::kind::gpu);
 
-using fmt = mkldnn::memory::format_tag;
+using fmt = dnnl::memory::format_tag;
 
 auto cases_expect_to_fail = ::testing::Values(
-        params_t {{2, 2, -1, 1}, fmt::nchw, mkldnn_invalid_arguments},
-        params_t {{1, 2, 3, 4}, fmt::any, mkldnn_invalid_arguments});
+        params_t {{2, 2, -1, 1}, fmt::nchw, dnnl_invalid_arguments},
+        params_t {{1, 2, 3, 4}, fmt::any, dnnl_invalid_arguments});
 
 auto cases_zero_dim = ::testing::Values(params_t {{2, 0, 1, 1}, fmt::nChw16c},
         params_t {{0, 1, 0, 1}, fmt::nhwc}, params_t {{2, 1, 0, 1}, fmt::nchw});
@@ -140,4 +140,4 @@ INSTANTIATE_TEST_SUITE_P(TestMemoryCreationZeroDim, memory_creation_test,
 
 INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test,
         ::testing::Combine(all_engine_kinds, cases_generic));
-} // namespace mkldnn
+} // namespace dnnl

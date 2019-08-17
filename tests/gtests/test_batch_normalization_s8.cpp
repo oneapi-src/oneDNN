@@ -16,17 +16,17 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include "test_batch_normalization_common.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using bnorm_test = bnorm_test_common<int8_t>;
 
 TEST_P(bnorm_test, TestsBnormS8) {}
 
 #include "batch_normalization.h"
-} // namespace mkldnn
+} // namespace dnnl

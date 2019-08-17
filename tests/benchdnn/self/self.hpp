@@ -24,7 +24,7 @@
 #include <sstream>
 
 #include "common.hpp"
-#include "mkldnn_common.hpp"
+#include "dnnl_common.hpp"
 
 namespace self {
 

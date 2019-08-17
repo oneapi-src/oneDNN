@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_TEST_COMMON_OCL_HPP
-#define MKLDNN_TEST_COMMON_OCL_HPP
+#ifndef DNNL_TEST_COMMON_OCL_HPP
+#define DNNL_TEST_COMMON_OCL_HPP
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include "gtest/gtest.h"
 
 #include <CL/cl.h>

@@ -14,31 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-namespace mkldnn {
+namespace dnnl {
 
 TEST(stream_test_c, WaitNullStream) {
-    mkldnn_stream_t stream = nullptr;
-    mkldnn_status_t status = mkldnn_stream_wait(stream);
-    ASSERT_EQ(status, mkldnn_invalid_arguments);
+    dnnl_stream_t stream = nullptr;
+    dnnl_status_t status = dnnl_stream_wait(stream);
+    ASSERT_EQ(status, dnnl_invalid_arguments);
 }
 
 TEST(stream_test_c, Wait) {
-    mkldnn_engine_t engine;
-    MKLDNN_CHECK(mkldnn_engine_create(&engine, mkldnn_cpu, 0));
+    dnnl_engine_t engine;
+    DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
 
-    mkldnn_stream_t stream;
-    MKLDNN_CHECK(
-            mkldnn_stream_create(&stream, engine, mkldnn_stream_default_flags));
+    dnnl_stream_t stream;
+    DNNL_CHECK(dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
 
-    MKLDNN_CHECK(mkldnn_stream_wait(stream));
+    DNNL_CHECK(dnnl_stream_wait(stream));
 
-    MKLDNN_CHECK(mkldnn_stream_destroy(stream));
-    MKLDNN_CHECK(mkldnn_engine_destroy(engine));
+    DNNL_CHECK(dnnl_stream_destroy(stream));
+    DNNL_CHECK(dnnl_engine_destroy(engine));
 }
 
 TEST(stream_test_cpp, Wait) {
@@ -47,4 +46,4 @@ TEST(stream_test_cpp, Wait) {
     s.wait();
 }
 
-} // namespace mkldnn
+} // namespace dnnl

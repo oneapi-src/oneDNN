@@ -21,16 +21,16 @@
 #include <assert.h>
 #include <string.h>
 
-#include "mkldnn_debug.h"
-#include "mkldnn_debug.hpp"
+#include "dnnl_debug.h"
+#include "dnnl_debug.hpp"
 
 #include "src/common/z_magic.hpp"
 
-mkldnn_data_type_t str2dt(const char *str) {
+dnnl_data_type_t str2dt(const char *str) {
 #define CASE(_case) do { \
     if (!strcmp(STRINGIFY(_case), str) \
-            || !strcmp("mkldnn_" STRINGIFY(_case), str)) \
-        return CONCAT2(mkldnn_, _case); \
+            || !strcmp("dnnl_" STRINGIFY(_case), str)) \
+        return CONCAT2(dnnl_, _case); \
 } while (0)
     CASE(f16);
     CASE(bf16);
@@ -39,17 +39,17 @@ mkldnn_data_type_t str2dt(const char *str) {
     CASE(s8);
     CASE(u8);
 #undef CASE
-    if (!strcmp("undef", str) || !strcmp("mkldnn_data_type_undef", str))
-        return mkldnn_data_type_undef;
+    if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))
+        return dnnl_data_type_undef;
     assert(!"unknown dt");
-    return mkldnn_data_type_undef;
+    return dnnl_data_type_undef;
 }
 
-mkldnn_format_tag_t str2fmt_tag(const char *str) {
+dnnl_format_tag_t str2fmt_tag(const char *str) {
 #define CASE(_case) do { \
     if (!strcmp(STRINGIFY(_case), str) \
-            || !strcmp("mkldnn_" STRINGIFY(_case), str)) \
-        return CONCAT2(mkldnn_, _case); \
+            || !strcmp("dnnl_" STRINGIFY(_case), str)) \
+        return CONCAT2(dnnl_, _case); \
 } while (0)
     CASE(a);
     CASE(ab);
@@ -336,24 +336,24 @@ mkldnn_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIdhw8o8i);
     CASE(Goidhw16g);
 #undef CASE
-    if (!strcmp("undef", str) || !strcmp("mkldnn_format_tag_undef", str))
-        return mkldnn_format_tag_undef;
-    if (!strcmp("any", str) || !strcmp("mkldnn_format_tag_any", str))
-        return mkldnn_format_tag_any;
-    if (!strcmp("last", str) || !strcmp("mkldnn_format_tag_last", str))
-        return mkldnn_format_tag_last;
+    if (!strcmp("undef", str) || !strcmp("dnnl_format_tag_undef", str))
+        return dnnl_format_tag_undef;
+    if (!strcmp("any", str) || !strcmp("dnnl_format_tag_any", str))
+        return dnnl_format_tag_any;
+    if (!strcmp("last", str) || !strcmp("dnnl_format_tag_last", str))
+        return dnnl_format_tag_last;
     assert(!"unknown fmt_tag");
-    return mkldnn_format_tag_undef;
+    return dnnl_format_tag_undef;
 }
 
-const char *status2str(mkldnn_status_t status) {
-    return mkldnn_status2str(status);
+const char *status2str(dnnl_status_t status) {
+    return dnnl_status2str(status);
 }
 
-const char *dt2str(mkldnn_data_type_t dt) {
-    return mkldnn_dt2str(dt);
+const char *dt2str(dnnl_data_type_t dt) {
+    return dnnl_dt2str(dt);
 }
 
-const char *fmt_tag2str(mkldnn_format_tag_t tag) {
-    return mkldnn_fmt_tag2str(tag);
+const char *fmt_tag2str(dnnl_format_tag_t tag) {
+    return dnnl_fmt_tag2str(tag);
 }

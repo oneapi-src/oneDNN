@@ -7,13 +7,13 @@
 
 where *eltwise-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- mkldnn_prop_kind_t. Refer to the common
+ - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t. Refer to the common
             glossary in README.md for details.
  - `--dt={f32 [default], bf16, f16, s32, s8}` -- src and dst data type.
             Refer to the common glossary in README.md for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to the common glossary in README.md for details.
- - `--alg={RELU [default], ...}` -- mkldnn_eltwise algorithm.
+ - `--alg={RELU [default], ...}` -- dnnl_eltwise algorithm.
             Refer to ``doc/primitives/eltwise.md`` for details.
  - `--alpha=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Scales`` below.

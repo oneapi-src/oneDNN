@@ -17,57 +17,57 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "eltwise/eltwise.hpp"
 
 namespace eltwise {
 
-static int init_pd(const prb_t *p, mkldnn_eltwise_desc_t &ed,
-        mkldnn_primitive_desc_t &epd, res_t *r) {
-    mkldnn_memory_desc_t data_d;
+static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
+        dnnl_primitive_desc_t &epd, res_t *r) {
+    dnnl_memory_desc_t data_d;
 
     const int ndims = (int)p->dims.size();
 
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &data_d, ndims, p->dims.data(), p->dt, p->tag),
             WARN);
 
-    mkldnn_alg_kind_t alg = attr_t::post_ops_t::kind2mkldnn_kind(p->alg);
+    dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(p->alg);
 
     if (p->dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF ? mkldnn_forward_inference
-                                      : mkldnn_forward_training;
+        auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
+                                      : dnnl_forward_training;
 
-        DNN_SAFE(mkldnn_eltwise_forward_desc_init(
+        DNN_SAFE(dnnl_eltwise_forward_desc_init(
                          &ed, prop, alg, &data_d, p->alpha, p->beta),
                 WARN);
     } else {
-        DNN_SAFE(mkldnn_eltwise_backward_desc_init(
+        DNN_SAFE(dnnl_eltwise_backward_desc_init(
                          &ed, alg, &data_d, &data_d, p->alpha, p->beta),
                 WARN);
     }
 
-    mkldnn_status_t init_status
-            = mkldnn_primitive_desc_create(&epd, &ed, NULL, engine_tgt, NULL);
+    dnnl_status_t init_status
+            = dnnl_primitive_desc_create(&epd, &ed, NULL, engine_tgt, NULL);
 
-    if (init_status == mkldnn_unimplemented)
+    if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(epd);
     if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
-        DNN_SAFE(mkldnn_primitive_desc_destroy(epd), WARN);
+        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        DNN_SAFE(dnnl_primitive_desc_destroy(epd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(5, "mkldnn implementation: %s\n", impl_str);
+        print(5, "dnnl implementation: %s\n", impl_str);
     }
 
     return OK;
@@ -80,8 +80,8 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
         trh = 4e-6; // subtract, which leads to low accuracy.
     if (p->alg == alg_t::ELU) // when x -> -0, a(exp(-x) - 1) has cancellation
         trh = 4e-5; // subtract, which leads to low accuracy.
-    if (p->dt == mkldnn_f16) trh = 1e-3;
-    if (p->dt == mkldnn_bf16) trh = 1e-2;
+    if (p->dt == dnnl_f16) trh = 1e-3;
+    if (p->dt == dnnl_bf16) trh = 1e-2;
 
     const auto nelems = mem_dt.nelems();
     r->errors = 0;
@@ -127,7 +127,7 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         bool is_fwd = true) {
     const auto nelems = mem_fp.nelems();
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const int gen
                 = is_fwd ? ((103 * i) + 107) % 109 : ((101 * i) + 103) % 107;
 
@@ -152,17 +152,17 @@ int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 int doit(const prb_t *p, res_t *r) {
-    mkldnn_eltwise_desc_t ed;
-    mkldnn_primitive_desc_t epd;
-    mkldnn_primitive_t e;
+    dnnl_eltwise_desc_t ed;
+    dnnl_primitive_desc_t epd;
+    dnnl_primitive_t e;
 
     SAFE(init_pd(p, ed, epd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    DNN_SAFE(mkldnn_primitive_create(&e, epd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(epd), CRIT);
+    DNN_SAFE(dnnl_primitive_create(&e, epd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(epd), CRIT);
 
-    const auto fp = mkldnn_f32;
+    const auto fp = dnnl_f32;
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = ed.data_desc;
     dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
@@ -188,10 +188,10 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     args_t args;
-    args.set(MKLDNN_ARG_SRC, src_dt.m_);
+    args.set(DNNL_ARG_SRC, src_dt.m_);
 
     if (p->dir & FLAG_FWD) {
-        args.set(MKLDNN_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
 
         DNN_SAFE(execute_and_wait(e, stream_tgt, args.size(), args), WARN);
 
@@ -203,8 +203,8 @@ int doit(const prb_t *p, res_t *r) {
     } else {
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
-        args.set(MKLDNN_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
+        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
 
         DNN_SAFE(execute_and_wait(e, stream_tgt, args.size(), args), WARN);
 
@@ -218,7 +218,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, e, args);
 
-    DNN_SAFE(mkldnn_primitive_destroy(e), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(e), CRIT);
 
     return OK;
 }

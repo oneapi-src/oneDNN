@@ -19,21 +19,20 @@
 
 #include <iostream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace concat {
 
 struct prb_t {
-    prb_t(const std::vector<dims_t> &sdims, mkldnn_data_type_t sdt,
-            mkldnn_data_type_t ddt,
-            const std::vector<mkldnn_format_tag_t> &stag,
-            mkldnn_format_tag_t dtag, int axis)
+    prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
+            dnnl_data_type_t ddt, const std::vector<dnnl_format_tag_t> &stag,
+            dnnl_format_tag_t dtag, int axis)
         : sdims(sdims), sdt(sdt), ddt(ddt), stag(stag), dtag(dtag), axis(axis) {
         generate_ddims();
     }
@@ -41,9 +40,9 @@ struct prb_t {
 
     std::vector<dims_t> sdims;
     dims_t ddims;
-    mkldnn_data_type_t sdt, ddt;
-    std::vector<mkldnn_format_tag_t> stag;
-    mkldnn_format_tag_t dtag;
+    dnnl_data_type_t sdt, ddt;
+    std::vector<dnnl_format_tag_t> stag;
+    dnnl_format_tag_t dtag;
     int axis;
 
     int n_inputs() const { return (int)sdims.size(); }
@@ -83,20 +82,18 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     virtual const int *axis() const override { return &p_->axis; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const override {
+    virtual const std::vector<dnnl_data_type_t> *sdt() const override {
         return &sdt_;
     }
-    virtual const mkldnn_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const override {
+    virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
+    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
         return &p_->stag;
     }
-    virtual const mkldnn_format_tag_t *dtag() const override {
-        return &p_->dtag;
-    }
+    virtual const dnnl_format_tag_t *dtag() const override { return &p_->dtag; }
 
 private:
     const prb_t *p_ = NULL;
-    std::vector<mkldnn_data_type_t> sdt_;
+    std::vector<dnnl_data_type_t> sdt_;
 };
 
 void compute_ref(

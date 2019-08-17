@@ -37,22 +37,21 @@
     }
 
 #define PARAMS_N_3D(...) \
-    EXPAND_ARGS(PARAMS_3D(ncdhw, ncdhw, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS_3D(ncdhw, ncdhw, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_B8_3D(...) \
-    EXPAND_ARGS(PARAMS_3D(nCdhw8c, nCdhw8c, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS_3D(nCdhw8c, nCdhw8c, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_B16_3D(...) \
-    EXPAND_ARGS( \
-            PARAMS_3D(nCdhw16c, nCdhw16c, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS_3D(nCdhw16c, nCdhw16c, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_N(...) \
-    EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_NHWC(...) \
-    EXPAND_ARGS(PARAMS(nhwc, nhwc, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS(nhwc, nhwc, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_NC(...) \
-    EXPAND_ARGS(PARAMS(nc, nc, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS(nc, nc, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_B8(...) \
-    EXPAND_ARGS(PARAMS(nChw8c, nChw8c, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS(nChw8c, nChw8c, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_B16(...) \
-    EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__, false, mkldnn_success))
+    EXPAND_ARGS(PARAMS(nChw16c, nChw16c, __VA_ARGS__, false, dnnl_success))
 #define PARAMS_EF(...) EXPAND_ARGS(PARAMS(nchw, nchw, __VA_ARGS__))
 
 #define CPU_INST_TEST_CASE(str, ...) \
@@ -71,9 +70,9 @@ CPU_INST_TEST_CASE(SimpleZeroDim, PARAMS_N(0, 27, 9, 10, EPS),
         PARAMS_N(1, 0, 10, 9, EPS), PARAMS_N(4, 20, 0, 12, EPS));
 
 INST_TEST_CASE(SimpleExpectedFails,
-        PARAMS_EF(-1, 27, 9, 10, EPS, true, mkldnn_invalid_arguments),
-        PARAMS_EF(1, -12, 10, 9, EPS, true, mkldnn_invalid_arguments),
-        PARAMS_EF(4, 20, -12, 12, EPS, true, mkldnn_invalid_arguments));
+        PARAMS_EF(-1, 27, 9, 10, EPS, true, dnnl_invalid_arguments),
+        PARAMS_EF(1, -12, 10, 9, EPS, true, dnnl_invalid_arguments),
+        PARAMS_EF(4, 20, -12, 12, EPS, true, dnnl_invalid_arguments));
 
 CPU_INST_TEST_CASE(Simple_nChw16c_padded, PARAMS_B16(1, 27, 9, 10, EPS),
         PARAMS_B16(1, 12, 10, 9, EPS), PARAMS_B16(4, 20, 12, 12, EPS),
@@ -189,18 +188,16 @@ CPU_INST_TEST_CASE(GoogleNet_Blocked_16, PARAMS_B16(2, 64, 112, 112, EPS),
         PARAMS_B16(2, 48, 7, 7, EPS), PARAMS_B16(2, 384, 7, 7, EPS));
 
 GPU_INST_TEST_CASE(Simple,
-        PARAMS(nchw, nchw, 32, 32, 1, 1, EPS, false, mkldnn_success),
-        PARAMS(nchw, nchw, 32, 32, 4, 5, EPS, false, mkldnn_success),
-        PARAMS_3D(ncdhw, ncdhw, 32, 32, 2, 4, 2, EPS, false, mkldnn_success),
-        PARAMS(NChw16n16c, NChw16n16c, 32, 32, 1, 1, EPS, false,
-                mkldnn_success),
-        PARAMS(NChw16n16c, NChw16n16c, 32, 32, 4, 5, EPS, false,
-                mkldnn_success),
+        PARAMS(nchw, nchw, 32, 32, 1, 1, EPS, false, dnnl_success),
+        PARAMS(nchw, nchw, 32, 32, 4, 5, EPS, false, dnnl_success),
+        PARAMS_3D(ncdhw, ncdhw, 32, 32, 2, 4, 2, EPS, false, dnnl_success),
+        PARAMS(NChw16n16c, NChw16n16c, 32, 32, 1, 1, EPS, false, dnnl_success),
+        PARAMS(NChw16n16c, NChw16n16c, 32, 32, 4, 5, EPS, false, dnnl_success),
         PARAMS_3D(NCdhw16n16c, NCdhw16n16c, 32, 32, 2, 4, 2, EPS, false,
-                mkldnn_success),
-        PARAMS(nChw16c, nChw16c, 32, 32, 1, 1, EPS, false, mkldnn_success),
-        PARAMS(nChw16c, nChw16c, 32, 32, 4, 5, EPS, false, mkldnn_success),
-        PARAMS(nChw16c, nChw16c, 25, 32, 1, 1, EPS, false, mkldnn_success),
-        PARAMS(nChw16c, nChw16c, 25, 32, 4, 5, EPS, false, mkldnn_success),
-        PARAMS_3D(nCdhw16c, nCdhw16c, 25, 32, 2, 4, 2, EPS, false,
-                mkldnn_success));
+                dnnl_success),
+        PARAMS(nChw16c, nChw16c, 32, 32, 1, 1, EPS, false, dnnl_success),
+        PARAMS(nChw16c, nChw16c, 32, 32, 4, 5, EPS, false, dnnl_success),
+        PARAMS(nChw16c, nChw16c, 25, 32, 1, 1, EPS, false, dnnl_success),
+        PARAMS(nChw16c, nChw16c, 25, 32, 4, 5, EPS, false, dnnl_success),
+        PARAMS_3D(
+                nCdhw16c, nCdhw16c, 25, 32, 2, 4, 2, EPS, false, dnnl_success));

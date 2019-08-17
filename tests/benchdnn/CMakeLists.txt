@@ -45,7 +45,7 @@ register_exe(benchdnn "${SOURCES}" "" "${LIBRT}")
 
 file(COPY inputs DESTINATION .)
 
-if(WIN32 AND (NOT MKLDNN_BUILD_FOR_CI))
+if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     string(REPLACE  ";" "\;" PATH "${CTESTCONFIG_PATH};$ENV{PATH}")
     configure_file(
         "${PROJECT_SOURCE_DIR}/cmake/run_with_env.bat.in"
@@ -57,7 +57,7 @@ endif()
 function(register_benchdnn_test name engine cmd)
     set(benchdnn_target ${name}_${engine})
 
-    if(MKLDNN_BUILD_FOR_CI)
+    if(DNNL_BUILD_FOR_CI)
        string(REPLACE " " ";" cmd
             "benchdnn --engine=${engine} ${cmd}")
         if (ARGC GREATER 3)
@@ -161,7 +161,7 @@ register_benchdnn_test(test_benchdnn_regression_large
     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
     )
 
-if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
+if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
         gpu "-v1 --conv --batch=inputs/conv/test_conv_gpu")
     register_benchdnn_test(test_benchdnn_deconv

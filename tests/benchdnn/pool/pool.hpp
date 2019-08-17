@@ -25,8 +25,8 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace pool {
@@ -34,7 +34,7 @@ namespace pool {
 enum alg_t { MAX, AVG_NP, AVG_P };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
-mkldnn_alg_kind_t alg2alg_kind(alg_t alg);
+dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 
 struct desc_t {
     int64_t mb, ic;
@@ -64,7 +64,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d);
  * relative difference should not exceed eps
  */
 typedef struct dt_conf_t {
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     double min, max; /* representative */
     int f_min, f_max; /* fill range */
     double eps; /* acceptable error */
@@ -77,7 +77,7 @@ const char *cfg2str(const dt_conf_t *cfg);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            mkldnn_format_tag_t tag, alg_t alg, int64_t mb = 0)
+            dnnl_format_tag_t tag, alg_t alg, int64_t mb = 0)
         : desc_t(desc), dir(dir), cfg(cfg), tag(tag), alg(alg) {
         if (mb) this->mb = mb;
     }
@@ -85,7 +85,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    mkldnn_format_tag_t tag;
+    dnnl_format_tag_t tag;
     alg_t alg;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
@@ -124,7 +124,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

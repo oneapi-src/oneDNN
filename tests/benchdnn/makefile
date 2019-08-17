@@ -20,8 +20,8 @@ LD = g++
 CXXFLAGS = -std=c++11 -g -O0 -fopenmp
 LDFLAGS = -liomp5 -lrt -lpthread -ldl -lm
 
-MKLDNN_ROOT ?= ../../.install
-INC = -I$(MKLDNN_ROOT)/include -I.
+DNNL_ROOT ?= ../../.install
+INC = -I$(DNNL_ROOT)/include -I.
 
 build_dir = .build
 
@@ -34,7 +34,7 @@ all: benchdnn
 
 benchdnn: $(objs)
 	$(LD) $^ -o $@ \
-		-L$(MKLDNN_ROOT)/lib -Wl,-rpath=$(MKLDNN_ROOT)/lib -lmkldnn \
+		-L$(DNNL_ROOT)/lib -Wl,-rpath=$(DNNL_ROOT)/lib -ldnnl \
 		$(LDFLAGS)
 
 .build/%.o: %.cpp $(hdrs) directories

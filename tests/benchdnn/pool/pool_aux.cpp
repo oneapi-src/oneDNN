@@ -20,10 +20,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
 #include "pool/pool.hpp"
 
 namespace pool {
@@ -47,12 +47,12 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-mkldnn_alg_kind_t alg2alg_kind(alg_t alg) {
-    if (alg == MAX) return mkldnn_pooling_max;
-    if (alg == AVG_NP) return mkldnn_pooling_avg_exclude_padding;
-    if (alg == AVG_P) return mkldnn_pooling_avg_include_padding;
+dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
+    if (alg == MAX) return dnnl_pooling_max;
+    if (alg == AVG_NP) return dnnl_pooling_avg_exclude_padding;
+    if (alg == AVG_P) return dnnl_pooling_avg_include_padding;
     assert(!"unknown algorithm");
-    return mkldnn_alg_kind_undef;
+    return dnnl_alg_kind_undef;
 }
 
 int str2desc(desc_t *desc, const char *str) {
@@ -236,7 +236,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);

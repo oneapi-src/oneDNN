@@ -14,49 +14,49 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include <algorithm>
 #include <memory>
 #include <vector>
 #include <CL/cl.h>
 
-namespace mkldnn {
+namespace dnnl {
 
 class ocl_memory_test_c : public ::testing::Test {
 protected:
     virtual void SetUp() {
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
-        MKLDNN_CHECK(mkldnn_engine_create(&engine, mkldnn_gpu, 0));
-        MKLDNN_CHECK(mkldnn_engine_get_ocl_context(engine, &ocl_ctx));
+        DNNL_CHECK(dnnl_engine_create(&engine, dnnl_gpu, 0));
+        DNNL_CHECK(dnnl_engine_get_ocl_context(engine, &ocl_ctx));
 
-        MKLDNN_CHECK(mkldnn_memory_desc_init_by_tag(
-                &memory_d, dim, dims, mkldnn_f32, mkldnn_nchw));
-        MKLDNN_CHECK(mkldnn_memory_create(
-                &memory, &memory_d, engine, MKLDNN_MEMORY_NONE));
+        DNNL_CHECK(dnnl_memory_desc_init_by_tag(
+                &memory_d, dim, dims, dnnl_f32, dnnl_nchw));
+        DNNL_CHECK(dnnl_memory_create(
+                &memory, &memory_d, engine, DNNL_MEMORY_NONE));
     }
 
     virtual void TearDown() {
-        if (memory) { MKLDNN_CHECK(mkldnn_memory_destroy(memory)); }
-        if (engine) { MKLDNN_CHECK(mkldnn_engine_destroy(engine)); }
+        if (memory) { DNNL_CHECK(dnnl_memory_destroy(memory)); }
+        if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
     }
 
-    mkldnn_engine_t engine = nullptr;
+    dnnl_engine_t engine = nullptr;
     cl_context ocl_ctx = nullptr;
 
     static const int dim = 4;
-    static const mkldnn_dim_t N = 2;
-    static const mkldnn_dim_t C = 3;
-    static const mkldnn_dim_t H = 4;
-    static const mkldnn_dim_t W = 5;
-    mkldnn_dims_t dims = {N, C, H, W};
+    static const dnnl_dim_t N = 2;
+    static const dnnl_dim_t C = 3;
+    static const dnnl_dim_t H = 4;
+    static const dnnl_dim_t W = 5;
+    dnnl_dims_t dims = {N, C, H, W};
 
-    mkldnn_memory_desc_t memory_d;
-    mkldnn_memory_t memory = nullptr;
+    dnnl_memory_desc_t memory_d;
+    dnnl_memory_t memory = nullptr;
 };
 
 TEST_F(ocl_memory_test_c, BasicInteropC) {
@@ -64,7 +64,7 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
             "OpenCL GPU devices not found.");
 
     cl_mem ocl_mem;
-    MKLDNN_CHECK(mkldnn_memory_get_ocl_mem_object(memory, &ocl_mem));
+    DNNL_CHECK(dnnl_memory_get_ocl_mem_object(memory, &ocl_mem));
     ASSERT_EQ(ocl_mem, nullptr);
 
     cl_int err;
@@ -72,12 +72,12 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
             sizeof(float) * N * C * H * W, nullptr, &err);
     OCL_CHECK(err);
 
-    MKLDNN_CHECK(mkldnn_memory_set_ocl_mem_object(memory, interop_ocl_mem));
+    DNNL_CHECK(dnnl_memory_set_ocl_mem_object(memory, interop_ocl_mem));
 
-    MKLDNN_CHECK(mkldnn_memory_get_ocl_mem_object(memory, &ocl_mem));
+    DNNL_CHECK(dnnl_memory_get_ocl_mem_object(memory, &ocl_mem));
     ASSERT_EQ(ocl_mem, interop_ocl_mem);
 
-    MKLDNN_CHECK(mkldnn_memory_destroy(memory));
+    DNNL_CHECK(dnnl_memory_destroy(memory));
     memory = nullptr;
 
     cl_uint ref_count;
@@ -126,4 +126,4 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
     OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
 
-} // namespace mkldnn
+} // namespace dnnl

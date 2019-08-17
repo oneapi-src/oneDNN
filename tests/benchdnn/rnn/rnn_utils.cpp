@@ -15,7 +15,7 @@
  *******************************************************************************/
 
 #include "rnn/rnn_aux.hpp"
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 namespace rnn {
 
@@ -24,7 +24,7 @@ void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
     AOC<const float> src(src_, dimc, ld_src);
     AOC<float> dst(dst_, dimc, ld_dst);
 
-    mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
+    dnnl::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
             dst(i, j)
                     = action == action_sum ? dst(i, j) + src(i, j) : src(i, j);
@@ -35,10 +35,10 @@ void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
 void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
         bool round) {
     AOC<float> src(src_, dimc, ld_src);
-    mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
+    dnnl::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
             float fp = src(i, j) + shift;
-            src(i, j) = round ? saturate<mkldnn_u8>(fp) : fp;
+            src(i, j) = round ? saturate<dnnl_u8>(fp) : fp;
         }
     });
 }
@@ -46,10 +46,10 @@ void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
 void scale(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float scale,
         bool round) {
     AOC<float> src(src_, dimc, ld_src);
-    mkldnn::impl::parallel_nd(dimc, [&](int64_t i) {
+    dnnl::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
             float fp = src(i, j) * scale;
-            src(i, j) = round ? saturate<mkldnn_u8>(fp) : fp;
+            src(i, j) = round ? saturate<dnnl_u8>(fp) : fp;
         }
     });
 }

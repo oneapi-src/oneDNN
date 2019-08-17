@@ -20,11 +20,11 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "lrn/lrn.hpp"
@@ -32,8 +32,8 @@
 namespace lrn {
 
 std::vector<dir_t> dir {FWD_D};
-std::vector<mkldnn_data_type_t> dt {mkldnn_f32};
-std::vector<mkldnn_format_tag_t> tag {mkldnn_nchw};
+std::vector<dnnl_data_type_t> dt {dnnl_f32};
+std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
 std::vector<alg_t> alg {ACROSS};
 std::vector<int64_t> mb {0};
 
@@ -46,8 +46,8 @@ const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     dir = {FWD_D};
-    dt = {mkldnn_f32};
-    tag = {mkldnn_nchw};
+    dt = {dnnl_f32};
+    tag = {dnnl_nchw};
     alg = {ACROSS};
     mb = {0};
     skip_impl = "";

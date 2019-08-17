@@ -21,8 +21,8 @@
 #include <stdlib.h>
 #include <string>
 
-#include "mkldnn.h"
-#include "mkldnn_memory.hpp"
+#include "dnnl.h"
+#include "dnnl_memory.hpp"
 
 namespace parser {
 
@@ -97,16 +97,16 @@ static bool parse_cfg(T &vec, F process_func, const char *str,
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name = "dir");
 
-bool parse_dt(std::vector<mkldnn_data_type_t> &dt, const char *str,
+bool parse_dt(std::vector<dnnl_data_type_t> &dt, const char *str,
         const std::string &option_name = "dt");
 
-bool parse_multi_dt(std::vector<std::vector<mkldnn_data_type_t>> &dt,
+bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
         const char *str, const std::string &option_name = "sdt");
 
-bool parse_tag(std::vector<mkldnn_format_tag_t> &tag, const char *str,
+bool parse_tag(std::vector<dnnl_format_tag_t> &tag, const char *str,
         const std::string &option_name = "tag");
 
-bool parse_multi_tag(std::vector<std::vector<mkldnn_format_tag_t>> &tag,
+bool parse_multi_tag(std::vector<std::vector<dnnl_format_tag_t>> &tag,
         const char *str, const std::string &option_name = "stag");
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,

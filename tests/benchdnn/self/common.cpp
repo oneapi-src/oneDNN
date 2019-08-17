@@ -18,7 +18,7 @@
 #include <string.h>
 
 #include "common.hpp"
-#include "mkldnn_common.hpp"
+#include "dnnl_common.hpp"
 
 #include "self/self.hpp"
 

@@ -19,12 +19,12 @@
 
 #include <iostream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace reorder {
@@ -38,7 +38,7 @@ flag_t str2flag(const char *str);
 const char *flag2str(flag_t flag);
 
 struct dt_conf_s {
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     int min;
     int range;
 };
@@ -49,12 +49,12 @@ extern const dt_conf_t conf_s8;
 extern const dt_conf_t conf_u8;
 extern const dt_conf_t conf_s32;
 
-dt_conf_t dt2cfg(mkldnn_data_type_t dt);
-mkldnn_data_type_t cfg2dt(dt_conf_t cfg);
+dt_conf_t dt2cfg(dnnl_data_type_t dt);
+dnnl_data_type_t cfg2dt(dt_conf_t cfg);
 
 struct reorder_conf_t {
     dims_t dims;
-    mkldnn_format_tag_t tag_in, tag_out;
+    dnnl_format_tag_t tag_in, tag_out;
 };
 
 struct q10n_conf_t {
@@ -119,22 +119,22 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual double ops() const override { return p_->ops; }
     virtual const attr_t *attr() const override { return &p_->attr; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const override {
+    virtual const std::vector<dnnl_data_type_t> *sdt() const override {
         return &sdt_;
     }
-    virtual const mkldnn_data_type_t *ddt() const override { return &ddt_; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const override {
+    virtual const dnnl_data_type_t *ddt() const override { return &ddt_; }
+    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
         return &stag_;
     }
-    virtual const mkldnn_format_tag_t *dtag() const override {
+    virtual const dnnl_format_tag_t *dtag() const override {
         return &p_->reorder.tag_out;
     }
 
 private:
     const prb_t *p_ = NULL;
-    std::vector<mkldnn_data_type_t> sdt_;
-    mkldnn_data_type_t ddt_;
-    std::vector<mkldnn_format_tag_t> stag_;
+    std::vector<dnnl_data_type_t> sdt_;
+    dnnl_data_type_t ddt_;
+    std::vector<dnnl_format_tag_t> stag_;
 };
 
 int doit(const prb_t *p, res_t *res);

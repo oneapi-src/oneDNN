@@ -20,12 +20,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "conv/conv.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
 
 namespace conv {
 
@@ -48,10 +48,10 @@ const char *alg2str(alg_t alg) {
     return "unknown algorithm";
 }
 
-alg_t alg_kind2alg(mkldnn_alg_kind_t alg) {
-    if (alg == mkldnn_convolution_auto) return AUTO;
-    if (alg == mkldnn_convolution_direct) return DIRECT;
-    if (alg == mkldnn_convolution_winograd) return WINO;
+alg_t alg_kind2alg(dnnl_alg_kind_t alg) {
+    if (alg == dnnl_convolution_auto) return AUTO;
+    if (alg == dnnl_convolution_direct) return DIRECT;
+    if (alg == dnnl_convolution_winograd) return WINO;
     assert(!"unknown algorithm");
     return DIRECT;
 }

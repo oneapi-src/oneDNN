@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,22 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include "mkldnn.h"
+// DO NOT EDIT, AUTO-GENERATED
 
-#include "mkldnn_common.hpp"
+// clang-format off
 
-// Engine kind used to run MKL-DNN primitives for testing
-mkldnn_engine_kind_t engine_tgt_kind = mkldnn_cpu;
+#ifndef DNNL_DEBUG_HPP
+#define DNNL_DEBUG_HPP
 
-// Engine used for reference benchdnn computations
-mkldnn_engine_t engine_ref;
+#include "dnnl.h"
 
-// Engine used to run MKL-DNN primitives for testing
-mkldnn_engine_t engine_tgt;
+dnnl_data_type_t str2dt(const char *str);
+dnnl_format_tag_t str2fmt_tag(const char *str);
 
-// Stream for reference engine
-mkldnn_stream_t stream_ref;
+/* status */
+const char *status2str(dnnl_status_t status);
 
-// Stream for target engine
-mkldnn_stream_t stream_tgt;
+/* data type */
+const char *dt2str(dnnl_data_type_t dt);
+
+/* format */
+const char *fmt_tag2str(dnnl_format_tag_t tag);
+
+#endif

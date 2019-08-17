@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 
@@ -530,10 +530,10 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         const int64_t lda, const float *b, const int64_t ldb, const float beta,
         float *c, const int64_t ldc) {
     if (*layout == 'C') {
-        mkldnn_sgemm(
+        dnnl_sgemm(
                 *transa, *transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     } else {
-        mkldnn_sgemm(
+        dnnl_sgemm(
                 *transb, *transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
     }
 }

@@ -20,9 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
+#include "dnnl_common.hpp"
 
 #include "pool/pool.hpp"
 
@@ -35,51 +35,50 @@ namespace pool {
 
 const _dt_conf_t conf_f32 = {
         // though integers are expected, eps is needed to cover division error
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
         {},
         {},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
 };
 
 const _dt_conf_t conf_s32 = {
-        {mkldnn_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
+        {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
         {},
         {},
-        {mkldnn_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
+        {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
 };
 
-const float16_t flt16_max
-        = mkldnn::impl::nstl::numeric_limits<float16_t>::max();
+const float16_t flt16_max = dnnl::impl::nstl::numeric_limits<float16_t>::max();
 const _dt_conf_t conf_f16 = {
-        {mkldnn_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
+        {dnnl_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
         {},
         {},
-        {mkldnn_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
+        {dnnl_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
 };
 
 #define BFLT16_MAX 3.38953138925153547590470800371487866880e+38F
 const _dt_conf_t conf_bf16 = {
         /* Although integers are expected, eps is needed to cover
      * for the division error */
-        {mkldnn_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 1e-2},
+        {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 1e-2},
         {},
         {},
-        {mkldnn_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 5e-2},
+        {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 5e-2},
 };
 #undef BFLT16_MAX
 
 const _dt_conf_t conf_s8 = {
-        {mkldnn_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
         {},
         {},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
 };
 
 const _dt_conf_t conf_u8 = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
         {},
         {},
-        {mkldnn_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
 };
 
 const dt_conf_t *str2cfg(const char *str) {

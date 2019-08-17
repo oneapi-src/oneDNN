@@ -20,10 +20,10 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "rnn/rnn.hpp"
@@ -33,8 +33,7 @@ namespace rnn {
 std::vector<dir_t> prop {FWD_D};
 std::vector<const dt_conf_t *> cfg {conf_f32};
 std::vector<alg_t> alg {VANILLA_RNN};
-std::vector<mkldnn_rnn_direction_t> direction {
-        mkldnn_unidirectional_left2right};
+std::vector<dnnl_rnn_direction_t> direction {dnnl_unidirectional_left2right};
 std::vector<activation_t> activation {RELU};
 std::vector<bool> skip_nonlinear {false};
 std::vector<int64_t> mb {0};
@@ -55,7 +54,7 @@ void reset_parameters() {
     prop = {FWD_D};
     cfg = {conf_f32};
     alg = {VANILLA_RNN};
-    direction = {mkldnn_unidirectional_left2right};
+    direction = {dnnl_unidirectional_left2right};
     activation = {RELU};
     mb = {0};
     attr = attr_t();
@@ -73,7 +72,7 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_skip_nonlinear : skip_nonlinear)
     for (const auto &i_mb : mb) {
         check_case_validity(i_cfg, i_scale_policy);
-        mkldnn_prop_kind_t prop_kind = prop2prop_kind(i_prop);
+        dnnl_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
         const prb_t p(*c, i_cfg, prop_kind, i_alg, i_direction, attr,
                 i_scale_policy, flags, i_activation, alpha, beta,

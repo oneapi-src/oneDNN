@@ -14,33 +14,33 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
-#include "mkldnn_debug.h"
-namespace mkldnn {
+#include "dnnl.hpp"
+#include "dnnl_debug.h"
+namespace dnnl {
 using fmt = memory::format_tag;
 struct deconvolution_test_params {
-    mkldnn::algorithm aalgorithm;
+    dnnl::algorithm aalgorithm;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
     test_convolution_sizes_t sizes;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 template <typename data_t>
 void compute_bias_fwd(const test_convolution_sizes_t &c,
-        const mkldnn::memory &dst, const mkldnn::memory &bias) {
+        const dnnl::memory &dst, const dnnl::memory &bias) {
     auto bias_data = map_memory<data_t>(bias);
     auto dst_data = map_memory<data_t>(dst);
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
-    mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
+    dnnl::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
             [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
                     memory::dim ow) {
                 data_t b
@@ -54,16 +54,16 @@ void compute_bias_fwd(const test_convolution_sizes_t &c,
 
 template <typename data_t>
 void compute_bias_bwd(const test_convolution_sizes_t &c,
-        const mkldnn::memory &dst, const mkldnn::memory &bias) {
+        const dnnl::memory &dst, const dnnl::memory &bias) {
     auto bias_data = map_memory<data_t>(bias);
     auto dst_data = map_memory<data_t>(dst);
 
     const memory::desc bias_d = bias.get_desc();
     const memory::desc dst_d = dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             c.ng, c.oc / c.ng, [&](memory::dim g, memory::dim oc) {
                 memory::dim bidx = g * c.oc / c.ng + oc;
                 bias_data[bias_mdw.off_l(bidx, true)] = 0.0;
@@ -81,16 +81,16 @@ void compute_bias_bwd(const test_convolution_sizes_t &c,
 
 template <typename data_t>
 void transpose_wei(const test_convolution_sizes_t &c,
-        const mkldnn::memory &weights, const mkldnn::memory &weights_tr) {
+        const dnnl::memory &weights, const dnnl::memory &weights_tr) {
 
     auto weights_data = map_memory<data_t>(weights);
     const memory::desc weights_d = weights.get_desc();
-    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
     auto weights_tr_data = map_memory<data_t>(weights_tr);
     const memory::desc weights_tr_d = weights_tr.get_desc();
-    const mkldnn::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_tr_mdw(weights_tr_d.data);
 
-    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
+    dnnl::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
             [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,
                     memory::dim kw) {
                 memory::dim widx = g * c.oc / c.ng * c.ic / c.ng * c.kh * c.kw
@@ -226,10 +226,10 @@ protected:
 
         deconvolution_forward(deconv_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, src->get()},
-                                {MKLDNN_ARG_WEIGHTS, weights->get()},
-                                {MKLDNN_ARG_BIAS, bias->get()},
-                                {MKLDNN_ARG_DST, dst->get()}});
+                        {{DNNL_ARG_SRC, src->get()},
+                                {DNNL_ARG_WEIGHTS, weights->get()},
+                                {DNNL_ARG_BIAS, bias->get()},
+                                {DNNL_ARG_DST, dst->get()}});
         strm.wait();
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
@@ -249,9 +249,9 @@ protected:
 
         convolution_backward_data(conv_bwd_data_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, conv_dst->get()},
-                                {MKLDNN_ARG_WEIGHTS, weights_tr},
-                                {MKLDNN_ARG_DIFF_SRC, conv_src.get()}});
+                        {{DNNL_ARG_DIFF_DST, conv_dst->get()},
+                                {DNNL_ARG_WEIGHTS, weights_tr},
+                                {DNNL_ARG_DIFF_SRC, conv_src.get()}});
         strm.wait();
 
         if (with_bias)
@@ -291,9 +291,9 @@ protected:
 
         deconvolution_backward_data(deconv_bwd_data_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, dst->get()},
-                                {MKLDNN_ARG_WEIGHTS, weights->get()},
-                                {MKLDNN_ARG_DIFF_SRC, src->get()}});
+                        {{DNNL_ARG_DIFF_DST, dst->get()},
+                                {DNNL_ARG_WEIGHTS, weights->get()},
+                                {DNNL_ARG_DIFF_SRC, src->get()}});
         strm.wait();
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
@@ -305,9 +305,9 @@ protected:
 
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, conv_src->get()},
-                                {MKLDNN_ARG_WEIGHTS, weights_tr},
-                                {MKLDNN_ARG_DST, conv_dst.get()}});
+                        {{DNNL_ARG_SRC, conv_src->get()},
+                                {DNNL_ARG_WEIGHTS, weights_tr},
+                                {DNNL_ARG_DST, conv_dst.get()}});
         strm.wait();
 
         compare_data<data_t>(conv_dst.get(), src->get());
@@ -343,10 +343,10 @@ protected:
 
         deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, dst->get()},
-                                {MKLDNN_ARG_SRC, src->get()},
-                                {MKLDNN_ARG_DIFF_WEIGHTS, weights->get()},
-                                {MKLDNN_ARG_DIFF_BIAS, bias->get()}});
+                        {{DNNL_ARG_DIFF_DST, dst->get()},
+                                {DNNL_ARG_SRC, src->get()},
+                                {DNNL_ARG_DIFF_WEIGHTS, weights->get()},
+                                {DNNL_ARG_DIFF_BIAS, bias->get()}});
         strm.wait();
 
         auto conv_desc = convolution_forward::desc(prop_kind::forward_training,
@@ -366,9 +366,9 @@ protected:
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, conv_dst->get()},
-                                {MKLDNN_ARG_SRC, conv_src->get()},
-                                {MKLDNN_ARG_DIFF_WEIGHTS, conv_weights}});
+                        {{DNNL_ARG_DIFF_DST, conv_dst->get()},
+                                {DNNL_ARG_SRC, conv_src->get()},
+                                {DNNL_ARG_DIFF_WEIGHTS, conv_weights}});
         strm.wait();
 
         auto weights_tr = memory(*con_weights_desc, eng);
@@ -390,12 +390,11 @@ TEST_P(deconvolution_test_float, TestDeconvolution) {}
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { \
-        mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
-                mkldnn::memory::format_tag::bias, \
-                mkldnn::memory::format_tag::dst \
+        dnnl::memory::format_tag::src, dnnl::memory::format_tag::weights, \
+                dnnl::memory::format_tag::bias, dnnl::memory::format_tag::dst \
     }
 
-#define ALGORITHM mkldnn::algorithm::deconvolution_direct
+#define ALGORITHM dnnl::algorithm::deconvolution_direct
 
 #define PARAMS(src, weights, bias, dst, ...) \
     deconvolution_test_params { \
@@ -481,4 +480,4 @@ GPU_INST_TEST_CASE(SimpleSmall_NCHW,
 
 );
 
-} // namespace mkldnn
+} // namespace dnnl

@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "conv/conv_common.hpp"
 
@@ -22,7 +22,7 @@ namespace conv {
 
 void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
-    if (p->alg == WINO && p->cfg[SRC].dt == mkldnn_f32) {
+    if (p->alg == WINO && p->cfg[SRC].dt == dnnl_f32) {
         compute_wino_ref_fwd(p, src_m, wei_m, bia_m, dst_m);
     } else {
         compute_ref_direct_fwd(p, src_m, wei_m, bia_m, dst_m);
@@ -31,7 +31,7 @@ void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
-    if (p->alg == WINO && p->cfg[SRC].dt == mkldnn_f32) {
+    if (p->alg == WINO && p->cfg[SRC].dt == dnnl_f32) {
         compute_wino_ref_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
     } else {
         compute_ref_direct_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
@@ -40,7 +40,7 @@ void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
 
 void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
         dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
-    if (p->alg == WINO && p->cfg[SRC].dt == mkldnn_f32) {
+    if (p->alg == WINO && p->cfg[SRC].dt == dnnl_f32) {
         compute_wino_ref_bwd_w(p, src_m, diff_wei_m, diff_bia_m, diff_dst_m);
     } else {
         compute_ref_direct_bwd_w(p, src_m, diff_wei_m, diff_bia_m, diff_dst_m);
@@ -88,7 +88,7 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         }
     };
 
-    mkldnn::impl::parallel_nd(p->g, p->mb, p->oc / p->g, p->od, p->oh, p->ow,
+    dnnl::impl::parallel_nd(p->g, p->mb, p->oc / p->g, p->od, p->oh, p->ow,
             [&](int64_t g, int64_t mb, int64_t oc, int64_t od, int64_t oh,
                     int64_t ow) {
                 const size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
@@ -196,7 +196,7 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     };
 
-    mkldnn::impl::parallel_nd(p->g, p->mb, p->ic / p->g, p->id, p->ih, p->iw,
+    dnnl::impl::parallel_nd(p->g, p->mb, p->ic / p->g, p->id, p->ih, p->iw,
             [&](int64_t g, int64_t mb, int64_t ic, int64_t id, int64_t ih,
                     int64_t iw) {
                 size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
@@ -252,7 +252,7 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
         }
     };
 
-    mkldnn::impl::parallel_nd(p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh,
+    dnnl::impl::parallel_nd(p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh,
             p->kw,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
@@ -265,7 +265,7 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
 
 void compute_ref_bwd_bias(
         const prb_t *p, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
-    mkldnn::impl::parallel_nd(p->g, p->oc / p->g, [&](int64_t g, int64_t oc) {
+    dnnl::impl::parallel_nd(p->g, p->oc / p->g, [&](int64_t g, int64_t oc) {
         size_t bia_off = bia_off_f(p, g, oc);
         double sum = 0;
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "mkldnn_common.hpp"
+#include "dnnl_common.hpp"
 #include "rnn/rnn.hpp"
 
 namespace rnn {
@@ -51,7 +51,7 @@ params: {data_type, min, max, f_min, f_max, f_mean, f_stddev, eps}
 
 #define F32_ENTRY_INEXACT \
     { \
-        mkldnn_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+        dnnl_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
                 STDDEV_F32, EPS_F32 \
     }
 
@@ -91,19 +91,19 @@ const _dt_conf_t conf_f32 = {
 #define STDDEV_S8 32.f
 
 #define U8_ENTRY_U8_EXACT \
-    { mkldnn_u8, 0, UINT8_MAX, MIN_U8, MAX_U8, MEAN_U8, STDDEV_U8, 0.f }
+    { dnnl_u8, 0, UINT8_MAX, MIN_U8, MAX_U8, MEAN_U8, STDDEV_U8, 0.f }
 #define U8_ENTRY_U8_INEXACT \
-    { mkldnn_u8, 0, UINT8_MAX, MIN_U8, MAX_U8, MEAN_U8, STDDEV_U8, EPS_U8 }
+    { dnnl_u8, 0, UINT8_MAX, MIN_U8, MAX_U8, MEAN_U8, STDDEV_U8, EPS_U8 }
 #define U8_ENTRY_S8_EXACT \
-    { mkldnn_s8, INT8_MIN, INT8_MAX, MIN_S8, MAX_S8, MEAN_S8, STDDEV_S8, 0.f }
+    { dnnl_s8, INT8_MIN, INT8_MAX, MIN_S8, MAX_S8, MEAN_S8, STDDEV_S8, 0.f }
 #define U8_ENTRY_F32_EXACT \
     { \
-        mkldnn_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+        dnnl_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
                 STDDEV_F32, 0.0f \
     }
 #define U8_ENTRY_F32_INEXACT \
     { \
-        mkldnn_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+        dnnl_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
                 STDDEV_F32, EPS_S8 \
     }
 
@@ -155,15 +155,15 @@ const _dt_conf_t conf_f32u8f32f32 = {
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
 #define EPS 1e-1
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
 #undef EPS
 };
 

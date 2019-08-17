@@ -51,17 +51,17 @@ INST_TEST_CASE(Simple_ZeroDim,
                 1, 1));
 
 INST_TEST_CASE(Simple_NCHW_expected_failures,
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, 0, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1),
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, 4, 4, 4, 0, 4, 4, 3, 3, 1, 1, 1, 1),
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, 4, 4, 4, 6, 4, 4, 0, 3, 1, 1, 1, 1),
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, -4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 1, 1),
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, 4, 4, 4, 6, 4, 4, 3, 3, -1, 1, 1, 1),
-        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, mkldnn_invalid_arguments,
+        PARAMS_EXPECT_FAIL(nchw, oihw, FMT_BIAS, nchw, dnnl_invalid_arguments,
                 1, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1, 0, 0));
 
 CPU_INST_TEST_CASE(Simple_Blocked16_padded,

@@ -16,13 +16,13 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using fmt = memory::format_tag;
 
@@ -40,7 +40,7 @@ struct lrn_test_params {
     memory::format_tag diff_data_format;
     test_lrn_desc_t test_ld;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename acc_data_t>
@@ -75,9 +75,9 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
     const memory::desc src_d = src.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc diff_src_d = diff_src.get_desc();
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
 
     auto off = [=](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
         return ((n * padded_c + c) * H + h) * W + w;
@@ -161,7 +161,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
         *d = A - B;
     };
 
-    mkldnn::impl::parallel_nd(N, C, H, W,
+    dnnl::impl::parallel_nd(N, C, H, W,
             [&](memory::dim n, memory::dim c, memory::dim h, memory::dim w) {
                 if (is_current_test_failed()) return;
 
@@ -174,7 +174,7 @@ void check_lrn_bwd(const lrn_test_params &p, const memory &src,
                         off(n, c, h, w), true)];
                 acc_data_t eps = static_cast<acc_data_t>(2e-6 * size * size);
                 memory::data_type data_type = data_traits<data_t>::data_type;
-                if (data_type == mkldnn::memory::data_type::bf16)
+                if (data_type == dnnl::memory::data_type::bf16)
                     eps = static_cast<acc_data_t>(1e-2 * size * size);
                 float diff = std::fabs(exp - got);
                 if (got > 1e-2) // rel_diff
@@ -231,9 +231,9 @@ protected:
         eng = engine(get_test_engine_kind(), 0);
         strm = stream(eng);
         ASSERT_EQ(true,
-                mkldnn::impl::utils::one_of(data_type,
-                        mkldnn::memory::data_type::f32,
-                        mkldnn::memory::data_type::bf16));
+                dnnl::impl::utils::one_of(data_type,
+                        dnnl::memory::data_type::f32,
+                        dnnl::memory::data_type::bf16));
 
         test_lrn_desc_t ld = p.test_ld;
 
@@ -267,10 +267,10 @@ protected:
         // Execute
         auto l = lrn_forward(lrn_fwd_prim_desc);
         std::unordered_map<int, memory> args
-                = {{MKLDNN_ARG_SRC, src->get()}, {MKLDNN_ARG_DST, dst->get()}};
+                = {{DNNL_ARG_SRC, src->get()}, {DNNL_ARG_DST, dst->get()}};
         auto workspace_md = lrn_fwd_prim_desc.workspace_desc();
         workspace = memory(workspace_md, eng);
-        args.insert({MKLDNN_ARG_WORKSPACE, workspace});
+        args.insert({DNNL_ARG_WORKSPACE, workspace});
         l.execute(strm, args);
         strm.wait();
     }
@@ -301,10 +301,10 @@ protected:
         // Execute
         lrn_backward(lrn_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, src->get()},
-                                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                                {MKLDNN_ARG_WORKSPACE, workspace},
-                                {MKLDNN_ARG_DIFF_SRC, diff_src->get()}});
+                        {{DNNL_ARG_SRC, src->get()},
+                                {DNNL_ARG_DIFF_DST, diff_dst->get()},
+                                {DNNL_ARG_WORKSPACE, workspace},
+                                {DNNL_ARG_DIFF_SRC, diff_src->get()}});
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src->get());
@@ -328,10 +328,10 @@ static auto EF_cases = [](algorithm lk) {
     return ::testing::Values(
             lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, {-1, 10, 4, 4, 5, 1.0e-4f, 0.75f, 1.0f}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             lrn_test_params {prop_kind::forward_training, lk, fmt::nchw,
                     fmt::nchw, {2, 10, -4, 4, 5, 1.0e-4f, 0.75f, 3.0f}, true,
-                    mkldnn_invalid_arguments});
+                    dnnl_invalid_arguments});
 };
 
 static auto nChw16c_padded_cases = [](algorithm lk) {
@@ -505,4 +505,4 @@ INST_TEST_CASE(bfloat16_across, algorithm::lrn_across_channels)
 INST_TEST_CASE(float_within, algorithm::lrn_within_channel)
 INST_TEST_CASE(bfloat16_within, algorithm::lrn_within_channel)
 
-} // namespace mkldnn
+} // namespace dnnl

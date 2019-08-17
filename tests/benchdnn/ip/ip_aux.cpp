@@ -18,10 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
 
 #include "ip/ip.hpp"
 

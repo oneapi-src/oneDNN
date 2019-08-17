@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "dnnl.hpp"
+#include "dnnl_test_common.hpp"
 #include "math_utils.hpp"
-#include "mkldnn.hpp"
-#include "mkldnn_test_common.hpp"
 #include "test_convolution_eltwise_forward_common.hpp"
 #include "gtest/gtest.h"
 
-namespace mkldnn {
+namespace dnnl {
 
 using convolution_test_u8s8s32f32
         = convolution_eltwise_test<uint8_t, int8_t, int32_t, float>;
@@ -29,9 +29,8 @@ using convolution_test_s8s8s32f32
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { \
-        mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
-                mkldnn::memory::format_tag::bias, \
-                mkldnn::memory::format_tag::dst \
+        dnnl::memory::format_tag::src, dnnl::memory::format_tag::weights, \
+                dnnl::memory::format_tag::bias, dnnl::memory::format_tag::dst \
     }
 
 #define CONCAT_WITH_UNDERSCORE_(a, b) a##_##b
@@ -80,8 +79,8 @@ using convolution_test_s8s8s32f32
 
 #define PARAMS_CONV(alg, src, weights, bias, dst, ...) \
     test_convolution_eltwise_params_t { \
-        alg, mkldnn::algorithm::convolution_direct, ELTWISE_ALPHA, \
-                ELTWISE_BETA, EXPAND_FORMATS(src, weights, bias, dst), \
+        alg, dnnl::algorithm::convolution_direct, ELTWISE_ALPHA, ELTWISE_BETA, \
+                EXPAND_FORMATS(src, weights, bias, dst), \
                 /* empty attributes */ {}, { \
             __VA_ARGS__ \
         } \
@@ -113,4 +112,4 @@ CPU_INST_TEST_CASE_P(convolution_test_u8s8s32f32);
 GPU_INST_TEST_CASE_P(convolution_test_s8s8s32f32);
 GPU_INST_TEST_CASE_P(convolution_test_u8s8s32f32);
 
-} // namespace mkldnn
+} // namespace dnnl

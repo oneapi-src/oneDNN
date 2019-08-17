@@ -17,12 +17,12 @@
 #include <numeric>
 #include <utility>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_rnn_sizes_t {
     test_rnn_sizes_t(memory::dim l, memory::dim d, memory::dim t,
@@ -36,17 +36,17 @@ struct test_rnn_sizes_t {
 };
 
 struct test_rnn_formats_t {
-    mkldnn::memory::format_tag src_layer_fmt;
-    mkldnn::memory::format_tag src_iter_fmt;
-    mkldnn::memory::format_tag weights_layer_fmt;
-    mkldnn::memory::format_tag weights_iter_fmt;
-    mkldnn::memory::format_tag bias_fmt;
-    mkldnn::memory::format_tag dst_layer_fmt;
-    mkldnn::memory::format_tag dst_iter_fmt;
+    dnnl::memory::format_tag src_layer_fmt;
+    dnnl::memory::format_tag src_iter_fmt;
+    dnnl::memory::format_tag weights_layer_fmt;
+    dnnl::memory::format_tag weights_iter_fmt;
+    dnnl::memory::format_tag bias_fmt;
+    dnnl::memory::format_tag dst_layer_fmt;
+    dnnl::memory::format_tag dst_iter_fmt;
 };
 
 struct test_rnn_extra_t {
-    mkldnn::algorithm activation;
+    dnnl::algorithm activation;
     rnn_flags flags;
     float alpha;
     float beta;
@@ -55,11 +55,11 @@ struct test_rnn_extra_t {
 struct test_rnn_params_t {
     test_rnn_extra_t extra;
     prop_kind aprop;
-    mkldnn::rnn_direction direction;
+    dnnl::rnn_direction direction;
     test_rnn_formats_t fmts;
     test_rnn_sizes_t sizes;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 // We assume uniform data type accross tensors for now
@@ -228,7 +228,7 @@ protected:
             auto b_ndims = desc.data.ndims;
             auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<float>());
-            const mkldnn::impl::memory_desc_wrapper mdw(desc.data);
+            const dnnl::impl::memory_desc_wrapper mdw(desc.data);
             for (size_t i = 0; i < n_elems; i++)
                 b_ptr[i] = i;
             reorder(b, a).execute(strm, b, a);
@@ -245,15 +245,15 @@ protected:
 
         // run the non packed version
         T(ref_pd).execute(strm,
-                {{MKLDNN_ARG_SRC_LAYER, src_layer_ref},
-                        {MKLDNN_ARG_SRC_ITER, src_iter_ref},
-                        {MKLDNN_ARG_SRC_ITER_C, src_iter_c_ref},
-                        {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_ref},
-                        {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_ref},
-                        {MKLDNN_ARG_BIAS, bias_ref},
-                        {MKLDNN_ARG_DST_LAYER, dst_layer_ref},
-                        {MKLDNN_ARG_DST_ITER, dst_iter_ref},
-                        {MKLDNN_ARG_DST_ITER_C, dst_iter_c_ref}});
+                {{DNNL_ARG_SRC_LAYER, src_layer_ref},
+                        {DNNL_ARG_SRC_ITER, src_iter_ref},
+                        {DNNL_ARG_SRC_ITER_C, src_iter_c_ref},
+                        {DNNL_ARG_WEIGHTS_LAYER, weights_layer_ref},
+                        {DNNL_ARG_WEIGHTS_ITER, weights_iter_ref},
+                        {DNNL_ARG_BIAS, bias_ref},
+                        {DNNL_ARG_DST_LAYER, dst_layer_ref},
+                        {DNNL_ARG_DST_ITER, dst_iter_ref},
+                        {DNNL_ARG_DST_ITER_C, dst_iter_c_ref}});
         strm.wait();
 
         // run the packed version
@@ -265,15 +265,15 @@ protected:
         typename T::primitive_desc tgt_pd(tgt_d, eng);
 
         T(tgt_pd).execute(strm,
-                {{MKLDNN_ARG_SRC_LAYER, src_layer_tgt},
-                        {MKLDNN_ARG_SRC_ITER, src_iter_tgt},
-                        {MKLDNN_ARG_SRC_ITER_C, src_iter_c_tgt},
-                        {MKLDNN_ARG_WEIGHTS_LAYER, weights_layer_tgt},
-                        {MKLDNN_ARG_WEIGHTS_ITER, weights_iter_tgt},
-                        {MKLDNN_ARG_BIAS, bias_tgt},
-                        {MKLDNN_ARG_DST_LAYER, dst_layer_tgt},
-                        {MKLDNN_ARG_DST_ITER, dst_iter_tgt},
-                        {MKLDNN_ARG_DST_ITER_C, dst_iter_c_tgt}});
+                {{DNNL_ARG_SRC_LAYER, src_layer_tgt},
+                        {DNNL_ARG_SRC_ITER, src_iter_tgt},
+                        {DNNL_ARG_SRC_ITER_C, src_iter_c_tgt},
+                        {DNNL_ARG_WEIGHTS_LAYER, weights_layer_tgt},
+                        {DNNL_ARG_WEIGHTS_ITER, weights_iter_tgt},
+                        {DNNL_ARG_BIAS, bias_tgt},
+                        {DNNL_ARG_DST_LAYER, dst_layer_tgt},
+                        {DNNL_ARG_DST_ITER, dst_iter_tgt},
+                        {DNNL_ARG_DST_ITER_C, dst_iter_c_tgt}});
         strm.wait();
 
         // compare dst_layer and dst_iter
@@ -420,14 +420,14 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
                         {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
                                 fmt::tnc, fmt::ldnc},
                         test_rnn_sizes_t(2, 1, 10, 16, 200, 100, 100, 100),
-                        true, mkldnn_invalid_arguments},
+                        true, dnnl_invalid_arguments},
                 cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
                         prop_kind::forward_inference,
                         dir::unidirectional_left2right,
                         {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
                                 fmt::tnc, fmt::ldnc},
                         test_rnn_sizes_t(2, 1, 10, 16, 100, 200, 100, 100),
-                        true, mkldnn_invalid_arguments},
+                        true, dnnl_invalid_arguments},
                 /* Check for invalid parameters: inconsistent dimensions */
                 cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
                         prop_kind::forward_inference,
@@ -435,7 +435,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
                         {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
                                 fmt::tnc, fmt::ldnc},
                         test_rnn_sizes_t(2, 1, 10, 16, 100, 100, 50, 100), true,
-                        mkldnn_invalid_arguments}));
+                        dnnl_invalid_arguments}));
 
 TEST_P(lstm_forward_test_f32, TestsLSTM) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestLSTM, lstm_forward_test_f32,
@@ -480,4 +480,4 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRNN_failure, rnn_forward_test_f32,
                 //               L  D  T  MB  SLC  SIC  DLC  DIC
                 test_rnn_sizes_t(1, 1, 1, 1, 10, 5, 5, 5)}));
 
-} // namespace mkldnn
+} // namespace dnnl

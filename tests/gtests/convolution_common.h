@@ -16,16 +16,15 @@
 *******************************************************************************/
 #endif
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { \
-        mkldnn::memory::format_tag::src, mkldnn::memory::format_tag::weights, \
-                mkldnn::memory::format_tag::bias, \
-                mkldnn::memory::format_tag::dst \
+        dnnl::memory::format_tag::src, dnnl::memory::format_tag::weights, \
+                dnnl::memory::format_tag::bias, dnnl::memory::format_tag::dst \
     }
 
-#define ALGORITHM mkldnn::algorithm::convolution_direct
+#define ALGORITHM dnnl::algorithm::convolution_direct
 
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o

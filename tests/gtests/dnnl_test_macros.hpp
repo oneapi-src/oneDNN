@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_TEST_MACROS_HPP
-#define MKLDNN_TEST_MACROS_HPP
+#ifndef DNNL_TEST_MACROS_HPP
+#define DNNL_TEST_MACROS_HPP
 
 #include <iostream>
 

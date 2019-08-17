@@ -16,12 +16,12 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct shuffle_test_params {
     prop_kind aprop_kind;
@@ -30,7 +30,7 @@ struct shuffle_test_params {
     int axis;
     memory::dim group_size;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -45,8 +45,8 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
     auto dims = in_d.data.dims;
     auto ndims = in_d.data.ndims;
 
-    const mkldnn::impl::memory_desc_wrapper input_mdw(in_d.data);
-    const mkldnn::impl::memory_desc_wrapper output_mdw(out_d.data);
+    const dnnl::impl::memory_desc_wrapper input_mdw(in_d.data);
+    const dnnl::impl::memory_desc_wrapper output_mdw(out_d.data);
 
     const int axis = p.axis;
     memory::dim inner_size = 1, outer_size = 1;
@@ -66,7 +66,7 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
         inner_size *= (size_t)dims[i];
     const memory::dim dim = padded_axis * inner_size;
 
-    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
+    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
             [&](memory::dim ou, memory::dim a, memory::dim in) {
                 if (is_current_test_failed()) return;
 
@@ -130,8 +130,7 @@ protected:
 
         shuffle_forward(shuffle_fwd_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, src.get()},
-                                {MKLDNN_ARG_DST, dst.get()}});
+                        {{DNNL_ARG_SRC, src.get()}, {DNNL_ARG_DST, dst.get()}});
         strm.wait();
 
         check_shuffle<data_t>(p, src.get(), dst.get(), p.group_size);
@@ -158,8 +157,8 @@ protected:
         // Execute
         shuffle_backward(shuffle_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, diff_dst.get()},
-                                {MKLDNN_ARG_DIFF_SRC, diff_src.get()}});
+                        {{DNNL_ARG_DIFF_DST, diff_dst.get()},
+                                {DNNL_ARG_DIFF_SRC, diff_src.get()}});
         strm.wait();
 
         const int axis_size = diff_dst_desc.data.dims[p.axis];
@@ -346,20 +345,20 @@ using shuffle_test_u8 = shuffle_test<uint8_t>;
             ::testing::Values( \
                     shuffle_test_params {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 15, 4, 4}, 1, 2, \
-                            true, mkldnn_invalid_arguments}, \
+                            true, dnnl_invalid_arguments}, \
                     shuffle_test_params {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 64, 7, 7}, 2, 2, \
-                            true, mkldnn_invalid_arguments}, \
+                            true, dnnl_invalid_arguments}, \
                     shuffle_test_params {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 32, 11, 11}, 2, 2, \
-                            true, mkldnn_invalid_arguments}, \
+                            true, dnnl_invalid_arguments}, \
                     shuffle_test_params {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 16, 4, 4}, 4, 2, \
-                            true, mkldnn_invalid_arguments}));
+                            true, dnnl_invalid_arguments}));
 
 INST_TEST_CASE(shuffle_test_float)
 INST_TEST_CASE(shuffle_test_float16)
 INST_TEST_CASE(shuffle_test_s8)
 INST_TEST_CASE(shuffle_test_u8)
 
-} // namespace mkldnn
+} // namespace dnnl

@@ -16,12 +16,12 @@
 #ifndef TEST_CONVOLUTION_BACKWARD_WEIGHTS_COMMON_H
 #define TEST_CONVOLUTION_BACKWARD_WEIGHTS_COMMON_H
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t_src, typename data_t_diff_dst,
         typename data_t_diff_bias>
@@ -32,12 +32,12 @@ void compute_ref_conv_bwd_bias(const test_convolution_sizes_t &c,
 
     const memory::desc bias_d = diff_bias.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper diff_bias_mdw(bias_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_bias_mdw(bias_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
 
     auto padded_oc = dst_d.data.padded_dims[1];
 
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             c.ng, c.oc / c.ng, [&](memory::dim g, memory::dim oc) {
                 memory::dim bidx = g * padded_oc / c.ng + oc;
                 diff_bias_data[diff_bias_mdw.off_l(bidx, true)] = 0.0;
@@ -67,14 +67,14 @@ void compute_ref_conv_bwd_weights(const test_convolution_sizes_t &c,
     const memory::desc src_d = src.get_desc();
     const memory::desc weights_d = diff_weights.get_desc();
     const memory::desc dst_d = diff_dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(dst_d.data);
 
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
 
-    mkldnn::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
+    dnnl::impl::parallel_nd(c.ng, c.oc / c.ng, c.ic / c.ng, c.kh, c.kw,
             [&](memory::dim g, memory::dim oc, memory::dim ic, memory::dim kh,
                     memory::dim kw) {
                 memory::dim widx
@@ -206,10 +206,10 @@ protected:
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
-                                {MKLDNN_ARG_SRC, c_src.get()},
-                                {MKLDNN_ARG_DIFF_WEIGHTS, c_diff_weights.get()},
-                                {MKLDNN_ARG_DIFF_BIAS, c_diff_bias.get()}});
+                        {{DNNL_ARG_DIFF_DST, c_diff_dst.get()},
+                                {DNNL_ARG_SRC, c_src.get()},
+                                {DNNL_ARG_DIFF_WEIGHTS, c_diff_weights.get()},
+                                {DNNL_ARG_DIFF_BIAS, c_diff_bias.get()}});
         strm.wait();
 
         auto ref_diff_weights = memory(c_diff_weights_desc, eng);
@@ -232,5 +232,5 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl
 #endif

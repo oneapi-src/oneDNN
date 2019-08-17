@@ -18,33 +18,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "shuffle/shuffle.hpp"
 
 namespace shuffle {
 
 int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    auto get_range = [](const mkldnn_data_type_t dt) {
-        if (dt == mkldnn_s8 || dt == mkldnn_u8)
+    auto get_range = [](const dnnl_data_type_t dt) {
+        if (dt == dnnl_s8 || dt == dnnl_u8)
             return 256;
-        else if (dt == mkldnn_bf16 || dt == mkldnn_f16)
+        else if (dt == dnnl_bf16 || dt == dnnl_f16)
             return 128;
         return 1024;
     };
 
     const auto nelems = mem_fp.nelems();
     const int range = get_range(p->dt);
-    const int f_min = p->dt == mkldnn_u8 ? 0 : -range / 2;
+    const int f_min = p->dt == dnnl_u8 ? 0 : -range / 2;
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) + 101) % range;
-        const float value = (p->dt == mkldnn_bf16 || p->dt == mkldnn_f16)
+        const float value = (p->dt == dnnl_bf16 || p->dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);
         mem_fp.set_elem(i, maybe_saturate(p->dt, value));
@@ -92,55 +92,54 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, mkldnn_shuffle_desc_t &sd,
-        mkldnn_primitive_desc_t &spd, res_t *r) {
-    mkldnn_memory_desc_t data_d;
+static int init_pd(const prb_t *p, dnnl_shuffle_desc_t &sd,
+        dnnl_primitive_desc_t &spd, res_t *r) {
+    dnnl_memory_desc_t data_d;
 
     const int ndims = (int)p->dims.size();
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &data_d, ndims, p->dims.data(), p->dt, p->tag),
             WARN);
 
     if (p->dir == FWD_D) {
-        auto prop = mkldnn_forward_training;
-        DNN_SAFE(mkldnn_shuffle_forward_desc_init(
+        auto prop = dnnl_forward_training;
+        DNN_SAFE(dnnl_shuffle_forward_desc_init(
                          &sd, prop, &data_d, p->axis, p->group),
                 WARN);
     } else if (p->dir == BWD_D) {
-        DNN_SAFE(mkldnn_shuffle_backward_desc_init(
+        DNN_SAFE(dnnl_shuffle_backward_desc_init(
                          &sd, &data_d, p->axis, p->group),
                 WARN);
     }
 
-    mkldnn_status_t init_status = mkldnn_success;
-    init_status
-            = mkldnn_primitive_desc_create(&spd, &sd, NULL, engine_tgt, NULL);
+    dnnl_status_t init_status = dnnl_success;
+    init_status = dnnl_primitive_desc_create(&spd, &sd, NULL, engine_tgt, NULL);
 
-    if (init_status == mkldnn_unimplemented)
+    if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(spd);
-    print(5, "mkldnn implementation: %s\n", impl_str);
+    print(5, "dnnl implementation: %s\n", impl_str);
 
     return OK;
 }
 
 int doit(const prb_t *p, res_t *r) {
-    mkldnn_shuffle_desc_t sd;
-    mkldnn_primitive_desc_t spd;
-    mkldnn_primitive_t s {};
+    dnnl_shuffle_desc_t sd;
+    dnnl_primitive_desc_t spd;
+    dnnl_primitive_t s {};
 
     SAFE(init_pd(p, sd, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    DNN_SAFE(mkldnn_primitive_create(&s, spd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(spd), CRIT);
+    DNN_SAFE(dnnl_primitive_create(&s, spd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
 
     auto &src_dt_d = sd.data_desc;
 
-    const auto fp = mkldnn_f32;
+    const auto fp = dnnl_f32;
     const int ndims = (int)p->dims.size();
     const auto src_tag = get_default_tag(ndims);
 
@@ -151,8 +150,8 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_src(p, src_dt, src_fp), WARN);
 
-    const int i_arg = p->dir == FWD_D ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
-    const int o_arg = p->dir == FWD_D ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
+    const int i_arg = p->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
+    const int o_arg = p->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     args_t args;
     args.set(i_arg, src_dt.m_);
     args.set(o_arg, dst_dt.m_);
@@ -167,7 +166,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, s, args);
 
-    DNN_SAFE_V(mkldnn_primitive_destroy(s));
+    DNN_SAFE_V(dnnl_primitive_destroy(s));
 
     return OK;
 }

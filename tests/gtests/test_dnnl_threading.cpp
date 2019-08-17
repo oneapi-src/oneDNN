@@ -16,16 +16,16 @@
 
 #include <vector>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-namespace mkldnn {
+namespace dnnl {
 
 TEST(test_parallel, Test) {
     impl::parallel(0, [&](int ithr, int nthr) {
         ASSERT_LE(0, ithr);
         ASSERT_LT(ithr, nthr);
-        ASSERT_LE(nthr, mkldnn_get_max_threads());
+        ASSERT_LE(nthr, dnnl_get_max_threads());
     });
 }
 
@@ -291,4 +291,4 @@ CPU_INSTANTIATE_TEST_SUITE_P(Case, test_parallel_nd,
                 np_t {{4, 1, 4, 5, 2}}, np_t {{4, 3, 0, 3, 0, 1}},
                 np_t {{2, 1, 3, 1, 2, 1}}, np_t {{4, 1, 4, 3, 2, 2}}));
 
-} // namespace mkldnn
+} // namespace dnnl

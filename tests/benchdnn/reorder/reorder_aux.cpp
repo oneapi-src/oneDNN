@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_debug.hpp"
+#include "dnnl_debug.hpp"
 
 #include "reorder/reorder.hpp"
 

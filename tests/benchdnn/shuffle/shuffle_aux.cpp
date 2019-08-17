@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
 
 #include "shuffle/shuffle.hpp"
 
@@ -25,8 +25,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != mkldnn_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != mkldnn_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.group != 1) s << "--group=" << p.group << " ";
     if (p.axis != 1) s << "--axis=" << p.axis << " ";
 

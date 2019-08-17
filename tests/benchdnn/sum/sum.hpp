@@ -19,21 +19,20 @@
 
 #include <iostream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace sum {
 
 struct prb_t {
-    prb_t(const dims_t &dims, const std::vector<mkldnn_data_type_t> &sdt,
-            mkldnn_data_type_t ddt,
-            const std::vector<mkldnn_format_tag_t> &stag,
-            mkldnn_format_tag_t dtag, const std::vector<float> &scales)
+    prb_t(const dims_t &dims, const std::vector<dnnl_data_type_t> &sdt,
+            dnnl_data_type_t ddt, const std::vector<dnnl_format_tag_t> &stag,
+            dnnl_format_tag_t dtag, const std::vector<float> &scales)
         : dims(dims)
         , sdt(sdt)
         , ddt(ddt)
@@ -48,10 +47,10 @@ struct prb_t {
     ~prb_t() {}
 
     dims_t dims;
-    std::vector<mkldnn_data_type_t> sdt;
-    mkldnn_data_type_t ddt;
-    std::vector<mkldnn_format_tag_t> stag;
-    mkldnn_format_tag_t dtag;
+    std::vector<dnnl_data_type_t> sdt;
+    dnnl_data_type_t ddt;
+    std::vector<dnnl_format_tag_t> stag;
+    dnnl_format_tag_t dtag;
     std::vector<float> scales;
 
     int n_inputs() const { return (int)sdt.size(); }
@@ -69,16 +68,14 @@ struct perf_report_t : public base_perf_report_t {
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->dims;
     }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const override {
+    virtual const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;
     }
-    virtual const mkldnn_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const override {
+    virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
+    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
         return &p_->stag;
     }
-    virtual const mkldnn_format_tag_t *dtag() const override {
-        return &p_->dtag;
-    }
+    virtual const dnnl_format_tag_t *dtag() const override { return &p_->dtag; }
 
 private:
     const prb_t *p_ = NULL;
