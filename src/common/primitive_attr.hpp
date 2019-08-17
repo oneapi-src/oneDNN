@@ -17,13 +17,13 @@
 #ifndef PRIMITIVE_ATTR_HPP
 #define PRIMITIVE_ATTR_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct rnn_data_qparams_t : public c_compatible {
@@ -76,7 +76,7 @@ struct rnn_tparams_t : public c_compatible {
     }
 
     rnn_tparams_t &operator=(const rnn_tparams_t &rhs) {
-        MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
         status_t status
                 = set(rhs.test_mode_, rhs.ngates_, rhs.scales_, rhs.cscale_);
         assert(status == status::success);
@@ -120,7 +120,7 @@ struct scales_t : public c_compatible {
     ~scales_t() { cleanup(); }
 
     scales_t &operator=(const scales_t &rhs) {
-        MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
         status_t status = set(rhs.count_, rhs.mask_, rhs.scales_);
         assert(status == status::success);
         (void)status;
@@ -162,16 +162,16 @@ private:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
+struct dnnl_post_ops : public dnnl::impl::c_compatible {
     struct entry_t {
         struct eltwise_t {
-            mkldnn::impl::alg_kind_t alg;
+            dnnl::impl::alg_kind_t alg;
             float scale, alpha, beta;
         };
 
-        mkldnn::impl::primitive_kind_t kind;
+        dnnl::impl::primitive_kind_t kind;
         union {
             struct {
                 float scale;
@@ -180,27 +180,27 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
         };
 
         bool is_eltwise(bool require_scale_one = true) const {
-            using namespace mkldnn::impl;
+            using namespace dnnl::impl;
             return kind == primitive_kind::eltwise
                     && IMPLICATION(require_scale_one, eltwise.scale == 1.f);
         }
 
         bool is_relu(bool require_scale_one = true,
                 bool require_nslope_zero = true) const {
-            using namespace mkldnn::impl;
+            using namespace dnnl::impl;
             return is_eltwise(require_scale_one)
                     && eltwise.alg == alg_kind::eltwise_relu
                     && IMPLICATION(require_nslope_zero, eltwise.alpha == 0.f);
         }
 
         bool is_sum(bool require_scale_one = true) const {
-            using namespace mkldnn::impl;
+            using namespace dnnl::impl;
             return kind == primitive_kind::sum
                     && IMPLICATION(require_scale_one, sum.scale == 1.f);
         }
 
         bool operator==(const entry_t &rhs) const {
-            using namespace mkldnn::impl;
+            using namespace dnnl::impl;
             if (kind != rhs.kind) { return false; }
             bool ret = true;
             switch (kind) {
@@ -223,16 +223,16 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
         }
     };
 
-    mkldnn_post_ops() : len_(0) {}
+    dnnl_post_ops() : len_(0) {}
 
-    mkldnn::impl::status_t append_sum(float scale);
-    mkldnn::impl::status_t append_eltwise(
-            float scale, mkldnn::impl::alg_kind_t alg, float alpha, float beta);
+    dnnl::impl::status_t append_sum(float scale);
+    dnnl::impl::status_t append_eltwise(
+            float scale, dnnl::impl::alg_kind_t alg, float alpha, float beta);
 
-    int find(mkldnn::impl::primitive_kind_t kind, int start = 0,
+    int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
         if (stop == -1) stop = len_;
-        stop = mkldnn::impl::nstl::min(stop, len_);
+        stop = dnnl::impl::nstl::min(stop, len_);
         for (int idx = start; idx < stop; ++idx)
             if (entry_[idx].kind == kind) return idx;
         return -1;
@@ -240,13 +240,13 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
 
     bool has_default_values() const { return len_ == 0; }
 
-    bool contain(mkldnn::impl::primitive_kind_t kind, int index) const {
+    bool contain(dnnl::impl::primitive_kind_t kind, int index) const {
         return find(kind, index, index + 1) == index;
     }
 
-    bool operator==(const mkldnn_post_ops &rhs) const {
+    bool operator==(const dnnl_post_ops &rhs) const {
         bool ret = len_ == rhs.len_
-                && mkldnn::impl::utils::array_cmp(entry_, rhs.entry_, len_);
+                && dnnl::impl::utils::array_cmp(entry_, rhs.entry_, len_);
         return ret;
     }
 
@@ -256,12 +256,12 @@ struct mkldnn_post_ops : public mkldnn::impl::c_compatible {
     entry_t entry_[capacity];
 };
 
-struct mkldnn_primitive_attr : public mkldnn::impl::c_compatible {
-    mkldnn_primitive_attr()
-        : scratchpad_mode_(mkldnn::impl::scratchpad_mode::library) {}
+struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
+    dnnl_primitive_attr()
+        : scratchpad_mode_(dnnl::impl::scratchpad_mode::library) {}
 
-    mkldnn_primitive_attr *clone() const {
-        return new mkldnn_primitive_attr(*this);
+    dnnl_primitive_attr *clone() const {
+        return new dnnl_primitive_attr(*this);
     }
 
     /** Returns true if the attributes have default values.
@@ -275,7 +275,7 @@ struct mkldnn_primitive_attr : public mkldnn::impl::c_compatible {
                 && rnn_tparams_.has_default_values();
     }
 
-    bool operator==(const mkldnn_primitive_attr &rhs) const {
+    bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && output_scales_ == rhs.output_scales_
                 && post_ops_ == rhs.post_ops_
@@ -285,18 +285,17 @@ struct mkldnn_primitive_attr : public mkldnn::impl::c_compatible {
         return ret;
     }
 
-    mkldnn::impl::status_t set_scratchpad_mode(
-            mkldnn::impl::scratchpad_mode_t scratchpad_mode);
-    mkldnn::impl::status_t set_post_ops(
-            const mkldnn::impl::post_ops_t &post_ops);
+    dnnl::impl::status_t set_scratchpad_mode(
+            dnnl::impl::scratchpad_mode_t scratchpad_mode);
+    dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    mkldnn::impl::scratchpad_mode_t scratchpad_mode_;
-    mkldnn::impl::scales_t output_scales_;
-    mkldnn::impl::post_ops_t post_ops_;
-    mkldnn::impl::rnn_data_qparams_t rnn_data_qparams_;
-    mkldnn::impl::scales_t rnn_weights_qparams_;
-    mkldnn::impl::rnn_tparams_t rnn_tparams_;
+    dnnl::impl::scratchpad_mode_t scratchpad_mode_;
+    dnnl::impl::scales_t output_scales_;
+    dnnl::impl::post_ops_t post_ops_;
+    dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
+    dnnl::impl::scales_t rnn_weights_qparams_;
+    dnnl::impl::rnn_tparams_t rnn_tparams_;
 };
 
 #endif

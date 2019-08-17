@@ -23,7 +23,7 @@
 
 #include "common/c_types_map.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -104,6 +104,6 @@ public:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

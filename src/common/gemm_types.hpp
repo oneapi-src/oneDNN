@@ -17,52 +17,52 @@
 #ifndef GEMM_TYPES_HPP
 #define GEMM_TYPES_HPP
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
-enum transpose_t { mkldnn_notrans, mkldnn_trans };
+enum transpose_t { dnnl_notrans, dnnl_trans };
 
 namespace transpose {
-const transpose_t notrans = mkldnn_notrans;
-const transpose_t trans = mkldnn_trans;
+const transpose_t notrans = dnnl_notrans;
+const transpose_t trans = dnnl_trans;
 } // namespace transpose
 
 /** A descriptor for a matrix multiplication (gemm) operation */
 typedef struct {
     /** The kind of primitive. Used for self identifying the primitive
-     * descriptor. Must be #mkldnn_gemm. */
-    mkldnn_primitive_kind_t primitive_kind;
+     * descriptor. Must be #dnnl_gemm. */
+    dnnl_primitive_kind_t primitive_kind;
     /** Flag for transposing matrix A. */
     transpose_t transa;
     /** Flag for transposing matrix B. */
     transpose_t transb;
     /** Number of rows of C. */
-    mkldnn_dim_t m;
+    dnnl_dim_t m;
     /** Number of columns of C. */
-    mkldnn_dim_t n;
+    dnnl_dim_t n;
     /** Size of inner dimension shared between A and B. */
-    mkldnn_dim_t k;
+    dnnl_dim_t k;
     /** Leading dimension of A. */
-    mkldnn_dim_t lda;
+    dnnl_dim_t lda;
     /** Leading dimension of B. */
-    mkldnn_dim_t ldb;
+    dnnl_dim_t ldb;
     /** Leading dimension of C. */
-    mkldnn_dim_t ldc;
+    dnnl_dim_t ldc;
     /** Scaling factor for A*B. */
     float alpha;
     /** Scaling factor for C. */
     float beta;
     /** Type of matrix A. */
-    mkldnn_data_type_t a_type;
+    dnnl_data_type_t a_type;
     /** Type of matrix B. */
-    mkldnn_data_type_t b_type;
+    dnnl_data_type_t b_type;
     /** Type of matrix C. */
-    mkldnn_data_type_t c_type;
-} mkldnn_gemm_desc_t;
+    dnnl_data_type_t c_type;
+} dnnl_gemm_desc_t;
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // GEMM_TYPES_HPP

@@ -22,7 +22,7 @@
 #include "c_types_map.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 enum class block_dim_t {
@@ -256,6 +256,6 @@ DECL_TRAITS(BAcd16b16a, _AB, _16b16a, 4);
 DECL_TRAITS(BAc16b16a, _AB, _16b16a, 3);
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

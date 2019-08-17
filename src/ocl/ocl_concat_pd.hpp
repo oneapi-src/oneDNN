@@ -20,7 +20,7 @@
 #include "common/concat_pd.hpp"
 #include "ocl/ocl_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -30,6 +30,6 @@ struct ocl_concat_pd_t : public concat_pd_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

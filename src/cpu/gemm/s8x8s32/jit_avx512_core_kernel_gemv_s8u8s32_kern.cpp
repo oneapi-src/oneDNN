@@ -22,7 +22,7 @@
 #define is_windows 0
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -395,4 +395,4 @@ jit_avx512_core_gemv_s8u8s32_kern::generate<
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

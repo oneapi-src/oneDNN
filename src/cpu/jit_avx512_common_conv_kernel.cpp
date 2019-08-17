@@ -26,13 +26,13 @@
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 #define KNx_L2_EFFECTIVE_CAPACITY ((512 - 64) * 1024)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 namespace {
@@ -1480,7 +1480,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             if (jcp.loop_order == loop_cgn && oc_chunks > 1 && nthreads > 1
                     && wei_size / inp_size > 24
                     && (not_aligned_max || not_aligned_min) && eligible_case) {
-                // Try to find nthreads > mkldnn_get_max_threads() / 2 such
+                // Try to find nthreads > dnnl_get_max_threads() / 2 such
                 // that oc_chunks is a multiple of nthreads, or nthreads is a
                 // multiple of oc_chunks. Otherwise, keep default value.
                 // TODO: implement a task-based alternative without throttling.
@@ -4419,7 +4419,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             current_wei_tag = diff_weights_d.matches_one_of_tag(wei_4fma_tag);
 
         const bool use_4fma = true && one_of(ndims, 3, 4)
-                && mayiuse(avx512_mic_4ops) && mkldnn_thr_syncable()
+                && mayiuse(avx512_mic_4ops) && dnnl_thr_syncable()
                 && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
                 && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.t_pad, jcp.b_pad)
                 && jcp.kw <= 28 - jcp.with_bias && jcp.stride_w == 4
@@ -4483,7 +4483,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             if (one_of(ndims, 3, 4) && mayiuse(avx512_mic_4ops)
                     && jcp.stride_w == 1
                     && everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w)
-                    && mkldnn_thr_syncable()) {
+                    && dnnl_thr_syncable()) {
                 jcp.ver = ver_4fma;
             }
         } else {
@@ -4584,14 +4584,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
         int &nthr_oc_b_, int &nthr_ic_b_) {
     nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
 
-    const int max_threads = mkldnn_get_max_threads();
+    const int max_threads = dnnl_get_max_threads();
 
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
         return;
     }
 
-    if (!mkldnn_thr_syncable() && j.ver == ver_4fma) {
+    if (!dnnl_thr_syncable() && j.ver == ver_4fma) {
         // should not happen -- the driver is not ready
         // for TBB-like non-synchronous threading yet
         return;
@@ -4710,6 +4710,6 @@ template struct _jit_avx512_common_conv_fwd_kernel<Xmm>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

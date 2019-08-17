@@ -20,11 +20,11 @@
 #include "cpu/simple_sum.hpp"
 #include "jit_avx512_core_bf16_sum.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using spd_create_f = mkldnn::impl::engine_t::sum_primitive_desc_create_f;
+using spd_create_f = dnnl::impl::engine_t::sum_primitive_desc_create_f;
 
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
@@ -46,4 +46,4 @@ const spd_create_f *cpu_engine_t::get_sum_implementation_list() const {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

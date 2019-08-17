@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -23,13 +23,13 @@
 
 #include "jit_avx512_common_1x1_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 #define data_blk_off(f, n, c, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
@@ -38,10 +38,10 @@ using namespace mkldnn::impl::utils;
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const dst_data_t *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -59,7 +59,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         execute_forward_thr(ithr, nthr, src, weights, bias, dst, scratchpad);
     });
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
@@ -247,9 +247,9 @@ template <data_type_t diff_dst_type, data_type_t wei_type,
         data_type_t diff_src_type>
 void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
         diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -413,10 +413,10 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
 
 void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias_in = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -535,7 +535,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 = utils::one_of(jcp.ver, ver_fma, ver_avx512_core);
         MAYBE_UNUSED(ready_for_async);
         assert(IMPLICATION(
-                !ready_for_async && !mkldnn_thr_syncable(), jcp.nthr_mb == 1));
+                !ready_for_async && !dnnl_thr_syncable(), jcp.nthr_mb == 1));
 
         const int ithr_ic_b = ithr % jcp.nthr_ic_b;
         const int ithr_oc_b = ithr / jcp.nthr_ic_b % jcp.nthr_oc_b;
@@ -684,7 +684,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
         }
 
         /* diff_weights[:] += sum(wei_reduction[thr_mb][:]) */
-        if (mkldnn_thr_syncable() && jcp.nthr_mb > 1) {
+        if (dnnl_thr_syncable() && jcp.nthr_mb > 1) {
             simple_barrier::barrier(&reduction_barrier, jcp.nthr);
             const int work = g_work * oc_b_work * ic_b_work;
             int start {0}, end {0};
@@ -764,11 +764,11 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
             }
         }
 
-        if (mkldnn_thr_syncable())
+        if (dnnl_thr_syncable())
             rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
-#if MKLDNN_THR_SYNC == 1
+#if DNNL_THR_SYNC == 1
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         ker(ithr, jcp.nthr);
         if (pd()->with_bias()) ker_bias(ithr, jcp.nthr);
@@ -852,4 +852,4 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

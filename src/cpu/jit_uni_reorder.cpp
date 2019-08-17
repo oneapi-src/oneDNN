@@ -17,8 +17,8 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_debug.h"
 #include "memory_desc_wrapper.hpp"
-#include "mkldnn_debug.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 
@@ -45,9 +45,9 @@
 #endif
 
 using namespace Xbyak;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl::types;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -852,7 +852,7 @@ static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
     const size_t sz_drv_min = nstl::min<size_t>(
-            16 * mkldnn_get_max_threads(), utils::div_up(sz_total, 1024));
+            16 * dnnl_get_max_threads(), utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
      * sz_ker_cur -- product of the dimension processed by a kernel
@@ -1114,8 +1114,8 @@ struct jit_uni_reorder_t : public primitive_impl_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto in = CTX_IN_MEM(const char *, MKLDNN_ARG_FROM);
-        auto out = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
+        auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
+        auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
 
         omp_driver(in, out, pd()->attr()->output_scales_.scales_);
 
@@ -1139,4 +1139,4 @@ status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

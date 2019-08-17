@@ -29,20 +29,20 @@
 
  */
 
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 
 #include "../gemm/gemm.hpp"
 #include "../simple_q10n.hpp"
 #include "gemm/gemm_pack.hpp"
 #include "ref_rnn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::memory_tracking::names;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
@@ -57,7 +57,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
     };
 
     // @todo block k on simd-width
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP \
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
         && _OPENMP >= 201307 /* icc 17.0 has a problem with simd collapse */ \
         && !((defined __INTEL_COMPILER) && (__INTEL_COMPILER == 1700))
 #pragma omp parallel for simd collapse(2)
@@ -86,7 +86,7 @@ rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
     auto st = sgemm_compute(
             "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
-    assert(st == mkldnn_success);
+    assert(st == dnnl_success);
     MAYBE_UNUSED(st);
 }
 
@@ -622,31 +622,28 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
         const exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
-    auto input = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC_LAYER);
-    auto states = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC_ITER);
-    auto c_states = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC_ITER_C);
+    auto input = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC_LAYER);
+    auto states = CTX_IN_MEM(const char *, DNNL_ARG_SRC_ITER);
+    auto c_states = CTX_IN_MEM(const float *, DNNL_ARG_SRC_ITER_C);
     auto layer_weights_n_comp
-            = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_LAYER);
-    auto iter_weights_n_comp
-            = CTX_IN_MEM(const char *, MKLDNN_ARG_WEIGHTS_ITER);
-    auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
+            = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_LAYER);
+    auto iter_weights_n_comp = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_ITER);
+    auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
 
     auto dst_last_layer = rnn.is_fwd
-            ? CTX_OUT_MEM(char *, MKLDNN_ARG_DST_LAYER)
-            : const_cast<char *>(
-                    CTX_IN_MEM(const char *, MKLDNN_ARG_DST_LAYER));
+            ? CTX_OUT_MEM(char *, DNNL_ARG_DST_LAYER)
+            : const_cast<char *>(CTX_IN_MEM(const char *, DNNL_ARG_DST_LAYER));
     auto dst_last_iter = rnn.is_fwd
-            ? CTX_OUT_MEM(char *, MKLDNN_ARG_DST_ITER)
-            : const_cast<char *>(CTX_IN_MEM(const char *, MKLDNN_ARG_DST_ITER));
+            ? CTX_OUT_MEM(char *, DNNL_ARG_DST_ITER)
+            : const_cast<char *>(CTX_IN_MEM(const char *, DNNL_ARG_DST_ITER));
     auto dst_last_iter_c = rnn.is_fwd
-            ? CTX_OUT_MEM(float *, MKLDNN_ARG_DST_ITER_C)
+            ? CTX_OUT_MEM(float *, DNNL_ARG_DST_ITER_C)
             : const_cast<float *>(
-                    CTX_IN_MEM(const float *, MKLDNN_ARG_DST_ITER_C));
+                    CTX_IN_MEM(const float *, DNNL_ARG_DST_ITER_C));
 
-    auto diff_dst_layer = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_LAYER);
-    auto diff_dst_iter = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_ITER);
-    auto diff_dst_iter_c
-            = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST_ITER_C);
+    auto diff_dst_layer = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST_LAYER);
+    auto diff_dst_iter = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST_ITER);
+    auto diff_dst_iter_c = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST_ITER_C);
 
     auto w_layer
             = reinterpret_cast<const weights_data_t *>(layer_weights_n_comp);
@@ -669,9 +666,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     char *scratch_ptr = scratchpad.template get<char>(key_rnn_space);
     char *ws_ptr = nullptr;
     if (rnn.use_workspace)
-        ws_ptr = rnn.is_fwd ? CTX_OUT_MEM(char *, MKLDNN_ARG_WORKSPACE)
+        ws_ptr = rnn.is_fwd ? CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE)
                             : const_cast<char *>(CTX_IN_MEM(
-                                    const char *, MKLDNN_ARG_WORKSPACE));
+                                    const char *, DNNL_ARG_WORKSPACE));
 
     char *base_ptr = rnn.use_workspace ? ws_ptr : scratch_ptr;
     acc_data_t *ws_gates = (acc_data_t *)(base_ptr + ws_gates_offset_);
@@ -681,14 +678,13 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     float *ws_grid = (float *)(base_ptr + ws_grid_comp_offset_);
     acc_data_t *ws_cell = (acc_data_t *)(base_ptr + ws_cell_comp_offset_);
 
-    auto diff_src_layer = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_LAYER);
-    auto diff_src_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_ITER);
-    auto diff_src_iter_c = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC_ITER_C);
+    auto diff_src_layer = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_LAYER);
+    auto diff_src_iter = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_ITER);
+    auto diff_src_iter_c = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC_ITER_C);
 
-    auto diff_weights_layer
-            = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
-    auto diff_weights_iter = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS_ITER);
-    auto diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_weights_layer = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS_LAYER);
+    auto diff_weights_iter = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS_ITER);
+    auto diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 
     // Fetching extra buffers from scratchpad
     float *ws_bias = (float *)(scratch_ptr + ws_bias_offset_);
@@ -793,4 +789,4 @@ template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
 #undef AOC
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

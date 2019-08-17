@@ -20,7 +20,7 @@
 #include "cpu_engine.hpp"
 #include "pooling_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -34,7 +34,7 @@ struct cpu_pooling_bwd_pd_t : public pooling_bwd_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

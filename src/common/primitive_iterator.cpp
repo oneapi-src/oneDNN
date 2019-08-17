@@ -16,7 +16,7 @@
 
 #include <assert.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
@@ -24,10 +24,10 @@
 #include "primitive_iterator.hpp"
 #include "type_helpers.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::status;
+using namespace dnnl::impl;
+using namespace dnnl::impl::status;
 
-status_t mkldnn_primitive_desc_iterator_create(
+status_t dnnl_primitive_desc_iterator_create(
         primitive_desc_iterator_t **iterator, const_c_op_desc_t c_op_desc,
         const primitive_attr_t *attr, engine_t *engine,
         const primitive_desc_t *hint_fwd_pd) {
@@ -46,20 +46,20 @@ status_t mkldnn_primitive_desc_iterator_create(
     return success;
 }
 
-status_t mkldnn_primitive_desc_iterator_next(
+status_t dnnl_primitive_desc_iterator_next(
         primitive_desc_iterator_t *iterator) {
     if (iterator == nullptr) return invalid_arguments;
     ++(*iterator);
     return *iterator == iterator->end() ? iterator_ends : success;
 }
 
-primitive_desc_t *mkldnn_primitive_desc_iterator_fetch(
+primitive_desc_t *dnnl_primitive_desc_iterator_fetch(
         const primitive_desc_iterator_t *iterator) {
     if (iterator == nullptr) return nullptr;
     return *(*iterator);
 }
 
-status_t mkldnn_primitive_desc_clone(primitive_desc_t **primitive_desc,
+status_t dnnl_primitive_desc_clone(primitive_desc_t **primitive_desc,
         const primitive_desc_t *existing_primitive_desc) {
     if (utils::any_null(primitive_desc, existing_primitive_desc))
         return invalid_arguments;
@@ -67,18 +67,18 @@ status_t mkldnn_primitive_desc_clone(primitive_desc_t **primitive_desc,
             *primitive_desc, existing_primitive_desc->clone());
 }
 
-status_t mkldnn_primitive_desc_iterator_destroy(
+status_t dnnl_primitive_desc_iterator_destroy(
         primitive_desc_iterator_t *iterator) {
     if (iterator != nullptr) delete iterator;
     return success;
 }
 
-status_t mkldnn_primitive_desc_create(primitive_desc_t **primitive_desc,
+status_t dnnl_primitive_desc_create(primitive_desc_t **primitive_desc,
         const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
         engine_t *engine, const primitive_desc_t *hint_fwd_pd) {
     const op_desc_t *op_desc = (const op_desc_t *)c_op_desc;
 
-    mkldnn_primitive_desc_iterator it(engine, op_desc, attr, hint_fwd_pd);
+    dnnl_primitive_desc_iterator it(engine, op_desc, attr, hint_fwd_pd);
     ++it;
     if (it == it.end()) return unimplemented;
 

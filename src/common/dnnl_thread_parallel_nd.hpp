@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_THREAD_PARALLEL_ND_HPP
-#define MKLDNN_THREAD_PARALLEL_ND_HPP
+#ifndef DNNL_THREAD_PARALLEL_ND_HPP
+#define DNNL_THREAD_PARALLEL_ND_HPP
 
-/* This header must be included by mkldnn_thread.hpp only */
+/* This header must be included by dnnl_thread.hpp only */
 
 /* Functions:
  *  - parallel(nthr, f)              - executes f in parallel using at most
  *                                     nthr threads. If nthr equals 0
- *                                     mkldnn_get_max_threads() threads is
+ *                                     dnnl_get_max_threads() threads is
  *                                     used
  *  - for_nd(ithr, nthr, dims..., f) - multidimensional for loop for already
  *                                     created threads
@@ -32,31 +32,30 @@
  *                                     calls for_nd (mostly for convenience)
  */
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 /* general parallelization */
 template <typename F>
 void parallel(int nthr, F f) {
-    if (nthr == 0) nthr = mkldnn_get_max_threads();
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
+    if (nthr == 0) nthr = dnnl_get_max_threads();
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
     assert(nthr == 1);
     f(0, 1);
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
     if (nthr == 1) {
         f(0, 1);
         return;
     }
 #pragma omp parallel num_threads(nthr)
-    f(mkldnn_get_thread_num(), mkldnn_get_num_threads());
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
+    f(dnnl_get_thread_num(), dnnl_get_num_threads());
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
     if (nthr == 1) {
         f(0, 1);
         return;
     }
     tbb::parallel_for(
-            0, nthr, [&](int ithr) { f(ithr, nthr); },
-            mkldnn_tbb_partitioner());
+            0, nthr, [&](int ithr) { f(ithr, nthr); }, dnnl_tbb_partitioner());
 #endif
 }
 
@@ -179,94 +178,94 @@ constexpr size_t get_work_amount(const T &v, Args &&... args) {
 
 /* parallel_nd and parallel_nd_in_omp section */
 
-#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_TBB
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_TBB
 template <typename... Args>
 void parallel_nd(Args &&... args) {
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
     const bool do_parallel = get_work_amount(utils::forward<Args>(args)...) > 1;
 #pragma omp parallel if (do_parallel)
     {
-        const int nthr = !do_parallel ? 1 : mkldnn_get_num_threads();
-        const int ithr = !do_parallel ? 0 : mkldnn_get_thread_num();
+        const int nthr = !do_parallel ? 1 : dnnl_get_num_threads();
+        const int ithr = !do_parallel ? 0 : dnnl_get_thread_num();
         for_nd(ithr, nthr, utils::forward<Args>(args)...);
     }
 #endif
 }
-#else // MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_TBB
+#else // DNNL_CPU_RUNTIME != DNNL_RUNTIME_TBB
 
 // gcc 4.8 has a bug with passing parameter pack to lambdas.
 // So have to explicitly instantiate all the cases.
 
 template <typename T0, typename F>
 void parallel_nd(const T0 &D0, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr, [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
         typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
         const T4 &D4, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr,
             [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, D4, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4,
         typename T5, typename F>
 void parallel_nd(const T0 &D0, const T1 &D1, const T2 &D2, const T3 &D3,
         const T4 &D4, const T5 &D5, F f) {
-    const int nthr = mkldnn_get_max_threads();
+    const int nthr = dnnl_get_max_threads();
     tbb::parallel_for(
             0, nthr,
             [&](int ithr) { for_nd(ithr, nthr, D0, D1, D2, D3, D4, D5, f); },
-            mkldnn_tbb_partitioner());
+            dnnl_tbb_partitioner());
 }
 #endif
 
 template <typename... Args>
 void parallel_nd_in_omp(Args &&... args) {
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
-    for_nd(mkldnn_get_thread_num(), mkldnn_get_num_threads(),
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+    for_nd(dnnl_get_thread_num(), dnnl_get_num_threads(),
             utils::forward<Args>(args)...);
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
     assert(!"unsupported parallel_nd_in_omp()");
 #endif
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

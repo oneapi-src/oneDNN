@@ -21,7 +21,7 @@
 #include "common/eltwise_pd.hpp"
 #include "ocl/ocl_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -35,6 +35,6 @@ struct ocl_eltwise_bwd_pd_t : public eltwise_bwd_pd_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

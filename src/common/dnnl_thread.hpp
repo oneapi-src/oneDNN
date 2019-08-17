@@ -14,73 +14,73 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_THREAD_HPP
-#define MKLDNN_THREAD_HPP
+#ifndef DNNL_THREAD_HPP
+#define DNNL_THREAD_HPP
 
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SEQ
-#define MKLDNN_THR_SYNC 1
-inline int mkldnn_get_max_threads() {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+#define DNNL_THR_SYNC 1
+inline int dnnl_get_max_threads() {
     return 1;
 }
-inline int mkldnn_get_num_threads() {
+inline int dnnl_get_num_threads() {
     return 1;
 }
-inline int mkldnn_get_thread_num() {
+inline int dnnl_get_thread_num() {
     return 0;
 }
-inline int mkldnn_in_parallel() {
+inline int dnnl_in_parallel() {
     return 0;
 }
-inline void mkldnn_thr_barrier() {}
+inline void dnnl_thr_barrier() {}
 
 #define PRAGMA_OMP(...)
 
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 #include <omp.h>
-#define MKLDNN_THR_SYNC 1
+#define DNNL_THR_SYNC 1
 
-inline int mkldnn_get_max_threads() {
+inline int dnnl_get_max_threads() {
     return omp_get_max_threads();
 }
-inline int mkldnn_get_num_threads() {
+inline int dnnl_get_num_threads() {
     return omp_get_num_threads();
 }
-inline int mkldnn_get_thread_num() {
+inline int dnnl_get_thread_num() {
     return omp_get_thread_num();
 }
-inline int mkldnn_in_parallel() {
+inline int dnnl_in_parallel() {
     return omp_in_parallel();
 }
-inline void mkldnn_thr_barrier() {
+inline void dnnl_thr_barrier() {
 #pragma omp barrier
 }
 
 #define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 
-#elif MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_TBB
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
-#define MKLDNN_THR_SYNC 0
+#define DNNL_THR_SYNC 0
 
-inline int mkldnn_get_max_threads() {
+inline int dnnl_get_max_threads() {
     return tbb::this_task_arena::max_concurrency();
 }
-inline int mkldnn_get_num_threads() {
-    return mkldnn_get_max_threads();
+inline int dnnl_get_num_threads() {
+    return dnnl_get_max_threads();
 }
-inline int mkldnn_get_thread_num() {
+inline int dnnl_get_thread_num() {
     return tbb::this_task_arena::current_thread_index();
 }
-inline int mkldnn_in_parallel() {
+inline int dnnl_in_parallel() {
     return 0;
 }
-inline void mkldnn_thr_barrier() {
+inline void dnnl_thr_barrier() {
     assert(!"no barrier in TBB");
 }
-inline tbb::static_partitioner mkldnn_tbb_partitioner() {
+inline tbb::static_partitioner dnnl_tbb_partitioner() {
     return tbb::static_partitioner();
 }
 
@@ -96,11 +96,11 @@ inline tbb::static_partitioner mkldnn_tbb_partitioner() {
 #define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
 #endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
-inline bool mkldnn_thr_syncable() {
-    return MKLDNN_THR_SYNC == 1;
+inline bool dnnl_thr_syncable() {
+    return DNNL_THR_SYNC == 1;
 }
 
 template <typename T, typename U>
@@ -149,9 +149,9 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-#include "mkldnn_thread_parallel_nd.hpp"
+#include "dnnl_thread_parallel_nd.hpp"
 
 #endif
 

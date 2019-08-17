@@ -16,7 +16,7 @@
 
 #include <assert.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
@@ -25,11 +25,11 @@
 
 #include "concat_pd.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
 
-status_t mkldnn_concat_primitive_desc_create(primitive_desc_t **concat_pd,
+status_t dnnl_concat_primitive_desc_create(primitive_desc_t **concat_pd,
         const memory_desc_t *dst_md, int n, int concat_dim,
         const memory_desc_t *src_mds, const primitive_attr_t *attr,
         engine_t *engine) {

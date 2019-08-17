@@ -15,17 +15,17 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
@@ -52,7 +52,7 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
+status_t dnnl_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc, int axis,
         dim_t group_size) {
     if (!one_of(prop_kind, forward_training, forward_inference))
@@ -61,7 +61,7 @@ status_t mkldnn_shuffle_forward_desc_init(shuffle_desc_t *shuffle_desc,
             shuffle_desc, prop_kind, data_desc, axis, group_size);
 }
 
-status_t mkldnn_shuffle_backward_desc_init(shuffle_desc_t *shuffle_desc,
+status_t dnnl_shuffle_backward_desc_init(shuffle_desc_t *shuffle_desc,
         const memory_desc_t *diff_data_desc, int axis, dim_t group_size) {
     return shuffle_desc_init(
             shuffle_desc, backward_data, diff_data_desc, axis, group_size);

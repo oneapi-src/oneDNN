@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
@@ -22,7 +22,7 @@
 
 #include "jit_uni_pooling.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -278,6 +278,6 @@ template struct jit_uni_pooling_bwd_t<avx512_core, data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

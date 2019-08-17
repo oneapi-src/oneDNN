@@ -30,7 +30,7 @@
 
 #include "gemm/gemm.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -68,7 +68,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md(), weights_md(0), dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -103,7 +103,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
         }
 
         bool post_ops_ok() const {
-            using namespace mkldnn::impl::primitive_kind;
+            using namespace dnnl::impl::primitive_kind;
             auto const &po = attr()->post_ops_;
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
@@ -233,7 +233,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md(), weights_md(), diff_dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         virtual bool support_bias() const override { return true; }
@@ -272,6 +272,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

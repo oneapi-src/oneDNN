@@ -15,32 +15,32 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "bfloat16.hpp"
 #include "gemm_bf16_inner_product.hpp"
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::data_type;
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::primitive_kind;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::primitive_kind;
 using namespace memory_tracking::names;
-using namespace mkldnn::impl::cpu::bf16_support;
+using namespace dnnl::impl::cpu::bf16_support;
 
 template <data_type_t dst_data_type>
 void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const int64_t M = pd()->OC();
     const int64_t N = pd()->MB();
@@ -71,9 +71,9 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
 template <data_type_t diff_src_data_type>
 void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
         execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
     const int64_t M = pd()->IC_total_padded();
     const int64_t N = pd()->MB();
@@ -106,10 +106,10 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
 template <data_type_t diff_wei_data_type>
 void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         execute_backward_weights(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto diff_bias = CTX_OUT_MEM(char *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
@@ -205,6 +205,6 @@ template struct gemm_bf16_inner_product_bwd_weights_t<data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

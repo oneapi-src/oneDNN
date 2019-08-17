@@ -19,7 +19,7 @@
 
 #include "layer_normalization_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -33,7 +33,7 @@ struct ocl_layer_normalization_bwd_pd_t : public layer_normalization_bwd_pd_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

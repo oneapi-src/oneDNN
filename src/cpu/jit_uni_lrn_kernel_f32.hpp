@@ -22,7 +22,7 @@
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -146,7 +146,7 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -20,7 +20,7 @@
 #include "cpu_barrier.hpp"
 #include "jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -142,6 +142,6 @@ jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf);
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

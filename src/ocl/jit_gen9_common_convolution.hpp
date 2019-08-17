@@ -33,7 +33,7 @@ extern const char *gen9_common_conv_fwd_data_f16_kernel;
 
 extern const char *gen9_common_conv_dw_fwd_data_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -341,7 +341,7 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

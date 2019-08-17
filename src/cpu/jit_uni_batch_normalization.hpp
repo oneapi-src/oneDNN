@@ -26,7 +26,7 @@
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_isa_traits.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -89,7 +89,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

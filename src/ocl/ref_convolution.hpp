@@ -26,7 +26,7 @@
 
 extern const char *ref_convolution_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -91,7 +91,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                     = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise(0) || with_eltwise(1)
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : mkldnn_alg_kind_undef;
+                    : dnnl_alg_kind_undef;
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -257,5 +257,5 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif

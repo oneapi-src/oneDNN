@@ -14,21 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MKLDNN_TRAITS_HPP
-#define MKLDNN_TRAITS_HPP
+#ifndef DNNL_TRAITS_HPP
+#define DNNL_TRAITS_HPP
 
 #include <assert.h>
 #include <stdint.h>
 
 #include "bfloat16.hpp"
 #include "c_types_map.hpp"
+#include "dnnl.h"
 #include "float16.hpp"
-#include "mkldnn.h"
 #include "nstl.hpp"
 #include "utils.hpp"
 #include "z_magic.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 template <data_type_t>
@@ -124,7 +124,7 @@ PKIND_TRAITS_INST(gemm);
 #undef PKIND_TRAITS_INST
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

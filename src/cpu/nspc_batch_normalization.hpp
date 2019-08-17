@@ -20,15 +20,15 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_isa_traits.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -50,8 +50,8 @@ struct nspc_batch_normalization_fwd_t : public primitive_impl_t {
             bool ok = true
                     /* the algorithm requires barriers while switching
                  * between parallelization over N and C dimensions */
-                    && mkldnn_thr_syncable() && is_fwd()
-                    && !has_zero_dim_memory() && src_md()->data_type == d_type
+                    && dnnl_thr_syncable() && is_fwd() && !has_zero_dim_memory()
+                    && src_md()->data_type == d_type
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                     && IMPLICATION(
                             use_scaleshift(), weights_md()->data_type == f32)
@@ -75,7 +75,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
                 const size_t stats_buf_sz = sizeof(acc_data_t)
-                        * nstl::max(C(), dim_t(16)) * mkldnn_get_max_threads();
+                        * nstl::max(C(), dim_t(16)) * dnnl_get_max_threads();
                 scratchpad.book(key_bnorm_reduction, stats_buf_sz);
                 scratchpad.book(key_bnorm_tmp_mean, stats_buf_sz);
                 scratchpad.book(key_bnorm_tmp_var, stats_buf_sz);
@@ -84,7 +84,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_impl_t {
                 const int simd_w = 16;
                 const int nbufs = 2;
                 const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
-                        * mkldnn_get_max_threads() * utils::rnd_up(C(), simd_w);
+                        * dnnl_get_max_threads() * utils::rnd_up(C(), simd_w);
                 scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
@@ -124,8 +124,7 @@ struct nspc_batch_normalization_bwd_t : public primitive_impl_t {
             bool ok = true
                     /* the algorithm requires barriers while switching
                  * between parallelization over N and C dimensions */
-                    && mkldnn_thr_syncable() && is_bwd()
-                    && !has_zero_dim_memory()
+                    && dnnl_thr_syncable() && is_bwd() && !has_zero_dim_memory()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
@@ -154,15 +153,15 @@ struct nspc_batch_normalization_bwd_t : public primitive_impl_t {
 
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(key_bnorm_reduction,
-                    sizeof(acc_data_t) * 2 * C() * mkldnn_get_max_threads());
+                    sizeof(acc_data_t) * 2 * C() * dnnl_get_max_threads());
             scratchpad.book(key_bnorm_tmp_diff_ss,
                     sizeof(acc_data_t) * 2 * C()
-                            * (mkldnn_get_max_threads() + 1));
+                            * (dnnl_get_max_threads() + 1));
             if (d_type == bf16) {
                 const int simd_w = 16;
                 const int nbufs = 2 + !use_global_stats();
                 const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
-                        * mkldnn_get_max_threads() * utils::rnd_up(C(), simd_w);
+                        * dnnl_get_max_threads() * utils::rnd_up(C(), simd_w);
                 scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
@@ -186,7 +185,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

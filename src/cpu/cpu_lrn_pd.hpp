@@ -22,7 +22,7 @@
 #include "cpu_engine.hpp"
 #include "lrn_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -36,7 +36,7 @@ struct cpu_lrn_bwd_pd_t : public lrn_bwd_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

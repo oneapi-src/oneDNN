@@ -21,7 +21,7 @@
 
 #include "ocl/ocl_stream.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -104,4 +104,4 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

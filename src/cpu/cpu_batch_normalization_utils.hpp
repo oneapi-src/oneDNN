@@ -19,7 +19,7 @@
 
 #include "batch_normalization_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace bnorm_utils {
@@ -38,6 +38,6 @@ bool is_spatial_thr(
 } // namespace bnorm_utils
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

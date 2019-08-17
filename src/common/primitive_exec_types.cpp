@@ -18,11 +18,11 @@
 #include "memory.hpp"
 #include "primitive.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
-        const mkldnn_exec_arg_t *c_args, exec_args_t &args) {
+        const dnnl_exec_arg_t *c_args, exec_args_t &args) {
     using namespace status;
 
     if (!IMPLICATION(nargs > 0, c_args != nullptr)) return invalid_arguments;
@@ -90,4 +90,4 @@ const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
     return *(scratchpad_grantor_.get());
 }
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

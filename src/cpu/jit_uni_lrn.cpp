@@ -21,13 +21,13 @@
 #include "jit_uni_lrn.hpp"
 #include "jit_uni_lrn_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 
 template <cpu_isa_t isa>
 jit_uni_lrn_fwd_t<isa>::jit_uni_lrn_fwd_t(const pd_t *apd)
@@ -84,9 +84,9 @@ template <cpu_isa_t isa>
 void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
     using namespace alg_kind;
 
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(data_t *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(data_t *, DNNL_ARG_WORKSPACE);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -217,10 +217,10 @@ jit_uni_lrn_bwd_t<isa>::~jit_uni_lrn_bwd_t() {
 
 template <cpu_isa_t isa>
 void jit_uni_lrn_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto ws = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const data_t *, DNNL_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -296,6 +296,6 @@ template struct jit_uni_lrn_bwd_t<avx2>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

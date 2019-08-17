@@ -18,11 +18,11 @@
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ref_concat.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
-using cpd_create_f = mkldnn::impl::engine_t::concat_primitive_desc_create_f;
+using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
 
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
@@ -40,4 +40,4 @@ ocl_gpu_engine_impl_list_t::get_concat_implementation_list() {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

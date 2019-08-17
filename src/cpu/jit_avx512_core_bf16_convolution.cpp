@@ -15,20 +15,20 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "bfloat16.hpp"
 #include "jit_avx512_core_bf16_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 using namespace nstl;
 
@@ -52,10 +52,10 @@ void jit_avx512_core_bf16_convolution_fwd_t::prepare_padded_bias(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -75,7 +75,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     if (jcp.aligned_threads)
         nthr = jcp.aligned_threads;
     else
-        nthr = mkldnn_get_max_threads();
+        nthr = dnnl_get_max_threads();
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
@@ -133,10 +133,10 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -156,7 +156,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     if (jcp.aligned_threads)
         nthr = jcp.aligned_threads;
     else
-        nthr = mkldnn_get_max_threads();
+        nthr = dnnl_get_max_threads();
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
@@ -235,10 +235,10 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -259,7 +259,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     if (jcp.aligned_threads)
         nthr = jcp.aligned_threads;
     else
-        nthr = mkldnn_get_max_threads();
+        nthr = dnnl_get_max_threads();
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
@@ -352,9 +352,9 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
 
 void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(char *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -501,9 +501,9 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
 
 void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(char *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -672,16 +672,16 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
     thread_info_t(const jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
         : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
-        diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-        src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-        diff_weights = CTX_OUT_MEM(void *, MKLDNN_ARG_DIFF_WEIGHTS);
+        diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+        src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+        diff_weights = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS);
         if (self->pd()->jcp_.bia_dt == data_type::bf16) {
             diff_bias = scratchpad.template get<float>(
                     key_conv_bias_bf16_convert_wsp);
         } else
             diff_bias = self->pd()->wants_padded_bias()
                     ? scratchpad.template get<float>(key_conv_padded_bias)
-                    : CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+                    : CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 #ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
         tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
         tr_diff_dst = scratchpad.template get<diff_dst_data_t>(
@@ -1116,7 +1116,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_bias(
         }
     }
 
-    if (mkldnn_thr_syncable())
+    if (dnnl_thr_syncable())
         rb->reduce(ti->ithr, ti->diff_bias, reducer_bia_scratchpad);
 }
 
@@ -1201,7 +1201,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
         thread_info_t thread_info(this, ctx, ithr);
         compute_diff_weights(&thread_info);
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-        if (mkldnn_thr_syncable() && nthr_mb_ > _start_nthr_mb)
+        if (dnnl_thr_syncable() && nthr_mb_ > _start_nthr_mb)
             reduce_and_convert_diff_weights(&thread_info);
 #endif
         if (pd()->with_bias()) compute_diff_bias(&thread_info, ctx);
@@ -1232,14 +1232,14 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
         auto diff_bias_f32 = ctx.get_scratchpad_grantor().template get<float>(
                 key_conv_bias_bf16_convert_wsp);
         auto diff_bias_in = CTX_OUT_MEM(
-                prec_traits<data_type::bf16>::type *, MKLDNN_ARG_DIFF_BIAS);
+                prec_traits<data_type::bf16>::type *, DNNL_ARG_DIFF_BIAS);
         cvt_float_to_bfloat16(diff_bias_in, diff_bias_f32,
                 pd()->jcp_.oc_without_padding * pd()->jcp_.ngroups);
 
     } else if (pd()->wants_padded_bias()) {
         auto diff_bias = ctx.get_scratchpad_grantor().template get<const float>(
                 key_conv_padded_bias);
-        auto diff_bias_in = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+        auto diff_bias_in = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
         utils::array_copy(
                 diff_bias_in, diff_bias, pd()->jcp_.oc_without_padding);
     }
@@ -1247,6 +1247,6 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

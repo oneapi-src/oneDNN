@@ -15,11 +15,11 @@
 *******************************************************************************/
 #include <cmath>
 
+#include "dnnl_thread.hpp"
 #include "gemm_utils_f32.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace gemm_utils {
@@ -50,7 +50,7 @@ void calc_nthr_nocopy_avx(int m, int n, int k, int nthrs, int *nthrs_m,
     // Partition along K dimension
     //  - if threading allows having barriers (e.g. OMP)
     //  - if there is not enough parallelism along M or N
-    if (mkldnn_thr_syncable()) {
+    if (dnnl_thr_syncable()) {
         int nthr_other = nthr_k = 1;
         while ((nthr_m * nthr_n * nthr_other < nthr)
                 && (k / (nthr_other + 1) > BK_NOCOPY_AVX)) {
@@ -157,7 +157,7 @@ void calc_nthr_nocopy_avx512_common(int m, int n, int k, int nthrs,
     // Partition along K dimension
     //  - if threading allows having barriers (e.g. OMP)
     //  - if there is not enough parallelism along M or N
-    if (mkldnn_thr_syncable()) {
+    if (dnnl_thr_syncable()) {
         if (n <= 2 * BN_NOCOPY_AVX512_COMMON
                 && m <= 2 * BM_NOCOPY_AVX512_COMMON * nthr && k > m && k > n) {
             nthr_k = k / BK_NOCOPY_AVX512_COMMON;
@@ -344,4 +344,4 @@ template void sum_two_matrices<double>(int m, int n, double *__restrict p_src,
 } // namespace gemm_utils
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

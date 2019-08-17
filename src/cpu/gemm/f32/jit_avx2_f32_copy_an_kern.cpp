@@ -17,7 +17,7 @@
 #include "common_f32.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -2099,4 +2099,4 @@ jit_avx2_f32_copy_an_kern::jit_avx2_f32_copy_an_kern()
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

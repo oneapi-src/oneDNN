@@ -18,7 +18,7 @@
 
 #include "common/primitive_exec_types.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -27,16 +27,15 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &mean = pd()->stats_are_src() ? CTX_IN_STORAGE(MKLDNN_ARG_MEAN)
-                                       : CTX_OUT_STORAGE(MKLDNN_ARG_MEAN);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
+                                       : CTX_OUT_STORAGE(DNNL_ARG_MEAN);
 
-    auto &variance = pd()->stats_are_src()
-            ? CTX_IN_STORAGE(MKLDNN_ARG_VARIANCE)
-            : CTX_OUT_STORAGE(MKLDNN_ARG_VARIANCE);
+    auto &variance = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_VARIANCE)
+                                           : CTX_OUT_STORAGE(DNNL_ARG_VARIANCE);
 
-    auto &scaleshift = CTX_IN_STORAGE(MKLDNN_ARG_SCALE_SHIFT);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &jln = pd()->jln_;
 
@@ -60,14 +59,14 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &mean = CTX_IN_STORAGE(MKLDNN_ARG_MEAN);
-    auto &variance = CTX_IN_STORAGE(MKLDNN_ARG_VARIANCE);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &scaleshift = CTX_IN_STORAGE(MKLDNN_ARG_SCALE_SHIFT);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
+    auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
 
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
-    auto &diff_scaleshift = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_scaleshift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const auto &jln = pd()->jln_;
 
@@ -90,4 +89,4 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

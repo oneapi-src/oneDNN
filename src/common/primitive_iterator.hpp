@@ -16,47 +16,47 @@
 #ifndef PRIMITIVE_ITERATOR_HPP
 #define PRIMITIVE_ITERATOR_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 
-struct mkldnn_primitive_desc_iterator : public mkldnn::impl::c_compatible {
-    using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
+struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
+    using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 
-    mkldnn_primitive_desc_iterator(mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::op_desc_t *op_desc,
-            const mkldnn::impl::primitive_attr_t *attr,
-            const mkldnn::impl::primitive_desc_t *hint_fwd_pd)
+    dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine,
+            const dnnl::impl::op_desc_t *op_desc,
+            const dnnl::impl::primitive_attr_t *attr,
+            const dnnl::impl::primitive_desc_t *hint_fwd_pd)
         : idx_(-1)
         , engine_(engine)
         , pd_(nullptr)
         , op_desc_(op_desc)
-        , attr_(attr ? *attr : mkldnn::impl::primitive_attr_t())
+        , attr_(attr ? *attr : dnnl::impl::primitive_attr_t())
         , hint_fwd_pd_(hint_fwd_pd)
         , impl_list_(engine_->get_implementation_list())
         , last_idx_(0) {
         while (impl_list_[last_idx_] != nullptr)
             ++last_idx_;
     }
-    ~mkldnn_primitive_desc_iterator() {
+    ~dnnl_primitive_desc_iterator() {
         if (pd_) delete pd_;
     }
 
-    bool operator==(const mkldnn::impl::primitive_desc_iterator_t &rhs) const {
+    bool operator==(const dnnl::impl::primitive_desc_iterator_t &rhs) const {
         return idx_ == rhs.idx_ && engine_ == rhs.engine_;
     }
-    bool operator!=(const mkldnn::impl::primitive_desc_iterator_t &rhs) const {
+    bool operator!=(const dnnl::impl::primitive_desc_iterator_t &rhs) const {
         return !operator==(rhs);
     }
 
-    mkldnn::impl::primitive_desc_iterator_t end() const {
-        return mkldnn_primitive_desc_iterator(engine_, last_idx_);
+    dnnl::impl::primitive_desc_iterator_t end() const {
+        return dnnl_primitive_desc_iterator(engine_, last_idx_);
     }
 
-    mkldnn::impl::primitive_desc_iterator_t &operator++() {
+    dnnl::impl::primitive_desc_iterator_t &operator++() {
         if (pd_) {
             delete pd_;
             pd_ = nullptr;
@@ -64,30 +64,28 @@ struct mkldnn_primitive_desc_iterator : public mkldnn::impl::c_compatible {
         while (++idx_ != last_idx_) {
             auto s = impl_list_[idx_](
                     &pd_, op_desc_, &attr_, engine_, hint_fwd_pd_);
-            if (s == mkldnn::impl::status::success) {
-                break;
-            }
+            if (s == dnnl::impl::status::success) { break; }
         }
         return *this;
     }
 
-    mkldnn::impl::primitive_desc_t *operator*() const {
+    dnnl::impl::primitive_desc_t *operator*() const {
         if (*this == end() || pd_ == nullptr) return nullptr;
         return pd_->clone();
     }
 
 protected:
     int idx_;
-    mkldnn::impl::engine_t *engine_;
-    mkldnn::impl::primitive_desc_t *pd_;
-    const mkldnn::impl::op_desc_t *op_desc_;
-    const mkldnn::impl::primitive_attr_t attr_;
-    const mkldnn::impl::primitive_desc_t *hint_fwd_pd_;
+    dnnl::impl::engine_t *engine_;
+    dnnl::impl::primitive_desc_t *pd_;
+    const dnnl::impl::op_desc_t *op_desc_;
+    const dnnl::impl::primitive_attr_t attr_;
+    const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
     const pd_create_f *impl_list_;
     int last_idx_;
 
 private:
-    mkldnn_primitive_desc_iterator(mkldnn::impl::engine_t *engine, int last_idx)
+    dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine, int last_idx)
         : idx_(last_idx)
         , engine_(engine)
         , pd_(nullptr)
@@ -96,7 +94,7 @@ private:
         , impl_list_(nullptr)
         , last_idx_(last_idx) {}
 
-    mkldnn_primitive_desc_iterator(mkldnn_primitive_desc_iterator &&other)
+    dnnl_primitive_desc_iterator(dnnl_primitive_desc_iterator &&other)
         : idx_(other.idx_)
         , engine_(other.engine_)
         , pd_(other.pd_)
@@ -107,7 +105,7 @@ private:
         other.pd_ = nullptr;
     }
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_primitive_desc_iterator);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive_desc_iterator);
 };
 
 #endif

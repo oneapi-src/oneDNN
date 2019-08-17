@@ -18,14 +18,14 @@
 #define CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -45,7 +45,7 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     scratchpad.book(key_wino_M, sizeof(float) * M_sz, PAGE_2M);
 
     if (jcp.sched_policy == WSCHED_WEI_S_D_G_W) {
-        const int nthr = mkldnn_get_max_threads();
+        const int nthr = dnnl_get_max_threads();
 
         size_t tr_src_sz = jcp.ver != ver_4fma ? 0
                                                : (size_t)nthr * alpha * alpha
@@ -104,7 +104,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && mkldnn_thr_syncable();
+                    && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
 
             status_t status
@@ -140,10 +140,10 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
-        auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
-        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+        auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+        auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
+        auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
         this->_execute_data_W_S_G_D((float *)src, dst, (float *)weights,
                 (float *)bias, ctx.get_scratchpad_grantor());
         return status::success;
@@ -176,7 +176,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && mkldnn_thr_syncable();
+                    && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
 
             status_t status
@@ -212,9 +212,9 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
-        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
-        auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
+        auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
+        auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
+        auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
         this->_execute_data_W_S_G_D((float *)diff_dst, diff_src,
                 (float *)weights, nullptr, ctx.get_scratchpad_grantor());
         return status::success;
@@ -246,7 +246,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && mkldnn_thr_syncable();
+                    && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
 
             status_t status
@@ -307,7 +307,7 @@ void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16]);
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

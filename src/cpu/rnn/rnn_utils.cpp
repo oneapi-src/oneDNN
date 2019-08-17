@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 
 #include "gemm/gemm_pack.hpp"
 #include "ref_rnn.hpp"
@@ -24,11 +24,11 @@
 #include "rnn_utils.hpp"
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 using namespace rnn_utils;
 using namespace format_tag;
 using namespace rnn_packed_format;
@@ -66,13 +66,13 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn.is_lbr = rd.cell_kind == mkldnn_lbr_gru;
+    rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
 
     switch (rd.direction) {
-        case mkldnn_unidirectional_left2right: rnn.exec_dir = l2r; break;
-        case mkldnn_unidirectional_right2left: rnn.exec_dir = r2l; break;
-        case mkldnn_bidirectional_concat: rnn.exec_dir = bi_concat; break;
-        case mkldnn_bidirectional_sum: rnn.exec_dir = bi_sum; break;
+        case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
+        case dnnl_unidirectional_right2left: rnn.exec_dir = r2l; break;
+        case dnnl_bidirectional_concat: rnn.exec_dir = bi_concat; break;
+        case dnnl_bidirectional_sum: rnn.exec_dir = bi_sum; break;
         default: break;
     }
 
@@ -95,7 +95,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.n_iter = src_layer_d.dims()[0];
     rnn.n_dir = weights_layer_d.dims()[1];
     rnn.n_gates = weights_layer_d.dims()[3];
-    rnn.n_states = rd.cell_kind == mkldnn_vanilla_lstm ? 2 : 1;
+    rnn.n_states = rd.cell_kind == dnnl_vanilla_lstm ? 2 : 1;
     rnn.n_bias = rnn.n_gates + rnn.is_lbr;
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];
@@ -244,7 +244,7 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.use_workspace = rnn.is_training;
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
             * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * sizeof_states_dt;
-    bool is_lstm = rd.cell_kind == mkldnn_vanilla_lstm;
+    bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
     rnn.ws_c_states_size = is_lstm
             ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
                     * rnn.states_ws_ld * sizeof(float)
@@ -365,24 +365,24 @@ status_t rnn_utils::set_expected_desc(
     if (use_packed_gemm) {
         weights_md.format_kind = format_kind::rnn_packed;
         rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
-        rnn_pdata.format = rnn.is_fwd ? mkldnn_ldigo_p : mkldnn_ldgoi_p;
+        rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
         rnn_pdata.ldb = rnn.states_ws_ld;
         if (is_iter) {
             rnn_pdata.n = rnn.mb;
             rnn_pdata.n_parts = rnn.n_parts_weights_iter;
             array_copy(rnn_pdata.parts, rnn.parts_weights_iter,
-                    MKLDNN_RNN_MAX_N_PARTS);
+                    DNNL_RNN_MAX_N_PARTS);
             array_copy(rnn_pdata.part_pack_size,
-                    rnn.part_weights_iter_pack_size, MKLDNN_RNN_MAX_N_PARTS);
+                    rnn.part_weights_iter_pack_size, DNNL_RNN_MAX_N_PARTS);
             rnn_pdata.offset_compensation = rnn.weights_iter_comp_offset;
             rnn_pdata.size = rnn.weights_iter_pack_size;
         } else {
             rnn_pdata.n = rnn.merge_gemm_layer ? rnn.n_iter * rnn.mb : rnn.mb;
             rnn_pdata.n_parts = rnn.n_parts_weights_layer;
             array_copy(rnn_pdata.parts, rnn.parts_weights_layer,
-                    MKLDNN_RNN_MAX_N_PARTS);
+                    DNNL_RNN_MAX_N_PARTS);
             array_copy(rnn_pdata.part_pack_size,
-                    rnn.part_weights_layer_pack_size, MKLDNN_RNN_MAX_N_PARTS);
+                    rnn.part_weights_layer_pack_size, DNNL_RNN_MAX_N_PARTS);
             rnn_pdata.offset_compensation = rnn.weights_layer_comp_offset;
             rnn_pdata.size = rnn.weights_layer_pack_size;
         }
@@ -396,4 +396,4 @@ status_t rnn_utils::set_expected_desc(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -26,7 +26,7 @@
 #include "cpu_isa_traits.hpp"
 #include "cpu_layer_normalization_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -114,7 +114,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -22,7 +22,7 @@
 #include "cpu_engine.hpp"
 #include "deconvolution_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -41,7 +41,7 @@ struct cpu_deconvolution_bwd_weights_pd_t
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

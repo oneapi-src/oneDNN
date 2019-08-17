@@ -16,7 +16,7 @@
 
 #include "ocl/ref_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -25,10 +25,10 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
-    auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
@@ -60,10 +60,10 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
-    auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, diff_src);
@@ -84,10 +84,10 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &diff_weights = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS);
-    auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
+    auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -104,4 +104,4 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

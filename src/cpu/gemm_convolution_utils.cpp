@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "cpu_isa_traits.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -26,12 +26,12 @@
 #include "gemm_convolution_utils.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 using namespace prop_kind;
 using namespace data_type;
 
@@ -1130,4 +1130,4 @@ void bwd_weights_reduction_par(int ithr, int nthr,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

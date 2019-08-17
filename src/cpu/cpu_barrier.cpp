@@ -18,7 +18,7 @@
 
 #include "cpu_barrier.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -107,6 +107,6 @@ void barrier(ctx_t *ctx, int nthr) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

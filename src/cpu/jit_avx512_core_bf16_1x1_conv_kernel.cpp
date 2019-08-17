@@ -15,7 +15,7 @@
 *******************************************************************************/
 #include <float.h>
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -25,12 +25,12 @@
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
@@ -1061,7 +1061,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
 void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
-    using namespace mkldnn::impl::memory_tracking::names;
+    using namespace dnnl::impl::memory_tracking::names;
 
     if (jcp.with_bias) {
         if (jcp.bia_dt == data_type::bf16
@@ -1168,4 +1168,4 @@ void jit_avx512_core_bf16_1x1_conv_kernel::balance(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

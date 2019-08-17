@@ -16,7 +16,7 @@
 
 #include "ocl/ref_lrn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -24,9 +24,9 @@ status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -44,10 +44,10 @@ status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -65,4 +65,4 @@ status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

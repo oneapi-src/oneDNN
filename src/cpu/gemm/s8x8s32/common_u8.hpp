@@ -25,7 +25,7 @@
     (((x) * (size) + PAGE_4K - 1) / PAGE_4K) * PAGE_4K
 #define NEXT_THR_STRIDE(x, size) (PADD_BYTESIZE_ONPAGE(x, size)) / size
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -87,5 +87,5 @@ public:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif // COMMON_U8_HPP

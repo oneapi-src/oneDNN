@@ -19,13 +19,13 @@
 
 #include <assert.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct primitive_impl_t : public c_compatible {
@@ -43,11 +43,11 @@ protected:
 
 private:
     primitive_impl_t() = delete;
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(primitive_impl_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(primitive_impl_t);
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

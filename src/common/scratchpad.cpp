@@ -18,7 +18,7 @@
 
 #include "scratchpad.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 /* Allocating memory buffers on a page boundary to reduce TLB/page misses */
@@ -43,7 +43,7 @@ private:
     char *scratchpad_;
     size_t size_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(concurrent_scratchpad_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(concurrent_scratchpad_t);
 };
 
 /*
@@ -87,7 +87,7 @@ thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
    Scratchpad creation routine
 */
 scratchpad_t *create_scratchpad(size_t size) {
-#ifndef MKLDNN_ENABLE_CONCURRENT_EXEC
+#ifndef DNNL_ENABLE_CONCURRENT_EXEC
     return new global_scratchpad_t(size);
 #else
     return new concurrent_scratchpad_t(size);
@@ -95,4 +95,4 @@ scratchpad_t *create_scratchpad(size_t size) {
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

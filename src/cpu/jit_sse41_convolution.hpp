@@ -25,7 +25,7 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_sse41_conv_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -93,6 +93,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

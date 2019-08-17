@@ -19,7 +19,7 @@
 
 #include <assert.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
@@ -38,27 +38,27 @@
 #define CTX_OUT_MEM(type, arg) \
     static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
 
-struct mkldnn_primitive : public mkldnn::impl::c_compatible {
-    mkldnn_primitive(const std::shared_ptr<mkldnn::impl::primitive_impl_t>
-                             &primitive_impl,
+struct dnnl_primitive : public dnnl::impl::c_compatible {
+    dnnl_primitive(
+            const std::shared_ptr<dnnl::impl::primitive_impl_t> &primitive_impl,
             bool use_global_scratchpad);
 
-    mkldnn::impl::status_t init();
-    mkldnn::impl::engine_t *engine() const;
-    const mkldnn::impl::primitive_desc_t *pd() const;
-    const std::shared_ptr<mkldnn::impl::primitive_impl_t> &
+    dnnl::impl::status_t init();
+    dnnl::impl::engine_t *engine() const;
+    const dnnl::impl::primitive_desc_t *pd() const;
+    const std::shared_ptr<dnnl::impl::primitive_impl_t> &
     get_primitive_impl() const;
-    mkldnn::impl::status_t execute(mkldnn::impl::exec_ctx_t &ctx) const;
+    dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
-    ~mkldnn_primitive();
+    ~dnnl_primitive();
 
 private:
-    std::shared_ptr<mkldnn::impl::primitive_impl_t> primitive_impl_;
+    std::shared_ptr<dnnl::impl::primitive_impl_t> primitive_impl_;
     void *scratchpad_buffer_;
-    mkldnn::impl::scratchpad_t *global_scratchpad_;
+    dnnl::impl::scratchpad_t *global_scratchpad_;
 
-    mkldnn_primitive() = delete;
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_primitive);
+    dnnl_primitive() = delete;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);
 };
 
 #endif

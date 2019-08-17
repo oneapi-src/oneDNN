@@ -18,7 +18,7 @@
 
 #include "ocl/gemm_inner_product.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -29,17 +29,17 @@ status_t gemm_inner_product_fwd_t::execute_forward(
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     exec_args_t gemm_args;
-    gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_WEIGHTS);
-    gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_SRC);
-    gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DST);
+    gemm_args[DNNL_ARG_SRC_0] = ctx.args().at(DNNL_ARG_WEIGHTS);
+    gemm_args[DNNL_ARG_SRC_1] = ctx.args().at(DNNL_ARG_SRC);
+    gemm_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
-        auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
-        auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+        auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
+        auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, bias);
@@ -57,9 +57,9 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 status_t gemm_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
     exec_args_t gemm_args;
-    gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_WEIGHTS);
-    gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
-    gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DIFF_SRC);
+    gemm_args[DNNL_ARG_SRC_0] = ctx.args().at(DNNL_ARG_WEIGHTS);
+    gemm_args[DNNL_ARG_SRC_1] = ctx.args().at(DNNL_ARG_DIFF_DST);
+    gemm_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DIFF_SRC);
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
@@ -75,21 +75,21 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 
     exec_args_t gemm_args;
     if (pd()->wei_tr()) {
-        gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
-        gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_SRC);
+        gemm_args[DNNL_ARG_SRC_0] = ctx.args().at(DNNL_ARG_DIFF_DST);
+        gemm_args[DNNL_ARG_SRC_1] = ctx.args().at(DNNL_ARG_SRC);
     } else {
-        gemm_args[MKLDNN_ARG_SRC_0] = ctx.args().at(MKLDNN_ARG_SRC);
-        gemm_args[MKLDNN_ARG_SRC_1] = ctx.args().at(MKLDNN_ARG_DIFF_DST);
+        gemm_args[DNNL_ARG_SRC_0] = ctx.args().at(DNNL_ARG_SRC);
+        gemm_args[DNNL_ARG_SRC_1] = ctx.args().at(DNNL_ARG_DIFF_DST);
     }
-    gemm_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DIFF_WEIGHTS);
+    gemm_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DIFF_WEIGHTS);
 
     exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
     status_t gemm_exec_status = gemm_->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
-        auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-        auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
+        auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+        auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, diff_dst);
@@ -106,4 +106,4 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

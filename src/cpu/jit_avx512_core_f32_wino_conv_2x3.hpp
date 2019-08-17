@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -29,7 +29,7 @@
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -107,10 +107,10 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_impl_t {
     ~jit_avx512_core_f32_wino_conv_2x3_fwd_t();
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-        auto wei = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
-        auto bia = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
-        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+        auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+        auto wei = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
+        auto bia = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
 
         if (pd()->jcp_.small_mb)
             execute_forward_small_mb(
@@ -138,6 +138,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -24,7 +24,7 @@
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -43,7 +43,7 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

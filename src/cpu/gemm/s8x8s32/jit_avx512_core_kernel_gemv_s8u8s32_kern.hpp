@@ -23,7 +23,7 @@
 #include "common_u8.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -69,6 +69,6 @@ public:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP

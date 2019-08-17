@@ -25,7 +25,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -68,7 +68,7 @@ struct cpu_convolution_bwd_weights_pd_t : public convolution_bwd_weights_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

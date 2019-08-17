@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -25,21 +25,21 @@
 #include "gemm/gemm.hpp"
 #include "gemm_x8s8s32x_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::math;
-using namespace mkldnn::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::math;
+using namespace dnnl::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
 void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src_base = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -607,11 +607,10 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 template <data_type_t dst_type>
 void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst_base
-            = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bia_base = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst_base = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto diff_src_base = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -713,4 +712,4 @@ template struct _gemm_u8s8s32x_convolution_bwd_data_t<s8>;
 template struct _gemm_u8s8s32x_convolution_bwd_data_t<u8>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

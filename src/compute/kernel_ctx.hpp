@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -120,6 +120,6 @@ inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // COMPUTE_KERNEL_CTX_HPP

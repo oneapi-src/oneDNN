@@ -22,12 +22,12 @@
 #include <unordered_map>
 
 #include "c_types_map.hpp"
-#include "mkldnn.h"
+#include "dnnl.h"
 #include "primitive_hashing.hpp"
 #include "primitive_impl.hpp"
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct primitive_cache_t : public c_compatible {
@@ -77,7 +77,7 @@ private:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

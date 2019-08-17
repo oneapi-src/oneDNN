@@ -23,13 +23,13 @@
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
@@ -498,4 +498,4 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

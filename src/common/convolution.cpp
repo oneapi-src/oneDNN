@@ -15,20 +15,20 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -113,21 +113,21 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     return success;
 }
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-status_t mkldnn_convolution_forward_desc_init(convolution_desc_t *conv_desc,
+status_t dnnl_convolution_forward_desc_init(convolution_desc_t *conv_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return mkldnn::impl::conv_desc_init(conv_desc, prop_kind, alg_kind,
-            src_desc, weights_desc, bias_desc, dst_desc, strides, nullptr,
-            padding_l, padding_r);
+    return dnnl::impl::conv_desc_init(conv_desc, prop_kind, alg_kind, src_desc,
+            weights_desc, bias_desc, dst_desc, strides, nullptr, padding_l,
+            padding_r);
 }
 
-status_t mkldnn_dilated_convolution_forward_desc_init(
+status_t dnnl_dilated_convolution_forward_desc_init(
         convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
@@ -135,48 +135,47 @@ status_t mkldnn_dilated_convolution_forward_desc_init(
         const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
-    return mkldnn::impl::conv_desc_init(conv_desc, prop_kind, alg_kind,
-            src_desc, weights_desc, bias_desc, dst_desc, strides, dilates,
-            padding_l, padding_r);
+    return dnnl::impl::conv_desc_init(conv_desc, prop_kind, alg_kind, src_desc,
+            weights_desc, bias_desc, dst_desc, strides, dilates, padding_l,
+            padding_r);
 }
 
-status_t mkldnn_convolution_backward_data_desc_init(
-        convolution_desc_t *conv_desc, alg_kind_t alg_kind,
-        const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *diff_dst_desc, const dims_t strides,
-        const dims_t padding_l, const dims_t padding_r) {
-    return mkldnn::impl::conv_desc_init(conv_desc, backward_data, alg_kind,
+status_t dnnl_convolution_backward_data_desc_init(convolution_desc_t *conv_desc,
+        alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
+        const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc,
+        const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
+    return dnnl::impl::conv_desc_init(conv_desc, backward_data, alg_kind,
             diff_src_desc, weights_desc, nullptr, diff_dst_desc, strides,
             nullptr, padding_l, padding_r);
 }
 
-status_t mkldnn_dilated_convolution_backward_data_desc_init(
+status_t dnnl_dilated_convolution_backward_data_desc_init(
         convolution_desc_t *conv_desc, alg_kind_t alg_kind,
         const memory_desc_t *diff_src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
-    return mkldnn::impl::conv_desc_init(conv_desc, backward_data, alg_kind,
+    return dnnl::impl::conv_desc_init(conv_desc, backward_data, alg_kind,
             diff_src_desc, weights_desc, nullptr, diff_dst_desc, strides,
             dilates, padding_l, padding_r);
 }
 
-status_t mkldnn_convolution_backward_weights_desc_init(
+status_t dnnl_convolution_backward_weights_desc_init(
         convolution_desc_t *conv_desc, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
         const dims_t strides, const dims_t padding_l, const dims_t padding_r) {
-    return mkldnn::impl::conv_desc_init(conv_desc, backward_weights, alg_kind,
+    return dnnl::impl::conv_desc_init(conv_desc, backward_weights, alg_kind,
             src_desc, diff_weights_desc, diff_bias_desc, diff_dst_desc, strides,
             nullptr, padding_l, padding_r);
 }
 
-status_t mkldnn_dilated_convolution_backward_weights_desc_init(
+status_t dnnl_dilated_convolution_backward_weights_desc_init(
         convolution_desc_t *conv_desc, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc, const memory_desc_t *diff_dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
         const dims_t padding_r) {
-    return mkldnn::impl::conv_desc_init(conv_desc, backward_weights, alg_kind,
+    return dnnl::impl::conv_desc_init(conv_desc, backward_weights, alg_kind,
             src_desc, diff_weights_desc, diff_bias_desc, diff_dst_desc, strides,
             dilates, padding_l, padding_r);
 }

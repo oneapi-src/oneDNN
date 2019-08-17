@@ -17,7 +17,7 @@
 #ifndef CPU_JIT_RNN_POSTGEMM
 #define CPU_JIT_RNN_POSTGEMM
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 
 #include "c_types_map.hpp"
 #include "utils.hpp"
@@ -28,7 +28,7 @@
 #include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -89,6 +89,6 @@ protected:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

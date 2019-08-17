@@ -26,7 +26,7 @@
 #include "cpu_pooling_pd.hpp"
 #include "jit_uni_pool_kernel.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -76,9 +76,9 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-        auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-        auto ws = CTX_OUT_MEM(char *, MKLDNN_ARG_WORKSPACE);
+        auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+        auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+        auto ws = CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE);
 
         if (pd()->ndims() == 5)
             execute_forward_3d(src, dst, ws);
@@ -145,9 +145,9 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-        auto ws = CTX_IN_MEM(const char *, MKLDNN_ARG_WORKSPACE);
-        auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+        auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+        auto ws = CTX_IN_MEM(const char *, DNNL_ARG_WORKSPACE);
+        auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
         if (pd()->ndims() == 5)
             execute_backward_3d(diff_dst, ws, diff_src);
@@ -168,7 +168,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

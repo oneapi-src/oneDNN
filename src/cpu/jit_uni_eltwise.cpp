@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
@@ -25,7 +25,7 @@
 
 #define GET_OFF(field) offsetof(jit_args, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -1612,8 +1612,8 @@ jit_uni_eltwise_fwd_t<isa, d_type>::~jit_uni_eltwise_fwd_t() {
 template <cpu_isa_t isa, impl::data_type_t d_type>
 void jit_uni_eltwise_fwd_t<isa, d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
@@ -1674,9 +1674,9 @@ jit_uni_eltwise_bwd_t<isa, d_type>::~jit_uni_eltwise_bwd_t() {
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_eltwise_bwd_t<isa, d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
@@ -1722,4 +1722,4 @@ template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -18,27 +18,27 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_shuffle.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 using namespace format_tag;
 
 template <int data_type_size>
-template <mkldnn_format_tag_t tag>
+template <dnnl_format_tag_t tag>
 void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 
     const memory_desc_wrapper data_d(pd()->data_md());
 
-    auto i_arg = pd()->is_fwd() ? MKLDNN_ARG_SRC : MKLDNN_ARG_DIFF_DST;
-    auto o_arg = pd()->is_fwd() ? MKLDNN_ARG_DST : MKLDNN_ARG_DIFF_SRC;
+    auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
+    auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     auto input = CTX_IN_MEM(const data_t *, i_arg);
     auto output = CTX_OUT_MEM(data_t *, o_arg);
 
@@ -65,7 +65,7 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
     if (axis == 1
             && one_of(
                     tag, nChw16c, nChw8c, nChw4c, nCdhw16c, nCdhw8c, nCdhw4c)) {
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_OMP
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 #pragma omp parallel for collapse(3) schedule(static)
         for_(int mb = 0; mb < MB; ++mb)
         for_(int cb = 0; cb < C; cb += blksize)
@@ -167,6 +167,6 @@ template void ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

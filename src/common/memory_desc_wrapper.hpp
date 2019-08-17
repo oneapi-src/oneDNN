@@ -25,7 +25,7 @@
 
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 /** thin wrapper class over \struct memory_desc_t which allows easy
@@ -416,7 +416,7 @@ inline bool memory_desc_wrapper::consistent_with(
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

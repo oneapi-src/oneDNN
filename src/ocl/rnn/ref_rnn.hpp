@@ -43,7 +43,7 @@
 
 extern const char *ref_rnn_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -81,7 +81,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             base_pd_t::operator=(other);
             clear();
             copy_from(other);
@@ -175,7 +175,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 this->weights_layer_md_ = new_weights_layer_md;
             } else if (this->weights_layer_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (mkldnn::impl::operator!=(
+                if (dnnl::impl::operator!=(
                             this->weights_layer_md_, new_weights_layer_md))
                     return status::unimplemented;
             }
@@ -185,15 +185,14 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 this->weights_iter_md_ = new_weights_iter_md;
             } else if (this->weights_iter_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (mkldnn::impl::operator!=(
+                if (dnnl::impl::operator!=(
                             this->weights_iter_md_, new_weights_iter_md))
                     return status::unimplemented;
             }
 
             // Check dimensions consistency
             int ls_multiplier
-                    = (this->direction() == mkldnn_bidirectional_concat) ? 2
-                                                                         : 1;
+                    = (this->direction() == dnnl_bidirectional_concat) ? 2 : 1;
 
             ok = ok && (ls_multiplier * this->DIC() == this->DLC())
                     && ((ls_multiplier * this->SLC()) == this->DLC()
@@ -211,7 +210,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             // initialize the workspace_pd if needed
             if (rnn_conf_.use_workspace) {
                 dims_t ws_dims = {(dim_t)ws_sz};
-                mkldnn_memory_desc_init_by_tag(
+                dnnl_memory_desc_init_by_tag(
                         &this->ws_md_, 1, ws_dims, src_type, x);
             }
 
@@ -247,7 +246,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
                 primitive_attr_t dummy_attr;
 
-                return mkldnn_primitive_desc_create(gemm_pd,
+                return dnnl_primitive_desc_create(gemm_pd,
                         (op_desc_t *)&gemm_desc, &dummy_attr, this->engine(),
                         nullptr);
             };
@@ -623,7 +622,7 @@ using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

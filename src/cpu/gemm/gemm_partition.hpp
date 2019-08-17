@@ -24,7 +24,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -247,6 +247,6 @@ static inline std::tuple<int, int> partition_2d_minblk(int m, int n,
 
 } /* namespace cpu */
 } /* namespace impl */
-} /* namespace mkldnn */
+} /* namespace dnnl */
 
 #endif

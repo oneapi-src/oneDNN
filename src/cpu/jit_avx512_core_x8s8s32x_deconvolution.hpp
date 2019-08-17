@@ -18,8 +18,8 @@
 #define CPU_JIT_AVX512_CORE_U8S8S32X_DECONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -29,7 +29,7 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -222,7 +222,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -30,17 +30,17 @@
  */
 #include "ocl/rnn/ref_rnn.hpp"
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_traits.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::math;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;
 using namespace rnn_utils;
@@ -77,14 +77,14 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     size_t scratchpad_sz {0}, ws_sz {0};
     get_scratchpad_and_workspace_sizes(pd()->rnn_conf_, scratchpad_sz, ws_sz);
     dims_t scratchpad_dims = {(int)scratchpad_sz};
-    mkldnn_memory_desc_init_by_tag(
+    dnnl_memory_desc_init_by_tag(
             &scratchpad_md, 1, scratchpad_dims, src_type, format_tag::x);
 
     void *mem_storage_scratchpad = nullptr;
 
     memory_t *workspace = (aprop == prop_kind::forward)
-            ? ctx.output(MKLDNN_ARG_WORKSPACE)
-            : ctx.input(MKLDNN_ARG_WORKSPACE);
+            ? ctx.output(DNNL_ARG_WORKSPACE)
+            : ctx.input(DNNL_ARG_WORKSPACE);
 
     if (pd()->rnn_conf_.use_workspace) {
         workspace->memory_storage()->get_data_handle(&mem_storage_scratchpad);
@@ -105,8 +105,8 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
         case gemm_iter:
         case gemm_layer:
             weights = (gemm_kind == gemm_layer)
-                    ? ctx.input(MKLDNN_ARG_WEIGHTS_LAYER)
-                    : ctx.input(MKLDNN_ARG_WEIGHTS_ITER);
+                    ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
+                    : ctx.input(DNNL_ARG_WEIGHTS_ITER);
             weights->memory_storage()->get_data_handle(&mem_storage_weights);
 
             gemm_mem_A.reset(new memory_t(engine(), weights->md(),
@@ -125,8 +125,8 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
         case gemm_diff_wei_iter:
         case gemm_diff_wei_layer:
             weights = (gemm_kind == gemm_diff_wei_iter)
-                    ? ctx.output(MKLDNN_ARG_DIFF_WEIGHTS_ITER)
-                    : ctx.output(MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
+                    ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
+                    : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
             weights->memory_storage()->get_data_handle(&mem_storage_weights);
             gemm_mem_A.reset(new memory_t(engine(), &scratchpad_md,
                     memory_flags_t::use_backend_ptr, nullptr));
@@ -144,9 +144,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
         default: assert(!"unknown gemm_kind");
     }
 
-    gemm_args[MKLDNN_ARG_SRC_0] = {gemm_mem_A.get(), true};
-    gemm_args[MKLDNN_ARG_SRC_1] = {gemm_mem_B.get(), true};
-    gemm_args[MKLDNN_ARG_DST] = {gemm_mem_C.get(), false};
+    gemm_args[DNNL_ARG_SRC_0] = {gemm_mem_A.get(), true};
+    gemm_args[DNNL_ARG_SRC_1] = {gemm_mem_B.get(), true};
+    gemm_args[DNNL_ARG_DST] = {gemm_mem_C.get(), false};
 
     auto gemm_ctx = exec_ctx_t(ctx.stream(), std::move(gemm_args));
 
@@ -436,44 +436,43 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     bool is_fwd = rnn_conf.is_fwd;
 
-    auto &input_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_LAYER);
-    auto &states_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_ITER);
-    auto &c_states_native_ = CTX_IN_STORAGE(MKLDNN_ARG_SRC_ITER_C);
-    auto &w_input_native_ = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS_LAYER);
-    auto &w_state_native_ = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS_ITER);
-    auto &bias_native_ = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
+    auto &input_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_LAYER);
+    auto &states_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_ITER);
+    auto &c_states_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_ITER_C);
+    auto &w_input_native_ = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS_LAYER);
+    auto &w_state_native_ = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS_ITER);
+    auto &bias_native_ = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
-    auto &dst_last_layer_native_ = is_fwd
-            ? CTX_OUT_STORAGE(MKLDNN_ARG_DST_LAYER)
-            : CTX_IN_STORAGE(MKLDNN_ARG_DST_LAYER);
-    auto &dst_last_iter_native_ = is_fwd ? CTX_OUT_STORAGE(MKLDNN_ARG_DST_ITER)
-                                         : CTX_IN_STORAGE(MKLDNN_ARG_DST_ITER);
+    auto &dst_last_layer_native_ = is_fwd ? CTX_OUT_STORAGE(DNNL_ARG_DST_LAYER)
+                                          : CTX_IN_STORAGE(DNNL_ARG_DST_LAYER);
+    auto &dst_last_iter_native_ = is_fwd ? CTX_OUT_STORAGE(DNNL_ARG_DST_ITER)
+                                         : CTX_IN_STORAGE(DNNL_ARG_DST_ITER);
     auto &dst_last_iter_c_native_ = is_fwd
-            ? CTX_OUT_STORAGE(MKLDNN_ARG_DST_ITER_C)
-            : CTX_IN_STORAGE(MKLDNN_ARG_DST_ITER_C);
+            ? CTX_OUT_STORAGE(DNNL_ARG_DST_ITER_C)
+            : CTX_IN_STORAGE(DNNL_ARG_DST_ITER_C);
 
-    auto &diff_dst_layer_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_LAYER);
-    auto &diff_dst_iter_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_ITER);
-    auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST_ITER_C);
+    auto &diff_dst_layer_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_LAYER);
+    auto &diff_dst_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER);
+    auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER_C);
 
     auto &workspace_ = rnn_conf.is_training
-            ? is_fwd ? CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE)
-                     : CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE)
+            ? is_fwd ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
+                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
 #if !EMULATED_SCRATCHPAD
-            : CTX_IN_STORAGE(MKLDNN_ARG_SCRATCHPAD);
+            : CTX_IN_STORAGE(DNNL_ARG_SCRATCHPAD);
 #else
             : *scratchpad_;
 #endif
 
-    auto &diff_src_layer_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_LAYER);
-    auto &diff_src_iter_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_ITER);
-    auto &diff_src_iter_c_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC_ITER_C);
+    auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
+    auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
+    auto &diff_src_iter_c_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER_C);
 
     auto &diff_weights_layer_native_
-            = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS_LAYER);
+            = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_LAYER);
     auto &diff_weights_iter_native_
-            = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS_ITER);
-    auto &diff_bias_native_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
+            = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
+    auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
     auto prints = [=](void) {
         DPRINT("\n%s\n", "+++++++++++++++");
@@ -645,4 +644,4 @@ template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

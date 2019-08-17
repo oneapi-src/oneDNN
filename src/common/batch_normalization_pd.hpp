@@ -17,13 +17,13 @@
 #ifndef BATCH_NORMALIZATION_PD_HPP
 #define BATCH_NORMALIZATION_PD_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct batch_normalization_fwd_pd_t;
@@ -69,12 +69,12 @@ struct batch_normalization_pd_t : public primitive_desc_t {
 
     int ndims() const { return desc_.data_desc.ndims; }
 
-    bool stats_is_src() const { return desc_.flags & mkldnn_use_global_stats; }
-    bool use_scaleshift() const { return desc_.flags & mkldnn_use_scaleshift; }
+    bool stats_is_src() const { return desc_.flags & dnnl_use_global_stats; }
+    bool use_scaleshift() const { return desc_.flags & dnnl_use_scaleshift; }
     bool use_global_stats() const {
-        return desc_.flags & mkldnn_use_global_stats;
+        return desc_.flags & dnnl_use_global_stats;
     }
-    bool fuse_norm_relu() const { return desc_.flags & mkldnn_fuse_norm_relu; }
+    bool fuse_norm_relu() const { return desc_.flags & dnnl_fuse_norm_relu; }
     bool with_relu_post_op() const {
         const auto &p = this->attr()->post_ops_;
         return p.len_ == 1 && p.entry_[0].is_relu(true, true);
@@ -110,7 +110,7 @@ protected:
         const dim_t bits_per_byte = 8;
         const dims_t ws_sz = {(dim_t)utils::div_up(
                 data_nelems * bits_per_element, bits_per_byte)};
-        mkldnn_memory_desc_init_by_tag(
+        dnnl_memory_desc_init_by_tag(
                 &ws_md_, 1, ws_sz, impl::data_type::u8, format_tag::x);
     }
 
@@ -129,19 +129,19 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         : batch_normalization_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
-        if (utils::one_of(arg, MKLDNN_ARG_MEAN, MKLDNN_ARG_VARIANCE)) {
+        if (utils::one_of(arg, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE)) {
             if (stats_is_src()) return arg_usage_t::input;
             if (!stats_is_src() && is_training()) return arg_usage_t::output;
             return arg_usage_t::unused;
         }
 
-        if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
+        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && is_training() && fuse_norm_relu())
+        if (arg == DNNL_ARG_WORKSPACE && is_training() && fuse_norm_relu())
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -194,19 +194,19 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_MEAN,
-                    MKLDNN_ARG_VARIANCE, MKLDNN_ARG_DIFF_DST))
+        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
+                    DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_SCALE_SHIFT && use_scaleshift())
+        if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && fuse_norm_relu())
+        if (arg == DNNL_ARG_WORKSPACE && fuse_norm_relu())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
+        if (arg == DNNL_ARG_DIFF_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -248,7 +248,7 @@ protected:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

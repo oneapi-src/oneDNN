@@ -18,8 +18,8 @@
 #define CPU_JIT_AVX512_COMMON_1x1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
@@ -29,7 +29,7 @@
 #include "jit_transpose_src_utils.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -62,7 +62,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *weights_md(), *dst_md(), *attr(),
-                    mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -157,7 +157,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_impl_t {
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    *attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -247,7 +247,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
-                    *attr(), mkldnn_get_max_threads(), rtus_.reduce_src_);
+                    *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             init_balancers();
@@ -325,6 +325,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

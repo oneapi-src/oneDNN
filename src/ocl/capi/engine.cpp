@@ -20,10 +20,10 @@
 #include "common/engine.hpp"
 #include "ocl/ocl_engine.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::ocl;
+using namespace dnnl::impl;
+using namespace dnnl::impl::ocl;
 
-status_t mkldnn_engine_create_ocl(engine_t **engine, engine_kind_t kind,
+status_t dnnl_engine_create_ocl(engine_t **engine, engine_kind_t kind,
         cl_device_id device, cl_context context) {
     bool args_ok = true && (kind == engine_kind::gpu)
             && !utils::any_null(engine, device, context);
@@ -33,7 +33,7 @@ status_t mkldnn_engine_create_ocl(engine_t **engine, engine_kind_t kind,
     return f.engine_create(engine, device, context);
 }
 
-status_t mkldnn_engine_get_ocl_context(engine_t *engine, cl_context *context) {
+status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
     bool args_ok = true && !utils::any_null(engine, context)
             && (engine->backend_kind() == backend_kind::ocl);
 
@@ -44,7 +44,7 @@ status_t mkldnn_engine_get_ocl_context(engine_t *engine, cl_context *context) {
     return status::success;
 }
 
-status_t mkldnn_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
+status_t dnnl_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
     bool args_ok = true && !utils::any_null(engine, device)
             && (engine->backend_kind() == backend_kind::ocl);
 

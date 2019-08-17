@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
@@ -25,11 +25,11 @@
 #include "gemm_utils_f32.hpp"
 #include "ref_gemm_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 using namespace gemm_utils;
 
 namespace {
@@ -174,14 +174,14 @@ void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
 } // namespace
 
 template <typename data_t>
-mkldnn_status_t ref_gemm(const char *transa_, const char *transb_,
-        const int *M_, const int *N_, const int *K_, const data_t *alpha_,
-        const data_t *A, const int *lda_, const data_t *B, const int *ldb_,
-        const data_t *beta_, data_t *C, const int *ldc_, const data_t *bias) {
+dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
+        const int *N_, const int *K_, const data_t *alpha_, const data_t *A,
+        const int *lda_, const data_t *B, const int *ldb_, const data_t *beta_,
+        data_t *C, const int *ldc_, const data_t *bias) {
 
     if (!(utils::one_of(*transa_, 'n', 'N', 't', 'T')
                 && utils::one_of(*transb_, 'n', 'N', 't', 'T')))
-        return mkldnn_unimplemented;
+        return dnnl_unimplemented;
 
     bool isTransA = (*transa_ == 'T' || *transa_ == 't');
     bool isTransB = (*transb_ == 'T' || *transb_ == 't');
@@ -189,13 +189,13 @@ mkldnn_status_t ref_gemm(const char *transa_, const char *transb_,
     const dim_t lda = *lda_, ldb = *ldb_, ldc = *ldc_;
     const data_t alpha = *alpha_, beta = *beta_;
 
-    int max_nthr = mkldnn_in_parallel() ? 1 : mkldnn_get_max_threads();
+    int max_nthr = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();
     int nthr_m, nthr_n, nthr_k;
     int MB, NB, KB;
     // thread balancing over M, N, K & size of blocking dimensions
     calc_nthr_nocopy_avx(
             M, N, K, max_nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
-    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
+    assert(IMPLICATION(!dnnl_thr_syncable(), nthr_k == 1));
 
     data_t *c_buffers = nullptr;
     data_t *ws_buffers = nullptr;
@@ -320,20 +320,19 @@ mkldnn_status_t ref_gemm(const char *transa_, const char *transb_,
     free(ws_buffers);
     free(c_buffers);
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
-template mkldnn_status_t ref_gemm<float>(const char *transa_,
-        const char *transb_, const int *M_, const int *N_, const int *K_,
-        const float *alpha_, const float *A, const int *lda_, const float *B,
-        const int *ldb_, const float *beta_, float *C, const int *ldc_,
-        const float *bias);
+template dnnl_status_t ref_gemm<float>(const char *transa_, const char *transb_,
+        const int *M_, const int *N_, const int *K_, const float *alpha_,
+        const float *A, const int *lda_, const float *B, const int *ldb_,
+        const float *beta_, float *C, const int *ldc_, const float *bias);
 
-template mkldnn_status_t ref_gemm<double>(const char *transa_,
+template dnnl_status_t ref_gemm<double>(const char *transa_,
         const char *transb_, const int *M_, const int *N_, const int *K_,
         const double *alpha_, const double *A, const int *lda_, const double *B,
         const int *ldb_, const double *beta_, double *C, const int *ldc_,
         const double *bias);
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

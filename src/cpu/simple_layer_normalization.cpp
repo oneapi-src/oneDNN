@@ -20,13 +20,13 @@
 #include "cpu_engine.hpp"
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
 #include "simple_layer_normalization.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -34,9 +34,9 @@ using namespace memory_tracking::names;
 
 void simple_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
-    auto scaleshift = CTX_IN_MEM(const float *, MKLDNN_ARG_SCALE_SHIFT);
+    auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
+    auto scaleshift = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
@@ -44,13 +44,13 @@ void simple_layer_normalization_fwd_t::execute_forward(
         mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
         variance = scratchpad.template get<float>(key_lnorm_tmp_var);
     } else {
-        mean = pd()->stats_are_src() ? const_cast<float *>(
-                       CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN))
-                                     : CTX_OUT_MEM(float *, MKLDNN_ARG_MEAN);
+        mean = pd()->stats_are_src()
+                ? const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
+                : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
         variance = pd()->stats_are_src()
                 ? const_cast<float *>(
-                        CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE))
-                : CTX_OUT_MEM(float *, MKLDNN_ARG_VARIANCE);
+                        CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE))
+                : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
     }
 
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -106,19 +106,19 @@ void simple_layer_normalization_fwd_t::execute_forward(
 void simple_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     auto scratchpad = ctx.get_scratchpad_grantor();
-    auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
-    auto scaleshift = CTX_IN_MEM(const float *, MKLDNN_ARG_SCALE_SHIFT);
-    auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
-    auto diff_scaleshift = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const float *mean, *variance;
     if (pd()->use_tmp_stats()) {
         mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
         variance = scratchpad.template get<float>(key_lnorm_tmp_var);
     } else {
-        mean = CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN);
-        variance = CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE);
+        mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
+        variance = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     }
 
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -135,7 +135,7 @@ void simple_layer_normalization_bwd_t::execute_backward(
     if (diff_scaleshift == nullptr)
         diff_scaleshift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
 
-    int nthr = mkldnn_get_max_threads();
+    int nthr = dnnl_get_max_threads();
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
@@ -204,4 +204,4 @@ void simple_layer_normalization_bwd_t::execute_backward(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

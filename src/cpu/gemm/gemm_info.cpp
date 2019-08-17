@@ -23,18 +23,18 @@
 #include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include "common/bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
+#include "dnnl_traits.hpp"
+#include "dnnl_types.h"
 #include "f32/common_f32.hpp"
 #include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 #include "f32/jit_avx_gemv_t_f32_kern.hpp"
 #include "f32/jit_sse41_gemv_t_f32_kern.hpp"
 #include "jit_generator.hpp"
-#include "mkldnn_traits.hpp"
-#include "mkldnn_types.h"
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -583,4 +583,4 @@ template // For sgemm.
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

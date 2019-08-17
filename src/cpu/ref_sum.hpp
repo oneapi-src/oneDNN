@@ -23,7 +23,7 @@
 
 #include "cpu_sum_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -36,7 +36,7 @@ struct ref_sum_t : public primitive_impl_t {
         ~pd_t() { clear(); }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             cpu_sum_pd_t::operator=(rhs);
             clear();
             clone_reorder_pds(rhs);
@@ -128,23 +128,22 @@ struct ref_sum_t : public primitive_impl_t {
         auto *sum_reduce = pd()->need_output_reorder()
                 ? ctx.get_scratchpad_grantor().get<float>(key_sum_reduction)
                 : nullptr;
-        auto dst = ctx.args().at(MKLDNN_ARG_DST);
+        auto dst = ctx.args().at(DNNL_ARG_DST);
         memory_t acc(dst.mem->engine(), pd()->dst_acc_md(),
                 memory_flags_t::use_backend_ptr, sum_reduce);
         memory_arg_t dst_acc = {&acc, false};
 
         for (int i = 0; i < n; ++i) {
-            r_args[MKLDNN_ARG_SRC] = ctx.args().at(MKLDNN_ARG_MULTIPLE_SRC + i);
-            r_args[MKLDNN_ARG_DST]
-                    = pd()->need_output_reorder() ? dst_acc : dst;
+            r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
+            r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
             exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
             reorders_[i]->execute(r_ctx);
         }
 
         if (pd()->need_output_reorder()) {
             dst_acc = {&acc, true};
-            r_args[MKLDNN_ARG_SRC] = dst_acc;
-            r_args[MKLDNN_ARG_DST] = dst;
+            r_args[DNNL_ARG_SRC] = dst_acc;
+            r_args[DNNL_ARG_DST] = dst;
             exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
             reorders_[n]->execute(r_ctx);
         }
@@ -159,6 +158,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -19,7 +19,7 @@
 
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct scratchpad_t {
@@ -30,7 +30,7 @@ struct scratchpad_t {
 scratchpad_t *create_scratchpad(size_t size);
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

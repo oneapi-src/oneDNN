@@ -21,7 +21,7 @@
 
 #define S16_COPY_KERNEL_CODE_SIZE (4096L * 8)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -55,5 +55,5 @@ public:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif // COMMON_S16_HPP

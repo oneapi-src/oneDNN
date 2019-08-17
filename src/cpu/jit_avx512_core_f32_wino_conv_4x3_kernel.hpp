@@ -24,7 +24,7 @@
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -286,6 +286,6 @@ private:
 };
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

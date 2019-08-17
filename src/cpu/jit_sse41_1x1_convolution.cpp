@@ -14,30 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "jit_sse41_1x1_convolution.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 #define data_blk_off(f, n, c, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 
 void jit_sse41_1x1_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -126,9 +126,9 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward(
         }
     });
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 }
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

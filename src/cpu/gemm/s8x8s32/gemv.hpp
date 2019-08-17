@@ -21,7 +21,7 @@
 
 #include "../gemm_info.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -31,6 +31,6 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg);
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // GEMV_HPP

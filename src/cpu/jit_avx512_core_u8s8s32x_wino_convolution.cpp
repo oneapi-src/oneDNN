@@ -17,8 +17,8 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -27,12 +27,12 @@
 
 #include <string.h>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 namespace {
@@ -674,10 +674,10 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 namespace {
 bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
     if (jcp.ver == ver_vnni) {
-        return (jcp.mb <= mkldnn_get_max_threads()
+        return (jcp.mb <= dnnl_get_max_threads()
                        && (jcp.mb > 4 && jcp.ic > 64
                                && !(jcp.oc > 128 && jcp.ih < 14)))
-                || jcp.mb > mkldnn_get_max_threads();
+                || jcp.mb > dnnl_get_max_threads();
     }
     return true;
 }
@@ -694,7 +694,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t ::init_conf(
 
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     jcp.ngroups = with_groups ? wei_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -933,8 +933,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t ::init_conf(
 
     expect_wei_md.format_kind = format_kind::wino;
     expect_wei_md.data_type = data_type::s8;
-    mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-    wd.wino_format = mkldnn_wino_wei_aaOIoi;
+    dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+    wd.wino_format = dnnl_wino_wei_aaOIoi;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
     wd.ic = jcp.ic;
@@ -1031,10 +1031,10 @@ jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::adjust_oscales(
 template <data_type_t dst_data_type>
 void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
         dst_data_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const auto &jcp = kernel_->jcp;
     if (jcp.small_mb)
@@ -1062,7 +1062,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                 int tile_y = tile_y_b * jcp.yb;
                 int tile_x = tile_x_b * jcp.xb;
 
-                int ithr = mkldnn_get_thread_num();
+                int ithr = dnnl_get_thread_num();
                 auto wino_src = wino_src_base + jcp.size_wino_src * ithr;
                 auto wino_dst = wino_dst_base + jcp.size_wino_dst * ithr;
 
@@ -1290,4 +1290,4 @@ template struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<data_type::f32>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

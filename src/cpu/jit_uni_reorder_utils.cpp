@@ -17,18 +17,18 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_debug.h"
 #include "memory_desc_wrapper.hpp"
-#include "mkldnn_debug.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "jit_uni_reorder.hpp"
 
-using namespace mkldnn::impl::types;
-using namespace mkldnn::impl::status;
+using namespace dnnl::impl::types;
+using namespace dnnl::impl::status;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -284,8 +284,8 @@ void prb_node_move(prb_t &p, int d0, int d1) {
 }
 
 void prb_dump(const prb_t &p) {
-    printf("@@@ type:%s:%s ndims:%d ", mkldnn_dt2str(p.itype),
-            mkldnn_dt2str(p.otype), p.ndims);
+    printf("@@@ type:%s:%s ndims:%d ", dnnl_dt2str(p.itype),
+            dnnl_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d)
         printf("[%zu:%td:%td:%td]", p.nodes[d].n, p.nodes[d].is, p.nodes[d].os,
                 p.nodes[d].ss);
@@ -296,4 +296,4 @@ void prb_dump(const prb_t &p) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -18,15 +18,15 @@
 #define PRIMITIVE_HASHING_HPP
 
 #include "c_types_map.hpp"
-#include "mkldnn.h"
+#include "dnnl.h"
 #include "type_helpers.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace primitive_hashing {
 
 struct key_t {
-    key_t(mkldnn_primitive_kind_t primitive_kind, const op_desc_t *op_desc,
+    key_t(dnnl_primitive_kind_t primitive_kind, const op_desc_t *op_desc,
             const primitive_attr_t *attr, const std::type_index &impl_id,
             int impl_nthr)
         : primitive_kind_(primitive_kind)
@@ -36,7 +36,7 @@ struct key_t {
         , impl_nthr_(impl_nthr) {}
 
     bool operator==(const key_t &rhs) const {
-        MKLDNN_SHORT_CIRCUIT_SELF_COMPARISON(rhs);
+        DNNL_SHORT_CIRCUIT_SELF_COMPARISON(rhs);
 
         bool ret = true && primitive_kind_ == rhs.primitive_kind_
                 && impl_id_ == rhs.impl_id_ && impl_nthr_ == rhs.impl_nthr_
@@ -100,7 +100,7 @@ struct key_t {
         return ret;
     }
 
-    mkldnn_primitive_kind_t primitive_kind_;
+    dnnl_primitive_kind_t primitive_kind_;
     const op_desc_t *op_desc_;
     const primitive_attr_t *attr_;
     std::type_index impl_id_;
@@ -187,10 +187,10 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
 // Combine hash of each memory_desc_t data member
 static inline size_t get_md_hash(const memory_desc_t &md) {
     size_t seed = 0;
-    seed = get_array_hash(seed, md.dims, MKLDNN_MAX_NDIMS);
+    seed = get_array_hash(seed, md.dims, DNNL_MAX_NDIMS);
     seed = hash_combine(seed, static_cast<size_t>(md.data_type));
-    seed = get_array_hash(seed, md.padded_dims, MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, md.padded_offsets, MKLDNN_MAX_NDIMS);
+    seed = get_array_hash(seed, md.padded_dims, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, md.padded_offsets, DNNL_MAX_NDIMS);
     seed = hash_combine(seed, md.offset0);
     seed = hash_combine(seed, static_cast<size_t>(md.format_kind));
     // format desc
@@ -199,12 +199,12 @@ static inline size_t get_md_hash(const memory_desc_t &md) {
         case format_kind::any: break;
         case format_kind::blocked:
             seed = get_array_hash(
-                    seed, md.format_desc.blocking.strides, MKLDNN_MAX_NDIMS);
+                    seed, md.format_desc.blocking.strides, DNNL_MAX_NDIMS);
             seed = hash_combine(seed, md.format_desc.blocking.inner_nblks);
             seed = get_array_hash(
-                    seed, md.format_desc.blocking.inner_blks, MKLDNN_MAX_NDIMS);
+                    seed, md.format_desc.blocking.inner_blks, DNNL_MAX_NDIMS);
             seed = get_array_hash(
-                    seed, md.format_desc.blocking.inner_idxs, MKLDNN_MAX_NDIMS);
+                    seed, md.format_desc.blocking.inner_idxs, DNNL_MAX_NDIMS);
             break;
         case format_kind::wino:
             seed = hash_combine(seed,
@@ -227,13 +227,13 @@ static inline size_t get_md_hash(const memory_desc_t &md) {
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.n);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.ldb);
             seed = get_array_hash(seed, md.format_desc.rnn_packed_desc.parts,
-                    MKLDNN_RNN_MAX_N_PARTS);
+                    DNNL_RNN_MAX_N_PARTS);
             seed = get_array_hash(seed,
                     md.format_desc.rnn_packed_desc.part_pack_size,
-                    MKLDNN_RNN_MAX_N_PARTS);
+                    DNNL_RNN_MAX_N_PARTS);
             seed = get_array_hash(seed,
                     md.format_desc.rnn_packed_desc.pack_part,
-                    MKLDNN_RNN_MAX_N_PARTS);
+                    DNNL_RNN_MAX_N_PARTS);
             seed = hash_combine(
                     seed, md.format_desc.rnn_packed_desc.offset_compensation);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.size);
@@ -241,13 +241,13 @@ static inline size_t get_md_hash(const memory_desc_t &md) {
         default: assert(!"unknown format_kind");
     }
 
-    if (md.extra.flags != mkldnn_memory_extra_flag_none) {
+    if (md.extra.flags != dnnl_memory_extra_flag_none) {
         seed = hash_combine(seed, md.extra.flags);
-        if (md.extra.flags & mkldnn_memory_extra_flag_compensation_conv_s8s8) {
+        if (md.extra.flags & dnnl_memory_extra_flag_compensation_conv_s8s8) {
             seed = hash_combine(seed, md.extra.compensation_mask);
         }
 
-        if (md.extra.flags & mkldnn_memory_extra_flag_scale_adjust) {
+        if (md.extra.flags & dnnl_memory_extra_flag_scale_adjust) {
             seed = hash_combine(seed, md.extra.scale_adjust);
         }
     }
@@ -318,10 +318,10 @@ size_t get_desc_hash<convolution_desc_t>(const op_desc_t *op_desc) {
     seed = hash_combine(seed, get_md_hash(desc->dst_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_dst_desc));
     // Strides, dilates, padding
-    seed = get_array_hash(seed, desc->strides, MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->dilates, MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->padding[0], MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->padding[1], MKLDNN_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->strides, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->dilates, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->padding[0], DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc->accum_data_type));
     // Combined hash for (de-)convolution desc
@@ -456,10 +456,10 @@ size_t get_desc_hash<pooling_desc_t>(const op_desc_t *op_desc) {
     seed = hash_combine(seed, get_md_hash(desc->dst_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_dst_desc));
     // Strides, dilates, padding
-    seed = get_array_hash(seed, desc->strides, MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->kernel, MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->padding[0], MKLDNN_MAX_NDIMS);
-    seed = get_array_hash(seed, desc->padding[1], MKLDNN_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->strides, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->kernel, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->padding[0], DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, desc->padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc->accum_data_type));
     // Combined hash for pooling desc
@@ -581,17 +581,17 @@ size_t get_desc_hash<sum_desc_t>(const op_desc_t *op_desc) {
 
 } // namespace primitive_hashing
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // inject a specialization of std::hash for key_t in std namespace
 namespace std {
 template <>
-struct hash<mkldnn::impl::primitive_hashing::key_t> {
-    using argument_type = mkldnn::impl::primitive_hashing::key_t;
+struct hash<dnnl::impl::primitive_hashing::key_t> {
+    using argument_type = dnnl::impl::primitive_hashing::key_t;
     using result_type = std::size_t;
     result_type operator()(const argument_type &key) const {
-        using namespace mkldnn::impl;
-        using namespace mkldnn::impl::primitive_hashing;
+        using namespace dnnl::impl;
+        using namespace dnnl::impl::primitive_hashing;
         size_t seed = 0;
         // Compute hash for primitive_kind_, attr_, impl_id_ and impl_nthr_
         seed = hash_combine(seed,

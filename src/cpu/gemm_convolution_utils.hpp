@@ -18,14 +18,14 @@
 #define CPU_JIT_GEMM_CONVOLUTION_UTILS_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -64,6 +64,6 @@ void bwd_weights_reduction_par(int ithr, int nthr,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

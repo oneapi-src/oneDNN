@@ -36,7 +36,7 @@
 #define WS_PRINT(s, w)
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -188,11 +188,11 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
         kernel_ctx.define_int("ACTIVATION_KIND", jrnn.activation_kind);
 
-        kernel_ctx.define_int("L2R", mkldnn_unidirectional_left2right);
-        kernel_ctx.define_int("R2L", mkldnn_unidirectional_right2left);
-        kernel_ctx.define_int("CONCAT", mkldnn_bidirectional_concat);
-        kernel_ctx.define_int("SUM", mkldnn_bidirectional_sum);
-        kernel_ctx.define_int("UNIDEF", mkldnn_unidirectional);
+        kernel_ctx.define_int("L2R", dnnl_unidirectional_left2right);
+        kernel_ctx.define_int("R2L", dnnl_unidirectional_right2left);
+        kernel_ctx.define_int("CONCAT", dnnl_bidirectional_concat);
+        kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
+        kernel_ctx.define_int("UNIDEF", dnnl_unidirectional);
         kernel_ctx.define_int("DIRECTION_KIND", jrnn.direction_kind);
 
         kernel_ctx.define_int("BATCH", jrnn.batch);
@@ -306,6 +306,6 @@ inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

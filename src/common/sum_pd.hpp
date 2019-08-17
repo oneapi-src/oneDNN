@@ -18,7 +18,7 @@
 #define SUM_PD_HPP
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
@@ -26,7 +26,7 @@
 
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct sum_pd_t : public primitive_desc_t {
@@ -60,11 +60,11 @@ struct sum_pd_t : public primitive_desc_t {
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
-                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+        if (arg >= DNNL_ARG_MULTIPLE_SRC
+                && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -84,9 +84,7 @@ struct sum_pd_t : public primitive_desc_t {
 
     const float *scales() const { return &scales_[0]; }
 
-    bool need_output_reorder() const {
-        return dst_md()->data_type != mkldnn_f32;
-    }
+    bool need_output_reorder() const { return dst_md()->data_type != dnnl_f32; }
 
 protected:
     int n_;
@@ -110,7 +108,7 @@ protected:
         // use f32 accumulator to handle float scales w/o accuracy loss
         if (need_output_reorder()) {
             dst_acc_md_ = dst_md_;
-            dst_acc_md_.data_type = mkldnn_f32;
+            dst_acc_md_.data_type = dnnl_f32;
         }
 
         return status::success;
@@ -169,6 +167,6 @@ protected:
     DECLARE_SUM_PD_t(impl_name, __VA_ARGS__)
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

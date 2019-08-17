@@ -17,7 +17,7 @@
 #include "common_f32.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -792,4 +792,4 @@ jit_sse41_f32_copy_bn_kern::jit_sse41_f32_copy_bn_kern()
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

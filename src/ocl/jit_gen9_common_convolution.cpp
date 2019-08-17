@@ -15,14 +15,14 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
-#include "common/mkldnn_thread.hpp"
-#include "common/mkldnn_traits.hpp"
 #include "common/type_helpers.hpp"
 
 #include "ocl/jit_gen9_common_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -33,10 +33,10 @@ status_t jit_gen9_common_convolution_fwd_t::execute_forward(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
-    auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &jcp = ker_->jcp;
 
@@ -60,10 +60,10 @@ status_t jit_gen9_common_convolution_bwd_data_t::execute_backward_data(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &weights = CTX_IN_STORAGE(MKLDNN_ARG_WEIGHTS);
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
-    auto &bias = CTX_IN_STORAGE(MKLDNN_ARG_BIAS);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
     const auto &jcp = ker_->jcp;
 
@@ -84,10 +84,10 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &diff_weights = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_WEIGHTS);
-    auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
+    auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
     const auto &jcp = ker_->jcp;
 
@@ -135,6 +135,6 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

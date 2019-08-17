@@ -15,12 +15,12 @@
 *******************************************************************************/
 
 #include "gemm_inner_product_utils.hpp"
+#include "dnnl_thread.hpp"
 #include "jit_uni_eltwise.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -463,4 +463,4 @@ template class pp_kernel_t<f32, bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -26,11 +26,11 @@
 #include "jit_uni_eltwise.hpp"
 
 //#define BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-#if !MKLDNN_THR_SYNC
+#if !DNNL_THR_SYNC
 #define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -382,5 +382,5 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif

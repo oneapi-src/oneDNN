@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/stream.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -28,14 +28,14 @@ struct cpu_stream_t : public stream_t {
     cpu_stream_t(engine_t *engine, unsigned flags) : stream_t(engine, flags) {}
     virtual ~cpu_stream_t() = default;
 
-    virtual mkldnn::impl::status_t wait() override {
+    virtual dnnl::impl::status_t wait() override {
         // CPU execution is synchronous so return immediately
-        return mkldnn::impl::status::success;
+        return dnnl::impl::status::success;
     }
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

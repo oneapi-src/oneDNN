@@ -19,11 +19,11 @@
 #include "ref_rnn.hpp"
 #include "rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 using namespace prop_kind;
 using namespace data_type;
 
@@ -119,19 +119,15 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
             prop_kind::forward_inference);
     rnn_conf.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn_conf.is_lbr = rd.cell_kind == mkldnn_lbr_gru;
+    rnn_conf.is_lbr = rd.cell_kind == dnnl_lbr_gru;
 
     switch (rd.direction) {
-        case mkldnn_unidirectional_left2right:
-            rnn_conf.exec_dir = b2t_l2r;
-            break;
-        case mkldnn_unidirectional_right2left:
-            rnn_conf.exec_dir = b2t_r2l;
-            break;
-        case mkldnn_bidirectional_concat:
+        case dnnl_unidirectional_left2right: rnn_conf.exec_dir = b2t_l2r; break;
+        case dnnl_unidirectional_right2left: rnn_conf.exec_dir = b2t_r2l; break;
+        case dnnl_bidirectional_concat:
             rnn_conf.exec_dir = b2t_bi_concat;
             break;
-        case mkldnn_bidirectional_sum: rnn_conf.exec_dir = b2t_bi_sum; break;
+        case dnnl_bidirectional_sum: rnn_conf.exec_dir = b2t_bi_sum; break;
         default: break;
     }
 
@@ -148,7 +144,7 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
     rnn_conf.n_iter = src_layer_d.dims()[0];
     rnn_conf.n_dir = weights_layer_d.dims()[1];
     rnn_conf.n_gates = weights_layer_d.dims()[3];
-    rnn_conf.n_states = rd.cell_kind == mkldnn_vanilla_lstm ? 2 : 1;
+    rnn_conf.n_states = rd.cell_kind == dnnl_vanilla_lstm ? 2 : 1;
     rnn_conf.n_bias = rnn_conf.n_gates + rnn_conf.is_lbr;
     rnn_conf.mb = src_layer_d.dims()[1];
 
@@ -227,7 +223,7 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
     rnn_conf.use_workspace = rnn_conf.is_training;
     rnn_conf.ws_states_size = (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
             * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld;
-    bool is_lstm = rd.cell_kind == mkldnn_vanilla_lstm;
+    bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
     rnn_conf.ws_c_states_size = is_lstm ? (size_t)(rnn_conf.n_layer + 1)
                     * rnn_conf.n_dir * (rnn_conf.n_iter + 1) * rnn_conf.mb
                     * rnn_conf.states_ws_ld
@@ -301,4 +297,4 @@ status_t rnn_utils::set_expected_desc(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

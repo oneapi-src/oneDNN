@@ -26,7 +26,7 @@
 
 #include "jit_uni_dw_conv_kernel_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -221,7 +221,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             const int max_threads
-                    = mkldnn_in_parallel() ? 1 : mkldnn_get_max_threads();
+                    = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();
 
             status_t status = jit_uni_dw_conv_bwd_weights_kernel<isa,
                     src_type>::init_conf(jcp_, *desc(), *src_md(),
@@ -288,6 +288,6 @@ using jit_sse41_dw_convolution_bwd_weights_t
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

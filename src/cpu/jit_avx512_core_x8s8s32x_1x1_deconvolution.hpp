@@ -18,7 +18,7 @@
 #define CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "primitive_iterator.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -29,7 +29,7 @@
 #include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -48,7 +48,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
@@ -71,7 +71,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
                     dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 
             if (status == status::success) {
-                status = mkldnn_primitive_desc::create<conv_pd_t>(
+                status = dnnl_primitive_desc::create<conv_pd_t>(
                         &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             }
 
@@ -139,6 +139,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif /* CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP */

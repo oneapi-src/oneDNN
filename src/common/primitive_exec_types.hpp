@@ -19,7 +19,7 @@
 
 #include <unordered_map>
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "memory.hpp"
@@ -28,13 +28,13 @@
 
 #define CTX_IN_STORAGE(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
-                    : mkldnn::impl::memory_storage_t::empty_storage())
+                    : dnnl::impl::memory_storage_t::empty_storage())
 
 #define CTX_OUT_STORAGE(arg) \
     (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
-                     : mkldnn::impl::memory_storage_t::empty_storage())
+                     : dnnl::impl::memory_storage_t::empty_storage())
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct memory_arg_t {
@@ -45,7 +45,7 @@ struct memory_arg_t {
 using exec_args_t = std::unordered_map<int, memory_arg_t>;
 
 status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
-        const mkldnn_exec_arg_t *c_args, exec_args_t &args);
+        const dnnl_exec_arg_t *c_args, exec_args_t &args);
 
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct exec_ctx_t {
@@ -71,6 +71,6 @@ private:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

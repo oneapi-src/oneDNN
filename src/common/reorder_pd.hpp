@@ -26,7 +26,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct reorder_pd_t : public primitive_desc_t {
@@ -57,9 +57,9 @@ struct reorder_pd_t : public primitive_desc_t {
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg == MKLDNN_ARG_FROM) return arg_usage_t::input;
+        if (arg == DNNL_ARG_FROM) return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_TO) return arg_usage_t::output;
+        if (arg == DNNL_ARG_TO) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -83,7 +83,7 @@ struct reorder_pd_t : public primitive_desc_t {
     engine_t *src_engine() const { return src_engine_; }
     engine_t *dst_engine() const { return dst_engine_; }
 
-    virtual mkldnn::impl::engine_t *scratchpad_engine() const override {
+    virtual dnnl::impl::engine_t *scratchpad_engine() const override {
         return scratchpad_engine_;
     }
 
@@ -98,7 +98,7 @@ protected:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

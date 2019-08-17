@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -29,7 +29,7 @@
 
 #include "bfloat16.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -80,7 +80,7 @@ struct nhwc_pooling_fwd_t : public primitive_impl_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (src_md()->data_type == data_type::bf16) {
-                size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(
                         key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
@@ -217,7 +217,7 @@ struct nhwc_pooling_bwd_t : public primitive_impl_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (diff_src_md()->data_type == data_type::bf16) {
-                size_t bf16cvt_sz_ = C() * mkldnn_get_max_threads();
+                size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(
                         key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
@@ -242,7 +242,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

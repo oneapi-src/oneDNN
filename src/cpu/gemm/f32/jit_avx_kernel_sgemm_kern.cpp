@@ -17,7 +17,7 @@
 #include "common_f32.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -4693,4 +4693,4 @@ jit_avx_kernel_sgemm_kern::jit_avx_kernel_sgemm_kern()
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

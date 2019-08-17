@@ -18,8 +18,8 @@
 #include <float.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -32,13 +32,13 @@
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
@@ -680,7 +680,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                    the src transposition overhead exceed the benefit from 4fma
                 */
                 && ((jcp.is * jcp.ic) / jcp.oc <= 2048)
-                && mkldnn_thr_syncable()) {
+                && dnnl_thr_syncable()) {
             jcp.transpose_src = true;
             jcp.ver = ver_4fma;
             jcp.fma_step = 4;
@@ -1127,7 +1127,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 void jit_avx512_common_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
-    using namespace mkldnn::impl::memory_tracking::names;
+    using namespace dnnl::impl::memory_tracking::names;
 
     if (jcp.prop_kind != backward_data && jcp.with_bias
             && jcp.oc != jcp.oc_without_padding)
@@ -1214,7 +1214,7 @@ void jit_avx512_common_1x1_conv_kernel::balance(
 
         const bool ready_for_async
                 = utils::one_of(jcp.ver, ver_fma, ver_avx512_core);
-        if (!ready_for_async && !mkldnn_thr_syncable()) {
+        if (!ready_for_async && !dnnl_thr_syncable()) {
             assert(nthr_mb == 1);
             break;
         }
@@ -1228,4 +1228,4 @@ void jit_avx512_common_1x1_conv_kernel::balance(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

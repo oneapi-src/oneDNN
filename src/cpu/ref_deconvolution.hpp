@@ -28,7 +28,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -123,7 +123,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
             , dst_tag_(other.dst_tag_) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
@@ -143,7 +143,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
 
-            mkldnn_primitive_desc_iterator it(
+            dnnl_primitive_desc_iterator it(
                     engine_, (op_desc_t *)&cd, &attr_, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
@@ -224,13 +224,13 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
-        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
+        conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+        conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
         if (pd()->with_bias() && pd()->conv_supports_bias_)
-            conv_args[MKLDNN_ARG_BIAS] = args.at(MKLDNN_ARG_BIAS);
-        conv_args[MKLDNN_ARG_DIFF_SRC] = args.at(MKLDNN_ARG_DST);
+            conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+        conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
+            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
@@ -282,7 +282,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_deconvolution_bwd_data_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
@@ -300,7 +300,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
 
-            mkldnn_primitive_desc_iterator it(
+            dnnl_primitive_desc_iterator it(
                     engine_, (op_desc_t *)&cd, &attr_, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
@@ -361,11 +361,11 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
-        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
-        conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
+        conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+        conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+        conv_args[DNNL_ARG_DST] = args.at(DNNL_ARG_DIFF_SRC);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
+            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         conv_p_->execute(conv_ctx);
@@ -392,7 +392,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
             , dst_tag_(other.dst_tag_) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_deconvolution_bwd_weights_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
@@ -411,7 +411,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
 
-            mkldnn_primitive_desc_iterator it(
+            dnnl_primitive_desc_iterator it(
                     engine_, (op_desc_t *)&cd, &attr_, nullptr);
             while (++it != it.end()) {
                 conv_pd_ = *it;
@@ -488,11 +488,11 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
-        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
-        conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
+        conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+        conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+        conv_args[DNNL_ARG_DIFF_WEIGHTS] = args.at(DNNL_ARG_DIFF_WEIGHTS);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
+            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         status_t status = conv_p_->execute(conv_ctx);
@@ -535,7 +535,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

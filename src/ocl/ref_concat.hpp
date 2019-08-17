@@ -22,7 +22,7 @@
 #include "common/reorder_pd.hpp"
 #include "ocl/ocl_concat_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -35,7 +35,7 @@ struct ref_concat_t : public primitive_impl_t {
         ~pd_t() { clear(); }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             ocl_concat_pd_t::operator=(rhs);
             clear();
             clone_reorder_pds(rhs);
@@ -96,8 +96,8 @@ struct ref_concat_t : public primitive_impl_t {
         const auto n = pd()->n_inputs();
         for (int i = 0; i < n; ++i) {
             exec_args_t r_args;
-            r_args[MKLDNN_ARG_SRC] = ctx.args().at(MKLDNN_ARG_MULTIPLE_SRC + i);
-            r_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DST);
+            r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
+            r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
             exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
             reorders_[i]->execute(r_ctx);
         }
@@ -111,6 +111,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

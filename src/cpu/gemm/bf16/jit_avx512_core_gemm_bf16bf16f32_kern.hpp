@@ -20,7 +20,7 @@
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -91,6 +91,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP

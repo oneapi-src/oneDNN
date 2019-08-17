@@ -25,7 +25,7 @@
 
 extern const char *gemm_inner_product_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -50,7 +50,7 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
 
-    return mkldnn_primitive_desc_create(
+    return dnnl_primitive_desc_create(
             gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
 }
 } // namespace
@@ -67,7 +67,7 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             ocl_inner_product_fwd_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
@@ -172,7 +172,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             ocl_inner_product_bwd_data_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
@@ -254,7 +254,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             ocl_ip_bwd_weights_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
@@ -350,6 +350,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

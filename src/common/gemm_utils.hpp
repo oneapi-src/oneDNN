@@ -17,13 +17,13 @@
 #ifndef GEMM_UTILS_HPP
 #define GEMM_UTILS_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 static inline status_t check_gemm_input(char transa, char transb, int m, int n,
@@ -65,11 +65,11 @@ static inline status_t create_gemm_memory_desc(memory_desc_t *m_desc,
             break;
     }
     dims_t dims_flat = {dims[0] * dims[1]};
-    return mkldnn_memory_desc_init_by_tag(
+    return dnnl_memory_desc_init_by_tag(
             m_desc, 1, dims_flat, data_type, format_tag::x);
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

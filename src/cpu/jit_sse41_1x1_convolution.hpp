@@ -18,13 +18,13 @@
 #define CPU_JIT_SSE41_1x1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "jit_sse41_1x1_conv_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -86,6 +86,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

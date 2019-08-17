@@ -22,7 +22,7 @@
 #include "cpu_concat_pd.hpp"
 #include "cpu_isa_traits.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -34,7 +34,7 @@ struct simple_concat_t : public primitive_impl_t {
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy_from(rhs); }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             cpu_concat_pd_t::operator=(rhs);
             copy_from(rhs);
             return *this;
@@ -100,8 +100,8 @@ struct simple_concat_t : public primitive_impl_t {
             return status::success;
         }
 
-        int perm_[MKLDNN_MAX_NDIMS];
-        int iperm_[MKLDNN_MAX_NDIMS];
+        int perm_[DNNL_MAX_NDIMS];
+        int iperm_[DNNL_MAX_NDIMS];
         dims_t blocks_;
 
         dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
@@ -163,6 +163,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

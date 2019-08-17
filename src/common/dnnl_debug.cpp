@@ -18,8 +18,8 @@
 #include <cinttypes>
 #include <stdio.h>
 
-#include "mkldnn_debug.h"
-#include "mkldnn_types.h"
+#include "dnnl_debug.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
@@ -34,23 +34,23 @@
         str_len -= l; \
     } while (0)
 
-int mkldnn_md2fmt_str(
-        char *str, size_t str_len, const mkldnn_memory_desc_t *mdesc) {
-    using namespace mkldnn::impl;
+int dnnl_md2fmt_str(
+        char *str, size_t str_len, const dnnl_memory_desc_t *mdesc) {
+    using namespace dnnl::impl;
 
     if (str == nullptr || str_len <= 1u) return -1;
 
     int written_len = 0;
 
     if (mdesc == nullptr) {
-        DPRINT("%s::%s::", mkldnn_dt2str(data_type::undef),
-                mkldnn_fmt_kind2str(format_kind::undef));
+        DPRINT("%s::%s::", dnnl_dt2str(data_type::undef),
+                dnnl_fmt_kind2str(format_kind::undef));
         return written_len;
     }
 
     memory_desc_wrapper md(mdesc);
 
-    DPRINT("%s:", mkldnn_dt2str(md.data_type()));
+    DPRINT("%s:", dnnl_dt2str(md.data_type()));
 
     bool padded_dims = false, padded_offsets = false;
     for (int d = 0; d < md.ndims(); ++d) {
@@ -61,7 +61,7 @@ int mkldnn_md2fmt_str(
     DPRINT("%s%s%s:", padded_dims ? "p" : "", padded_offsets ? "o" : "",
             offset0 ? "0" : "");
 
-    DPRINT("%s:", mkldnn_fmt_kind2str(md.format_kind()));
+    DPRINT("%s:", dnnl_fmt_kind2str(md.format_kind()));
 
     if (!md.is_blocking_desc()) {
         /* TODO: extend */
@@ -72,7 +72,7 @@ int mkldnn_md2fmt_str(
         dims_t blocks;
         md.compute_blocks(blocks);
 
-        char dim_chars[MKLDNN_MAX_NDIMS + 1];
+        char dim_chars[DNNL_MAX_NDIMS + 1];
 
         bool plain = true;
         for (int d = 0; d < md.ndims(); ++d) {
@@ -103,9 +103,9 @@ int mkldnn_md2fmt_str(
     return written_len;
 }
 
-int mkldnn_md2dim_str(
-        char *str, size_t str_len, const mkldnn_memory_desc_t *mdesc) {
-    using namespace mkldnn::impl;
+int dnnl_md2dim_str(
+        char *str, size_t str_len, const dnnl_memory_desc_t *mdesc) {
+    using namespace dnnl::impl;
 
     if (str == nullptr || str_len <= 1) return -1;
 

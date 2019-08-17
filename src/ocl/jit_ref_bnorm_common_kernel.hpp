@@ -22,7 +22,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -36,7 +36,7 @@ struct jit_ref_bnorm_common_kernel {
             const batch_normalization_desc_t &bd,
             const memory_desc_wrapper &data_mdw,
             const batch_normalization_pd_t *bdesc, jit_offsets &jit_off) {
-        using namespace mkldnn::impl::format_tag;
+        using namespace dnnl::impl::format_tag;
 
         const int ndims = data_mdw.ndims();
 
@@ -144,6 +144,6 @@ struct jit_ref_bnorm_common_kernel {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

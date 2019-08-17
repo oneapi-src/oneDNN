@@ -23,7 +23,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace memory_tracking {
 
@@ -119,7 +119,7 @@ namespace memory_tracking {
  *
  *      void exec() {
  *          // get the base pointer to a scratchpad memory from a user
- *          void *scratchpad_ptr = this->input(MKLDNN_MEM_SCRATCHPAD);
+ *          void *scratchpad_ptr = this->input(DNNL_MEM_SCRATCHPAD);
  *
  *          // create a grantor to the scratchpad (and provide the base
  *          // pointer).
@@ -322,6 +322,6 @@ inline grantor_t registry_t::grantor(void *base_ptr) const {
 
 } // namespace memory_tracking
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

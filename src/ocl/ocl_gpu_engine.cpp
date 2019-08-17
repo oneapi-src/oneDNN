@@ -39,7 +39,7 @@
 
 #include "ocl/ocl_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -143,10 +143,10 @@ status_t ocl_gpu_engine_t::create_kernels(
     ;
 }
 
-using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
+using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 
 namespace {
-using namespace mkldnn::impl::data_type;
+using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f ocl_impl_list[] = {
@@ -208,4 +208,4 @@ const pd_create_f *ocl_gpu_engine_impl_list_t::get_implementation_list() {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

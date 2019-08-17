@@ -18,7 +18,7 @@
 
 #include "inner_product_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 using namespace prop_kind;
@@ -58,4 +58,4 @@ const memory_desc_t *ip_prop_invariant_dst_d(const inner_product_desc_t *desc) {
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -26,15 +26,15 @@
 #include "cpu/simple_reorder.hpp"
 #include "cpu/wino_reorder.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using rpd_create_f = mkldnn::impl::engine_t::reorder_primitive_desc_create_f;
+using rpd_create_f = dnnl::impl::engine_t::reorder_primitive_desc_create_f;
 
 namespace {
-using namespace mkldnn::impl::data_type;
-using namespace mkldnn::impl::format_tag;
+using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::format_tag;
 
 #define REG_SR(idt, ifmt, odt, ofmt, ...) \
     simple_reorder_t<idt, ifmt, odt, ofmt, __VA_ARGS__>::pd_t::create
@@ -284,4 +284,4 @@ const rpd_create_f *cpu_engine_t::get_reorder_implementation_list() const {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

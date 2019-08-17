@@ -22,7 +22,7 @@
 #include "common/primitive_attr.hpp"
 #include "cpu_isa_traits.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -530,6 +530,6 @@ struct jit_pool_call_s {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -25,7 +25,7 @@
 #include "ocl/jit_ref_layer_normalization_kernel.hpp"
 #include "ocl/ocl_layer_normalization_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -150,6 +150,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

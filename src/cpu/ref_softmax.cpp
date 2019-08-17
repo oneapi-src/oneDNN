@@ -19,20 +19,20 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_softmax.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::execute_forward_dense(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const auto ou_stride = pd()->outer_stride();
 
@@ -52,8 +52,8 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const size_t dim = channels_ * inner_size_;
@@ -182,9 +182,9 @@ template struct ref_softmax_fwd_t<data_type::f32>;
 template <impl::data_type_t data_type>
 void ref_softmax_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
-    auto dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DST);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const auto ou_stride = pd()->outer_stride();
 
@@ -208,9 +208,9 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
 template <impl::data_type_t data_type>
 void ref_softmax_bwd_t<data_type>::execute_backward_generic(
         const exec_ctx_t &ctx) const {
-    auto dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DST);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DST);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_d(pd()->diff_src_md());
     const memory_desc_wrapper data_d(pd()->dst_md());
@@ -237,6 +237,6 @@ template struct ref_softmax_bwd_t<data_type::f32>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

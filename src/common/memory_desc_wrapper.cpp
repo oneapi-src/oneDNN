@@ -23,7 +23,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
@@ -88,8 +88,8 @@ void memory_desc_wrapper::compute_strides_compat(dims_t *strides_compat) const {
     compute_blocks(blocks);
 
     int perm_idx = 0;
-    int inner_perm[MKLDNN_MAX_NDIMS] = {};
-    bool seen[MKLDNN_MAX_NDIMS] = {};
+    int inner_perm[DNNL_MAX_NDIMS] = {};
+    bool seen[DNNL_MAX_NDIMS] = {};
 
     for (int i = 0; i < blk.inner_nblks; i++) {
         int blk_idx = blk.inner_idxs[i];
@@ -272,6 +272,6 @@ status_t memory_desc_wrapper::compute_blocking(
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

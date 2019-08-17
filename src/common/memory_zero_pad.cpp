@@ -16,16 +16,16 @@
 
 #include <assert.h>
 
-#include "mkldnn_thread.hpp"
-#include "mkldnn_traits.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_traits.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "memory.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::data_type;
-using namespace mkldnn::impl::status;
+using namespace dnnl::impl;
+using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::status;
 
 enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 

@@ -15,13 +15,13 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_traits.hpp"
 #include "common/float16.hpp"
-#include "common/mkldnn_traits.hpp"
 #include "common/type_helpers.hpp"
 
 #include "ocl/jit_gen9_gemm.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -188,8 +188,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_nocopy(
     arg_list.set(15, eltwise_alpha);
     arg_list.set(16, eltwise_beta);
 
-    bool transa = (pd()->desc()->transa == mkldnn_trans);
-    bool transb = (pd()->desc()->transb == mkldnn_trans);
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m, unroll_n;
 
@@ -265,8 +265,8 @@ size_t jit_gen9_gemm_t<a_type, b_type, c_type>::max_plan_size() const {
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
-    bool transa = (pd()->desc()->transa == mkldnn_trans);
-    bool transb = (pd()->desc()->transb == mkldnn_trans);
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
     jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
@@ -302,8 +302,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
 
-    bool transa = (pd()->desc()->transa == mkldnn_trans);
-    bool transb = (pd()->desc()->transb == mkldnn_trans);
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
 
     auto lda = pd()->desc()->lda;
     auto ldb = pd()->desc()->ldb;
@@ -320,9 +320,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_standard(
     beta_native = beta;
     one_native = 1.0f;
 
-    auto &a = CTX_IN_STORAGE(MKLDNN_ARG_SRC_0);
-    auto &b = CTX_IN_STORAGE(MKLDNN_ARG_SRC_1);
-    auto &c = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
+    auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
+    auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
@@ -424,8 +424,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
 
-    bool transa = (pd()->desc()->transa == mkldnn_trans);
-    bool transb = (pd()->desc()->transb == mkldnn_trans);
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
 
     auto lda = pd()->desc()->lda;
     auto ldb = pd()->desc()->ldb;
@@ -437,9 +437,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
 
-    auto &a = CTX_IN_STORAGE(MKLDNN_ARG_SRC_0);
-    auto &b = CTX_IN_STORAGE(MKLDNN_ARG_SRC_1);
-    auto &c = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
+    auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
+    auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     size_t off_a = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
@@ -546,6 +546,6 @@ template struct jit_gen9_gemm_t<f32>;
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

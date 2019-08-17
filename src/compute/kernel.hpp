@@ -24,7 +24,7 @@
 #include "compute/kernel_arg_list.hpp"
 #include "compute/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -68,6 +68,6 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // COMPUTE_KERNEL_HPP

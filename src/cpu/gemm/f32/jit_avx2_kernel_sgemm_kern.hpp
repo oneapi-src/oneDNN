@@ -22,7 +22,7 @@
 #define MAX_UNROLL_M 48
 #define MAX_UNROLL_N_BIN 3
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -676,6 +676,6 @@ public:
 };
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_AVX2_KERNEL_SGEMM_KERN_HPP

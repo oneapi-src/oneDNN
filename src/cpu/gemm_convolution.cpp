@@ -14,22 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "gemm_convolution.hpp"
-#include "mkldnn_thread.hpp"
 #include "ref_eltwise.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 namespace {
 struct im_pos_t {
@@ -44,10 +44,10 @@ struct im_pos_t {
 } // namespace
 
 void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
@@ -198,9 +198,9 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
 void gemm_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
@@ -259,10 +259,10 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
 
 void gemm_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto diff_bias = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_BIAS);
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
     auto wei_reduction
@@ -335,18 +335,18 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
                     }
                 }
             }
-            if (need_reduction && mkldnn_thr_syncable()) {
-                mkldnn_thr_barrier();
+            if (need_reduction && dnnl_thr_syncable()) {
+                dnnl_thr_barrier();
                 data_t *weights_base = diff_weights + g_start * weights_g_size;
                 jit_gemm_convolution_utils::bwd_weights_reduction_par(ithr_mb,
                         nthr_mb, jcp, weights_reduce_base, weights_base);
             }
         } else {
-            if (need_reduction && mkldnn_thr_syncable()) mkldnn_thr_barrier();
+            if (need_reduction && dnnl_thr_syncable()) dnnl_thr_barrier();
         }
     });
 
-    if (jcp.need_wei_reduction && !mkldnn_thr_syncable()) {
+    if (jcp.need_wei_reduction && !dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
             int ithr_g, nthr_g, ithr_mb, nthr_mb;
             size_t g_start {0}, g_end {0};
@@ -394,4 +394,4 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -22,7 +22,7 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -65,11 +65,11 @@ private:
     void *data_ = nullptr;
     bool is_owned_ = false;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

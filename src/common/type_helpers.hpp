@@ -20,15 +20,15 @@
 #include <assert.h>
 #include <math.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "dnnl_traits.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_traits.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 // Global zero memory descriptor. Mostly used for queries to return
@@ -108,8 +108,8 @@ inline bool memory_extra_desc_is_equal(
 }
 
 inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
-        const blocking_desc_t &rhs, int ndims = MKLDNN_MAX_NDIMS) {
-    using mkldnn::impl::utils::array_cmp;
+        const blocking_desc_t &rhs, int ndims = DNNL_MAX_NDIMS) {
+    using dnnl::impl::utils::array_cmp;
     return true && lhs.inner_nblks == rhs.inner_nblks
             && array_cmp(lhs.strides, rhs.strides, ndims)
             && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
@@ -192,7 +192,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 } // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
-    using namespace mkldnn::impl::utils;
+    using namespace dnnl::impl::utils;
     // quick path for zero_mds
     if (utils::everyone_is(0, lhs.ndims, rhs.ndims)) return true;
 
@@ -264,10 +264,10 @@ inline bool operator==(
             && COMPARE_DESC_MEMBERS(diff_bias_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(diff_dst_desc)
-            && COMPARE_DESC_ARRAY_MEMBERS(strides, MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(dilates, MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(padding[0], MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(padding[1], MKLDNN_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(strides, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(dilates, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
             && COMPARE_DESC_MEMBERS(accum_data_type);
     return ret;
 }
@@ -340,10 +340,10 @@ inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(diff_dst_desc)
-            && COMPARE_DESC_ARRAY_MEMBERS(strides, MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(kernel, MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(padding[0], MKLDNN_MAX_NDIMS)
-            && COMPARE_DESC_ARRAY_MEMBERS(padding[1], MKLDNN_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(strides, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(kernel, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
             && COMPARE_DESC_MEMBERS(accum_data_type);
     return ret;
 }
@@ -423,13 +423,13 @@ inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
 
 inline status_t memory_desc_init_by_strides(
         memory_desc_t &md, const dims_t strides) {
-    return mkldnn_memory_desc_init_by_strides(
+    return dnnl_memory_desc_init_by_strides(
             &md, md.ndims, md.dims, md.data_type, strides);
 }
 
 inline status_t memory_desc_init_by_tag(
         memory_desc_t &md, format_tag_t tag, const dims_t strides = nullptr) {
-    status_t status = mkldnn_memory_desc_init_by_tag(
+    status_t status = dnnl_memory_desc_init_by_tag(
             &md, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success || strides == nullptr) return status;
 
@@ -468,10 +468,10 @@ inline status_t memory_desc_init_by_blocking_desc(
     auto &mblk = md.format_desc.blocking;
     mblk = blk;
 
-    const int ndims = nstl::min(MKLDNN_MAX_NDIMS, md.ndims); // make GCC 5 happy
+    const int ndims = nstl::min(DNNL_MAX_NDIMS, md.ndims); // make GCC 5 happy
     utils::array_copy(mblk.strides, blk.strides, ndims);
 
-    int perm[MKLDNN_MAX_NDIMS];
+    int perm[DNNL_MAX_NDIMS];
     for (int d = 0; d < ndims; ++d)
         perm[d] = d;
 
@@ -493,9 +493,9 @@ inline status_t memory_desc_init_by_blocking_desc(
 /** returns true if memory desc @p md corresponds to the given format tag and
  * strides.
  * If strides are not passed (or passed as nullptr) the dense structure is
- * assumed (i.e. the one that mkldnn_memory_desc_init_by_tag() returns).
+ * assumed (i.e. the one that dnnl_memory_desc_init_by_tag() returns).
  * Strides might contain `0` value, indicating the stride must match the one
- * that mkldnn_memory_desc_init_by_tag() returns.
+ * that dnnl_memory_desc_init_by_tag() returns.
  * Strides might contain `-1` values, that would be ignored during the
  * comparison. For instance, this can be used if a stride along minibatch
  * doesn't matter. */
@@ -504,7 +504,7 @@ inline bool memory_desc_matches_tag(const memory_desc_t &md, format_tag_t tag,
     if (md.format_kind != types::format_tag_to_kind(tag)) return false;
 
     memory_desc_t md_gold;
-    status_t status = mkldnn_memory_desc_init_by_tag(
+    status_t status = dnnl_memory_desc_init_by_tag(
             &md_gold, md.ndims, md.dims, md.data_type, tag);
     if (status != status::success) return false;
 
@@ -546,7 +546,7 @@ format_tag_t memory_desc_matches_one_of_tag(
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #include "memory_desc_wrapper.hpp"
 

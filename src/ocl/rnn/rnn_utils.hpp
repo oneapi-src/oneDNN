@@ -17,7 +17,7 @@
 #ifndef OCL_RNN_UTILS_HPP
 #define OCL_RNN_UTILS_HPP
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
@@ -78,7 +78,7 @@
 #define free_packed_sig(f) \
     void f(int n_layer, int n_dir, int n_parts, size_t *weights_)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -106,12 +106,12 @@ struct rnn_conf_t {
 
     int gates_ld, gates_nld, gates_ws_ld;
 
-    int n_parts_weights_layer, parts_weights_layer[MKLDNN_RNN_MAX_N_PARTS];
-    int n_parts_weights_iter, parts_weights_iter[MKLDNN_RNN_MAX_N_PARTS];
-    int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
+    int n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
+    int n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
+    int n_bias, n_parts_bias, parts_bias[DNNL_RNN_MAX_N_PARTS];
 
-    size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
-            part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    size_t part_weights_iter_pack_size[DNNL_RNN_MAX_N_PARTS],
+            part_weights_layer_pack_size[DNNL_RNN_MAX_N_PARTS];
 
     // Size of packed data in bytes
     size_t weights_layer_comp_offset, weights_layer_pack_size,
@@ -165,6 +165,6 @@ status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

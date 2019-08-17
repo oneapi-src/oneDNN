@@ -15,20 +15,20 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 
 /* API */
 
-status_t mkldnn_stream_create(
+status_t dnnl_stream_create(
         stream_t **stream, engine_t *engine, unsigned flags) {
     bool args_ok = true && !utils::any_null(stream, engine)
             && flags == stream_flags::default_flags;
@@ -37,14 +37,14 @@ status_t mkldnn_stream_create(
     return engine->create_stream(stream, flags);
 }
 
-status_t mkldnn_stream_wait(stream_t *stream) {
+status_t dnnl_stream_wait(stream_t *stream) {
     bool args_ok = !any_null(stream);
     if (!args_ok) return invalid_arguments;
 
     return stream->wait();
 }
 
-status_t mkldnn_stream_destroy(stream_t *stream) {
+status_t dnnl_stream_destroy(stream_t *stream) {
     delete stream;
     return success;
 }

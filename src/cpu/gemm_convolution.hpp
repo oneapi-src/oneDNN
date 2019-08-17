@@ -26,7 +26,7 @@
 
 #include "cpu_convolution_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -58,7 +58,7 @@ struct gemm_convolution_fwd_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md(), weights_md(0), dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -148,7 +148,7 @@ struct gemm_convolution_bwd_data_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md(), weights_md(0), diff_dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -207,7 +207,7 @@ struct gemm_convolution_bwd_weights_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md(), diff_weights_md(0), diff_dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -241,6 +241,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

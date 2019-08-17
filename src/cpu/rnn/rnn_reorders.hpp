@@ -20,13 +20,13 @@
 #include <assert.h>
 
 #include "cpu_reorder_pd.hpp"
+#include "dnnl_thread.hpp"
 #include "gemm/gemm_pack.hpp"
-#include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -69,8 +69,8 @@ private:
     typedef typename prec_traits<type_o>::type out_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
-        auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
+        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const size_t nelems = input_d.nelems();
@@ -104,7 +104,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
             bool args_ok = true && id.data_type() == type_i
                     && od.data_type() == type_o
                     && od.format_kind() == format_kind::rnn_packed
-                    && od.rnn_packed_desc().format == mkldnn_ldigo_p
+                    && od.rnn_packed_desc().format == dnnl_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1 && attr != nullptr;
             if (!args_ok) return invalid_arguments;
 
@@ -149,7 +149,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             size_t quantization_size = sizeof(int8_t) * nelems;
             size_t reduction_size = itag_ == format_tag::ldigo
-                    ? sizeof(int32_t) * mkldnn_get_max_threads() * dims[0]
+                    ? sizeof(int32_t) * dnnl_get_max_threads() * dims[0]
                             * dims[1] * dims[3] * dims[4]
                     : 0;
             scratchpad.book(
@@ -167,8 +167,8 @@ private:
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using math::saturate;
 
-        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
-        auto output = CTX_OUT_MEM(char *, MKLDNN_ARG_TO);
+        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const auto &dims = input_d.dims();
@@ -198,7 +198,7 @@ private:
         /* Quantized weights have ldigo layot and transposition will happen
          * if user's data is in ldgoi */
         if (is_igo) {
-            int nthr = mkldnn_get_max_threads();
+            int nthr = dnnl_get_max_threads();
             int LD_nthr = nstl::min(L * D, nthr);
             int I_nthr = nstl::min(I, nthr / LD_nthr);
             parallel(nthr, [&](const int ithr, const int nthr) {
@@ -299,8 +299,8 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
             bool args_ok = true && id.data_type() == data_type::f32
                     && od.data_type() == data_type::f32
                     && od.format_kind() == format_kind::rnn_packed
-                    && utils::one_of(od.rnn_packed_desc().format,
-                            mkldnn_ldigo_p, mkldnn_ldgoi_p)
+                    && utils::one_of(od.rnn_packed_desc().format, dnnl_ldigo_p,
+                            dnnl_ldgoi_p)
                     && attr->has_default_values();
             if (!args_ok) return invalid_arguments;
 
@@ -360,8 +360,8 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
 
 private:
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const float *, MKLDNN_ARG_FROM);
-        auto output = CTX_OUT_MEM(float *, MKLDNN_ARG_TO);
+        auto input = CTX_IN_MEM(const float *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(float *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const auto &dims = input_d.dims();
@@ -374,7 +374,7 @@ private:
 
         /* Pack */
         const bool from_igo = pd()->itag_ == format_tag::ldigo;
-        const bool to_igo = rnn_pdata.format == mkldnn_ldigo_p;
+        const bool to_igo = rnn_pdata.format == dnnl_ldigo_p;
         int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
@@ -416,7 +416,7 @@ private:
                             &input_tr[to_igo ? off_igo(l, d, 0, g, 0)
                                              : off_goi(l, d, 0, g, 0)],
                             output);
-                    assert(st == mkldnn_success);
+                    assert(st == dnnl_success);
                     MAYBE_UNUSED(st);
                     output += size_packed_cell[p] / sizeof(float);
                 }
@@ -430,6 +430,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

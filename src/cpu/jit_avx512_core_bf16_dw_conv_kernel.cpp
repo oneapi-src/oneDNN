@@ -23,7 +23,7 @@
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -949,4 +949,4 @@ void jit_avx512_dw_conv_bwd_weights_kernel_bf16::generate() {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

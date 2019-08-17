@@ -18,7 +18,7 @@
  */
 #include "ref_rnn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -42,4 +42,4 @@ template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

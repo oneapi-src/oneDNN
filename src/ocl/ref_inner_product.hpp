@@ -28,7 +28,7 @@
 
 extern const char *ref_inner_product_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -120,7 +120,7 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                     = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise()
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : mkldnn_alg_kind_undef;
+                    : dnnl_alg_kind_undef;
         }
 
         jit_inner_product_conf_t jip_;
@@ -198,7 +198,7 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
         jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
-                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
+                pd()->jit_off_, false, false, dnnl_alg_kind_undef);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_inner_product_bwd_data_kernel", kernel_ctx);
@@ -261,7 +261,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
         jit_ref_inner_product_fwd_kernel::init_const_def(kernel_ctx, pd()->jip_,
-                pd()->jit_off_, false, false, mkldnn_alg_kind_undef);
+                pd()->jit_off_, false, false, dnnl_alg_kind_undef);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_inner_product_bwd_weights_kernel", kernel_ctx);
@@ -288,7 +288,7 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -24,13 +24,13 @@
 
 #include "cpu_reorder_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 namespace tr {
 
-constexpr int max_ndims = MKLDNN_MAX_NDIMS;
+constexpr int max_ndims = DNNL_MAX_NDIMS;
 
 struct node_t {
     size_t n;
@@ -124,6 +124,6 @@ status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

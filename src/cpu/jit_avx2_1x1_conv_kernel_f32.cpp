@@ -29,13 +29,13 @@
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
@@ -664,7 +664,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 void jit_avx2_1x1_conv_kernel_f32::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
-    using namespace mkldnn::impl::memory_tracking::names;
+    using namespace dnnl::impl::memory_tracking::names;
 
     if (jcp.prop_kind != backward_data && jcp.oc != jcp.oc_without_padding)
         scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
@@ -672,4 +672,4 @@ void jit_avx2_1x1_conv_kernel_f32::init_scratchpad(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

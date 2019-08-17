@@ -14,29 +14,29 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "jit_avx512_core_bf16_1x1_convolution.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 #define data_blk_off(f, n, c, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
 
 namespace {
-/*TODO: investigate why common balance2D defined in mkldnn_thread.hpp
+/*TODO: investigate why common balance2D defined in dnnl_thread.hpp
  * not used here ?*/
 template <typename T, typename U>
 void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
@@ -63,10 +63,10 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
 template <data_type_t dst_type>
 void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -85,7 +85,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
         execute_forward_thr(ithr, nthr, src, weights, bias, dst, scratchpad);
     });
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 }
 
 template <data_type_t dst_type>
@@ -257,9 +257,9 @@ template struct jit_avx512_core_bf16_1x1_convolution_fwd_t<data_type::bf16>;
 template <data_type_t diff_src_type>
 void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
     auto scratchpad = ctx.get_scratchpad_grantor();
     parallel(0, [&](const int ithr, const int nthr) {
         execute_backward_data_thr(
@@ -464,9 +464,9 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 template <data_type_t diff_weights_type>
 void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         execute_backward_weights(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *diff_bias = nullptr;
@@ -476,7 +476,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     } else
         diff_bias = pd()->wants_padded_bias()
                 ? scratchpad.template get<float>(key_conv_padded_bias)
-                : CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+                : CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -499,7 +499,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
 
     simple_barrier::ctx_t reduction_barrier;
-    if (mkldnn_thr_syncable()) simple_barrier::ctx_init(&reduction_barrier);
+    if (dnnl_thr_syncable()) simple_barrier::ctx_init(&reduction_barrier);
 
     const auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
@@ -719,7 +719,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         const bool is_bf16_out = diff_weights_type == data_type::bf16;
         /* diff_weights[:] += sum(ws_reduction_[thr_mb][:]) */
         if (jcp.nthr_mb > _start_nthr_mb) {
-            if (mkldnn_thr_syncable())
+            if (dnnl_thr_syncable())
                 simple_barrier::barrier(&reduction_barrier, jcp.nthr);
             const int work = g_work * oc_b_work * ic_b_work;
             int start {0}, end {0};
@@ -829,18 +829,18 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
             }
         }
 
-        if (mkldnn_thr_syncable())
+        if (dnnl_thr_syncable())
             rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         ker(ithr, jcp.nthr);
-        if (mkldnn_thr_syncable())
+        if (dnnl_thr_syncable())
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
         if (pd()->with_bias()) ker_bias(ithr, jcp.nthr);
     });
 
-    if (!mkldnn_thr_syncable()) {
+    if (!dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
             if (pd()->with_bias()) {
@@ -858,12 +858,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         auto diff_bias_f32 = scratchpad.template get<float>(
                 key_conv_bias_bf16_convert_wsp);
         auto diff_bias_in = CTX_OUT_MEM(
-                prec_traits<data_type::bf16>::type *, MKLDNN_ARG_DIFF_BIAS);
+                prec_traits<data_type::bf16>::type *, DNNL_ARG_DIFF_BIAS);
         cvt_float_to_bfloat16(diff_bias_in, diff_bias_f32,
                 pd()->jcp_.oc_without_padding * pd()->jcp_.ngroups);
 
     } else if (pd()->wants_padded_bias()) {
-        auto diff_bias_in = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+        auto diff_bias_in = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
         utils::array_copy(diff_bias_in, diff_bias, jcp.oc_without_padding);
     }
 }
@@ -875,4 +875,4 @@ template struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

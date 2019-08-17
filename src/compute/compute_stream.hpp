@@ -22,7 +22,7 @@
 #include "common/stream.hpp"
 #include "compute/kernel.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -43,6 +43,6 @@ public:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -19,11 +19,11 @@
 #include "cpu/ref_concat.hpp"
 #include "cpu/simple_concat.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using cpd_create_f = mkldnn::impl::engine_t::concat_primitive_desc_create_f;
+using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
 
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
@@ -45,4 +45,4 @@ const cpd_create_f *cpu_engine_t::get_concat_implementation_list() const {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

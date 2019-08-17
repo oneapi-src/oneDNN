@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 
 #include "simple_concat.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -35,17 +35,17 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     const int num_arrs = pd()->n_inputs();
     const int *perm = pd()->perm_, *iperm = pd()->iperm_;
     const int concat_dim = pd()->concat_dim();
-    auto o_base_ptr = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto o_base_ptr = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     for (int a = 0; a < num_arrs; ++a) {
         const memory_desc_wrapper i_d(pd()->src_md(a));
         const memory_desc_wrapper o_d(pd()->src_image_md(a));
 
-        iptrs[a] = CTX_IN_MEM(const data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
+        iptrs[a] = CTX_IN_MEM(const data_t *, DNNL_ARG_MULTIPLE_SRC + a)
                 + i_d.blk_off(0);
         optrs[a] = o_base_ptr + o_d.blk_off(0);
         nelems_to_copy[a] = pd()->nelems_to_concat(i_d);
-        for (int i = 0; i < MKLDNN_MAX_NDIMS; i++) {
+        for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
             if (i < perm[concat_dim])
                 is[a][i] = size_t(i_d.blocking_desc().strides[iperm[i]]);
             else
@@ -124,4 +124,4 @@ template struct simple_concat_t<data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

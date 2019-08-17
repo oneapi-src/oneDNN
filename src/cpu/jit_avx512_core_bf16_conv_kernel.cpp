@@ -26,13 +26,13 @@
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 using namespace format_tag;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 namespace {
@@ -2244,7 +2244,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
         int &nthr_oc_b_, int &nthr_ic_b_) {
     nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
 
-    const int max_threads = mkldnn_get_max_threads();
+    const int max_threads = dnnl_get_max_threads();
 
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
@@ -2309,5 +2309,5 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

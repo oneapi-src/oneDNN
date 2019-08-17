@@ -22,7 +22,7 @@
 
 #include <assert.h>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 // Memory storage is an abstraction providing interfaces to:
@@ -77,7 +77,7 @@ private:
     engine_t *engine_;
     size_t offset_ = 0;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };
 
 struct empty_memory_storage_t : public memory_storage_t {
@@ -100,6 +100,6 @@ inline memory_storage_t &memory_storage_t::empty_storage() {
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

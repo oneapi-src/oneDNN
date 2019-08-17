@@ -18,15 +18,15 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
-#include "common/mkldnn_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "compute/compute.hpp"
 
 #include "ocl/simple_sum.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -36,7 +36,7 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &output = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &output = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const int num_arrs = pd()->n_inputs();
     const memory_desc_wrapper o_d(pd()->dst_md());
@@ -44,7 +44,7 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
 
     for (int a = 0; a < num_arrs; ++a) {
 
-        auto &input = CTX_IN_STORAGE(MKLDNN_ARG_MULTIPLE_SRC + a);
+        auto &input = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + a);
         const float scale = pd()->scales()[a];
 
         compute::kernel_arg_list_t arg_list;
@@ -65,4 +65,4 @@ template struct simple_sum_t<data_type::f32>;
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

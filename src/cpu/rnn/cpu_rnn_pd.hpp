@@ -26,7 +26,7 @@
 #include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -84,14 +84,14 @@ protected:
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_layer_md_.format_desc.rnn_packed_desc.format
-                            == mkldnn_ldigo_p);
+                            == dnnl_ldigo_p);
         else
             ok = ok && rnn_utils::is_ldigo(&weights_layer_md_);
 
         if (weights_iter_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_iter_md_.format_desc.rnn_packed_desc.format
-                            == mkldnn_ldigo_p);
+                            == dnnl_ldigo_p);
         else
             ok = ok && rnn_utils::is_ldigo(&weights_iter_md_);
 
@@ -196,14 +196,14 @@ protected:
         if (weights_layer_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_layer_md_.format_desc.rnn_packed_desc.format
-                            == mkldnn_ldgoi_p);
+                            == dnnl_ldgoi_p);
         else
             ok = ok && rnn_utils::is_ldgoi(&weights_layer_md_);
 
         if (weights_iter_md_.format_kind == format_kind::rnn_packed)
             ok = ok
                     && (weights_iter_md_.format_desc.rnn_packed_desc.format
-                            == mkldnn_ldgoi_p);
+                            == dnnl_ldgoi_p);
         else
             ok = ok && rnn_utils::is_ldgoi(&weights_iter_md_);
 
@@ -234,6 +234,6 @@ protected:
 };
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

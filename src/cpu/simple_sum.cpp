@@ -16,16 +16,16 @@
 
 #include "simple_sum.hpp"
 #include "bfloat16.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t src_data_type, data_type_t dst_data_type>
 status_t simple_sum_t<src_data_type, dst_data_type>::execute(
         const exec_ctx_t &ctx) const {
-    auto output = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto output = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper o_d(pd()->dst_md());
     output += o_d.blk_off(0);
@@ -35,7 +35,7 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
     for (int a = 0; a < num_arrs; ++a) {
         const memory_desc_wrapper i_d(pd()->src_md(a));
         input_ptrs[a]
-                = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
+                = CTX_IN_MEM(const src_data_t *, DNNL_ARG_MULTIPLE_SRC + a)
                 + i_d.blk_off(0);
     }
 
@@ -122,4 +122,4 @@ template struct simple_sum_t<data_type::bf16, data_type::f32>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

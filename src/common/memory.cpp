@@ -18,30 +18,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::data_type;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::data_type;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 memory_desc_t glob_zero_md = memory_desc_t();
 }
-} // namespace mkldnn
+} // namespace dnnl
 
 namespace {
 bool memory_desc_sanity_check(int ndims, const dims_t dims,
         data_type_t data_type, format_kind_t format_kind) {
     if (ndims == 0) return true;
 
-    bool ok = true && dims != nullptr && 0 < ndims && ndims <= MKLDNN_MAX_NDIMS
+    bool ok = true && dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
             && one_of(data_type, f16, bf16, f32, s32, s8, u8)
             && format_kind != format_kind::undef;
     if (!ok) return false;
@@ -58,8 +58,8 @@ bool memory_desc_sanity_check(const memory_desc_t *md) {
 }
 } // namespace
 
-mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
-        const mkldnn::impl::memory_desc_t *md, unsigned flags, void *handle)
+dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
+        const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle)
     : engine_(engine), md_(*md) {
     const size_t size = memory_desc_wrapper(md_).size();
 
@@ -74,7 +74,7 @@ mkldnn_memory::mkldnn_memory(mkldnn::impl::engine_t *engine,
     zero_pad();
 }
 
-status_t mkldnn_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
+status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
         const dims_t dims, data_type_t data_type, format_tag_t tag) {
     if (any_null(memory_desc)) return invalid_arguments;
     if (ndims == 0 || tag == format_tag::undef) {
@@ -113,9 +113,8 @@ status_t mkldnn_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
     return status;
 }
 
-status_t mkldnn_memory_desc_init_by_strides(memory_desc_t *memory_desc,
-        int ndims, const dims_t dims, data_type_t data_type,
-        const dims_t strides) {
+status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
+        const dims_t dims, data_type_t data_type, const dims_t strides) {
     if (any_null(memory_desc)) return invalid_arguments;
     if (ndims == 0) {
         *memory_desc = types::zero_md();
@@ -152,7 +151,7 @@ status_t mkldnn_memory_desc_init_by_strides(memory_desc_t *memory_desc,
     return status::success;
 }
 
-status_t mkldnn_memory_desc_init_submemory(memory_desc_t *md,
+status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
         const memory_desc_t *parent_md, const dims_t dims,
         const dims_t offsets) {
     if (any_null(md, parent_md) || !memory_desc_sanity_check(parent_md))
@@ -198,19 +197,18 @@ status_t mkldnn_memory_desc_init_submemory(memory_desc_t *md,
     return success;
 }
 
-int mkldnn_memory_desc_equal(
-        const memory_desc_t *lhs, const memory_desc_t *rhs) {
+int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
     if (lhs == rhs) return 1;
     if (any_null(lhs, rhs)) return 0;
     return memory_desc_wrapper(*lhs) == memory_desc_wrapper(*rhs);
 }
 
-size_t mkldnn_memory_desc_get_size(const memory_desc_t *md) {
+size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     if (md == nullptr) return 0;
     return memory_desc_wrapper(*md).size();
 }
 
-status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
+status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, void *handle) {
     if (any_null(memory, engine)) return invalid_arguments;
 
@@ -219,27 +217,27 @@ status_t mkldnn_memory_create(memory_t **memory, const memory_desc_t *md,
 
     if (md->format_kind == format_kind::any) return invalid_arguments;
 
-    unsigned flags = (handle == MKLDNN_MEMORY_ALLOCATE)
+    unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
             : memory_flags_t::use_backend_ptr;
     return safe_ptr_assign<memory_t>(
             *memory, new memory_t(engine, md, flags, handle));
 }
 
-status_t mkldnn_memory_get_memory_desc(
+status_t dnnl_memory_get_memory_desc(
         const memory_t *memory, const memory_desc_t **md) {
     if (any_null(memory, md)) return invalid_arguments;
     *md = memory->md();
     return success;
 }
 
-status_t mkldnn_memory_get_engine(const memory_t *memory, engine_t **engine) {
+status_t dnnl_memory_get_engine(const memory_t *memory, engine_t **engine) {
     if (any_null(memory, engine)) return invalid_arguments;
     *engine = memory->engine();
     return success;
 }
 
-status_t mkldnn_memory_get_data_handle(const memory_t *memory, void **handle) {
+status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
     if (any_null(handle)) return invalid_arguments;
     if (memory == nullptr) {
         *handle = nullptr;
@@ -248,26 +246,26 @@ status_t mkldnn_memory_get_data_handle(const memory_t *memory, void **handle) {
     return memory->get_data_handle(handle);
 }
 
-status_t mkldnn_memory_set_data_handle(memory_t *memory, void *handle) {
+status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     if (any_null(memory)) return invalid_arguments;
     return memory->set_data_handle(handle);
 }
 
-status_t mkldnn_memory_map_data(const memory_t *memory, void **mapped_ptr) {
+status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
     bool args_ok = !any_null(memory, mapped_ptr);
     if (!args_ok) return invalid_arguments;
 
     return memory->memory_storage()->map_data(mapped_ptr);
 }
 
-status_t mkldnn_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {
+status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {
     bool args_ok = !any_null(memory);
     if (!args_ok) return invalid_arguments;
 
     return memory->memory_storage()->unmap_data(mapped_ptr);
 }
 
-status_t mkldnn_memory_destroy(memory_t *memory) {
+status_t dnnl_memory_destroy(memory_t *memory) {
     delete memory;
     return success;
 }

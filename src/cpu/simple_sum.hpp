@@ -17,13 +17,13 @@
 #ifndef SIMPLE_SUM_HPP
 #define SIMPLE_SUM_HPP
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_sum_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -108,7 +108,7 @@ struct simple_sum_t : public primitive_impl_t {
                         + bf16_p_.ws_acc_elements_per_thread_;
                 dim_t bf16cvt_buf_sz_ = sizeof(acc_data_t)
                         * bf16_p_.ws_elements_per_thread_
-                        * mkldnn_get_max_threads();
+                        * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(memory_tracking::names::key_sum_srcs_cvt,
                         bf16cvt_buf_sz_);
@@ -131,7 +131,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

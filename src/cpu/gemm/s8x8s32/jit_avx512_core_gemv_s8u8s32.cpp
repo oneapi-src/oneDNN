@@ -19,11 +19,11 @@
 #include "../gemm_info.hpp"
 #include "common/bfloat16.hpp"
 #include "common_u8.hpp"
+#include "dnnl_thread.hpp"
 #include "jit_generator.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -119,7 +119,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
     int status;
     dim_t i;
 
-    dim_t nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     uint8_t *new_x = NULL;
     int32_t *tmp_y = NULL, *new_y = NULL;
@@ -291,4 +291,4 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

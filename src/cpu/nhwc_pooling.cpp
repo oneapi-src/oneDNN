@@ -18,14 +18,14 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 
 #include "nhwc_pooling.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -76,9 +76,9 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
 
     auto alg = pd()->desc()->alg_kind;
 
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
     const memory_desc_wrapper MEM_D(src)(pd()->src_md());
     const memory_desc_wrapper MEM_D(dst)(pd()->dst_md());
@@ -204,9 +204,9 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 
     auto alg = pd()->desc()->alg_kind;
 
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(unsigned char *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_src_wsp = scratchpad.template get<float>(
@@ -256,7 +256,7 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                 ws_offset_init = strided_offset(mb, ws_n_stride, od,
                         ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
             }
-            size_t ithr = mkldnn_get_thread_num();
+            size_t ithr = dnnl_get_thread_num();
             float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
             float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
 
@@ -297,7 +297,7 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
             cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
         } else {
             // pooling_avg
-            size_t ithr = mkldnn_get_thread_num();
+            size_t ithr = dnnl_get_thread_num();
             float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
             float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
 
@@ -342,9 +342,9 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 template <data_type_t d_type>
 void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
 
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper MEM_D(diff_src)(pd()->diff_src_md());
     const memory_desc_wrapper MEM_D(diff_dst)(pd()->diff_dst_md());
@@ -476,9 +476,9 @@ template <>
 void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         const exec_ctx_t &ctx) const {
 
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto ws = CTX_IN_MEM(const unsigned char *, MKLDNN_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_dsrc = scratchpad.template get<float>(
@@ -523,8 +523,8 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
                 = strided_offset(mb, diff_src_n_stride, id, diff_src_d_stride,
                         ih, diff_src_h_stride, iw, diff_src_w_stride);
 
-        float *diff_dst_fp32 = &bf16cvt_ddst[mkldnn_get_thread_num() * OC];
-        float *diff_src_fp32 = &bf16cvt_dsrc[mkldnn_get_thread_num() * OC];
+        float *diff_dst_fp32 = &bf16cvt_ddst[dnnl_get_thread_num() * OC];
+        float *diff_src_fp32 = &bf16cvt_dsrc[dnnl_get_thread_num() * OC];
 
         for (int oc = 0; oc < OC; ++oc) {
             diff_src_fp32[oc] = 0.f;
@@ -626,6 +626,6 @@ template struct nhwc_pooling_bwd_t<data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

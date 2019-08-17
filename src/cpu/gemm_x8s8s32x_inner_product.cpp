@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "simple_q10n.hpp"
 
 #include "gemm/gemm.hpp"
 #include "gemm_x8s8s32x_inner_product.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -32,10 +32,10 @@ using namespace memory_tracking::names;
 template <data_type_t src_type, data_type_t dst_type>
 void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const int MB = pd()->MB();
     const int OC = pd()->OC();
@@ -85,4 +85,4 @@ template struct gemm_x8s8s32x_inner_product_fwd_t<s8, u8>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

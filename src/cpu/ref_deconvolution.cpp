@@ -15,14 +15,14 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_traits.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_deconvolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -100,8 +100,8 @@ void ref_deconvolution_fwd_t::compute_bias(const exec_ctx_t &ctx) const {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<bia_type>::type bia_data_t;
 
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
-    auto bias = CTX_IN_MEM(const bia_data_t *, MKLDNN_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto bias = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
 
     using namespace format_tag;
     switch (pd()->dst_tag_) {
@@ -229,8 +229,8 @@ void ref_deconvolution_bwd_weights_t::compute_bias(
     typedef typename prec_traits<dbia_type>::type dbia_data_t;
     typedef typename prec_traits<ddst_type>::type ddst_data_t;
 
-    auto diff_bias = CTX_OUT_MEM(dbia_data_t *, MKLDNN_ARG_DIFF_BIAS);
-    auto diff_dst = CTX_IN_MEM(const ddst_data_t *, MKLDNN_ARG_DIFF_DST);
+    auto diff_bias = CTX_OUT_MEM(dbia_data_t *, DNNL_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const ddst_data_t *, DNNL_ARG_DIFF_DST);
 
     using namespace format_tag;
     switch (pd()->dst_tag_) {
@@ -278,6 +278,6 @@ template void ref_deconvolution_bwd_weights_t::compute_bias<bf16, bf16>(
         const exec_ctx_t &ctx) const;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

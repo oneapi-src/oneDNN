@@ -19,7 +19,7 @@
  */
 #include "ref_rnn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 using namespace rnn_utils;
@@ -80,4 +80,4 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

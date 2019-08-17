@@ -18,8 +18,8 @@
 #define CPU_JIT_AVX2_1x1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
@@ -28,7 +28,7 @@
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -278,7 +278,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_impl_t {
             const int njobs_x = bcast_work;
             const int njobs_y = jcp_.ngroups * load_work;
 
-            const int max_threads = mkldnn_get_max_threads();
+            const int max_threads = dnnl_get_max_threads();
             const size_t max_buffer_size = max_threads * job_size * 8;
 
             if (with_bias()) {
@@ -326,6 +326,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

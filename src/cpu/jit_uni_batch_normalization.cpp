@@ -17,9 +17,9 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -31,7 +31,7 @@
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_uni_batch_normalization.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -1130,7 +1130,7 @@ template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_) {
-        const int nthrs = mkldnn_get_max_threads();
+        const int nthrs = dnnl_get_max_threads();
         const dim_t C_PADDED = get_c_padded(bdesc_);
 
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
@@ -1144,7 +1144,7 @@ struct driver_t : public c_compatible {
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {
-        int nthrs = mkldnn_get_max_threads();
+        int nthrs = dnnl_get_max_threads();
         dim_t C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
@@ -1155,7 +1155,7 @@ struct driver_t : public c_compatible {
         scratchpad.book(key_bnorm_tmp_diff_ss, sizeof(acc_data_t) * pbuf_sz);
         scratchpad.book(key_bnorm_reduction, sizeof(acc_data_t) * rbuf_sz);
 
-        if (mkldnn_thr_syncable()) {
+        if (dnnl_thr_syncable()) {
             int n_barriers = C_PADDED / simd_w;
             scratchpad.book(key_barrier, sizeof(barrier::ctx_t) * n_barriers);
         }
@@ -1211,7 +1211,7 @@ struct driver_t : public c_compatible {
 
         int SP_N_ithr = N_ithr * S_nthr + S_ithr;
         int SP_N_nthr = N_nthr * S_nthr;
-        assert(IMPLICATION(!mkldnn_thr_syncable(), SP_N_nthr == 1));
+        assert(IMPLICATION(!dnnl_thr_syncable(), SP_N_nthr == 1));
 
         p.N_ithr = SP_N_ithr;
         p.N_nthr = SP_N_nthr;
@@ -1365,20 +1365,19 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const void *, MKLDNN_ARG_SRC);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
 
-    auto mean = pd()->stats_is_src()
-            ? const_cast<acc_data_t *>(
-                    CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN))
-            : CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_MEAN);
+    auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
+                        CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
+                                     : CTX_OUT_MEM(acc_data_t *, DNNL_ARG_MEAN);
     auto var = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
-                    CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE))
-            : CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_VARIANCE);
+                    CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE))
+            : CTX_OUT_MEM(acc_data_t *, DNNL_ARG_VARIANCE);
 
-    auto dst = CTX_OUT_MEM(void *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -1446,16 +1445,16 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const void *, MKLDNN_ARG_SRC);
-    auto mean = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN);
-    auto var = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE);
-    auto diff_dst = CTX_IN_MEM(const void *, MKLDNN_ARG_DIFF_DST);
-    auto scale_shift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
-    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
+    auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);
+    auto scale_shift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_MEM(void *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_src = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_SRC);
     auto diff_scale_shift
-            = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+            = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -1484,4 +1483,4 @@ template struct jit_uni_batch_normalization_bwd_t<avx512_common>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

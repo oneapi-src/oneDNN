@@ -25,7 +25,7 @@
 
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct concat_pd_t : public primitive_desc_t {
@@ -57,11 +57,11 @@ struct concat_pd_t : public primitive_desc_t {
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
-                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+        if (arg >= DNNL_ARG_MULTIPLE_SRC
+                && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -116,7 +116,7 @@ protected:
             offsets[concat_dim_] = current_concat_dim_offset;
 
             memory_desc_t src_img_d;
-            status_t status = mkldnn_memory_desc_init_submemory(
+            status_t status = dnnl_memory_desc_init_submemory(
                     &src_img_d, &dst_md_, dims, offsets);
             if (status != status::success) return status;
             src_image_mds_.push_back(src_img_d);
@@ -159,7 +159,7 @@ protected:
                 offsets[concat_dim_] = current_concat_dim_offset;
 
                 memory_desc_t src_img_d;
-                status_t status = mkldnn_memory_desc_init_submemory(
+                status_t status = dnnl_memory_desc_init_submemory(
                         &src_img_d, &dst_md_, dims, offsets);
                 if (status != status::success) {
                     desired_format_ok = false;
@@ -220,6 +220,6 @@ protected:
     DECLARE_CONCAT_PD_t(impl_name, __VA_ARGS__)
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

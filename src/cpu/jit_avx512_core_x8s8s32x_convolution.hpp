@@ -18,15 +18,15 @@
 #define CPU_JIT_AVX512_CORE_X8S8S32X_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "jit_avx512_core_x8s8s32x_conv_kernel.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -59,7 +59,7 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
                     jcp_, *desc(), src_md_, weights_md_, dst_md_, bias_md_,
-                    *attr(), mkldnn_get_max_threads());
+                    *attr(), dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -106,7 +106,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

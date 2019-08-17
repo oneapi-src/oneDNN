@@ -17,15 +17,15 @@
 #ifndef JIT_UNI_1x1_CONV_UTILS_HPP
 #define JIT_UNI_1x1_CONV_UTILS_HPP
 
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -44,7 +44,7 @@ struct reduce_to_unit_stride_t {
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
-    using namespace mkldnn::impl::utils;
+    using namespace dnnl::impl::utils;
     const bool is_bwd_data
             = self->desc()->prop_kind == prop_kind::backward_data;
 
@@ -100,7 +100,7 @@ inline void rtus_prepare_space_info(
     if (!self->rtus_.reduce_src_) return;
     const auto &jcp = self->jcp_;
 
-    const int max_threads = mkldnn_get_max_threads();
+    const int max_threads = dnnl_get_max_threads();
     const size_t factor = utils::pick_by_prop_kind(self->desc()->prop_kind,
             jcp.nb_reduce, jcp.nb_load_blocking_max, jcp.nb_bcast_blocking);
     size_t typesize = types::data_type_size(
@@ -350,7 +350,7 @@ inline void init_rtus_driver(conv_t *self) {
 
 inline int best_divider(int value, int min_divider, int max_divider,
         bool find_max, int step = 1) {
-    using namespace mkldnn::impl::utils;
+    using namespace dnnl::impl::utils;
     max_divider = nstl::max(1, nstl::min(max_divider, value));
     min_divider = nstl::max(1, nstl::min(min_divider, max_divider));
 
@@ -372,6 +372,6 @@ inline int best_divider(int value, int min_divider, int max_divider,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

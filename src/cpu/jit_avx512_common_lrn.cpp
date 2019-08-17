@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -30,12 +30,12 @@ typedef float acc_data_t;
         statement; \
     }
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 using namespace data_type;
 
 using namespace Xbyak;
@@ -369,7 +369,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init() {
 
     if (desc()->prop_kind == forward_training) {
         dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-        mkldnn_memory_desc_init_by_tag(
+        dnnl_memory_desc_init_by_tag(
                 &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
     }
 
@@ -423,9 +423,9 @@ jit_avx512_common_lrn_fwd_t<d_type>::~jit_avx512_common_lrn_fwd_t() {
 template <data_type_t d_type>
 void jit_avx512_common_lrn_fwd_t<d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(data_t *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(data_t *, DNNL_ARG_WORKSPACE);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -827,7 +827,7 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
     if (!ok) return unimplemented;
 
     dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-    mkldnn_memory_desc_init_by_tag(
+    dnnl_memory_desc_init_by_tag(
             &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
 
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
@@ -879,10 +879,10 @@ jit_avx512_common_lrn_bwd_t<d_type>::~jit_avx512_common_lrn_bwd_t() {
 template <data_type_t d_type>
 void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto ws = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WORKSPACE);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto ws = CTX_IN_MEM(const data_t *, DNNL_ARG_WORKSPACE);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const int N = pd()->MB();
     const int C = pd()->C();
@@ -957,4 +957,4 @@ template struct jit_avx512_common_lrn_bwd_t<bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

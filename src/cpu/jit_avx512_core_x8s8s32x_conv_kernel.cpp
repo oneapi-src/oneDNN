@@ -26,12 +26,12 @@
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 namespace {
@@ -923,7 +923,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
             jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
         } else if (!is_1d && jcp.ngroups != 1 && jcp.ic % jcp.ic_block != 0) {
-            /* For grouped convolutions, MKL-DNN doesn't support padding.
+            /* For grouped convolutions, DNNL doesn't support padding.
                Use Ymm when channels per group is multiple of 8,
                Xmm when channels per group is multiple of 4 */
             jcp.ic_block = jcp.ic % 8 == 0 ? 8 : 4;
@@ -1157,6 +1157,6 @@ template struct _jit_avx512_core_x8s8s32x_fwd_kernel<Ymm>;
 template struct _jit_avx512_core_x8s8s32x_fwd_kernel<Xmm>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

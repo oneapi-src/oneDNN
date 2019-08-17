@@ -31,7 +31,7 @@
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 #include "rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -130,7 +130,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             // initialize the workspace if needed
             if (rnn_.is_training) {
                 dims_t ws_dims = {(dim_t)ws_sz};
-                mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
+                dnnl_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
                         data_type::u8, format_tag::x);
             }
 
@@ -287,7 +287,7 @@ using ref_rnn_fwd_u8s8_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

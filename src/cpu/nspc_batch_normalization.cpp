@@ -18,7 +18,7 @@
 #include <math.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
@@ -38,7 +38,7 @@
 #define SIMD_LEN_16 simdlen(16)
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -59,27 +59,27 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     auto tmp_var = scratchpad.template get<acc_data_t>(key_bnorm_tmp_var);
     auto *ws_reduce = scratchpad.template get<acc_data_t>(key_bnorm_reduction);
 
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
 
     acc_data_t *mean, *variance;
     if (!calculate_stats) {
         mean = const_cast<acc_data_t *>(
-                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN));
+                CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN));
         variance = const_cast<acc_data_t *>(
-                CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE));
+                CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE));
     } else {
         if (save_stats) {
-            mean = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_MEAN);
-            variance = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_VARIANCE);
+            mean = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_MEAN);
+            variance = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_VARIANCE);
         } else {
             mean = tmp_mean;
             variance = tmp_var;
         }
     }
 
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
     acc_data_t *tmp_data_ = d_type == bf16
             ? scratchpad.template get<acc_data_t>(key_bnorm_bf16cvt)
             : nullptr;
@@ -95,7 +95,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     auto maybe_post_op
             = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
 
-    assert(mkldnn_thr_syncable());
+    assert(dnnl_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
@@ -128,7 +128,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 }
             }
 
-            mkldnn_thr_barrier();
+            dnnl_thr_barrier();
 
             for (dim_t c = C_s; c < C_e; c++) {
                 mean[c] = 0;
@@ -137,7 +137,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 mean[c] /= SP * N;
             }
 
-            mkldnn_thr_barrier();
+            dnnl_thr_barrier();
 
             for (dim_t c = 0; c < C; c++) {
                 mean_loc[c] = mean[c];
@@ -166,7 +166,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 }
             }
 
-            mkldnn_thr_barrier();
+            dnnl_thr_barrier();
 
             for (dim_t c = C_s; c < C_e; c++) {
                 variance[c] = 0;
@@ -175,7 +175,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                 variance[c] /= SP * N;
             }
 
-            mkldnn_thr_barrier();
+            dnnl_thr_barrier();
 
             for (dim_t c = 0; c < C; c++)
                 variance_loc[c] = variance[c];
@@ -240,16 +240,15 @@ template struct nspc_batch_normalization_fwd_t<bf16>;
 template <data_type_t d_type>
 void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto mean = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN);
-    auto variance = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
-    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
-    auto diff_scaleshift
-            = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto tmp_diff_ss
@@ -280,7 +279,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     const dim_t tail = C % c_blk;
     const dim_t nb_c_blk = (size_t)C / c_blk;
 
-    assert(mkldnn_thr_syncable());
+    assert(dnnl_thr_syncable());
     parallel(0, [&](const int ithr, const int nthr) {
         dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
@@ -331,7 +330,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
             }
         }
 
-        mkldnn_thr_barrier();
+        dnnl_thr_barrier();
 
         for (dim_t c = C_s; c < C_e; c++) {
             acc_data_t sqrt_variance
@@ -345,7 +344,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
             diff_gamma[c] *= sqrt_variance;
         }
 
-        mkldnn_thr_barrier();
+        dnnl_thr_barrier();
 
         for (dim_t c = 0; c < C; c++) {
             diff_gamma_loc[c] = diff_gamma[c];
@@ -441,6 +440,6 @@ template struct nspc_batch_normalization_bwd_t<f32>;
 template struct nspc_batch_normalization_bwd_t<bf16>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -18,12 +18,12 @@
 #define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
 #include "cpu_layer_normalization_pd.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 /* Stats and src here are compatible if
@@ -43,7 +43,7 @@ static status_t create_reorder_pd(engine_t *engine,
 
     const primitive_attr_t attr;
     primitive_desc_t *r_pd = nullptr;
-    status_t status = mkldnn_reorder_primitive_desc_create(
+    status_t status = dnnl_reorder_primitive_desc_create(
             &r_pd, from_md, engine, to_md, engine, &attr);
     *reorder_pd = r_pd;
     return status;
@@ -62,7 +62,7 @@ struct simple_layer_normalization_fwd_t : public primitive_impl_t {
         }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_layer_normalization_fwd_pd_t::operator=(other);
             clear();
             copy_from(other);
@@ -138,8 +138,8 @@ struct simple_layer_normalization_fwd_t : public primitive_impl_t {
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
         exec_args_t r_args;
-        r_args[MKLDNN_ARG_SRC] = in;
-        r_args[MKLDNN_ARG_DST] = out;
+        r_args[DNNL_ARG_SRC] = in;
+        r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
         reorder_->execute(r_ctx);
     }
@@ -160,16 +160,16 @@ struct simple_layer_normalization_fwd_t : public primitive_impl_t {
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    {&variance, false});
+            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(
+                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
         }
         execute_forward(ctx);
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, {&mean, true}, ctx.args().at(MKLDNN_ARG_MEAN));
+            reorder_stat(ctx, {&mean, true}, ctx.args().at(DNNL_ARG_MEAN));
             reorder_stat(
-                    ctx, {&variance, true}, ctx.args().at(MKLDNN_ARG_VARIANCE));
+                    ctx, {&variance, true}, ctx.args().at(DNNL_ARG_VARIANCE));
         }
 
         return status::success;
@@ -194,7 +194,7 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
         }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_layer_normalization_bwd_pd_t::operator=(other);
             clear();
             copy_from(other);
@@ -249,7 +249,7 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
                         key_lnorm_tmp_var, sizeof(float) * across_axis());
             }
             scratchpad.book(key_lnorm_reduction,
-                    sizeof(float) * 2 * norm_axis() * mkldnn_get_max_threads());
+                    sizeof(float) * 2 * norm_axis() * dnnl_get_max_threads());
             scratchpad.book(
                     key_lnorm_tmp_diff_ss, sizeof(float) * 2 * norm_axis());
         }
@@ -273,8 +273,8 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
         exec_args_t r_args;
-        r_args[MKLDNN_ARG_SRC] = in;
-        r_args[MKLDNN_ARG_DST] = out;
+        r_args[DNNL_ARG_SRC] = in;
+        r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
         reorder_->execute(r_ctx);
     }
@@ -296,9 +296,9 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
                     memory_flags_t::use_backend_ptr, mean_handle);
             memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
                     memory_flags_t::use_backend_ptr, variance_handle);
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    {&variance, false});
+            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(
+                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
         }
 
         execute_backward(ctx);
@@ -313,7 +313,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

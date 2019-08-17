@@ -17,20 +17,20 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "jit_avx512_core_f32_wino_conv_2x3.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::format_kind;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_kind;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 /// SRC TRANSFORMS /////////////////////////////////////////////////////////////
@@ -569,7 +569,7 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     jcp.ngroups = with_groups ? wei_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
@@ -791,9 +791,8 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
                                     and set weights wino_blocking */
     expect_wei_md.format_kind = format_kind::wino;
     expect_wei_md.data_type = data_type::f32;
-    mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-    wd.wino_format
-            = jcp.small_mb ? mkldnn_wino_wei_aaOio : mkldnn_wino_wei_aaOBiOo;
+    dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+    wd.wino_format = jcp.small_mb ? dnnl_wino_wei_aaOio : dnnl_wino_wei_aaOBiOo;
     wd.r = jcp.r;
     wd.alpha = jcp.alpha;
     wd.ic = jcp.ic;
@@ -863,7 +862,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
                 int tile_y = tile_y_b * jcp.yb;
                 int tile_x = tile_x_b * jcp.xb;
 
-                int ithr = mkldnn_get_thread_num();
+                int ithr = dnnl_get_thread_num();
                 auto wino_src = ptr_V + size_wino_src * ithr;
                 auto wino_dst = ptr_M + size_wino_dst * ithr;
 
@@ -1081,4 +1080,4 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

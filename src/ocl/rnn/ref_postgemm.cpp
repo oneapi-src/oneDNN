@@ -16,7 +16,7 @@
 
 #include "ocl/rnn/ref_rnn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -72,4 +72,4 @@ template elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

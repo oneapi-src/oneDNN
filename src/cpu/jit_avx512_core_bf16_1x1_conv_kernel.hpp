@@ -25,7 +25,7 @@
 
 //#define BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -136,6 +136,6 @@ private:
 };
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

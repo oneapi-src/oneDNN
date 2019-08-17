@@ -18,27 +18,27 @@
 #define STREAM_HPP
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
 
-struct mkldnn_stream : public mkldnn::impl::c_compatible {
-    mkldnn_stream(mkldnn::impl::engine_t *engine, unsigned flags)
+struct dnnl_stream : public dnnl::impl::c_compatible {
+    dnnl_stream(dnnl::impl::engine_t *engine, unsigned flags)
         : engine_(engine), flags_(flags) {}
-    virtual ~mkldnn_stream() {}
+    virtual ~dnnl_stream() {}
 
     /** returns stream's engine */
-    mkldnn::impl::engine_t *engine() const { return engine_; }
+    dnnl::impl::engine_t *engine() const { return engine_; }
 
     /** returns stream's kind */
     unsigned flags() const { return flags_; }
 
     /** blocks until all submitted primitives to the stream are completed */
-    virtual mkldnn::impl::status_t wait() = 0;
+    virtual dnnl::impl::status_t wait() = 0;
 
 protected:
-    mkldnn::impl::engine_t *engine_;
+    dnnl::impl::engine_t *engine_;
     unsigned flags_;
 };
 

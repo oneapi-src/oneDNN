@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -29,7 +29,7 @@
 
 #include "bfloat16.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -147,7 +147,7 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
             if (diff_dst_md()->data_type == data_type::bf16) {
                 size_t dst_sz_ = OD() * OH() * OW();
                 size_t src_sz_ = ID() * IH() * IW();
-                size_t nthrs = mkldnn_get_max_threads();
+                size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(
                         key_pool_src_bf16cvt, sizeof(float) * src_sz_ * nthrs);
@@ -172,7 +172,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

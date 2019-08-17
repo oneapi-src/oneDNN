@@ -73,7 +73,7 @@
 #include "cpu/ref_softmax.hpp"
 #include "cpu/simple_layer_normalization.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -87,10 +87,10 @@ status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
     return safe_ptr_assign<stream_t>(*stream, new cpu_stream_t(this, flags));
 }
 
-using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
+using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 
 namespace {
-using namespace mkldnn::impl::data_type;
+using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f cpu_impl_list[] = {
@@ -365,6 +365,6 @@ const pd_create_f *cpu_engine_t::get_implementation_list() const {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -24,7 +24,7 @@
 
 #include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -125,7 +125,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
                 jit_avx512_core_f32_wino_conv_4x3_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
-            bool ok = true && mkldnn_thr_syncable() && is_fwd()
+            bool ok = true && dnnl_thr_syncable() && is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
@@ -166,10 +166,10 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
-        auto bias = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
-        auto dst = CTX_OUT_MEM(float *, MKLDNN_ARG_DST);
+        auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+        auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
+        auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
+        auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
 
         auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -207,7 +207,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
-            bool ok = true && mkldnn_thr_syncable()
+            bool ok = true && dnnl_thr_syncable()
                     && desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
@@ -247,9 +247,9 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
-        auto weights = CTX_IN_MEM(const float *, MKLDNN_ARG_WEIGHTS);
-        auto diff_src = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_SRC);
+        auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
+        auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
+        auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
 
         auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -289,7 +289,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
                 USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
-            bool ok = true && mkldnn_thr_syncable()
+            bool ok = true && dnnl_thr_syncable()
                     && desc()->prop_kind == prop_kind::backward_weights
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
@@ -333,10 +333,10 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
-        auto src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-        auto diff_weights = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS);
-        auto diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+        auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
+        auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+        auto diff_weights = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS);
+        auto diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 
         switch (kernel_->jcp.sched_policy) {
             case WSCHED_WEI_SDGtWo:
@@ -366,7 +366,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

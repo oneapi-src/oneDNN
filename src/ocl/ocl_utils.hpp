@@ -33,12 +33,12 @@
 #include "common/engine.hpp"
 #include "common/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 namespace ocl_utils {
 
-inline status_t convert_to_mkldnn(cl_int cl_status) {
+inline status_t convert_to_dnnl(cl_int cl_status) {
     switch (cl_status) {
         case CL_SUCCESS: return status::success;
         case CL_DEVICE_NOT_FOUND:
@@ -88,10 +88,10 @@ inline status_t convert_to_mkldnn(cl_int cl_status) {
     do { \
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
-            if (mkldnn_verbose()->level >= 5) { \
+            if (dnnl_verbose()->level >= 5) { \
                 printf("Error from OpenCL: %d\n", s); \
             } \
-            return mkldnn::impl::ocl::ocl_utils::convert_to_mkldnn(s); \
+            return dnnl::impl::ocl::ocl_utils::convert_to_dnnl(s); \
         } \
     } while (0)
 
@@ -262,6 +262,6 @@ ocl_wrapper_t<T> make_ocl_wrapper(T t) {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

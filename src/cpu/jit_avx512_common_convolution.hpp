@@ -18,8 +18,8 @@
 #define CPU_JIT_AVX512_COMMON_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_barrier.hpp"
@@ -29,7 +29,7 @@
 #include "jit_avx512_common_conv_kernel.hpp"
 #include "jit_transpose_src_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -56,7 +56,7 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_impl_t {
 
             status_t status = jit_avx512_common_conv_fwd_kernel::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -90,7 +90,7 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_impl_t {
         else
             assert(false);
 
-        if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad();
+        if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 
         return status::success;
     }
@@ -283,7 +283,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

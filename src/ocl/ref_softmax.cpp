@@ -16,7 +16,7 @@
 
 #include "ocl/ref_softmax.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -24,8 +24,8 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -38,9 +38,9 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
-    auto &dst = CTX_IN_STORAGE(MKLDNN_ARG_DST);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+    auto &dst = CTX_IN_STORAGE(DNNL_ARG_DST);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dst);
@@ -57,6 +57,6 @@ status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

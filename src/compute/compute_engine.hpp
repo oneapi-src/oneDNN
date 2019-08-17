@@ -26,7 +26,7 @@
 #include "compute/kernel.hpp"
 #include "compute/kernel_ctx.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -67,6 +67,6 @@ private:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

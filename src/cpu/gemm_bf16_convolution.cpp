@@ -14,23 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "common/bfloat16.hpp"
+#include "dnnl_thread.hpp"
 #include "gemm_bf16_convolution.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::cpu::bf16_support;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::cpu::bf16_support;
 
 // This code is moved out from execute_backward_data() and
 // execute_backward_weights() to avoid warnings with gcc 7.x compilers:
@@ -276,9 +276,9 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     bool is_bf16_dst = dst_data_type == data_type::bf16;
 
@@ -294,12 +294,12 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
     float *bias = nullptr;
     if (jcp.with_bias) {
         if (pd()->desc()->bias_desc.data_type == data_type::bf16) {
-            auto bias_in = CTX_IN_MEM(const bfloat16_t *, MKLDNN_ARG_BIAS);
+            auto bias_in = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_BIAS);
             bias = ctx.get_scratchpad_grantor().template get<float>(
                     key_conv_bias_bf16_convert_wsp);
             cvt_bfloat16_to_float(bias, bias_in, jcp.ngroups * jcp.oc);
         } else {
-            auto bias_in = CTX_IN_MEM(const float *, MKLDNN_ARG_BIAS);
+            auto bias_in = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
             bias = const_cast<float *>(bias_in);
         }
     }
@@ -387,9 +387,9 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 template <data_type_t diff_src_data_type>
 void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
         execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
     auto col = ctx.get_scratchpad_grantor().template get<acc_data_t>(
             key_conv_gemm_col);
@@ -507,9 +507,9 @@ void gemm_bf16_convolution_bwd_weights_t<
 template <data_type_t diff_wei_data_type>
 void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
         execute_backward_weights(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
 
     auto col = ctx.get_scratchpad_grantor().template get<src_data_t>(
             key_conv_gemm_col);
@@ -529,7 +529,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             diff_bias = ctx.get_scratchpad_grantor().template get<float>(
                     key_conv_bias_bf16_convert_wsp);
         else
-            diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+            diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
     }
 
     const int64_t K = jcp.os * jcp.od;
@@ -597,8 +597,8 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                     }
                 }
             }
-            if (need_reduction && mkldnn_thr_syncable()) {
-                mkldnn_thr_barrier();
+            if (need_reduction && dnnl_thr_syncable()) {
+                dnnl_thr_barrier();
                 diff_wei_data_t *weights_base
                         = diff_weights + g_start * weights_g_size;
                 bf16_bwd_weights_reduction_par(ithr_mb, nthr_mb, jcp,
@@ -615,11 +615,11 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                         work_size, 1, jcp.nthr == 1);
             }
         } else {
-            if (need_reduction && mkldnn_thr_syncable()) mkldnn_thr_barrier();
+            if (need_reduction && dnnl_thr_syncable()) dnnl_thr_barrier();
         }
     });
 
-    if (jcp.need_wei_reduction && !mkldnn_thr_syncable()) {
+    if (jcp.need_wei_reduction && !dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
             int ithr_g, nthr_g, ithr_mb, nthr_mb;
             size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -667,7 +667,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
         });
 
         if (pd()->desc()->diff_bias_desc.data_type == data_type::bf16) {
-            auto diff_bias_in = CTX_OUT_MEM(bfloat16_t *, MKLDNN_ARG_DIFF_BIAS);
+            auto diff_bias_in = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DIFF_BIAS);
             cvt_float_to_bfloat16(
                     diff_bias_in, diff_bias, jcp.ngroups * jcp.oc);
         }
@@ -683,4 +683,4 @@ template struct gemm_bf16_convolution_bwd_weights_t<data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

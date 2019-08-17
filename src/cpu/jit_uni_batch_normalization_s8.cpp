@@ -17,8 +17,8 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -27,7 +27,7 @@
 
 #include "jit_uni_batch_normalization_s8.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -545,12 +545,12 @@ jit_uni_batch_normalization_s8_fwd_t<isa>::jit_uni_batch_normalization_s8_fwd_t(
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto scale_shift = CTX_IN_MEM(const float *, MKLDNN_ARG_SCALE_SHIFT);
-    auto mean = const_cast<float *>(CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN));
-    auto var = const_cast<float *>(
-            CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE));
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto scale_shift = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
+    auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
+    auto var
+            = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     // do sequential if the problem is less than one 4K memory page
     const bool force_sequential
@@ -576,4 +576,4 @@ template struct jit_uni_batch_normalization_s8_fwd_t<avx2>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

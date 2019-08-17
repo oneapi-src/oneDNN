@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -26,13 +26,13 @@
 
 #define GET_OFF(field) offsetof(jit_wino_transform_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 namespace {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 
 unsigned int L1_cache_size = get_cache_size(1, true);
 unsigned int L2_cache_size = get_cache_size(2, true);
@@ -64,7 +64,7 @@ bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
        Following conditions are empirical and based on performance data */
     unsigned int ncores_per_socket
             = cpu.getNumCores(Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
-    unsigned int nthreads = mkldnn_get_max_threads();
+    unsigned int nthreads = dnnl_get_max_threads();
 
     if (jcp.prop_kind == prop_kind::forward_inference) {
         return jcp.mb >= 4;
@@ -162,7 +162,7 @@ bool check_L2_block_per_thread(jit_conv_winograd_conf_t &jcp, int dimN_block,
         float C2_min, float C2_max) {
     float block_size = alpha * alpha
             * (2 * (jcp.oc + jcp.ic) * dimN_block * jcp.dimN_reg_block
-                    + div_up(jcp.ic * jcp.oc, mkldnn_get_max_threads()))
+                    + div_up(jcp.ic * jcp.oc, dnnl_get_max_threads()))
             * (float)sizeof(float);
     float L2_lb = C2_min * L2_cache_size;
     float L2_ub = C2_max * L2_cache_size;
@@ -224,8 +224,8 @@ bool check_kernel_cond(int dimM_block, int dimM_reg_block, int dimM_simd_block,
 }
 } // namespace
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 void _jit_avx512_core_f32_wino_conv_4x3_data_kernel::gemm_loop_generate() {
@@ -394,7 +394,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_data_kernel::gemm_loop_generate() {
 void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
         weights_transform_data_ker_generate() {
     bool is_fwd = one_of(
-            jcp.prop_kind, mkldnn_forward_training, mkldnn_forward_inference);
+            jcp.prop_kind, dnnl_forward_training, dnnl_forward_inference);
     int kh = jcp.kh;
     int kw = jcp.kw;
 
@@ -655,7 +655,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
 void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
         output_transform_data_ker_generate() {
     bool is_fwd = one_of(
-            jcp.prop_kind, mkldnn_forward_training, mkldnn_forward_inference);
+            jcp.prop_kind, dnnl_forward_training, dnnl_forward_inference);
     int outw = is_fwd ? jcp.ow : jcp.iw;
     int outh = is_fwd ? jcp.oh : jcp.ih;
     bool not_tiled = jcp.sched_policy == WSCHED_DATA_W_S_G_D;
@@ -879,7 +879,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
 void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
         input_transform_data_ker_generate() {
     bool is_fwd = one_of(
-            jcp.prop_kind, mkldnn_forward_training, mkldnn_forward_inference);
+            jcp.prop_kind, dnnl_forward_training, dnnl_forward_inference);
     int inpw = is_fwd ? jcp.iw : jcp.ow;
     int inph = is_fwd ? jcp.ih : jcp.oh;
     int l_pad = is_fwd ? jcp.l_pad : jcp.iw + jcp.r_pad - jcp.ow;
@@ -1106,7 +1106,7 @@ status_t _jit_avx512_core_f32_wino_conv_4x3_data_kernel::init_conf_common(
         const memory_desc_wrapper &dst_d) {
     if (!mayiuse(avx512_core)) { return status::unimplemented; }
 
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     jcp.ver = ver_avx512_core;
     jcp.prop_kind = cd.prop_kind;
@@ -1228,7 +1228,7 @@ status_t set_wsched_DATA_W_SGD_avx512_core(jit_conv_winograd_conf_t &jcp) {
         return check_L2_block_per_thread(jcp, dimN_block, 0.1, 2.0)
                 && (dimN_block > current_best)
                 && ((jcp.dimN / dimN_block / jcp.dimN_reg_block)
-                        >= 1.5 * mkldnn_get_max_threads());
+                        >= 1.5 * dnnl_get_max_threads());
     };
 
     jcp.dimN_block = get_divisor_satisfying_cond(
@@ -1236,7 +1236,7 @@ status_t set_wsched_DATA_W_SGD_avx512_core(jit_conv_winograd_conf_t &jcp) {
     jcp.dimN_nb_block = jcp.dimN / jcp.dimN_block / jcp.dimN_reg_block;
 
     if (check_L2_block_per_thread(jcp, jcp.dimN_block, 0.1, 3.2)
-            && (jcp.dimN_nb_block >= 1.5 * mkldnn_get_max_threads())) {
+            && (jcp.dimN_nb_block >= 1.5 * dnnl_get_max_threads())) {
 
         /* ------------------- L1 blocking for GEMM --------------*/
         /* -------------------- Choose dimK block ----------------*/
@@ -1441,13 +1441,13 @@ status_t jit_avx512_core_f32_wino_conv_4x3_fwd_kernel::init_conf(
 
     /* re-create weights primitive descriptor
     and set weights wino_blocking */
-    if (cd.prop_kind == mkldnn_forward_inference) {
+    if (cd.prop_kind == dnnl_forward_inference) {
         memory_desc_t expect_wei_md = weights_md;
 
         expect_wei_md.format_kind = format_kind::wino;
         expect_wei_md.data_type = data_type::f32;
-        mkldnn_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
-        wd.wino_format = mkldnn_wino_wei_OBaaIBOIio;
+        dnnl_wino_desc_t &wd = expect_wei_md.format_desc.wino_desc;
+        wd.wino_format = dnnl_wino_wei_OBaaIBOIio;
         wd.r = 3;
         wd.alpha = 6;
 
@@ -2293,7 +2293,7 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
     auto test_MV_large_enough = [](jit_conv_winograd_conf_t &jcp) {
         size_t M_sz = alpha * alpha * jcp.dimM * jcp.dimK * sizeof(float);
         size_t V_sz = alpha * alpha * jcp.dimN * jcp.dimK * sizeof(float);
-        size_t nthreads = mkldnn_get_max_threads();
+        size_t nthreads = dnnl_get_max_threads();
         return (((V_sz + M_sz) / nthreads) >= 2 * L2_cache_size)
                 && (jcp.dimK / nthreads >= 1.0);
     };
@@ -2305,7 +2305,7 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
         size_t L1_block_N = jcp.dimN_reg_block * dimK_block_ur * sizeof(float);
         size_t M_L2_block
                 = alpha * alpha * jcp.dimM * dimK_block_ur * sizeof(float);
-        size_t nthreads = mkldnn_get_max_threads();
+        size_t nthreads = dnnl_get_max_threads();
         bool load_balance = true;
         if (!(jcp.dimK % nthreads)) {
             load_balance = ((jcp.dimK / dimK_block_ur) % nthreads == 0);
@@ -2365,8 +2365,8 @@ status_t set_wsched_WEI_SDGtWo(jit_conv_winograd_conf_t &jcp) {
                                 jcp.dimM_block = M_blk;
                                 jcp.sched_policy = WSCHED_WEI_SDGtWo;
                                 set_jcp_WEI_params(jcp);
-                                jcp.nthr = nstl::min(mkldnn_get_max_threads(),
-                                        jcp.tile_block);
+                                jcp.nthr = nstl::min(
+                                        dnnl_get_max_threads(), jcp.tile_block);
                                 return status::success;
                             }
                         }
@@ -2409,7 +2409,7 @@ status_t set_wsched_WEI_S_D_Giot_W(jit_conv_winograd_conf_t &jcp) {
         size_t nb_M_blk
                 = jcp.dimM / M_blk / jcp.dimM_reg_block / jcp.dimM_simd_block;
         size_t nb_K_blk = jcp.dimK / K_blk_ur;
-        size_t nthreads = mkldnn_get_max_threads();
+        size_t nthreads = dnnl_get_max_threads();
         bool load_balance = (nb_K_blk * nb_N_blk * nb_M_blk) >= nthreads;
         if (!(nb_K_blk % nthreads)) {
             load_balance = load_balance && (nb_K_blk % nthreads == 0);
@@ -2464,7 +2464,7 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
     else
         jcp.ver = ver_avx512_core;
 
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     jcp.prop_kind = cd.prop_kind;
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
@@ -2555,6 +2555,6 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

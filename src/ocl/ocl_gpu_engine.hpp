@@ -17,7 +17,7 @@
 #ifndef OCL_GPU_ENGINE_HPP
 #define OCL_GPU_ENGINE_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -28,7 +28,7 @@
 #include "ocl/ocl_gpu_kernel.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -110,6 +110,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

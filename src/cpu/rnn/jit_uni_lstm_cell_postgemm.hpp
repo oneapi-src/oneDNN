@@ -19,7 +19,7 @@
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -125,8 +125,8 @@ protected:
             };
         };
 
-// MKLDNN_ENABLE_FAST_RCP is not enabled by default
-#ifdef MKLDNN_ENABLE_FAST_RCP
+// DNNL_ENABLE_FAST_RCP is not enabled by default
+#ifdef DNNL_ENABLE_FAST_RCP
         auto fast_recip = [&](Vmm s, Vmm tmp, bool packed) {
             if (packed)
                 uni_vrcpps(tmp, s);
@@ -156,7 +156,7 @@ protected:
             }
             uni_vcvtdq2ps(s, s);
             uni_vmulps(tmp1, tmp1, dscale_off_addr);
-#ifdef MKLDNN_ENABLE_FAST_RCP
+#ifdef DNNL_ENABLE_FAST_RCP
             fast_recip(tmp1, tmp2, packed);
             uni_vmulps(s, s, tmp1);
 #else
@@ -407,6 +407,6 @@ protected:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

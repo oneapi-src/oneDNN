@@ -24,7 +24,7 @@
 #include "common/utils.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -63,11 +63,11 @@ public:
 
 private:
     cl_mem mem_object_ = nullptr;
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
 };
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
