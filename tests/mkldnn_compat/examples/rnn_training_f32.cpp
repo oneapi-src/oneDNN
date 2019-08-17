@@ -28,7 +28,7 @@
 
 #include "example_utils.hpp"
 
-using namespace dnnl;
+using namespace mkldnn;
 
 // User input is:
 //     N0 sequences of length T0
@@ -57,7 +57,7 @@ const int leftmost_seq_length = T1;
 const int rightmost_seq_length = T0 - T1;
 
 // Number of channels
-const int common_feature_size = 1024;
+const int common_feature_size = 64;
 
 // RNN primitive characteristics
 const int common_n_layers = 1;
@@ -200,8 +200,8 @@ void simple_net(engine::kind engine_kind) {
     // Memory for the user allocated memory
     // Suppose user data is in tnc format.
     auto net_src_memory
-            = dnnl::memory({{net_src_dims}, dt::f32, tag::tnc}, eng);
-    write_to_dnnl_memory(net_src.data(), net_src_memory);
+            = mkldnn::memory({{net_src_dims}, dt::f32, tag::tnc}, eng);
+    write_to_mkldnn_memory(net_src.data(), net_src_memory);
     // src_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memories in larger memory.
     // View primitives compute the strides to accommodate for padding.
@@ -218,35 +218,35 @@ void simple_net(engine::kind engine_kind) {
     // primitive prefers it in a different format.
     std::vector<float> user_common_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
-    auto user_common_weights_layer_memory = dnnl::memory(
+    auto user_common_weights_layer_memory = mkldnn::memory(
             {common_weights_layer_dims, dt::f32, tag::ldigo}, eng);
-    write_to_dnnl_memory(
+    write_to_mkldnn_memory(
             user_common_weights_layer.data(), user_common_weights_layer_memory);
 
     std::vector<float> user_common_weights_iter(
             tz_volume(common_weights_iter_dims), 1.0f);
-    auto user_common_weights_iter_memory = dnnl::memory(
+    auto user_common_weights_iter_memory = mkldnn::memory(
             {{common_weights_iter_dims}, dt::f32, tag::ldigo}, eng);
-    write_to_dnnl_memory(
+    write_to_mkldnn_memory(
             user_common_weights_layer.data(), user_common_weights_iter_memory);
 
     std::vector<float> user_common_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_bias_memory
-            = dnnl::memory({{common_bias_dims}, dt::f32, tag::ldgo}, eng);
-    write_to_dnnl_memory(user_common_bias.data(), user_common_bias_memory);
+            = mkldnn::memory({{common_bias_dims}, dt::f32, tag::ldgo}, eng);
+    write_to_mkldnn_memory(user_common_bias.data(), user_common_bias_memory);
 
     std::vector<float> user_leftmost_dst_layer(
             tz_volume(leftmost_dst_layer_dims), 1.0f);
-    auto user_leftmost_dst_layer_memory
-            = dnnl::memory({{leftmost_dst_layer_dims}, dt::f32, tag::tnc}, eng);
-    write_to_dnnl_memory(
+    auto user_leftmost_dst_layer_memory = mkldnn::memory(
+            {{leftmost_dst_layer_dims}, dt::f32, tag::tnc}, eng);
+    write_to_mkldnn_memory(
             user_leftmost_dst_layer.data(), user_leftmost_dst_layer_memory);
 
     std::vector<float> user_rightmost_dst_layer(
             tz_volume(rightmost_dst_layer_dims), 1.0f);
-    auto user_rightmost_dst_layer_memory = dnnl::memory(
+    auto user_rightmost_dst_layer_memory = mkldnn::memory(
             {{rightmost_dst_layer_dims}, dt::f32, tag::tnc}, eng);
-    write_to_dnnl_memory(
+    write_to_mkldnn_memory(
             user_rightmost_dst_layer.data(), user_rightmost_dst_layer_memory);
 
     // Describe layer, forward pass, leftmost primitive.
@@ -266,16 +266,16 @@ void simple_net(engine::kind engine_kind) {
     );
     // Describe primitive
     auto leftmost_prim_desc
-            = dnnl::lstm_forward::primitive_desc(leftmost_layer_desc, eng);
+            = mkldnn::lstm_forward::primitive_desc(leftmost_layer_desc, eng);
 
     //
     // Need to connect leftmost and rightmost via "iter" parameters.
     // We allocate memory here based on the shapes provided by RNN primitive.
     //
     auto leftmost_dst_iter_memory
-            = dnnl::memory(leftmost_prim_desc.dst_iter_desc(), eng);
+            = mkldnn::memory(leftmost_prim_desc.dst_iter_desc(), eng);
     auto leftmost_dst_iter_c_memory
-            = dnnl::memory(leftmost_prim_desc.dst_iter_c_desc(), eng);
+            = mkldnn::memory(leftmost_prim_desc.dst_iter_c_desc(), eng);
 
     // rightmost src_iter will be a sub-memory of dst_iter of leftmost
     auto rightmost_src_iter_md
@@ -319,7 +319,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_prim_desc.weights_layer_desc()
             != common_weights_layer_memory.get_desc()) {
         common_weights_layer_memory
-                = dnnl::memory(leftmost_prim_desc.weights_layer_desc(), eng);
+                = mkldnn::memory(leftmost_prim_desc.weights_layer_desc(), eng);
         reorder(user_common_weights_layer_memory, common_weights_layer_memory)
                 .execute(s, user_common_weights_layer_memory,
                         common_weights_layer_memory);
@@ -329,7 +329,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_prim_desc.weights_iter_desc()
             != common_weights_iter_memory.get_desc()) {
         common_weights_iter_memory
-                = dnnl::memory(leftmost_prim_desc.weights_iter_desc(), eng);
+                = mkldnn::memory(leftmost_prim_desc.weights_iter_desc(), eng);
         reorder(user_common_weights_iter_memory, common_weights_iter_memory)
                 .execute(s, user_common_weights_iter_memory,
                         common_weights_iter_memory);
@@ -337,7 +337,8 @@ void simple_net(engine::kind engine_kind) {
 
     auto common_bias_memory = user_common_bias_memory;
     if (leftmost_prim_desc.bias_desc() != common_bias_memory.get_desc()) {
-        common_bias_memory = dnnl::memory(leftmost_prim_desc.bias_desc(), eng);
+        common_bias_memory
+                = mkldnn::memory(leftmost_prim_desc.bias_desc(), eng);
         reorder(user_common_bias_memory, common_bias_memory)
                 .execute(s, user_common_bias_memory, common_bias_memory);
     }
@@ -350,7 +351,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_prim_desc.dst_layer_desc()
             != leftmost_dst_layer_memory.get_desc()) {
         leftmost_dst_layer_memory
-                = dnnl::memory(leftmost_prim_desc.dst_layer_desc(), eng);
+                = mkldnn::memory(leftmost_prim_desc.dst_layer_desc(), eng);
         reorder(user_leftmost_dst_layer_memory, leftmost_dst_layer_memory)
                 .execute(s, user_leftmost_dst_layer_memory,
                         leftmost_dst_layer_memory);
@@ -360,7 +361,7 @@ void simple_net(engine::kind engine_kind) {
     if (rightmost_prim_desc.dst_layer_desc()
             != rightmost_dst_layer_memory.get_desc()) {
         rightmost_dst_layer_memory
-                = dnnl::memory(rightmost_prim_desc.dst_layer_desc(), eng);
+                = mkldnn::memory(rightmost_prim_desc.dst_layer_desc(), eng);
         reorder(user_rightmost_dst_layer_memory, rightmost_dst_layer_memory)
                 .execute(s, user_rightmost_dst_layer_memory,
                         rightmost_dst_layer_memory);
@@ -370,8 +371,8 @@ void simple_net(engine::kind engine_kind) {
     // the workspace_primitive_desc(). This is needed for internal
     // communication between forward and backward primitives during
     // training.
-    auto create_ws = [=](dnnl::lstm_forward::primitive_desc &pd) {
-        return dnnl::memory(pd.workspace_desc(), eng);
+    auto create_ws = [=](mkldnn::lstm_forward::primitive_desc &pd) {
+        return mkldnn::memory(pd.workspace_desc(), eng);
     };
     auto leftmost_workspace_memory = create_ws(leftmost_prim_desc);
     auto rightmost_workspace_memory = create_ws(rightmost_prim_desc);
@@ -379,25 +380,25 @@ void simple_net(engine::kind engine_kind) {
     // Construct the RNN primitive objects
     lstm_forward leftmost_layer(leftmost_prim_desc);
     leftmost_layer.execute(s,
-            {{DNNL_ARG_SRC_LAYER, leftmost_src_layer_memory},
-                    {DNNL_ARG_WEIGHTS_LAYER, common_weights_layer_memory},
-                    {DNNL_ARG_WEIGHTS_ITER, common_weights_iter_memory},
-                    {DNNL_ARG_BIAS, common_bias_memory},
-                    {DNNL_ARG_DST_LAYER, leftmost_dst_layer_memory},
-                    {DNNL_ARG_DST_ITER, leftmost_dst_iter_memory},
-                    {DNNL_ARG_DST_ITER_C, leftmost_dst_iter_c_memory},
-                    {DNNL_ARG_WORKSPACE, leftmost_workspace_memory}});
+            {{MKLDNN_ARG_SRC_LAYER, leftmost_src_layer_memory},
+                    {MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_memory},
+                    {MKLDNN_ARG_WEIGHTS_ITER, common_weights_iter_memory},
+                    {MKLDNN_ARG_BIAS, common_bias_memory},
+                    {MKLDNN_ARG_DST_LAYER, leftmost_dst_layer_memory},
+                    {MKLDNN_ARG_DST_ITER, leftmost_dst_iter_memory},
+                    {MKLDNN_ARG_DST_ITER_C, leftmost_dst_iter_c_memory},
+                    {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory}});
 
     lstm_forward rightmost_layer(rightmost_prim_desc);
     rightmost_layer.execute(s,
-            {{DNNL_ARG_SRC_LAYER, rightmost_src_layer_memory},
-                    {DNNL_ARG_SRC_ITER, rightmost_src_iter_memory},
-                    {DNNL_ARG_SRC_ITER_C, rightmost_src_iter_c_memory},
-                    {DNNL_ARG_WEIGHTS_LAYER, common_weights_layer_memory},
-                    {DNNL_ARG_WEIGHTS_ITER, common_weights_iter_memory},
-                    {DNNL_ARG_BIAS, common_bias_memory},
-                    {DNNL_ARG_DST_LAYER, rightmost_dst_layer_memory},
-                    {DNNL_ARG_WORKSPACE, rightmost_workspace_memory}});
+            {{MKLDNN_ARG_SRC_LAYER, rightmost_src_layer_memory},
+                    {MKLDNN_ARG_SRC_ITER, rightmost_src_iter_memory},
+                    {MKLDNN_ARG_SRC_ITER_C, rightmost_src_iter_c_memory},
+                    {MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_memory},
+                    {MKLDNN_ARG_WEIGHTS_ITER, common_weights_iter_memory},
+                    {MKLDNN_ARG_BIAS, common_bias_memory},
+                    {MKLDNN_ARG_DST_LAYER, rightmost_dst_layer_memory},
+                    {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory}});
 
     // No backward pass for inference
     if (!is_training) return;
@@ -410,8 +411,8 @@ void simple_net(engine::kind engine_kind) {
     // User-provided memory for backward by data output
     std::vector<float> net_diff_src(tz_volume(net_src_dims), 1.0f);
     auto net_diff_src_memory
-            = dnnl::memory(formatted_md(net_src_dims, tag::tnc), eng);
-    write_to_dnnl_memory(net_diff_src.data(), net_diff_src_memory);
+            = mkldnn::memory(formatted_md(net_src_dims, tag::tnc), eng);
+    write_to_mkldnn_memory(net_diff_src.data(), net_diff_src_memory);
 
     // diff_src follows the same layout we have for net_src
     auto user_leftmost_diff_src_layer_md
@@ -427,15 +428,15 @@ void simple_net(engine::kind engine_kind) {
     // User-provided memory for backpropagation by weights
     std::vector<float> user_common_diff_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
-    auto user_common_diff_weights_layer_memory = dnnl::memory(
+    auto user_common_diff_weights_layer_memory = mkldnn::memory(
             formatted_md(common_weights_layer_dims, tag::ldigo), eng);
-    write_to_dnnl_memory(user_common_diff_weights_layer.data(),
+    write_to_mkldnn_memory(user_common_diff_weights_layer.data(),
             user_common_diff_weights_layer_memory);
 
     std::vector<float> user_common_diff_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_diff_bias_memory
-            = dnnl::memory(formatted_md(common_bias_dims, tag::ldgo), eng);
-    write_to_dnnl_memory(
+            = mkldnn::memory(formatted_md(common_bias_dims, tag::ldgo), eng);
+    write_to_mkldnn_memory(
             user_common_diff_bias.data(), user_common_diff_bias_memory);
 
     // User-provided input to the backward primitive.
@@ -448,8 +449,8 @@ void simple_net(engine::kind engine_kind) {
     // Suppose user data is in tnc format.
     std::vector<float> net_diff_dst(tz_volume(net_diff_dst_dims), 1.0f);
     auto net_diff_dst_memory
-            = dnnl::memory(formatted_md(net_diff_dst_dims, tag::tnc), eng);
-    write_to_dnnl_memory(net_diff_dst.data(), net_diff_dst_memory);
+            = mkldnn::memory(formatted_md(net_diff_dst_dims, tag::tnc), eng);
+    write_to_mkldnn_memory(net_diff_dst.data(), net_diff_dst_memory);
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memory in larger memory.
     // View primitives compute the strides to accommodate for padding.
@@ -493,9 +494,9 @@ void simple_net(engine::kind engine_kind) {
     // we need to use a sub-memory. rightmost needs less memory, so it will
     // be a sub-memory of leftmost.
     auto leftmost_diff_dst_iter_memory
-            = dnnl::memory(leftmost_bwd_prim_desc.diff_dst_iter_desc(), eng);
-    auto leftmost_diff_dst_iter_c_memory
-            = dnnl::memory(leftmost_bwd_prim_desc.diff_dst_iter_c_desc(), eng);
+            = mkldnn::memory(leftmost_bwd_prim_desc.diff_dst_iter_desc(), eng);
+    auto leftmost_diff_dst_iter_c_memory = mkldnn::memory(
+            leftmost_bwd_prim_desc.diff_dst_iter_c_desc(), eng);
 
     auto rightmost_diff_src_iter_md
             = leftmost_diff_dst_iter_memory.get_desc().submemory_desc(
@@ -569,7 +570,7 @@ void simple_net(engine::kind engine_kind) {
     auto common_bias_bwd_memory = common_bias_memory;
     if (leftmost_bwd_prim_desc.bias_desc() != common_bias_memory.get_desc()) {
         common_bias_bwd_memory
-                = dnnl::memory(leftmost_bwd_prim_desc.bias_desc(), eng);
+                = mkldnn::memory(leftmost_bwd_prim_desc.bias_desc(), eng);
         reorder(common_bias_memory, common_bias_bwd_memory)
                 .execute(s, common_bias_memory, common_bias_bwd_memory);
     }
@@ -580,7 +581,7 @@ void simple_net(engine::kind engine_kind) {
     auto reorder_common_diff_weights_layer = false;
     if (leftmost_bwd_prim_desc.diff_weights_layer_desc()
             != common_diff_weights_layer_memory.get_desc()) {
-        common_diff_weights_layer_memory = dnnl::memory(
+        common_diff_weights_layer_memory = mkldnn::memory(
                 leftmost_bwd_prim_desc.diff_weights_layer_desc(), eng);
         reorder_common_diff_weights_layer = true;
     }
@@ -590,7 +591,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_bwd_prim_desc.diff_bias_desc()
             != common_diff_bias_memory.get_desc()) {
         common_diff_bias_memory
-                = dnnl::memory(leftmost_bwd_prim_desc.diff_bias_desc(), eng);
+                = mkldnn::memory(leftmost_bwd_prim_desc.diff_bias_desc(), eng);
         reorder_common_diff_bias = true;
     }
 
@@ -599,7 +600,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_bwd_prim_desc.dst_layer_desc()
             != leftmost_dst_layer_bwd_memory.get_desc()) {
         leftmost_dst_layer_bwd_memory
-                = dnnl::memory(leftmost_bwd_prim_desc.dst_layer_desc(), eng);
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_layer_desc(), eng);
         reorder(leftmost_dst_layer_memory, leftmost_dst_layer_bwd_memory)
                 .execute(s, leftmost_dst_layer_memory,
                         leftmost_dst_layer_bwd_memory);
@@ -609,7 +610,7 @@ void simple_net(engine::kind engine_kind) {
     if (rightmost_bwd_prim_desc.dst_layer_desc()
             != rightmost_dst_layer_bwd_memory.get_desc()) {
         rightmost_dst_layer_bwd_memory
-                = dnnl::memory(rightmost_bwd_prim_desc.dst_layer_desc(), eng);
+                = mkldnn::memory(rightmost_bwd_prim_desc.dst_layer_desc(), eng);
         reorder(rightmost_dst_layer_memory, rightmost_dst_layer_bwd_memory)
                 .execute(s, rightmost_dst_layer_memory,
                         rightmost_dst_layer_bwd_memory);
@@ -617,14 +618,14 @@ void simple_net(engine::kind engine_kind) {
 
     // Similar to forward, the backward primitives are connected
     // via "iter" parameters.
-    auto common_diff_weights_iter_memory = dnnl::memory(
+    auto common_diff_weights_iter_memory = mkldnn::memory(
             leftmost_bwd_prim_desc.diff_weights_iter_desc(), eng);
 
     auto leftmost_dst_iter_bwd_memory = leftmost_dst_iter_memory;
     if (leftmost_bwd_prim_desc.dst_iter_desc()
             != leftmost_dst_iter_bwd_memory.get_desc()) {
         leftmost_dst_iter_bwd_memory
-                = dnnl::memory(leftmost_bwd_prim_desc.dst_iter_desc(), eng);
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_iter_desc(), eng);
         reorder(leftmost_dst_iter_memory, leftmost_dst_iter_bwd_memory)
                 .execute(s, leftmost_dst_iter_memory,
                         leftmost_dst_iter_bwd_memory);
@@ -634,7 +635,7 @@ void simple_net(engine::kind engine_kind) {
     if (leftmost_bwd_prim_desc.dst_iter_c_desc()
             != leftmost_dst_iter_c_bwd_memory.get_desc()) {
         leftmost_dst_iter_c_bwd_memory
-                = dnnl::memory(leftmost_bwd_prim_desc.dst_iter_c_desc(), eng);
+                = mkldnn::memory(leftmost_bwd_prim_desc.dst_iter_c_desc(), eng);
         reorder(leftmost_dst_iter_c_memory, leftmost_dst_iter_c_bwd_memory)
                 .execute(s, leftmost_dst_iter_c_memory,
                         leftmost_dst_iter_c_bwd_memory);
@@ -643,44 +644,47 @@ void simple_net(engine::kind engine_kind) {
     // Construct the RNN primitive objects for backward
     lstm_backward rightmost_layer_bwd(rightmost_bwd_prim_desc);
     rightmost_layer_bwd.execute(s,
-            {{DNNL_ARG_SRC_LAYER, rightmost_src_layer_bwd_memory},
-                    {DNNL_ARG_SRC_ITER, rightmost_src_iter_memory},
-                    {DNNL_ARG_SRC_ITER_C, rightmost_src_iter_c_memory},
-                    {DNNL_ARG_WEIGHTS_LAYER, common_weights_layer_bwd_memory},
-                    {DNNL_ARG_WEIGHTS_ITER, common_weights_iter_bwd_memory},
-                    {DNNL_ARG_BIAS, common_bias_bwd_memory},
-                    {DNNL_ARG_DST_LAYER, rightmost_dst_layer_bwd_memory},
-                    {DNNL_ARG_DIFF_SRC_LAYER, rightmost_diff_src_layer_memory},
-                    {DNNL_ARG_DIFF_SRC_ITER, rightmost_diff_src_iter_memory},
-                    {DNNL_ARG_DIFF_SRC_ITER_C,
+            {{MKLDNN_ARG_SRC_LAYER, rightmost_src_layer_bwd_memory},
+                    {MKLDNN_ARG_SRC_ITER, rightmost_src_iter_memory},
+                    {MKLDNN_ARG_SRC_ITER_C, rightmost_src_iter_c_memory},
+                    {MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_bwd_memory},
+                    {MKLDNN_ARG_WEIGHTS_ITER, common_weights_iter_bwd_memory},
+                    {MKLDNN_ARG_BIAS, common_bias_bwd_memory},
+                    {MKLDNN_ARG_DST_LAYER, rightmost_dst_layer_bwd_memory},
+                    {MKLDNN_ARG_DIFF_SRC_LAYER,
+                            rightmost_diff_src_layer_memory},
+                    {MKLDNN_ARG_DIFF_SRC_ITER, rightmost_diff_src_iter_memory},
+                    {MKLDNN_ARG_DIFF_SRC_ITER_C,
                             rightmost_diff_src_iter_c_memory},
-                    {DNNL_ARG_DIFF_WEIGHTS_LAYER,
+                    {MKLDNN_ARG_DIFF_WEIGHTS_LAYER,
                             common_diff_weights_layer_memory},
-                    {DNNL_ARG_DIFF_WEIGHTS_ITER,
+                    {MKLDNN_ARG_DIFF_WEIGHTS_ITER,
                             common_diff_weights_iter_memory},
-                    {DNNL_ARG_DIFF_BIAS, common_diff_bias_memory},
-                    {DNNL_ARG_DIFF_DST_LAYER, rightmost_diff_dst_layer_memory},
-                    {DNNL_ARG_WORKSPACE, rightmost_workspace_memory}});
+                    {MKLDNN_ARG_DIFF_BIAS, common_diff_bias_memory},
+                    {MKLDNN_ARG_DIFF_DST_LAYER,
+                            rightmost_diff_dst_layer_memory},
+                    {MKLDNN_ARG_WORKSPACE, rightmost_workspace_memory}});
 
     lstm_backward leftmost_layer_bwd(leftmost_bwd_prim_desc);
     leftmost_layer_bwd.execute(s,
-            {{DNNL_ARG_SRC_LAYER, leftmost_src_layer_bwd_memory},
-                    {DNNL_ARG_WEIGHTS_LAYER, common_weights_layer_bwd_memory},
-                    {DNNL_ARG_WEIGHTS_ITER, common_weights_iter_bwd_memory},
-                    {DNNL_ARG_BIAS, common_bias_bwd_memory},
-                    {DNNL_ARG_DST_LAYER, leftmost_dst_layer_bwd_memory},
-                    {DNNL_ARG_DST_ITER, leftmost_dst_iter_bwd_memory},
-                    {DNNL_ARG_DST_ITER_C, leftmost_dst_iter_c_bwd_memory},
-                    {DNNL_ARG_DIFF_SRC_LAYER, leftmost_diff_src_layer_memory},
-                    {DNNL_ARG_DIFF_WEIGHTS_LAYER,
+            {{MKLDNN_ARG_SRC_LAYER, leftmost_src_layer_bwd_memory},
+                    {MKLDNN_ARG_WEIGHTS_LAYER, common_weights_layer_bwd_memory},
+                    {MKLDNN_ARG_WEIGHTS_ITER, common_weights_iter_bwd_memory},
+                    {MKLDNN_ARG_BIAS, common_bias_bwd_memory},
+                    {MKLDNN_ARG_DST_LAYER, leftmost_dst_layer_bwd_memory},
+                    {MKLDNN_ARG_DST_ITER, leftmost_dst_iter_bwd_memory},
+                    {MKLDNN_ARG_DST_ITER_C, leftmost_dst_iter_c_bwd_memory},
+                    {MKLDNN_ARG_DIFF_SRC_LAYER, leftmost_diff_src_layer_memory},
+                    {MKLDNN_ARG_DIFF_WEIGHTS_LAYER,
                             common_diff_weights_layer_memory},
-                    {DNNL_ARG_DIFF_WEIGHTS_ITER,
+                    {MKLDNN_ARG_DIFF_WEIGHTS_ITER,
                             common_diff_weights_iter_memory},
-                    {DNNL_ARG_DIFF_BIAS, common_diff_bias_memory},
-                    {DNNL_ARG_DIFF_DST_LAYER, leftmost_diff_dst_layer_memory},
-                    {DNNL_ARG_DIFF_DST_ITER, leftmost_diff_dst_iter_memory},
-                    {DNNL_ARG_DIFF_DST_ITER_C, leftmost_diff_dst_iter_c_memory},
-                    {DNNL_ARG_WORKSPACE, leftmost_workspace_memory}});
+                    {MKLDNN_ARG_DIFF_BIAS, common_diff_bias_memory},
+                    {MKLDNN_ARG_DIFF_DST_LAYER, leftmost_diff_dst_layer_memory},
+                    {MKLDNN_ARG_DIFF_DST_ITER, leftmost_diff_dst_iter_memory},
+                    {MKLDNN_ARG_DIFF_DST_ITER_C,
+                            leftmost_diff_dst_iter_c_memory},
+                    {MKLDNN_ARG_WORKSPACE, leftmost_workspace_memory}});
     if (reorder_common_diff_weights_layer) {
         reorder(common_diff_weights_layer_memory,
                 user_common_diff_weights_layer_memory)

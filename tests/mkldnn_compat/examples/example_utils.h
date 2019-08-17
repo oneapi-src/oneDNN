@@ -22,12 +22,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dnnl.h"
+#include "mkldnn.h"
 
 #define CHECK(f) \
     do { \
-        dnnl_status_t s_ = f; \
-        if (s_ != dnnl_success) { \
+        mkldnn_status_t s_ = f; \
+        if (s_ != mkldnn_success) { \
             printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
                     s_); \
             exit(2); \
@@ -43,24 +43,24 @@
         } \
     } while (0)
 
-static dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
+static mkldnn_engine_kind_t parse_engine_kind(int argc, char **argv) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
-        return dnnl_cpu;
+        return mkldnn_cpu;
     } else if (argc == 2) {
         // Checking the engine type, i.e. CPU or GPU
         char *engine_kind_str = argv[1];
         if (!strcmp(engine_kind_str, "cpu")) {
-            return dnnl_cpu;
+            return mkldnn_cpu;
         } else if (!strcmp(engine_kind_str, "gpu")) {
             // Checking if a GPU exists on the machine
-            if (!dnnl_engine_get_count(dnnl_gpu)) {
+            if (!mkldnn_engine_get_count(mkldnn_gpu)) {
                 fprintf(stderr,
                         "Application couldn't find GPU, please run with CPU "
                         "instead. Thanks!\n");
                 exit(1);
             }
-            return dnnl_gpu;
+            return mkldnn_gpu;
         }
     }
 
@@ -70,32 +70,32 @@ static dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
 }
 
 // Read from memory, write to handle
-static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
-    dnnl_engine_t eng;
-    dnnl_engine_kind_t eng_kind;
-    const dnnl_memory_desc_t *md;
+static inline void read_from_mkldnn_memory(void *handle, mkldnn_memory_t mem) {
+    mkldnn_engine_t eng;
+    mkldnn_engine_kind_t eng_kind;
+    const mkldnn_memory_desc_t *md;
 
-    CHECK(dnnl_memory_get_engine(mem, &eng));
-    CHECK(dnnl_engine_get_kind(eng, &eng_kind));
-    CHECK(dnnl_memory_get_memory_desc(mem, &md));
-    size_t bytes = dnnl_memory_desc_get_size(md);
+    CHECK(mkldnn_memory_get_engine(mem, &eng));
+    CHECK(mkldnn_engine_get_kind(eng, &eng_kind));
+    CHECK(mkldnn_memory_get_memory_desc(mem, &md));
+    size_t bytes = mkldnn_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
+    if (eng_kind == mkldnn_cpu) {
         void *ptr;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
+        CHECK(mkldnn_memory_get_data_handle(mem, &ptr));
         for (size_t i = 0; i < bytes; ++i) {
             ((char *)handle)[i] = ((char *)ptr)[i];
         }
     }
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng_kind == dnnl_gpu) {
-        dnnl_stream_t s;
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    else if (eng_kind == mkldnn_gpu) {
+        mkldnn_stream_t s;
         cl_command_queue q;
         cl_mem m;
 
-        CHECK(dnnl_memory_get_ocl_mem_object(mem, &m));
-        CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_stream_get_ocl_command_queue(s, &q));
+        CHECK(mkldnn_memory_get_ocl_mem_object(mem, &m));
+        CHECK(mkldnn_stream_create(&s, eng, mkldnn_stream_default_flags));
+        CHECK(mkldnn_stream_get_ocl_command_queue(s, &q));
 
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
@@ -104,42 +104,42 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
                     "clEnqueueReadBuffer failed.\nStatus Code: "
                     "%d\n",
                     ret);
-            dnnl_stream_destroy(s);
+            mkldnn_stream_destroy(s);
             exit(1);
         }
 
-        dnnl_stream_destroy(s);
+        mkldnn_stream_destroy(s);
     }
 #endif
 }
 
 // Read from handle, write to memory
-static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
-    dnnl_engine_t eng;
-    dnnl_engine_kind_t eng_kind;
-    const dnnl_memory_desc_t *md;
+static inline void write_to_mkldnn_memory(void *handle, mkldnn_memory_t mem) {
+    mkldnn_engine_t eng;
+    mkldnn_engine_kind_t eng_kind;
+    const mkldnn_memory_desc_t *md;
 
-    CHECK(dnnl_memory_get_engine(mem, &eng));
-    CHECK(dnnl_engine_get_kind(eng, &eng_kind));
-    CHECK(dnnl_memory_get_memory_desc(mem, &md));
-    size_t bytes = dnnl_memory_desc_get_size(md);
+    CHECK(mkldnn_memory_get_engine(mem, &eng));
+    CHECK(mkldnn_engine_get_kind(eng, &eng_kind));
+    CHECK(mkldnn_memory_get_memory_desc(mem, &md));
+    size_t bytes = mkldnn_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
+    if (eng_kind == mkldnn_cpu) {
         void *ptr;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
+        CHECK(mkldnn_memory_get_data_handle(mem, &ptr));
         for (size_t i = 0; i < bytes; ++i) {
             ((char *)handle)[i] = ((char *)ptr)[i];
         }
     }
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng_kind == dnnl_gpu) {
-        dnnl_stream_t s;
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    else if (eng_kind == mkldnn_gpu) {
+        mkldnn_stream_t s;
         cl_command_queue q;
         cl_mem m;
 
-        CHECK(dnnl_memory_get_ocl_mem_object(mem, &m));
-        CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_stream_get_ocl_command_queue(s, &q));
+        CHECK(mkldnn_memory_get_ocl_mem_object(mem, &m));
+        CHECK(mkldnn_stream_create(&s, eng, mkldnn_stream_default_flags));
+        CHECK(mkldnn_stream_get_ocl_command_queue(s, &q));
 
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
@@ -148,11 +148,11 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
                     "clEnqueueWriteBuffer failed.\nStatus Code: "
                     "%d\n",
                     ret);
-            dnnl_stream_destroy(s);
+            mkldnn_stream_destroy(s);
             exit(1);
         }
 
-        dnnl_stream_destroy(s);
+        mkldnn_stream_destroy(s);
     }
 #endif
 }

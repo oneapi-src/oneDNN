@@ -47,7 +47,7 @@
 
 #include "example_utils.hpp"
 
-using namespace dnnl;
+using namespace mkldnn;
 
 using namespace std;
 
@@ -56,7 +56,7 @@ memory::dim product(const memory::dims &dims) {
             std::multiplies<memory::dim>());
 }
 
-void simple_net(engine::kind engine_kind, int times = 100) {
+void simple_net(engine::kind engine_kind, int times = 1) {
     using tag = memory::format_tag;
     using dt = memory::data_type;
 
@@ -102,15 +102,14 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// for weights.
     /// @snippet cnn_inference_f32.cpp Create user memory
     //[Create user memory]
-    auto user_src_memory
-            = memory({{ conv1_src_tz}, dt::f32, tag::nchw}, eng);
-    write_to_dnnl_memory(user_src.data(), user_src_memory);
+    auto user_src_memory = memory({{conv1_src_tz}, dt::f32, tag::nchw}, eng);
+    write_to_mkldnn_memory(user_src.data(), user_src_memory);
     auto user_weights_memory
-            = memory({{ conv1_weights_tz}, dt::f32, tag::oihw}, eng);
-    write_to_dnnl_memory(conv1_weights.data(), user_weights_memory);
+            = memory({{conv1_weights_tz}, dt::f32, tag::oihw}, eng);
+    write_to_mkldnn_memory(conv1_weights.data(), user_weights_memory);
     auto conv1_user_bias_memory
-            = memory({{ conv1_bias_tz }, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(conv1_bias.data(), conv1_user_bias_memory);
+            = memory({{conv1_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(conv1_bias.data(), conv1_user_bias_memory);
     //[Create user memory]
 
     /// Create memory descriptors with layout tag::any. The `any` format enables
@@ -158,8 +157,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (conv1_prim_desc.src_desc() != user_src_memory.get_desc()) {
         conv1_src_memory = memory(conv1_prim_desc.src_desc(), eng);
         net.push_back(reorder(user_src_memory, conv1_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, user_src_memory},
-                {DNNL_ARG_TO, conv1_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, user_src_memory},
+                {MKLDNN_ARG_TO, conv1_src_memory}});
     }
 
     auto conv1_weights_memory = user_weights_memory;
@@ -180,10 +179,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// @snippet cnn_inference_f32.cpp Create memory for output
     //[Create convolution primitive]
     net.push_back(convolution_forward(conv1_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv1_src_memory},
-            {DNNL_ARG_WEIGHTS, conv1_weights_memory},
-            {DNNL_ARG_BIAS, conv1_user_bias_memory},
-            {DNNL_ARG_DST, conv1_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv1_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv1_weights_memory},
+            {MKLDNN_ARG_BIAS, conv1_user_bias_memory},
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
     //[Create convolution primitive]
 
     // AlexNet: relu1
@@ -202,8 +201,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto relu1_prim_desc = eltwise_forward::primitive_desc(relu1_desc, eng);
 
     net.push_back(eltwise_forward(relu1_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv1_dst_memory},
-            {DNNL_ARG_DST, conv1_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv1_dst_memory},
+            {MKLDNN_ARG_DST, conv1_dst_memory}});
     //[Create relu primitive]
 
     // AlexNet: lrn1
@@ -224,8 +223,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto lrn1_dst_memory = memory(lrn1_prim_desc.dst_desc(), eng);
 
     net.push_back(lrn_forward(lrn1_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv1_dst_memory},
-            {DNNL_ARG_DST, lrn1_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv1_dst_memory},
+            {MKLDNN_ARG_DST, lrn1_dst_memory}});
 
     // AlexNet: pool1
     // {batch, 96, 55, 55} -> {batch, 96, 27, 27}
@@ -253,8 +252,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto pool1_dst_memory = memory(pool1_pd.dst_desc(), eng);
 
     net.push_back(pooling_forward(pool1_pd));
-    net_args.push_back({{DNNL_ARG_SRC, lrn1_dst_memory},
-            {DNNL_ARG_DST, pool1_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, lrn1_dst_memory},
+            {MKLDNN_ARG_DST, pool1_dst_memory}});
     //[Create pooling primitive]
 
     // AlexNet: conv2
@@ -273,10 +272,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create memory for user data
     auto conv2_user_weights_memory
             = memory({{conv2_weights_tz}, dt::f32, tag::goihw}, eng);
-    write_to_dnnl_memory(conv2_weights.data(), conv2_user_weights_memory);
+    write_to_mkldnn_memory(conv2_weights.data(), conv2_user_weights_memory);
     auto conv2_user_bias_memory
             = memory({{conv2_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(conv2_bias.data(), conv2_user_bias_memory);
+    write_to_mkldnn_memory(conv2_bias.data(), conv2_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv2_src_md = memory::desc({conv2_src_tz}, dt::f32, tag::any);
@@ -295,8 +294,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (conv2_prim_desc.src_desc() != conv2_src_memory.get_desc()) {
         conv2_src_memory = memory(conv2_prim_desc.src_desc(), eng);
         net.push_back(reorder(pool1_dst_memory, conv2_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, pool1_dst_memory},
-                {DNNL_ARG_TO, conv2_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, pool1_dst_memory},
+                {MKLDNN_ARG_TO, conv2_src_memory}});
     }
 
     auto conv2_weights_memory = conv2_user_weights_memory;
@@ -311,10 +310,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(convolution_forward(conv2_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv2_src_memory},
-            {DNNL_ARG_WEIGHTS, conv2_weights_memory},
-            {DNNL_ARG_BIAS, conv2_user_bias_memory},
-            {DNNL_ARG_DST, conv2_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv2_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv2_weights_memory},
+            {MKLDNN_ARG_BIAS, conv2_user_bias_memory},
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     // AlexNet: relu2
     // {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -327,8 +326,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto relu2_prim_desc = eltwise_forward::primitive_desc(relu2_desc, eng);
 
     net.push_back(eltwise_forward(relu2_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv2_dst_memory},
-            {DNNL_ARG_DST, conv2_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv2_dst_memory},
+            {MKLDNN_ARG_DST, conv2_dst_memory}});
 
     // AlexNet: lrn2
     // {batch, 256, 27, 27} -> {batch, 256, 27, 27}
@@ -348,8 +347,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto lrn2_dst_memory = memory(lrn2_prim_desc.dst_desc(), eng);
 
     net.push_back(lrn_forward(lrn2_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv2_dst_memory},
-            {DNNL_ARG_DST, lrn2_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv2_dst_memory},
+            {MKLDNN_ARG_DST, lrn2_dst_memory}});
 
     // AlexNet: pool2
     // {batch, 256, 27, 27} -> {batch, 256, 13, 13}
@@ -371,8 +370,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create pooling primitive an add it to net
     net.push_back(pooling_forward(pool2_pd));
-    net_args.push_back({{DNNL_ARG_SRC, lrn2_dst_memory},
-            {DNNL_ARG_DST, pool2_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, lrn2_dst_memory},
+            {MKLDNN_ARG_DST, pool2_dst_memory}});
 
     // AlexNet: conv3
     // {batch, 256, 13, 13} (x)  {384, 256, 3, 3}; -> {batch, 384, 13, 13};
@@ -390,10 +389,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create memory for user data
     auto conv3_user_weights_memory
             = memory({{conv3_weights_tz}, dt::f32, tag::oihw}, eng);
-    write_to_dnnl_memory(conv3_weights.data(), conv3_user_weights_memory);
+    write_to_mkldnn_memory(conv3_weights.data(), conv3_user_weights_memory);
     auto conv3_user_bias_memory
             = memory({{conv3_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(conv3_bias.data(), conv3_user_bias_memory);
+    write_to_mkldnn_memory(conv3_bias.data(), conv3_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv3_src_md = memory::desc({conv3_src_tz}, dt::f32, tag::any);
@@ -412,8 +411,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (conv3_prim_desc.src_desc() != conv3_src_memory.get_desc()) {
         conv3_src_memory = memory(conv3_prim_desc.src_desc(), eng);
         net.push_back(reorder(pool2_dst_memory, conv3_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, pool2_dst_memory},
-                {DNNL_ARG_TO, conv3_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, pool2_dst_memory},
+                {MKLDNN_ARG_TO, conv3_src_memory}});
     }
 
     auto conv3_weights_memory = conv3_user_weights_memory;
@@ -428,10 +427,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(convolution_forward(conv3_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv3_src_memory},
-            {DNNL_ARG_WEIGHTS, conv3_weights_memory},
-            {DNNL_ARG_BIAS, conv3_user_bias_memory},
-            {DNNL_ARG_DST, conv3_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv3_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv3_weights_memory},
+            {MKLDNN_ARG_BIAS, conv3_user_bias_memory},
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     // AlexNet: relu3
     // {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -444,8 +443,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto relu3_prim_desc = eltwise_forward::primitive_desc(relu3_desc, eng);
 
     net.push_back(eltwise_forward(relu3_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv3_dst_memory},
-            {DNNL_ARG_DST, conv3_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv3_dst_memory},
+            {MKLDNN_ARG_DST, conv3_dst_memory}});
 
     // AlexNet: conv4
     // {batch, 384, 13, 13} (x)  {2, 192, 192, 3, 3}; ->
@@ -464,10 +463,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create memory for user data
     auto conv4_user_weights_memory
             = memory({{conv4_weights_tz}, dt::f32, tag::goihw}, eng);
-    write_to_dnnl_memory(conv4_weights.data(), conv4_user_weights_memory);
+    write_to_mkldnn_memory(conv4_weights.data(), conv4_user_weights_memory);
     auto conv4_user_bias_memory
             = memory({{conv4_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(conv4_bias.data(), conv4_user_bias_memory);
+    write_to_mkldnn_memory(conv4_bias.data(), conv4_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv4_src_md = memory::desc({conv4_src_tz}, dt::f32, tag::any);
@@ -486,8 +485,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (conv4_prim_desc.src_desc() != conv4_src_memory.get_desc()) {
         conv4_src_memory = memory(conv4_prim_desc.src_desc(), eng);
         net.push_back(reorder(conv3_dst_memory, conv4_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, conv3_dst_memory},
-                {DNNL_ARG_TO, conv4_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, conv3_dst_memory},
+                {MKLDNN_ARG_TO, conv4_src_memory}});
     }
 
     auto conv4_weights_memory = conv4_user_weights_memory;
@@ -502,10 +501,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(convolution_forward(conv4_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv4_src_memory},
-            {DNNL_ARG_WEIGHTS, conv4_weights_memory},
-            {DNNL_ARG_BIAS, conv4_user_bias_memory},
-            {DNNL_ARG_DST, conv4_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv4_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv4_weights_memory},
+            {MKLDNN_ARG_BIAS, conv4_user_bias_memory},
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     // AlexNet: relu4
     // {batch, 384, 13, 13} -> {batch, 384, 13, 13}
@@ -518,8 +517,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto relu4_prim_desc = eltwise_forward::primitive_desc(relu4_desc, eng);
 
     net.push_back(eltwise_forward(relu4_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv4_dst_memory},
-            {DNNL_ARG_DST, conv4_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv4_dst_memory},
+            {MKLDNN_ARG_DST, conv4_dst_memory}});
 
     // AlexNet: conv5
     // {batch, 384, 13, 13} (x)  {2, 128, 192, 3, 3}; -> {batch, 256, 13, 13};
@@ -537,10 +536,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create memory for user data
     auto conv5_user_weights_memory
             = memory({{conv5_weights_tz}, dt::f32, tag::goihw}, eng);
-    write_to_dnnl_memory(conv5_weights.data(), conv5_user_weights_memory);
+    write_to_mkldnn_memory(conv5_weights.data(), conv5_user_weights_memory);
     auto conv5_user_bias_memory
             = memory({{conv5_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(conv5_bias.data(), conv5_user_bias_memory);
+    write_to_mkldnn_memory(conv5_bias.data(), conv5_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto conv5_src_md = memory::desc({conv5_src_tz}, dt::f32, tag::any);
@@ -559,8 +558,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (conv5_prim_desc.src_desc() != conv5_src_memory.get_desc()) {
         conv5_src_memory = memory(conv5_prim_desc.src_desc(), eng);
         net.push_back(reorder(conv4_dst_memory, conv5_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, conv4_dst_memory},
-                {DNNL_ARG_TO, conv5_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, conv4_dst_memory},
+                {MKLDNN_ARG_TO, conv5_src_memory}});
     }
 
     auto conv5_weights_memory = conv5_user_weights_memory;
@@ -575,10 +574,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(convolution_forward(conv5_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv5_src_memory},
-            {DNNL_ARG_WEIGHTS, conv5_weights_memory},
-            {DNNL_ARG_BIAS, conv5_user_bias_memory},
-            {DNNL_ARG_DST, conv5_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv5_src_memory},
+            {MKLDNN_ARG_WEIGHTS, conv5_weights_memory},
+            {MKLDNN_ARG_BIAS, conv5_user_bias_memory},
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     // AlexNet: relu5
     // {batch, 256, 13, 13} -> {batch, 256, 13, 13}
@@ -591,8 +590,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto relu5_prim_desc = eltwise_forward::primitive_desc(relu5_desc, eng);
 
     net.push_back(eltwise_forward(relu5_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, conv5_dst_memory},
-            {DNNL_ARG_DST, conv5_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv5_dst_memory},
+            {MKLDNN_ARG_DST, conv5_dst_memory}});
 
     // AlexNet: pool5
     // {batch, 256, 13, 13} -> {batch, 256, 6, 6}
@@ -617,8 +616,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create pooling primitive an add it to net
     net.push_back(pooling_forward(pool5_pd));
-    net_args.push_back({{DNNL_ARG_SRC, conv5_dst_memory},
-            {DNNL_ARG_DST, pool5_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, conv5_dst_memory},
+            {MKLDNN_ARG_DST, pool5_dst_memory}});
 
     // fc6 inner product {batch, 256, 6, 6} (x) {4096, 256, 6, 6}-> {batch,
     // 4096}
@@ -633,10 +632,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     // create memory for user data
     auto fc6_user_weights_memory
             = memory({{fc6_weights_tz}, dt::f32, tag::oihw}, eng);
-    write_to_dnnl_memory(fc6_weights.data(), fc6_user_weights_memory);
-    auto fc6_user_bias_memory
-            = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(fc6_bias.data(), fc6_user_bias_memory);
+    write_to_mkldnn_memory(fc6_weights.data(), fc6_user_weights_memory);
+    auto fc6_user_bias_memory = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc6_bias.data(), fc6_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc6_src_md = memory::desc({fc6_src_tz}, dt::f32, tag::any);
@@ -653,8 +651,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     if (fc6_prim_desc.src_desc() != fc6_src_memory.get_desc()) {
         fc6_src_memory = memory(fc6_prim_desc.src_desc(), eng);
         net.push_back(reorder(pool5_dst_memory, fc6_src_memory));
-        net_args.push_back({{DNNL_ARG_FROM, pool5_dst_memory},
-                {DNNL_ARG_TO, fc6_src_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, pool5_dst_memory},
+                {MKLDNN_ARG_TO, fc6_src_memory}});
     }
 
     auto fc6_weights_memory = fc6_user_weights_memory;
@@ -668,10 +666,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(inner_product_forward(fc6_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, fc6_src_memory},
-            {DNNL_ARG_WEIGHTS, fc6_weights_memory},
-            {DNNL_ARG_BIAS, fc6_user_bias_memory},
-            {DNNL_ARG_DST, fc6_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, fc6_src_memory},
+            {MKLDNN_ARG_WEIGHTS, fc6_weights_memory},
+            {MKLDNN_ARG_BIAS, fc6_user_bias_memory},
+            {MKLDNN_ARG_DST, fc6_dst_memory}});
 
     // fc7 inner product {batch, 4096} (x) {4096, 4096}-> {batch, 4096}
     memory::dims fc7_weights_tz = {4096, 4096};
@@ -682,13 +680,12 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc7_bias(product(fc7_bias_tz));
 
     // create memory for user data
-    auto fc7_user_weights_memory = memory(
-            {{fc7_weights_tz}, dt::f32, tag::nc}, eng);
-    write_to_dnnl_memory(fc7_weights.data(), fc7_user_weights_memory);
+    auto fc7_user_weights_memory
+            = memory({{fc7_weights_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(fc7_weights.data(), fc7_user_weights_memory);
 
-    auto fc7_user_bias_memory
-            = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(fc7_bias.data(), fc7_user_bias_memory);
+    auto fc7_user_bias_memory = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc7_bias.data(), fc7_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc7_bias_md = memory::desc({fc7_bias_tz}, dt::f32, tag::any);
@@ -711,10 +708,10 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(inner_product_forward(fc7_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, fc6_dst_memory},
-            {DNNL_ARG_WEIGHTS, fc7_weights_memory},
-            {DNNL_ARG_BIAS, fc7_user_bias_memory},
-            {DNNL_ARG_DST, fc7_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, fc6_dst_memory},
+            {MKLDNN_ARG_WEIGHTS, fc7_weights_memory},
+            {MKLDNN_ARG_BIAS, fc7_user_bias_memory},
+            {MKLDNN_ARG_DST, fc7_dst_memory}});
 
     // fc8 inner product {batch, 4096} (x) {1000, 4096}-> {batch, 1000}
     memory::dims fc8_weights_tz = {1000, 4096};
@@ -725,15 +722,13 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc8_bias(product(fc8_bias_tz));
 
     // create memory for user data
-    auto fc8_user_weights_memory = memory(
-            {{fc8_weights_tz}, dt::f32, tag::nc}, eng);
-    write_to_dnnl_memory(fc8_weights.data(), fc8_user_weights_memory);
-    auto fc8_user_bias_memory
-            = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
-    write_to_dnnl_memory(fc8_bias.data(), fc8_user_bias_memory);
-    auto user_dst_memory
-            = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
-    write_to_dnnl_memory(user_dst.data(), user_dst_memory);
+    auto fc8_user_weights_memory
+            = memory({{fc8_weights_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(fc8_weights.data(), fc8_user_weights_memory);
+    auto fc8_user_bias_memory = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_mkldnn_memory(fc8_bias.data(), fc8_user_bias_memory);
+    auto user_dst_memory = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
+    write_to_mkldnn_memory(user_dst.data(), user_dst_memory);
 
     // create memory descriptors for convolution data w/ no specified format
     auto fc8_bias_md = memory::desc({fc8_bias_tz}, dt::f32, tag::any);
@@ -756,17 +751,17 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create convolution primitive and add it to net
     net.push_back(inner_product_forward(fc8_prim_desc));
-    net_args.push_back({{DNNL_ARG_SRC, fc7_dst_memory},
-            {DNNL_ARG_WEIGHTS, fc8_weights_memory},
-            {DNNL_ARG_BIAS, fc8_user_bias_memory},
-            {DNNL_ARG_DST, fc8_dst_memory}});
+    net_args.push_back({{MKLDNN_ARG_SRC, fc7_dst_memory},
+            {MKLDNN_ARG_WEIGHTS, fc8_weights_memory},
+            {MKLDNN_ARG_BIAS, fc8_user_bias_memory},
+            {MKLDNN_ARG_DST, fc8_dst_memory}});
 
     // create reorder between internal and user data if it is needed and
     // add it to net after pooling
     if (fc8_dst_memory != user_dst_memory) {
         net.push_back(reorder(fc8_dst_memory, user_dst_memory));
-        net_args.push_back({{DNNL_ARG_FROM, fc8_dst_memory},
-                {DNNL_ARG_TO, user_dst_memory}});
+        net_args.push_back({{MKLDNN_ARG_FROM, fc8_dst_memory},
+                {MKLDNN_ARG_TO, user_dst_memory}});
     }
 
     /// @page cnn_inference_f32_cpp
@@ -789,7 +784,7 @@ int main(int argc, char **argv) {
         auto begin = chrono::duration_cast<chrono::milliseconds>(
                 chrono::steady_clock::now().time_since_epoch())
                              .count();
-        int times = 100;
+        int times = 1;
         simple_net(parse_engine_kind(argc, argv), times);
         auto end = chrono::duration_cast<chrono::milliseconds>(
                 chrono::steady_clock::now().time_since_epoch())

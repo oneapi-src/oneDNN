@@ -22,26 +22,26 @@
 #include <stdlib.h>
 #include <string>
 
-#include "dnnl.hpp"
+#include "mkldnn.hpp"
 
-static dnnl::engine::kind parse_engine_kind(
+static mkldnn::engine::kind parse_engine_kind(
         int argc, char **argv, int extra_args = 0) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
-        return dnnl::engine::kind::cpu;
+        return mkldnn::engine::kind::cpu;
     } else if (argc <= extra_args + 2) {
         std::string engine_kind_str = argv[1];
         // Checking the engine type, i.e. CPU or GPU
         if (engine_kind_str == "cpu") {
-            return dnnl::engine::kind::cpu;
+            return mkldnn::engine::kind::cpu;
         } else if (engine_kind_str == "gpu") {
             // Checking if a GPU exists on the machine
-            if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
+            if (mkldnn::engine::get_count(mkldnn::engine::kind::gpu) == 0) {
                 std::cerr << "Application couldn't find GPU, please run with "
                              "CPU instead. Thanks!\n";
                 exit(1);
             }
-            return dnnl::engine::kind::gpu;
+            return mkldnn::engine::kind::gpu;
         }
     }
 
@@ -53,17 +53,17 @@ static dnnl::engine::kind parse_engine_kind(
 }
 
 // Read from memory, write to handle
-inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
-    dnnl::engine eng = mem.get_engine();
+inline void read_from_mkldnn_memory(void *handle, mkldnn::memory &mem) {
+    mkldnn::engine eng = mem.get_engine();
     size_t bytes = mem.get_desc().get_size();
 
-    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+    if (eng.get_kind() == mkldnn::engine::kind::cpu) {
         uint8_t *src = static_cast<uint8_t *>(mem.get_data_handle());
         std::copy(src, src + bytes, (uint8_t *)handle);
     }
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng.get_kind() == dnnl::engine::kind::gpu) {
-        dnnl::stream s(eng);
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    else if (eng.get_kind() == mkldnn::engine::kind::gpu) {
+        mkldnn::stream s(eng);
         cl_command_queue q = s.get_ocl_command_queue();
         cl_mem m = mem.get_ocl_mem_object();
 
@@ -77,17 +77,17 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
 }
 
 // Read from handle, write to memory
-inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
-    dnnl::engine eng = mem.get_engine();
+inline void write_to_mkldnn_memory(void *handle, mkldnn::memory &mem) {
+    mkldnn::engine eng = mem.get_engine();
     size_t bytes = mem.get_desc().get_size();
 
-    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+    if (eng.get_kind() == mkldnn::engine::kind::cpu) {
         uint8_t *dst = static_cast<uint8_t *>(mem.get_data_handle());
         std::copy((uint8_t *)handle, (uint8_t *)handle + bytes, dst);
     }
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng.get_kind() == dnnl::engine::kind::gpu) {
-        dnnl::stream s(eng);
+#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+    else if (eng.get_kind() == mkldnn::engine::kind::gpu) {
+        mkldnn::stream s(eng);
         cl_command_queue q = s.get_ocl_command_queue();
         cl_mem m = mem.get_ocl_mem_object();
         size_t bytes = mem.get_desc().get_size();

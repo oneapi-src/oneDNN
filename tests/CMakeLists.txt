@@ -82,3 +82,4 @@ endif()
 
 add_subdirectory(gtests)
 add_subdirectory(benchdnn)
+add_subdirectory(mkldnn_compat)

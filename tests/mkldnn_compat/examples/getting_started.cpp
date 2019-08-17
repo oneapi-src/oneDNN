@@ -15,32 +15,32 @@
 *******************************************************************************/
 
 /// @example getting_started.cpp
-/// This C++ API example demonstrates basics of DNNL programming
+/// This C++ API example demonstrates basics of Intel MKL-DNN programming
 /// model.
 ///
 /// > Annotated version: @ref getting_started_cpp
 
-#include <sstream>
 #include <cmath>
 #include <numeric>
+#include <sstream>
 #include <vector>
 
-#include "dnnl_debug.h"
 #include "example_utils.hpp"
+#include "mkldnn_debug.h"
 
-using namespace dnnl;
+using namespace mkldnn;
 // [Prologue]
 
 /// @page getting_started_cpp Getting started
 /// > Example code: @ref getting_started.cpp
 ///
-/// This C++ API example demonstrates basics of DNNL programming
+/// This C++ API example demonstrates basics of Intel MKL-DNN programming
 /// model:
-/// - How to create DNNL memory objects.
-///   - How to get data from user's buffer into an DNNL
+/// - How to create Intel MKL-DNN memory objects.
+///   - How to get data from user's buffer into an Intel MKL-DNN
 ///     memory object.
 ///   - How tensor's logical dimensions and memory object formats relate.
-/// - How to create DNNL primitives.
+/// - How to create Intel MKL-DNN primitives.
 /// - How to execute the primitives.
 ///
 /// The example uses the ReLU operation and consists of the following steps:
@@ -58,10 +58,10 @@ using namespace dnnl;
 ///
 /// @section getting_started_cpp_headers Public headers
 ///
-/// To start using DNNL we should first include @ref dnnl.hpp
-/// header file in the program. We also include @ref dnnl_debug.h in
+/// To start using Intel MKL-DNN we should first include @ref mkldnn.hpp
+/// header file in the program. We also include @ref mkldnn_debug.h in
 /// example_utils.hpp that contains some debugging facilities like returning
-/// a string representation for common DNNL C types.
+/// a string representation for common Intel MKL-DNN C types.
 
 // [Prologue]
 
@@ -72,8 +72,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// @page getting_started_cpp
     /// @subsection getting_started_cpp_sub1 Engine and stream
     ///
-    /// All DNNL primitives and memory objects are attached to a
-    /// particular @ref dnnl::engine, which is an abstraction of an
+    /// All Intel MKL-DNN primitives and memory objects are attached to a
+    /// particular @ref mkldnn::engine, which is an abstraction of an
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device they are attached
     /// to and the memory objects refer to memory residing on the
@@ -81,7 +81,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create an engine we should specify the @ref dnnl::engine::kind
+    /// To create an engine we should specify the @ref mkldnn::engine::kind
     /// and the index of the device of the given kind.
     ///
     /// @snippet getting_started.cpp Initialize engine
@@ -89,7 +89,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     engine eng(engine_kind, 0);
     // [Initialize engine]
 
-    /// In addition to an engine, all primitives require a @ref dnnl::stream
+    /// In addition to an engine, all primitives require a @ref mkldnn::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
@@ -102,10 +102,10 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// In the simple cases, when a program works with one device only (e.g.
     /// only on CPU), an engine and a stream can be created once and used
     /// throughout the program. Some frameworks create singleton objects that
-    /// hold DNNL engine and stream and are use them throughout the
+    /// hold Intel MKL-DNN engine and stream and are use them throughout the
     /// code.
 
-    /// @subsection getting_started_cpp_sub2 Data preparation (code outside of DNNL)
+    /// @subsection getting_started_cpp_sub2 Data preparation (code outside of Intel MKL-DNN)
     ///
     /// Now that the preparation work is done, let's create some data to work
     /// with. We will create a 4D tensor in NHWC format, which is quite
@@ -117,7 +117,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// typical to have the batch dimension even when working with a single
     /// image.
     ///
-    /// In DNNL all CNN primitives assume tensors have batch
+    /// In Intel MKL-DNN all CNN primitives assume tensors have batch
     /// dimension, which is always the first logical dimension (see also @ref
     /// dev_guide_conventions).
     ///
@@ -152,18 +152,18 @@ void getting_started_tutorial(engine::kind engine_kind) {
                     image[off] = -std::cos(off / 10.f);
                 }
     // [Create user's data]
-    /// @subsection getting_started_cpp_sub3 Wrapping data into DNNL memory object
+    /// @subsection getting_started_cpp_sub3 Wrapping data into Intel MKL-DNN memory object
     ///
-    /// Now, having the image ready, let's wrap it in an @ref dnnl::memory
-    /// object to be able to pass the data to DNNL primitives.
+    /// Now, having the image ready, let's wrap it in an @ref mkldnn::memory
+    /// object to be able to pass the data to Intel MKL-DNN primitives.
     ///
-    /// Creating @ref dnnl::memory consists of 2 steps:
-    ///   1. Initializing the @ref dnnl::memory::desc struct (also referred
+    /// Creating @ref mkldnn::memory consists of 2 steps:
+    ///   1. Initializing the @ref mkldnn::memory::desc struct (also referred
     ///      as memory descriptor) that only describes the tensor data, but
     ///      doesn't contain the data itself. Memory descriptors are used to
-    ///      create @ref dnnl::memory objects and to initialize primitive
+    ///      create @ref mkldnn::memory objects and to initialize primitive
     ///      descriptors (shown later in the example);
-    ///   2. Creating the @ref dnnl::memory object itself (also referred as
+    ///   2. Creating the @ref mkldnn::memory object itself (also referred as
     ///      a memory object), based on the memory descriptor initialized in
     ///      step 1, an engine, and, optionally, a handle to a data. The
     ///      memory object is used when a primitive is executed.
@@ -172,22 +172,22 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// [list initialization](https://en.cppreference.com/w/cpp/language/list_initialization)
     /// introduced in C++11 it is possible to combine these two steps whenever a
     /// memory descriptor is not used anywhere else but in creating an @ref
-    /// dnnl::memory object.
+    /// mkldnn::memory object.
     ///
     /// However, for the sake of demonstration, we will show both steps
     /// explicitly.
 
     /// @subsubsection getting_started_cpp_sub31 Memory descriptor
     ///
-    /// To initialize the @ref dnnl::memory::desc we need to pass:
+    /// To initialize the @ref mkldnn::memory::desc we need to pass:
     ///   1. The tensor's dimensions, **the semantic order** of which is
     ///      defined by **the primitive** that will use this memory
     ///      (descriptor). Which leads to the following:
     ///      @warning
     ///         Memory descriptors and objects are not aware of any meaning of
     ///         the data they describe or contain.
-    ///   2. The data type for the tensor (@ref dnnl::memory::data_type).
-    ///   3. The memory format tag (@ref dnnl::memory::format_tag) that
+    ///   2. The data type for the tensor (@ref mkldnn::memory::data_type).
+    ///   3. The memory format tag (@ref mkldnn::memory::format_tag) that
     ///      describes how the data is going to be laid out in device's
     ///      memory. The memory format is required for the primitive to
     ///      correctly handle the data.
@@ -204,7 +204,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// The first thing to notice here is that we pass dimensions as `{N, C,
     /// H, W}` while it might seem more natural to pass `{N, H, W, C}`, which
-    /// better corresponds to the user's code. This is because DNNL
+    /// better corresponds to the user's code. This is because Intel MKL-DNN
     /// CNN primitives like ReLU always expect tensors in the following form:
     ///
     /// | Spatial dim | Tensor dimensions
@@ -222,8 +222,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// Now that the logical order of dimension is defined, we need to specify
     /// the memory format (the third parameter), which describes how logical
     /// indices map to the offset in memory. This is the place where user's
-    /// format NHWC comes into play. DNNL has different @ref
-    /// dnnl::memory::format_tag values that covers the most popular memory
+    /// format NHWC comes into play. Intel MKL-DNN has different @ref
+    /// mkldnn::memory::format_tag values that covers the most popular memory
     /// formats like NCHW, NHWC, CHWN, and some others.
     ///
     /// The memory descriptor for the image is called `src_md`. The `src` part
@@ -236,7 +236,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///
     /// Before we continue with memory creation, let us show the alternative
     /// way to create the same memory descriptor: instead of using the
-    /// @ref dnnl::memory::format_tag we can directly specify the strides
+    /// @ref mkldnn::memory::format_tag we can directly specify the strides
     /// of each tensor dimension:
     /// @snippet getting_started.cpp Init alt_src_md
     // [Init alt_src_md]
@@ -265,9 +265,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// an input and an output memory objects for ReLU primitive
     /// @snippet getting_started.cpp Create memory objects
     // [Create memory objects]
-    // src_mem contains a copy of image after write_to_dnnl_memory function
+    // src_mem contains a copy of image after write_to_mkldnn_memory function
     auto src_mem = memory(src_md, eng);
-    write_to_dnnl_memory(image.data(), src_mem);
+    write_to_mkldnn_memory(image.data(), src_mem);
 
     // For dst_mem the library allocates buffer
     auto dst_mem = memory(src_md, eng);
@@ -275,7 +275,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// We already have a memory buffer for the source memory object.  We pass
     /// it to the
-    /// @ref dnnl::memory::memory(const desc &, const engine &, void *)
+    /// @ref mkldnn::memory::memory(const desc &, const engine &, void *)
     /// constructor that takes a buffer pointer with its last argument.
     ///
     /// Let's use a constructor that instructs the library to allocate a
@@ -290,7 +290,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///
     /// @note
     ///     Memory allocated outside of the library and passed to Intel
-    ///     DNNL should have good alignment for better performance.
+    ///     MKL-DNN should have good alignment for better performance.
     ///
     /// In subsequent section we will show how to get the buffer (pointer)
     /// from the `dst_mem` memory object.
@@ -302,25 +302,25 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// more general @ref dev_guide_eltwise primitive which applies specified
     /// function to each and every element of the source tensor.
     ///
-    /// Just like in case of @ref dnnl::memory a user should always go
+    /// Just like in case of @ref mkldnn::memory a user should always go
     /// through (at least) 3 creation steps (which however, can be sometimes
     /// combined thanks to C++11):
     /// 1. Initialize operation descriptor (in case of this example,
-    ///    @ref dnnl::eltwise_forward::desc), which defines the operation
+    ///    @ref mkldnn::eltwise_forward::desc), which defines the operation
     ///    parameters.
     /// 2. Create an operation primitive descriptor (here @ref
-    ///    dnnl::eltwise_forward::primitive_desc), which is a
+    ///    mkldnn::eltwise_forward::primitive_desc), which is a
     ///    **lightweight** descriptor of the actual algorithm that
     ///    **implements** given operation. User can query different
     ///    characteristics of the chosen implementation like memory
     ///    consumptions and some others that will be covered in the next topic
     ///    (@ref cpu_memory_format_propagation_cpp).
-    /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
+    /// 3. Create a primitive (here @ref mkldnn::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
-    /// DNNL separates the steps 2 and 3 to allow user to inspect
+    /// Intel MKL-DNN separates the steps 2 and 3 to allow user to inspect
     /// details of a primitive implementation prior to creating the primitive
-    /// which may be expensive because, for example, DNNL generates
+    /// which may be expensive because, for example, Intel MKL-DNN generates
     /// the optimized computational code on the fly.
     ///
     ///@note
@@ -340,9 +340,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library
-    auto relu_pd = eltwise_forward::primitive_desc(
-            relu_d,     // an operation descriptor
-            eng  // an engine the primitive will be created for
+    auto relu_pd
+            = eltwise_forward::primitive_desc(relu_d, // an operation descriptor
+                    eng // an engine the primitive will be created for
             );
 
     // ReLU primitive
@@ -379,7 +379,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// A primitive is executed in a stream (the first parameter of the
     /// `execute()` method). Depending on a stream kind an execution might be
     /// blocking or non-blocking. This means that we need to call @ref
-    /// dnnl::stream::wait before accessing the results.
+    /// mkldnn::stream::wait before accessing the results.
     ///
     /// @snippet getting_started.cpp Execute ReLU primitive
     // [Execute ReLU primitive]
@@ -387,8 +387,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
     relu.execute(engine_stream, // The execution stream
             {
                     // A map with all inputs and outputs
-                    {DNNL_ARG_SRC, src_mem}, // Source tag and memory obj
-                    {DNNL_ARG_DST, dst_mem}, // Destination tag and memory obj
+                    {MKLDNN_ARG_SRC, src_mem}, // Source tag and memory obj
+                    {MKLDNN_ARG_DST, dst_mem}, // Destination tag and memory obj
             });
 
     // Wait the stream to complete the execution
@@ -398,14 +398,14 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// The @ref dev_guide_eltwise is one of the primitives that support
     /// in-place operations, meaning the source and destination memory can
     /// be the same. To perform in-place transformation user needs to pass
-    /// the same memory object for the both `DNNL_ARG_SRC` and
-    /// `DNNL_ARG_DST` tags:
+    /// the same memory object for the both `MKLDNN_ARG_SRC` and
+    /// `MKLDNN_ARG_DST` tags:
     /// @snippet getting_started.cpp Execute ReLU primitive in-place
     // [Execute ReLU primitive in-place]
     // Execute ReLU (in-place)
     // relu.execute(engine_stream,  {
-    //          {DNNL_ARG_SRC, src_mem},
-    //          {DNNL_ARG_DST, src_mem},
+    //          {MKLDNN_ARG_SRC, src_mem},
+    //          {MKLDNN_ARG_DST, src_mem},
     //         });
     // [Execute ReLU primitive in-place]
 
@@ -415,11 +415,11 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// Now that we have the computed result let's validate that it is
     /// actually correct. The result is stored in the `dst_mem` memory object.
     /// So we need to obtain the C++ pointer to a buffer with data via @ref
-    /// dnnl::memory::get_data_handle() and cast it to the proper data type
+    /// mkldnn::memory::get_data_handle() and cast it to the proper data type
     /// as shown below.
     ///
     /// @warning
-    ///     The @ref dnnl::memory::get_data_handle() returns a raw handle
+    ///     The @ref mkldnn::memory::get_data_handle() returns a raw handle
     ///     to the buffer which type is engine specific. For CPU engine the
     ///     buffer is always a pointer to `void` which can safely be used.
     ///     However, for engines other than CPU the handle might be
@@ -431,7 +431,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     // This is safe since we created `dst_mem` as f32 tensor with known
     // memory format.
     std::vector<float> relu_image(image_size);
-    read_from_dnnl_memory(relu_image.data(), dst_mem);
+    read_from_mkldnn_memory(relu_image.data(), dst_mem);
 
     // Check the results
     for (int n = 0; n < N; ++n)
@@ -461,22 +461,23 @@ void getting_started_tutorial(engine::kind engine_kind) {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Since we are using DNNL C++ API we use exception to handle errors
+/// Since we are using Intel MKL-DNN C++ API we use exception to handle errors
 /// (see @ref dev_guide_c_and_cpp_apis).
-/// The DNNL C++ API throws exceptions of type @ref dnnl::error,
-/// which contains the error status (of type @ref dnnl_status_t) and a
+/// The Intel MKL-DNN C++ API throws exceptions of type @ref mkldnn::error,
+/// which contains the error status (of type @ref mkldnn_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
 /// @page getting_started_cpp
 /// @snippet getting_started.cpp Main
 // [Main]
 int main(int argc, char **argv) {
     try {
-         engine::kind engine_kind = parse_engine_kind(argc, argv);
-         getting_started_tutorial(engine_kind);
-         std::cout << "Example passes" << std::endl;
-    } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
+        engine::kind engine_kind = parse_engine_kind(argc, argv);
+        getting_started_tutorial(engine_kind);
+        std::cout << "Example passes" << std::endl;
+    } catch (mkldnn::error &e) {
+        std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
+                  << "Error status: " << mkldnn_status2str(e.status)
+                  << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;
@@ -502,8 +503,8 @@ int main(int argc, char **argv) {
 ///
 /// ~~~cpp
 /// relu.execute(engine_stream, {
-///         {DNNL_ARG_SRC, src_mem},
-///         {DNNL_ARG_DST, dst_mem},
+///         {MKLDNN_ARG_SRC, src_mem},
+///         {MKLDNN_ARG_DST, dst_mem},
 ///     });
 /// ~~~
 ///
@@ -511,15 +512,15 @@ int main(int argc, char **argv) {
 ///
 /// ~~~cpp
 /// relu.execute(engine_stream, {
-///         {DNNL_ARG_SRC, src_mem},
-///         // {DNNL_ARG_DST, dst_mem}, // Oops, forgot about this one
+///         {MKLDNN_ARG_SRC, src_mem},
+///         // {MKLDNN_ARG_DST, dst_mem}, // Oops, forgot about this one
 ///     });
 /// ~~~
 ///
 /// we should get the following output:
 ///
 /// ~~~
-/// DNNL error: could not execute a primitive
+/// Intel MKL-DNN error: could not execute a primitive
 /// Error status: invalid_arguments
 /// ~~~
 ///
