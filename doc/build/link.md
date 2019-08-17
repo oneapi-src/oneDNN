@@ -1,19 +1,19 @@
 Linking to the Library {#dev_guide_link}
 ===========================================
 
-Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
+Deep Neural Network Library (DNNL)
 includes several header files providing C and C++ APIs for the functionality
-and one or several libraries depending on how Intel MKL-DNN was built.
+and one or several libraries depending on how DNNL was built.
 
 ## Header Files
 
 | File                     | Description
 | :---                     | :---
-| include/mkldnn.h         | C header
-| include/mkldnn.hpp       | C++ header
-| include/mkldnn_types.h   | Auxiliary C header
-| include/mkldnn_config.h  | Auxiliary C header
-| include/mkldnn_version.h | C header with version information
+| include/dnnl.h         | C header
+| include/dnnl.hpp       | C++ header
+| include/dnnl_types.h   | Auxiliary C header
+| include/dnnl_config.h  | Auxiliary C header
+| include/dnnl_version.h | C header with version information
 
 ## Libraries
 
@@ -21,34 +21,34 @@ and one or several libraries depending on how Intel MKL-DNN was built.
 
 | File                  | Description
 | :---                  | :---
-| lib/libmkldnn.so      | Intel MKL-DNN dynamic library
-| lib/libmkldnn.a       | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
+| lib/libdnnl.so      | DNNL dynamic library
+| lib/libdnnl.a       | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### macOS
 
 | File                     | Description
 | :---                     | :---
-| lib/libmkldnn.dylib      | Intel MKL-DNN dynamic library
-| lib/libmkldnn.a          | Intel MKL-DNN static library (if built with `MKLDNN_LIBRARY_TYPE=STATIC`)
+| lib/libdnnl.dylib      | DNNL dynamic library
+| lib/libdnnl.a          | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### Windows
 
 | File              | Description
 | :---              | :---
-| bin\libmkldnn.dll | Intel MKL-DNN dynamic library
-| lib\libmkldnn.lib | Intel MKL-DNN import library
+| bin\libdnnl.dll | DNNL dynamic library
+| lib\libdnnl.lib | DNNL import library
 
-## Linking to Intel MKL-DNN
+## Linking to DNNL
 
-The examples below assume that Intel MKL-DNN is installed in the directory
-defined in the `MKLDNNROOT` environment variable.
+The examples below assume that DNNL is installed in the directory
+defined in the `DNNLROOT` environment variable.
 
 ### Linux/macOS
 
 ~~~sh
-g++ -std=c++11 -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn
-clang++ -std=c++11 -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn
-icpc -std=c++11 -I${MKLDNNROOT}/include -L${MKLDNNROOT}/lib simple_net.cpp -lmkldnn
+g++ -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
+clang++ -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
+icpc -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
 ~~~
 
 @note
@@ -60,12 +60,12 @@ or `DYLD_LIBRARY_PATH` (macOS) environment variable or the `rpath` mechanism.
 ### Windows
 
 To link the application from the command line, set up the `LIB` and `INCLUDE`
-environment variables to point to the locations of the Intel MKL-DNN headers and
+environment variables to point to the locations of the DNNL headers and
 libraries.
 
 ~~~bat
-icl /I%MKLDNNROOT%\include /Qstd=c++11 /qopenmp simple_net.cpp %MKLDNNROOT%\lib\mkldnn.lib
-cl /I%MKLDNNROOT%\include simple_net.cpp %MKLDNNROOT%\lib\mkldnn.lib
+icl /I%DNNLROOT%\include /Qstd=c++11 /qopenmp simple_net.cpp %DNNLROOT%\lib\dnnl.lib
+cl /I%DNNLROOT%\include simple_net.cpp %DNNLROOT%\lib\dnnl.lib
 ~~~
 
 Refer to the

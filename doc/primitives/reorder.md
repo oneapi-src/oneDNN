@@ -35,13 +35,13 @@ quantize the data (and if necessary change the memory format simultaneously).
 
    - Reorder implementations between weights in non-plain memory formats might
      be limited (but if encountered in real practice should be treated as a
-     bug and reported to the Intel MKL-DNN team);
+     bug and reported to the DNNL team);
 
    - Weights in one Winograd format cannot be reordered to the weights of the
      other Winograd format;
 
-   - Quantized weights for convolution with #mkldnn_s8 source data type cannot
-     be dequantized back to the #mkldnn_f32 data type;
+   - Quantized weights for convolution with #dnnl_s8 source data type cannot
+     be dequantized back to the #dnnl_f32 data type;
 
 3. To alleviate the problem a user may rely on fact that the reorder from
    original plain memory format and user's data type to the *optimized* format
@@ -74,8 +74,8 @@ The reorder primitive support the following attributes and post-ops:
 
 | Attributes / Post-ops                                         | Meaning
 | :--                                                           | :--
-| [Output scales](@ref mkldnn_primitive_attr_set_output_scales) | Copy and scale the data according to the scaling factors
-| [Sum post-op](@ref mkldnn_post_ops_append_sum)                | Instead of copy the data accumulate it to the previous data
+| [Output scales](@ref dnnl_primitive_attr_set_output_scales) | Copy and scale the data according to the scaling factors
+| [Sum post-op](@ref dnnl_post_ops_append_sum)                | Instead of copy the data accumulate it to the previous data
 
 For instance, the following pseudo-code
 

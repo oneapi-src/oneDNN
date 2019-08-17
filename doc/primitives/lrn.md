@@ -10,7 +10,7 @@ operation on 2D spatial data and is defined by the following formulas:
 
 ### Forward
 
-LRN [across channels](#mkldnn_lrn_across_channels):
+LRN [across channels](#dnnl_lrn_across_channels):
 
 \f[
     dst(n, c, h, w) =
@@ -22,7 +22,7 @@ LRN [across channels](#mkldnn_lrn_across_channels):
         src(n, c, h, w),
 \f]
 
-LRN [within channel](#mkldnn_lrn_within_channel):
+LRN [within channel](#dnnl_lrn_within_channel):
 
 \f[
     dst(n, c, h, w) =
@@ -58,7 +58,7 @@ based on
 
 2. The memory format and data type for `src` and `dst` are assumed to be the
    same, and in the API are typically referred to as `data` (e.g., see
-   `data_desc` in mkldnn::lrn_forward::desc::desc()). The same holds for
+   `data_desc` in dnnl::lrn_forward::desc::desc()). The same holds for
    `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
    to as `diff_data_desc`.
 
@@ -86,7 +86,7 @@ The LRN primitive is optimized for the following memory formats:
 
 | Spatial | Logical tensor | Implementations optimized for memory formats
 | :--     | :--            | :--
-| 2D      | NCHW           | #mkldnn_nchw (#mkldnn_abcd), #mkldnn_nhwc (#mkldnn_acdb), *optimized^*
+| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*
 
 Here *optimized^* means the format that
 [comes out](@ref cpu_memory_format_propagation_cpp)

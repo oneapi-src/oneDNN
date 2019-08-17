@@ -25,10 +25,10 @@ cases of higher and lower dimensions. Variable names follow the standard
 where
 
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
-(see #mkldnn_use_scaleshift flag),
+(see #dnnl_use_scaleshift flag),
 
 - \f$\mu(c), \sigma^2(c)\f$ are computed at run-time or provided by a user
-mean and variance for channel (see #mkldnn_use_global_stats flag),
+mean and variance for channel (see #dnnl_use_global_stats flag),
 and
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
@@ -43,7 +43,7 @@ used:
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
 In training mode the primitive also optionally supports fusion with ReLU
-activation applied to the result (see #mkldnn_fuse_norm_relu flag).
+activation applied to the result (see #dnnl_fuse_norm_relu flag).
 
 @note
 * The batch normalization primitive computes population mean and variance and
@@ -57,20 +57,20 @@ activation applied to the result (see #mkldnn_fuse_norm_relu flag).
   \f]
 
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
- * If mean and variance are computed at run-time (i.e., #mkldnn_use_global_stats
+ * If mean and variance are computed at run-time (i.e., #dnnl_use_global_stats
    is not set), they become outputs for the propagation kind
-   #mkldnn_forward_training (since they would be required during the backward
+   #dnnl_forward_training (since they would be required during the backward
    propagation) and are not exposed for the propagation kind
-   #mkldnn_forward_inference.
+   #dnnl_forward_inference.
 
  * If batch normalization is created with ReLU fusion (i.e.,
-   #mkldnn_fuse_norm_relu is set), for the propagation kind
-   #mkldnn_forward_training the primitive would produce a `workspace`
+   #dnnl_fuse_norm_relu is set), for the propagation kind
+   #dnnl_forward_training the primitive would produce a `workspace`
    memory as one extra output. This memory is required to compute the backward
    propagation. When the primitive is executed with propagation kind
-   #mkldnn_forward_inference, the workspace is not produced. Behavior would
+   #dnnl_forward_inference, the workspace is not produced. Behavior would
    be the same as creating a batch normalization primitive with ReLU as a
    post-op (see section below).
 
@@ -85,12 +85,12 @@ based on
 
 The tensors marked with an asterisk are used only when the primitive is
 configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
-#mkldnn_use_scaleshift is set).
+#dnnl_use_scaleshift is set).
 
 ## Execution Arguments
 
-Depending on the [flags](@ref mkldnn_normalization_flags_t) and
-[propagation kind](@ref mkldnn_prop_kind_t), the batch normalization primitive
+Depending on the [flags](@ref dnnl_normalization_flags_t) and
+[propagation kind](@ref dnnl_prop_kind_t), the batch normalization primitive
 requires different inputs and outputs.  For clarity, the summary table is shown
 below.
 
@@ -102,18 +102,18 @@ below.
 
 1. The different flavors of the primitive are partially controlled by the @p
    flags parameter that is passed to the operation descriptor initialization
-   function (e.g., mkldnn::batch_normalization_forward::desc::desc()). Multiple
+   function (e.g., dnnl::batch_normalization_forward::desc::desc()). Multiple
    flags can be set using the bitwise OR operator (`|`).
 
 2. For forward propagation, the mean and variance might be either computed at
    run-time (in which case they are outputs of the primitive) or provided by
    a user (in which case they are inputs). In the latter case, a user must set
-   the #mkldnn_use_global_stats flag. For the backward propagation, the mean and
+   the #dnnl_use_global_stats flag. For the backward propagation, the mean and
    variance are always input parameters.
 
 3. The memory format and data type for `src` and `dst` are assumed to be the
    same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in mkldnn::batch_normalization_forward::desc::desc()). The same holds for
+   in dnnl::batch_normalization_forward::desc::desc()). The same holds for
    `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
    to as `diff_data_desc`.
 
@@ -148,14 +148,14 @@ The operation supports the following combinations of data types:
 The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are
 separate 1D tensors of size \f$C\f$.
 
-The format of the corresponding memory object must be #mkldnn_x (#mkldnn_a).
+The format of the corresponding memory object must be #dnnl_x (#dnnl_a).
 
 #### Scale and Shift
 
 If used, the scale (\f$\gamma\f$) and shift (\f$\beta\f$) are
 combined in a single 2D tensor of shape \f$2 \times C\f$.
 
-The format of the corresponding memory object must be #mkldnn_nc (#mkldnn_ab).
+The format of the corresponding memory object must be #dnnl_nc (#dnnl_ab).
 
 #### Source, Destination, and Their Gradients
 
@@ -166,9 +166,9 @@ The batch normalization primitive is optimized for the following memory formats:
 
 | Spatial | Logical tensor | Implementations optimized for memory formats
 | :--     | :--            | :--
-| 0D      | NC             | #mkldnn_nc (#mkldnn_ab)
-| 2D      | NCHW           | #mkldnn_nchw (#mkldnn_abcd), #mkldnn_nhwc (#mkldnn_acdb), *optimized^*
-| 3D      | NCDHW          | #mkldnn_ncdhw (#mkldnn_abcde), #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^*
+| 0D      | NC             | #dnnl_nc (#dnnl_ab)
+| 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*
+| 3D      | NCDHW          | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*
 
 Here *optimized^* means the format that
 [comes out](@ref cpu_memory_format_propagation_cpp)
@@ -183,12 +183,12 @@ normalization primitives:
 
 | Propagation | Type    | Operation | Description
 | :--         | :--     | :--       | :--
-| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result (currently only #mkldnn_eltwise_relu algorithm is supported)
+| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported)
 
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
 for inference only. For instance, using ReLU as a post-op would not produce an
 additional output `workspace` that is required to compute backward propagation
-correctly. Hence, in case of training one should use the #mkldnn_fuse_norm_relu
+correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu
 directly.
 
 @anchor dg_bnorm_impl_limits
@@ -198,7 +198,7 @@ directly.
    support.
 
 2. For the data types that have forward propagation support only, mean and
-   variance must be provided by a user (i.e., #mkldnn_use_global_stats
+   variance must be provided by a user (i.e., #dnnl_use_global_stats
    is not set).
 
 

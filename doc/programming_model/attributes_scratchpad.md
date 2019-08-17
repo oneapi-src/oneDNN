@@ -13,7 +13,7 @@ The rearrangement happens to an intermediate buffer that is then used as an
 input for GEMM.
 
 In both of these examples, the temporary memory is not required once the
-computations are done. Intel MKL-DNN refers to such memory as a **scratchpad**.
+computations are done. DNNL refers to such memory as a **scratchpad**.
 
 @warning
     Do not confuse **scratchpad** with
@@ -37,35 +37,35 @@ threads).
 
 As you can see, the scratchpad in these cases might be significant.
 By contrast, some other primitives might require very little extra space. For
-instance, one of the implementation of the @ref mkldnn::sum primitive requires
+instance, one of the implementation of the @ref dnnl::sum primitive requires
 temporary space only to store the pointers to data for each and every input
 array (that is, the size of the scratchpad is `n * sizeof(void *)`, where `n` is
 the number of summands).
 
-Intel MKL-DNN supports two modes of dealing with scratchpads:
-1. #mkldnn::scratchpad_mode::library.
+DNNL supports two modes of dealing with scratchpads:
+1. #dnnl::scratchpad_mode::library.
    The library allocates memory for each primitive during its creation. This
    is the **default** behavior which enables user to not worry about the
    scratchpad at all. However this approach has two major downsides:
    - If primitives are cached, they may reserve a significant amount of memory.
    - Primitives are not thread safe, because simultaneous runs will make
      different threads to use the same scratchpad buffer.
-2. #mkldnn::scratchpad_mode::user.
+2. #dnnl::scratchpad_mode::user.
    A user provides scratchpad memory that has sufficient space at primitive
-   execution (using the `MKLDNN_ARG_SCRATCHPAD` tag). This enables the user to
+   execution (using the `DNNL_ARG_SCRATCHPAD` tag). This enables the user to
    reuse the memory as well as to make the primitives thread-safe. However, this
    requires a good memory manager (in terms of speed and locality) on the user's
    side and some extra boilerplate code.
 
 @warning
     Primitives are not thread-safe by default. Users should use
-    #mkldnn::scratchpad_mode::user if they want to use a single primitive from
+    #dnnl::scratchpad_mode::user if they want to use a single primitive from
     different threads simultaneously.
 
 The attributes (@ref dev_guide_attributes) are used to control who provides
 a scratchpad:
-- C @ref mkldnn_primitive_attr_set_scratchpad_mode
-- C++ @ref mkldnn::primitive_attr::set_scratchpad_mode
+- C @ref dnnl_primitive_attr_set_scratchpad_mode
+- C++ @ref dnnl::primitive_attr::set_scratchpad_mode
 
 It is worth mentioning that all primitives support both scratchpad modes.
 That is, primitive descriptor creation success or failure cannot depend on the
@@ -85,16 +85,16 @@ user can query the amount of memory consumed by a primitive due to a scratchpad.
 
 ~~~cpp
 // Use default attr, hence the library allocates scratchpad
-mkldnn::primitive::primitive_desc op_pd(params, ...);
+dnnl::primitive::primitive_desc op_pd(params, ...);
 
 // Print how much memory would be hold by a primitive due to scratchpad
 std::cout << "primitive will use "
-          << op_pd.query_s64(mkldnn::query::memory_consumption_s64)
+          << op_pd.query_s64(dnnl::query::memory_consumption_s64)
           << " bytes" << std::endl;
 
 // In this case scratchpad is internal, hence user visible scratchpad memory
 // descriptor should be empty:
-auto zero_md = mkldnn::memory::desc();
+auto zero_md = dnnl::memory::desc();
 assert(op_pd.scratchpad_desc() == zero_md);
 ~~~
 
@@ -102,25 +102,25 @@ assert(op_pd.scratchpad_desc() == zero_md);
 
 ~~~cpp
 // Create an empty (default) attributes
-mkldnn::primitive_attr attr;
+dnnl::primitive_attr attr;
 
 // Default scratchpad mode is `library`:
-assert(attr.get_scratchpad_mode() == mkldnn::scratchpad_mode::library);
+assert(attr.get_scratchpad_mode() == dnnl::scratchpad_mode::library);
 
 // Set scratchpad mode to `user`
-attr.set_scratchpad_mode(mkldnn::scratchpad_mode::user);
+attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
 // Create a primitive descriptor with custom attributes
-mkldnn::primitive::primitive_desc op_pd(op_d, attr, engine);
+dnnl::primitive::primitive_desc op_pd(op_d, attr, engine);
 
 // Query the scratchpad memory descriptor
-mkldnn::memory::desc scratchpad_md = op_pd.scratchpad_desc();
+dnnl::memory::desc scratchpad_md = op_pd.scratchpad_desc();
 
 // Note, that a primitive doesn't consume memory in this configuration:
-assert(op_pd.query_s64(mkldnn::query::memory_consumption_s64) == 0);
+assert(op_pd.query_s64(dnnl::query::memory_consumption_s64) == 0);
 
 // Create a primitive
-mkldnn::primitive prim(op_pd);
+dnnl::primitive prim(op_pd);
 
 // ...
 
@@ -130,10 +130,10 @@ mkldnn::primitive prim(op_pd);
 //       scratchpad_ptr == nullptr in this case.
 void *scratchpad_ptr = user_memory_manager::allocate(scratchpad_md.get_size());
 // NOTE: engine here must much the engine of the primitive
-mkldnn::memory scratchpad(scratchpad_md, engine, scratchpad_ptr);
+dnnl::memory scratchpad(scratchpad_md, engine, scratchpad_ptr);
 
 // Pass a scratchpad memory to a primitive
 prim.execute(stream, {
         ...,
-        {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+        {DNNL_ARG_SCRATCHPAD, scratchpad}});
 ~~~

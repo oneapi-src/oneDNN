@@ -39,16 +39,16 @@ and output spatial dimensions are calculated similarly to
 how they are done in convolution.
 
 Average pooling supports two algorithms:
-- #mkldnn_pooling_avg_include_padding, in which case \f$DENOM = KH \cdot KW\f$,
-- #mkldnn_pooling_avg_exclude_padding, in which case \f$DENOM\f$ equals to the
+- #dnnl_pooling_avg_include_padding, in which case \f$DENOM = KH \cdot KW\f$,
+- #dnnl_pooling_avg_exclude_padding, in which case \f$DENOM\f$ equals to the
   size of overlap between an averaging window and images.
 
 > TODO: a picture would be nice here.
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
-- Max pooling requires `workspace` output for the #mkldnn_forward_training
-  propagation kind, and doesn't require it for #mkldnn_forward_inference
+- Max pooling requires `workspace` output for the #dnnl_forward_training
+  propagation kind, and doesn't require it for #dnnl_forward_inference
   (see details below).
 
 ### Backward
@@ -63,16 +63,16 @@ based on
 ### General Notes
 
 1. During training, max pooling requires a workspace on forward
-   (#mkldnn_forward_training) and backward passes to save indices where a
+   (#dnnl_forward_training) and backward passes to save indices where a
    maximum was found. The workspace format is opaque, and the indices cannot be
    restored from it. However, one can use backward pooling to perform
    up-sampling (used in some detection topologies).
 
-2. A user can use memory format tag #mkldnn_format_tag_any for `dst` memory
+2. A user can use memory format tag #dnnl_format_tag_any for `dst` memory
    descriptor when creating pooling forward propagation. The library would
    derive the appropriate format from the `src` memory descriptor. However,
    the `src` itself must be defined. Similarly, a user can use memory format tag
-   #mkldnn_format_tag_any for the`diff_src` memory descriptor when creating
+   #dnnl_format_tag_any for the`diff_src` memory descriptor when creating
    pooling backward propagation.
 
 ### Data Type Support
@@ -101,10 +101,10 @@ The pooling primitive is optimized for the following memory formats:
 
 | Spatial | Logical tensor | Data type   | Implementations optimized for memory formats                               |
 | :--     | :--            | :--         | :--                                                                        |
-| 2D      | NCHW           | f32         | #mkldnn_nchw (#mkldnn_abcd), #mkldnn_nhwc (#mkldnn_acdb), *optimized^*     |
-| 2D      | NCHW           | s32, s8, u8 | #mkldnn_nhwc (#mkldnn_acdb), *optimized^*                                  |
-| 3D      | NCDHW          | f32         | #mkldnn_ncdhw (#mkldnn_abcde), #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^* |
-| 3D      | NCDHW          | s32, s8, u8 | #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^*                                |
+| 2D      | NCHW           | f32         | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
+| 2D      | NCHW           | s32, s8, u8 | #dnnl_nhwc (#dnnl_acdb), *optimized^*                                  |
+| 3D      | NCDHW          | f32         | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
+| 3D      | NCDHW          | s32, s8, u8 | #dnnl_ndhwc (#dnnl_acdeb), *optimized^*                                |
 
 Here *optimized^* means the format that
 [comes out](@ref cpu_memory_format_propagation_cpp)

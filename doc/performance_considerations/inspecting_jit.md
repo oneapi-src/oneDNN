@@ -1,13 +1,13 @@
 Inspecting JIT Code {#dev_guide_inspecting_jit}
 ===============================================
 
-Intel MKL-DNN uses just-in-time compilation (JIT) to generate optimal code
+DNNL uses just-in-time compilation (JIT) to generate optimal code
 for some functions based on input parameters and instruction set supported
 by the system. The library provides a mechanism to save the generated code
 into a file for inspection. 
 
-This behavior can be enabled with `MKLDNN_JIT_DUMP` environment variable
-or @ref mkldnn_set_jit_dump function.
+This behavior can be enabled with `DNNL_JIT_DUMP` environment variable
+or @ref dnnl_set_jit_dump function.
 
 | Value           | Behavior
 | :----           | :----
@@ -19,16 +19,16 @@ The function setting takes precedence over the environment variable.
 # Example
 
 ~~~sh
-    $ MKLDNN_JIT_DUMP=1 ./simple-net-cpp
+    $ DNNL_JIT_DUMP=1 ./simple-net-cpp
 ~~~
 
 This will produce the following output files if running on a CPU supporting
 Intel(R) AVX2:
 
 ~~~sh
-    mkldnn_dump_jit_avx2_conv_fwd_kernel_f32.1.bin
+    dnnl_dump_jit_avx2_conv_fwd_kernel_f32.1.bin
     ...
-    mkldnn_dump_jit_avx_gemm_f32_xbyak_gemm.40.bin
+    dnnl_dump_jit_avx_gemm_f32_xbyak_gemm.40.bin
 ~~~
 
 Use any disassembler to view the code. For example:

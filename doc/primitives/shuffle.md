@@ -36,10 +36,10 @@ where
 
 Here, \f$u \in [0, \frac{C}{G})\f$ and \f$v \in [0, G)\f$.
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
-There is no difference between the #mkldnn_forward_training
-and #mkldnn_forward_inference propagation kinds.
+There is no difference between the #dnnl_forward_training
+and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
@@ -57,7 +57,7 @@ Essentially, backward propagation is the same as forward propagation with
 
 1. The memory format and data type for `src` and `dst` are assumed to be the
    same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in mkldnn::shuffle_forward::desc::desc()). The same holds for
+   in dnnl::shuffle_forward::desc::desc()). The same holds for
    `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
    to as `diff_data_desc`.
 
@@ -86,8 +86,8 @@ shuffle primitive is optimized for the corresponding memory formats:
 
 | Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                               |
 | :--     | :--            | :--          | :--                                                                        |
-| 2D      | NCHW           | 1 (C)        | #mkldnn_nchw (#mkldnn_abcd), #mkldnn_nhwc (#mkldnn_acdb), *optimized^*     |
-| 3D      | NCDHW          | 1 (C)        | #mkldnn_ncdhw (#mkldnn_abcde), #mkldnn_ndhwc (#mkldnn_acdeb), *optimized^* |
+| 2D      | NCHW           | 1 (C)        | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
+| 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 
 Here *optimized^* means the format that
 [comes out](@ref cpu_memory_format_propagation_cpp)

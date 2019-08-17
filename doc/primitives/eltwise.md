@@ -15,26 +15,26 @@ where \f$\overline{x} = (x_n, .., x_0)\f$.
 
 The following operations are supported:
 
-| Operation    | MKL-DNN algorithm kind       | Formula
+| Operation    | DNNL algorithm kind       | Formula
 | :--          | :--                          | :--
-| abs          | #mkldnn_eltwise_abs          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ -x & \text{if}\ x \leq 0 \end{cases} \f$
-| bounded_relu | #mkldnn_eltwise_bounded_relu | \f$ f(x) = \begin{cases} \alpha & \text{if}\ x > \alpha \\ x & \text{if}\ 0 < x \leq \alpha \\ 0 & \text{if}\ x \leq 0 \end{cases} \f$
-| elu          | #mkldnn_eltwise_elu          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
-| exp          | #mkldnn_eltwise_exp          | \f$ f(x) = e^x \f$
-| gelu         | #mkldnn_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
-| linear       | #mkldnn_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
-| logistic     | #mkldnn_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
-| relu         | #mkldnn_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
-| soft_relu    | #mkldnn_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
-| sqrt         | #mkldnn_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
-| square       | #mkldnn_eltwise_square       | \f$ f(x) = x^2 \f$
-| swish        | #mkldnn_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
-| tanh         | #mkldnn_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
+| abs          | #dnnl_eltwise_abs          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ -x & \text{if}\ x \leq 0 \end{cases} \f$
+| bounded_relu | #dnnl_eltwise_bounded_relu | \f$ f(x) = \begin{cases} \alpha & \text{if}\ x > \alpha \\ x & \text{if}\ 0 < x \leq \alpha \\ 0 & \text{if}\ x \leq 0 \end{cases} \f$
+| elu          | #dnnl_eltwise_elu          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
+| exp          | #dnnl_eltwise_exp          | \f$ f(x) = e^x \f$
+| gelu         | #dnnl_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
+| linear       | #dnnl_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
+| logistic     | #dnnl_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
+| relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
+| soft_relu    | #dnnl_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
+| sqrt         | #dnnl_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
+| square       | #dnnl_eltwise_square       | \f$ f(x) = x^2 \f$
+| swish        | #dnnl_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
+| tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
-There is no difference between the #mkldnn_forward_training and
-#mkldnn_forward_inference propagation kinds.
+There is no difference between the #dnnl_forward_training and
+#dnnl_forward_inference propagation kinds.
 
 ### Backward
 
@@ -48,13 +48,13 @@ based on
 ### General Notes
 
 1. All eltwise primitives have a common initialization function (e.g.,
-   mkldnn::eltwise_forward::desc::desc()) which takes both parameters
+   dnnl::eltwise_forward::desc::desc()) which takes both parameters
    \f$\alpha\f$, and \f$\beta\f$. These parameters are ignored if they are
    unused.
 
 2. The memory format and data type for `src` and `dst` are assumed to be the
    same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in mkldnn::eltwise_forward::desc::desc()). The same holds for
+   in dnnl::eltwise_forward::desc::desc()). The same holds for
    `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
    to as `diff_data_desc`.
 
@@ -108,7 +108,7 @@ The eltwise primitive doesn't support any post-ops or attributes.
    limitations related to data types support.
 
 2. **GPU**
-    - No support for swish (#mkldnn_eltwise_swish) operation
+    - No support for swish (#dnnl_eltwise_swish) operation
 
 ## Performance Tips
 

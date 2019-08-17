@@ -29,7 +29,7 @@ users can change or destroy attributes right after that.
 
 If nothing special is required, attributes can stay empty, which is equivalent
 to the default attributes. For that purpose in the C API users can pass `NULL`
-as an attribute to the @ref mkldnn_primitive_desc_create function. In the C++
+as an attribute to the @ref dnnl_primitive_desc_create function. In the C++
 API, primitive descriptors' constructors have empty attributes as default
 parameters, so unless required users can simply omit them.
 
@@ -41,28 +41,28 @@ handling is omitted to simplify reading.
 ~~~cpp
 // ### C API ###
 
-mkldnn_op_desc_t op_d; // some operation descriptor, e.g. mkldnn_eltwise_desc_t
+dnnl_op_desc_t op_d; // some operation descriptor, e.g. dnnl_eltwise_desc_t
 ...
 // init op_d
 
-mkldnn_primitive_attr_t attr; // opaque attributes
-mkldnn_primitive_attr_create(&attr);
-mkldnn_primitive_attr_set_SOMETHING(attr, params); // setting attributes params
-mkldnn_primitive_attr_set_SOMETHING_ELSE(attr, other_params);
+dnnl_primitive_attr_t attr; // opaque attributes
+dnnl_primitive_attr_create(&attr);
+dnnl_primitive_attr_set_SOMETHING(attr, params); // setting attributes params
+dnnl_primitive_attr_set_SOMETHING_ELSE(attr, other_params);
 
-mkldnn_primitive_desc_t op_pd; // operation primitive descriptor
-mkldnn_primitive_desc_create(&op_pd, &op_d, attr, engine, hint_fwd_pd);
+dnnl_primitive_desc_t op_pd; // operation primitive descriptor
+dnnl_primitive_desc_create(&op_pd, &op_d, attr, engine, hint_fwd_pd);
 
 // changing attr object here doesn't have any effect on op_pd
 
 // once attr is no more used we can immediately destroy it
-mkldnn_primitive_attr_destroy(attr);
+dnnl_primitive_attr_destroy(attr);
 
 ...
 
 // ### C++ API ###
 
-mkldnn::primitive_attr attr;
+dnnl::primitive_attr attr;
 attr.set_SOMETHING(params);
 attr.set_SOMETHING_ELSE(params);
 
@@ -95,8 +95,8 @@ from the corresponding primitive descriptor, users can successfully set
 attributes in whatever configuration they want. However, when they try to
 create a primitive descriptor with the attribute it might appear that neither
 implementation supports such a configuration. In this case a user will get
-#mkldnn_unimplemented in the case of the C API or a corresponding
- @ref mkldnn::error object as an exception in the case of the C++ API.
+#dnnl_unimplemented in the case of the C API or a corresponding
+ @ref dnnl::error object as an exception in the case of the C++ API.
  Unfortunately, the library doesn't currently provide any hints about what
  exactly is going wrong in this case. The corresponding section of the
  documentation simply documents the primitives' capabilities.
