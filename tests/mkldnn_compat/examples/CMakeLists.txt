@@ -35,21 +35,21 @@ file(GLOB sources *.cpp *.c)
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cpu)") 
+    if(${example_name} MATCHES "^(cpu)")
         # Example name contains cpu-
         register_exe(mkldnn-compat-${example_name} ${src} "test" ${LIBM})
     elseif(${example_name} MATCHES "^(cross-engine|gpu)")
         # Example name contains cross-engine or gpu-
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
             register_exe(mkldnn-compat-${example_name} ${src} "test" ${LIBM})
-        endif() 
+        endif()
     else()
         register_exe(mkldnn-compat-${example_name} ${src} "" ${LIBM})
-       
+
         # Adding test for CPU
         add_test("mkldnn-compat-cpu-${example_name}" "mkldnn-compat-${example_name}" cpu)
         maybe_configure_windows_test("mkldnn-compat-cpu-${example_name}" TEST)
-        
+
         # Adding test for GPU
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
            add_test("mkldnn-compat-gpu-${example_name}" "mkldnn-compat-${example_name}" gpu)

@@ -792,16 +792,14 @@ static void prb_block_for_cache(tr::prb_t &prb) {
     /* If strides for 0th and 1st nodes are cache friendly
      * then one can altogether do away with blocking ! */
     const bool cache_blocking_needed = false
-        || (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16)
-        || (prb.ndims > 1 && prb.nodes[1].is % 64 == 0
-                && prb.nodes[1].n > 16);
-    if (!cache_blocking_needed)
-        return;
+            || (prb.nodes[0].is % 64 == 0 && prb.nodes[0].n > 16)
+            || (prb.ndims > 1 && prb.nodes[1].is % 64 == 0
+                    && prb.nodes[1].n > 16);
+    if (!cache_blocking_needed) return;
 
     int unit_input_stride_idx = -1;
     for (auto idx = 0; idx < prb.ndims; ++idx) {
-        if (prb.nodes[idx].is == 1)
-            unit_input_stride_idx = idx;
+        if (prb.nodes[idx].is == 1) unit_input_stride_idx = idx;
     }
 
     /* Re-prioritize the sequential read over sequential write:
@@ -814,8 +812,7 @@ static void prb_block_for_cache(tr::prb_t &prb) {
 
         const bool split_needed = (num_elems > 16) && (num_elems % 16 == 0);
         const int move_location = (output_stride % 4 != 0) ? 0 : 1;
-        if (split_needed)
-            prb_node_split(prb, unit_input_stride_idx, 16);
+        if (split_needed) prb_node_split(prb, unit_input_stride_idx, 16);
 
         /* Because of cache-unfriendly nature of unit-output stride node, let
          * us move unit-input stride node on or near front! */
@@ -829,10 +826,8 @@ static void prb_block_for_cache(tr::prb_t &prb) {
         const auto input_stride = prb.nodes[0].is;
         const auto num_elems = prb.nodes[0].n;
 
-        const bool split_needed = true
-                && (num_elems > 16)
-                && (num_elems % 16 == 0)
-                && (input_stride >= 256)
+        const bool split_needed = true && (num_elems > 16)
+                && (num_elems % 16 == 0) && (input_stride >= 256)
                 && (input_stride % 64 == 0);
         if (split_needed) {
             prb_node_split(prb, 0, 16);

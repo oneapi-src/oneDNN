@@ -20,9 +20,9 @@
 ///
 /// > Annotated version: @ref getting_started_cpp
 
-#include <sstream>
 #include <cmath>
 #include <numeric>
+#include <sstream>
 #include <vector>
 
 #include "dnnl_debug.h"
@@ -340,9 +340,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     // ReLU primitive descriptor, which corresponds to a particular
     // implementation in the library
-    auto relu_pd = eltwise_forward::primitive_desc(
-            relu_d,     // an operation descriptor
-            eng  // an engine the primitive will be created for
+    auto relu_pd
+            = eltwise_forward::primitive_desc(relu_d, // an operation descriptor
+                    eng // an engine the primitive will be created for
             );
 
     // ReLU primitive
@@ -471,9 +471,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
 // [Main]
 int main(int argc, char **argv) {
     try {
-         engine::kind engine_kind = parse_engine_kind(argc, argv);
-         getting_started_tutorial(engine_kind);
-         std::cout << "Example passes" << std::endl;
+        engine::kind engine_kind = parse_engine_kind(argc, argv);
+        getting_started_tutorial(engine_kind);
+        std::cout << "Example passes" << std::endl;
     } catch (dnnl::error &e) {
         std::cerr << "DNNL error: " << e.what() << std::endl
                   << "Error status: " << dnnl_status2str(e.status) << std::endl;

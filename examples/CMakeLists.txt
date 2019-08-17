@@ -39,31 +39,31 @@ file(GLOB sources *.cpp *.c)
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cpu)") 
+    if(${example_name} MATCHES "^(cpu)")
         # Example name contains cpu-
         register_exe(${example_name} ${src} "test" ${LIBM})
     elseif(${example_name} MATCHES "^(cross-engine|gpu)")
         # Example name contains cross-engine or gpu-
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
             register_exe(${example_name} ${src} "test" ${LIBM})
-        endif() 
+        endif()
     else()
         register_exe(${example_name} ${src} "" ${LIBM})
-       
+
         # Adding test for CPU
-        add_test("cpu-${example_name}" "${example_name}" cpu) 
+        add_test("cpu-${example_name}" "${example_name}" cpu)
         maybe_configure_windows_test("cpu-${example_name}" TEST)
-        
+
         # Adding test for GPU
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-           add_test("gpu-${example_name}" "${example_name}" gpu)             
+           add_test("gpu-${example_name}" "${example_name}" gpu)
            maybe_configure_windows_test("gpu-${example_name}" TEST)
         endif()
     endif()
 endforeach()
 
 if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
-    file(GLOB example_sources 
+    file(GLOB example_sources
          "cpu_*.cpp" "c_*.c" "cnn_*.c" "cnn_*.cpp" "rnn_*.cpp" "*.h*")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES

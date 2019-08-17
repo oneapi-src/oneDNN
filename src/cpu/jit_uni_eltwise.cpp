@@ -918,7 +918,7 @@ private:
 
 template <cpu_isa_t isa>
 struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
-                             public jit_generator {
+                                   public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_relu_kernel_float)
 
     void compute_step(bool vectorize, const int uf, const int shift) {
@@ -1128,14 +1128,13 @@ private:
     bf16_emulation_t *bf16_emu_;
 };
 
-
 template <cpu_isa_t isa>
-struct jit_uni_relu_kernel_int : public jit_uni_eltwise_kernel, public jit_generator {
+struct jit_uni_relu_kernel_int : public jit_uni_eltwise_kernel,
+                                 public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_relu_kernel_int)
 
     jit_uni_relu_kernel_int(const eltwise_desc_t &desc)
-        : jit_uni_eltwise_kernel(desc)
-        , jit_generator() {
+        : jit_uni_eltwise_kernel(desc), jit_generator() {
         using namespace data_type;
 
         // Relu for int types: s32, s8; Only forward direction
@@ -1153,7 +1152,8 @@ struct jit_uni_relu_kernel_int : public jit_uni_eltwise_kernel, public jit_gener
         const size_t simd_w = vlen / proc_dt_size;
         const size_t loop_dec[] = {simd_w, 1};
         const size_t uf[] = {1, 1};
-        const size_t shift[] = {dtype_size() * (vlen / proc_dt_size), (size_t)dtype_size()};
+        const size_t shift[]
+                = {dtype_size() * (vlen / proc_dt_size), (size_t)dtype_size()};
         const bool loop_vectorize[] = {true, false};
 
         preamble();
@@ -1210,17 +1210,20 @@ private:
 
     Xmm xmm_ns = Xmm(14);
 
-    Vmm vmm_ns   = Vmm(isa == avx512_common ? 28 : 14);
+    Vmm vmm_ns = Vmm(isa == avx512_common ? 28 : 14);
     Vmm vmm_zero = Vmm(isa == avx512_common ? 29 : 15);
     Vmm vmm_mask = Vmm(isa == avx512_common ? 30 : 12);
 
     opmask_t k_mask = k1;
     opmask_t k_mask_s8 = k2; // Mask for store 1 byte in case of AVX512
 
-    bool is32bit() const  { return utils::one_of(data_type(), data_type::s32, data_type::f32); }
+    bool is32bit() const {
+        return utils::one_of(data_type(), data_type::s32, data_type::f32);
+    }
 
     // Load 32bit data type (s32)
-    void load_32bit (const bool vectorize, const Vmm& vr_from, const Address& mem_from) {
+    void load_32bit(
+            const bool vectorize, const Vmm &vr_from, const Address &mem_from) {
 
         if (vectorize) {
             // load full Vmm size
@@ -1232,7 +1235,8 @@ private:
     }
 
     // Load 8bit data type (s8)
-    void load_8bit(const bool vectorize, const Vmm& vr_from, const Address& mem_from) {
+    void load_8bit(
+            const bool vectorize, const Vmm &vr_from, const Address &mem_from) {
 
         // data type s8 load as s32
         if (vectorize) {
@@ -1250,7 +1254,8 @@ private:
     };
 
     // Load vregs with data from mem
-    void load(const bool vectorize, const Vmm& vr_from, const Address& mem_from) {
+    void load(
+            const bool vectorize, const Vmm &vr_from, const Address &mem_from) {
 
         // Branching on data size
         if (is32bit())
@@ -1260,10 +1265,11 @@ private:
     }
 
     // Processing
-    void process(const Vmm& vr_to, const Vmm& vr_from);
+    void process(const Vmm &vr_to, const Vmm &vr_from);
 
     // Store s32 for any isa
-    void store_32bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+    void store_32bit(
+            const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
         if (vectorize) {
             // store full Vmm size
             uni_vmovups(mem_to, vr_to);
@@ -1274,10 +1280,11 @@ private:
     }
 
     // Store s8 - isa-dependent
-    void store_8bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to);
+    void store_8bit(
+            const bool vectorize, const Address &mem_to, const Vmm &vr_to);
 
     // Store results from vregs to mem
-    void store(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+    void store(const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
         // Branching on data size
         if (is32bit())
             store_32bit(vectorize, mem_to, vr_to);
@@ -1288,7 +1295,7 @@ private:
     void compute_step(bool vectorize, const size_t uf, const size_t shift) {
 
         auto vreg_from = [&](const size_t i) -> Vmm { return Vmm(i + 1); };
-        auto vreg_to   = [&](const size_t i) -> Vmm { return Vmm(uf + i + 1); };
+        auto vreg_to = [&](const size_t i) -> Vmm { return Vmm(uf + i + 1); };
 
         // 1. Load (vregs <- mem)
         for (size_t i = 0; i < uf; i++)
@@ -1305,12 +1312,14 @@ private:
 };
 
 template <cpu_isa_t isa>
-void jit_uni_relu_kernel_int<isa>::process(const Vmm& vr_to, const Vmm& vr_from) {
+void jit_uni_relu_kernel_int<isa>::process(
+        const Vmm &vr_to, const Vmm &vr_from) {
     assert(!"unsupported isa");
 }
 
 template <>
-void jit_uni_relu_kernel_int<sse41>::process(const Vmm& vr_to, const Vmm& vr_from) {
+void jit_uni_relu_kernel_int<sse41>::process(
+        const Vmm &vr_to, const Vmm &vr_from) {
 
     cvtdq2ps(vr_from, vr_from);
     movups(vr_to, vr_from);
@@ -1325,7 +1334,8 @@ void jit_uni_relu_kernel_int<sse41>::process(const Vmm& vr_to, const Vmm& vr_fro
 }
 
 template <>
-void jit_uni_relu_kernel_int<avx2>::process(const Vmm& vr_to, const Vmm& vr_from) {
+void jit_uni_relu_kernel_int<avx2>::process(
+        const Vmm &vr_to, const Vmm &vr_from) {
 
     vcvtdq2ps(vr_from, vr_from);
     vmulps(vr_to, vr_from, vmm_ns);
@@ -1336,7 +1346,8 @@ void jit_uni_relu_kernel_int<avx2>::process(const Vmm& vr_to, const Vmm& vr_from
 }
 
 template <>
-void jit_uni_relu_kernel_int<avx512_common>::process(const Vmm& vr_to, const Vmm& vr_from) {
+void jit_uni_relu_kernel_int<avx512_common>::process(
+        const Vmm &vr_to, const Vmm &vr_from) {
 
     vcvtdq2ps(vr_from, vr_from);
     vmulps(vr_to, vr_from, vmm_ns);
@@ -1345,14 +1356,15 @@ void jit_uni_relu_kernel_int<avx512_common>::process(const Vmm& vr_to, const Vmm
     vcvtps2dq(vr_to | T_rz_sae, vr_to);
 }
 
-
 template <cpu_isa_t isa>
-void jit_uni_relu_kernel_int<isa>::store_8bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+void jit_uni_relu_kernel_int<isa>::store_8bit(
+        const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
     assert(!"unsupported isa");
 }
 
 template <>
-void jit_uni_relu_kernel_int<sse41>::store_8bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+void jit_uni_relu_kernel_int<sse41>::store_8bit(
+        const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
     if (vectorize) {
         // store full Vmm size
         // s32 -> s16
@@ -1372,7 +1384,8 @@ void jit_uni_relu_kernel_int<sse41>::store_8bit(const bool vectorize, const Addr
 }
 
 template <>
-void jit_uni_relu_kernel_int<avx2>::store_8bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+void jit_uni_relu_kernel_int<avx2>::store_8bit(
+        const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
     if (vectorize) {
         // store full Vmm size
         // s32 -> s16 = {qw0, 0, qw1, 0}
@@ -1394,9 +1407,9 @@ void jit_uni_relu_kernel_int<avx2>::store_8bit(const bool vectorize, const Addre
     }
 }
 
-
 template <>
-void jit_uni_relu_kernel_int<avx512_common>::store_8bit(const bool vectorize, const Address& mem_to, const Vmm& vr_to) {
+void jit_uni_relu_kernel_int<avx512_common>::store_8bit(
+        const bool vectorize, const Address &mem_to, const Vmm &vr_to) {
     if (vectorize) {
         // store full Vmm size
         vpmovsdb(mem_to, vr_to);
@@ -1560,30 +1573,27 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
     using namespace data_type;
 
     // relu supports bf16, f32, s32 and s8
-    bool relu_ok = true
-        && desc()->alg_kind == eltwise_relu
-        && utils::one_of(d_type, bf16, f32, s32, s8);
+    bool relu_ok = true && desc()->alg_kind == eltwise_relu
+            && utils::one_of(d_type, bf16, f32, s32, s8);
 
     // others supports bf16 and f32
     bool non_relu_ok = true
-        && utils::one_of(desc()->alg_kind,
-                eltwise_tanh, eltwise_elu, eltwise_square, eltwise_abs,
-                eltwise_sqrt, eltwise_linear, eltwise_bounded_relu,
-                eltwise_soft_relu, eltwise_logistic, eltwise_exp, eltwise_gelu, eltwise_swish)
-        && utils::one_of(d_type, bf16, f32);
+            && utils::one_of(desc()->alg_kind, eltwise_tanh, eltwise_elu,
+                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu, eltwise_swish)
+            && utils::one_of(d_type, bf16, f32);
 
-    bool ok = true
-        && mayiuse(isa)
-        && is_fwd()
-        && desc()->data_desc.data_type == d_type
-        && IMPLICATION(desc()->data_desc.data_type == bf16,
-                mayiuse(avx512_core))
-        && utils::one_of(true, relu_ok, non_relu_ok)
-        && !has_zero_dim_memory()
-        && memory_desc_wrapper(src_md()).is_dense(true)
-        && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
-                math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))
-        && attr()->has_default_values();
+    bool ok = true && mayiuse(isa) && is_fwd()
+            && desc()->data_desc.data_type == d_type
+            && IMPLICATION(
+                    desc()->data_desc.data_type == bf16, mayiuse(avx512_core))
+            && utils::one_of(true, relu_ok, non_relu_ok)
+            && !has_zero_dim_memory()
+            && memory_desc_wrapper(src_md()).is_dense(true)
+            && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
+                    math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))
+            && attr()->has_default_values();
 
     return ok ? status::success : status::unimplemented;
 }
@@ -1593,14 +1603,13 @@ jit_uni_eltwise_fwd_t<isa, d_type>::jit_uni_eltwise_fwd_t(const pd_t *apd)
     : primitive_impl_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
-    case alg_kind::eltwise_relu:
-        if (utils::one_of(d_type, data_type::s32, data_type::s8))
-            kernel_ = new jit_uni_relu_kernel_int<isa>(desc);
-        else
-            kernel_ = new jit_uni_relu_kernel_float<isa>(desc);
-    break;
-    default:
-        kernel_ = new jit_uni_kernel_fwd<isa>(desc);
+        case alg_kind::eltwise_relu:
+            if (utils::one_of(d_type, data_type::s32, data_type::s8))
+                kernel_ = new jit_uni_relu_kernel_int<isa>(desc);
+            else
+                kernel_ = new jit_uni_relu_kernel_float<isa>(desc);
+            break;
+        default: kernel_ = new jit_uni_kernel_fwd<isa>(desc);
     }
 }
 
@@ -1660,9 +1669,10 @@ jit_uni_eltwise_bwd_t<isa, d_type>::jit_uni_eltwise_bwd_t(const pd_t *apd)
     : primitive_impl_t(apd), kernel_(nullptr) {
     const auto &desc = *pd()->desc();
     switch (desc.alg_kind) {
-    case alg_kind::eltwise_relu:
-        kernel_ = new jit_uni_relu_kernel_float<isa>(desc); break;
-    default: assert(!"unknown eltwise alg_kind");
+        case alg_kind::eltwise_relu:
+            kernel_ = new jit_uni_relu_kernel_float<isa>(desc);
+            break;
+        default: assert(!"unknown eltwise alg_kind");
     }
 }
 

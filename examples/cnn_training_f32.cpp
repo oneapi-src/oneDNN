@@ -78,12 +78,13 @@ void simple_net(engine::kind engine_kind) {
         conv_bias[i] = sinf((float)i);
 
     // create memory for user data
-    auto conv_user_src_memory = memory({ { conv_src_tz }, dt::f32, tag::nchw }, eng);
+    auto conv_user_src_memory
+            = memory({{conv_src_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(net_src.data(), conv_user_src_memory);
     auto conv_user_weights_memory
-            = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, eng);
+            = memory({{conv_weights_tz}, dt::f32, tag::oihw}, eng);
     write_to_dnnl_memory((void *)conv_weights.data(), conv_user_weights_memory);
-    auto conv_user_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x }, eng);
+    auto conv_user_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(conv_bias.data(), conv_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified
@@ -97,8 +98,9 @@ void simple_net(engine::kind engine_kind) {
 
     // create a convolution primitive descriptor
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
-            algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
-            conv_dst_md, conv_strides, conv_padding, conv_padding);
+            algorithm::convolution_direct, conv_src_md, conv_weights_md,
+            conv_bias_md, conv_dst_md, conv_strides, conv_padding,
+            conv_padding);
     auto conv_pd = convolution_forward::primitive_desc(conv_desc, eng);
 
     // create reorder primitives between user input and conv src if needed
@@ -162,8 +164,8 @@ void simple_net(engine::kind engine_kind) {
 
     // create a lrn primitive descriptor
     auto lrn_desc = lrn_forward::desc(prop_kind::forward,
-            algorithm::lrn_across_channels, relu_pd.dst_desc(),
-            local_size, alpha, beta, k);
+            algorithm::lrn_across_channels, relu_pd.dst_desc(), local_size,
+            alpha, beta, k);
     auto lrn_pd = lrn_forward::primitive_desc(lrn_desc, eng);
 
     // create lrn dst memory
@@ -190,7 +192,8 @@ void simple_net(engine::kind engine_kind) {
     memory::dims pool_padding = {0, 0};
 
     // create memory for pool dst data in user format
-    auto pool_user_dst_memory = memory({ { pool_dst_tz }, dt::f32, tag::nchw }, eng);
+    auto pool_user_dst_memory
+            = memory({{pool_dst_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(net_dst.data(), pool_user_dst_memory);
 
     // create pool dst memory descriptor in format any
@@ -234,7 +237,7 @@ void simple_net(engine::kind engine_kind) {
 
     // create memory for user diff dst data
     auto pool_user_diff_dst_memory
-            = memory({ { pool_dst_tz }, dt::f32, tag::nchw }, eng);
+            = memory({{pool_dst_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(net_diff_dst.data(), pool_user_diff_dst_memory);
 
     // Backward pooling
@@ -247,8 +250,8 @@ void simple_net(engine::kind engine_kind) {
             pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
             pool_padding, pool_padding);
     // backward primitive descriptor needs to hint forward descriptor
-    auto pool_bwd_pd = pooling_backward::primitive_desc(
-            pool_bwd_desc, eng, pool_pd);
+    auto pool_bwd_pd
+            = pooling_backward::primitive_desc(pool_bwd_desc, eng, pool_pd);
 
     // create reorder primitive between user diff dst and pool diff dst
     // if required
@@ -276,8 +279,7 @@ void simple_net(engine::kind engine_kind) {
     // create backward lrn primitive descriptor
     auto lrn_bwd_desc = lrn_backward::desc(algorithm::lrn_across_channels,
             lrn_pd.src_desc(), lrn_diff_dst_md, local_size, alpha, beta, k);
-    auto lrn_bwd_pd
-            = lrn_backward::primitive_desc(lrn_bwd_desc, eng, lrn_pd);
+    auto lrn_bwd_pd = lrn_backward::primitive_desc(lrn_bwd_desc, eng, lrn_pd);
 
     // create memory for lrn diff src
     auto lrn_diff_src_memory = memory(lrn_bwd_pd.diff_src_desc(), eng);
@@ -297,8 +299,8 @@ void simple_net(engine::kind engine_kind) {
     // create backward relu primitive_descriptor
     auto relu_bwd_desc = eltwise_backward::desc(algorithm::eltwise_relu,
             relu_diff_dst_md, relu_src_md, negative_slope);
-    auto relu_bwd_pd = eltwise_backward::primitive_desc(
-            relu_bwd_desc, eng, relu_pd);
+    auto relu_bwd_pd
+            = eltwise_backward::primitive_desc(relu_bwd_desc, eng, relu_pd);
 
     // create memory for relu diff src
     auto relu_diff_src_memory = memory(relu_bwd_pd.diff_src_desc(), eng);
@@ -315,11 +317,10 @@ void simple_net(engine::kind engine_kind) {
     std::vector<float> conv_diff_bias_buffer(product(conv_bias_tz));
 
     auto conv_user_diff_weights_memory
-            = memory({ { conv_weights_tz }, dt::f32, tag::nchw }, eng);
+            = memory({{conv_weights_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(conv_user_diff_weights_buffer.data(),
             conv_user_diff_weights_memory);
-    auto conv_diff_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x },
-            eng);
+    auto conv_diff_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(conv_diff_bias_buffer.data(), conv_diff_bias_memory);
 
     // create memory descriptors
@@ -345,8 +346,7 @@ void simple_net(engine::kind engine_kind) {
     // format chosen by backward convolution
     auto conv_bwd_src_memory = conv_src_memory;
     if (conv_bwd_weights_pd.src_desc() != conv_src_memory.get_desc()) {
-        conv_bwd_src_memory
-                = memory(conv_bwd_weights_pd.src_desc(), eng);
+        conv_bwd_src_memory = memory(conv_bwd_weights_pd.src_desc(), eng);
         net_bwd.push_back(reorder(conv_src_memory, conv_bwd_src_memory));
         net_bwd_args.push_back({{DNNL_ARG_FROM, conv_src_memory},
                 {DNNL_ARG_TO, conv_bwd_src_memory}});
@@ -357,8 +357,7 @@ void simple_net(engine::kind engine_kind) {
     auto conv_diff_dst_memory = relu_diff_src_memory;
     if (conv_bwd_weights_pd.diff_dst_desc()
             != relu_diff_src_memory.get_desc()) {
-        conv_diff_dst_memory
-                = memory(conv_bwd_weights_pd.diff_dst_desc(), eng);
+        conv_diff_dst_memory = memory(conv_bwd_weights_pd.diff_dst_desc(), eng);
         net_bwd.push_back(reorder(relu_diff_src_memory, conv_diff_dst_memory));
         net_bwd_args.push_back({{DNNL_ARG_FROM, relu_diff_src_memory},
                 {DNNL_ARG_TO, conv_diff_dst_memory}});

@@ -215,11 +215,9 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
     }
 }
 
-
 template <typename data_t>
-void compare_eltwise_fwd(const eltwise_test_params &p,
-        const memory::desc &md, const memory &dst, const memory &ref_dst)
-{
+void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
+        const memory &dst, const memory &ref_dst) {
     data_t eps;
     if (data_traits<data_t>::data_type == memory::data_type::s8
             || data_traits<data_t>::data_type == memory::data_type::s32)
@@ -338,8 +336,8 @@ protected:
                         && (data_type == memory::data_type::s32
                                 || data_type == memory::data_type::s8),
                 "DNNL only supports relu w/ slope=0 for integers");
-        catch_expected_failures([=](){Test();}, p.expect_to_fail,
-                    p.expected_status);
+        catch_expected_failures(
+                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Test() {
@@ -363,9 +361,10 @@ protected:
                                         || p.alg_kind == algorithm::eltwise_exp)
                         || (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
-                : p.alg_kind == algorithm::eltwise_square
-                    ? data_t(6.0) : data_t(100.0);
-        fill_data<data_t>(n_elems(*data_desc), src, data_median, data_deviation);
+                : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
+                                                          : data_t(100.0);
+        fill_data<data_t>(
+                n_elems(*data_desc), src, data_median, data_deviation);
         check_zero_tail<data_t>(1, src);
 
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
@@ -389,10 +388,10 @@ protected:
         data_t data_median = data_t(0);
         data_t data_deviation = p.alg_kind == algorithm::eltwise_elu
                 ? data_t(1.0)
-                : p.alg_kind == algorithm::eltwise_square
-                    ? data_t(6.0) : data_t(100.0);
-        fill_data<data_t>(n_elems(diff_data_desc), diff_dst, data_median,
-                data_deviation);
+                : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
+                                                          : data_t(100.0);
+        fill_data<data_t>(
+                n_elems(diff_data_desc), diff_dst, data_median, data_deviation);
         check_zero_tail<data_t>(1, diff_dst);
 
         auto eltwise_bwd_desc = eltwise_backward::desc(
@@ -417,25 +416,15 @@ using eltwise_test_f32 = eltwise_test<float>;
 using eltwise_test_s32 = eltwise_test<int>;
 using eltwise_test_s8 = eltwise_test<int8_t>;
 
-TEST_P(eltwise_test_f16, TestsEltwise)
-{
-}
+TEST_P(eltwise_test_f16, TestsEltwise) {}
 
-TEST_P(eltwise_test_bf16, TestsEltwise)
-{
-}
+TEST_P(eltwise_test_bf16, TestsEltwise) {}
 
-TEST_P(eltwise_test_f32, TestsEltwise)
-{
-}
+TEST_P(eltwise_test_f32, TestsEltwise) {}
 
-TEST_P(eltwise_test_s32, TestsEltwise)
-{
-}
+TEST_P(eltwise_test_s32, TestsEltwise) {}
 
-TEST_P(eltwise_test_s8, TestsEltwise)
-{
-}
+TEST_P(eltwise_test_s8, TestsEltwise) {}
 
 #define EXPAND(args) args
 
@@ -466,35 +455,42 @@ TEST_P(eltwise_test_s8, TestsEltwise)
             EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
-#define _CPU_INST_TEST_CASE(str, data_t, ...) CPU_INSTANTIATE_TEST_SUITE_P( \
-        str##_##data_t, eltwise_test_##data_t, ::testing::Values(__VA_ARGS__))
+#define _CPU_INST_TEST_CASE(str, data_t, ...) \
+    CPU_INSTANTIATE_TEST_SUITE_P(str##_##data_t, eltwise_test_##data_t, \
+            ::testing::Values(__VA_ARGS__))
 
-#define _INST_TEST_CASE(str, data_t, ...) INSTANTIATE_TEST_SUITE_P_( \
-        str##_##data_t, eltwise_test_##data_t, ::testing::Values(__VA_ARGS__))
+#define _INST_TEST_CASE(str, data_t, ...) \
+    INSTANTIATE_TEST_SUITE_P_(str##_##data_t, eltwise_test_##data_t, \
+            ::testing::Values(__VA_ARGS__))
 
-    #define CPU_INST_TEST_CASE_BF16(str, ...) _CPU_INST_TEST_CASE(str, bf16, __VA_ARGS__);
-    #define INST_TEST_CASE_BF16(str, ...) _INST_TEST_CASE(str, bf16, __VA_ARGS__);
-    #define GPU_INST_TEST_CASE_F16(str, ...) GPU_INSTANTIATE_TEST_SUITE_P_( \
-        TEST_CONCAT(str, _f16), eltwise_test_f16, ::testing::Values(__VA_ARGS__));
-    #define CPU_INST_TEST_CASE_F32(str, ...) _CPU_INST_TEST_CASE(str, f32, __VA_ARGS__);
-    #define INST_TEST_CASE_F32(str, ...) _INST_TEST_CASE(str, f32, __VA_ARGS__);
-    #define CPU_INST_TEST_CASE_S32(str, ...) _CPU_INST_TEST_CASE(str, s32, __VA_ARGS__);
-    #define INST_TEST_CASE_S32(str, ...) _INST_TEST_CASE(str, s32, __VA_ARGS__);
-    #define CPU_INST_TEST_CASE_S8(str, ...) _CPU_INST_TEST_CASE(str, s8, __VA_ARGS__);
-    #define INST_TEST_CASE_S8(str, ...) _INST_TEST_CASE(str, s8, __VA_ARGS__);
+#define CPU_INST_TEST_CASE_BF16(str, ...) \
+    _CPU_INST_TEST_CASE(str, bf16, __VA_ARGS__);
+#define INST_TEST_CASE_BF16(str, ...) _INST_TEST_CASE(str, bf16, __VA_ARGS__);
+#define GPU_INST_TEST_CASE_F16(str, ...) \
+    GPU_INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _f16), eltwise_test_f16, \
+            ::testing::Values(__VA_ARGS__));
+#define CPU_INST_TEST_CASE_F32(str, ...) \
+    _CPU_INST_TEST_CASE(str, f32, __VA_ARGS__);
+#define INST_TEST_CASE_F32(str, ...) _INST_TEST_CASE(str, f32, __VA_ARGS__);
+#define CPU_INST_TEST_CASE_S32(str, ...) \
+    _CPU_INST_TEST_CASE(str, s32, __VA_ARGS__);
+#define INST_TEST_CASE_S32(str, ...) _INST_TEST_CASE(str, s32, __VA_ARGS__);
+#define CPU_INST_TEST_CASE_S8(str, ...) \
+    _CPU_INST_TEST_CASE(str, s8, __VA_ARGS__);
+#define INST_TEST_CASE_S8(str, ...) _INST_TEST_CASE(str, s8, __VA_ARGS__);
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INST_TEST_CASE_F32(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_BF16(str, __VA_ARGS__) \
     CPU_INST_TEST_CASE_S32(str, __VA_ARGS__) \
-    CPU_INST_TEST_CASE_S8(str, __VA_ARGS__) \
+    CPU_INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 #define INST_TEST_CASE(str, ...) \
     GPU_INST_TEST_CASE_F16(str, __VA_ARGS__) \
     INST_TEST_CASE_BF16(str, __VA_ARGS__) \
     INST_TEST_CASE_F32(str, __VA_ARGS__) \
     INST_TEST_CASE_S32(str, __VA_ARGS__) \
-    INST_TEST_CASE_S8(str, __VA_ARGS__) \
+    INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 INST_TEST_CASE(SimpleZeroDim,
         PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),

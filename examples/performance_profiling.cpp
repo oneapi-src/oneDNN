@@ -136,7 +136,8 @@ primitive_attr create_attr_with_relu_post_op() {
 
 // Implementation for naive convolution on nchw (data) and oihw (weights),
 // followed by execution of non-fused relu
-void conv_relu_naive(memory user_src, memory user_wei, memory user_dst, engine &eng, stream &s) {
+void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
+        engine &eng, stream &s) {
     /// @section performance_profiling_cpp_implementation1 Naive Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
@@ -224,7 +225,8 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst, engine &
 
 // Implementation for convolution on blocked format for data and
 // weights, followed by execution of non-fused relu
-void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst, engine &eng, stream &s){
+void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
+        engine &eng, stream &s) {
     /// @page performance_profiling_cpp
     /// @section performance_profiling_cpp_implementation2 Blocked format implementation
     /// This implementation is launched with the following shell code:
@@ -366,7 +368,8 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst, engine
 // Implementation for convolution on blocked format for data and
 // weights and the relu operation fused via a post-op attribute added to the
 // convolution prim_descriptor
-void conv_relu_fused(memory user_src, memory user_wei, memory user_dst, engine eng, stream s) {
+void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
+        engine eng, stream s) {
     /// @section performance_profiling_cpp_implementation3 Fused Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
@@ -518,11 +521,14 @@ int main(int argc, char *argv[]) {
     // create DNNL memory objects for user's tensors (in nchw and oihw formats)
     // @note here the library allocates memory
     auto user_src = memory({{BATCH, IC, IH, IW}, memory::data_type::f32,
-                    memory::format_tag::nchw}, eng);
+                                   memory::format_tag::nchw},
+            eng);
     auto user_wei = memory({{OC, IC, KH, KW}, memory::data_type::f32,
-                    memory::format_tag::oihw}, eng);
+                                   memory::format_tag::oihw},
+            eng);
     auto user_dst = memory({{BATCH, OC, OH, OW}, memory::data_type::f32,
-                    memory::format_tag::nchw}, eng);
+                                   memory::format_tag::nchw},
+            eng);
     // [Create memory objects]
 
     // fill source, destination, and weights with synthetic data
@@ -538,10 +544,8 @@ int main(int argc, char *argv[]) {
     else if (argc == 3)
         implementation = argv[2];
 
-    if (!(implementation == "validation"
-                || implementation == "naive"
-                || implementation == "blocked"
-                || implementation == "fused")) {
+    if (!(implementation == "validation" || implementation == "naive"
+                || implementation == "blocked" || implementation == "fused")) {
         std::cout << "The implementation can be one of:\n";
         std::cout << " - naive: NCHW format without fusion\n";
         std::cout << " - blocked: format propagation without fusion\n";

@@ -48,30 +48,26 @@ void compute_ref_inner_product_fwd(test_inner_product_descr_t ipd, memory &src,
 
     auto padded_ic = src_mdw.padded_dims()[1];
 
-    dnnl::impl::parallel_nd(
-            ipd.mb, ipd.oc, [&](memory::dim n, memory::dim oc) {
-                memory::dim oidx = n * ipd.oc + oc;
-                dst_data[dst_mdw.off_l(oidx, true)] = bias_data
-                        ? bias_data[bias_mdw.off_l(oc, true)]
-                        : data_t {0};
-                for (memory::dim ic = 0; ic < ipd.ic; ic++) {
-                    for_(memory::dim kd = 0; kd < ipd.kd; kd++)
-                    for_(memory::dim kh = 0; kh < ipd.kh; kh++)
-                    for (memory::dim kw = 0; kw < ipd.kw; kw++) {
-                        memory::dim iidx
-                                = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                                + ic * ipd.kd * ipd.kh * ipd.kw
-                                + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        memory::dim widx
-                                = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                                + ic * ipd.kd * ipd.kh * ipd.kw
-                                + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        dst_data[dst_mdw.off_l(oidx, true)]
-                                += src_data[src_mdw.off_l(iidx, true)]
-                                * weights_data[weights_mdw.off_l(widx, true)];
-                    }
-                }
-            });
+    dnnl::impl::parallel_nd(ipd.mb, ipd.oc, [&](memory::dim n, memory::dim oc) {
+        memory::dim oidx = n * ipd.oc + oc;
+        dst_data[dst_mdw.off_l(oidx, true)]
+                = bias_data ? bias_data[bias_mdw.off_l(oc, true)] : data_t {0};
+        for (memory::dim ic = 0; ic < ipd.ic; ic++) {
+            for_(memory::dim kd = 0; kd < ipd.kd; kd++)
+            for_(memory::dim kh = 0; kh < ipd.kh; kh++)
+            for (memory::dim kw = 0; kw < ipd.kw; kw++) {
+                memory::dim iidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw + kd * ipd.kh * ipd.kw
+                        + kh * ipd.kw + kw;
+                memory::dim widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw + kd * ipd.kh * ipd.kw
+                        + kh * ipd.kw + kw;
+                dst_data[dst_mdw.off_l(oidx, true)]
+                        += src_data[src_mdw.off_l(iidx, true)]
+                        * weights_data[weights_mdw.off_l(widx, true)];
+            }
+        }
+    });
 }
 
 struct inprod_test_params {

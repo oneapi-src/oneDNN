@@ -183,11 +183,11 @@ ref_pooling_fwd_kernel(
                 ws[dst_off] = -1;
 #endif
 #if POOLING_MAX == 1
-#            if DT_BF16 == 1
+#if DT_BF16 == 1
                 DEF_ACC_DATA_T d = DATA_MIN;
-#            else // DT_BF16 == 0
+#else // DT_BF16 == 0
                 DATA_T d = DATA_MIN;
-#            endif
+#endif
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh) {
                         for (int kw = 0; kw < KW; ++kw) {
@@ -202,11 +202,11 @@ ref_pooling_fwd_kernel(
                             if (ws[dst_off] < 0)
                                 ws[dst_off] = kd * KH * KW + kh * KW + kw;
                             int src_off = SRC_OFF(mb, oc, id, ih, iw);
-#            if DT_BF16 == 1
+#if DT_BF16 == 1
                             DEF_ACC_DATA_T s = DATA_TO_REF(src[src_off]);
-#            else // DT_BF16 == 0
+#else // DT_BF16 == 0
                             DATA_T s = src[src_off];
-#            endif
+#endif
                             if (s > d) {
                                 d = s;
 #if POOLING_MAX == 1 && IS_TRAINING == 1
@@ -215,11 +215,11 @@ ref_pooling_fwd_kernel(
                             }
                         }
                     }
-#            if DT_BF16 == 1
+#if DT_BF16 == 1
                 dst[dst_off] = CONVERT_DATA_T(d);
-#            else // DT_BF16 == 0
+#else // DT_BF16 == 0
                 dst[dst_off] = d;
-#            endif
+#endif
 #if POOLING_MAX == 1 && IS_TRAINING == 1
                 if (ws[dst_off] < 0) ws[dst_off] = 0;
 #endif
@@ -245,8 +245,7 @@ ref_pooling_fwd_kernel(
                             d += DATA_TO_REF(src[src_off]);
                         }
                     }
-                dst[dst_off]
-                        = CONVERT_DATA_T(ROUND(d / num_summands));
+                dst[dst_off] = CONVERT_DATA_T(ROUND(d / num_summands));
 #endif
             }
 #endif

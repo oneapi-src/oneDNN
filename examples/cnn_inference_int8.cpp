@@ -102,70 +102,68 @@ void simple_net_int8(engine::kind engine_kind) {
     /// The user data will be in its original 32-bit floating point format.
     /// @snippet cnn_inference_int8.cpp Allocate buffers
     //[Allocate buffers]
-        auto user_src_memory = memory({ { conv_src_tz }, dt::f32, tag::nchw }, eng);
-        write_to_dnnl_memory(user_src.data(), user_src_memory);
-        auto user_weights_memory
-                = memory({ { conv_weights_tz }, dt::f32, tag::oihw }, eng);
-        write_to_dnnl_memory(conv_weights.data(), user_weights_memory);
-        auto user_bias_memory = memory({ { conv_bias_tz }, dt::f32, tag::x }, eng);
-        write_to_dnnl_memory(conv_bias.data(), user_bias_memory);
-        //[Allocate buffers]
+    auto user_src_memory = memory({{conv_src_tz}, dt::f32, tag::nchw}, eng);
+    write_to_dnnl_memory(user_src.data(), user_src_memory);
+    auto user_weights_memory
+            = memory({{conv_weights_tz}, dt::f32, tag::oihw}, eng);
+    write_to_dnnl_memory(conv_weights.data(), user_weights_memory);
+    auto user_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
+    write_to_dnnl_memory(conv_bias.data(), user_bias_memory);
+    //[Allocate buffers]
 
-        /// Create a memory descriptor for each convolution parameter.
-        /// The convolution data uses 8-bit integer values, so the memory
-        /// descriptors are configured as:
-        ///
-        /// * 8-bit unsigned (u8) for source and destination.
-        /// * 8-bit signed (s8) for bias and weights.
-        ///
-        ///  > **Note**
-        ///  > The destination type is chosen as *unsigned* because the
-        ///  > convolution applies a ReLU operation where data results \f$\geq 0\f$.
-        /// @snippet cnn_inference_int8.cpp Create convolution memory descriptors
-        //[Create convolution memory descriptors]
-        auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, tag::any);
-        auto conv_bias_md = memory::desc({conv_bias_tz}, dt::s8, tag::any);
-        auto conv_weights_md
-                = memory::desc({conv_weights_tz}, dt::s8, tag::any);
-        auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
-        //[Create convolution memory descriptors]
+    /// Create a memory descriptor for each convolution parameter.
+    /// The convolution data uses 8-bit integer values, so the memory
+    /// descriptors are configured as:
+    ///
+    /// * 8-bit unsigned (u8) for source and destination.
+    /// * 8-bit signed (s8) for bias and weights.
+    ///
+    ///  > **Note**
+    ///  > The destination type is chosen as *unsigned* because the
+    ///  > convolution applies a ReLU operation where data results \f$\geq 0\f$.
+    /// @snippet cnn_inference_int8.cpp Create convolution memory descriptors
+    //[Create convolution memory descriptors]
+    auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, tag::any);
+    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::s8, tag::any);
+    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::s8, tag::any);
+    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
+    //[Create convolution memory descriptors]
 
-        /// Create a convolution descriptor passing the int8 memory
-        /// descriptors as parameters.
-        /// @snippet cnn_inference_int8.cpp Create convolution descriptor
-        //[Create convolution descriptor]
-        auto conv_desc = convolution_forward::desc(prop_kind::forward,
-                algorithm::convolution_direct, conv_src_md, conv_weights_md,
-                conv_bias_md, conv_dst_md, conv_strides, conv_padding,
-                conv_padding);
-        //[Create convolution descriptor]
+    /// Create a convolution descriptor passing the int8 memory
+    /// descriptors as parameters.
+    /// @snippet cnn_inference_int8.cpp Create convolution descriptor
+    //[Create convolution descriptor]
+    auto conv_desc = convolution_forward::desc(prop_kind::forward,
+            algorithm::convolution_direct, conv_src_md, conv_weights_md,
+            conv_bias_md, conv_dst_md, conv_strides, conv_padding,
+            conv_padding);
+    //[Create convolution descriptor]
 
-        /// Configuring int8-specific parameters in an int8 primitive is done
-        /// via the Attributes Primitive. Create an attributes object for the
-        /// convolution and configure it accordingly.
-        /// @snippet cnn_inference_int8.cpp Configure scaling
-        //[Configure scaling]
-        primitive_attr conv_attr;
-        conv_attr.set_output_scales(conv_mask, conv_scales);
-        //[Configure scaling]
+    /// Configuring int8-specific parameters in an int8 primitive is done
+    /// via the Attributes Primitive. Create an attributes object for the
+    /// convolution and configure it accordingly.
+    /// @snippet cnn_inference_int8.cpp Configure scaling
+    //[Configure scaling]
+    primitive_attr conv_attr;
+    conv_attr.set_output_scales(conv_mask, conv_scales);
+    //[Configure scaling]
 
-        /// The ReLU layer from Alexnet is executed through the PostOps feature. Create
-        /// a PostOps object and configure it to execute an _eltwise relu_ operation.
-        /// @snippet cnn_inference_int8.cpp Configure post-ops
-        //[Configure post-ops]
-        const float ops_scale = 1.f;
-        const float ops_alpha = 0.f; // relu negative slope
-        const float ops_beta = 0.f;
-        post_ops ops;
-        ops.append_eltwise(
-                ops_scale, algorithm::eltwise_relu, ops_alpha, ops_beta);
-        conv_attr.set_post_ops(ops);
-        //[Configure post-ops]
+    /// The ReLU layer from Alexnet is executed through the PostOps feature. Create
+    /// a PostOps object and configure it to execute an _eltwise relu_ operation.
+    /// @snippet cnn_inference_int8.cpp Configure post-ops
+    //[Configure post-ops]
+    const float ops_scale = 1.f;
+    const float ops_alpha = 0.f; // relu negative slope
+    const float ops_beta = 0.f;
+    post_ops ops;
+    ops.append_eltwise(ops_scale, algorithm::eltwise_relu, ops_alpha, ops_beta);
+    conv_attr.set_post_ops(ops);
+    //[Configure post-ops]
 
-        // check if int8 convolution is supported
-        try {
-            auto conv_prim_desc = convolution_forward::primitive_desc(
-                    conv_desc, conv_attr, eng);
+    // check if int8 convolution is supported
+    try {
+        auto conv_prim_desc = convolution_forward::primitive_desc(
+                conv_desc, conv_attr, eng);
     } catch (error &e) {
         if (e.status == dnnl_unimplemented) {
             std::cerr << "DNNL does not have int8 convolution "
@@ -183,8 +181,8 @@ void simple_net_int8(engine::kind engine_kind) {
     /// formats for the computation.
     /// @snippet cnn_inference_int8.cpp Create convolution primitive descriptor
     //[Create convolution primitive descriptor]
-    auto conv_prim_desc = convolution_forward::primitive_desc(
-            conv_desc, conv_attr, eng);
+    auto conv_prim_desc
+            = convolution_forward::primitive_desc(conv_desc, conv_attr, eng);
     //[Create convolution primitive descriptor]
 
     /// Create a memory for each of the convolution's data input
@@ -207,28 +205,27 @@ void simple_net_int8(engine::kind engine_kind) {
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
     primitive_attr src_attr;
     src_attr.set_output_scales(src_mask, src_scales);
-    auto src_reorder_pd = reorder::primitive_desc(eng,
-            user_src_memory.get_desc(), eng,
-            conv_src_memory.get_desc(), src_attr);
+    auto src_reorder_pd
+            = reorder::primitive_desc(eng, user_src_memory.get_desc(), eng,
+                    conv_src_memory.get_desc(), src_attr);
     auto src_reorder = reorder(src_reorder_pd);
     src_reorder.execute(s, user_src_memory, conv_src_memory);
 
-    auto conv_weights_memory
-            = memory(conv_prim_desc.weights_desc(), eng);
+    auto conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
     primitive_attr weight_attr;
     weight_attr.set_output_scales(weight_mask, weight_scales);
-    auto weight_reorder_pd = reorder::primitive_desc(eng,
-            user_weights_memory.get_desc(), eng,
-            conv_weights_memory.get_desc(), weight_attr);
+    auto weight_reorder_pd
+            = reorder::primitive_desc(eng, user_weights_memory.get_desc(), eng,
+                    conv_weights_memory.get_desc(), weight_attr);
     auto weight_reorder = reorder(weight_reorder_pd);
     weight_reorder.execute(s, user_weights_memory, conv_weights_memory);
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), eng);
     primitive_attr bias_attr;
     bias_attr.set_output_scales(bias_mask, bias_scales);
-    auto bias_reorder_pd = reorder::primitive_desc(eng,
-            user_bias_memory.get_desc(), eng,
-            conv_bias_memory.get_desc(), bias_attr);
+    auto bias_reorder_pd
+            = reorder::primitive_desc(eng, user_bias_memory.get_desc(), eng,
+                    conv_bias_memory.get_desc(), bias_attr);
     auto bias_reorder = reorder(bias_reorder_pd);
     bias_reorder.execute(s, user_bias_memory, conv_bias_memory);
     //[Quantize data and weights]
@@ -257,14 +254,13 @@ void simple_net_int8(engine::kind engine_kind) {
     /// computation output data.
     /// @snippet cnn_inference_int8.cpp Dequantize the result
     ///[Dequantize the result]
-    auto user_dst_memory = memory({ { conv_dst_tz }, dt::f32, tag::nchw },
-            eng);
+    auto user_dst_memory = memory({{conv_dst_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
     primitive_attr dst_attr;
     dst_attr.set_output_scales(dst_mask, dst_scales);
-    auto dst_reorder_pd = reorder::primitive_desc(eng,
-            conv_dst_memory.get_desc(), eng,
-            user_dst_memory.get_desc(), dst_attr);
+    auto dst_reorder_pd
+            = reorder::primitive_desc(eng, conv_dst_memory.get_desc(), eng,
+                    user_dst_memory.get_desc(), dst_attr);
     auto dst_reorder = reorder(dst_reorder_pd);
     dst_reorder.execute(s, conv_dst_memory, user_dst_memory);
     //[Dequantize the result]

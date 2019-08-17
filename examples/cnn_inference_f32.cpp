@@ -102,14 +102,13 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// for weights.
     /// @snippet cnn_inference_f32.cpp Create user memory
     //[Create user memory]
-    auto user_src_memory
-            = memory({{ conv1_src_tz}, dt::f32, tag::nchw}, eng);
+    auto user_src_memory = memory({{conv1_src_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(user_src.data(), user_src_memory);
     auto user_weights_memory
-            = memory({{ conv1_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{conv1_weights_tz}, dt::f32, tag::oihw}, eng);
     write_to_dnnl_memory(conv1_weights.data(), user_weights_memory);
     auto conv1_user_bias_memory
-            = memory({{ conv1_bias_tz }, dt::f32, tag::x}, eng);
+            = memory({{conv1_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(conv1_bias.data(), conv1_user_bias_memory);
     //[Create user memory]
 
@@ -634,8 +633,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto fc6_user_weights_memory
             = memory({{fc6_weights_tz}, dt::f32, tag::oihw}, eng);
     write_to_dnnl_memory(fc6_weights.data(), fc6_user_weights_memory);
-    auto fc6_user_bias_memory
-            = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc6_user_bias_memory = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(fc6_bias.data(), fc6_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
@@ -682,12 +680,11 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc7_bias(product(fc7_bias_tz));
 
     // create memory for user data
-    auto fc7_user_weights_memory = memory(
-            {{fc7_weights_tz}, dt::f32, tag::nc}, eng);
+    auto fc7_user_weights_memory
+            = memory({{fc7_weights_tz}, dt::f32, tag::nc}, eng);
     write_to_dnnl_memory(fc7_weights.data(), fc7_user_weights_memory);
 
-    auto fc7_user_bias_memory
-            = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc7_user_bias_memory = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(fc7_bias.data(), fc7_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
@@ -725,14 +722,12 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc8_bias(product(fc8_bias_tz));
 
     // create memory for user data
-    auto fc8_user_weights_memory = memory(
-            {{fc8_weights_tz}, dt::f32, tag::nc}, eng);
+    auto fc8_user_weights_memory
+            = memory({{fc8_weights_tz}, dt::f32, tag::nc}, eng);
     write_to_dnnl_memory(fc8_weights.data(), fc8_user_weights_memory);
-    auto fc8_user_bias_memory
-            = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc8_user_bias_memory = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
     write_to_dnnl_memory(fc8_bias.data(), fc8_user_bias_memory);
-    auto user_dst_memory
-            = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
+    auto user_dst_memory = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
 
     // create memory descriptors for convolution data w/ no specified format
