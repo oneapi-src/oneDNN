@@ -50,6 +50,13 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims) {
+    s << sdims[0];
+    for (size_t d = 1; d < sdims.size(); ++d)
+        s << ":" << sdims[d];
+    return s;
+}
+
 std::ostream &operator<<(
         std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt) {
     s << dt2str(v_dt[0]);

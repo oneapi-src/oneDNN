@@ -238,6 +238,15 @@ inline bool operator==(const batch_normalization_desc_t &lhs,
     return ret;
 }
 
+inline bool operator==(const binary_desc_t &lhs, const binary_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(src_desc[0])
+            && COMPARE_DESC_MEMBERS(src_desc[1])
+            && COMPARE_DESC_MEMBERS(dst_desc);
+    return ret;
+}
+
 inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(dst_md) && COMPARE_DESC_MEMBERS(n)

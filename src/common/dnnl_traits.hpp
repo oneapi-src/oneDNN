@@ -121,6 +121,7 @@ PKIND_TRAITS_INST(layer_normalization);
 PKIND_TRAITS_INST(inner_product);
 PKIND_TRAITS_INST(rnn);
 PKIND_TRAITS_INST(gemm);
+PKIND_TRAITS_INST(binary);
 #undef PKIND_TRAITS_INST
 
 } // namespace impl

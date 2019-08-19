@@ -61,6 +61,7 @@
 #include "cpu/nhwc_pooling.hpp"
 #include "cpu/nspc_batch_normalization.hpp"
 #include "cpu/ref_batch_normalization.hpp"
+#include "cpu/ref_binary.hpp"
 #include "cpu/ref_convolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
 #include "cpu/ref_eltwise.hpp"
@@ -352,6 +353,9 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_layer_normalization_bwd_t<f32>),
         INSTANCE(ref_layer_normalization_fwd_t<bf16>),
         INSTANCE(ref_layer_normalization_bwd_t<bf16>),
+        /* binary op */
+        INSTANCE(ref_binary_t<f32>),
+        INSTANCE(ref_binary_t<bf16>),
         /* eol */
         nullptr,
 };

@@ -26,6 +26,7 @@
 #include "verbose.hpp"
 
 #include "batch_normalization_pd.hpp"
+#include "binary_pd.hpp"
 #include "concat_pd.hpp"
 #include "convolution_pd.hpp"
 #include "deconvolution_pd.hpp"
@@ -623,6 +624,41 @@ static void init_info_rnn(pd_t *s, char *buffer) {
             s->desc()->prop_kind, dat_str, aux_str, prb_str);
 }
 
+template <typename pd_t>
+static void init_info_binary(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    if (1) { // src0
+        auto md = s->src_md(0);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
+    }
+    if (1) { // src1
+        auto md = s->src_md(1);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " src_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+    if (1) { // dst
+        auto md = s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+
+    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
+            dnnl_alg_kind2str(s->desc()->alg_kind));
+
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(), prop_kind::undef,
+            dat_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 
 #else // !defined(DISABLE_VERBOSE)
@@ -634,6 +670,7 @@ static void init_info_rnn(pd_t *s, char *buffer) {
         UNUSED(buffer); \
     }
 
+DEFINE_STUB(binary);
 DEFINE_STUB(bnorm);
 DEFINE_STUB(concat);
 DEFINE_STUB(conv);
@@ -653,6 +690,9 @@ DEFINE_STUB(softmax);
 
 void init_info(batch_normalization_pd_t *s, char *b) {
     init_info_bnorm(s, b);
+}
+void init_info(binary_pd_t *s, char *b) {
+    init_info_binary(s, b);
 }
 void init_info(concat_pd_t *s, char *b) {
     init_info_concat(s, b);

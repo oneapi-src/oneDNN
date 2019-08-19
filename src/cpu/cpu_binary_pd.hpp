@@ -14,26 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "concat/concat.hpp"
-#include "dnnl_debug.hpp"
+#ifndef CPU_BINARY_PD_HPP
+#define CPU_BINARY_PD_HPP
 
-namespace concat {
+#include "binary_pd.hpp"
+#include "c_types_map.hpp"
+#include "cpu_engine.hpp"
+#include "type_helpers.hpp"
+#include "utils.hpp"
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
-    dump_global_params(s);
+namespace dnnl {
+namespace impl {
+namespace cpu {
 
-    if (p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
-    if (p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (!(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
-                && p.stag[1] == dnnl_nchw))
-        s << "--stag=" << p.stag << " ";
-    if (p.dtag != dnnl_format_tag_undef)
-        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
-    s << "--axis=" << p.axis << " ";
+struct cpu_binary_pd_t : public binary_pd_t {
+    using binary_pd_t::binary_pd_t;
+};
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
-    s << p.sdims;
+#endif
 
-    return s;
-}
-
-} // namespace concat
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

@@ -27,6 +27,7 @@
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
 
+#include "binary/binary.hpp"
 #include "bnorm/bnorm.hpp"
 #include "concat/concat.hpp"
 #include "conv/conv.hpp"
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
             prim = CONCAT;
         else if (!strcmp("--lrn", argv[0]))
             prim = LRN;
+        else if (!strcmp("--binary", argv[0]))
+            prim = BINARY;
         else
             break;
     }
@@ -115,6 +118,7 @@ int main(int argc, char **argv) {
         case ELTWISE: eltwise::bench(argc, argv); break;
         case CONCAT: concat::bench(argc, argv); break;
         case LRN: lrn::bench(argc, argv); break;
+        case BINARY: binary::bench(argc, argv); break;
         default: fprintf(stderr, "err: unknown driver\n");
     }
 

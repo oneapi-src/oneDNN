@@ -49,6 +49,7 @@ Memory bandwidth limited operations:
  * [Sum](@ref dev_guide_sum)
  * [Concat](@ref dev_guide_concat)
  * [Shuffle](@ref dev_guide_shuffle)
+ * [Binary](@ref dev_guide_binary)
 
 Data manipulation:
  * [Reorder](@ref dev_guide_reorder)

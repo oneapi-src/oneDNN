@@ -30,6 +30,7 @@
 struct dims_t : public std::vector<int64_t> {};
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
+std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims);
 std::ostream &operator<<(
         std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt);
 std::ostream &operator<<(

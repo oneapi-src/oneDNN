@@ -49,6 +49,9 @@ struct key_t {
                 ret = cast_and_compare<batch_normalization_desc_t>(
                         op_desc_, rhs.op_desc_);
                 break;
+            case primitive_kind::binary:
+                ret = cast_and_compare<binary_desc_t>(op_desc_, rhs.op_desc_);
+                break;
             case primitive_kind::concat:
                 ret = cast_and_compare<concat_desc_t>(op_desc_, rhs.op_desc_);
                 break;
@@ -296,6 +299,21 @@ size_t get_desc_hash<batch_normalization_desc_t>(const op_desc_t *op_desc) {
     // Flags
     seed = hash_combine(seed, desc->flags);
     // Combined hash for batch normalization desc
+    return seed;
+}
+
+template <>
+size_t get_desc_hash<binary_desc_t>(const op_desc_t *op_desc) {
+    const auto *desc = reinterpret_cast<const binary_desc_t *>(op_desc);
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc->primitive_kind));
+    seed = hash_combine(seed, static_cast<size_t>(desc->alg_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc->src_desc[0]));
+    seed = hash_combine(seed, get_md_hash(desc->src_desc[1]));
+    seed = hash_combine(seed, get_md_hash(desc->dst_desc));
+    // Combined hash for binary op desc
     return seed;
 }
 
@@ -605,6 +623,10 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                 seed = hash_combine(seed,
                         get_desc_hash<batch_normalization_desc_t>(
                                 key.op_desc_));
+                break;
+            case primitive_kind::binary:
+                seed = hash_combine(
+                        seed, get_desc_hash<binary_desc_t>(key.op_desc_));
                 break;
             case primitive_kind::concat:
                 seed = hash_combine(

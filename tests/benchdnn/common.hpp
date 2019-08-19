@@ -125,6 +125,7 @@ enum prim_t {
     ELTWISE,
     CONCAT,
     LRN,
+    BINARY,
     DEF = CONV,
 };
 

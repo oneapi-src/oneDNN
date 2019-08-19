@@ -65,7 +65,6 @@ struct prb_t {
         ddims[axis] = axis_size();
     }
 };
-std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> sdims);
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 struct perf_report_t : public base_perf_report_t {

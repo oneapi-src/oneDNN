@@ -380,6 +380,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_inner_product) return "inner_product";
     if (v == dnnl_rnn) return "rnn";
     if (v == dnnl_gemm) return "gemm";
+    if (v == dnnl_binary) return "binary";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }
@@ -414,6 +415,8 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_vanilla_lstm) return "vanilla_lstm";
     if (v == dnnl_vanilla_gru) return "vanilla_gru";
     if (v == dnnl_lbr_gru) return "lbr_gru";
+    if (v == dnnl_binary_add) return "binary_add";
+    if (v == dnnl_binary_mul) return "binary_mul";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }
