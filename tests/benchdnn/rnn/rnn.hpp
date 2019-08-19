@@ -417,8 +417,8 @@ inline size_t ldgo_off_f(
 
 inline void inv_ldgo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
         int64_t &b, int64_t &c) {
-    c = off % p.sic;
-    off /= p.sic;
+    c = off % p.dic;
+    off /= p.dic;
     b = off % p.n_bias();
     off /= p.n_bias();
     d = off % p.n_dir();
