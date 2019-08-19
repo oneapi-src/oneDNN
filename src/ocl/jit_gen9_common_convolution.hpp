@@ -261,6 +261,11 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
 
             ok = set_default_formats_common(
                     jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_gen9_common_conv_bwd_weights_kernel::init_scratchpad(
+                    scratchpad, jcp_);
+
             return ok ? status::success : status::unimplemented;
         }
         jit_conv_conf_t jcp_;
@@ -296,33 +301,6 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
         reduce_kernel_ = kernels[1];
         load_tails_ = kernels[2];
 
-        if (pd()->jcp_.ver == ver_16mb16c || pd()->jcp_.ver == ver_8ow16c
-                || pd()->jcp_.ver == ver_1stconv) {
-            size_t size = pd()->jcp_.ngroups * pd()->jcp_.nchunk * pd()->jcp_.oc
-                    * pd()->jcp_.ic * pd()->jcp_.kh * pd()->jcp_.kw
-                    * pd()->jcp_.kd * sizeof(float);
-            memory_storage_t *wht_work_ptr;
-            engine()->create_memory_storage(&wht_work_ptr, size);
-            wht_work.reset(wht_work_ptr);
-            if (!wht_work) return status::runtime_error;
-
-            size = pd()->jcp_.ngroups * pd()->jcp_.nchunk * pd()->jcp_.oc
-                    * sizeof(float);
-            memory_storage_t *bias_work_ptr;
-            engine()->create_memory_storage(&bias_work_ptr, size);
-            bias_work.reset(bias_work_ptr);
-            if (!bias_work) return status::runtime_error;
-        }
-        if (pd()->jcp_.ver == ver_8ow16c) {
-            size_t size = 2 * 16
-                    * (2 * pd()->jcp_.l_pad + pd()->jcp_.iw + pd()->jcp_.kw + 8)
-                    * sizeof(float);
-            memory_storage_t *tails_ptr;
-            engine()->create_memory_storage(&tails_ptr, size);
-            tails.reset(tails_ptr);
-            if (!tails) return status::runtime_error;
-        }
-
         return status::success;
     }
 
@@ -344,9 +322,6 @@ private:
     compute::kernel_t kernel_;
     compute::kernel_t reduce_kernel_;
     compute::kernel_t load_tails_;
-    std::unique_ptr<memory_storage_t> wht_work;
-    std::unique_ptr<memory_storage_t> bias_work;
-    std::unique_ptr<memory_storage_t> tails;
 };
 
 } // namespace ocl
