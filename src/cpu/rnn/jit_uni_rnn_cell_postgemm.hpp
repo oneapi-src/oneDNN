@@ -170,8 +170,8 @@ protected:
         L(vector_loop_start_label);
         {
             // load G
-            uni_vmovups(
-                    G, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
+            auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+            uni_vmovups(G, G_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -183,6 +183,10 @@ protected:
 
             // inject eltwise code
             injector_->compute_vector(G.getIdx());
+
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training)
+                uni_vmovups(G_addr, G);
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) { q_d(G, tmp1_vmm, tmp_reg); }
@@ -230,8 +234,8 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // load G
-            uni_vmovss(
-                    Gs, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
+            auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+            uni_vmovss(Gs, G_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -245,6 +249,10 @@ protected:
 
             // inject eltwise code
             injector_->compute_vector(Gs.getIdx());
+
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training)
+                uni_vmovss(G_addr, Gs);
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) { q_d(G, tmp1_vmm, tmp_reg); }

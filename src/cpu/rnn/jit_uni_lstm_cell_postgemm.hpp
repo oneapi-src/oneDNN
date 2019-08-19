@@ -195,14 +195,15 @@ protected:
         L(vector_loop_start_label);
         {
             // load G0 G1 G2 G3
-            uni_vmovups(
-                    G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
-            uni_vmovups(
-                    G1, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
-            uni_vmovups(
-                    G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
-            uni_vmovups(
-                    G3, ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size]);
+            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
+            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
+            auto G3_addr = ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size];
+
+            uni_vmovups(G0, G0_addr);
+            uni_vmovups(G1, G1_addr);
+            uni_vmovups(G2, G2_addr);
+            uni_vmovups(G3, G3_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -231,6 +232,14 @@ protected:
             sigmoid_injector_->compute_vector(G1.getIdx());
             tanh_injector_->compute_vector(G2.getIdx());
             sigmoid_injector_->compute_vector(G3.getIdx());
+
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training) {
+                uni_vmovups(G0_addr, G0);
+                uni_vmovups(G1_addr, G1);
+                uni_vmovups(G2_addr, G2);
+                uni_vmovups(G3_addr, G3);
+            }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
             uni_vmovups(tmp1_vmm, ptr[addr_c_states_tm1_l_reg]);
@@ -288,14 +297,14 @@ protected:
         L(rem_loop_start_label);
         {
             // load G0 G1 G2 G3
-            uni_vmovss(
-                    G0, ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size]);
-            uni_vmovss(
-                    G1, ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size]);
-            uni_vmovss(
-                    G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
-            uni_vmovss(
-                    G3, ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size]);
+            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
+            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
+            auto G3_addr = ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size];
+            uni_vmovss(G0, G0_addr);
+            uni_vmovss(G1, G1_addr);
+            uni_vmovss(G2, G2_addr);
+            uni_vmovss(G3, G3_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -324,6 +333,14 @@ protected:
             sigmoid_injector_->compute_vector(G1.getIdx());
             tanh_injector_->compute_vector(G2.getIdx());
             sigmoid_injector_->compute_vector(G3.getIdx());
+
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training) {
+                uni_vmovss(G0_addr, G0);
+                uni_vmovss(G1_addr, G1);
+                uni_vmovss(G2_addr, G2);
+                uni_vmovss(G3_addr, G3);
+            }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
             uni_vmovups(tmp1_vmm, ptr[addr_c_states_tm1_l_reg]);

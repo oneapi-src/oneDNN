@@ -98,12 +98,15 @@ protected:
         L(vector_loop_start_label);
         {
             // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovups(
-                    G2, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
+            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
+            uni_vmovups(G2, G2_addr);
             uni_vmovups(
                     tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             uni_vaddps(G2, G2, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training)
+                uni_vmovups(G2_addr, G2);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(
@@ -139,11 +142,14 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovss(
-                    G2s, ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size]);
+            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
+            uni_vmovss(G2s, G2_addr);
             uni_vaddss(
                     G2s, G2s, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
             tanh_injector_->compute_vector(G2s.getIdx());
+            // if training we write back the gates
+            if (pd_->desc()->prop_kind == prop_kind::forward_training)
+                uni_vmovss(G2_addr, G2s);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(
