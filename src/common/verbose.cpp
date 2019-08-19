@@ -624,9 +624,9 @@ static void init_info_softmax(pd_t *s, char *buffer) {
         }
     }
 
-    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
-
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:%d", s->axis());
+
+    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
 
     verbose_templ(buffer, s->engine(), s->kind(), s->name(),
             s->desc()->prop_kind, dat_str, aux_str, prb_str);
@@ -740,18 +740,15 @@ DEFINE_STUB(iprod);
 DEFINE_STUB(lrn);
 DEFINE_STUB(mem);
 DEFINE_STUB(pool);
-DEFINE_STUB(softmax);
 DEFINE_STUB(rnn);
 DEFINE_STUB(shuffle);
+DEFINE_STUB(softmax);
 #undef DEFINE_STUB
 
 #endif // !defined(DISABLE_VERBOSE)
 } // namespace
 
 void init_info(batch_normalization_pd_t *s, char *b) {
-    init_info_bnorm(s, b);
-}
-void init_info(layer_normalization_pd_t *s, char *b) {
     init_info_bnorm(s, b);
 }
 void init_info(concat_pd_t *s, char *b) {
@@ -771,6 +768,9 @@ void init_info(gemm_pd_t *s, char *b) {
 }
 void init_info(inner_product_pd_t *s, char *b) {
     init_info_iprod(s, b);
+}
+void init_info(layer_normalization_pd_t *s, char *b) {
+    init_info_bnorm(s, b);
 }
 void init_info(lrn_pd_t *s, char *b) {
     init_info_lrn(s, b);

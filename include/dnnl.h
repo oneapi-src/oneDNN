@@ -407,7 +407,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_eltwise(
 /// If a *zero-volume* memory is passed to a primitive, the primitive does
 /// not perform any computations on this memory. For example:
 ///  - Convolution with `(0 batch, 3 input channels, 13 height, 13 width)`
-///    source and `(16 output channels, 3 inputs, channel, 3 height, 3 width)`
+///    source and `(16 output channels, 3 input channels, 3 height, 3 width)`
 ///    weights would produce `(0 batch, 16 output channels, 11 height, 11 width)`
 ///    destination (assuming strides are `1` and paddings are zero) and perform
 ///    zero multiply-add operations.
