@@ -192,7 +192,7 @@ status_t memory_t::typed_zero_pad() const {
 
     if (mdw.nelems(false) == mdw.nelems(true)) return success;
 
-    void *mapped_ptr;
+    void *mapped_ptr = nullptr;
     status_t status = memory_storage()->map_data(&mapped_ptr);
     assert(status == status::success);
 

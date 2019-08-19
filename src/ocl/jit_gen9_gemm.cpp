@@ -512,7 +512,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
         columns_small = spread;
     }
 
-    void *plan_void;
+    void *plan_void = nullptr;
     temp_buf_->map_data(&plan_void);
 
     if (!plan_void) return status::runtime_error;

@@ -79,7 +79,7 @@ status_t ocl_stream_t::copy(
             && is_native_runtime(src.engine()->runtime_kind())) {
         assert(dst.engine()->kind() == engine_kind::gpu);
 
-        void *src_ptr;
+        void *src_ptr = nullptr;
         src.get_data_handle(&src_ptr);
 
         auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
@@ -91,7 +91,7 @@ status_t ocl_stream_t::copy(
             && is_native_runtime(dst.engine()->runtime_kind())) {
         assert(src.engine()->kind() == engine_kind::gpu);
 
-        void *dst_ptr;
+        void *dst_ptr = nullptr;
         dst.get_data_handle(&dst_ptr);
 
         auto &ocl_src = *utils::downcast<const ocl_memory_storage_t *>(&src);
