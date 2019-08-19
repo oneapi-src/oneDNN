@@ -27,6 +27,14 @@
 #include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
 
+namespace mkldnn {
+namespace impl {
+
+status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx);
+
+}
+}
+
 /** \brief A pure virtual primitive class
  *
  * Primitive contains links to its inputs & outputs, though it does not track

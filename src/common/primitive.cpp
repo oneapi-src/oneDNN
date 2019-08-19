@@ -57,18 +57,12 @@ status_t mkldnn_primitive_create(
     return primitive_desc->create_primitive(primitive);
 }
 
-status_t mkldnn_primitive_execute(const primitive_t *primitive,
-        stream_t *stream, int nargs, const mkldnn_exec_arg_t *c_args) {
-    bool ok = true && !utils::any_null(primitive, stream)
-            && primitive->engine() == stream->engine()
-            && IMPLICATION(nargs > 0, c_args != nullptr);
-    if (!ok) return invalid_arguments;
+namespace mkldnn {
+namespace impl {
+status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx) {
+    auto stream = ctx.stream();
 
-    exec_args_t args;
-    status_t status = cvt_primtive_args(primitive->pd(), nargs, c_args, args);
-    if (status != status::success) return status;
-
-    exec_ctx_t ctx(stream, std::move(args));
+    status_t status = success;
 
     const int gpu_exec_time_level = 4;
     if (mkldnn_verbose()->level) {
@@ -98,6 +92,25 @@ status_t mkldnn_primitive_execute(const primitive_t *primitive,
     }
 
     if (msan_enabled) unpoison_outputs(ctx.args());
+
+    return status;
+}
+
+}
+}
+status_t mkldnn_primitive_execute(const primitive_t *primitive,
+        stream_t *stream, int nargs, const mkldnn_exec_arg_t *c_args) {
+    bool ok = true && !utils::any_null(primitive, stream)
+            && primitive->engine() == stream->engine()
+            && IMPLICATION(nargs > 0, c_args != nullptr);
+    if (!ok) return invalid_arguments;
+
+    exec_args_t args;
+    status_t status = cvt_primtive_args(primitive->pd(), nargs, c_args, args);
+    if (status != status::success) return status;
+
+    exec_ctx_t ctx(stream, std::move(args));
+    status = mkldnn::impl::primitive_execute(primitive, ctx);
 
     return status;
 }
