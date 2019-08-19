@@ -24,6 +24,8 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
+using namespace dnnl::impl::memory_tracking::names;
+
 status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -38,7 +40,12 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     float beta = pd()->beta();
 
     status_t status = status::success;
-    if (scales) {
+
+    std::unique_ptr<memory_storage_t> scales;
+    if (jrp.scale_quant) {
+        scales = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_reorder_scales);
+
         void *tmp_ptr = nullptr;
         status = scales->map_data(&tmp_ptr);
         if (status != status::success) return status;

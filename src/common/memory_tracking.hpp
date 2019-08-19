@@ -185,6 +185,7 @@ enum {
     key_reducer_space,
     key_reducer_space_bctx,
     key_reorder_space,
+    key_reorder_scales,
     key_reorder_wino_plain,
     key_reorder_wino_transform_space,
     key_reorder_rnn_weights_quantization,

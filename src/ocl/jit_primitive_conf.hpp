@@ -358,6 +358,7 @@ struct jit_reorder_conf_t {
     int dim_block[6];
     int sub_group_size;
     int scale_mask;
+    size_t scales_num;
 
     jit_memory_desc_info_t src_md_info;
     jit_memory_desc_info_t dst_md_info;

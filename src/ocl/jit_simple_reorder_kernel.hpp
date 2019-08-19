@@ -18,6 +18,7 @@
 #define JIT_SIMPLE_REORDER_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
 #include "common/reorder_pd.hpp"
 #include "compute/compute.hpp"
@@ -53,6 +54,8 @@ struct jit_simple_reorder_kernel {
         const auto &padded_dims = dst_md.padded_dims();
         jrp.scale_quant = pd->attr()->output_scales_.mask_ != 0;
         jrp.scale_mask = jrp.scale_quant ? pd->attr()->output_scales_.mask_ : 0;
+        jrp.scales_num
+                = jrp.scale_quant ? pd->attr()->output_scales_.count_ : 0;
         jrp.with_sum_ab = jrp.scale_quant
                 ? false
                 : (pd->alpha() != 1.f || pd->beta() != 0.f);
@@ -276,6 +279,13 @@ struct jit_simple_reorder_kernel {
 
         kernel_ctx.print_options();
         return status::success;
+    }
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_reorder_conf_t &jrp) {
+        if (jrp.scales_num > 0)
+            scratchpad.book(memory_tracking::names::key_reorder_scales,
+                    sizeof(float) * jrp.scales_num);
     }
 
     jit_reorder_conf_t jrp;
