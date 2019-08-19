@@ -18,9 +18,12 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
+#include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
 
 #include "ocl/ref_batch_normalization.hpp"
+
+using namespace dnnl::impl::memory_tracking::names;
 
 namespace dnnl {
 namespace impl {
@@ -50,9 +53,16 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
     auto *mean_ptr = &mean_;
     auto *variance_ptr = &variance_;
-    if (jbn.use_16mb_unroll && jbn.calculate_stats && !jbn.save_stats) {
-        mean_ptr = temp_reduce.get();
-        variance_ptr = temp_reduce.get();
+
+    std::unique_ptr<memory_storage_t> temp_reduce = nullptr;
+    if (jbn.use_16mb_unroll && jbn.calculate_stats) {
+        temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_bnorm_reduction);
+
+        if (!jbn.save_stats) {
+            mean_ptr = temp_reduce.get();
+            variance_ptr = temp_reduce.get();
+        }
     }
 
     auto &mean = *mean_ptr;
@@ -115,7 +125,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
             = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
 
     return status;
-}
+} // namespace ocl
 
 status_t ref_batch_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
@@ -134,6 +144,12 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     auto &diff_scaleshift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const auto &jbn = ker_->jbn;
+
+    std::unique_ptr<memory_storage_t> temp_reduce;
+    if (jbn.use_16mb_unroll) {
+        temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_bnorm_reduction);
+    }
 
     auto &diff_scaleshift = (jbn.use_16mb_unroll && !jbn.diff_scaleshift)
             ? *temp_reduce
