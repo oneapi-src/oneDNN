@@ -217,3 +217,11 @@
    Copyright (c) 2011, Intel Corporation
    See full copyright notice and license text in
    src/cpu/jit_utils/jitprofiling/LICENSE.BSD
+
+   CMake, 3-clause BSD license
+   Copyright 2000-2019 Kitware, Inc. and Contributors
+   See full copyright notice and license text in cmake/Copyright.txt
+
+   MathJax, Apache License 2.0
+   Copyright (c) 2009-2018 The MathJax Consortium
+   See full copyright notice and license text in doc/assets/mathjax/LICENSE
