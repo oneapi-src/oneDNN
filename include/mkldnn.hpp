@@ -232,6 +232,12 @@ public:
 
     void execute(
             stream &astream, const std::unordered_map<int, memory> &args) const;
+
+#ifdef MKLDNN_SYCL_INTEL
+    cl::sycl::event MKLDNN_API execute_sycl(
+            stream &astream, const std::unordered_map<int, memory> &args,
+            const std::vector<cl::sycl::event> &deps = {}) const;
+#endif
 };
 
 inline mkldnn_primitive_kind_t convert_to_c(primitive::kind akind) {
@@ -1715,6 +1721,17 @@ struct reorder : public primitive {
         primitive::execute(
                 astream, {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst}});
     }
+
+#ifdef MKLDNN_SYCL_INTEL
+    using primitive::execute_sycl;
+
+    cl::sycl::event execute_sycl(
+            stream &astream, memory &src, memory &dst,
+            const std::vector<cl::sycl::event> &deps = {}) const {
+          return primitive::execute_sycl(
+                astream, {{MKLDNN_ARG_FROM, src}, {MKLDNN_ARG_TO, dst}}, deps);
+    }
+#endif
 };
 
 /// @}

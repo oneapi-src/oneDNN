@@ -1,0 +1,59 @@
+/*******************************************************************************
+* Copyright 2019 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#include "mkldnn.hpp"
+#include <CL/sycl.hpp>
+
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_desc.hpp"
+#include "common/primitive_exec_types.hpp"
+#include "sycl/sycl_stream.hpp"
+
+#ifdef MKLDNN_SYCL_INTEL
+
+namespace mkldnn {
+
+cl::sycl::event primitive::execute_sycl(
+        stream &stream, const std::unordered_map<int, memory> &aargs,
+        const std::vector<cl::sycl::event> &deps) const {
+    auto *sycl_stream = impl::utils::downcast<impl::sycl::sycl_stream_t *>(
+            stream.get());
+    sycl_stream->set_deps(deps);
+
+    // run primitive
+    auto impl_primitive = impl::utils::downcast<impl::primitive_t *>(get());
+
+    std::vector<mkldnn_exec_arg_t> c_args;
+    c_args.reserve(aargs.size());
+    for (const auto &a : aargs)
+        c_args.push_back({a.first, a.second.get()});
+
+    impl::exec_args_t args;
+    error::wrap_c_api(impl::cvt_primtive_args(
+                impl_primitive->pd(), (int)aargs.size(), c_args.data(), args),
+            "could not execute a primitive");
+
+    impl::exec_ctx_t ctx(sycl_stream, std::move(args));
+    error::wrap_c_api(mkldnn::impl::primitive_execute(impl_primitive, ctx),
+            "could not execute a primitive");
+
+    // return output event
+    return sycl_stream->get_deps()[0];
+}
+
+} // namespace mkldnn
+#endif
