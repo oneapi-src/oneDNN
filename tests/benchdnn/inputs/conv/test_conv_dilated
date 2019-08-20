@@ -10,8 +10,8 @@
 --reset
 --mb=2
 --dir=FWD_D
---cfg=u8s8u8s32 --allow-unimpl=false --batch=conv_dilated_rfcn
---cfg=s8s8u8s32 --allow-unimpl=true  --batch=conv_dilated_rfcn
+--cfg=u8s8u8 --allow-unimpl=false --batch=conv_dilated_rfcn
+--cfg=s8s8u8 --allow-unimpl=true  --batch=conv_dilated_rfcn
 --match=.*fc6.*
---cfg=u8s8u8s32 --allow-unimpl=false --batch=conv_ssd_300_voc0712
---cfg=s8s8u8s32 --allow-unimpl=true  --batch=conv_ssd_300_voc0712
+--cfg=u8s8u8 --allow-unimpl=false --batch=conv_ssd_300_voc0712
+--cfg=s8s8u8 --allow-unimpl=true  --batch=conv_ssd_300_voc0712

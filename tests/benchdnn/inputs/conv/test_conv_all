@@ -21,16 +21,16 @@
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
 --allow-unimpl=true
---cfg=u8s8u8s32  --batch=conv_all
---cfg=u8s8s8s32  --batch=conv_resnet_50
---cfg=u8s8s32s32 --batch=conv_googlenet_v3
+--cfg=u8s8u8  --batch=conv_all
+--cfg=u8s8s8  --batch=conv_resnet_50
+--cfg=u8s8s32 --batch=conv_googlenet_v3
 --attr=post_ops='relu'
---cfg=u8s8f32s32 --batch=conv_vgg_19
---cfg=s8s8s8s32  --batch=conv_all
---cfg=s8s8u8s32  --batch=conv_resnet_50
---cfg=s8s8f32s32 --batch=conv_googlenet_v3
+--cfg=u8s8f32 --batch=conv_vgg_19
+--cfg=s8s8s8  --batch=conv_all
+--cfg=s8s8u8  --batch=conv_resnet_50
+--cfg=s8s8f32 --batch=conv_googlenet_v3
 --attr=post_ops='relu'
---cfg=s8s8s32s32 --batch=conv_vgg_19
+--cfg=s8s8s32 --batch=conv_vgg_19
 
 # f32 wino
 --reset --cfg=f32_wino --alg=wino
@@ -48,11 +48,11 @@
 --allow-unimpl=true         # allow unimplemented for groups > 1
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_B
---cfg=u8s8u8s32_wino  --batch=conv_all
---cfg=u8s8s8s32_wino  --batch=conv_resnet_50
---cfg=u8s8s32s32_wino --batch=conv_googlenet_v3
+--cfg=u8s8u8_wino  --batch=conv_all
+--cfg=u8s8s8_wino  --batch=conv_resnet_50
+--cfg=u8s8s32_wino --batch=conv_googlenet_v3
 --attr=post_ops='relu'
---cfg=u8s8s32s32_wino --batch=conv_googlenet_v2
+--cfg=u8s8s32_wino --batch=conv_googlenet_v2
 
 # dilated
 --batch=test_conv_dilated
@@ -71,6 +71,6 @@
 --dir=FWD_B --batch=conv_auto
 --dir=BWD_D --batch=conv_auto
 --dir=BWD_WB --batch=conv_auto
---cfg=u8s8s8s32
+--cfg=u8s8s8
 --dir=FWD_B --batch=conv_auto
 

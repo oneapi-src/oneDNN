@@ -58,19 +58,19 @@ The table below shows supported name configurations for this driver:
 | src  | wei  | dst  | acc  | cfg             | notes
 |:---  |:---  |:---  |:---  |:---             |:---
 | f32  | f32  | f32  | f32  | f32             | inference optimized for sse4.1+, training for avx2+
-| u8   | s8   | f32  | s32  | u8s8f32s32      | optimized for processors with support of avx512vl, FWD_x only.
-| u8   | s8   | s32  | s32  | u8s8s32s32      | same as above
-| u8   | s8   | s8   | s32  | u8s8s8s32       | same as above
-| u8   | s8   | u8   | s32  | u8s8u8s32       | same as above
-| s8   | s8   | f32  | s32  | s8s8f32s32      | same as above
-| s8   | s8   | s32  | s32  | s8s8s32s32      | same as above
-| s8   | s8   | s8   | s32  | s8s8s8s32       | same as above
-| s8   | s8   | u8   | s32  | s8s8u8s32       | same as above
+| u8   | s8   | f32  | s32  | u8s8f32         | optimized for processors with support of avx512vl, FWD_x only.
+| u8   | s8   | s32  | s32  | u8s8s32         | same as above
+| u8   | s8   | s8   | s32  | u8s8s8          | same as above
+| u8   | s8   | u8   | s32  | u8s8u8          | same as above
+| s8   | s8   | f32  | s32  | s8s8f32         | same as above
+| s8   | s8   | s32  | s32  | s8s8s32         | same as above
+| s8   | s8   | s8   | s32  | s8s8s8          | same as above
+| s8   | s8   | u8   | s32  | s8s8u8          | same as above
 | f32  | f32  | f32  | f32  | f32_wino        | Winograd-based convolution.
-| u8   | s8   | f32  | s32  | u8s8f32s32_wino | same as above
-| u8   | s8   | s32  | s32  | u8s8s32s32_wino | same as above
-| u8   | s8   | s8   | s32  | u8s8s8s32_wino  | same as above
-| u8   | s8   | u8   | s32  | u8s8u8s32_wino  | same as above
+| u8   | s8   | f32  | s32  | u8s8f32_wino    | same as above
+| u8   | s8   | s32  | s32  | u8s8s32_wino    | same as above
+| u8   | s8   | s8   | s32  | u8s8s8_wino     | same as above
+| u8   | s8   | u8   | s32  | u8s8u8_wino     | same as above
 | f16  | f16  | f16  | f16  | f16             | Only for GPU
 | bf16 | bf16 | bf16 | f32  | bf16bf16bf16    | optimized for processors with support of avx512vl + VNNI
 | bf16 | bf16 | f32  | f32  | bf16bf16f32     | same as above
@@ -134,18 +134,18 @@ verbose level set to 2:
                --match='.*kh3[^0-9].*' --batch=inputs/conv/conv_all
 ```
 
-Run a set of u8s8u8s32 backward convolutions wrt data but skip all
+Run a set of u8s8u8 backward convolutions wrt data but skip all
 the convolutions that will use reference or gemm-based implementation:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8s32 --dir=BWD_B \
+    ./benchdnn --conv --cfg=u8s8u8 --dir=BWD_B \
                --skip-impl='ref:gemm' --batch=inputs/conv/conv_all
 ```
 
 Run explicitly specified first forward convolution (including bias) from Alexnet
 with the minibatch set to 4 and the verbose level set to 1 for two given
-configurations (`u8s8u8s32` and `f32`):
+configurations (`u8s8u8` and `f32`):
 ``` sh
-    ./benchdnn --conv -v1 --mb=4 --dir=FWD_B --cfg=f32,u8s8u8s32
+    ./benchdnn --conv -v1 --mb=4 --dir=FWD_B --cfg=f32,u8s8u8
                ic3ih227iw227_oc96oh55ow55_kh11kw11_sh4sw4ph0pw0_n"alexnet:conv1"
 ```
 
@@ -163,11 +163,11 @@ to false:
                --alg=AUTO   --batch=convs.in
 ```
 
-Run a set of u8s8u8s32 forward convolutions without bias, skipping
+Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations and not triggering unimplemented as an error, with
 one common output scale set to 0.5:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8s32 --dir=FWD_D \
+    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D \
                --skip-impl="ref" --allow-unimpl=true \
                --attr="oscale=common:.5" --batch=inputs/conv/conv_all
 ```

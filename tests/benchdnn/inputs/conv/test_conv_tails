@@ -15,8 +15,8 @@
 --allow-unimpl=true
 --dir=FWD_B
 --attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu'
---cfg=s8s8f32s32,s8s8u8s32,u8s8f32s32,u8s8u8s32  --batch=conv_tails
+--cfg=s8s8f32,s8s8u8,u8s8f32,u8s8u8  --batch=conv_tails
 
 --dir=FWD_D
 --attr=oscale=common:2.25;post_ops='sum:1.5'
---cfg=s8s8s32s32,s8s8s8s32,u8s8s32s32,u8s8s8s32  --batch=conv_tails
+--cfg=s8s8s32,s8s8s8,u8s8s32,u8s8s8  --batch=conv_tails
