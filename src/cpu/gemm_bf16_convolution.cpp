@@ -89,7 +89,8 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
     vlen_ = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
 
-    isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                     : bf16_emulation_t::get_isa();
 
     if (isa_ != avx512_core_bf16) {
         max_data_reg_idx_ = 26;

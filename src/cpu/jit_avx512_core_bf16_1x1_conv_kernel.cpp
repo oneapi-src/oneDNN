@@ -573,7 +573,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     /*TODO: Add 3D support */
     if (ndims > 4) return status::unimplemented;
 
-    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa();
     jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;

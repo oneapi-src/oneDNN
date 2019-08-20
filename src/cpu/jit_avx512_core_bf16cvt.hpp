@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include "cpu_isa_traits.hpp"
 #include "c_types_map.hpp"
 #include "dnnl_debug.h"
 #include "nstl.hpp"
@@ -120,6 +121,8 @@ struct bf16_emulation_t {
         host_->mov(scratch_.cvt32(), selector_int32);
         host_->vpbroadcastd(selector_, scratch_.cvt32());
     }
+
+    static cpu_isa_t get_isa() { return avx512_core; }
 
 private:
     jit_generator *const host_;

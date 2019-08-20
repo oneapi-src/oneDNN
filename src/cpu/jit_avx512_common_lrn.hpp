@@ -21,6 +21,7 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,10 +34,10 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_impl_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("lrn_jit:",
-                        (d_type == data_type::bf16)
-                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                                             : avx512_core)
-                                : avx512_common,
+                        (d_type == data_type::bf16) ? (mayiuse(avx512_core_bf16)
+                                        ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa())
+                                                    : avx512_common,
                         ""),
                 jit_avx512_common_lrn_fwd_t);
 
@@ -71,10 +72,10 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_impl_t {
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("lrn_jit:",
-                        (d_type == data_type::bf16)
-                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                                             : avx512_core)
-                                : avx512_common,
+                        (d_type == data_type::bf16) ? (mayiuse(avx512_core_bf16)
+                                        ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa())
+                                                    : avx512_common,
                         ""),
                 jit_avx512_common_lrn_bwd_t);
 

@@ -25,6 +25,7 @@
 
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_isa_traits.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -47,8 +48,9 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("bnorm_jit:",
                         (this->desc()->data_desc.data_type == data_type::bf16)
-                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                                             : avx512_core)
+                                ? (mayiuse(avx512_core_bf16)
+                                                ? avx512_core_bf16
+                                                : bf16_emulation_t::get_isa())
                                 : isa,
                         ""),
                 jit_uni_batch_normalization_fwd_t);
@@ -79,8 +81,9 @@ struct jit_uni_batch_normalization_bwd_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("bnorm_jit:",
                         (this->desc()->data_desc.data_type == data_type::bf16)
-                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                                             : avx512_core)
+                                ? (mayiuse(avx512_core_bf16)
+                                                ? avx512_core_bf16
+                                                : bf16_emulation_t::get_isa())
                                 : isa,
                         ""),
                 jit_uni_batch_normalization_bwd_t);

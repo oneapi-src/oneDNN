@@ -91,7 +91,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
                     eltwise_.alg, eltwise_.alpha, eltwise_.beta);
         return;
     } else {
-        isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+        isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                         : bf16_emulation_t::get_isa();
         if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16) {
             idx_compute_vreg_max_ = 27;
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
