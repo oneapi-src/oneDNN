@@ -1007,20 +1007,13 @@ static inline void set_thread_opts_nopack(int nthrs,
         }
     }
 
-    // If A or B offset are non-zero, we need to keep 1D_copya to reduce
-    // update overhead for integer case.
-    if (isInteger && (arg->ao != 0 || arg->bo != 0)) {
-        condition_2D_bsrc = false;
-        condition_1D_copya = true;
-    }
-
     // If A offset is non-zero, we use to keep 1D_copya.
     // TODO: the reasons seems to be in copy_sum_bx routines. At least,
     //       after simple optimization of copy_sum_ax, similar restriction
     //       on offset B became unnecessary. Revisit.
     if (isInteger && arg->ao != 0) {
-        condition_2D_bsrc = 0;
-        condition_1D_copya = 1;
+        condition_2D_bsrc = false;
+        condition_1D_copya = true;
     }
 
     if (condition_2D_bsrc) {
