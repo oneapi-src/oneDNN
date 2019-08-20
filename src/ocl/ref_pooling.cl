@@ -199,8 +199,10 @@ ref_pooling_fwd_kernel(
                             if (ih < 0 || ih >= IH) continue;
                             if (iw < 0 || iw >= IW) continue;
 
+#if POOLING_MAX == 1 && IS_TRAINING == 1
                             if (ws[dst_off] < 0)
                                 ws[dst_off] = kd * KH * KW + kh * KW + kw;
+#endif
                             int src_off = SRC_OFF(mb, oc, id, ih, iw);
 #if DT_BF16 == 1
                             DEF_ACC_DATA_T s = DATA_TO_REF(src[src_off]);
