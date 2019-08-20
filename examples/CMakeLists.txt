@@ -68,6 +68,9 @@ endif()
 
 if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
     register_exe(sycl-interop-cpp sycl_interop.cpp "test")
+    if(MKLDNN_SYCL_INTEL)
+        register_exe(sycl-interop-usm-cpp sycl_interop_usm.cpp "test")
+    endif()
     if(MKLDNN_SYCL_COMPUTECPP)
         add_sycl_to_target(
             TARGET sycl-interop-cpp
