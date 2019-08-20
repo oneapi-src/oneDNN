@@ -548,6 +548,9 @@ INSTANTIATE_TEST_CASE_P(
         TestPooling3D_nCdhw16c, pooling_bwd_test_float, ::testing::Values(
             pool_bwd_test_params{
             engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
+            memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 23, 23, 23, 11, 11, 11, 2, 2, 2, 0, 0, 0, 2, 2, 2) },
+            pool_bwd_test_params{
+            engine::kind::cpu, pooling_max, memory::format::nCdhw16c,
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 30, 30, 2, 3, 4, 1, 1, 1, 2, 2, 2) },
             pool_bwd_test_params{
             engine::kind::cpu, pooling_avg_exclude_padding, memory::format::nCdhw16c,
