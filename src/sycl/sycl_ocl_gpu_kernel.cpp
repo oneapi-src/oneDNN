@@ -60,7 +60,10 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             = utils::downcast<sycl::sycl_gpu_engine_t *>(sycl_stream->engine());
     auto &queue = sycl_stream->queue();
     cl::sycl::kernel sycl_kernel(ocl_kernel_, sycl_engine->context());
-    queue.submit([&](cl::sycl::handler &cgh) {
+    auto event = queue.submit([&](cl::sycl::handler &cgh) {
+#ifdef MKLDNN_SYCL_INTEL
+        cgh.depends_on(sycl_stream->get_deps());
+#endif
         for (int i = 0; i < arg_list.nargs(); ++i) {
             auto &arg = arg_list.get(i);
             if (arg.is_global()) {
@@ -111,6 +114,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             cgh.parallel_for(sycl_range, sycl_kernel);
         }
     });
+    sycl_stream->set_deps({ event });
     return status::success;
 }
 

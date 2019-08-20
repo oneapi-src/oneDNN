@@ -91,9 +91,13 @@ struct sycl_stream_t : public compute::compute_stream_t {
             status_t status = status::success;
             if (engine()->kind() == engine_kind::cpu) {
 #if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
-                queue_->submit([&](cl::sycl::handler &cgh) {
+                auto event = queue_->submit([&](cl::sycl::handler &cgh) {
+#ifdef MKLDNN_SYCL_INTEL
+                    cgh.depends_on(deps_);
+#endif
                     submit_cpu_primitive(this, prim, exec_ctx, cgh);
                 });
+                deps_ = { event };
 #else
                 assert(!"not expected");
                 return status::runtime_error;
@@ -132,6 +136,9 @@ struct sycl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
+    std::vector<cl::sycl::event> &get_deps() { return deps_; }
+    void set_deps(const std::vector<cl::sycl::event> &deps) { deps_ = deps; }
+
 private:
     sycl_stream_t(engine_t *engine, unsigned flags)
         : compute::compute_stream_t(engine, flags) {}
@@ -158,6 +165,9 @@ private:
 
 private:
     std::unique_ptr<cl::sycl::queue> queue_;
+    // XXX: This is a temporary solution, ideally events should be a part of
+    // execution context.
+    std::vector<cl::sycl::event> deps_;
 };
 
 } // namespace sycl
