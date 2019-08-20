@@ -225,6 +225,19 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d() const {
 
     if (jpp.simple_alg) {
 
+        int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd 
+            - jpp.f_pad - jpp.id;
+        // zero-out untouched portions of diff_src (when back_pad is negative)
+        if (back_pad < 0)
+            parallel_nd(jpp.mb, jpp.nb_c, -back_pad, jpp.ih, jpp.iw,
+                [&](int n, int b_c, int id_e, int ih, int iw) {
+                    int id_s = jpp.id + back_pad;
+                    auto ds = &diff_src[diff_src_d.blk_off(n, b_c,
+                        id_s + id_e, ih, iw)];
+                    for (int i = 0; i < jpp.c_block; ++i)
+                        ds[i] = (data_t)0.f;
+            });
+
         parallel_nd(jpp.mb, jpp.nb_c, jpp.od,
             [&](int n, int b_c, int od) {
             const int ik = od * jpp.stride_d;
