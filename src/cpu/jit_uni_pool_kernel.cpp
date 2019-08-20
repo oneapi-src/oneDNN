@@ -651,7 +651,7 @@ void jit_uni_pool_kernel<isa>::generate() {
         vmovups(vmm_idx(), ptr[tmp_gpr]);
     }
 
-    if (jpp.is_backward) maybe_zero_diff_src();
+    if (jpp.is_backward && jpp.simple_alg) maybe_zero_diff_src();
 
     if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward)) {
         mov(tmp_gpr, 1);
