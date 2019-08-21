@@ -179,7 +179,9 @@ protected:
             }
 
             // add biases
-            uni_vaddps(G, G, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(
+                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vaddps(G, G, tmp1_vmm);
 
             // inject eltwise code
             injector_->compute_vector(G.getIdx());
