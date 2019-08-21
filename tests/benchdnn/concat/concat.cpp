@@ -145,7 +145,7 @@ int doit(const prb_t *p, res_t *r) {
             dst_dt(dst_dt_d, engine_tgt);
 
     args_t args;
-    args.set(DNNL_ARG_DST, dst_dt.m_);
+    args.set(DNNL_ARG_DST, dst_dt);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(p->n_inputs());
@@ -158,10 +158,10 @@ int doit(const prb_t *p, res_t *r) {
 
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
 
-        args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input].m_);
+        args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
-    DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, dst_fp);

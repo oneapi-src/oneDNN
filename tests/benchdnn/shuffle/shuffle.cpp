@@ -153,10 +153,10 @@ int doit(const prb_t *p, res_t *r) {
     const int i_arg = p->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const int o_arg = p->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     args_t args;
-    args.set(i_arg, src_dt.m_);
-    args.set(o_arg, dst_dt.m_);
+    args.set(i_arg, src_dt);
+    args.set(o_arg, dst_dt);
 
-    DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);

@@ -207,10 +207,10 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_FWD) {
         SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
@@ -221,11 +221,11 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_data_bwd(p, src_dt, src_fp), WARN);
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
-        args.set(DNNL_ARG_DST, src_dt.m_);
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
+        args.set(DNNL_ARG_DST, src_dt);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt : d_src_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);

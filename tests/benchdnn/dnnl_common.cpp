@@ -18,6 +18,7 @@
 #include "dnnl.h"
 
 #include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 // Engine kind used to run DNNL primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
@@ -33,3 +34,32 @@ dnnl_stream_t stream_ref;
 
 // Stream for target engine
 dnnl_stream_t stream_tgt;
+
+args_t &args_t::set(int arg, const dnn_mem_t &mem) {
+    args_.push_back(std::make_pair(arg, &mem));
+    return *this;
+}
+
+dnnl_status_t execute_and_wait(
+        dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args) {
+
+    std::vector<dnnl_exec_arg_t> dnnl_args(args.size());
+    for (int i = 0; i < args.size(); ++i) {
+        // Unmap before passing the memory to execute
+        if (args.dnn_mem(i).is_mapped()) args.dnn_mem(i).unmap();
+
+        dnnl_args[i].arg = args.arg(i);
+        dnnl_args[i].memory = args.dnn_mem(i).m_;
+    }
+
+    dnnl_status_t status = dnnl_primitive_execute(
+            prim, stream, dnnl_args.size(), dnnl_args.data());
+    if (status != dnnl_success) return status;
+    status = dnnl_stream_wait(stream);
+    if (status != dnnl_success) return status;
+
+    // Map the memory back
+    for (int i = 0; i < args.size(); ++i)
+        if (!args.dnn_mem(i).is_mapped()) args.dnn_mem(i).map();
+    return dnnl_success;
+}

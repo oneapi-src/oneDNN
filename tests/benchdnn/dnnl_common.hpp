@@ -236,36 +236,30 @@ inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     return str;
 }
 
+struct dnn_mem_t;
+
 struct args_t {
-    args_t &set(int arg, dnnl_memory_t memory) {
-        dnnl_exec_arg_t a = {arg, memory};
-        args_.push_back(a);
-        return *this;
-    }
+    args_t &set(int arg, const dnn_mem_t &mem);
     void clear() { args_.clear(); }
 
     int size() const { return (int)args_.size(); }
-    const dnnl_exec_arg_t *args() const { return args_.data(); }
-    operator const dnnl_exec_arg_t *() const { return args(); }
+
+    int arg(int index) const { return args_[index].first; }
+    const dnn_mem_t &dnn_mem(int index) const { return *args_[index].second; }
 
 private:
-    std::vector<dnnl_exec_arg_t> args_;
+    std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
-inline dnnl_status_t execute_and_wait(dnnl_primitive_t prim,
-        dnnl_stream_t stream, int nargs, const dnnl_exec_arg_t *args) {
-    dnnl_status_t status = dnnl_primitive_execute(prim, stream, nargs, args);
-    if (status != dnnl_success) return status;
-    return dnnl_stream_wait(stream);
-}
+dnnl_status_t execute_and_wait(
+        dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args);
 
 inline int measure_perf(
         benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
     if (bench_mode & PERF) {
         t.reset();
         while (true) {
-            DNN_SAFE(execute_and_wait(prim, stream_tgt, args.size(), args),
-                    WARN);
+            DNN_SAFE(execute_and_wait(prim, stream_tgt, args), WARN);
             t.stamp();
             const bool stop = false
                     || (fix_times_per_prb && t.times() >= fix_times_per_prb)

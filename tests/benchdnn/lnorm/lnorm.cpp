@@ -487,23 +487,23 @@ int doit(const prb_t *p, res_t *r) {
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
             SAFE(mean_dt.reorder(mean_fp), WARN);
             SAFE(var_dt.reorder(var_fp), WARN);
         }
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         }
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
@@ -525,31 +525,29 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
 
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
-            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
         }
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp,
                     d_src_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
-                d_ss_dt.map();
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
-                d_ss_dt.unmap();
             }
             dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);

@@ -195,7 +195,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
 
         auto arg_num = i_input == 0 ? DNNL_ARG_SRC_0 : DNNL_ARG_SRC_1;
-        args.set(arg_num, src_dt[i_input].m_);
+        args.set(arg_num, src_dt[i_input]);
     }
 
     std::vector<dnn_mem_t> scale_fp, scale_dt;
@@ -221,9 +221,9 @@ int doit(const prb_t *p, res_t *r) {
     }
     dnn_mem_t &dst_dt = p->inplace ? src_dt[0] : placeholder_dst_dt;
 
-    args.set(DNNL_ARG_DST, dst_dt.m_);
+    args.set(DNNL_ARG_DST, dst_dt);
 
-    DNN_SAFE(execute_and_wait(bo, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(bo, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, scale_fp, dst_fp);

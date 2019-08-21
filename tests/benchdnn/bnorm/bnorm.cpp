@@ -587,14 +587,10 @@ static int cvt_mask_to_ws(
     dnn_mem_t mean(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
     dnn_mem_t var(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
 
-    mean.map();
-    var.map();
     for (int64_t c = 0; c < p->ic; ++c)
         ((float *)mean)[c] = 0.5;
     for (int64_t c = 0; c < p->ic; ++c)
         ((float *)var)[c] = 1;
-    mean.unmap();
-    var.unmap();
 
     dnnl_batch_normalization_desc_t bd;
     auto flags = (dnnl_normalization_flags_t)(
@@ -612,12 +608,12 @@ static int cvt_mask_to_ws(
     DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
 
     args_t args;
-    args.set(DNNL_ARG_SRC, data.m_);
-    args.set(DNNL_ARG_MEAN, mean.m_);
-    args.set(DNNL_ARG_VARIANCE, var.m_);
-    args.set(DNNL_ARG_DST, data.m_);
-    args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
-    DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+    args.set(DNNL_ARG_SRC, data);
+    args.set(DNNL_ARG_MEAN, mean);
+    args.set(DNNL_ARG_VARIANCE, var);
+    args.set(DNNL_ARG_DST, data);
+    args.set(DNNL_ARG_WORKSPACE, ws_dt);
+    DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
     DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
 
     return OK;
@@ -677,45 +673,37 @@ int doit(const prb_t *p, res_t *r) {
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
             SAFE(mean_dt.reorder(mean_fp), WARN);
             SAFE(var_dt.reorder(var_fp), WARN);
         }
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         }
 
-        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt);
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
-                mean_dt.map();
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
-                mean_dt.unmap();
 
-                var_dt.map();
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
-                var_dt.unmap();
             }
             dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
             if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-                dst_dt.map();
-                ws_dt.map();
                 SAFE(check_fwd_ws(dst_dt, ws_dt, r), WARN);
-                dst_dt.unmap();
-                ws_dt.unmap();
             }
         }
     } else {
@@ -735,36 +723,34 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
 
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
-            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
         }
 
         if (p->flags & FUSE_NORM_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
-            args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+            args.set(DNNL_ARG_WORKSPACE, ws_dt);
         }
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp, ws_fp,
                     d_src_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
-                d_ss_dt.map();
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
-                d_ss_dt.unmap();
             }
             dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);

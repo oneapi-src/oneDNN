@@ -204,14 +204,14 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(dst_dt.reorder(dst_fp), WARN);
 
     args_t args_fwd, args_bwd;
-    args_fwd.set(DNNL_ARG_SRC, src_dt.m_);
-    args_fwd.set(DNNL_ARG_DST, dst_dt.m_);
-    if (!(p->dir & FLAG_INF)) args_fwd.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+    args_fwd.set(DNNL_ARG_SRC, src_dt);
+    args_fwd.set(DNNL_ARG_DST, dst_dt);
+    if (!(p->dir & FLAG_INF)) args_fwd.set(DNNL_ARG_WORKSPACE, ws_dt);
 
     args_t &args = args_fwd;
     dnnl_primitive_t l = lf;
 
-    DNN_SAFE(execute_and_wait(l, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
 
     if (p->dir & FLAG_FWD) {
         if (bench_mode & CORR) {
@@ -236,15 +236,15 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp), WARN);
         SAFE(d_src_dt.reorder(d_src_fp), WARN);
 
-        args_bwd.set(DNNL_ARG_SRC, src_dt.m_);
-        args_bwd.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args_bwd.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
-        args_bwd.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+        args_bwd.set(DNNL_ARG_SRC, src_dt);
+        args_bwd.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args_bwd.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+        args_bwd.set(DNNL_ARG_WORKSPACE, ws_dt);
 
         args = args_bwd;
         l = lb;
 
-        DNN_SAFE(execute_and_wait(l, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);

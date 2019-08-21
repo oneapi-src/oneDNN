@@ -622,12 +622,12 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_dt.m_);
-        args.set(DNNL_ARG_DST, dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_WEIGHTS, wei_dt);
+        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
@@ -635,11 +635,11 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
     } else if (p->dir == BWD_D) {
-        args.set(DNNL_ARG_DIFF_DST, dst_dt.m_);
-        args.set(DNNL_ARG_WEIGHTS, wei_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, dst_dt);
+        args.set(DNNL_ARG_WEIGHTS, wei_dt);
+        args.set(DNNL_ARG_DIFF_SRC, src_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, bia_fp, dst_fp);
@@ -647,12 +647,12 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_DIFF_DST, dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DIFF_DST, dst_dt);
+        args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
+        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);

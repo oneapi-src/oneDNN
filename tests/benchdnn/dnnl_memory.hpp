@@ -20,7 +20,7 @@
 #include "dnnl_common.hpp"
 
 struct dnn_mem_t {
-    dnn_mem_t() {}
+    dnn_mem_t() { map(); }
 
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_engine_t engine) {
         active_ = (initialize(md, engine) == OK);
@@ -74,8 +74,7 @@ struct dnn_mem_t {
         active_ = rhs.active_;
         engine_kind_ = rhs.engine_kind_;
         engine_ = rhs.engine_;
-        is_cpu_native_ = rhs.is_cpu_native_;
-        is_mapped_ = rhs.is_mapped_;
+        is_mapped_ = (bool)rhs.is_mapped_;
         mapped_ptr_ = rhs.mapped_ptr_;
 
         rhs.active_ = false;
@@ -102,15 +101,14 @@ struct dnn_mem_t {
                 CRIT);
         DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
 
-        dnnl_exec_arg_t args[] = {
-                {DNNL_ARG_FROM, rhs.m_},
-                {DNNL_ARG_TO, m_},
-        };
+        args_t args;
+        args.set(DNNL_ARG_FROM, rhs);
+        args.set(DNNL_ARG_TO, *this);
 
         dnnl_stream_t reorder_stream
                 = (reorder_engine == engine_ref) ? stream_ref : stream_tgt;
 
-        DNN_SAFE(execute_and_wait(r, reorder_stream, 2, args), WARN);
+        DNN_SAFE(execute_and_wait(r, reorder_stream, args), WARN);
         DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
 
         return OK;
@@ -131,13 +129,7 @@ struct dnn_mem_t {
 
     template <typename T>
     explicit operator T *() const {
-        if (engine_ == engine_ref) {
-            // Assume that the reference engine supports direct memory access
-            // without map/unmap
-            return static_cast<T *>(data_);
-        }
-
-        assert(is_mapped_ && "direct access only for mapped memory");
+        assert(is_mapped_);
         return static_cast<T *>(mapped_ptr_);
     }
 
@@ -190,18 +182,22 @@ struct dnn_mem_t {
         return offset;
     }
 
-    void map() {
-        assert(!is_mapped_ && "memory is already mapped");
+    bool is_mapped() const { return is_mapped_; }
 
-        DNN_SAFE_V(dnnl_memory_map_data(m_, &mapped_ptr_));
+    void map() const {
+        assert(!is_mapped_ && "memory is already mapped");
         is_mapped_ = true;
+
+        if (!m_) return;
+        DNN_SAFE_V(dnnl_memory_map_data(m_, &mapped_ptr_));
     }
 
-    void unmap() {
+    void unmap() const {
         assert(is_mapped_ && "memory is not mapped");
-
-        DNN_SAFE_V(dnnl_memory_unmap_data(m_, mapped_ptr_));
         is_mapped_ = false;
+
+        if (!m_) return;
+        DNN_SAFE_V(dnnl_memory_unmap_data(m_, mapped_ptr_));
         mapped_ptr_ = NULL;
     }
 
@@ -218,13 +214,13 @@ private:
     dnnl_engine_kind_t engine_kind_ = dnnl_any_engine;
     dnnl_engine_t engine_ = NULL;
 
-    bool is_cpu_native_ = false;
-
-    bool is_mapped_ = false;
-    void *mapped_ptr_ = NULL;
+    mutable bool is_mapped_ = false;
+    mutable void *mapped_ptr_ = NULL;
 
     int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
             dnnl_format_tag_t tag, dnnl_engine_t engine) {
+        is_mapped_ = false;
+
         if (tag == dnnl_format_tag_undef) {
             md_ = md;
             md_.data_type = dt;
@@ -238,7 +234,7 @@ private:
 
         int backend_kind;
         DNN_SAFE_V(dnnl_engine_get_backend_kind(engine_, &backend_kind));
-        is_cpu_native_ = (engine_kind_ == dnnl_cpu) && (backend_kind == 0);
+        bool is_cpu_native_ = (engine_kind_ == dnnl_cpu) && (backend_kind == 0);
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
         if (is_cpu_native_) {
@@ -256,9 +252,6 @@ private:
                     CRIT);
         }
 
-        is_mapped_ = false;
-        mapped_ptr_ = NULL;
-
         // Fill memory with a magic number (NAN for fp data types) to catch
         // possible uninitialized access.
         map();
@@ -269,6 +262,9 @@ private:
         void *handle;
         DNN_SAFE(dnnl_memory_get_data_handle(m_, &handle), CRIT);
         DNN_SAFE(dnnl_memory_set_data_handle(m_, handle), CRIT);
+
+        // Keep memory mapped and unmap only before execution
+        map();
 
         return OK;
     }
@@ -309,6 +305,7 @@ private:
 
     int cleanup() {
         if (!active_) return OK;
+        unmap();
         DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
         if (is_data_owner_) zfree(data_);
         return OK;
