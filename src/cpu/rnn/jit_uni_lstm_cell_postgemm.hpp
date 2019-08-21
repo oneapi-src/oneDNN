@@ -181,6 +181,13 @@ protected:
 #else
         auto addr_c_states_t_l_reg = abi_param5;
 #endif
+        // helper lambda to address the gates and biases
+        auto G_addr = [&](int i) {
+            return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
+        };
+        auto B_addr = [&](int i) {
+            return ptr[addr_bias_reg + i * rnn_.dic * bias_dt_size];
+        };
 
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
@@ -195,15 +202,10 @@ protected:
         L(vector_loop_start_label);
         {
             // load G0 G1 G2 G3
-            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
-            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
-            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
-            auto G3_addr = ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size];
-
-            uni_vmovups(G0, G0_addr);
-            uni_vmovups(G1, G1_addr);
-            uni_vmovups(G2, G2_addr);
-            uni_vmovups(G3, G3_addr);
+            uni_vmovups(G0, G_addr(0));
+            uni_vmovups(G1, G_addr(1));
+            uni_vmovups(G2, G_addr(2));
+            uni_vmovups(G3, G_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -214,17 +216,13 @@ protected:
             }
 
             // add biases
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(tmp1_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp1_vmm);
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(tmp1_vmm, B_addr(3));
             uni_vaddps(G3, G3, tmp1_vmm);
 
             // inject eltwise code
@@ -235,10 +233,10 @@ protected:
 
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training) {
-                uni_vmovups(G0_addr, G0);
-                uni_vmovups(G1_addr, G1);
-                uni_vmovups(G2_addr, G2);
-                uni_vmovups(G3_addr, G3);
+                uni_vmovups(G_addr(0), G0);
+                uni_vmovups(G_addr(1), G1);
+                uni_vmovups(G_addr(2), G2);
+                uni_vmovups(G_addr(3), G3);
             }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
@@ -297,14 +295,10 @@ protected:
         L(rem_loop_start_label);
         {
             // load G0 G1 G2 G3
-            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
-            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
-            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
-            auto G3_addr = ptr[addr_ws_gates_reg + 3 * rnn_.dic * gate_dt_size];
-            uni_vmovss(G0, G0_addr);
-            uni_vmovss(G1, G1_addr);
-            uni_vmovss(G2, G2_addr);
-            uni_vmovss(G3, G3_addr);
+            uni_vmovss(G0, G_addr(0));
+            uni_vmovss(G1, G_addr(1));
+            uni_vmovss(G2, G_addr(2));
+            uni_vmovss(G3, G_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -315,17 +309,13 @@ protected:
             }
 
             // add biases
-            uni_vmovss(
-                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
-            uni_vmovss(
-                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
-            uni_vmovss(
-                    tmp1_vmm, ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(tmp1_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp1_vmm);
-            uni_vmovss(
-                    tmp1_vmm, ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(tmp1_vmm, B_addr(3));
             uni_vaddps(G3, G3, tmp1_vmm);
 
             // inject eltwise code
@@ -336,10 +326,10 @@ protected:
 
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training) {
-                uni_vmovss(G0_addr, G0);
-                uni_vmovss(G1_addr, G1);
-                uni_vmovss(G2_addr, G2);
-                uni_vmovss(G3_addr, G3);
+                uni_vmovss(G_addr(0), G0);
+                uni_vmovss(G_addr(1), G1);
+                uni_vmovss(G_addr(2), G2);
+                uni_vmovss(G_addr(3), G3);
             }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2

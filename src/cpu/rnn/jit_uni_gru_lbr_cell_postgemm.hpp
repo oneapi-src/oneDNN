@@ -105,6 +105,17 @@ protected:
         auto addr_ws_h_reg = abi_param6;
 #endif
 
+        // helper lambda to address the gates and biases
+        auto G_addr = [&](int i) {
+            return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
+        };
+        auto B_addr = [&](int i) {
+            return ptr[addr_bias_reg + i * rnn_.dic * bias_dt_size];
+        };
+        auto S_addr = [&](int i) {
+            return ptr[addr_scratch_cell_reg + i * rnn_.dic * gate_dt_size];
+        };
+
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
 
@@ -118,53 +129,43 @@ protected:
         L(vector_loop_start_label);
         {
             // Compute gate 0
-            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
-            uni_vmovups(G0, G0_addr);
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(G0, G_addr(0));
+            uni_vmovups(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
-            uni_vmovups(tmp1_vmm,
-                    ptr[addr_scratch_cell_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(tmp1_vmm, S_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
             sigmoid_injector_->compute_vector(G0.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovups(G0_addr, G0);
+                uni_vmovups(G_addr(0), G0);
 
             // Compute gate 1
-            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
-            uni_vmovups(G1, G1_addr);
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(G1, G_addr(1));
+            uni_vmovups(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
-            uni_vmovups(tmp1_vmm,
-                    ptr[addr_scratch_cell_reg + 1 * rnn_.dic * gate_dt_size]);
+            uni_vmovups(tmp1_vmm, S_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovups(G1_addr, G1);
+                uni_vmovups(G_addr(1), G1);
 
             // compute last gate
-            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
-            auto wh_b_addr
-                    = ptr[addr_scratch_cell_reg + 2 * rnn_.dic * gate_dt_size];
-            auto b2_addr = ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size];
-            auto b3_addr = ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size];
+            auto wh_b_addr = S_addr(2);
             auto ws_h_addr = ptr[addr_ws_h_reg];
             uni_vmovups(tmp1_vmm, wh_b_addr);
-            uni_vmovups(tmp2_vmm, b3_addr);
+            uni_vmovups(tmp2_vmm, B_addr(3));
             uni_vaddps(tmp1_vmm, tmp1_vmm, tmp2_vmm);
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
                 uni_vmovups(ws_h_addr, tmp1_vmm);
-            uni_vmovups(G2, G2_addr);
-            uni_vmovups(tmp2_vmm, b2_addr);
+            uni_vmovups(G2, G_addr(2));
+            uni_vmovups(tmp2_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp2_vmm);
             uni_vfmadd231ps(G2, G1, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovups(G2_addr, G2);
+                uni_vmovups(G_addr(2), G2);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(tmp1_vmm, one_addr);
@@ -202,47 +203,37 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // Compute gate 0
-            auto G0_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
-            uni_vmovss(G0s, G0_addr);
-            uni_vaddss(
-                    G0s, G0s, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
-            uni_vaddss(G0s, G0s,
-                    ptr[addr_scratch_cell_reg + 0 * rnn_.dic * gate_dt_size]);
+            uni_vmovss(G0s, G_addr(0));
+            uni_vaddss(G0s, G0s, B_addr(0));
+            uni_vaddss(G0s, G0s, S_addr(0));
             sigmoid_injector_->compute_vector(G0s.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovss(G0_addr, G0s);
+                uni_vmovss(G_addr(0), G0s);
 
             // Compute gate 1
-            auto G1_addr = ptr[addr_ws_gates_reg + 1 * rnn_.dic * gate_dt_size];
-            uni_vmovss(G1s, G1_addr);
-            uni_vaddss(
-                    G1s, G1s, ptr[addr_bias_reg + 1 * rnn_.dic * bias_dt_size]);
-            uni_vaddss(G1s, G1s,
-                    ptr[addr_scratch_cell_reg + 1 * rnn_.dic * gate_dt_size]);
+            uni_vmovss(G1s, G_addr(1));
+            uni_vaddss(G1s, G1s, B_addr(1));
+            uni_vaddss(G1s, G1s, S_addr(1));
             sigmoid_injector_->compute_vector(G1s.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovss(G1_addr, G1s);
+                uni_vmovss(G_addr(1), G1s);
 
             // compute last gate
-            auto G2_addr = ptr[addr_ws_gates_reg + 2 * rnn_.dic * gate_dt_size];
-            auto wh_b_addr
-                    = ptr[addr_scratch_cell_reg + 2 * rnn_.dic * gate_dt_size];
-            auto b2_addr = ptr[addr_bias_reg + 2 * rnn_.dic * bias_dt_size];
-            auto b3_addr = ptr[addr_bias_reg + 3 * rnn_.dic * bias_dt_size];
+            auto wh_b_addr = S_addr(2);
             auto ws_h_addr = ptr[addr_ws_h_reg];
             uni_vmovss(tmp1s_vmm, wh_b_addr);
-            uni_vaddss(tmp1s_vmm, tmp1s_vmm, b3_addr);
+            uni_vaddss(tmp1s_vmm, tmp1s_vmm, B_addr(3));
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
                 uni_vmovss(ws_h_addr, tmp1s_vmm);
-            uni_vmovss(G2s, G2_addr);
-            uni_vaddss(G2s, G2s, b2_addr);
+            uni_vmovss(G2s, G_addr(2));
+            uni_vaddss(G2s, G2s, B_addr(2));
             uni_vfmadd231ss(G2s, G1s, tmp1s_vmm);
             tanh_injector_->compute_vector(G2s.getIdx());
             // if training we write back the gates
             if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovss(G2_addr, G2s);
+                uni_vmovss(G_addr(2), G2s);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(tmp1s_vmm, one_addr);
@@ -280,7 +271,7 @@ protected:
                 dd(float2int(1.0f));
         }
     }
-};
+}; // namespace cpu
 
 } // namespace cpu
 } // namespace impl

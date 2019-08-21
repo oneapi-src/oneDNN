@@ -158,6 +158,9 @@ protected:
         auto addr_bias_reg = abi_param2;
         auto addr_states_t_l_reg = abi_param3;
 
+        auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+        auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size];
+
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
         mov(weights_scales_reg, size_t(weights_scales));
@@ -170,7 +173,6 @@ protected:
         L(vector_loop_start_label);
         {
             // load G
-            auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
             uni_vmovups(G, G_addr);
 
             // dequantize the gates from s32 to f32 if needed
@@ -179,8 +181,7 @@ protected:
             }
 
             // add biases
-            uni_vmovups(
-                    tmp1_vmm, ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovups(tmp1_vmm, B_addr);
             uni_vaddps(G, G, tmp1_vmm);
 
             // inject eltwise code
@@ -236,7 +237,6 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // load G
-            auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
             uni_vmovss(Gs, G_addr);
 
             // dequantize the gates from s32 to f32 if needed
@@ -245,8 +245,7 @@ protected:
             }
 
             // add biases
-            uni_vmovss(tmp1s_vmm,
-                    ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size]);
+            uni_vmovss(tmp1s_vmm, B_addr);
             uni_vaddps(Gs, Gs, tmp1s_vmm);
 
             // inject eltwise code
