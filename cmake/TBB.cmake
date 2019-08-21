@@ -24,7 +24,7 @@ set(TBB_cmake_included true)
 include("cmake/Threading.cmake")
 
 if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
-    if(NOT TBBROOT)
+    if(NOT TBBROOT AND NOT DEFINED $ENV{TBBROOT})
         return()
     endif()
 elseif(NOT MKLDNN_CPU_RUNTIME STREQUAL "TBB")
@@ -40,6 +40,18 @@ elseif(UNIX)
 endif()
 
 include_directories(${TBB_INCLUDE_DIRS})
+
+# XXX: workaround for SYCL. SYCL "unbundles" tbb.lib and loses its abosulte path
+if(MKLDNN_SYCL_INTEL)
+    get_target_property(tbb_lib_path TBB::tbb IMPORTED_LOCATION_RELEASE)
+    get_filename_component(tbb_lib_dir "${tbb_lib_path}" PATH)
+    link_directories(${tbb_lib_dir})
+endif()
+
+# XXX: this is to make "ctest" working out-of-the-box with TBB
+string(REPLACE "/lib/" "/redist/" tbb_redist_dir "${tbb_lib_dir}")
+append_to_windows_path_list(CTESTCONFIG_PATH "${tbb_redist_dir}")
+
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 
 message(STATUS "Intel(R) TBB: ${TBBROOT}")

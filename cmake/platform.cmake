@@ -46,6 +46,8 @@ if(WIN32 AND MKLDNN_SYCL_INTEL)
     add_definitions(-DCINTERFACE)
     # XXX: ignore __declspec warning
     append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
+    # XXX: ignore 'XXX is deprecated' coming from Intel TBB headers
+    append(CMAKE_CCXX_FLAGS "-Wno-deprecated-declarations")
 endif()
 
 if(MSVC)
