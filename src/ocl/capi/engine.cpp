@@ -35,7 +35,7 @@ status_t dnnl_engine_create_ocl(engine_t **engine, engine_kind_t kind,
 
 status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
     bool args_ok = true && !utils::any_null(engine, context)
-            && (engine->backend_kind() == backend_kind::ocl);
+            && (engine->runtime_kind() == runtime_kind::ocl);
 
     if (!args_ok) return status::invalid_arguments;
 
@@ -46,7 +46,7 @@ status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
 
 status_t dnnl_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
     bool args_ok = true && !utils::any_null(engine, device)
-            && (engine->backend_kind() == backend_kind::ocl);
+            && (engine->runtime_kind() == runtime_kind::ocl);
 
     if (!args_ok) return status::invalid_arguments;
 

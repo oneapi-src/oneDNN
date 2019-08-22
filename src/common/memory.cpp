@@ -266,7 +266,7 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
 
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
-            : memory_flags_t::use_backend_ptr;
+            : memory_flags_t::use_runtime_ptr;
     return safe_ptr_assign<memory_t>(
             *memory, new memory_t(engine, md, flags, handle));
 }

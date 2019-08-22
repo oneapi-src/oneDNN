@@ -39,7 +39,7 @@ public:
         if (flags & memory_flags_t::alloc) {
             data_ = malloc(size, 64);
             is_owned_ = true;
-        } else if (flags & memory_flags_t::use_backend_ptr) {
+        } else if (flags & memory_flags_t::use_runtime_ptr) {
             data_ = handle;
             is_owned_ = false;
         }

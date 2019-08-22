@@ -41,7 +41,7 @@ ocl_memory_storage_t::ocl_memory_storage_t(
         mem_object_ = clCreateBuffer(
                 ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
         OCL_CHECK_V(err);
-    } else if (flags & memory_flags_t::use_backend_ptr) {
+    } else if (flags & memory_flags_t::use_runtime_ptr) {
         mem_object_ = static_cast<cl_mem>(handle);
         OCL_CHECK_V(clRetainMemObject(mem_object_));
     }

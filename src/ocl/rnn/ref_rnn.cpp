@@ -110,11 +110,11 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
             weights->memory_storage()->get_data_handle(&mem_storage_weights);
 
             gemm_mem_A.reset(new memory_t(engine(), weights->md(),
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_C.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_A->set_data_handle(mem_storage_weights);
             gemm_mem_B->set_data_handle(mem_storage_scratchpad);
             gemm_mem_C->set_data_handle(mem_storage_scratchpad);
@@ -129,11 +129,11 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
             weights->memory_storage()->get_data_handle(&mem_storage_weights);
             gemm_mem_A.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_C.reset(new memory_t(engine(), weights->md(),
-                    memory_flags_t::use_backend_ptr, nullptr));
+                    memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_A->set_data_handle(mem_storage_scratchpad);
             gemm_mem_B->set_data_handle(mem_storage_scratchpad);
             gemm_mem_C->set_data_handle(mem_storage_weights);

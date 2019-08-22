@@ -30,7 +30,7 @@
 
 namespace dnnl {
 namespace impl {
-enum memory_flags_t { alloc = 0x1, use_backend_ptr = 0x2 };
+enum memory_flags_t { alloc = 0x1, use_runtime_ptr = 0x2 };
 } // namespace impl
 } // namespace dnnl
 

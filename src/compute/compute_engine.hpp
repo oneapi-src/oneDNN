@@ -32,9 +32,9 @@ namespace compute {
 
 class compute_engine_t : public engine_t {
 public:
-    compute_engine_t(engine_kind_t kind, backend_kind_t backend_kind,
+    compute_engine_t(engine_kind_t kind, runtime_kind_t runtime_kind,
             device_info_t *device_info)
-        : engine_t(kind, backend_kind), device_info_(device_info) {}
+        : engine_t(kind, runtime_kind), device_info_(device_info) {}
 
     status_t init() { return device_info_->init(); }
 

@@ -154,9 +154,9 @@ struct simple_layer_normalization_fwd_t : public primitive_impl_t {
         auto mean_handle = scratchpad.template get<void>(key_lnorm_tmp_mean);
         auto variance_handle = scratchpad.template get<void>(key_lnorm_tmp_var);
         memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
-                memory_flags_t::use_backend_ptr, mean_handle);
+                memory_flags_t::use_runtime_ptr, mean_handle);
         memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
-                memory_flags_t::use_backend_ptr, variance_handle);
+                memory_flags_t::use_runtime_ptr, variance_handle);
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
@@ -293,9 +293,9 @@ struct simple_layer_normalization_bwd_t : public primitive_impl_t {
             auto variance_handle
                     = scratchpad.template get<void>(key_lnorm_tmp_var);
             memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
-                    memory_flags_t::use_backend_ptr, mean_handle);
+                    memory_flags_t::use_runtime_ptr, mean_handle);
             memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
-                    memory_flags_t::use_backend_ptr, variance_handle);
+                    memory_flags_t::use_runtime_ptr, variance_handle);
             reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
             reorder_stat(
                     ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});

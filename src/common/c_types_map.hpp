@@ -428,15 +428,15 @@ const engine_kind_t cpu = dnnl_cpu;
 const engine_kind_t gpu = dnnl_gpu;
 } // namespace engine_kind
 
-enum backend_kind_t {
-    dnnl_backend_native,
-    dnnl_backend_ocl,
+enum runtime_kind_t {
+    dnnl_runtime_native,
+    dnnl_runtime_ocl,
 };
 
-namespace backend_kind {
-const backend_kind_t native = dnnl_backend_native;
-const backend_kind_t ocl = dnnl_backend_ocl;
-} // namespace backend_kind
+namespace runtime_kind {
+const runtime_kind_t native = dnnl_runtime_native;
+const runtime_kind_t ocl = dnnl_runtime_ocl;
+} // namespace runtime_kind
 
 using primitive_kind_t = dnnl_primitive_kind_t;
 namespace primitive_kind {

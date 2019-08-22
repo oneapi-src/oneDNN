@@ -115,11 +115,11 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
 
     // Create memory objects
     std::unique_ptr<memory_t> a_mem(new memory_t(
-            engine.get(), &a_desc, memory_flags_t::use_backend_ptr, a));
+            engine.get(), &a_desc, memory_flags_t::use_runtime_ptr, a));
     std::unique_ptr<memory_t> b_mem(new memory_t(
-            engine.get(), &b_desc, memory_flags_t::use_backend_ptr, b));
+            engine.get(), &b_desc, memory_flags_t::use_runtime_ptr, b));
     std::unique_ptr<memory_t> c_mem(new memory_t(
-            engine.get(), &c_desc, memory_flags_t::use_backend_ptr, c));
+            engine.get(), &c_desc, memory_flags_t::use_runtime_ptr, c));
     if (!a_mem || !b_mem || !c_mem) return status::out_of_memory;
 
     a_mem->memory_storage()->set_offset(offset_a * sizeof(data_t));

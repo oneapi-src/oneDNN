@@ -30,7 +30,7 @@ namespace cpu {
 
 class cpu_engine_t : public engine_t {
 public:
-    cpu_engine_t() : engine_t(engine_kind::cpu, backend_kind::native) {}
+    cpu_engine_t() : engine_t(engine_kind::cpu, runtime_kind::native) {}
 
     /* implementation part */
 

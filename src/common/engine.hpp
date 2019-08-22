@@ -35,8 +35,8 @@
  */
 struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl_engine(dnnl::impl::engine_kind_t kind,
-            dnnl::impl::backend_kind_t backend_kind)
-        : kind_(kind), backend_kind_(backend_kind) {
+            dnnl::impl::runtime_kind_t runtime_kind)
+        : kind_(kind), runtime_kind_(runtime_kind) {
         size_t cache_capacity
                 = dnnl::impl::getenv_int("DNNL_CACHE_CAPACITY", 200);
         primitive_cache_ = dnnl::impl::utils::make_unique<
@@ -52,8 +52,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
 
-    /** get the backend kind of the current engine */
-    dnnl::impl::backend_kind_t backend_kind() const { return backend_kind_; }
+    /** get the runtime kind of the current engine */
+    dnnl::impl::runtime_kind_t runtime_kind() const { return runtime_kind_; }
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
@@ -189,7 +189,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
 protected:
     dnnl::impl::engine_kind_t kind_;
-    dnnl::impl::backend_kind_t backend_kind_;
+    dnnl::impl::runtime_kind_t runtime_kind_;
     std::unique_ptr<dnnl::impl::primitive_cache_t> primitive_cache_;
     // As a primitive can be created inside another one a recursive_mutex is
     // required
