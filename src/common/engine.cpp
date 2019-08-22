@@ -83,28 +83,9 @@ status_t dnnl_engine_create(
     return ef->engine_create(engine, index);
 }
 
-extern "C" status_t DNNL_API dnnl_engine_create_with_backend(
-        engine_t **engine, engine_kind_t kind, int backend_kind, size_t index) {
-    if (engine == nullptr) return invalid_arguments;
-
-    auto ef = get_engine_factory(kind, (backend_kind_t)backend_kind);
-    if (ef == nullptr || index >= ef->count()) return invalid_arguments;
-
-    return ef->engine_create(engine, index);
-}
-
 status_t dnnl_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
     if (engine == nullptr) return invalid_arguments;
     *kind = engine->kind();
-    return success;
-}
-
-extern "C" status_t DNNL_API dnnl_engine_get_backend_kind(
-        engine_t *engine, backend_kind_t *backend_kind) {
-    bool args_ok = !any_null(engine, backend_kind);
-    if (!args_ok) return invalid_arguments;
-
-    *backend_kind = engine->backend_kind();
     return success;
 }
 

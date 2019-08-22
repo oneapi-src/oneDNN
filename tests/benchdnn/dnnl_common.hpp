@@ -176,30 +176,20 @@ extern dnnl_engine_t engine_tgt;
 extern dnnl_stream_t stream_ref;
 extern dnnl_stream_t stream_tgt;
 
-extern "C" dnnl_status_t dnnl_engine_create_with_backend(dnnl_engine_t *engine,
-        dnnl_engine_kind_t kind, int backend_kind, size_t index);
-extern "C" dnnl_status_t dnnl_engine_get_backend_kind(
-        dnnl_engine_t engine, int *backend_kind);
-
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
         dnnl_engine_kind_t engine_kind);
 #endif
 
 inline int init() {
-    /* Create engine with CPU native backend: backend_kind == 0 */
-    DNN_SAFE(
-            dnnl_engine_create_with_backend(&engine_ref, dnnl_cpu, 0, 0), CRIT);
-    DNN_SAFE(dnnl_stream_create(
-                     &stream_ref, engine_ref, dnnl_stream_default_flags),
-            CRIT);
-
     if (!engine_tgt) {
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
         DNN_SAFE(dnnl_stream_create(
                          &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
     }
+    engine_ref = engine_tgt;
+    stream_ref = stream_tgt;
 
     // Optimization to reduce testing time for GPU.
     //
@@ -222,10 +212,7 @@ inline int init() {
 }
 
 inline int finalize() {
-    DNN_SAFE(dnnl_stream_destroy(stream_ref), CRIT);
     DNN_SAFE(dnnl_stream_destroy(stream_tgt), CRIT);
-
-    DNN_SAFE(dnnl_engine_destroy(engine_ref), CRIT);
     DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
     return OK;
 }

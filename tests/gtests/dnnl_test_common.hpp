@@ -519,18 +519,10 @@ static void test_free(char *ptr) {
 }
 #undef TEST_MALLOC_OFFSET
 
-extern "C" dnnl_status_t dnnl_engine_get_backend_kind(
-        dnnl_engine_t engine, int *backend_kind);
-
 class test_memory {
 public:
     test_memory(const memory::desc &d, const dnnl::engine &e) {
-        int backend_kind;
-        dnnl::error::wrap_c_api(
-                dnnl_engine_get_backend_kind(e.get(), &backend_kind),
-                "internal error");
-        bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu)
-                && (backend_kind == 0);
+        bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu);
 
         size_ = d.get_size();
         if (is_cpu_native) {

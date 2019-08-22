@@ -232,13 +232,9 @@ private:
         engine_ = engine;
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
-        int backend_kind;
-        DNN_SAFE_V(dnnl_engine_get_backend_kind(engine_, &backend_kind));
-        bool is_cpu_native_ = (engine_kind_ == dnnl_cpu) && (backend_kind == 0);
-
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (is_cpu_native_) {
-            // Allocate memory for native backend directly
+        if (engine_kind_ == dnnl_cpu) {
+            // Allocate memory for native runtime directly
             is_data_owner_ = true;
             const size_t alignment = 64;
             data_ = zmalloc(sz, alignment);
