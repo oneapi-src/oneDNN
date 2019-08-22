@@ -1,7 +1,7 @@
 --reset
 
 # f32 tests
---cfg=f32
+--cfg=f32,bf16
 
 # small test case to check GEMM and non-GEMM ops accuracy
 --skip-nonlinear=true,false

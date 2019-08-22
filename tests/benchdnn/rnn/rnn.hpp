@@ -115,6 +115,7 @@ enum rnn_data_kind_t {
     dst_last_iteration,
     dst_c_last_iteration,
     dst_last_layer,
+
     dst_diff_input,
     dst_diff_states,
     dst_diff_c_states,
@@ -131,12 +132,23 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
     switch (kind) {
         case input: return "INPUT";
         case states: return "STATES";
+        case c_states: return "STATES";
         case weights_input: return "WEIGHTS_INPUT";
         case weights_states: return "WEIGHTS_STATES";
         case bias: return "BIAS";
         case dst_last_layer: return "DST_LAST_LAYER";
         case dst_last_iteration: return "DST_LAST_ITERATION";
         case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
+
+        case dst_diff_input: return "DST_DIFF_INPUT";
+        case dst_diff_states: return "DST_DIFF_STATES";
+        case dst_diff_c_states: return "DST_DIFF_C_STATES";
+        case dst_diff_weights_input: return "DST_DIFF_WEIGHTS_INPUT";
+        case dst_diff_weights_states: return "DST_DIFF_WEIGHTS_STATES";
+        case dst_diff_bias: return "DST_DIFF_BIAS";
+        case diff_last_layer: return "DIFF_LAST_LAYER";
+        case diff_last_iteration: return "DIFF_LAST_ITERATION";
+        case diff_c_last_iteration: return "DIFF_C_LAST_ITERATION";
         default:
             assert(!"incorrect rnn data kind");
             return "incorrect rnn data kind";
@@ -167,6 +179,7 @@ typedef struct dt_conf_t {
 } _dt_conf_t[data_kind_total];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_bf16;
 extern const _dt_conf_t conf_f16;
 extern const _dt_conf_t conf_u8u8u8u8;
 extern const _dt_conf_t conf_u8u8u8f32;
@@ -175,6 +188,11 @@ extern const _dt_conf_t conf_f32u8f32u8;
 
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
+
+inline bool is_cfg_u8(const dt_conf_t *cfg) {
+    return cfg == conf_u8u8u8u8 || cfg == conf_u8u8u8f32
+            || cfg == conf_f32u8f32f32 || cfg == conf_f32u8f32u8;
+}
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
