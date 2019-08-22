@@ -59,7 +59,7 @@ On the *logical* level, the library provides the following abstractions:
   the data is laid out in memory. A memory descriptor can be created with a
   placeholder format tag (@ref dnnl::memory::format_tag::any), which is used
   to indicate that the actual format will be defined later (see
-  @ref cpu_memory_format_propagation_cpp).
+  @ref memory_format_propagation_cpp).
 
 * *Operation descriptors* (one for each for each supported primitive) serve a
   purpose similar to the memory descriptor: they provide a way to describe an

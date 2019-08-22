@@ -90,7 +90,7 @@ shuffle primitive is optimized for the corresponding memory formats:
 | 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 
 Here *optimized^* means the format that
-[comes out](@ref cpu_memory_format_propagation_cpp)
+[comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
