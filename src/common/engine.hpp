@@ -199,6 +199,26 @@ protected:
 namespace dnnl {
 namespace impl {
 
+inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (kind == engine_kind::gpu) return runtime_kind::ocl;
+#endif
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
+    return runtime_kind::seq;
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
+    return runtime_kind::omp;
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
+    return runtime_kind::tbb;
+#else
+    return runtime_kind::none;
+#endif
+}
+
+inline bool is_native_runtime(runtime_kind_t kind) {
+    return utils::one_of(
+            kind, runtime_kind::seq, runtime_kind::omp, runtime_kind::tbb);
+}
+
 struct engine_factory_t : public c_compatible {
     virtual size_t count() const = 0;
     virtual status_t engine_create(engine_t **engine, size_t index) const = 0;

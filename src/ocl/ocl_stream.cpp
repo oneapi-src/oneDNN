@@ -76,7 +76,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
     if (size == 0) return status::success;
 
     if (src.engine()->kind() == engine_kind::cpu
-            && src.engine()->runtime_kind() == runtime_kind::native) {
+            && is_native_runtime(src.engine()->runtime_kind())) {
         assert(dst.engine()->kind() == engine_kind::gpu);
 
         void *src_ptr;

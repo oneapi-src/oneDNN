@@ -36,7 +36,7 @@ namespace impl {
 
 static inline std::unique_ptr<engine_factory_t> get_engine_factory(
         engine_kind_t kind, runtime_kind_t runtime_kind) {
-    if (kind == engine_kind::cpu && runtime_kind == runtime_kind::native) {
+    if (kind == engine_kind::cpu && is_native_runtime(runtime_kind)) {
         return std::unique_ptr<engine_factory_t>(
                 new cpu::cpu_engine_factory_t());
     }
@@ -47,13 +47,6 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
     }
 #endif
     return nullptr;
-}
-
-static inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    if (kind == engine_kind::gpu) return runtime_kind::ocl;
-#endif
-    return runtime_kind::native;
 }
 
 } // namespace impl

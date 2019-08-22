@@ -35,9 +35,9 @@ static engine_t *get_reorder_engine(
     auto s_rk = src_engine->runtime_kind();
     auto d_rk = dst_engine->runtime_kind();
 
-    if (d_rk == runtime_kind::native) return src_engine;
+    if (is_native_runtime(d_rk)) return src_engine;
 
-    if (s_rk == runtime_kind::native) return dst_engine;
+    if (is_native_runtime(s_rk)) return dst_engine;
 
     if (d_ek == engine_kind::cpu) return src_engine;
 

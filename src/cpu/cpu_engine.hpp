@@ -30,7 +30,8 @@ namespace cpu {
 
 class cpu_engine_t : public engine_t {
 public:
-    cpu_engine_t() : engine_t(engine_kind::cpu, runtime_kind::native) {}
+    cpu_engine_t()
+        : engine_t(engine_kind::cpu, get_default_runtime(engine_kind::cpu)) {}
 
     /* implementation part */
 
