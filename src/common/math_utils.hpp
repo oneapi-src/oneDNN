@@ -120,7 +120,7 @@ inline int gcd(int a, int b) {
 
 template <typename T>
 inline bool is_pow2(const T &v) {
-    return (v & (v - 1)) == 0;
+    return (v != 0) && ((v & (v - 1)) == 0);
 }
 
 /** returns floor(log2(v)), aka the position of the leftmost non-0 bit */
