@@ -784,7 +784,7 @@ static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_alternative_2d_partition(int nthrs,
+static inline void set_min_blk_2d_partition(int nthrs,
         blas_thread_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
@@ -804,10 +804,10 @@ static inline void set_alternative_2d_partition(int nthrs,
 
     nthr_m = nthr_n = 1;
     thread_info.copy_type = COPY_NONE;
-    thread_info.partition = PARTITION_2D_ALTERNATIVE;
+    thread_info.partition = PARTITION_2D_MIN_BLK;
 
     auto choose_blocking
-            = [&](dim_t size_z, dim_t &thread_z, int &nthr_z,
+            = [](dim_t size_z, dim_t &thread_z, int &nthr_z,
                     dim_t block_z_init, dim_t &block_z, dim_t block_align) {
                   thread_z = utils::div_up(size_z, nthr_z);
                   auto num_blk = utils::div_up(thread_z, block_z_init);
@@ -851,6 +851,44 @@ static inline void set_alternative_2d_partition(int nthrs,
             choose_n_blocking();
         }
     }
+}
+
+template <typename a_type, typename b_type, typename c_type>
+static inline void set_min_blk_1d_partition(int nthrs,
+        blas_thread_t &thread_info,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
+
+    auto m = arg->m;
+
+    auto &nthr_m = thread_info.nthrs_m;
+    auto &thread_m = thread_info.thread_m;
+    auto &block_m = thread_info.block_m;
+
+    thread_info.copy_type = COPY_NONE;
+    thread_info.partition = PARTITION_1D_ROW_MIN_BLK;
+
+    auto choose_blocking
+            = [](dim_t size_z, dim_t &thread_z, int &nthr_z,
+                    dim_t block_z_init, dim_t &block_z, dim_t block_align) {
+                  thread_z = utils::div_up(size_z, nthr_z);
+                  auto num_blk = utils::div_up(thread_z, block_z_init);
+                  block_z = utils::div_up(thread_z, num_blk);
+                  block_z = utils::rnd_up(block_z, block_align);
+                  thread_z = num_blk * block_z;
+                  if (thread_z * nthr_z > size_z)
+                      nthr_z = (int) utils::div_up(size_z, thread_z);
+              };
+
+    auto choose_m_blocking = [&]() {
+        choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, arg->um);
+    };
+
+    // Compute # threads in m-direction.
+    dim_t part_m = nstl::max(dim_t(1), utils::div_up(m, arg->um));
+    nthr_m = (int)nstl::min(part_m, (dim_t)nthrs);
+
+    // Choose m blocking.
+    choose_m_blocking();
 }
 
 #define N2D_MAX 384
@@ -989,7 +1027,7 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
                 thread_info->partition = PARTITION_2D;
             } else {
                 // Use 3D decompostition from pack api without k-partitioning.
-                set_alternative_2d_partition(nthrs, *thread_info, arg);
+                set_min_blk_2d_partition(nthrs, *thread_info, arg);
             }
         }
 
@@ -1009,7 +1047,12 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         }
 
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
-            thread_info->partition = PARTITION_1D_ROW;
+
+            if (n <= 20 && isInteger) {
+                set_min_blk_1d_partition(nthrs, *thread_info, arg);
+            } else {
+                thread_info->partition = PARTITION_1D_ROW;
+            }
         } else {
             thread_info->partition = PARTITION_1D_COL;
         }
@@ -1178,6 +1221,42 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             break;
         }
 
+    case PARTITION_1D_ROW_MIN_BLK:
+        {
+            dim_t thread_m = thread_info->thread_m;
+            assert(thread_m > 0);
+
+            dim_t offset = ithr * thread_m;
+            dim_t block = nstl::min(thread_m, arg->m - offset);
+
+            *m = block;
+            *n = arg->n;
+            *k = arg->k;
+
+            // Set matrix A.
+            *a = arg->a + offset * strideAm;
+
+            // Set matrix B.
+            *b = arg->b;
+
+            // Set matrix C.
+            *c = arg->c + offset;
+
+            // Set offset vector for C matrix.
+            if (isInteger) {
+                dim_t co_stride = 0;
+                if (offsetc == FIX_OFFSET) {
+                    co_stride = 0;
+                } else if (offsetc == ROW_OFFSET) {
+                    co_stride = 0;
+                } else if (offsetc == COL_OFFSET) {
+                    co_stride = offset;
+                }
+                *co = arg->co + co_stride;
+            }
+            break;
+        }
+
     case PARTITION_1D_COL:
         {
             dim_t offset = 0;
@@ -1255,7 +1334,7 @@ static inline void decompose_matrices(const int ithr, int *nthrs, dim_t *m,
             break;
         }
 
-    case PARTITION_2D_ALTERNATIVE:
+    case PARTITION_2D_MIN_BLK:
         {
             dim_t thread_m = thread_info->thread_m;
             dim_t thread_n = thread_info->thread_n;
