@@ -180,12 +180,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.nb_ow;
-
-    int nthr;
-    if (jcp.aligned_threads)
-        nthr = jcp.aligned_threads;
-    else
-        nthr = dnnl_get_max_threads();
+    int nthr = jcp.aligned_threads;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0}, start_copy;
@@ -275,12 +270,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh * jcp.nb_ow;
-
-    int nthr;
-    if (jcp.aligned_threads)
-        nthr = jcp.aligned_threads;
-    else
-        nthr = dnnl_get_max_threads();
+    int nthr = jcp.aligned_threads;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0}, start_copy;
