@@ -19,8 +19,8 @@
 
 #include <assert.h>
 
-#include "cpu_isa_traits.hpp"
 #include "c_types_map.hpp"
+#include "cpu_isa_traits.hpp"
 #include "dnnl_debug.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"

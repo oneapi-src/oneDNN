@@ -824,7 +824,8 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                 /* 2KB per thread (72 EU and 7 thr/EU)*/
                 opt_chunk = utils::div_up(
                         ((dim_t)jcp.ic_block * jcp.ih * jcp.iw * jcp.id
-                                + (dim_t)jcp.oc_block * jcp.oh * jcp.ow * jcp.od)
+                                + (dim_t)jcp.oc_block * jcp.oh * jcp.ow
+                                        * jcp.od)
                                 * jcp.mb * 4,
                         1024 * 2 * 72 * 7);
                 jcp.oh_chunk = 1;
@@ -859,7 +860,8 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                                                       * jcp.od)
                                         * jcp.mb * 4,
                                 1024 * 2 * 72 * 7));
-                jcp.oh_chunk = nstl::min((dim_t)jcp.oh * jcp.ow * jcp.od, opt_chunk);
+                jcp.oh_chunk
+                        = nstl::min((dim_t)jcp.oh * jcp.ow * jcp.od, opt_chunk);
                 jcp.mb_chunk = nstl::min((dim_t)jcp.mb / jcp.mb_block,
                         utils::div_up(opt_chunk, (dim_t)jcp.oh_chunk));
                 jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;

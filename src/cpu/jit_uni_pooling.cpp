@@ -258,7 +258,6 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                         blk_ptr[ch_idx] = static_cast<data_t>(0.f);
                 }
             }
-
         });
     } else {
         ptrdiff_t nelems = (ptrdiff_t)jpp.mb * (ptrdiff_t)jpp.c

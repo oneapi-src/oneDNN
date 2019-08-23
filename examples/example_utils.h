@@ -87,8 +87,7 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
             for (size_t i = 0; i < bytes; ++i) {
                 ((char *)handle)[i] = ((char *)ptr)[i];
             }
-        }
-        else{
+        } else {
             handle = NULL;
         }
     }
@@ -136,8 +135,7 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
             for (size_t i = 0; i < bytes; ++i) {
                 ((char *)handle)[i] = ((char *)ptr)[i];
             }
-        }
-        else{
+        } else {
             handle = NULL;
         }
     }
