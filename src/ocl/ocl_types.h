@@ -97,7 +97,7 @@
 #define DATA_T ushort
 #define POST_OP_DATA_T float
 #define DATA8_T ushort8
-#define DATA_MAX 3.38953138925153547590470800371487866880e+38F
+#define DATA_MAX as_float(0x7f7f0000)
 #define DATA_MIN (-DATA_MAX)
 #define DATA_ZERO 0.0f
 #define DATA_ONE 1.0f

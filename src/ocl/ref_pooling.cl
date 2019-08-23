@@ -217,11 +217,7 @@ ref_pooling_fwd_kernel(
                             }
                         }
                     }
-#if DT_BF16 == 1
                 dst[dst_off] = CONVERT_DATA_T(d);
-#else // DT_BF16 == 0
-                dst[dst_off] = d;
-#endif
 #if POOLING_MAX == 1 && IS_TRAINING == 1
                 if (ws[dst_off] < 0) ws[dst_off] = 0;
 #endif
@@ -367,6 +363,62 @@ ref_pooling_bwd_kernel(__global DATA_T *diff_src, __global int *ws,
                 diff_src[diff_src_offset] = 0;
             }
 
+#if DT_BF16 == 1
+    // For bfloat16, iterate over input to use a temporary float accumulator
+    for (int id = 0; id < ID; ++id)
+        for (int ih = 0; ih < IH; ++ih)
+            for (int iw = 0; iw < IW; ++iw) {
+                float s = 0;
+                for (int kd = 0; kd < KD; ++kd)
+                    for (int kh = 0; kh < KH; ++kh)
+                        for (int kw = 0; kw < KW; ++kw) {
+                            int _od = id + PD - kd;
+                            int _oh = ih + PH - kh;
+                            int _ow = iw + PW - kw;
+                            if (_od % SD != 0 || _oh % SH != 0 || _ow % SW != 0)
+                                continue;
+
+                            int od = _od / SD;
+                            int oh = _oh / SH;
+                            int ow = _ow / SW;
+
+                            if (od < 0 || od >= OD) continue;
+                            if (oh < 0 || oh >= OH) continue;
+                            if (ow < 0 || ow >= OW) continue;
+
+                            const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
+
+#ifdef POOLING_MAX
+                            const int index = ws[dst_off];
+
+                            const int hw = index % (KW * KH);
+                            const int w_kd = index / (KW * KH);
+                            const int w_kw = hw % KW;
+                            const int w_kh = hw / KW;
+                            if (w_kd != kd || w_kh != kh || w_kw != kw)
+                                continue;
+#endif
+
+#ifdef POOLING_MAX
+                            const int denom = 1;
+#elif defined(POOLING_AVG_INCLUDE_PADDING)
+                            const int denom = KD * KH * KW;
+#elif defined(POOLING_AVG_EXCLUDE_PADDING)
+                            const int id_start = max(od * SD - PD, 0);
+                            const int ih_start = max(oh * SH - PH, 0);
+                            const int iw_start = max(ow * SW - PW, 0);
+                            const int id_end = min(od * SD - PD + KD, ID);
+                            const int ih_end = min(oh * SH - PH + KH, IH);
+                            const int iw_end = min(ow * SW - PW + KW, IW);
+                            const int denom = (ih_end - ih_start)
+                                    * (iw_end - iw_start) * (id_end - id_start);
+#endif
+                            s += DATA_TO_REF(diff_dst[dst_off]) / denom;
+                        }
+                uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
+                diff_src[diff_src_offset] = CONVERT_DATA_T(s);
+            }
+#else // DT_BF16 == 1
     for (int od = 0; od < OD; ++od)
         for (int oh = 0; oh < OH; ++oh)
             for (int ow = 0; ow < OW; ++ow) {
@@ -413,6 +465,7 @@ ref_pooling_bwd_kernel(__global DATA_T *diff_src, __global int *ws,
                         }
 #endif
             }
+#endif
 #endif
 }
 #endif

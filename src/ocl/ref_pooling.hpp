@@ -67,7 +67,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(u8, src_data_t, dst_data_t)
                             || utils::everyone_is(s8, src_data_t, dst_data_t))
-                    && IMPLICATION(utils::one_of(src_data_t, f16, bf16),
+                    && IMPLICATION(utils::one_of(src_data_t, f16),
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t == u8 || src_data_t == s8,
                             desc()->accum_data_type == s32)
@@ -148,8 +148,12 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && utils::everyone_is(data_type::f32,
-                            diff_dst_md()->data_type, diff_src_md()->data_type)
+                    && (utils::everyone_is(data_type::f32,
+                                diff_dst_md()->data_type,
+                                diff_src_md()->data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    diff_dst_md()->data_type,
+                                    diff_src_md()->data_type))
                     && attr()->has_default_values()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
