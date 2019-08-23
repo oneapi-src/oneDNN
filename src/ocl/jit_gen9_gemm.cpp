@@ -460,9 +460,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     };
 
     while (km_large >= 0) {
-        auto km_small
-                = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
-        if (km_small < 0) km_small = 0;
+        int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
+        km_small = nstl::max(0, km_small);
 
         auto threads = (km_large + km_small) * kn;
         auto ldispatch = threads % hw_threads_;
@@ -482,6 +481,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::execute_superkernel(
     km_large = best_km_large;
 
     int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
+    km_small = nstl::max(0, km_small);
+
     km = km_small + km_large;
 
     auto n_block_target = nstl::max<int>(1, 128 / unroll_n);
