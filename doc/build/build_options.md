@@ -104,6 +104,10 @@ cmake -DMKLDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 SYCL runtime requires a SYCL compiler with SYCL 1.2.1 standard support.  You
 can explicitly specify the path to the SYCL installation using `-DSYCLROOT` CMake option.
 
+Intel MKL-DNN has a limitation for SYCL runtime, which makes primitive
+submission into stream not thread-safe. This issue can be workarounded by using
+a separate stream per thread.
+
 You need to set C and C++ compilers to point to the SYCL compilers.
 
 ~~~sh
