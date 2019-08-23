@@ -54,6 +54,15 @@ struct desc_t {
 
     const char *name;
 };
+
+inline bool is_problem_3d(const desc_t *p) {
+    return p->id > 1 || p->kd > 1;
+}
+
+inline bool is_problem_1d(const desc_t *p) {
+    return !is_problem_3d(p) && p->ih == 1 && p->kh == 1;
+}
+
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 

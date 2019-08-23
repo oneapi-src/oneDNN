@@ -31,14 +31,6 @@
 
 namespace pool {
 
-inline bool is_3d(const prb_t *p) {
-    return p->id > 1 || p->od > 1 || p->kd > 1;
-}
-
-inline bool is_1d(const prb_t *p) {
-    return !is_3d(p) && p->ih == 1 && p->oh == 1 && p->kh == 1;
-}
-
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
