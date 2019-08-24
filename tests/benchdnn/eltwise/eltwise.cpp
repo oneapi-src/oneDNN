@@ -165,10 +165,10 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = ed.data_desc;
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt),
             src_dt(data_desc, engine_tgt);
 
-    dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t dst_dt;
     if (!p->inplace) {
         dst_dt = dnn_mem_t(data_desc, engine_tgt);
@@ -177,10 +177,10 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
-    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref),
+    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt),
             d_dst_dt(data_desc, engine_tgt);
 
-    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t d_src_dt;
     if (!p->inplace) {
         d_src_dt = dnn_mem_t(data_desc, engine_tgt);
@@ -197,7 +197,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, dst_fp, dst, r), WARN);
         }
     } else {
@@ -211,7 +211,7 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(
-                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_ref);
+                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, d_src_fp, d_src, r), WARN);
         }
     }

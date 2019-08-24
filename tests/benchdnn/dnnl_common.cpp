@@ -23,14 +23,8 @@
 // Engine kind used to run DNNL primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
-// Engine used for reference benchdnn computations
-dnnl_engine_t engine_ref;
-
 // Engine used to run DNNL primitives for testing
 dnnl_engine_t engine_tgt;
-
-// Stream for reference engine
-dnnl_stream_t stream_ref;
 
 // Stream for target engine
 dnnl_stream_t stream_tgt;

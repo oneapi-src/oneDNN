@@ -170,10 +170,7 @@ inline float maybe_saturate(dnnl_data_type_t dt, float value) {
 /* simplification */
 extern dnnl_engine_kind_t engine_tgt_kind;
 
-extern dnnl_engine_t engine_ref;
 extern dnnl_engine_t engine_tgt;
-
-extern dnnl_stream_t stream_ref;
 extern dnnl_stream_t stream_tgt;
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -188,8 +185,6 @@ inline int init() {
                          &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
     }
-    engine_ref = engine_tgt;
-    stream_ref = stream_tgt;
 
     // Optimization to reduce testing time for GPU.
     //

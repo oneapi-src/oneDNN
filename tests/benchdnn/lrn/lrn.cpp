@@ -182,7 +182,7 @@ int doit(const prb_t *p, res_t *r) {
                 lfpd, dnnl_query_workspace_md, 0);
         if (ws_d.format_kind != dnnl_format_kind_undef) {
             ws_dt = dnn_mem_t(ws_d, engine_tgt);
-            ws_fp = dnn_mem_t(ws_d, engine_ref);
+            ws_fp = dnn_mem_t(ws_d, engine_tgt);
         }
     }
 
@@ -196,8 +196,8 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_default_tag(src_dt.md_.ndims);
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref);
-    dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
+    dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t d_dst_fp, d_src_fp;
 
     SAFE(fill_src(p, src_dt, src_fp), WARN);
@@ -216,7 +216,7 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_FWD) {
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, dst, dst_fp, r), WARN);
         }
     }
@@ -230,8 +230,8 @@ int doit(const prb_t *p, res_t *r) {
 
         d_dst_dt = dnn_mem_t(data_desc, engine_tgt),
         d_src_dt = dnn_mem_t(data_desc, engine_tgt),
-        d_dst_fp = dnn_mem_t(data_desc, fp, tag, engine_ref),
-        d_src_fp = dnn_mem_t(data_desc, fp, tag, engine_ref);
+        d_dst_fp = dnn_mem_t(data_desc, fp, tag, engine_tgt),
+        d_src_fp = dnn_mem_t(data_desc, fp, tag, engine_tgt);
 
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp), WARN);
         SAFE(d_src_dt.reorder(d_src_fp), WARN);
@@ -248,7 +248,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, d_src, d_src_fp, r), WARN);
         }
     }

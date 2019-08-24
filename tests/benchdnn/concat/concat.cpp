@@ -141,7 +141,7 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto dst_dt_d = q(dnnl_query_dst_md);
     const auto dst_data_type = dst_dt_d.data_type; // needed for deduced dst
-    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_ref),
+    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_tgt),
             dst_dt(dst_dt_d, engine_tgt);
 
     args_t args;
@@ -153,7 +153,7 @@ int doit(const prb_t *p, res_t *r) {
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const auto src_dt_d = q(dnnl_query_src_md, i_input);
-        src_fp.emplace_back(src_dt_d, fp, tag, engine_ref);
+        src_fp.emplace_back(src_dt_d, fp, tag, engine_tgt);
         src_dt.emplace_back(src_dt_d, engine_tgt);
 
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
@@ -165,7 +165,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+        dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
         SAFE(compare(p, dst_data_type, dst_fp, dst, r), WARN);
     }
 

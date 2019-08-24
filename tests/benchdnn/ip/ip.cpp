@@ -193,7 +193,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     dnn_mem_t mem_00(mem_dt.md_, dnnl_f32, get_default_tag(mem_dt.md_.ndims),
-            engine_ref);
+            engine_tgt);
 
     const auto nelems = mem_dt.nelems();
     assert(mem_dt.nelems() == mem_fp.nelems());
@@ -248,11 +248,11 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto src_tag = get_default_tag(src_dt.md_.ndims);
     const auto wei_tag = get_default_tag(wei_dt.md_.ndims);
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
-    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
-    dnn_mem_t dst_fp(dst_dt_d, fp, dnnl_nc, engine_ref);
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt);
+    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_tgt);
+    dnn_mem_t dst_fp(dst_dt_d, fp, dnnl_nc, engine_tgt);
     dnn_mem_t bia_fp = p->dir & FLAG_BIA
-            ? dnn_mem_t(bia_dt_d, fp, dnnl_x, engine_ref)
+            ? dnn_mem_t(bia_dt_d, fp, dnnl_x, engine_tgt)
             : dnn_mem_t();
 
     SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
@@ -270,7 +270,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, dnnl_nc, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, dnnl_nc, engine_tgt);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }
     } else if (p->dir == BWD_D) {
@@ -282,7 +282,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
-            dnn_mem_t src(src_dt, fp, src_tag, engine_ref);
+            dnn_mem_t src(src_dt, fp, src_tag, engine_tgt);
             SAFE(compare_dat(p, SRC, src, src_fp, r), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
@@ -295,10 +295,10 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t wei(wei_dt, fp, wei_tag, engine_ref);
+            dnn_mem_t wei(wei_dt, fp, wei_tag, engine_tgt);
             if (compare_dat(p, WEI, wei, wei_fp, r) != OK) return FAIL;
             if (p->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, dnnl_x, engine_ref);
+                dnn_mem_t bia(bia_dt, fp, dnnl_x, engine_tgt);
                 SAFE(compare_dat(p, BIA, bia, bia_fp, r), WARN);
             }
         }

@@ -445,7 +445,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag(ld.data_desc.ndims);
     const auto &data_desc = ld.data_desc;
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_desc, engine_tgt);
 
     dnn_mem_t &dst_fp = src_fp; // in-place in ref code
@@ -453,7 +453,7 @@ int doit(const prb_t *p, res_t *r) {
     if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
-    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t d_dst_dt(data_desc, engine_tgt);
     dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
     dnn_mem_t placeholder_d_src_dt;
@@ -465,15 +465,15 @@ int doit(const prb_t *p, res_t *r) {
     const int stat_ndims = ld.data_desc.ndims - 1;
     const auto stat_tag = get_default_tag(stat_ndims);
     const auto &stat_desc = ld.stat_desc;
-    dnn_mem_t mean_fp(stat_desc, fp, stat_tag, engine_ref),
+    dnn_mem_t mean_fp(stat_desc, fp, stat_tag, engine_tgt),
             mean_dt(stat_desc, engine_tgt);
-    dnn_mem_t var_fp(stat_desc, fp, stat_tag, engine_ref),
+    dnn_mem_t var_fp(stat_desc, fp, stat_tag, engine_tgt),
             var_dt(stat_desc, engine_tgt);
 
     const dnnl_dims_t dims2d = {2, ld.data_desc.dims[ld.data_desc.ndims - 1]};
-    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             ss_dt(ss_fp.md_, engine_tgt);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
     DNN_SAFE(dnnl_primitive_create(&b, lpd), WARN);
@@ -508,13 +508,13 @@ int doit(const prb_t *p, res_t *r) {
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
-                dnn_mem_t mean(mean_dt, fp, stat_tag, engine_ref);
+                dnn_mem_t mean(mean_dt, fp, stat_tag, engine_tgt);
                 SAFE(compare(p, MEAN, mean_fp, mean, r), WARN);
 
-                dnn_mem_t var(var_dt, fp, stat_tag, engine_ref);
+                dnn_mem_t var(var_dt, fp, stat_tag, engine_tgt);
                 SAFE(compare(p, VAR, var_fp, var, r), WARN);
             }
-            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
         }
     } else {
@@ -549,7 +549,7 @@ int doit(const prb_t *p, res_t *r) {
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
             }
-            dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);
         }
     }

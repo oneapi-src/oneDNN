@@ -631,7 +631,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag(bd.data_desc.ndims);
     const auto &data_desc = bd.data_desc;
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_desc, engine_tgt);
 
     dnn_mem_t &dst_fp = src_fp; // in-place in ref code
@@ -640,18 +640,18 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
     const dnnl_dims_t dims1d = {p->ic};
-    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_ref),
+    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_tgt),
             mean_dt(mean_fp.md_, engine_tgt);
-    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_ref),
+    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_tgt),
             var_dt(var_fp.md_, engine_tgt);
 
     const dnnl_dims_t dims2d = {2, p->ic};
-    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             ss_dt(ss_fp.md_, engine_tgt);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
-    dnn_mem_t ws_fp(src_fp.md_, engine_ref);
+    dnn_mem_t ws_fp(src_fp.md_, engine_tgt);
     dnn_mem_t ws_dt;
     if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md
@@ -700,14 +700,14 @@ int doit(const prb_t *p, res_t *r) {
 
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
-            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
             if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
                 SAFE(check_fwd_ws(dst_dt, ws_dt, r), WARN);
             }
         }
     } else {
-        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
+        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt);
         d_dst_dt = dnn_mem_t(data_desc, engine_tgt);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
@@ -752,7 +752,7 @@ int doit(const prb_t *p, res_t *r) {
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
             }
-            dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);
         }
     }

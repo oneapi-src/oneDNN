@@ -267,15 +267,15 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     dnn_mem_t mem_dt_in_fmt_ref(
-            ndims, dims, p->conf_in->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_in->dt, nullptr, engine_tgt);
     dnn_mem_t mem_dt_in_fmt_in(
             ndims, dims, p->conf_in->dt, r.tag_in, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_dt_out_fmt_out, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_ref(
-            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
     dnn_mem_t mem_test_dt_out_fmt_ref(
-            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
     dnn_mem_t mem_test_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_test_dt_out_fmt_out, engine_tgt);
 

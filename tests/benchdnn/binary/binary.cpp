@@ -189,7 +189,7 @@ int doit(const prb_t *p, res_t *r) {
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const auto src_d = q(dnnl_query_src_md, i_input);
-        src_fp.emplace_back(src_d, fp, tag, engine_ref);
+        src_fp.emplace_back(src_d, fp, tag, engine_tgt);
         src_dt.emplace_back(src_d, engine_tgt);
 
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
@@ -205,7 +205,7 @@ int doit(const prb_t *p, res_t *r) {
     if (p->scale_policy != policy_t::NONE) {
         for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
             const auto scale_d = q(dnnl_query_weights_md, i_input);
-            scale_fp.emplace_back(scale_d, fp, dnnl_x, engine_ref);
+            scale_fp.emplace_back(scale_d, fp, dnnl_x, engine_tgt);
             scale_dt.emplace_back(scale_d, engine_tgt);
 
             SAFE(fill_scale(p, i_input, scale_dt[i_input], scale_fp[i_input]),
@@ -227,7 +227,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, scale_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+        dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
         SAFE(compare(p, dst_fp, dst, r), WARN);
     }
 
