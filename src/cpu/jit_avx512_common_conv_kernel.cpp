@@ -2177,9 +2177,8 @@ void jit_avx512_common_conv_bwd_data_kernel_f32::generate() {
     int l_overflow = nstl::max(0, ((kw - 1) * dilate_w - jcp.l_pad) / stride_w);
     int r_overflow = nstl::max(
             0, ((kw - 1) * dilate_w - nstl::max(0, jcp.r_pad)) / stride_w);
-    int r_overflow1 = nstl::max(0,
-            ((kw - 1) * dilate_w - nstl::max(0, jcp.r_pad) - ur_w_tail)
-                    / stride_w);
+    int r_overflow1 = nstl::max(
+            0, ((kw - 1) * dilate_w - jcp.r_pad - ur_w_tail) / stride_w);
 
     int n_oi = iw / ur_w;
     if (r_overflow1 > 0) n_oi--;
@@ -2334,8 +2333,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     int l_overflow = nstl::max(
             0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
     int r_overflow1 = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - nstl::max(0, jcp.r_pad)
-                    - jcp.iw % jcp.ur_w)
+            ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.r_pad - jcp.iw % jcp.ur_w)
                     / jcp.stride_w);
     int n_oi = jcp.iw / jcp.ur_w;
     if (r_overflow1 > 0) n_oi--;
@@ -2442,13 +2440,16 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     if (l_overflow * jcp.stride_w > jcp.ur_w) return status::unimplemented;
     int r_overflow_no_tail = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - nstl::max(0, jcp.r_pad)
-                    - jcp.ur_w_tail)
+            ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.r_pad - jcp.ur_w_tail)
                     / jcp.stride_w);
-    if (r_overflow_no_tail * jcp.stride_w > jcp.ur_w)
-        return status::unimplemented;
-    if ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
-        return status::unimplemented;
+    bool tails_not_ok = false
+            /* maximum 1 ur_w block with r_overflow so far */
+            || r_overflow_no_tail * jcp.stride_w > jcp.ur_w
+            /* ur_w must be a multiple of stride */
+            || ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
+            /* r_pad must not extend beyond ur_w_tail */
+            || ((jcp.iw > jcp.ur_w) && (jcp.r_pad + jcp.ur_w_tail < 0));
+    if (tails_not_ok) return status::unimplemented;
 
     pick_loop_order(jcp);
 

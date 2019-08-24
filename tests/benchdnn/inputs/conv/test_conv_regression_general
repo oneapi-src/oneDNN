@@ -89,3 +89,7 @@ mb1_g2ic6oc16_ih5oh5kh1sh1dh0ph0_iw5ow5kw1sw1dw0pw0
 --reset --mb=1 --dir=FWD_D,BWD_D --cfg=f32
 mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 
+# github #542
+# r_overflow1 corner case
+--reset --dir=bwd_d mb1_ic9oc3_ih32oh10kh5sh3dh0ph1
+
