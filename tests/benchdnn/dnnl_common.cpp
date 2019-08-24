@@ -68,27 +68,83 @@ dnnl_status_t execute_and_wait(
     return dnnl_success;
 }
 
+inline bool should_stop(const benchdnn_timer_t &t) {
+    const bool stop = false
+            || (fix_times_per_prb && t.times() >= fix_times_per_prb)
+            || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
+                    && t.times() >= min_times_per_prb);
+    return stop;
+}
+
+inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_primitive_t prim,
+        std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    t.reset();
+    while (true) {
+        DNN_SAFE(dnnl_primitive_execute(
+                         prim, stream_tgt, (int)dnnl_args.size(), dnnl_args.data()),
+                WARN);
+        t.stamp();
+        if (should_stop(t)) break;
+    }
+    return OK;
+}
+
+inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_primitive_t prim,
+        std::vector<dnnl_exec_arg_t> &dnnl_args) {
+    const int max_batch_times = 10000;
+
+    // Warm-up run
+    t.reset();
+    DNN_SAFE(dnnl_primitive_execute(
+                     prim, stream_tgt, (int)dnnl_args.size(), dnnl_args.data()),
+            WARN);
+    DNN_SAFE(dnnl_stream_wait(stream_tgt), WARN);
+    t.stamp();
+
+    int cur_batch_times
+            = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
+    --cur_batch_times;
+
+    while (true) {
+        for (int i = 0; i < cur_batch_times; i++) {
+            DNN_SAFE(dnnl_primitive_execute(prim, stream_tgt,
+                             (int)dnnl_args.size(), dnnl_args.data()),
+                    WARN);
+        }
+        DNN_SAFE(dnnl_stream_wait(stream_tgt), WARN);
+        t.stamp(cur_batch_times);
+
+        if (should_stop(t)) break;
+
+        // Adjust cur_batch_times after the first batch run
+        if (t.times() == cur_batch_times + 1) {
+            double ms_min = t.ms(benchdnn_timer_t::min);
+            // Heuristic: try to use ~5 batch runs for the whole benchmark
+            int batch_times_heuristic = (ms_min == 0.0)
+                    ? INT_MAX
+                    : MAX2(1,
+                            (int)((max_ms_per_prb - t.total_ms()) / ms_min
+                                    / 5));
+            cur_batch_times = MIN2(max_batch_times, batch_times_heuristic);
+        }
+    }
+    return OK;
+}
+
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
+    int ret = OK;
     if (bench_mode & PERF) {
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
-        t.reset();
-        while (true) {
-            DNN_SAFE(dnnl_primitive_execute(prim, stream_tgt,
-                             (int)dnnl_args.size(), dnnl_args.data()),
-                    WARN);
-            DNN_SAFE(dnnl_stream_wait(stream_tgt), WARN);
-            t.stamp();
-            const bool stop = false
-                    || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                    || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                            && t.times() >= min_times_per_prb);
-            if (stop) {
-                execute_map_args(args);
-                break;
-            }
-        }
+        // For CPU: measure indiividual iterations
+        // For GPU: measure iterations in batches to hide driver overhead
+        if (engine_tgt_kind == dnnl_cpu)
+            ret = measure_perf_individual(t, prim, dnnl_args);
+        else
+            ret = measure_perf_aggregate(t, prim, dnnl_args);
+
+        if (ret == OK) execute_map_args(args);
     }
-    return OK;
+    return ret;
 }
