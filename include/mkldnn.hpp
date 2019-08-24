@@ -270,6 +270,7 @@ enum algorithm {
     eltwise_soft_relu = mkldnn_eltwise_soft_relu,
     eltwise_logistic = mkldnn_eltwise_logistic,
     eltwise_exp = mkldnn_eltwise_exp,
+    eltwise_gelu = mkldnn_eltwise_gelu,
     lrn_across_channels = mkldnn_lrn_across_channels,
     lrn_within_channel  = mkldnn_lrn_within_channel,
     pooling_max = mkldnn_pooling_max,

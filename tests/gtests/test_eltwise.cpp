@@ -211,7 +211,8 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise) {}
     EXPAND(PARAMS(eltwise_tanh, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \
     EXPAND(PARAMS(eltwise_square, __VA_ARGS__)), \
-    EXPAND(PARAMS(eltwise_abs, __VA_ARGS__))
+    EXPAND(PARAMS(eltwise_abs, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_gelu, __VA_ARGS__))
 
 #define PARAMS_ALL_ALG_SDPART(...) \
     EXPAND(PARAMS(eltwise_sqrt, __VA_ARGS__)), \
@@ -221,9 +222,9 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise) {}
     EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
 #define INST_TEST_CASE(str, ...) \
-INSTANTIATE_TEST_CASE_P( \
+INSTANTIATE_TEST_SUITE_P( \
         str, eltwise_test_float, ::testing::Values(__VA_ARGS__)); \
-INSTANTIATE_TEST_CASE_P( \
+INSTANTIATE_TEST_SUITE_P( \
         str, eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__));
 
 INST_TEST_CASE(SimpleZeroDim,

@@ -554,6 +554,8 @@ typedef enum {
     mkldnn_eltwise_logistic = 0xaf,
     /** Eltwise: exponent */
     mkldnn_eltwise_exp = 0xbf,
+    /** Eltwise: gelu */
+    mkldnn_eltwise_gelu = 0xcf,
     /** Max pooling */
     mkldnn_pooling_max = 0x1ff,
     /** Average pooling include padding */

@@ -608,72 +608,72 @@ static auto ForwardNCHWTail_cases = []() {
                     { 1, 64, 8, 9, 1.0e-4f, 0.75f, 1.0f, 5, ACROSS } });
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardZeroDim, lrn_forward_test_float, ForwardZeroDim_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardEF, lrn_forward_test_float, ForwardEF_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c_padded, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c_padded, lrn_forward_test_float,
         Forward_nChw16c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_float,
         Forward_nChw8c_padded_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward, lrn_forward_test_float, Forward_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardNHWC, lrn_forward_test_float, ForwardNHWC_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward_nChw8c, lrn_forward_test_float, Forward_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c, lrn_forward_test_float,
         Forward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForwardNCHW, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForwardNCHW, lrn_forward_test_float,
         AlexnetForwardNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForwardNHWC, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForwardNHWC, lrn_forward_test_float,
         AlexnetForwardNHWC_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForward_nChw8c, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForward_nChw8c, lrn_forward_test_float,
         AlexnetForward_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForward_nChw16c, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForward_nChw16c, lrn_forward_test_float,
         AlexnetForward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1ForwardNCHW, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1ForwardNCHW, lrn_forward_test_float,
         GoogleNetV1ForwardNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1Forward_nChw8c,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw8c,
         lrn_forward_test_float, GoogleNetV1Forward_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1Forward_nChw16c,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c,
         lrn_forward_test_float, GoogleNetV1Forward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNRCNNForwardBlocked, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNRCNNForwardBlocked, lrn_forward_test_float,
         RCNNForwardBlocked_cases());
 // This tests compatibility with MKL-DNN 0.14
-INSTANTIATE_TEST_CASE_P(TestLRNRegressionWeightFormat, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_forward_test_float,
         RegressionWeightFormat_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForwardNCHWTail, lrn_forward_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardNCHWTail, lrn_forward_test_float,
         ForwardNCHWTail_cases());
 
 // === bfloat16 ====
-INSTANTIATE_TEST_CASE_P(TestLRNForwardZeroDim, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNForwardZeroDim, lrn_forward_test_bfloat16,
         ForwardZeroDim_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardEF, lrn_forward_test_bfloat16, ForwardEF_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c_padded,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c_padded,
         lrn_forward_test_bfloat16, Forward_nChw16c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw8c_padded, lrn_forward_test_bfloat16,
         Forward_nChw8c_padded_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForward, lrn_forward_test_bfloat16, Forward_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNForwardNHWC, lrn_forward_test_bfloat16, ForwardNHWC_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw8c, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw8c, lrn_forward_test_bfloat16,
         Forward_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNForward_nChw16c, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNForward_nChw16c, lrn_forward_test_bfloat16,
         Forward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForwardNCHW, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForwardNCHW, lrn_forward_test_bfloat16,
         AlexnetForwardNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForwardNHWC, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForwardNHWC, lrn_forward_test_bfloat16,
         AlexnetForwardNHWC_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNAlexnetForward_nChw16c,
+INSTANTIATE_TEST_SUITE_P(TestLRNAlexnetForward_nChw16c,
         lrn_forward_test_bfloat16, AlexnetForward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1ForwardNCHW,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1ForwardNCHW,
         lrn_forward_test_bfloat16, GoogleNetV1ForwardNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1Forward_nChw16c,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c,
         lrn_forward_test_bfloat16, GoogleNetV1Forward_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNRCNNForwardBlocked, lrn_forward_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNRCNNForwardBlocked, lrn_forward_test_bfloat16,
         RCNNForwardBlocked_cases());
 
 } // namespace mkldnn

@@ -303,7 +303,7 @@ class pooling_test_bfloat16: public pooling_test<mkldnn_bfloat16_t> {
 
 TEST_P(pooling_test_s8, TestsPooling) {}
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAlexnetForwardS8, pooling_test_s8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -316,7 +316,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nhwc, EXPAND_SIZES_2D(1, 256, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxS8, pooling_test_s8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -335,7 +335,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgS8, pooling_test_s8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -379,7 +379,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingTFUnitTestsS8, pooling_test_s8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -399,7 +399,7 @@ INSTANTIATE_TEST_CASE_P(
             EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingCornerCasesS8, pooling_test_s8, ::testing::Values(
             pool_test_params{prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -432,7 +432,7 @@ INSTANTIATE_TEST_CASE_P(
 TEST_P(pooling_test_u8, TestsPooling) {}
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -451,7 +451,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -495,7 +495,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingTFUnitTestsU8, pooling_test_u8, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -515,7 +515,7 @@ INSTANTIATE_TEST_CASE_P(
             EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingCornerCasesU8, pooling_test_u8, ::testing::Values(
             pool_test_params{prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -547,7 +547,7 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_P(pooling_test_s32, TestsPooling) {}
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAlexnetForwardS32, pooling_test_s32, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -560,7 +560,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nhwc,  EXPAND_SIZES_2D(1, 256, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxS32, pooling_test_s32, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -579,7 +579,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgS32, pooling_test_s32, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -623,7 +623,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingTFUnitTestsS32, pooling_test_s32, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -643,7 +643,7 @@ INSTANTIATE_TEST_CASE_P(
             EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingCornerCasesS32, pooling_test_s32, ::testing::Values(
             pool_test_params{prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -675,7 +675,7 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_P(pooling_test_float, TestsPooling) {}
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardZeroDim, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -688,7 +688,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardEF, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -704,7 +704,7 @@ INSTANTIATE_TEST_CASE_P(
             true, mkldnn_invalid_arguments}
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw16c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -729,7 +729,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling_nChw8c_with_padded, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -754,7 +754,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c, EXPAND_SIZES_2D(4, 28, 60, 60, 31, 31, 4, 2, 1, 1, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxKernelSlipsToPadding, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
             algorithm::pooling_max, memory::format::nchw,
@@ -770,7 +770,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, EXPAND_SIZES_2D( 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_nCdhw16c, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
@@ -792,7 +792,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_nCdhw8c, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw8c,
@@ -814,7 +814,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_ndhwc, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
@@ -836,7 +836,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_ncdhw, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
@@ -858,7 +858,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::ncdhw, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3Dunet_ncdhw, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
@@ -871,7 +871,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::ncdhw, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3Dunet_ndhwc, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
@@ -884,7 +884,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::ndhwc, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3Dunet_blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
@@ -897,7 +897,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nCdhw16c, EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2, 0, 0, 0, 1, 1, 1) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMax, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -914,14 +914,14 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxNHWC, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
             memory::format::nhwc,  EXPAND_SIZES_2D( 2, 4, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxBlocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -944,7 +944,7 @@ INSTANTIATE_TEST_CASE_P(
 
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxBlockedPerf, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
             algorithm::pooling_max, memory::format::nChw8c,
@@ -954,7 +954,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgBlockedPerf, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
             algorithm::pooling_avg_exclude_padding, memory::format::nChw8c,
@@ -973,7 +973,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxBlocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -996,7 +996,7 @@ INSTANTIATE_TEST_CASE_P(
 
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardMaxBlocked16Perf, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
             algorithm::pooling_max, memory::format::nChw16c,
@@ -1006,7 +1006,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardAvgBlocked16Perf, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training, engine::kind::cpu,
             algorithm::pooling_avg_include_padding, memory::format::nChw16c,
@@ -1023,7 +1023,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAlexnetForwardMaxNCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1045,7 +1045,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAlexnetForwardMaxBlocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1067,7 +1067,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAlexnetForwardMaxBlocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1089,7 +1089,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 16, 13, 13, 6, 6, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxBlockedStride1, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1111,7 +1111,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 16, 13, 13, 11, 11, 3, 3, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxCIFAR10NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1121,7 +1121,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 32, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgCIFAR10NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1157,7 +1157,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxCIFAR10Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1167,7 +1167,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 32, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgCIFAR10Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1203,7 +1203,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxCIFAR10Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1213,7 +1213,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 32, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgCIFAR10Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1249,7 +1249,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 64, 8, 8, 4, 4, 3, 3, 0, 0, 2, 2 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxGoogleNetV1NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1271,7 +1271,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxGoogleNetV1Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1293,7 +1293,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxGoogleNetV1Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1315,7 +1315,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxResnet50NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1325,7 +1325,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxResnet50Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1335,7 +1335,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMaxResnet50Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1345,7 +1345,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgGoogleNetV1NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1397,7 +1397,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgGoogleNetV1Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1449,7 +1449,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgGoogleNetV1Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1501,7 +1501,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgResnet50NCHW, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1521,7 +1521,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgResnet50Blocked, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1541,7 +1541,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvgResnet50Blocked16, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding,
@@ -1561,7 +1561,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D( 2, 512, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAsymmPadding, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1636,7 +1636,7 @@ INSTANTIATE_TEST_CASE_P(
              EXPAND_SIZES_2D(1, 96, 300, 500, 151, 251, 3, 3, 1, 1, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingTFUnitTests, pooling_test_float, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -1656,7 +1656,7 @@ INSTANTIATE_TEST_CASE_P(
             EXPAND_SIZES_2D( 1, 1, 32, 32, 6, 6, 6, 6, 2, 2, 6, 6) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingCornerCases, pooling_test_float, ::testing::Values(
             pool_test_params{prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_exclude_padding,
@@ -1713,7 +1713,7 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_P(pooling_test_bfloat16, TestsPooling) {}
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardZeroDim, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1725,7 +1725,7 @@ INSTANTIATE_TEST_CASE_P(
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
             memory::format::nchw,  EXPAND_SIZES_2D( 2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1 )}
             ));
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingForwardEF, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1741,7 +1741,7 @@ INSTANTIATE_TEST_CASE_P(
             true, mkldnn_invalid_arguments}
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_nCdhw16c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw16c,
@@ -1757,7 +1757,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nCdhw16c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_nCdhw8c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nCdhw8c,
@@ -1773,7 +1773,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nCdhw8c, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_ndhwc, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ndhwc,
@@ -1789,7 +1789,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::ndhwc, EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2, 1, 1, 1, 2, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling3D_ncdhw, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::ncdhw,
@@ -1806,7 +1806,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling2D_nChw16c_with_padded, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1825,7 +1825,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c, EXPAND_SIZES_2D(4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMax2D_nChw16c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw16c,
@@ -1864,7 +1864,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvg2D_nChw16c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw16c,
@@ -1897,7 +1897,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw16c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling2D_nchw, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nchw,
@@ -1911,7 +1911,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPooling2D_nhwc, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nhwc,
@@ -1925,7 +1925,7 @@ INSTANTIATE_TEST_CASE_P(
             ));
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingMax2D_nChw8c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_max, memory::format::nChw8c,
@@ -1949,7 +1949,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 528, 14, 14, 4, 4, 5, 5, 0, 0, 3, 3 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAvg2D_nChw8c, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_training,
             engine::kind::cpu, algorithm::pooling_avg_include_padding, memory::format::nChw8c,
@@ -1970,7 +1970,7 @@ INSTANTIATE_TEST_CASE_P(
             memory::format::nChw8c,  EXPAND_SIZES_2D( 2, 1024, 7, 7, 1, 1, 7, 7, 0, 0, 1, 1 ) }
             ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestPoolingAsymmPadding, pooling_test_bfloat16, ::testing::Values(
             pool_test_params{ prop_kind::forward_inference,
             engine::kind::cpu, algorithm::pooling_max,

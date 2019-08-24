@@ -865,7 +865,7 @@ static auto RegressionWeightFormat_cases = []() {
 
 // Backward does not support WITHIN yet.
 /*
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNBlocked, lrn_test_float,
         ::testing::Values(
             lrn_test_params{ prop_kind::forward_training,
@@ -895,66 +895,66 @@ INSTANTIATE_TEST_CASE_P(
             ));
 */
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNBackwardZeroDim, lrn_test_float, BackwardZeroDim_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNBackwardEF, lrn_test_float, BackwardEF_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNBackward_nChw16c_padded, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackwardEF, lrn_test_float, BackwardEF_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw16c_padded, lrn_test_float,
         Backward_nChw16c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNBackward_nChw8c_padded, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw8c_padded, lrn_test_float,
         Backward_nChw8c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN, lrn_test_float, simple_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNNHWC, lrn_test_float, NHWC_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN_nChw8c, lrn_test_float, nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN_nChw16c, lrn_test_float, nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNCaffeNCHW, lrn_test_float, CaffeNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNCaffeNHWC, lrn_test_float, CaffeNHWC_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(TestLRN, lrn_test_float, simple_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNNHWC, lrn_test_float, NHWC_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRN_nChw8c, lrn_test_float, nChw8c_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRN_nChw16c, lrn_test_float, nChw16c_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNCaffeNCHW, lrn_test_float, CaffeNCHW_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNCaffeNHWC, lrn_test_float, CaffeNHWC_cases());
+INSTANTIATE_TEST_SUITE_P(
         TestLRNCaffe_nChw8c, lrn_test_float, Caffe_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNCaffe_nChw16c, lrn_test_float, Caffe_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetNCHW, lrn_test_float, AlexnetNCHW_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetNHWC, lrn_test_float, AlexnetNHWC_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnet_nChw8c, lrn_test_float, Alexnet_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnet_nChw16c, lrn_test_float, Alexnet_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1NCHW, lrn_test_float, GoogleNetV1NCHW_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1_nChw8c, lrn_test_float, GoogleNetV1_nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1_nChw16c, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1_nChw16c, lrn_test_float,
         GoogleNetV1_nChw16c_cases());
 // This tests compatibility with MKL-DNN 0.14
-INSTANTIATE_TEST_CASE_P(TestLRNRegressionWeightFormat, lrn_test_float,
+INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_test_float,
         RegressionWeightFormat_cases());
 
 // === bfloat16 ====
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNBackwardZeroDim, lrn_test_bfloat16, BackwardZeroDim_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNBackwardEF, lrn_test_bfloat16, BackwardEF_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNBackward_nChw16c_padded, lrn_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw16c_padded, lrn_test_bfloat16,
         Backward_nChw16c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNBackward_nChw8c_padded, lrn_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNBackward_nChw8c_padded, lrn_test_bfloat16,
         Backward_nChw8c_padded_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN, lrn_test_bfloat16, simple_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNNHWC, lrn_test_bfloat16, NHWC_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN_nChw8c, lrn_test_bfloat16, nChw8c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRN_nChw16c, lrn_test_bfloat16, nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNCaffeNCHW, lrn_test_bfloat16, CaffeNCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNCaffeNHWC, lrn_test_bfloat16, CaffeNHWC_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(TestLRN, lrn_test_bfloat16, simple_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNNHWC, lrn_test_bfloat16, NHWC_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRN_nChw8c, lrn_test_bfloat16, nChw8c_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRN_nChw16c, lrn_test_bfloat16, nChw16c_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNCaffeNCHW, lrn_test_bfloat16, CaffeNCHW_cases());
+INSTANTIATE_TEST_SUITE_P(TestLRNCaffeNHWC, lrn_test_bfloat16, CaffeNHWC_cases());
+INSTANTIATE_TEST_SUITE_P(
         TestLRNCaffe_nChw16c, lrn_test_bfloat16, Caffe_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetNCHW, lrn_test_bfloat16, AlexnetNCHW_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnetNHWC, lrn_test_bfloat16, AlexnetNHWC_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNAlexnet_nChw16c, lrn_test_bfloat16, Alexnet_nChw16c_cases());
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         TestLRNGoogleNetV1NCHW, lrn_test_bfloat16, GoogleNetV1NCHW_cases());
-INSTANTIATE_TEST_CASE_P(TestLRNGoogleNetV1_nChw16c, lrn_test_bfloat16,
+INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1_nChw16c, lrn_test_bfloat16,
         GoogleNetV1_nChw16c_cases());
 }

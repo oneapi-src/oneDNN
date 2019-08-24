@@ -221,7 +221,7 @@ protected:
     using cfg_f32 = test_rnn_params_t;
 
 TEST_P(rnn_forward_test_f32, TestsRnn) { }
-INSTANTIATE_TEST_CASE_P(TestRnn, rnn_forward_test_f32,
+INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
         ::testing::Values(
             cfg_f32{eng::cpu, alg::vanilla_rnn, alg::eltwise_tanh, dir::unidirectional_left2right,
                 {fmt::tnc, fmt::ldsnc, fmt::ldigo, fmt::ldigo, fmt::ldgo, fmt::tnc, fmt::ldsnc},
