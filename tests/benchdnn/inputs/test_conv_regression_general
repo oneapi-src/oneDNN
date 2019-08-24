@@ -91,3 +91,8 @@ mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 
 # MFDNN-1968 1x1 conv asymmetrical strides with stride_h=1
 --reset --dir=BWD_D mb1ic2ih10iw8oc4oh10ow4kh1kw1sh1sw2ph0pw0dh0dw0
+
+# github #542
+# r_overflow1 corner case
+--reset --dir=bwd_d mb1_ic9oc3_ih32oh10kh5sh3dh0ph1
+
