@@ -241,21 +241,6 @@ private:
 dnnl_status_t execute_and_wait(
         dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args);
 
-inline int measure_perf(
-        benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
-    if (bench_mode & PERF) {
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(prim, stream_tgt, args), WARN);
-            t.stamp();
-            const bool stop = false
-                    || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                    || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                            && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
-    return OK;
-}
+int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 #endif
